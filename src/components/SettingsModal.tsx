@@ -18,12 +18,15 @@ import {
   FolderOpen,
   Link,
   Unlink,
-  AlertTriangle
+  AlertTriangle,
+  Settings,
+  Image,
+  ExternalLink
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { supabase, signOut } from '../lib/supabase'
 
-type SettingsTab = 'account' | 'vault' | 'organization'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'preferences'
 
 interface OrgUser {
   id: string
@@ -59,7 +62,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setUser,
     setOrganization,
     addToast,
-    triggerVaultsRefresh
+    triggerVaultsRefresh,
+    cadPreviewMode,
+    setCadPreviewMode,
+    lowercaseExtensions,
+    setLowercaseExtensions
   } = usePDMStore()
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('account')
@@ -418,6 +425,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     { id: 'account' as SettingsTab, icon: User, label: 'Account' },
     { id: 'vault' as SettingsTab, icon: FolderCog, label: 'Local Vaults' },
     { id: 'organization' as SettingsTab, icon: Building2, label: 'Organization' },
+    { id: 'preferences' as SettingsTab, icon: Settings, label: 'Preferences' },
   ]
 
   return (
@@ -852,6 +860,88 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     No organization connected
                   </div>
                 )}
+              </div>
+            )}
+            
+            {activeTab === 'preferences' && (
+              <div className="space-y-6">
+                {/* CAD Preview Mode */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-pdm-fg">SolidWorks Preview</h3>
+                  <p className="text-sm text-pdm-fg-muted">
+                    Choose how to preview SolidWorks files (.sldprt, .sldasm, .slddrw)
+                  </p>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setCadPreviewMode('thumbnail')}
+                      className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-colors ${
+                        cadPreviewMode === 'thumbnail'
+                          ? 'bg-pdm-accent/10 border-pdm-accent'
+                          : 'bg-pdm-bg border-pdm-border hover:border-pdm-fg-muted'
+                      }`}
+                    >
+                      <Image size={24} className={cadPreviewMode === 'thumbnail' ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                      <div className="text-left flex-1">
+                        <div className={`text-sm font-medium ${cadPreviewMode === 'thumbnail' ? 'text-pdm-fg' : 'text-pdm-fg-muted'}`}>
+                          Embedded Thumbnail
+                        </div>
+                        <div className="text-xs text-pdm-fg-dim">
+                          Extract and display the preview image stored inside SolidWorks files
+                        </div>
+                      </div>
+                      {cadPreviewMode === 'thumbnail' && (
+                        <Check size={20} className="text-pdm-accent" />
+                      )}
+                    </button>
+                    
+                    <button
+                      onClick={() => setCadPreviewMode('edrawings')}
+                      className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-colors ${
+                        cadPreviewMode === 'edrawings'
+                          ? 'bg-pdm-accent/10 border-pdm-accent'
+                          : 'bg-pdm-bg border-pdm-border hover:border-pdm-fg-muted'
+                      }`}
+                    >
+                      <ExternalLink size={24} className={cadPreviewMode === 'edrawings' ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                      <div className="text-left flex-1">
+                        <div className={`text-sm font-medium ${cadPreviewMode === 'edrawings' ? 'text-pdm-fg' : 'text-pdm-fg-muted'}`}>
+                          eDrawings (External)
+                        </div>
+                        <div className="text-xs text-pdm-fg-dim">
+                          Open files directly in the eDrawings application for full 3D interaction
+                        </div>
+                      </div>
+                      {cadPreviewMode === 'edrawings' && (
+                        <Check size={20} className="text-pdm-accent" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Display Settings */}
+                <div className="space-y-3 pt-4 border-t border-pdm-border">
+                  <h3 className="text-sm font-semibold text-pdm-fg">Display</h3>
+                  <label className="flex items-center justify-between p-3 rounded-lg border border-pdm-border bg-pdm-bg hover:border-pdm-fg-muted transition-colors cursor-pointer">
+                    <div>
+                      <div className="text-sm font-medium text-pdm-fg">Lowercase Extensions</div>
+                      <div className="text-xs text-pdm-fg-dim">
+                        Display file extensions in lowercase (e.g., .sldprt instead of .SLDPRT)
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setLowercaseExtensions(!lowercaseExtensions)}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${
+                        lowercaseExtensions ? 'bg-pdm-accent' : 'bg-pdm-border'
+                      }`}
+                    >
+                      <span 
+                        className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                          lowercaseExtensions ? 'left-6' : 'left-1'
+                        }`}
+                      />
+                    </button>
+                  </label>
+                </div>
               </div>
             )}
           </div>

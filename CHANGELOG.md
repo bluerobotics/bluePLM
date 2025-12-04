@@ -2,6 +2,25 @@
 
 All notable changes to BluePDM will be documented in this file.
 
+## [0.7.0] - 2024-12-04
+
+### Added
+- SolidWorks file preview with embedded thumbnail extraction from .sldprt, .sldasm, .slddrw files
+- Settings → Preferences panel with preview options (thumbnail vs external eDrawings)
+- Lowercase extensions display setting (default: on) - shows .sldprt instead of .SLDPRT
+- Explorer view file selection now shows details in bottom panel
+- PDF preview in the Preview tab
+- Image preview support (PNG, JPG, GIF, BMP, WebP, SVG)
+- Native eDrawings module scaffolding for future embedded 3D preview
+
+### Changed
+- Preview tab is now the default tab in the details panel
+- File extensions displayed consistently across all views based on user preference
+
+### Fixed
+- Bottom panel resize functionality
+- Extension display consistency across Name column, Type column, and Explorer view
+
 ## [0.6.0] - 2024-12-04
 
 ### Added

@@ -9,6 +9,7 @@ import { DetailsPanel } from './components/DetailsPanel'
 import { StatusBar } from './components/StatusBar'
 import { WelcomeScreen } from './components/WelcomeScreen'
 import { Toast } from './components/Toast'
+import { RightPanel } from './components/RightPanel'
 
 function App() {
   const {
@@ -24,6 +25,10 @@ function App() {
     toggleSidebar,
     detailsPanelVisible,
     toggleDetailsPanel,
+    setDetailsPanelHeight,
+    rightPanelVisible,
+    setRightPanelWidth,
+    rightPanelTabs,
     setVaultPath,
     setVaultConnected,
     setFiles,
@@ -43,6 +48,7 @@ function App() {
 
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
   const [isResizingDetails, setIsResizingDetails] = useState(false)
+  const [isResizingRightPanel, setIsResizingRightPanel] = useState(false)
 
   // Initialize auth state (runs in background, doesn't block UI)
   useEffect(() => {
@@ -440,24 +446,40 @@ function App() {
     loadFiles()
   }, [isVaultConnected, vaultPath, isOfflineMode, user, organization, currentVaultId, loadFiles, setIsLoading, setStatusMessage])
 
-  // Handle sidebar resize
+  // Handle sidebar, details panel, and right panel resize
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizingSidebar) {
         const newWidth = e.clientX - 48
         setSidebarWidth(newWidth)
       }
+      if (isResizingDetails) {
+        // Calculate height from bottom of window
+        const windowHeight = window.innerHeight
+        const statusBarHeight = 24 // Approximate status bar height
+        const newHeight = windowHeight - e.clientY - statusBarHeight
+        // Allow up to 80% of window height
+        setDetailsPanelHeight(Math.max(100, Math.min(windowHeight * 0.8, newHeight)))
+      }
+      if (isResizingRightPanel) {
+        // Calculate width from right edge
+        const windowWidth = window.innerWidth
+        const newWidth = windowWidth - e.clientX
+        // Allow up to 70% of window width
+        setRightPanelWidth(Math.max(200, Math.min(windowWidth * 0.7, newWidth)))
+      }
     }
 
     const handleMouseUp = () => {
       setIsResizingSidebar(false)
       setIsResizingDetails(false)
+      setIsResizingRightPanel(false)
     }
 
-    if (isResizingSidebar || isResizingDetails) {
+    if (isResizingSidebar || isResizingDetails || isResizingRightPanel) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = isResizingSidebar ? 'col-resize' : 'row-resize'
+      document.body.style.cursor = (isResizingSidebar || isResizingRightPanel) ? 'col-resize' : 'row-resize'
       document.body.style.userSelect = 'none'
     }
 
@@ -467,7 +489,7 @@ function App() {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizingSidebar, isResizingDetails, setSidebarWidth])
+  }, [isResizingSidebar, isResizingDetails, isResizingRightPanel, setSidebarWidth, setDetailsPanelHeight, setRightPanelWidth])
 
   // Menu event handlers
   useEffect(() => {
@@ -614,6 +636,17 @@ function App() {
             </>
           )}
         </div>
+
+        {/* Right Panel */}
+        {rightPanelVisible && rightPanelTabs.length > 0 && !showWelcome && (
+          <>
+            <div
+              className="w-1 bg-pdm-border hover:bg-pdm-accent cursor-col-resize transition-colors flex-shrink-0"
+              onMouseDown={() => setIsResizingRightPanel(true)}
+            />
+            <RightPanel />
+          </>
+        )}
       </div>
 
       <StatusBar />

@@ -910,6 +910,245 @@ ipcMain.handle('dialog:save-file', async (_, defaultName: string) => {
 })
 
 // ============================================
+// eDrawings Preview & SolidWorks Thumbnails
+// ============================================
+
+// Try to load native eDrawings module
+let edrawingsNative: any = null
+try {
+  edrawingsNative = require('../native/build/Release/edrawings_preview.node')
+  log('[eDrawings] Native module loaded successfully')
+} catch (err) {
+  log('[eDrawings] Native module not available:', err)
+}
+
+// Extract thumbnail from SolidWorks files (OLE Compound Document)
+// SolidWorks stores preview images in the "\x05SummaryInformation" or as embedded PNG/BMP
+async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: boolean; data?: string; error?: string }> {
+  try {
+    const buffer = fs.readFileSync(filePath)
+    
+    // Look for PNG signature in the file
+    const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+    let pngStart = buffer.indexOf(pngSignature)
+    
+    if (pngStart !== -1) {
+      // Find PNG end (IEND chunk)
+      const iendSignature = Buffer.from([0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82])
+      let pngEnd = buffer.indexOf(iendSignature, pngStart)
+      
+      if (pngEnd !== -1) {
+        pngEnd += 8 // Include the IEND chunk
+        const pngData = buffer.slice(pngStart, pngEnd)
+        return { success: true, data: `data:image/png;base64,${pngData.toString('base64')}` }
+      }
+    }
+    
+    // Look for JFIF/JPEG signature
+    const jpegSignature = Buffer.from([0xFF, 0xD8, 0xFF])
+    let jpegStart = buffer.indexOf(jpegSignature)
+    
+    if (jpegStart !== -1) {
+      // Find JPEG end marker
+      const jpegEnd = buffer.indexOf(Buffer.from([0xFF, 0xD9]), jpegStart)
+      if (jpegEnd !== -1) {
+        const jpegData = buffer.slice(jpegStart, jpegEnd + 2)
+        return { success: true, data: `data:image/jpeg;base64,${jpegData.toString('base64')}` }
+      }
+    }
+    
+    // Look for BMP signature
+    const bmpSignature = Buffer.from([0x42, 0x4D]) // "BM"
+    let bmpStart = buffer.indexOf(bmpSignature)
+    
+    // Find a reasonable BMP (check for valid size header)
+    while (bmpStart !== -1 && bmpStart < buffer.length - 54) {
+      // Read BMP file size from header (offset 2, 4 bytes, little-endian)
+      const bmpSize = buffer.readUInt32LE(bmpStart + 2)
+      if (bmpSize > 100 && bmpSize < 10000000 && bmpStart + bmpSize <= buffer.length) {
+        const bmpData = buffer.slice(bmpStart, bmpStart + bmpSize)
+        return { success: true, data: `data:image/bmp;base64,${bmpData.toString('base64')}` }
+      }
+      bmpStart = buffer.indexOf(bmpSignature, bmpStart + 1)
+    }
+    
+    return { success: false, error: 'No embedded thumbnail found' }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+// IPC handler for extracting thumbnails
+ipcMain.handle('solidworks:extract-thumbnail', async (_, filePath: string) => {
+  return extractSolidWorksThumbnail(filePath)
+})
+
+// Check if eDrawings is installed
+ipcMain.handle('edrawings:check-installed', async () => {
+  // Try native module first
+  if (edrawingsNative?.checkEDrawingsInstalled) {
+    try {
+      return edrawingsNative.checkEDrawingsInstalled()
+    } catch (err) {
+      log('[eDrawings] Native check failed:', err)
+    }
+  }
+  
+  // Fallback: Check common eDrawings installation paths
+  const paths = [
+    'C:\\Program Files\\SOLIDWORKS Corp\\eDrawings\\eDrawings.exe',
+    'C:\\Program Files\\eDrawings\\eDrawings.exe',
+    'C:\\Program Files (x86)\\eDrawings\\eDrawings.exe',
+    'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\eDrawings\\eDrawings.exe'
+  ]
+  
+  for (const ePath of paths) {
+    if (fs.existsSync(ePath)) {
+      return { installed: true, path: ePath }
+    }
+  }
+  
+  return { installed: false, path: null }
+})
+
+// Check if native embedding is available
+ipcMain.handle('edrawings:native-available', () => {
+  return edrawingsNative !== null
+})
+
+// Open file in eDrawings
+ipcMain.handle('edrawings:open-file', async (_, filePath: string) => {
+  // Find eDrawings executable
+  const eDrawingsPaths = [
+    'C:\\Program Files\\SOLIDWORKS Corp\\eDrawings\\eDrawings.exe',
+    'C:\\Program Files\\eDrawings\\eDrawings.exe',
+    'C:\\Program Files (x86)\\eDrawings\\eDrawings.exe',
+    'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\eDrawings\\eDrawings.exe'
+  ]
+  
+  let eDrawingsPath: string | null = null
+  for (const ePath of eDrawingsPaths) {
+    if (fs.existsSync(ePath)) {
+      eDrawingsPath = ePath
+      break
+    }
+  }
+  
+  if (!eDrawingsPath) {
+    // Fallback to shell open if eDrawings not found
+    try {
+      await shell.openPath(filePath)
+      return { success: true, fallback: true }
+    } catch (err) {
+      return { success: false, error: 'eDrawings not found' }
+    }
+  }
+  
+  try {
+    // Launch eDrawings with the file
+    const { spawn } = require('child_process')
+    spawn(eDrawingsPath, [filePath], { 
+      detached: true,
+      stdio: 'ignore'
+    }).unref()
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+// Get the native window handle for embedding
+ipcMain.handle('edrawings:get-window-handle', () => {
+  if (!mainWindow) return null
+  
+  // Get the native window handle (HWND on Windows)
+  const handle = mainWindow.getNativeWindowHandle()
+  // Return as array of bytes that can be reconstructed
+  return Array.from(handle)
+})
+
+// Embedded eDrawings preview control management
+let edrawingsPreview: any = null
+
+ipcMain.handle('edrawings:create-preview', () => {
+  if (!edrawingsNative?.EDrawingsPreview) {
+    return { success: false, error: 'Native module not available' }
+  }
+  
+  try {
+    edrawingsPreview = new edrawingsNative.EDrawingsPreview()
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('edrawings:attach-preview', () => {
+  if (!edrawingsPreview || !mainWindow) {
+    return { success: false, error: 'Preview not created or window not available' }
+  }
+  
+  try {
+    const handle = mainWindow.getNativeWindowHandle()
+    const result = edrawingsPreview.attachToWindow(handle)
+    return { success: result }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('edrawings:load-file', async (_, filePath: string) => {
+  if (!edrawingsPreview) {
+    return { success: false, error: 'Preview not attached' }
+  }
+  
+  try {
+    const result = edrawingsPreview.loadFile(filePath)
+    return { success: result }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('edrawings:set-bounds', async (_, x: number, y: number, width: number, height: number) => {
+  if (!edrawingsPreview) {
+    return { success: false }
+  }
+  
+  try {
+    edrawingsPreview.setBounds(x, y, width, height)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('edrawings:show-preview', () => {
+  if (!edrawingsPreview) return { success: false }
+  try {
+    edrawingsPreview.show()
+    return { success: true }
+  } catch { return { success: false } }
+})
+
+ipcMain.handle('edrawings:hide-preview', () => {
+  if (!edrawingsPreview) return { success: false }
+  try {
+    edrawingsPreview.hide()
+    return { success: true }
+  } catch { return { success: false } }
+})
+
+ipcMain.handle('edrawings:destroy-preview', () => {
+  if (!edrawingsPreview) return { success: true }
+  try {
+    edrawingsPreview.destroy()
+    edrawingsPreview = null
+    return { success: true }
+  } catch { return { success: false } }
+})
+
+// ============================================
 // App Lifecycle
 // ============================================
 

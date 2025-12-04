@@ -3,7 +3,8 @@ import { persist } from 'zustand/middleware'
 import type { PDMFile, FileState, Organization, User } from '../types/pdm'
 
 export type SidebarView = 'explorer' | 'checkout' | 'history' | 'search' | 'settings'
-export type DetailsPanelTab = 'properties' | 'whereused' | 'contains' | 'history'
+export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history'
+export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning'
 export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud'
 
@@ -104,6 +105,12 @@ interface PDMState {
   detailsPanelHeight: number
   detailsPanelTab: DetailsPanelTab
   
+  // Right panel (dockable from bottom panel)
+  rightPanelVisible: boolean
+  rightPanelWidth: number
+  rightPanelTab: DetailsPanelTab | null
+  rightPanelTabs: DetailsPanelTab[]  // Tabs stacked in right panel
+  
   // Columns configuration
   columns: ColumnConfig[]
   
@@ -130,6 +137,12 @@ interface PDMState {
   recentVaults: string[]
   autoConnect: boolean
   
+  // Preview settings
+  cadPreviewMode: 'thumbnail' | 'edrawings'  // thumbnail = embedded preview, edrawings = open externally
+  
+  // Display settings
+  lowercaseExtensions: boolean  // Display file extensions in lowercase
+  
   // Pinned items (quick access)
   pinnedFolders: { path: string; vaultId: string; vaultName: string; isDirectory: boolean }[]
   pinnedSectionExpanded: boolean
@@ -150,6 +163,12 @@ interface PDMState {
   setVaultConnected: (connected: boolean) => void
   addRecentVault: (path: string) => void
   setAutoConnect: (auto: boolean) => void
+  
+  // Actions - Preview settings
+  setCadPreviewMode: (mode: 'thumbnail' | 'edrawings') => void
+  
+  // Actions - Display settings
+  setLowercaseExtensions: (enabled: boolean) => void
   
   // Actions - Pinned items
   pinFolder: (path: string, vaultId: string, vaultName: string, isDirectory: boolean) => void
@@ -198,6 +217,13 @@ interface PDMState {
   toggleDetailsPanel: () => void
   setDetailsPanelHeight: (height: number) => void
   setDetailsPanelTab: (tab: DetailsPanelTab) => void
+  
+  // Actions - Right Panel
+  toggleRightPanel: () => void
+  setRightPanelWidth: (width: number) => void
+  setRightPanelTab: (tab: DetailsPanelTab | null) => void
+  moveTabToRight: (tab: DetailsPanelTab) => void
+  moveTabToBottom: (tab: DetailsPanelTab) => void
   
   // Actions - Columns
   setColumnWidth: (id: string, width: number) => void
@@ -276,7 +302,12 @@ export const usePDMStore = create<PDMState>()(
       activeView: 'explorer',
       detailsPanelVisible: true,
       detailsPanelHeight: 250,
-      detailsPanelTab: 'properties',
+      detailsPanelTab: 'preview',
+      
+      rightPanelVisible: false,
+      rightPanelWidth: 350,
+      rightPanelTab: null,
+      rightPanelTabs: [],
       
       columns: defaultColumns,
       
@@ -298,6 +329,8 @@ export const usePDMStore = create<PDMState>()(
       
       recentVaults: [],
       autoConnect: true,
+      cadPreviewMode: 'thumbnail',
+      lowercaseExtensions: true,
       pinnedFolders: [],
       pinnedSectionExpanded: true,
       
@@ -326,6 +359,8 @@ export const usePDMStore = create<PDMState>()(
         set({ recentVaults: updated })
       },
       setAutoConnect: (autoConnect) => set({ autoConnect }),
+      setCadPreviewMode: (cadPreviewMode) => set({ cadPreviewMode }),
+      setLowercaseExtensions: (lowercaseExtensions) => set({ lowercaseExtensions }),
       
       // Actions - Pinned items
       pinFolder: (path, vaultId, vaultName, isDirectory) => {
@@ -481,8 +516,36 @@ export const usePDMStore = create<PDMState>()(
       setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(500, width)) }),
       setActiveView: (activeView) => set({ activeView, sidebarVisible: true }),
       toggleDetailsPanel: () => set((s) => ({ detailsPanelVisible: !s.detailsPanelVisible })),
-      setDetailsPanelHeight: (height) => set({ detailsPanelHeight: Math.max(150, Math.min(500, height)) }),
+      setDetailsPanelHeight: (height) => set({ detailsPanelHeight: Math.max(100, Math.min(1200, height)) }),
       setDetailsPanelTab: (detailsPanelTab) => set({ detailsPanelTab }),
+      
+      // Actions - Right Panel
+      toggleRightPanel: () => set((s) => ({ rightPanelVisible: !s.rightPanelVisible })),
+      setRightPanelWidth: (width) => set({ rightPanelWidth: Math.max(200, Math.min(1200, width)) }),
+      setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
+      moveTabToRight: (tab) => {
+        const { rightPanelTabs, detailsPanelTab } = get()
+        // Add tab to right panel if not already there
+        if (!rightPanelTabs.includes(tab)) {
+          set({ 
+            rightPanelTabs: [...rightPanelTabs, tab],
+            rightPanelTab: tab,
+            rightPanelVisible: true,
+            // If we moved the active bottom tab, switch to another
+            detailsPanelTab: detailsPanelTab === tab ? 'properties' : detailsPanelTab
+          })
+        }
+      },
+      moveTabToBottom: (tab) => {
+        const { rightPanelTabs, rightPanelTab } = get()
+        const newTabs = rightPanelTabs.filter(t => t !== tab)
+        set({ 
+          rightPanelTabs: newTabs,
+          rightPanelTab: newTabs.length > 0 ? (rightPanelTab === tab ? newTabs[0] : rightPanelTab) : null,
+          rightPanelVisible: newTabs.length > 0,
+          detailsPanelTab: tab
+        })
+      },
       
       // Actions - Columns
       setColumnWidth: (id, width) => {
@@ -638,6 +701,8 @@ export const usePDMStore = create<PDMState>()(
         vaultName: state.vaultName,
         recentVaults: state.recentVaults,
         autoConnect: state.autoConnect,
+        cadPreviewMode: state.cadPreviewMode,
+        lowercaseExtensions: state.lowercaseExtensions,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         connectedVaults: state.connectedVaults,
@@ -647,6 +712,9 @@ export const usePDMStore = create<PDMState>()(
         activeView: state.activeView,
         detailsPanelVisible: state.detailsPanelVisible,
         detailsPanelHeight: state.detailsPanelHeight,
+        rightPanelVisible: state.rightPanelVisible,
+        rightPanelWidth: state.rightPanelWidth,
+        rightPanelTabs: state.rightPanelTabs,
         columns: state.columns,
         expandedFolders: Array.from(state.expandedFolders)
       }),
@@ -657,6 +725,10 @@ export const usePDMStore = create<PDMState>()(
           ...persisted,
           // Convert expandedFolders back to Set
           expandedFolders: new Set(persisted.expandedFolders as string[] || []),
+          // Ensure cadPreviewMode has a default
+          cadPreviewMode: (persisted.cadPreviewMode as 'thumbnail' | 'edrawings') || 'thumbnail',
+          // Ensure lowercaseExtensions has a default (true)
+          lowercaseExtensions: persisted.lowercaseExtensions !== undefined ? persisted.lowercaseExtensions as boolean : true,
           // Ensure columns have all fields
           columns: currentState.columns.map(defaultCol => {
             const persistedCol = (persisted.columns as ColumnConfig[] || [])

@@ -8,12 +8,15 @@ import {
   Mail,
   Shield,
   LogOut,
-  Loader2
+  Loader2,
+  Settings,
+  Image,
+  ExternalLink
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase, signOut } from '../../lib/supabase'
 
-type SettingsTab = 'account' | 'vault' | 'organization'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'preferences'
 
 interface OrgUser {
   id: string
@@ -32,7 +35,9 @@ export function SettingsView() {
     vaultName, 
     setVaultName,
     setUser,
-    setOrganization
+    setOrganization,
+    cadPreviewMode,
+    setCadPreviewMode
   } = usePDMStore()
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('account')
@@ -90,6 +95,7 @@ export function SettingsView() {
     { id: 'account' as SettingsTab, icon: User, label: 'Account' },
     { id: 'vault' as SettingsTab, icon: FolderCog, label: 'Vault' },
     { id: 'organization' as SettingsTab, icon: Building2, label: 'Organization' },
+    { id: 'preferences' as SettingsTab, icon: Settings, label: 'Preferences' },
   ]
 
   return (
@@ -293,6 +299,52 @@ export function SettingsView() {
                 No organization connected
               </div>
             )}
+          </div>
+        )}
+        
+        {activeTab === 'preferences' && (
+          <div className="space-y-4">
+            {/* CAD Preview Mode */}
+            <div className="space-y-2">
+              <label className="text-xs text-pdm-fg-muted uppercase tracking-wide">
+                SolidWorks Preview
+              </label>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setCadPreviewMode('thumbnail')}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    cadPreviewMode === 'thumbnail'
+                      ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-fg'
+                      : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                  }`}
+                >
+                  <Image size={20} className={cadPreviewMode === 'thumbnail' ? 'text-pdm-accent' : ''} />
+                  <div className="text-left">
+                    <div className="text-sm font-medium">Embedded Thumbnail</div>
+                    <div className="text-xs opacity-70">
+                      Extract and show preview image from SW file
+                    </div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => setCadPreviewMode('edrawings')}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    cadPreviewMode === 'edrawings'
+                      ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-fg'
+                      : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                  }`}
+                >
+                  <ExternalLink size={20} className={cadPreviewMode === 'edrawings' ? 'text-pdm-accent' : ''} />
+                  <div className="text-left">
+                    <div className="text-sm font-medium">eDrawings (External)</div>
+                    <div className="text-xs opacity-70">
+                      Open files in external eDrawings app
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

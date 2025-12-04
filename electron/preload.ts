@@ -107,6 +107,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFiles: () => ipcRenderer.invoke('dialog:select-files'),
   showSaveDialog: (defaultName: string) => ipcRenderer.invoke('dialog:save-file', defaultName),
 
+  // eDrawings preview
+  checkEDrawingsInstalled: () => ipcRenderer.invoke('edrawings:check-installed'),
+  openInEDrawings: (filePath: string) => ipcRenderer.invoke('edrawings:open-file', filePath),
+  getWindowHandle: () => ipcRenderer.invoke('edrawings:get-window-handle'),
+  
+  // SolidWorks thumbnail extraction
+  extractSolidWorksThumbnail: (filePath: string) => ipcRenderer.invoke('solidworks:extract-thumbnail', filePath),
+  
+  // Embedded eDrawings preview
+  isEDrawingsNativeAvailable: () => ipcRenderer.invoke('edrawings:native-available'),
+  createEDrawingsPreview: () => ipcRenderer.invoke('edrawings:create-preview'),
+  attachEDrawingsPreview: () => ipcRenderer.invoke('edrawings:attach-preview'),
+  loadEDrawingsFile: (filePath: string) => ipcRenderer.invoke('edrawings:load-file', filePath),
+  setEDrawingsBounds: (x: number, y: number, w: number, h: number) => ipcRenderer.invoke('edrawings:set-bounds', x, y, w, h),
+  showEDrawingsPreview: () => ipcRenderer.invoke('edrawings:show-preview'),
+  hideEDrawingsPreview: () => ipcRenderer.invoke('edrawings:hide-preview'),
+  destroyEDrawingsPreview: () => ipcRenderer.invoke('edrawings:destroy-preview'),
+
   // Menu event listeners
   onMenuEvent: (callback: (event: string) => void) => {
     const events = [
@@ -187,6 +205,24 @@ declare global {
       // Dialogs
       selectFiles: () => Promise<FileSelectResult>
       showSaveDialog: (defaultName: string) => Promise<SaveDialogResult>
+      
+      // eDrawings preview
+      checkEDrawingsInstalled: () => Promise<{ installed: boolean; path: string | null }>
+      openInEDrawings: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      getWindowHandle: () => Promise<number[] | null>
+      
+      // SolidWorks thumbnail extraction  
+      extractSolidWorksThumbnail: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>
+      
+      // Embedded eDrawings preview
+      isEDrawingsNativeAvailable: () => Promise<boolean>
+      createEDrawingsPreview: () => Promise<{ success: boolean; error?: string }>
+      attachEDrawingsPreview: () => Promise<{ success: boolean; error?: string }>
+      loadEDrawingsFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      setEDrawingsBounds: (x: number, y: number, w: number, h: number) => Promise<{ success: boolean }>
+      showEDrawingsPreview: () => Promise<{ success: boolean }>
+      hideEDrawingsPreview: () => Promise<{ success: boolean }>
+      destroyEDrawingsPreview: () => Promise<{ success: boolean }>
       
       // Menu events
       onMenuEvent: (callback: (event: string) => void) => () => void

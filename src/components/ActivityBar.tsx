@@ -58,7 +58,6 @@ export function ActivityBar() {
         />
       </div>
       
-      {/* Settings moved to top bar */}
       <div className="flex-1" />
     </div>
   )

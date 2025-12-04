@@ -24,7 +24,10 @@ import {
   FileCode,
   Cpu,
   FileType,
-  FilePen
+  FilePen,
+  ExternalLink,
+  Download,
+  Eye
 } from 'lucide-react'
 
 interface VersionEntry {
@@ -46,8 +49,12 @@ export function DetailsPanel() {
     detailsPanelHeight,
     detailsPanelTab,
     setDetailsPanelTab,
+    rightPanelTabs,
+    moveTabToRight,
     user,
-    addToast
+    addToast,
+    cadPreviewMode,
+    lowercaseExtensions
   } = usePDMStore()
 
   const selectedFileObjects = getSelectedFileObjects()
@@ -56,6 +63,103 @@ export function DetailsPanel() {
   const [versions, setVersions] = useState<VersionEntry[]>([])
   const [isLoadingVersions, setIsLoadingVersions] = useState(false)
   const [rollingBack, setRollingBack] = useState<number | null>(null)
+  
+  // eDrawings state
+  const [eDrawingsStatus, setEDrawingsStatus] = useState<{
+    checked: boolean
+    installed: boolean
+    path: string | null
+  }>({ checked: false, installed: false, path: null })
+  
+  // PDF preview state
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  
+  // CAD thumbnail preview state
+  const [cadThumbnail, setCadThumbnail] = useState<string | null>(null)
+  const [cadThumbnailLoading, setCadThumbnailLoading] = useState(false)
+
+  // Check if eDrawings is installed (once on mount)
+  useEffect(() => {
+    const checkEDrawings = async () => {
+      if (!window.electronAPI?.checkEDrawingsInstalled) {
+        setEDrawingsStatus({ checked: true, installed: false, path: null })
+        return
+      }
+      
+      try {
+        const result = await window.electronAPI.checkEDrawingsInstalled()
+        setEDrawingsStatus({
+          checked: true,
+          installed: result.installed,
+          path: result.path
+        })
+      } catch (err) {
+        console.error('Failed to check eDrawings:', err)
+        setEDrawingsStatus({ checked: true, installed: false, path: null })
+      }
+    }
+    
+    checkEDrawings()
+  }, [])
+  
+  // Load PDF when file changes and preview tab is active
+  useEffect(() => {
+    const loadPdf = async () => {
+      if (!file?.path || file.extension?.toLowerCase() !== '.pdf' || detailsPanelTab !== 'preview') {
+        setPdfDataUrl(null)
+        return
+      }
+      
+      setPdfLoading(true)
+      try {
+        const result = await window.electronAPI?.readFile(file.path)
+        if (result?.success && result.data) {
+          setPdfDataUrl(`data:application/pdf;base64,${result.data}`)
+        } else {
+          setPdfDataUrl(null)
+        }
+      } catch (err) {
+        console.error('Failed to load PDF:', err)
+        setPdfDataUrl(null)
+      } finally {
+        setPdfLoading(false)
+      }
+    }
+    
+    loadPdf()
+  }, [file?.path, file?.extension, detailsPanelTab])
+
+  // Load CAD thumbnail when file changes (only if in thumbnail mode)
+  useEffect(() => {
+    const loadThumbnail = async () => {
+      const ext = file?.extension?.toLowerCase() || ''
+      const isSolidWorks = ['.sldprt', '.sldasm', '.slddrw'].includes(ext)
+      
+      // Don't load thumbnail if we're in eDrawings mode
+      if (cadPreviewMode === 'edrawings' || !isSolidWorks || detailsPanelTab !== 'preview' || !file?.path) {
+        setCadThumbnail(null)
+        return
+      }
+      
+      setCadThumbnailLoading(true)
+      try {
+        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
+        if (result?.success && result.data) {
+          setCadThumbnail(result.data)
+        } else {
+          setCadThumbnail(null)
+        }
+      } catch (err) {
+        console.error('Failed to extract thumbnail:', err)
+        setCadThumbnail(null)
+      } finally {
+        setCadThumbnailLoading(false)
+      }
+    }
+    
+    loadThumbnail()
+  }, [file?.path, file?.extension, detailsPanelTab, cadPreviewMode])
 
   // Load version history when file changes or history tab is selected
   useEffect(() => {
@@ -157,12 +261,34 @@ export function DetailsPanel() {
     }
   }
 
-  const tabs = [
+  const allTabs = [
+    { id: 'preview', label: 'Preview' },
     { id: 'properties', label: 'Properties' },
     { id: 'whereused', label: 'Where Used' },
     { id: 'contains', label: 'Contains' },
     { id: 'history', label: 'History' },
   ] as const
+  
+  // Filter out tabs that are in the right panel
+  const tabs = allTabs.filter(tab => !rightPanelTabs.includes(tab.id))
+  
+  // Check file types for preview
+  const ext = file?.extension?.toLowerCase() || ''
+  const isCADFile = ['.sldprt', '.sldasm', '.slddrw', '.step', '.stp', '.stl', '.iges', '.igs'].includes(ext)
+  const isImageFile = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'].includes(ext)
+  const isPDFFile = ext === '.pdf'
+  
+  // Open file in eDrawings
+  const handleOpenInEDrawings = async () => {
+    if (!file?.path) return
+    
+    try {
+      await window.electronAPI?.openInEDrawings(file.path)
+    } catch (err) {
+      console.error('Failed to open in eDrawings:', err)
+      addToast('error', 'Failed to open in eDrawings')
+    }
+  }
 
   return (
     <div 
@@ -176,6 +302,8 @@ export function DetailsPanel() {
             key={tab.id}
             className={`tab ${detailsPanelTab === tab.id ? 'active' : ''}`}
             onClick={() => setDetailsPanelTab(tab.id)}
+            onDoubleClick={() => moveTabToRight(tab.id)}
+            title="Double-click to move to right panel"
           >
             {tab.label}
           </button>
@@ -230,7 +358,11 @@ export function DetailsPanel() {
                   <PropertyItem 
                     icon={<Info size={14} />}
                     label="Type"
-                    value={file.extension ? file.extension.replace('.', '').toUpperCase() : 'Folder'}
+                    value={file.extension 
+                      ? lowercaseExtensions !== false
+                        ? file.extension.replace('.', '').toLowerCase() 
+                        : file.extension.replace('.', '').toUpperCase() 
+                      : 'Folder'}
                   />
                   <PropertyItem 
                     icon={<Clock size={14} />}
@@ -262,6 +394,181 @@ export function DetailsPanel() {
                     value={file.pdmData ? 'Synced' : 'Local only'}
                   />
                 </div>
+              </div>
+            )}
+
+            {detailsPanelTab === 'preview' && (
+              <div className="flex flex-col items-center justify-center h-full py-4">
+                {!file ? (
+                  <div className="text-sm text-pdm-fg-muted">Select a file to preview</div>
+                ) : isPDFFile ? (
+                  // PDF preview using Chromium's built-in viewer
+                  <div className="w-full h-full flex items-center justify-center">
+                    {pdfLoading ? (
+                      <div className="flex items-center gap-2 text-pdm-fg-muted">
+                        <Loader2 className="animate-spin" size={20} />
+                        <span>Loading PDF...</span>
+                      </div>
+                    ) : pdfDataUrl ? (
+                      <iframe
+                        src={pdfDataUrl}
+                        className="w-full h-full border-0 rounded bg-white"
+                        title={file.name}
+                      />
+                    ) : (
+                      <div className="text-sm text-pdm-fg-muted text-center">
+                        <Eye size={48} className="mx-auto mb-4 opacity-30" />
+                        <div>Failed to load PDF</div>
+                        <button
+                          onClick={() => window.electronAPI?.openFile(file.path)}
+                          className="btn btn-secondary gap-2 mt-4"
+                        >
+                          <ExternalLink size={14} />
+                          Open Externally
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : isImageFile ? (
+                  // Image preview
+                  <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                    <img 
+                      src={`file://${file.path}`} 
+                      alt={file.name}
+                      className="max-w-full max-h-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
+                  </div>
+                ) : isCADFile ? (
+                  // CAD file - show thumbnail or eDrawings based on setting
+                  <div className="w-full h-full flex flex-col">
+                    {cadPreviewMode === 'edrawings' ? (
+                      // eDrawings mode - just show button to open externally
+                      eDrawingsStatus.installed ? (
+                        <div className="flex-1 flex flex-col items-center justify-center">
+                          <FileBox size={48} className="mb-4 text-pdm-accent" />
+                          <div className="text-sm font-medium mb-2">{file.name}</div>
+                          <button
+                            onClick={handleOpenInEDrawings}
+                            className="btn btn-primary gap-2"
+                          >
+                            <ExternalLink size={16} />
+                            Open in eDrawings
+                          </button>
+                          <div className="text-xs text-pdm-fg-muted mt-4">
+                            Using external viewer (change in Settings → Preferences)
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center">
+                          <Eye size={48} className="mb-4 text-pdm-fg-muted opacity-50" />
+                          <div className="text-lg font-medium mb-2">eDrawings Not Found</div>
+                          <div className="text-sm text-pdm-fg-muted mb-4 max-w-xs">
+                            Install the free eDrawings viewer to preview SolidWorks files.
+                          </div>
+                          <a
+                            href="https://www.solidworks.com/support/free-downloads"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-primary gap-2"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              window.electronAPI?.openFile('https://www.solidworks.com/support/free-downloads')
+                            }}
+                          >
+                            <Download size={16} />
+                            Download eDrawings (Free)
+                          </a>
+                        </div>
+                      )
+                    ) : cadThumbnailLoading ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <Loader2 className="animate-spin text-pdm-accent" size={32} />
+                      </div>
+                    ) : cadThumbnail ? (
+                      // Show extracted thumbnail
+                      <div className="flex-1 flex flex-col">
+                        <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-gray-800 to-gray-900 rounded overflow-hidden">
+                          <img 
+                            src={cadThumbnail} 
+                            alt={file.name}
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        </div>
+                        {eDrawingsStatus.installed && (
+                          <div className="flex justify-center py-2">
+                            <button
+                              onClick={handleOpenInEDrawings}
+                              className="btn btn-sm btn-secondary gap-1"
+                              title="Open in full eDrawings for 3D interaction"
+                            >
+                              <ExternalLink size={12} />
+                              Open in eDrawings
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : eDrawingsStatus.installed ? (
+                      // No thumbnail but eDrawings available
+                      <div className="flex-1 flex flex-col items-center justify-center">
+                        <FileBox size={48} className="mb-4 text-pdm-accent" />
+                        <div className="text-sm font-medium mb-2">{file.name}</div>
+                        <div className="text-xs text-pdm-fg-muted mb-4">No embedded preview available</div>
+                        <button
+                          onClick={handleOpenInEDrawings}
+                          className="btn btn-primary gap-2"
+                        >
+                          <ExternalLink size={16} />
+                          Open in eDrawings
+                        </button>
+                      </div>
+                    ) : (
+                      // No thumbnail, no eDrawings
+                      <div className="flex-1 flex flex-col items-center justify-center text-center">
+                        <Eye size={48} className="mb-4 text-pdm-fg-muted opacity-50" />
+                        <div className="text-lg font-medium mb-2">No Preview Available</div>
+                        <div className="text-sm text-pdm-fg-muted mb-4 max-w-xs">
+                          Install the free eDrawings viewer to preview SolidWorks files.
+                        </div>
+                        <a
+                          href="https://www.solidworks.com/support/free-downloads"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-primary gap-2"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            window.electronAPI?.openFile('https://www.solidworks.com/support/free-downloads')
+                          }}
+                        >
+                          <Download size={16} />
+                          Download eDrawings (Free)
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Other files - no preview
+                  <div className="text-sm text-pdm-fg-muted text-center">
+                    <Eye size={48} className="mx-auto mb-4 opacity-30" />
+                    <div>No preview available</div>
+                    <div className="text-xs mt-2 opacity-70">
+                      {file.extension 
+                        ? lowercaseExtensions !== false
+                          ? file.extension.toLowerCase() 
+                          : file.extension.toUpperCase()
+                        : 'Unknown'} files cannot be previewed
+                    </div>
+                    <button
+                      onClick={() => window.electronAPI?.openFile(file.path)}
+                      className="btn btn-secondary gap-2 mt-4"
+                    >
+                      <ExternalLink size={14} />
+                      Open with Default App
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

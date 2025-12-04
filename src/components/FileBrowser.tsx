@@ -88,7 +88,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     unpinFolder,
     renameFileInStore,
     searchQuery,
-    searchType
+    searchType,
+    lowercaseExtensions
   } = usePDMStore()
   
   // Get current vault ID (from activeVaultId or first connected vault)
@@ -1125,10 +1126,19 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         
         const fileStatusColumnVisible = columns.find(c => c.id === 'fileStatus')?.visible
         
+        // Format filename with lowercase extension if setting is on
+        const formatFilename = (name: string, ext: string | undefined) => {
+          if (!ext || file.isDirectory) return name
+          const baseName = name.slice(0, -ext.length)
+          const formattedExt = lowercaseExtensions !== false ? ext.toLowerCase() : ext
+          return baseName + formattedExt
+        }
+        const displayFilename = formatFilename(file.name, file.extension)
+        
         return (
           <div className="flex items-center gap-2">
             {getFileIcon(file)}
-            <span className="truncate flex-1">{file.name}</span>
+            <span className="truncate flex-1">{displayFilename}</span>
             {!file.isDirectory && !fileStatusColumnVisible && (
               <span 
                 className={`flex-shrink-0 ${isSynced ? 'text-pdm-success' : 'text-pdm-fg-muted'}`}
@@ -1246,7 +1256,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           </span>
         )
       case 'extension':
-        return file.extension ? file.extension.replace('.', '').toUpperCase() : ''
+        if (!file.extension) return ''
+        const ext = file.extension.replace('.', '')
+        // Default to lowercase if setting is undefined
+        return lowercaseExtensions !== false ? ext.toLowerCase() : ext.toUpperCase()
       case 'size':
         return file.isDirectory ? '' : formatFileSize(file.size)
       case 'modifiedTime':

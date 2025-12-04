@@ -53,6 +53,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     reorderPinnedFolders,
     renameFileInStore,
     user,
+    setSelectedFiles,
+    lowercaseExtensions,
   } = usePDMStore()
   
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: LocalFile } | null>(null)
@@ -359,8 +361,10 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           onClick={(e) => {
             if (isRenaming) return
             
-            // Select the file
+            // Select the file (local state for highlighting)
             setSelectedFile(file.relativePath)
+            // Also update global store so DetailsPanel shows file info
+            setSelectedFiles([file.path])
             
             if (file.isDirectory) {
               // Navigate main pane to this folder
@@ -392,6 +396,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             e.preventDefault()
             e.stopPropagation()
             setSelectedFile(file.relativePath)
+            setSelectedFiles([file.path])
             setContextMenu({ x: e.clientX, y: e.clientY, file })
           }}
         >
@@ -428,7 +433,11 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="truncate text-sm flex-1">{file.name}</span>
+            <span className="truncate text-sm flex-1">
+              {file.isDirectory || !file.extension 
+                ? file.name 
+                : file.name.slice(0, -file.extension.length) + (lowercaseExtensions !== false ? file.extension.toLowerCase() : file.extension)}
+            </span>
           )}
           
           {/* Status icon (lock, cloud) */}
@@ -660,7 +669,12 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 const actualFile = pinned.vaultId === activeVaultId 
                   ? files.find(f => f.relativePath === pinned.path)
                   : null
-                const fileName = pinned.path.split('/').pop() || pinned.path
+                const rawFileName = pinned.path.split('/').pop() || pinned.path
+                // Format filename with lowercase extension if setting is on
+                const ext = actualFile?.extension || (rawFileName.includes('.') ? '.' + rawFileName.split('.').pop() : '')
+                const fileName = !pinned.isDirectory && ext 
+                  ? rawFileName.slice(0, -ext.length) + (lowercaseExtensions !== false ? ext.toLowerCase() : ext)
+                  : rawFileName
                 
                 // Get diff counts for pinned folders
                 const diffCounts = pinned.isDirectory && pinned.vaultId === activeVaultId
