@@ -77,7 +77,7 @@ npm run build
 
 ## Screenshots
 
-*Coming soon*
+![BluePDM Screenshot](assets/screenshot.png)
 
 ## Architecture
 
