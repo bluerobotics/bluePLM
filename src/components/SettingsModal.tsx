@@ -21,12 +21,15 @@ import {
   AlertTriangle,
   Settings,
   Image,
-  ExternalLink
+  ExternalLink,
+  Info,
+  Github,
+  Heart
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { supabase, signOut } from '../lib/supabase'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'preferences'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'preferences' | 'about'
 
 interface OrgUser {
   id: string
@@ -426,6 +429,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     { id: 'vault' as SettingsTab, icon: FolderCog, label: 'Local Vaults' },
     { id: 'organization' as SettingsTab, icon: Building2, label: 'Organization' },
     { id: 'preferences' as SettingsTab, icon: Settings, label: 'Preferences' },
+    { id: 'about' as SettingsTab, icon: Info, label: 'About' },
   ]
 
   return (
@@ -941,6 +945,101 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       />
                     </button>
                   </label>
+                </div>
+              </div>
+            )}
+            
+            {activeTab === 'about' && (
+              <div className="space-y-6">
+                {/* App Info */}
+                <div className="text-center py-6">
+                  <div className="flex justify-center items-center gap-3 mb-4">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-pdm-accent">
+                      <path 
+                        d="M12 2L2 7L12 12L22 7L12 2Z" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      />
+                      <path 
+                        d="M2 17L12 22L22 17" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      />
+                      <path 
+                        d="M2 12L12 17L22 12" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <h1 className="text-2xl font-bold text-pdm-fg">BluePDM</h1>
+                  </div>
+                  <p className="text-pdm-fg-dim mb-2">
+                    Open source Product Data Management for engineering teams
+                  </p>
+                  <p className="text-sm text-pdm-fg-muted">
+                    Version 0.7.1
+                  </p>
+                </div>
+                
+                {/* Links */}
+                <div className="space-y-2">
+                  <a
+                    href="https://github.com/bluerobotics/blue-pdm"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      window.electronAPI?.openFile('https://github.com/bluerobotics/blue-pdm')
+                    }}
+                    className="flex items-center gap-3 p-4 rounded-lg border border-pdm-border bg-pdm-bg hover:border-pdm-accent transition-colors cursor-pointer"
+                  >
+                    <Github size={20} className="text-pdm-fg-muted" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-pdm-fg">GitHub Repository</div>
+                      <div className="text-xs text-pdm-fg-dim">
+                        View source code, report issues, contribute
+                      </div>
+                    </div>
+                    <ExternalLink size={16} className="text-pdm-fg-muted" />
+                  </a>
+                  
+                  <a
+                    href="https://bluerobotics.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      window.electronAPI?.openFile('https://bluerobotics.com')
+                    }}
+                    className="flex items-center gap-3 p-4 rounded-lg border border-pdm-border bg-pdm-bg hover:border-pdm-accent transition-colors cursor-pointer"
+                  >
+                    <Heart size={20} className="text-pdm-accent" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-pdm-fg">Blue Robotics</div>
+                      <div className="text-xs text-pdm-fg-dim">
+                        Making robotics accessible for everyone
+                      </div>
+                    </div>
+                    <ExternalLink size={16} className="text-pdm-fg-muted" />
+                  </a>
+                </div>
+                
+                {/* License */}
+                <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+                  <div className="text-xs text-pdm-fg-muted text-center">
+                    Released under the MIT License
+                  </div>
+                </div>
+                
+                {/* Footer */}
+                <div className="text-center text-sm text-pdm-fg-muted">
+                  Made with 💙 by Blue Robotics
                 </div>
               </div>
             )}
