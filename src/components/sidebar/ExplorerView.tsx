@@ -859,6 +859,10 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             const filePaths = filesToDrag.map(f => f.path)
             console.log('[Drag] Starting native drag for:', filePaths)
             
+            // Set drag data to prevent browser from canceling the drag
+            e.dataTransfer.effectAllowed = 'copyMove'
+            e.dataTransfer.setData('text/plain', filePaths.join('\n'))
+            
             // Call Electron's native drag
             window.electronAPI?.startDrag(filePaths)
           }}

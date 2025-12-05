@@ -1178,11 +1178,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     const filePaths = filesToDrag.map(f => f.path)
     console.log('[Drag] Starting native drag for:', filePaths)
     
-    // Call startDrag - Electron will handle the native file drag
-    window.electronAPI?.startDrag(filePaths)
+    // Set drag data to prevent browser from canceling the drag
+    // This is required for the drag operation to work outside the app
+    e.dataTransfer.effectAllowed = 'copyMove'
+    e.dataTransfer.setData('text/plain', filePaths.join('\n'))
     
-    // DON'T prevent default - let the drag operation continue
-    // Electron's startDrag will add the native file data to the drag
+    // Call startDrag - Electron will add native file data to the drag
+    window.electronAPI?.startDrag(filePaths)
   }
   
 
