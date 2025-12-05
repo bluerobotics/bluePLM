@@ -896,7 +896,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="truncate text-sm flex-1">
+            <span className={`truncate text-sm flex-1 ${file.diffStatus === 'cloud' ? 'italic text-pdm-fg-muted' : ''}`}>
               {file.isDirectory || !file.extension 
                 ? file.name 
                 : file.name.slice(0, -file.extension.length) + (lowercaseExtensions !== false ? file.extension.toLowerCase() : file.extension)}
@@ -1028,6 +1028,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           }`}
           onClick={() => {
             setActiveVault(vault.id)
+            setCurrentFolder('') // Go to root
             if (!isExpanded) {
               toggleVaultExpanded(vault.id)
             }

@@ -1379,10 +1379,123 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           !f.isDirectory && f.pdmData?.checked_out_by === user?.id && f.relativePath.startsWith(file.relativePath + '/')
         )
         
+        // Get cloud files count for folders
+        const cloudFilesCount = file.isDirectory ? files.filter(f => 
+          !f.isDirectory && f.diffStatus === 'cloud' && f.relativePath.startsWith(file.relativePath + '/')
+        ).length : 0
+        
+        // Get checkout users for avatars (for both files and folders)
+        const getCheckoutAvatars = () => {
+          if (file.isDirectory) {
+            // Get unique users with checkouts in this folder
+            const folderFiles = files.filter(f => 
+              !f.isDirectory && 
+              f.pdmData?.checked_out_by &&
+              f.relativePath.startsWith(file.relativePath + '/')
+            )
+            
+            const usersMap = new Map<string, { id: string; name: string; avatar_url?: string; isMe: boolean }>()
+            for (const f of folderFiles) {
+              const checkoutUserId = f.pdmData!.checked_out_by!
+              if (!usersMap.has(checkoutUserId)) {
+                const isMe = checkoutUserId === user?.id
+                if (isMe) {
+                  usersMap.set(checkoutUserId, {
+                    id: checkoutUserId,
+                    name: 'You',
+                    avatar_url: user?.avatar_url || undefined,
+                    isMe: true
+                  })
+                } else {
+                  const checkedOutUser = (f.pdmData as any).checked_out_user
+                  usersMap.set(checkoutUserId, {
+                    id: checkoutUserId,
+                    name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+                    avatar_url: checkedOutUser?.avatar_url,
+                    isMe: false
+                  })
+                }
+              }
+            }
+            
+            return Array.from(usersMap.values()).sort((a, b) => {
+              if (a.isMe && !b.isMe) return -1
+              if (!a.isMe && b.isMe) return 1
+              return 0
+            })
+          } else if (file.pdmData?.checked_out_by) {
+            // Single file checkout
+            const isMe = file.pdmData.checked_out_by === user?.id
+            if (isMe) {
+              return [{
+                id: file.pdmData.checked_out_by,
+                name: 'You',
+                avatar_url: user?.avatar_url || undefined,
+                isMe: true
+              }]
+            } else {
+              const checkedOutUser = (file.pdmData as any).checked_out_user
+              return [{
+                id: file.pdmData.checked_out_by,
+                name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+                avatar_url: checkedOutUser?.avatar_url,
+                isMe: false
+              }]
+            }
+          }
+          return []
+        }
+        
+        const checkoutUsers = getCheckoutAvatars()
+        const maxShow = 3
+        const shownUsers = checkoutUsers.slice(0, maxShow)
+        const extraUsers = checkoutUsers.length - maxShow
+        
         return (
           <div className="flex items-center gap-2 group/name">
             {getFileIcon(file)}
-            <span className="truncate flex-1">{displayFilename}</span>
+            <span className={`truncate flex-1 ${file.diffStatus === 'cloud' ? 'italic text-pdm-fg-muted' : ''}`}>{displayFilename}</span>
+            
+            {/* Cloud count for folders */}
+            {file.isDirectory && cloudFilesCount > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-pdm-fg-muted flex-shrink-0" title={`${cloudFilesCount} files available to download`}>
+                <Cloud size={10} />
+                {cloudFilesCount}
+              </span>
+            )}
+            
+            {/* Stacked avatars - just before inline actions */}
+            {checkoutUsers.length > 0 && (
+              <span className="flex items-center flex-shrink-0 -space-x-1.5" title={checkoutUsers.map(u => u.name).join(', ')}>
+                {shownUsers.map((u, i) => (
+                  u.avatar_url ? (
+                    <img 
+                      key={u.id}
+                      src={u.avatar_url} 
+                      alt={u.name}
+                      className={`w-4 h-4 rounded-full ring-1 ${u.isMe ? 'ring-pdm-warning' : 'ring-pdm-error'} bg-pdm-bg`}
+                      style={{ zIndex: maxShow - i }}
+                    />
+                  ) : (
+                    <div 
+                      key={u.id}
+                      className={`w-4 h-4 rounded-full ring-1 ${u.isMe ? 'ring-pdm-warning bg-pdm-warning/30' : 'ring-pdm-error bg-pdm-error/30'} flex items-center justify-center text-[8px] bg-pdm-bg`}
+                      style={{ zIndex: maxShow - i }}
+                    >
+                      {u.name.charAt(0).toUpperCase()}
+                    </div>
+                  )
+                ))}
+                {extraUsers > 0 && (
+                  <div 
+                    className="w-4 h-4 rounded-full ring-1 ring-pdm-fg-muted bg-pdm-bg flex items-center justify-center text-[8px] text-pdm-fg-muted"
+                    style={{ zIndex: 0 }}
+                  >
+                    +{extraUsers}
+                  </div>
+                )}
+              </span>
+            )}
             
             {/* Inline action buttons - show on hover */}
             {!isBeingProcessed(file.relativePath) && (
@@ -1420,120 +1533,6 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               </span>
             )}
             
-            {/* Show stacked avatars for folders with checkouts */}
-            {file.isDirectory && (() => {
-              // Get unique users with checkouts in this folder
-              const folderFiles = files.filter(f => 
-                !f.isDirectory && 
-                f.pdmData?.checked_out_by &&
-                f.relativePath.startsWith(file.relativePath + '/')
-              )
-              
-              const usersMap = new Map<string, { id: string; name: string; avatar_url?: string; isMe: boolean }>()
-              for (const f of folderFiles) {
-                const checkoutUserId = f.pdmData!.checked_out_by!
-                if (!usersMap.has(checkoutUserId)) {
-                  const isMe = checkoutUserId === user?.id
-                  if (isMe) {
-                    usersMap.set(checkoutUserId, {
-                      id: checkoutUserId,
-                      name: 'You',
-                      avatar_url: user?.avatar_url || undefined,
-                      isMe: true
-                    })
-                  } else {
-                    const checkedOutUser = (f.pdmData as any).checked_out_user
-                    usersMap.set(checkoutUserId, {
-                      id: checkoutUserId,
-                      name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
-                      avatar_url: checkedOutUser?.avatar_url,
-                      isMe: false
-                    })
-                  }
-                }
-              }
-              
-              const checkoutUsers = Array.from(usersMap.values()).sort((a, b) => {
-                if (a.isMe && !b.isMe) return -1
-                if (!a.isMe && b.isMe) return 1
-                return 0
-              })
-              
-              if (checkoutUsers.length === 0) return null
-              
-              const maxShow = 3
-              const shown = checkoutUsers.slice(0, maxShow)
-              const extra = checkoutUsers.length - maxShow
-              
-              return (
-                <span className="flex items-center flex-shrink-0 -space-x-1.5" title={checkoutUsers.map(u => u.name).join(', ')}>
-                  {shown.map((u, i) => (
-                    u.avatar_url ? (
-                      <img 
-                        key={u.id}
-                        src={u.avatar_url} 
-                        alt={u.name}
-                        className={`w-4 h-4 rounded-full ring-1 ${u.isMe ? 'ring-pdm-warning' : 'ring-pdm-error'} bg-pdm-bg`}
-                        style={{ zIndex: maxShow - i }}
-                      />
-                    ) : (
-                      <div 
-                        key={u.id}
-                        className={`w-4 h-4 rounded-full ring-1 ${u.isMe ? 'ring-pdm-warning bg-pdm-warning/30' : 'ring-pdm-error bg-pdm-error/30'} flex items-center justify-center text-[8px] bg-pdm-bg`}
-                        style={{ zIndex: maxShow - i }}
-                      >
-                        {u.name.charAt(0).toUpperCase()}
-                      </div>
-                    )
-                  ))}
-                  {extra > 0 && (
-                    <div 
-                      className="w-4 h-4 rounded-full ring-1 ring-pdm-fg-muted bg-pdm-bg flex items-center justify-center text-[8px] text-pdm-fg-muted"
-                      style={{ zIndex: 0 }}
-                    >
-                      +{extra}
-                    </div>
-                  )}
-                </span>
-              )
-            })()}
-            
-            {/* Show avatar if file is checked out */}
-            {!file.isDirectory && file.pdmData?.checked_out_by && (() => {
-              const isMe = file.pdmData.checked_out_by === user?.id
-              
-              if (isMe) {
-                // My checkout - orange ring
-                if (user?.avatar_url) {
-                  return (
-                    <img 
-                      src={user.avatar_url} 
-                      alt="You"
-                      title="Checked out by you"
-                      className="w-4 h-4 rounded-full flex-shrink-0 ring-1 ring-pdm-warning"
-                    />
-                  )
-                }
-                return <span title="Checked out by you"><Lock size={12} className="text-pdm-warning flex-shrink-0" /></span>
-              } else {
-                // Someone else's checkout - red ring
-                const checkedOutUser = (file.pdmData as any).checked_out_user
-                const avatarUrl = checkedOutUser?.avatar_url
-                const displayName = checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone'
-                
-                if (avatarUrl) {
-                  return (
-                    <img 
-                      src={avatarUrl} 
-                      alt={displayName}
-                      title={`Checked out by ${displayName}`}
-                      className="w-4 h-4 rounded-full flex-shrink-0 ring-1 ring-pdm-error"
-                    />
-                  )
-                }
-                return <span title={`Checked out by ${displayName}`}><Lock size={12} className="text-pdm-error flex-shrink-0" /></span>
-              }
-            })()}
             
             {!file.isDirectory && !fileStatusColumnVisible && (
               <span 
