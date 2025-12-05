@@ -11,7 +11,7 @@ import {
   CloudOff,
   Edit,
   FolderPlus,
-  Star,
+  Pin,
   History,
   Info,
   AlertTriangle,
@@ -791,7 +791,7 @@ export function FileContextMenu({
                   onClose()
                 }}
               >
-                <Star size={14} className={isPinned ? 'fill-pdm-warning text-pdm-warning' : ''} />
+                <Pin size={14} className={isPinned ? 'fill-pdm-accent text-pdm-accent' : ''} />
                 {isPinned ? 'Unpin' : `Pin ${isFolder ? 'Folder' : 'File'}`}
               </div>
             )

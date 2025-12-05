@@ -10,7 +10,7 @@ import {
   Database,
   Lock,
   Cloud,
-  Star,
+  Pin,
   FileImage,
   FileSpreadsheet,
   FileArchive,
@@ -1265,7 +1265,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 : <ChevronRight size={14} className="text-pdm-fg-muted" />
               }
             </span>
-            <Star size={14} className="text-pdm-accent fill-pdm-accent" />
+            <Pin size={14} className="text-pdm-accent fill-pdm-accent" />
             <span className="text-sm font-medium flex-1">Pinned</span>
             <span className="text-xs text-pdm-fg-muted">{pinnedFolders.length}</span>
           </div>
