@@ -2,6 +2,30 @@
 
 All notable changes to BluePDM will be documented in this file.
 
+## [0.10.0] - 2025-06-05
+
+### Added
+- Native file drag-and-drop to Windows Explorer (copies actual files, not shortcuts)
+- Custom drag preview showing file icon and name
+- Vault header inline badges: checkout count, cloud files count, user avatars
+- Download button in vault header for cloud files
+- Cloud file count badges inline with folder names
+- Right-click context menu to disconnect vaults from sidebar
+- Pin icon replaced star icon for pinned items
+
+### Fixed
+- Delete from server now shows proper confirmation dialog
+- Cloud-only folders show grey icons (not green) in both FileBrowser and ExplorerView
+- Clicking vault name in explorer now navigates to root folder
+- Vault disconnect properly clears UI state and shows welcome screen
+- Files now reload correctly after reconnecting to a vault
+
+### Changed
+- Avatars in FileBrowser positioned before inline action buttons
+- Download arrow moved to right of cloud count in explorer
+- Vault header download button slightly visible (not hidden until hover)
+- Lock count badge moved before cloud count in vault header
+
 ## [0.7.0] - 2024-12-04
 
 ### Added
