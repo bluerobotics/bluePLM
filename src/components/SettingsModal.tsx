@@ -376,15 +376,15 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setConnectingVaultId(vault.id)
     
     try {
-      const api = (window as any).electronAPI
+      const api = window.electronAPI
       if (!api) {
         addToast('error', 'Electron API not available')
         return
       }
       
       // Create vault folder in C:\BluePDM\ to avoid conflicts with other software
-      const vaultPath = `C:\\BluePDM\\${vault.slug}`
-      const result = await api.createWorkingDir(vaultPath)
+      const localPath = `C:\\BluePDM\\${vault.slug}`
+      const result = await api.createWorkingDir(localPath)
       
       if (result.success && result.path) {
         const connectedVault: ConnectedVault = {
@@ -394,7 +394,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           isExpanded: true
         }
         addConnectedVault(connectedVault)
-        addToast('success', `Connected to "${vault.name}" at ${result.path}`)
+        
+        // Also set vaultPath and vaultConnected to trigger file loading
+        setVaultPath(result.path)
+        setVaultConnected(true)
+        
+        addToast('success', `Connected to "${vault.name}"`)
       } else {
         addToast('error', `Failed to create vault folder: ${result.error}`)
       }
@@ -1196,7 +1201,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           onClick={cancelDisconnect}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-warning/50 rounded-xl shadow-2xl w-[480px] overflow-hidden"
+            className="bg-pdm-bg-light border border-pdm-warning/50 rounded-xl shadow-2xl w-[520px] overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -1216,60 +1221,89 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <div className="p-6 space-y-4">
               {(() => {
                 const { checkedOutFiles, newFiles, modifiedFiles } = getDisconnectWarnings()
-                const hasWarnings = checkedOutFiles.length > 0 || newFiles.length > 0 || modifiedFiles.length > 0
+                const hasBlockingIssues = checkedOutFiles.length > 0 || newFiles.length > 0 || modifiedFiles.length > 0
                 
                 return (
                   <>
-                    {hasWarnings ? (
-                      <div className="p-4 bg-pdm-warning/10 border border-pdm-warning/30 rounded-lg space-y-3">
-                        <p className="text-sm font-medium text-pdm-fg">
-                          You have unsaved work that will be lost:
+                    {hasBlockingIssues ? (
+                      <div className="p-4 bg-pdm-error/10 border border-pdm-error/30 rounded-lg space-y-4">
+                        <p className="text-sm font-medium text-pdm-error">
+                          You must resolve these issues before disconnecting:
                         </p>
                         
                         {checkedOutFiles.length > 0 && (
-                          <div>
-                            <p className="text-sm text-pdm-fg-dim flex items-center gap-2">
-                              <span className="w-2 h-2 bg-pdm-accent rounded-full"></span>
-                              <strong>{checkedOutFiles.length}</strong> file{checkedOutFiles.length !== 1 ? 's' : ''} checked out by you
+                          <div className="bg-pdm-bg/50 p-3 rounded-lg">
+                            <p className="text-sm text-pdm-fg flex items-center gap-2 mb-1">
+                              <span className="w-2 h-2 bg-pdm-accent rounded-full flex-shrink-0"></span>
+                              <strong>{checkedOutFiles.length}</strong> file{checkedOutFiles.length !== 1 ? 's' : ''} checked out
                             </p>
-                            <p className="text-xs text-pdm-fg-muted ml-4">
-                              Consider checking these in first to save your changes
+                            <p className="text-xs text-pdm-fg-muted ml-4 mb-2">
+                              Check in to save changes, or undo checkout to discard
                             </p>
+                            <div className="ml-4 text-xs text-pdm-fg-dim max-h-20 overflow-auto">
+                              {checkedOutFiles.slice(0, 5).map((f, i) => (
+                                <div key={i} className="truncate">• {f.name}</div>
+                              ))}
+                              {checkedOutFiles.length > 5 && (
+                                <div className="text-pdm-fg-muted">...and {checkedOutFiles.length - 5} more</div>
+                              )}
+                            </div>
                           </div>
                         )}
                         
                         {newFiles.length > 0 && (
-                          <div>
-                            <p className="text-sm text-pdm-fg-dim flex items-center gap-2">
-                              <span className="w-2 h-2 bg-pdm-success rounded-full"></span>
+                          <div className="bg-pdm-bg/50 p-3 rounded-lg">
+                            <p className="text-sm text-pdm-fg flex items-center gap-2 mb-1">
+                              <span className="w-2 h-2 bg-pdm-success rounded-full flex-shrink-0"></span>
                               <strong>{newFiles.length}</strong> new file{newFiles.length !== 1 ? 's' : ''} not synced
                             </p>
-                            <p className="text-xs text-pdm-fg-muted ml-4">
-                              These files only exist locally and will be deleted
+                            <p className="text-xs text-pdm-fg-muted ml-4 mb-2">
+                              Sync to upload, or delete locally to discard
                             </p>
+                            <div className="ml-4 text-xs text-pdm-fg-dim max-h-20 overflow-auto">
+                              {newFiles.slice(0, 5).map((f, i) => (
+                                <div key={i} className="truncate">• {f.name}</div>
+                              ))}
+                              {newFiles.length > 5 && (
+                                <div className="text-pdm-fg-muted">...and {newFiles.length - 5} more</div>
+                              )}
+                            </div>
                           </div>
                         )}
                         
                         {modifiedFiles.length > 0 && (
-                          <div>
-                            <p className="text-sm text-pdm-fg-dim flex items-center gap-2">
-                              <span className="w-2 h-2 bg-pdm-warning rounded-full"></span>
-                              <strong>{modifiedFiles.length}</strong> modified file{modifiedFiles.length !== 1 ? 's' : ''} not synced
+                          <div className="bg-pdm-bg/50 p-3 rounded-lg">
+                            <p className="text-sm text-pdm-fg flex items-center gap-2 mb-1">
+                              <span className="w-2 h-2 bg-pdm-warning rounded-full flex-shrink-0"></span>
+                              <strong>{modifiedFiles.length}</strong> modified file{modifiedFiles.length !== 1 ? 's' : ''} 
                             </p>
-                            <p className="text-xs text-pdm-fg-muted ml-4">
-                              Local changes will be lost unless checked in first
+                            <p className="text-xs text-pdm-fg-muted ml-4 mb-2">
+                              Check out and check in to save, or revert to discard changes
                             </p>
+                            <div className="ml-4 text-xs text-pdm-fg-dim max-h-20 overflow-auto">
+                              {modifiedFiles.slice(0, 5).map((f, i) => (
+                                <div key={i} className="truncate">• {f.name}</div>
+                              ))}
+                              {modifiedFiles.length > 5 && (
+                                <div className="text-pdm-fg-muted">...and {modifiedFiles.length - 5} more</div>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-pdm-fg-dim">
-                        All files are synced. Disconnecting will delete the local folder and all files.
-                      </p>
+                      <div className="p-4 bg-pdm-success/10 border border-pdm-success/30 rounded-lg">
+                        <p className="text-sm text-pdm-fg flex items-center gap-2">
+                          <Check size={16} className="text-pdm-success" />
+                          All files are synced. Safe to disconnect.
+                        </p>
+                      </div>
                     )}
                     
                     <p className="text-sm text-pdm-fg-muted">
-                      You can reconnect to this vault at any time to download files again.
+                      {hasBlockingIssues 
+                        ? "Close this dialog and resolve the issues above, then try again."
+                        : "Disconnecting will delete the local folder. You can reconnect anytime to download files again."}
                     </p>
                   </>
                 )
@@ -1283,25 +1317,35 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 className="btn btn-ghost"
                 disabled={isDisconnecting}
               >
-                Cancel
+                {(() => {
+                  const { checkedOutFiles, newFiles, modifiedFiles } = getDisconnectWarnings()
+                  return (checkedOutFiles.length > 0 || newFiles.length > 0 || modifiedFiles.length > 0) ? 'Close' : 'Cancel'
+                })()}
               </button>
-              <button
-                onClick={confirmDisconnect}
-                disabled={isDisconnecting}
-                className="btn bg-pdm-warning hover:bg-pdm-warning/80 text-black disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isDisconnecting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Disconnecting...
-                  </>
-                ) : (
-                  <>
-                    <Link size={16} />
-                    Disconnect Vault
-                  </>
-                )}
-              </button>
+              {(() => {
+                const { checkedOutFiles, newFiles, modifiedFiles } = getDisconnectWarnings()
+                const canDisconnect = checkedOutFiles.length === 0 && newFiles.length === 0 && modifiedFiles.length === 0
+                
+                return canDisconnect ? (
+                  <button
+                    onClick={confirmDisconnect}
+                    disabled={isDisconnecting}
+                    className="btn bg-pdm-warning hover:bg-pdm-warning/80 text-black disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isDisconnecting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Disconnecting...
+                      </>
+                    ) : (
+                      <>
+                        <Unlink size={16} />
+                        Disconnect Vault
+                      </>
+                    )}
+                  </button>
+                ) : null
+              })()}
             </div>
           </div>
         </div>
