@@ -13,11 +13,13 @@ import {
   FolderPlus,
   Star,
   History,
-  Info
+  Info,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react'
 import { useState } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
-import { checkoutFile, checkinFile, syncFile } from '../lib/supabase'
+import { checkoutFile, checkinFile, syncFile, supabase } from '../lib/supabase'
 import { downloadFile } from '../lib/storage'
 
 interface FileContextMenuProps {
@@ -55,6 +57,9 @@ export function FileContextMenu({
   const [showProperties, setShowProperties] = useState(false)
   const [folderSize, setFolderSize] = useState<{ size: number; fileCount: number; folderCount: number } | null>(null)
   const [isCalculatingSize, setIsCalculatingSize] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmFiles, setDeleteConfirmFiles] = useState<LocalFile[]>([])
+  const [isDeleting, setIsDeleting] = useState(false)
   
   if (contextFiles.length === 0) return null
   
@@ -634,6 +639,101 @@ export function FileContextMenu({
       executeDelete()
     }
   }
+  
+  // Handle delete from server (for cloud-only files or synced files)
+  const handleDeleteFromServer = () => {
+    // Get all files to delete from server
+    const cloudFiles = contextFiles.filter(f => f.diffStatus === 'cloud' || (f.pdmData && f.diffStatus !== 'added'))
+    
+    // Also get files inside folders
+    const allFilesToDelete: LocalFile[] = []
+    for (const item of cloudFiles) {
+      if (item.isDirectory) {
+        const folderPath = item.relativePath.replace(/\\/g, '/')
+        const filesInFolder = files.filter(f => {
+          if (f.isDirectory) return false
+          if (!f.pdmData?.id) return false
+          const filePath = f.relativePath.replace(/\\/g, '/')
+          return filePath.startsWith(folderPath + '/')
+        })
+        allFilesToDelete.push(...filesInFolder)
+      } else if (item.pdmData?.id) {
+        allFilesToDelete.push(item)
+      }
+    }
+    
+    // Remove duplicates
+    const uniqueFiles = [...new Map(allFilesToDelete.map(f => [f.path, f])).values()]
+    
+    if (uniqueFiles.length === 0) {
+      addToast('warning', 'No files to delete from server')
+      onClose()
+      return
+    }
+    
+    setDeleteConfirmFiles(uniqueFiles)
+    setShowDeleteConfirm(true)
+  }
+  
+  // Execute server delete after confirmation
+  const executeDeleteFromServer = async () => {
+    setIsDeleting(true)
+    
+    const total = deleteConfirmFiles.length
+    startSync(total, 'upload')
+    
+    let deleted = 0
+    let failed = 0
+    
+    for (const file of deleteConfirmFiles) {
+      // Check for cancellation
+      if (usePDMStore.getState().syncProgress.cancelRequested) {
+        break
+      }
+      
+      if (!file.pdmData?.id) {
+        failed++
+        continue
+      }
+      
+      try {
+        const { error } = await supabase
+          .from('files')
+          .delete()
+          .eq('id', file.pdmData.id)
+        
+        if (!error) {
+          // Also delete local copy if it exists
+          if (file.diffStatus !== 'cloud' && vaultPath) {
+            await window.electronAPI?.deleteItem(file.path)
+          }
+          deleted++
+        } else {
+          failed++
+        }
+      } catch (err) {
+        console.error('Failed to delete file from server:', file.name, err)
+        failed++
+      }
+      
+      const percent = Math.round(((deleted + failed) / total) * 100)
+      updateSyncProgress(deleted + failed, percent, '')
+    }
+    
+    endSync()
+    setIsDeleting(false)
+    setShowDeleteConfirm(false)
+    setDeleteConfirmFiles([])
+    onClose()
+    
+    if (deleted > 0) {
+      addToast('success', `Deleted ${deleted} file${deleted > 1 ? 's' : ''} from server`)
+      onRefresh(true)
+    }
+    if (failed > 0) {
+      addToast('warning', `Failed to delete ${failed} file${failed > 1 ? 's' : ''}`)
+    }
+  }
 
   return (
     <>
@@ -882,7 +982,7 @@ export function FileContextMenu({
         
         {/* Delete from Server / Delete Everywhere */}
         {(anySynced || allCloudOnly) && (
-          <div className="context-menu-item danger" onClick={handleDeleteLocal}>
+          <div className="context-menu-item danger" onClick={handleDeleteFromServer}>
             <CloudOff size={14} />
             {allCloudOnly ? 'Delete from Server' : 'Delete Everywhere'} {countLabel}
           </div>
@@ -986,6 +1086,77 @@ export function FileContextMenu({
                 className="btn btn-ghost"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Delete from Server Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/70" onClick={() => { setShowDeleteConfirm(false); onClose(); }} />
+          <div className="relative bg-pdm-bg-light border border-pdm-error/50 rounded-xl shadow-2xl w-[450px] overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-pdm-border bg-pdm-error/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-pdm-error/20 rounded-full">
+                  <AlertTriangle size={24} className="text-pdm-error" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-pdm-fg">Delete from Server</h3>
+                  <p className="text-sm text-pdm-fg-muted">
+                    {deleteConfirmFiles.length} file{deleteConfirmFiles.length !== 1 ? 's' : ''} will be permanently deleted
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-pdm-error/10 border border-pdm-error/30 rounded-lg">
+                <p className="text-sm text-pdm-fg mb-3">
+                  <strong>Warning:</strong> This action cannot be undone. The following will be deleted:
+                </p>
+                <div className="max-h-32 overflow-auto text-sm text-pdm-fg-dim space-y-1">
+                  {deleteConfirmFiles.slice(0, 10).map((f, i) => (
+                    <div key={i} className="truncate flex items-center gap-2">
+                      <span className="w-2 h-2 bg-pdm-error/50 rounded-full flex-shrink-0"></span>
+                      {f.name}
+                    </div>
+                  ))}
+                  {deleteConfirmFiles.length > 10 && (
+                    <div className="text-pdm-fg-muted">...and {deleteConfirmFiles.length - 10} more files</div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Actions */}
+            <div className="p-4 border-t border-pdm-border bg-pdm-bg flex justify-end gap-3">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); onClose(); }}
+                className="btn btn-ghost"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeDeleteFromServer}
+                disabled={isDeleting}
+                className="btn bg-pdm-error hover:bg-pdm-error/80 text-white disabled:opacity-50 flex items-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Delete from Server
+                  </>
+                )}
               </button>
             </div>
           </div>
