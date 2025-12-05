@@ -859,9 +859,22 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             const filePaths = filesToDrag.map(f => f.path)
             console.log('[Drag] Starting native drag for:', filePaths)
             
-            // Set drag data to prevent browser from canceling the drag
-            e.dataTransfer.effectAllowed = 'copyMove'
+            // Set up HTML5 drag data
+            e.dataTransfer.effectAllowed = 'all'
+            e.dataTransfer.dropEffect = 'copy'
+            filePaths.forEach(filePath => {
+              const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`
+              e.dataTransfer.setData('text/uri-list', fileUrl)
+            })
             e.dataTransfer.setData('text/plain', filePaths.join('\n'))
+            
+            // Create a custom drag image
+            const dragPreview = document.createElement('div')
+            dragPreview.style.cssText = 'position:absolute;left:-1000px;padding:8px 12px;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;color:white;font-size:13px;display:flex;align-items:center;gap:6px;'
+            dragPreview.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>${filesToDrag.length > 1 ? filesToDrag.length + ' files' : file.name}`
+            document.body.appendChild(dragPreview)
+            e.dataTransfer.setDragImage(dragPreview, 20, 20)
+            setTimeout(() => dragPreview.remove(), 0)
             
             // Call Electron's native drag
             window.electronAPI?.startDrag(filePaths)
