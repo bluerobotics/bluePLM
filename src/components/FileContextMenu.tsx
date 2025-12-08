@@ -242,10 +242,21 @@ export function FileContextMenu({
       return
     }
     
+    // Add folder spinners for folders being processed
+    const foldersBeingProcessed = contextFiles.filter(f => f.isDirectory).map(f => f.relativePath)
+    foldersBeingProcessed.forEach(p => addProcessingFolder(p))
+    
+    // Show progress toast for multiple files
+    const toastId = filesToCheckout.length > 1 ? `checkout-${Date.now()}` : null
+    if (toastId) {
+      addProgressToast(toastId, `Checking out ${filesToCheckout.length} files...`, filesToCheckout.length)
+    }
+    
     let succeeded = 0
     let failed = 0
     
-    for (const file of filesToCheckout) {
+    for (let i = 0; i < filesToCheckout.length; i++) {
+      const file = filesToCheckout[i]
       try {
         const result = await checkoutFile(file.pdmData!.id, user.id)
         if (result.success) {
@@ -269,7 +280,15 @@ export function FileContextMenu({
       } catch {
         failed++
       }
+      
+      if (toastId) {
+        updateProgressToast(toastId, i + 1, Math.round(((i + 1) / filesToCheckout.length) * 100))
+      }
     }
+    
+    // Clean up
+    foldersBeingProcessed.forEach(p => removeProcessingFolder(p))
+    if (toastId) removeToast(toastId)
     
     if (failed > 0) {
       addToast('warning', `Checked out ${succeeded}/${filesToCheckout.length} files`)
@@ -288,10 +307,21 @@ export function FileContextMenu({
       return
     }
     
+    // Add folder spinners for folders being processed
+    const foldersBeingProcessed = contextFiles.filter(f => f.isDirectory).map(f => f.relativePath)
+    foldersBeingProcessed.forEach(p => addProcessingFolder(p))
+    
+    // Show progress toast for multiple files
+    const toastId = filesToCheckin.length > 1 ? `checkin-${Date.now()}` : null
+    if (toastId) {
+      addProgressToast(toastId, `Checking in ${filesToCheckin.length} files...`, filesToCheckin.length)
+    }
+    
     let succeeded = 0
     let failed = 0
     
-    for (const file of filesToCheckin) {
+    for (let i = 0; i < filesToCheckin.length; i++) {
+      const file = filesToCheckin[i]
       try {
         const readResult = await window.electronAPI?.readFile(file.path)
         if (readResult?.success && readResult.hash) {
@@ -327,7 +357,15 @@ export function FileContextMenu({
       } catch {
         failed++
       }
+      
+      if (toastId) {
+        updateProgressToast(toastId, i + 1, Math.round(((i + 1) / filesToCheckin.length) * 100))
+      }
     }
+    
+    // Clean up
+    foldersBeingProcessed.forEach(p => removeProcessingFolder(p))
+    if (toastId) removeToast(toastId)
     
     if (failed > 0) {
       addToast('warning', `Checked in ${succeeded}/${filesToCheckin.length} files`)
@@ -346,7 +384,11 @@ export function FileContextMenu({
       return
     }
     
-    startSync(filesToSync.length)
+    // Add folder spinners for folders being processed
+    const foldersBeingProcessed = contextFiles.filter(f => f.isDirectory).map(f => f.relativePath)
+    foldersBeingProcessed.forEach(p => addProcessingFolder(p))
+    
+    startSync(filesToSync.length, 'upload')
     let succeeded = 0
     let failed = 0
     
@@ -381,6 +423,8 @@ export function FileContextMenu({
       updateSyncProgress(i + 1, Math.round(((i + 1) / filesToSync.length) * 100), '')
     }
     
+    // Clean up
+    foldersBeingProcessed.forEach(p => removeProcessingFolder(p))
     endSync()
     
     if (failed > 0) {
