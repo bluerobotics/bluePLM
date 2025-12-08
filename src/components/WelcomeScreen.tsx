@@ -63,6 +63,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     setOfflineMode,
     connectedVaults,
     addConnectedVault,
+    removeConnectedVault,
     addToast,
     vaultsRefreshKey,
     isConnecting: isAuthConnecting  // Global auth connecting state
@@ -152,6 +153,14 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
         )
         
         setOrgVaults(vaultsWithStats)
+        
+        // Clean up stale connected vaults that no longer exist on server
+        const serverVaultIds = new Set(vaultsData.map((v: any) => v.id))
+        const staleVaults = connectedVaults.filter(cv => !serverVaultIds.has(cv.id))
+        if (staleVaults.length > 0) {
+          uiLog('info', 'Removing stale connected vaults', { count: staleVaults.length, ids: staleVaults.map(v => v.id) })
+          staleVaults.forEach(v => removeConnectedVault(v.id))
+        }
       } catch (err) {
         console.error('Error loading vaults:', err)
       } finally {
