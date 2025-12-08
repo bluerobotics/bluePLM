@@ -825,12 +825,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             }
             
             if (file.isDirectory) {
-              // Navigate main pane to this folder
+              // Navigate main pane to this folder (don't auto-expand, use arrow for that)
               setCurrentFolder(file.relativePath)
-              // Expand the folder if not already expanded
-              if (!expandedFolders.has(file.relativePath)) {
-                toggleFolder(file.relativePath)
-              }
             } else {
               // Check for slow double click (for rename)
               handleSlowDoubleClick(file)
