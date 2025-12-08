@@ -72,7 +72,6 @@ export function WelcomeScreen({ onOpenVault, onOpenRecentVault }: WelcomeScreenP
   const [isConnectingVault, setIsConnectingVault] = useState(false)  // Local vault connection state
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
   const [orgVaults, setOrgVaults] = useState<Vault[]>([])
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
   const [connectingVaultId, setConnectingVaultId] = useState<string | null>(null)
@@ -626,32 +625,6 @@ export function WelcomeScreen({ onOpenVault, onOpenRecentVault }: WelcomeScreenP
             <Settings size={18} />
             Settings
           </button>
-          
-          {showAdvancedOptions && (
-            <div className="mt-4 space-y-2">
-              <button
-                onClick={onOpenVault}
-                className="w-full btn btn-secondary btn-sm justify-center"
-              >
-                Choose Different Location...
-              </button>
-              
-              {recentVaults.length > 0 && (
-                <div className="pt-2">
-                  <div className="text-xs text-pdm-fg-muted mb-2">Recent vault paths:</div>
-                  {recentVaults.slice(0, 3).map(vault => (
-                    <button
-                      key={vault}
-                      onClick={() => onOpenRecentVault(vault)}
-                      className="w-full text-left px-3 py-2 text-xs bg-pdm-bg border border-pdm-border rounded hover:border-pdm-accent hover:bg-pdm-highlight transition-all truncate text-pdm-fg-dim hover:text-pdm-fg mb-1"
-                    >
-                      {vault}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Footer */}
