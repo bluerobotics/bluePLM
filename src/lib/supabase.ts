@@ -319,16 +319,25 @@ export async function getOrganization(orgId: string) {
 // Find and link organization by email domain, or fetch existing org
 export async function linkUserToOrganization(userId: string, userEmail: string) {
   const client = getSupabaseClient()
+  authLog('info', 'linkUserToOrganization called', { userId: userId?.substring(0, 8) + '...', email: userEmail })
   
   // First, check if user already has an org_id
-  const { data: userProfile } = await client
+  const { data: userProfile, error: profileError } = await client
     .from('users')
     .select('org_id')
     .eq('id', userId)
     .single()
   
+  authLog('info', 'User profile lookup result', { 
+    hasProfile: !!userProfile, 
+    hasOrgId: !!userProfile?.org_id,
+    orgId: userProfile?.org_id?.substring(0, 8) + '...',
+    error: profileError?.message
+  })
+  
   if (userProfile?.org_id) {
     // User already has org_id, just fetch the organization
+    authLog('info', 'User has org_id, fetching org details')
     const { data: existingOrg, error: fetchError } = await client
       .from('organizations')
       .select('*')
@@ -336,14 +345,16 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
       .single()
     
     if (existingOrg) {
+      authLog('info', 'Found existing org', { orgName: existingOrg.name })
       return { org: existingOrg, error: null }
     }
     // If fetch failed, continue to try email domain lookup
-    console.warn('Failed to fetch existing org:', fetchError)
+    authLog('warn', 'Failed to fetch existing org, trying domain lookup', { error: fetchError?.message })
   }
   
   // Try to find org by email domain
   const domain = userEmail.split('@')[1]
+  authLog('info', 'Looking up org by email domain', { domain })
   
   const { data: org, error: findError } = await client
     .from('organizations')
@@ -351,28 +362,40 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
     .contains('email_domains', [domain])
     .single()
   
+  authLog('info', 'Domain lookup result', { found: !!org, error: findError?.message })
+  
   if (findError || !org) {
     // Try alternative query (in case contains doesn't work with array)
+    authLog('info', 'Primary lookup failed, trying alternative')
     const { data: allOrgs } = await client
       .from('organizations')
       .select('*')
+    
+    authLog('info', 'Fetched all orgs', { count: allOrgs?.length })
     
     const matchingOrg = allOrgs?.find(o => 
       o.email_domains?.includes(domain)
     )
     
     if (matchingOrg) {
+      authLog('info', 'Found matching org via alternative lookup', { orgName: matchingOrg.name })
+      
       // Update user's org_id
-      await client
+      const { error: updateError } = await client
         .from('users')
         .update({ org_id: matchingOrg.id })
         .eq('id', userId)
       
+      authLog('info', 'Updated user org_id', { success: !updateError, error: updateError?.message })
+      
       return { org: matchingOrg, error: null }
     }
     
+    authLog('warn', 'No organization found for domain', { domain })
     return { org: null, error: new Error(`No organization found for @${domain}`) }
   }
+  
+  authLog('info', 'Found org via primary lookup', { orgName: org.name })
   
   // Update user's org_id
   const { error: updateError } = await client
@@ -380,9 +403,7 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
     .update({ org_id: org.id })
     .eq('id', userId)
   
-  if (updateError) {
-    console.warn('Failed to update user org_id:', updateError)
-  }
+  authLog('info', 'Updated user org_id', { success: !updateError, error: updateError?.message })
   
   return { org, error: null }
 }
