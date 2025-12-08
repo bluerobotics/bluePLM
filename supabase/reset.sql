@@ -47,8 +47,22 @@ DROP POLICY IF EXISTS "Authenticated users can delete from vault" ON storage.obj
 -- NOTES
 -- ===========================================
 -- This script does NOT delete:
--- - auth.users (Supabase Auth manages these separately)
+-- - auth.users (Supabase Auth manages these separately - delete in Authentication → Users)
 -- - Storage bucket files (delete manually in Storage dashboard)
 --
--- After running this, run schema.sql to recreate everything.
+-- After running this:
+-- 1. Run schema.sql to recreate tables
+-- 2. Create your organization (INSERT INTO organizations...)
+-- 3. IMPORTANT: If you have existing auth users, run this to link them:
+--
+--    INSERT INTO users (id, email, full_name, org_id)
+--    SELECT 
+--      au.id,
+--      au.email,
+--      au.raw_user_meta_data->>'full_name',
+--      o.id
+--    FROM auth.users au
+--    LEFT JOIN organizations o ON split_part(au.email, '@', 2) = ANY(o.email_domains);
+--
+-- The trigger only fires for NEW signups, not existing auth users.
 
