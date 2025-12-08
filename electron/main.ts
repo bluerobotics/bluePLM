@@ -8,13 +8,117 @@ import chokidar from 'chokidar'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// ============================================
+// File-based Logging System
+// ============================================
+const LOG_MAX_SIZE = 5 * 1024 * 1024 // 5MB max log file size
+const LOG_MAX_FILES = 3 // Keep 3 log files (current + 2 rotated)
+
+interface LogEntry {
+  timestamp: string
+  level: 'info' | 'warn' | 'error' | 'debug'
+  message: string
+  data?: unknown
+}
+
+// In-memory log buffer (for fast access)
+const logBuffer: LogEntry[] = []
+const LOG_BUFFER_MAX = 1000 // Keep last 1000 entries in memory
+
+let logFilePath: string | null = null
+let logStream: fs.WriteStream | null = null
+
+function initializeLogging() {
+  try {
+    const logsDir = path.join(app.getPath('userData'), 'logs')
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true })
+    }
+    
+    logFilePath = path.join(logsDir, 'bluepdm.log')
+    
+    // Rotate logs if current file is too large
+    if (fs.existsSync(logFilePath)) {
+      const stats = fs.statSync(logFilePath)
+      if (stats.size > LOG_MAX_SIZE) {
+        rotateLogFiles(logsDir)
+      }
+    }
+    
+    // Open log file for appending
+    logStream = fs.createWriteStream(logFilePath, { flags: 'a' })
+    
+    // Write startup header
+    const startupHeader = `\n${'='.repeat(60)}\n[${new Date().toISOString()}] BluePDM Starting - v${app.getVersion()}\nPlatform: ${process.platform} ${process.arch}\nElectron: ${process.versions.electron}\nNode: ${process.versions.node}\n${'='.repeat(60)}\n`
+    logStream.write(startupHeader)
+  } catch (err) {
+    console.error('Failed to initialize logging:', err)
+  }
+}
+
+function rotateLogFiles(logsDir: string) {
+  try {
+    // Delete oldest log if we have too many
+    for (let i = LOG_MAX_FILES - 1; i >= 1; i--) {
+      const oldFile = path.join(logsDir, `bluepdm.${i}.log`)
+      const newFile = path.join(logsDir, `bluepdm.${i + 1}.log`)
+      if (fs.existsSync(oldFile)) {
+        if (i === LOG_MAX_FILES - 1) {
+          fs.unlinkSync(oldFile) // Delete oldest
+        } else {
+          fs.renameSync(oldFile, newFile)
+        }
+      }
+    }
+    // Rename current to .1
+    if (logFilePath && fs.existsSync(logFilePath)) {
+      fs.renameSync(logFilePath, path.join(logsDir, 'bluepdm.1.log'))
+    }
+  } catch (err) {
+    console.error('Failed to rotate log files:', err)
+  }
+}
+
+function writeLog(level: LogEntry['level'], message: string, data?: unknown) {
+  const entry: LogEntry = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    data
+  }
+  
+  // Add to memory buffer
+  logBuffer.push(entry)
+  if (logBuffer.length > LOG_BUFFER_MAX) {
+    logBuffer.shift() // Remove oldest
+  }
+  
+  // Format for file/console
+  const dataStr = data !== undefined ? ` ${JSON.stringify(data)}` : ''
+  const logLine = `[${entry.timestamp}] [${level.toUpperCase()}] ${message}${dataStr}`
+  
+  // Write to console
+  if (level === 'error') {
+    console.error(logLine)
+  } else if (level === 'warn') {
+    console.warn(logLine)
+  } else {
+    console.log(logLine)
+  }
+  
+  // Write to file
+  if (logStream) {
+    logStream.write(logLine + '\n')
+  }
+}
+
 // Prevent crashes from taking down the whole app
 process.on('uncaughtException', (error) => {
-  console.error('[Main] Uncaught exception:', error)
+  writeLog('error', 'Uncaught exception', { error: error.message, stack: error.stack })
 })
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[Main] Unhandled rejection:', reason)
+  writeLog('error', 'Unhandled rejection', { reason: String(reason) })
 })
 
 let mainWindow: BrowserWindow | null = null
@@ -69,8 +173,21 @@ function saveWindowState() {
   }
 }
 
-const log = (...args: unknown[]) => {
-  console.log('[Main]', ...args)
+// Convenience log functions (use new logging system)
+const log = (message: string, data?: unknown) => {
+  writeLog('info', `[Main] ${message}`, data)
+}
+
+const logDebug = (message: string, data?: unknown) => {
+  writeLog('debug', `[Main] ${message}`, data)
+}
+
+const logError = (message: string, data?: unknown) => {
+  writeLog('error', `[Main] ${message}`, data)
+}
+
+const logWarn = (message: string, data?: unknown) => {
+  writeLog('warn', `[Main] ${message}`, data)
 }
 
 log('BluePDM starting...', { isDev, dirname: __dirname })
@@ -459,6 +576,73 @@ ipcMain.handle('app:get-titlebar-overlay-rect', () => {
   if (!mainWindow) return { x: 0, y: 0, width: 138, height: 38 }
   // getTitleBarOverlayRect is available in Electron 20+
   return mainWindow.getTitleBarOverlayRect?.() || { x: 0, y: 0, width: 138, height: 38 }
+})
+
+// ============================================
+// IPC Handlers - Logging
+// ============================================
+ipcMain.handle('logs:get-entries', () => {
+  return logBuffer
+})
+
+ipcMain.handle('logs:get-path', () => {
+  return logFilePath
+})
+
+ipcMain.handle('logs:export', async () => {
+  try {
+    if (!logFilePath || !fs.existsSync(logFilePath)) {
+      return { success: false, error: 'No log file available' }
+    }
+    
+    // Flush the stream first
+    if (logStream) {
+      await new Promise<void>((resolve) => logStream!.write('', resolve))
+    }
+    
+    // Read all log files and combine them
+    const logsDir = path.dirname(logFilePath)
+    const logFiles = fs.readdirSync(logsDir)
+      .filter(f => f.startsWith('bluepdm') && f.endsWith('.log'))
+      .sort()
+      .reverse() // Newest first
+    
+    let combinedLogs = `BluePDM Logs Export\nExported: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\nPlatform: ${process.platform} ${process.arch}\n${'='.repeat(60)}\n\n`
+    
+    for (const file of logFiles) {
+      const filePath = path.join(logsDir, file)
+      const content = fs.readFileSync(filePath, 'utf-8')
+      combinedLogs += `\n--- ${file} ---\n${content}\n`
+    }
+    
+    // Show save dialog
+    const result = await dialog.showSaveDialog(mainWindow!, {
+      title: 'Export Logs',
+      defaultPath: `bluepdm-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`,
+      filters: [
+        { name: 'Text Files', extensions: ['txt'] },
+        { name: 'Log Files', extensions: ['log'] }
+      ]
+    })
+    
+    if (result.canceled || !result.filePath) {
+      return { success: false, canceled: true }
+    }
+    
+    fs.writeFileSync(result.filePath, combinedLogs)
+    log('Logs exported to: ' + result.filePath)
+    
+    return { success: true, path: result.filePath }
+  } catch (err) {
+    logError('Failed to export logs', { error: String(err) })
+    return { success: false, error: String(err) }
+  }
+})
+
+// Log from renderer process
+ipcMain.on('logs:write', (_, level: string, message: string, data?: unknown) => {
+  const validLevel = ['info', 'warn', 'error', 'debug'].includes(level) ? level as LogEntry['level'] : 'info'
+  writeLog(validLevel, `[Renderer] ${message}`, data)
 })
 
 // ============================================
@@ -1318,6 +1502,9 @@ app.on('second-instance', () => {
 })
 
 app.whenReady().then(() => {
+  // Initialize file-based logging now that app paths are available
+  initializeLogging()
+  
   log('App ready, creating window...')
   createWindow()
 
@@ -1327,7 +1514,7 @@ app.whenReady().then(() => {
     }
   })
 }).catch(err => {
-  log('Error during app ready:', err)
+  logError('Error during app ready', { error: String(err) })
 })
 
 app.on('window-all-closed', () => {

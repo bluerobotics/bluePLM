@@ -27,7 +27,8 @@ import {
   Heart,
   Copy,
   Key,
-  Eye
+  Eye,
+  Download
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { supabase, signOut, getCurrentConfig } from '../lib/supabase'
@@ -113,6 +114,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [disconnectingVault, setDisconnectingVault] = useState<{ id: string; name: string } | null>(null)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [isExportingLogs, setIsExportingLogs] = useState(false)
   const [appVersion, setAppVersion] = useState('')
   const [platform, setPlatform] = useState<string>('win32')
   const [showOrgCode, setShowOrgCode] = useState(false)
@@ -1227,6 +1229,42 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     </div>
                     <ExternalLink size={16} className="text-pdm-fg-muted" />
                   </a>
+                </div>
+                
+                {/* Diagnostics */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-pdm-fg-dim uppercase tracking-wide">Diagnostics</h3>
+                  <button
+                    onClick={async () => {
+                      setIsExportingLogs(true)
+                      try {
+                        const result = await window.electronAPI?.exportLogs()
+                        if (result?.success) {
+                          addToast('success', 'Logs exported successfully')
+                        } else if (!result?.canceled) {
+                          addToast('error', result?.error || 'Failed to export logs')
+                        }
+                      } catch (err) {
+                        addToast('error', 'Failed to export logs')
+                      } finally {
+                        setIsExportingLogs(false)
+                      }
+                    }}
+                    disabled={isExportingLogs}
+                    className="w-full flex items-center gap-3 p-4 rounded-lg border border-pdm-border bg-pdm-bg hover:border-pdm-accent transition-colors cursor-pointer text-left disabled:opacity-50"
+                  >
+                    {isExportingLogs ? (
+                      <Loader2 size={20} className="text-pdm-fg-muted animate-spin" />
+                    ) : (
+                      <Download size={20} className="text-pdm-fg-muted" />
+                    )}
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-pdm-fg">Export App Logs</div>
+                      <div className="text-xs text-pdm-fg-dim">
+                        Download diagnostic logs for troubleshooting
+                      </div>
+                    </div>
+                  </button>
                 </div>
                 
                 {/* License */}

@@ -72,6 +72,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPlatform: () => ipcRenderer.invoke('app:get-platform'),
   getTitleBarOverlayRect: (): Promise<TitleBarOverlayRect> => ipcRenderer.invoke('app:get-titlebar-overlay-rect'),
   
+  // Logging
+  getLogs: () => ipcRenderer.invoke('logs:get-entries'),
+  getLogPath: () => ipcRenderer.invoke('logs:get-path'),
+  exportLogs: () => ipcRenderer.invoke('logs:export'),
+  log: (level: string, message: string, data?: unknown) => ipcRenderer.send('logs:write', level, message, data),
+  
   // Get file path from dropped File object (for drag & drop)
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
 
@@ -184,7 +190,13 @@ declare global {
       getPathForFile: (file: File) => string
       
       // OAuth
-      openOAuthWindow: (url: string) => Promise<{ success: boolean; canceled?: boolean }>
+      openOAuthWindow: (url: string) => Promise<{ success: boolean; canceled?: boolean; error?: string }>
+      
+      // Logging
+      getLogs: () => Promise<Array<{ timestamp: string; level: string; message: string; data?: unknown }>>
+      getLogPath: () => Promise<string | null>
+      exportLogs: () => Promise<{ success: boolean; path?: string; error?: string; canceled?: boolean }>
+      log: (level: string, message: string, data?: unknown) => void
       
       // Window controls
       minimize: () => void

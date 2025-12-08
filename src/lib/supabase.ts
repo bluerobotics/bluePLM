@@ -109,10 +109,30 @@ initializeClient()
 
 let sessionResolver: ((success: boolean) => void) | null = null
 
+// Helper to log to both console and file (via Electron)
+const authLog = (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => {
+  const logMsg = `[Auth] ${message}`
+  if (level === 'error') {
+    console.error(logMsg, data || '')
+  } else if (level === 'warn') {
+    console.warn(logMsg, data || '')
+  } else {
+    console.log(logMsg, data || '')
+  }
+  // Also log to file if Electron API is available
+  window.electronAPI?.log?.(level, message, data)
+}
+
 function setupSessionListener() {
   if (typeof window !== 'undefined' && window.electronAPI?.onSetSession) {
+    authLog('info', 'Setting up onSetSession listener')
     window.electronAPI.onSetSession(async (tokens) => {
-      console.log('[Auth] Received tokens from main process, setting session...')
+      authLog('info', 'Received tokens from main process', {
+        hasAccessToken: !!tokens.access_token,
+        accessTokenLength: tokens.access_token?.length,
+        hasRefreshToken: !!tokens.refresh_token,
+        expiresIn: tokens.expires_in
+      })
       try {
         const client = getSupabaseClient()
         const { data, error } = await client.auth.setSession({
@@ -121,14 +141,17 @@ function setupSessionListener() {
         })
         
         if (error) {
-          console.error('[Auth] Error setting session:', error)
+          authLog('error', 'Error setting session', { error: error.message, code: error.status })
           sessionResolver?.(false)
         } else {
-          console.log('[Auth] Session set successfully:', data.user?.email)
+          authLog('info', 'Session set successfully', { 
+            email: data.user?.email,
+            userId: data.user?.id?.substring(0, 8) + '...'
+          })
           sessionResolver?.(true)
         }
       } catch (err) {
-        console.error('[Auth] Failed to set session:', err)
+        authLog('error', 'Failed to set session (exception)', { error: String(err) })
         sessionResolver?.(false)
       }
     })
@@ -145,7 +168,14 @@ export async function signInWithGoogle() {
   // In Electron production, use popup window flow
   const isElectronProduction = window.electronAPI && !window.location.href.startsWith('http://localhost')
   
+  authLog('info', 'signInWithGoogle called', { 
+    isElectronProduction,
+    currentUrl: window.location.href.substring(0, 50)
+  })
+  
   if (isElectronProduction) {
+    authLog('info', 'Using Electron production OAuth flow')
+    
     // Get the OAuth URL from Supabase without auto-redirecting
     const { data, error } = await client.auth.signInWithOAuth({
       provider: 'google',
@@ -160,47 +190,71 @@ export async function signInWithGoogle() {
     })
     
     if (error || !data?.url) {
+      authLog('error', 'Failed to get OAuth URL from Supabase', { 
+        error: error?.message,
+        hasData: !!data
+      })
       return { data, error: error || new Error('No OAuth URL returned') }
     }
+    
+    authLog('info', 'Got OAuth URL from Supabase', { urlLength: data.url.length })
     
     // Set up promise to wait for session from main process
     const sessionPromise = new Promise<boolean>((resolve) => {
       sessionResolver = resolve
       // Timeout after 60 seconds
       setTimeout(() => {
+        authLog('warn', 'Session promise timed out after 60s')
         sessionResolver = null
         resolve(false)
       }, 60000)
     })
     
     // Open OAuth window via Electron IPC
-    console.log('[Auth] Opening OAuth popup window...')
+    authLog('info', 'Opening OAuth popup window via Electron IPC')
     const result = await window.electronAPI.openOAuthWindow(data.url)
     
+    authLog('info', 'OAuth window closed', { 
+      success: result?.success,
+      canceled: result?.canceled,
+      error: result?.error
+    })
+    
     if (result?.success) {
-      console.log('[Auth] OAuth window closed, waiting for session...')
+      authLog('info', 'OAuth window reported success, waiting for session from main process')
       // Wait for the session to be set by the main process
       const sessionSet = await sessionPromise
       sessionResolver = null
       
+      authLog('info', 'Session promise resolved', { sessionSet })
+      
       if (sessionSet) {
-        console.log('[Auth] Session set successfully!')
+        authLog('info', 'Session set successfully via IPC!')
         return { data: { url: null, provider: 'google' }, error: null }
       } else {
-        console.log('[Auth] Session was not set, checking manually...')
+        authLog('warn', 'Session was not set via IPC, checking manually')
         // Fallback: try to get session manually
         const { data: { session } } = await client.auth.getSession()
+        authLog('info', 'Manual session check result', {
+          hasSession: !!session,
+          email: session?.user?.email
+        })
         if (session) {
+          authLog('info', 'Found session via manual check')
           return { data: { url: null, provider: 'google' }, error: null }
         }
       }
     }
     
     sessionResolver = null
+    authLog('error', 'OAuth flow completed without establishing session', {
+      wasCanceled: result?.canceled
+    })
     return { data: null, error: result?.canceled ? null : new Error('OAuth failed') }
   }
   
   // In development or web, use normal OAuth flow
+  authLog('info', 'Using web/development OAuth flow')
   const { data, error } = await client.auth.signInWithOAuth({
     provider: 'google',
     options: {
