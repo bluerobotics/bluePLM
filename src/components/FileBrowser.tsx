@@ -1252,13 +1252,16 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       return // Cancelled or no files selected
     }
 
-    setStatusMessage(`Adding ${result.files.length} file${result.files.length > 1 ? 's' : ''}...`)
+    const totalFiles = result.files.length
+    const toastId = `add-files-${Date.now()}`
+    addProgressToast(toastId, `Adding ${totalFiles} file${totalFiles > 1 ? 's' : ''}...`, totalFiles)
 
     try {
       let successCount = 0
       let errorCount = 0
 
-      for (const file of result.files) {
+      for (let i = 0; i < result.files.length; i++) {
+        const file = result.files[i]
         // Use relativePath if available (preserves folder structure), otherwise just the filename
         const targetPath = (file as any).relativePath || file.name
         const destPath = buildFullPath(vaultPath, targetPath)
@@ -1271,24 +1274,27 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           errorCount++
           console.error(`Failed to copy ${file.name}:`, copyResult.error)
         }
+        
+        // Update progress
+        const percent = Math.round(((i + 1) / totalFiles) * 100)
+        updateProgressToast(toastId, i + 1, percent)
       }
 
+      removeToast(toastId)
+      
       if (errorCount === 0) {
-        setStatusMessage(`Added ${successCount} file${successCount > 1 ? 's' : ''}`)
+        addToast('success', `Added ${successCount} file${successCount > 1 ? 's' : ''}`)
       } else {
-        setStatusMessage(`Added ${successCount}, failed ${errorCount}`)
+        addToast('warning', `Added ${successCount}, failed ${errorCount}`)
       }
 
       // Refresh the file list
-      setTimeout(() => {
-        onRefresh()
-        setTimeout(() => setStatusMessage(''), 3000)
-      }, 100)
+      setTimeout(() => onRefresh(), 100)
 
     } catch (err) {
       console.error('Error adding files:', err)
-      setStatusMessage('Failed to add files')
-      setTimeout(() => setStatusMessage(''), 3000)
+      removeToast(toastId)
+      addToast('error', 'Failed to add files')
     }
   }
 
@@ -1340,13 +1346,16 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       return
     }
 
-    setStatusMessage(`Adding ${filePaths.length} file${filePaths.length > 1 ? 's' : ''}...`)
+    const totalFiles = filePaths.length
+    const toastId = `drop-files-${Date.now()}`
+    addProgressToast(toastId, `Adding ${totalFiles} file${totalFiles > 1 ? 's' : ''}...`, totalFiles)
 
     try {
       let successCount = 0
       let errorCount = 0
 
-      for (const sourcePath of filePaths) {
+      for (let i = 0; i < filePaths.length; i++) {
+        const sourcePath = filePaths[i]
         const fileName = sourcePath.split(/[/\\]/).pop() || 'unknown'
         const destPath = buildFullPath(vaultPath, fileName)
 
@@ -1359,24 +1368,27 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           errorCount++
           console.error(`Failed to copy ${fileName}:`, result.error)
         }
+        
+        // Update progress
+        const percent = Math.round(((i + 1) / totalFiles) * 100)
+        updateProgressToast(toastId, i + 1, percent)
       }
 
+      removeToast(toastId)
+      
       if (errorCount === 0) {
-        setStatusMessage(`Added ${successCount} file${successCount > 1 ? 's' : ''}`)
+        addToast('success', `Added ${successCount} file${successCount > 1 ? 's' : ''}`)
       } else {
-        setStatusMessage(`Added ${successCount}, failed ${errorCount}`)
+        addToast('warning', `Added ${successCount}, failed ${errorCount}`)
       }
 
       // Refresh the file list
-      setTimeout(() => {
-        onRefresh()
-        setTimeout(() => setStatusMessage(''), 3000)
-      }, 100)
+      setTimeout(() => onRefresh(), 100)
 
     } catch (err) {
       console.error('Error adding files:', err)
-      setStatusMessage('Failed to add files')
-      setTimeout(() => setStatusMessage(''), 3000)
+      removeToast(toastId)
+      addToast('error', 'Failed to add files')
     }
   }
 

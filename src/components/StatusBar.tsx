@@ -1,5 +1,6 @@
 import { usePDMStore } from '../stores/pdmStore'
-import { Cloud, CloudOff, Wifi, Lock } from 'lucide-react'
+import { Cloud, CloudOff, Wifi, Lock, Loader2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export function StatusBar() {
   const { 
@@ -12,8 +13,16 @@ export function StatusBar() {
     isLoading,
     user,
     organization,
-    vaultName
+    vaultName,
+    syncProgress,
+    requestCancelSync
   } = usePDMStore()
+  
+  const [appVersion, setAppVersion] = useState('')
+  
+  useEffect(() => {
+    window.electronAPI?.getVersion().then(v => setAppVersion(v))
+  }, [])
 
   // Check if any vault is connected (legacy or multi-vault)
   const hasVaultConnected = isVaultConnected || connectedVaults.length > 0
@@ -32,7 +41,7 @@ export function StatusBar() {
   if (!hasVaultConnected) {
     return (
       <div className="bg-pdm-activitybar border-t border-pdm-border flex items-center justify-end px-3 py-[2px] text-xs text-pdm-fg-dim select-none flex-shrink-0">
-        <span className="text-pdm-fg-muted">v0.7.1</span>
+        <span className="text-pdm-fg-muted">v{appVersion || '...'}</span>
       </div>
     )
   }
@@ -40,16 +49,45 @@ export function StatusBar() {
   return (
     <div className="bg-pdm-activitybar border-t border-pdm-border flex items-center justify-between px-3 py-[2px] text-xs text-pdm-fg-dim select-none flex-shrink-0">
       <div className="flex items-center gap-4 flex-1 min-w-0">
+        {/* Sync progress indicator */}
+        {syncProgress.isActive && (
+          <div className="flex items-center gap-2 text-pdm-accent flex-shrink-0">
+            <Loader2 size={12} className="animate-spin" />
+            <span>
+              {syncProgress.operation === 'upload' ? 'Uploading' : 
+               syncProgress.operation === 'download' ? 'Downloading' :
+               syncProgress.operation === 'checkin' ? 'Checking in' : 'Checking out'}
+              {' '}{syncProgress.current}/{syncProgress.total}
+              {syncProgress.speed && ` (${syncProgress.speed})`}
+            </span>
+            <div className="w-20 h-1.5 bg-pdm-border rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-pdm-accent transition-all duration-200"
+                style={{ width: `${syncProgress.percent}%` }}
+              />
+            </div>
+            <button 
+              onClick={requestCancelSync}
+              className="p-0.5 hover:bg-pdm-highlight rounded"
+              title="Cancel"
+            >
+              <X size={10} />
+            </button>
+          </div>
+        )}
+        
         {/* Vault status */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <Wifi size={12} className="text-pdm-success" />
-          <span className="text-pdm-fg-dim">
-            Connected to {displayName}
-          </span>
-        </div>
+        {!syncProgress.isActive && (
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Wifi size={12} className="text-pdm-success" />
+            <span className="text-pdm-fg-dim">
+              Connected to {displayName}
+            </span>
+          </div>
+        )}
 
         {/* Checked out status */}
-        {checkedOutCount > 0 && (
+        {checkedOutCount > 0 && !syncProgress.isActive && (
           <div className="flex items-center gap-1.5 text-pdm-warning flex-shrink-0">
             <Lock size={12} />
             <span>{checkedOutCount} checked out</span>
@@ -57,7 +95,7 @@ export function StatusBar() {
         )}
 
         {/* Status message */}
-        {statusMessage && (
+        {statusMessage && !syncProgress.isActive && (
           <span className={`truncate ${isLoading ? 'animate-pulse' : ''}`}>
             {statusMessage}
           </span>
