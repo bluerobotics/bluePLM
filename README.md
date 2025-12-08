@@ -45,35 +45,45 @@ npm run build
 
 1. **Create a Supabase project** at [supabase.com](https://supabase.com)
 
-2. **Run the database schema:**
-   - Go to SQL Editor in your Supabase dashboard
-   - Copy and run the contents of `supabase/schema.sql`
-
-3. **Set up Google OAuth:**
+2. **Set up Google OAuth:**
    - Go to Authentication → Providers → Google
    - Enable Google provider
    - Add your Google OAuth credentials (from [Google Cloud Console](https://console.cloud.google.com/apis/credentials))
    - Add `http://localhost` to Redirect URLs (for Electron app)
 
-4. **Create a storage bucket:**
+3. **Create a storage bucket:**
    - Go to Storage → New Bucket
    - Name it `vault`
    - Set to **Private** (not public)
-   - Policies are created automatically by the schema
 
-5. **Create your organization** (one-time admin setup):
+4. **Run the database schema:**
+   - Go to SQL Editor in your Supabase dashboard
+   - Copy and run the contents of `supabase/schema.sql`
+   - This creates all tables, triggers, and storage policies
+
+5. **Create your organization:**
    ```sql
    INSERT INTO organizations (name, slug, email_domains)
    VALUES ('Your Company', 'your-company', ARRAY['yourcompany.com']);
    ```
-   Users with matching email domains will auto-join on sign-in.
-   Vaults can then be created through the app (Settings → Organization).
 
-6. **Verify the trigger exists:**
+6. **Link existing users** (if you signed into Supabase before running the schema):
    ```sql
-   SELECT tgname FROM pg_trigger WHERE tgname = 'on_auth_user_created';
+   INSERT INTO users (id, email, full_name, org_id)
+   SELECT au.id, au.email, au.raw_user_meta_data->>'full_name', o.id
+   FROM auth.users au
+   LEFT JOIN organizations o ON split_part(au.email, '@', 2) = ANY(o.email_domains)
+   WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = au.id);
    ```
-   If empty, the trigger didn't attach. Re-run the trigger creation from `schema.sql`.
+   New users signing in after this will be auto-linked by the trigger.
+
+7. **Verify setup:**
+   ```sql
+   SELECT tgname FROM pg_trigger WHERE tgname = 'on_auth_user_created';  -- Should return 1 row
+   SELECT * FROM users;  -- Should show your user with org_id set
+   ```
+
+Vaults can be created through the app (Settings → Organization).
 
 ### Configuration (Optional)
 

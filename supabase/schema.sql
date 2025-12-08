@@ -476,10 +476,28 @@ USING (bucket_id = 'vault');
 -- ===========================================
 
 -- ===========================================
+-- SYNC EXISTING AUTH USERS
+-- ===========================================
+-- This runs automatically and links any existing auth.users to public.users.
+-- Safe to run multiple times (uses ON CONFLICT DO NOTHING).
+
+INSERT INTO users (id, email, full_name, avatar_url, org_id)
+SELECT 
+  au.id,
+  au.email,
+  COALESCE(au.raw_user_meta_data->>'full_name', au.raw_user_meta_data->>'name'),
+  au.raw_user_meta_data->>'avatar_url',
+  o.id
+FROM auth.users au
+LEFT JOIN organizations o ON split_part(au.email, '@', 2) = ANY(o.email_domains)
+WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = au.id)
+ON CONFLICT (id) DO NOTHING;
+
+-- ===========================================
 -- SEED DATA (Example - uncomment and modify)
 -- ===========================================
 
--- Create your organization:
+-- Create your organization (run this BEFORE the sync above will work):
 /*
 INSERT INTO organizations (name, slug, email_domains, revision_scheme, settings)
 VALUES (
