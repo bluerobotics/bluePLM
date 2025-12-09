@@ -337,10 +337,19 @@ export function DetailsPanel() {
         } else {
           // Write the content to the local file
           const arrayBuffer = await contentBlob.arrayBuffer()
-          const uint8Array = new Uint8Array(arrayBuffer)
+          const bytes = new Uint8Array(arrayBuffer)
+          
+          // Convert to base64 for the electron API
+          let binary = ''
+          const chunkSize = 8192
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
+            binary += String.fromCharCode.apply(null, Array.from(chunk))
+          }
+          const base64 = btoa(binary)
           
           if (window.electronAPI) {
-            const writeResult = await window.electronAPI.writeFile(file.path, uint8Array)
+            const writeResult = await window.electronAPI.writeFile(file.path, base64)
             if (!writeResult.success) {
               addToast('warning', `${actionLabel} to v${targetVersion} - but could not write file: ${writeResult.error}`)
             }
@@ -1317,7 +1326,7 @@ function StatePropertyItem({
         <span className="text-pdm-fg-muted">{label}:</span>
         <div className="flex items-center gap-1 flex-1">
           <select
-            ref={(el) => {
+            ref={(el: HTMLSelectElement | null) => {
               // Auto-open dropdown when element mounts
               if (el && !isSaving) {
                 el.focus()
@@ -1325,10 +1334,10 @@ function StatePropertyItem({
                   try {
                     (el as any).showPicker()
                   } catch {
-                    el.click()
+                    (el as HTMLSelectElement).click()
                   }
                 } else {
-                  el.click()
+                  (el as HTMLSelectElement).click()
                 }
               }
             }}

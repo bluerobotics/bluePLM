@@ -10,7 +10,6 @@ import {
   FileBox,
   FileText,
   Layers,
-  Lock,
   RefreshCw,
   Upload,
   Home,
@@ -332,15 +331,6 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     return folderFiles.every(f => !!f.pdmData)
   }
 
-  // Check if any files in a folder are checked out and by whom
-  const hasFolderCheckedOutFiles = (folderPath: string): boolean => {
-    const folderFiles = files.filter(f => 
-      !f.isDirectory && 
-      f.relativePath.startsWith(folderPath + '/')
-    )
-    return folderFiles.some(f => f.pdmData?.checked_out_by)
-  }
-  
   // Get folder checkout status: 'mine' | 'others' | 'both' | null
   const getFolderCheckoutStatus = (folderPath: string): 'mine' | 'others' | 'both' | null => {
     const folderFiles = files.filter(f => 
@@ -529,7 +519,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         const result = await checkinFile(f.pdmData!.id, user.id, {
           pendingMetadata: f.pendingMetadata
         })
-        if (result.success) {
+        if (result.success && result.file) {
           await window.electronAPI?.setReadonly(f.path, true)
           // Clear pending metadata and update store
           // Also clear localActiveVersion since we're now checked in
@@ -537,6 +527,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           updateFileInStore(f.path, {
             pdmData: { ...f.pdmData!, checked_out_by: null, checked_out_user: null, ...result.file },
             localActiveVersion: undefined  // Clear rollback state
+          })
+          succeeded++
+        } else if (result.success) {
+          await window.electronAPI?.setReadonly(f.path, true)
+          clearPendingMetadata(f.path)
+          updateFileInStore(f.path, {
+            pdmData: { ...f.pdmData!, checked_out_by: null, checked_out_user: null },
+            localActiveVersion: undefined
           })
           succeeded++
         }

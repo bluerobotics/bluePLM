@@ -1023,7 +1023,7 @@ export async function updateFileMetadata(
   updates: {
     state?: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
   }
-) {
+): Promise<{ success: boolean; file?: any; error?: string | null }> {
   const client = getSupabaseClient()
   
   // Get current file to validate and log changes

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePDMStore } from './stores/pdmStore'
-import { supabase, getCurrentSession, isSupabaseConfigured, getFiles, linkUserToOrganization, checkinFile, getUserProfile, setCurrentAccessToken } from './lib/supabase'
+import { supabase, getCurrentSession, isSupabaseConfigured, getFiles, linkUserToOrganization, getUserProfile, setCurrentAccessToken } from './lib/supabase'
 import { MenuBar } from './components/MenuBar'
 import { ActivityBar } from './components/ActivityBar'
 import { Sidebar } from './components/Sidebar'
