@@ -1604,75 +1604,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             )}
             
             
-            {!fileStatusColumnVisible && (() => {
+            {/* Cloud/sync status icon - only shown when fileStatus column is hidden AND no checkout users */}
+            {!fileStatusColumnVisible && checkoutUsers.length === 0 && (() => {
               if (file.isDirectory) {
-                // Get checkout users for folder
-                const folderPrefix = file.relativePath + '/'
-                const checkedOutFiles = files.filter(f => 
-                  !f.isDirectory && 
-                  f.pdmData?.checked_out_by &&
-                  f.relativePath.startsWith(folderPrefix)
-                )
-                
-                // Build unique users list
-                const usersMap = new Map<string, { id: string; name: string; avatar_url?: string; isMe: boolean }>()
-                for (const f of checkedOutFiles) {
-                  const userId = f.pdmData?.checked_out_by
-                  if (userId && !usersMap.has(userId)) {
-                    const checkedOutUser = (f.pdmData as any)?.checked_out_user
-                    usersMap.set(userId, {
-                      id: userId,
-                      name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
-                      avatar_url: checkedOutUser?.avatar_url,
-                      isMe: userId === user?.id
-                    })
-                  }
-                }
-                const checkoutUsers = Array.from(usersMap.values()).sort((a, b) => {
-                  if (a.isMe && !b.isMe) return -1
-                  if (!a.isMe && b.isMe) return 1
-                  return 0
-                })
-                
-                // If has checkout users, show avatars
-                if (checkoutUsers.length > 0) {
-                  const maxShow = 3
-                  const shown = checkoutUsers.slice(0, maxShow)
-                  const extra = checkoutUsers.length - maxShow
-                  
-                  return (
-                    <span className="flex items-center flex-shrink-0 -space-x-1.5" title={checkoutUsers.map(u => u.name).join(', ')}>
-                      {shown.map((u, i) => (
-                        u.avatar_url ? (
-                          <img 
-                            key={u.id}
-                            src={u.avatar_url} 
-                            alt={u.name}
-                            className={`w-4 h-4 rounded-full ring-1 ${u.isMe ? 'ring-pdm-warning' : 'ring-pdm-error'} bg-pdm-bg`}
-                            style={{ zIndex: maxShow - i }}
-                          />
-                        ) : (
-                          <div 
-                            key={u.id}
-                            className={`w-4 h-4 rounded-full ring-1 ${u.isMe ? 'ring-pdm-warning bg-pdm-warning/30' : 'ring-pdm-error bg-pdm-error/30'} flex items-center justify-center text-[8px] bg-pdm-bg`}
-                            style={{ zIndex: maxShow - i }}
-                          >
-                            {u.name.charAt(0).toUpperCase()}
-                          </div>
-                        )
-                      ))}
-                      {extra > 0 && (
-                        <div 
-                          className="w-4 h-4 rounded-full ring-1 ring-pdm-fg-muted bg-pdm-bg flex items-center justify-center text-[8px] text-pdm-fg-muted"
-                          style={{ zIndex: 0 }}
-                        >
-                          +{extra}
-                        </div>
-                      )}
-                    </span>
-                  )
-                }
-                
                 // Cloud-only folder
                 if (file.diffStatus === 'cloud') {
                   return (
@@ -1683,6 +1617,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 }
                 
                 // Check if folder has synced files
+                const folderPrefix = file.relativePath + '/'
                 const hasSyncedFilesInFolder = files.some(f => 
                   !f.isDirectory && f.pdmData && f.relativePath.startsWith(folderPrefix)
                 )
@@ -1696,40 +1631,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 return null
               }
               
-              // For files - checked out by me
-              if (file.pdmData?.checked_out_by === user?.id) {
-                if (user?.avatar_url) {
-                  return (
-                    <img 
-                      src={user.avatar_url} 
-                      alt="You"
-                      title="Checked out by you"
-                      className="w-4 h-4 rounded-full flex-shrink-0 ring-1 ring-pdm-warning"
-                    />
-                  )
-                }
-                return <span title="Checked out by you"><Lock size={12} className="text-pdm-warning flex-shrink-0" /></span>
-              }
-              
-              // Checked out by someone else
-              if (file.pdmData?.checked_out_by) {
-                const checkedOutUser = (file.pdmData as any).checked_out_user
-                const avatarUrl = checkedOutUser?.avatar_url
-                const displayName = checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone'
-                
-                if (avatarUrl) {
-                  return (
-                    <img 
-                      src={avatarUrl} 
-                      alt={displayName}
-                      title={`Checked out by ${displayName}`}
-                      className="w-4 h-4 rounded-full flex-shrink-0 ring-1 ring-pdm-error"
-                    />
-                  )
-                }
-                return <span title={`Checked out by ${displayName}`}><Lock size={12} className="text-pdm-error flex-shrink-0" /></span>
-              }
-              
+              // For files - avatars already shown above if checked out
               // Cloud-only file
               if (file.diffStatus === 'cloud') {
                 return (
@@ -1739,8 +1641,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 )
               }
               
-              // Synced file
-              if (isSynced) {
+              // Synced file (not checked out - avatars shown above if checked out)
+              if (isSynced && !file.pdmData?.checked_out_by) {
                 return (
                   <span className="flex-shrink-0 text-pdm-success" title="Synced with cloud">
                     <Cloud size={12} />
@@ -1749,11 +1651,15 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               }
               
               // Local only
-              return (
-                <span className="flex-shrink-0 text-pdm-fg-muted" title="Local only - not synced">
-                  <HardDrive size={12} />
-                </span>
-              )
+              if (!isSynced) {
+                return (
+                  <span className="flex-shrink-0 text-pdm-fg-muted" title="Local only - not synced">
+                    <HardDrive size={12} />
+                  </span>
+                )
+              }
+              
+              return null
             })()}
           </div>
         )
