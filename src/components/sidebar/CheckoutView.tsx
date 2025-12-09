@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lock, User, File, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, AlertTriangle, Loader2 } from 'lucide-react'
+import { Lock, User, File, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, AlertTriangle } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../../stores/pdmStore'
 import { checkinFile, syncFile } from '../../lib/supabase'
 import { downloadFile } from '../../lib/storage'
@@ -9,13 +9,11 @@ interface CheckoutViewProps {
 }
 
 export function CheckoutView({ onRefresh }: CheckoutViewProps) {
-  const { files, user, organization, vaultPath, addToast, activeVaultId, connectedVaults, addProcessingFolder, removeProcessingFolder, updateFileInStore } = usePDMStore()
+  const { files, user, organization, vaultPath, addToast, activeVaultId, connectedVaults, addProcessingFolder, removeProcessingFolder, updateFileInStore, addProgressToast, updateProgressToast, removeToast, isProgressToastCancelled } = usePDMStore()
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [selectedAddedFiles, setSelectedAddedFiles] = useState<Set<string>>(new Set())
   const [isProcessing, setIsProcessing] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0, isActive: false })
-  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0, isActive: false })
   
   // Get current vault ID
   const currentVaultId = activeVaultId || connectedVaults[0]?.id
@@ -94,6 +92,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     setIsProcessing(true)
     let succeeded = 0
     let failed = 0
+    let cancelled = false
     
     const api = (window as any).electronAPI
     if (!api) {
@@ -102,10 +101,25 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       return
     }
     
+    const filesToCheckin = Array.from(selectedFiles)
+    const total = filesToCheckin.length
+    const toastId = `checkin-${Date.now()}`
+    addProgressToast(toastId, `Checking in ${total} file${total > 1 ? 's' : ''}...`, total)
+    
     try {
-      for (const path of selectedFiles) {
+      for (let i = 0; i < filesToCheckin.length; i++) {
+        // Check for cancellation
+        if (isProgressToastCancelled(toastId)) {
+          cancelled = true
+          break
+        }
+        
+        const path = filesToCheckin[i]
         const file = myCheckedOutFiles.find(f => f.path === path)
-        if (!file || !file.pdmData) continue
+        if (!file || !file.pdmData) {
+          updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+          continue
+        }
         
         try {
           // Check if file was moved (local path differs from server path)
@@ -180,10 +194,16 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           console.error('Check in error:', err)
           failed++
         }
+        
+        updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
       }
       
-      if (failed > 0) {
-        addToast('warning', `Checked in ${succeeded}/${selectedCount} files (${failed} failed)`)
+      removeToast(toastId)
+      
+      if (cancelled) {
+        addToast('info', `Check-in cancelled. ${succeeded} of ${total} files checked in.`)
+      } else if (failed > 0) {
+        addToast('warning', `Checked in ${succeeded}/${total} files (${failed} failed)`)
       } else {
         addToast('success', `Checked in ${succeeded} file${succeeded > 1 ? 's' : ''}`)
       }
@@ -203,7 +223,8 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     
     setIsProcessing(true)
     const filesToSync = Array.from(selectedAddedFiles)
-    setSyncProgress({ current: 0, total: filesToSync.length, isActive: true })
+    const total = filesToSync.length
+    let cancelled = false
     
     let succeeded = 0
     let failed = 0
@@ -212,17 +233,25 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     if (!api) {
       addToast('error', 'Electron API not available')
       setIsProcessing(false)
-      setSyncProgress({ current: 0, total: 0, isActive: false })
       return
     }
     
+    const toastId = `sync-${Date.now()}`
+    addProgressToast(toastId, `Syncing ${total} new file${total > 1 ? 's' : ''}...`, total)
+    
     try {
       for (let i = 0; i < filesToSync.length; i++) {
+        // Check for cancellation
+        if (isProgressToastCancelled(toastId)) {
+          cancelled = true
+          break
+        }
+        
         const path = filesToSync[i]
         const file = addedFiles.find(f => f.path === path)
         if (!file) {
           failed++
-          setSyncProgress({ current: i + 1, total: filesToSync.length, isActive: true })
+          updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
           continue
         }
         
@@ -232,7 +261,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           if (!readResult?.success || !readResult.data || !readResult.hash) {
             console.error('Failed to read file:', file.name)
             failed++
-            setSyncProgress({ current: i + 1, total: filesToSync.length, isActive: true })
+            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
             continue
           }
           
@@ -262,11 +291,15 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           failed++
         }
         
-        setSyncProgress({ current: i + 1, total: filesToSync.length, isActive: true })
+        updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
       }
       
-      if (failed > 0) {
-        addToast('warning', `Synced ${succeeded}/${filesToSync.length} files (${failed} failed)`)
+      removeToast(toastId)
+      
+      if (cancelled) {
+        addToast('info', `Sync cancelled. ${succeeded} of ${total} files synced.`)
+      } else if (failed > 0) {
+        addToast('warning', `Synced ${succeeded}/${total} files (${failed} failed)`)
       } else {
         addToast('success', `Synced ${succeeded} new file${succeeded > 1 ? 's' : ''} to cloud`)
       }
@@ -277,7 +310,6 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       onRefresh(true)
     } finally {
       setIsProcessing(false)
-      setSyncProgress({ current: 0, total: 0, isActive: false })
     }
   }
   
@@ -295,13 +327,13 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     setIsProcessing(true)
     
     const filesToDelete = Array.from(selectedAddedFiles)
+    const total = filesToDelete.length
+    let cancelled = false
     
     // Track files being deleted for spinner display
     const fileObjects = filesToDelete.map(path => addedFiles.find(f => f.path === path)).filter(Boolean)
     const pathsBeingDeleted = fileObjects.map(f => f!.relativePath)
     pathsBeingDeleted.forEach(p => addProcessingFolder(p))
-    
-    setDeleteProgress({ current: 0, total: filesToDelete.length, isActive: true })
     
     let succeeded = 0
     let failed = 0
@@ -311,17 +343,26 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       addToast('error', 'Electron API not available')
       pathsBeingDeleted.forEach(p => removeProcessingFolder(p))
       setIsProcessing(false)
-      setDeleteProgress({ current: 0, total: 0, isActive: false })
       return
     }
     
+    const toastId = `delete-${Date.now()}`
+    addProgressToast(toastId, `Deleting ${total} file${total > 1 ? 's' : ''}...`, total)
+    
     try {
       for (let i = 0; i < filesToDelete.length; i++) {
+        // Check for cancellation
+        if (isProgressToastCancelled(toastId)) {
+          cancelled = true
+          break
+        }
+        
         const path = filesToDelete[i]
         const file = addedFiles.find(f => f.path === path)
-        if (!file) continue
-        
-        setDeleteProgress({ current: i + 1, total: filesToDelete.length, isActive: true })
+        if (!file) {
+          updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+          continue
+        }
         
         try {
           const result = await api.deleteItem(file.path)
@@ -335,10 +376,16 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           console.error('Delete error:', err)
           failed++
         }
+        
+        updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
       }
       
-      if (failed > 0) {
-        addToast('warning', `Deleted ${succeeded}/${filesToDelete.length} files (${failed} failed)`)
+      removeToast(toastId)
+      
+      if (cancelled) {
+        addToast('info', `Delete cancelled. ${succeeded} of ${total} files deleted.`)
+      } else if (failed > 0) {
+        addToast('warning', `Deleted ${succeeded}/${total} files (${failed} failed)`)
       } else {
         addToast('success', `Deleted ${succeeded} file${succeeded > 1 ? 's' : ''}`)
       }
@@ -351,7 +398,6 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       // Clean up spinners
       pathsBeingDeleted.forEach(p => removeProcessingFolder(p))
       setIsProcessing(false)
-      setDeleteProgress({ current: 0, total: 0, isActive: false })
     }
   }
   
@@ -362,6 +408,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     setIsProcessing(true)
     let succeeded = 0
     let failed = 0
+    let cancelled = false
     
     const api = (window as any).electronAPI
     if (!api) {
@@ -370,16 +417,32 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       return
     }
     
+    const filesToDiscard = Array.from(selectedFiles)
+    const total = filesToDiscard.length
+    const toastId = `discard-${Date.now()}`
+    addProgressToast(toastId, `Discarding changes for ${total} file${total > 1 ? 's' : ''}...`, total)
+    
     try {
-      for (const path of selectedFiles) {
+      for (let i = 0; i < filesToDiscard.length; i++) {
+        // Check for cancellation
+        if (isProgressToastCancelled(toastId)) {
+          cancelled = true
+          break
+        }
+        
+        const path = filesToDiscard[i]
         const file = myCheckedOutFiles.find(f => f.path === path)
-        if (!file || !file.pdmData) continue
+        if (!file || !file.pdmData) {
+          updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+          continue
+        }
         
         try {
           // Get the server version content hash
           const contentHash = file.pdmData.content_hash
           if (!contentHash) {
             failed++
+            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
             continue
           }
           
@@ -388,6 +451,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           if (downloadError || !data) {
             console.error('Download failed:', downloadError)
             failed++
+            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
             continue
           }
           
@@ -398,6 +462,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           const writeResult = await api.writeFile(file.path, data)
           if (!writeResult?.success) {
             failed++
+            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
             continue
           }
           
@@ -407,6 +472,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           if (!result.success) {
             console.error('Release checkout failed:', result.error)
             failed++
+            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
             continue
           }
           
@@ -417,10 +483,16 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           console.error('Discard changes error:', err)
           failed++
         }
+        
+        updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
       }
       
-      if (failed > 0) {
-        addToast('warning', `Discarded ${succeeded}/${selectedCount} files (${failed} failed)`)
+      removeToast(toastId)
+      
+      if (cancelled) {
+        addToast('info', `Discard cancelled. ${succeeded} of ${total} files reverted.`)
+      } else if (failed > 0) {
+        addToast('warning', `Discarded ${succeeded}/${total} files (${failed} failed)`)
       } else {
         addToast('success', `Discarded changes for ${succeeded} file${succeeded > 1 ? 's' : ''}`)
       }
@@ -517,38 +589,6 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Sync progress bar */}
-      {syncProgress.isActive && (
-        <div className="px-3 py-2 bg-pdm-bg-light border-b border-pdm-border">
-          <div className="flex items-center gap-2 text-xs text-pdm-fg-dim mb-1">
-            <Loader2 size={12} className="animate-spin" />
-            Syncing {syncProgress.current} of {syncProgress.total}...
-          </div>
-          <div className="h-1 bg-pdm-border rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-pdm-accent transition-all duration-200"
-              style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-      
-      {/* Delete progress bar */}
-      {deleteProgress.isActive && (
-        <div className="px-3 py-2 bg-pdm-bg-light border-b border-pdm-border">
-          <div className="flex items-center gap-2 text-xs text-pdm-fg-dim mb-1">
-            <Loader2 size={12} className="animate-spin" />
-            Deleting {deleteProgress.current} of {deleteProgress.total}...
-          </div>
-          <div className="h-1 bg-pdm-border rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-pdm-error transition-all duration-200"
-              style={{ width: `${(deleteProgress.current / deleteProgress.total) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-      
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* New files (not yet synced) - shown first */}
         <div>
