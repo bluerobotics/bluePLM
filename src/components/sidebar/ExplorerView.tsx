@@ -366,15 +366,6 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     return folderFiles.every(f => !!f.pdmData)
   }
 
-  // Check if any files in a folder are checked out
-  const hasFolderCheckedOutFiles = (folderPath: string): boolean => {
-    const folderFiles = files.filter(f => 
-      !f.isDirectory && 
-      f.relativePath.startsWith(folderPath + '/')
-    )
-    return folderFiles.some(f => f.pdmData?.checked_out_by)
-  }
-  
   // Get folder checkout status: 'mine' | 'others' | 'both' | null
   const getFolderCheckoutStatus = (folderPath: string): 'mine' | 'others' | 'both' | null => {
     const folderFiles = files.filter(f => 
@@ -1306,10 +1297,6 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           
           {/* Inline action buttons - show on hover */}
           {!isRenaming && !isBeingProcessed(file.relativePath) && (() => {
-            // Check if folder has cloud files
-            const hasCloudFiles = file.isDirectory && files.some(f => 
-              !f.isDirectory && f.diffStatus === 'cloud' && f.relativePath.startsWith(file.relativePath + '/')
-            )
             // Check if folder has checkoutable files
             const hasCheckoutableFiles = file.isDirectory && files.some(f => 
               !f.isDirectory && f.pdmData && !f.pdmData.checked_out_by && f.diffStatus !== 'cloud' && f.relativePath.startsWith(file.relativePath + '/')

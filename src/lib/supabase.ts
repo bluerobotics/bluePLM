@@ -838,7 +838,7 @@ export async function checkinFile(
       revision?: string
     }
   }
-) {
+): Promise<{ success: boolean; file?: any; error?: string | null; contentChanged?: boolean; metadataChanged?: boolean }> {
   const client = getSupabaseClient()
   
   // First verify the user has the file checked out

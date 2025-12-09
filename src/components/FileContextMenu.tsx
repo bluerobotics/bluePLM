@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
-import { checkoutFile, checkinFile, syncFile, supabase } from '../lib/supabase'
+import { checkoutFile, checkinFile, syncFile, getSupabaseClient } from '../lib/supabase'
 import { downloadFile } from '../lib/storage'
 
 // Build full path using the correct separator for the platform
@@ -788,9 +788,11 @@ export function FileContextMenu({
       }
       
       try {
+        const supabaseClient = getSupabaseClient()
+        
         // Log activity BEFORE delete (with file info in details)
         if (user && file.pdmData.org_id) {
-          await supabase.from('activity').insert({
+          await (supabaseClient.from('activity') as any).insert({
             org_id: file.pdmData.org_id,
             file_id: null, // Set to null since file will be deleted
             user_id: user.id,
@@ -803,7 +805,7 @@ export function FileContextMenu({
           })
         }
         
-        const { error } = await supabase
+        const { error } = await supabaseClient
           .from('files')
           .delete()
           .eq('id', file.pdmData.id)

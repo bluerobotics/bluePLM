@@ -2102,7 +2102,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         if (isEditingState && canEditState) {
           return (
             <select
-              ref={(el) => {
+              ref={(el: HTMLSelectElement | null) => {
                 // Auto-open dropdown when element mounts
                 if (el) {
                   el.focus()
@@ -2112,10 +2112,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                       (el as any).showPicker()
                     } catch {
                       // showPicker may fail in some contexts, fall back to click
-                      el.click()
+                      (el as HTMLSelectElement).click()
                     }
                   } else {
-                    el.click()
+                    (el as HTMLSelectElement).click()
                   }
                 }
               }}
@@ -2124,7 +2124,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 e.stopPropagation()
                 handleStateChange(file, e.target.value)
               }}
-              onBlur={(e) => {
+              onBlur={() => {
                 // Small delay to allow onChange to fire first
                 setTimeout(() => handleCancelCellEdit(), 100)
               }}
@@ -2872,7 +2872,6 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         // Check out/in status - consider all synced files including those inside folders
         const allCheckedOut = syncedFilesInSelection.length > 0 && syncedFilesInSelection.every(f => f.pdmData?.checked_out_by)
         const allCheckedIn = syncedFilesInSelection.length > 0 && syncedFilesInSelection.every(f => !f.pdmData?.checked_out_by)
-        const anyCheckedOutByOthers = syncedFilesInSelection.some(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id)
         const allCheckedOutByOthers = syncedFilesInSelection.length > 0 && syncedFilesInSelection.every(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id)
         
         // Count files that can be checked out/in (for folder labels)
@@ -4050,10 +4049,11 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                                     continue
                                   }
                                   try {
-                                    const { supabase } = await import('../lib/supabase')
+                                    const { getSupabaseClient } = await import('../lib/supabase')
+                                    const client = getSupabaseClient()
                                     
                                     // Log activity BEFORE delete (with file info in details)
-                                    await supabase.from('activity').insert({
+                                    await (client.from('activity') as any).insert({
                                       org_id: file.pdmData.org_id,
                                       file_id: null, // Set to null since file will be deleted
                                       user_id: user!.id,
@@ -4065,7 +4065,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                                       }
                                     })
                                     
-                                    const { error } = await supabase
+                                    const { error } = await client
                                       .from('files')
                                       .delete()
                                       .eq('id', file.pdmData.id)
@@ -4440,13 +4440,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         if (deleteEverywhere) {
                           const syncedFiles = getSyncedFilesForServerDelete()
                           if (syncedFiles.length > 0) {
-                            const { supabase } = await import('../lib/supabase')
+                            const { getSupabaseClient } = await import('../lib/supabase')
+                            const client = getSupabaseClient()
                             
                             for (const file of syncedFiles) {
                               if (!file.pdmData?.id) continue
                               try {
                                 // Log activity BEFORE delete (with file info in details)
-                                await supabase.from('activity').insert({
+                                await (client.from('activity') as any).insert({
                                   org_id: file.pdmData.org_id,
                                   file_id: null, // Set to null since file will be deleted
                                   user_id: user!.id,
@@ -4458,7 +4459,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                                   }
                                 })
                                 
-                                const { error } = await supabase
+                                const { error } = await client
                                   .from('files')
                                   .delete()
                                   .eq('id', file.pdmData.id)

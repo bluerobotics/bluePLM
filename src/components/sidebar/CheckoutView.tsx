@@ -9,7 +9,7 @@ interface CheckoutViewProps {
 }
 
 export function CheckoutView({ onRefresh }: CheckoutViewProps) {
-  const { files, user, organization, vaultPath, addToast, activeVaultId, connectedVaults, addProcessingFolder, removeProcessingFolder } = usePDMStore()
+  const { files, user, organization, vaultPath, addToast, activeVaultId, connectedVaults, addProcessingFolder, removeProcessingFolder, updateFileInStore } = usePDMStore()
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [selectedAddedFiles, setSelectedAddedFiles] = useState<Set<string>>(new Set())
   const [isProcessing, setIsProcessing] = useState(false)
