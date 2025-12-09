@@ -218,6 +218,7 @@ input::placeholder {
 .file-table tr.selected.diff-cloud,
 .file-table tr.selected.diff-added,
 .file-table tr.selected.diff-modified,
+.file-table tr.selected.diff-moved,
 .file-table tr.selected.diff-deleted,
 .file-table tr.selected.diff-outdated {
   background: var(--pdm-selection);
@@ -242,6 +243,7 @@ input::placeholder {
 .file-table tr.selected.diff-cloud:hover,
 .file-table tr.selected.diff-added:hover,
 .file-table tr.selected.diff-modified:hover,
+.file-table tr.selected.diff-moved:hover,
 .file-table tr.selected.diff-deleted:hover,
 .file-table tr.selected.diff-outdated:hover {
   background: var(--pdm-selection);
@@ -561,6 +563,15 @@ input::placeholder {
   background: rgba(251, 191, 36, 0.25) !important;
 }
 
+.diff-moved {
+  background: rgba(96, 165, 250, 0.15) !important;
+  border-left: 3px solid var(--pdm-accent) !important;
+}
+
+.diff-moved:hover {
+  background: rgba(96, 165, 250, 0.25) !important;
+}
+
 .diff-deleted {
   background: rgba(248, 113, 113, 0.15) !important;
   border-left: 3px solid var(--pdm-error) !important;
@@ -612,6 +623,10 @@ tr.selected.diff-cloud {
 
 .sidebar-diff-modified {
   background: rgba(251, 191, 36, 0.1);
+}
+
+.sidebar-diff-moved {
+  background: rgba(96, 165, 250, 0.1);
 }
 
 .sidebar-diff-deleted {

@@ -137,7 +137,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
   const getDisconnectWarnings = () => {
     const checkedOutFiles = files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by === user?.id)
     const newFiles = files.filter(f => !f.isDirectory && f.diffStatus === 'added')
-    const modifiedFiles = files.filter(f => !f.isDirectory && f.diffStatus === 'modified')
+    const modifiedFiles = files.filter(f => !f.isDirectory && (f.diffStatus === 'modified' || f.diffStatus === 'moved'))
     return { checkedOutFiles, newFiles, modifiedFiles }
   }
   
@@ -1023,6 +1023,131 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     setDraggedFiles([])
     setDragOverFolder(null)
   }
+  
+  // Handle dropping into the vault root area (empty space or anywhere not on a folder)
+  const handleVaultRootDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    // Check if we have pdm files being dragged (internal drag)
+    const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+    if (!hasPdmFiles && draggedFiles.length === 0) return
+    
+    // Only highlight if not already over a specific folder
+    if (!dragOverFolder) {
+      e.dataTransfer.dropEffect = 'move'
+      // Use empty string to indicate root
+      setDragOverFolder('')
+    }
+  }
+  
+  const handleVaultRootDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    // Only clear if we're leaving to somewhere outside the tree
+    const relatedTarget = e.relatedTarget as HTMLElement
+    if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+      if (dragOverFolder === '') {
+        setDragOverFolder(null)
+      }
+    }
+  }
+  
+  const handleVaultRootDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverFolder(null)
+    
+    if (!window.electronAPI || !vaultPath) return
+    
+    // Get files from data transfer or local state
+    let filesToMove: LocalFile[] = []
+    
+    if (draggedFiles.length > 0) {
+      filesToMove = draggedFiles
+      setDraggedFiles([])
+    } else {
+      const pdmFilesData = e.dataTransfer.getData('application/x-pdm-files')
+      if (pdmFilesData) {
+        try {
+          const relativePaths: string[] = JSON.parse(pdmFilesData)
+          filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
+        } catch (err) {
+          console.error('Failed to parse drag data:', err)
+          return
+        }
+      }
+    }
+    
+    if (filesToMove.length === 0) return
+    
+    // Don't move if already in root
+    const allInRoot = filesToMove.every(f => !f.relativePath.includes('/'))
+    if (allInRoot) return
+    
+    // Check that all synced files are checked out
+    const notCheckedOut: string[] = []
+    for (const file of filesToMove) {
+      if (file.isDirectory) {
+        const filesInFolder = files.filter(f => 
+          !f.isDirectory && 
+          f.relativePath.startsWith(file.relativePath + '/') &&
+          f.pdmData?.id &&
+          f.pdmData.checked_out_by !== user?.id
+        )
+        if (filesInFolder.length > 0) {
+          notCheckedOut.push(`${file.name} (contains files not checked out)`)
+        }
+      } else if (file.pdmData?.id && file.pdmData.checked_out_by !== user?.id) {
+        notCheckedOut.push(file.name)
+      }
+    }
+    
+    if (notCheckedOut.length > 0) {
+      addToast('error', `Cannot move: ${notCheckedOut.slice(0, 2).join(', ')}${notCheckedOut.length > 2 ? ` +${notCheckedOut.length - 2} more` : ''} not checked out`)
+      return
+    }
+    
+    // Perform the moves to root
+    const total = filesToMove.length
+    const toastId = `move-root-${Date.now()}`
+    addProgressToast(toastId, `Moving ${total} item${total > 1 ? 's' : ''} to root...`, total)
+    
+    let succeeded = 0
+    let failed = 0
+    
+    for (let i = 0; i < filesToMove.length; i++) {
+      const file = filesToMove[i]
+      const newRelPath = file.name // Just the filename, no folder
+      const newFullPath = buildFullPath(vaultPath, newRelPath)
+      
+      addProcessingFolder(file.relativePath)
+      
+      try {
+        const result = await window.electronAPI.renameFile(file.path, newFullPath)
+        if (result.success) {
+          succeeded++
+          renameFileInStore(file.path, newFullPath, newRelPath)
+        } else {
+          failed++
+        }
+      } catch {
+        failed++
+      }
+      
+      removeProcessingFolder(file.relativePath)
+      updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+    }
+    
+    removeToast(toastId)
+    
+    if (failed === 0) {
+      addToast('success', `Moved ${succeeded} item${succeeded > 1 ? 's' : ''} to root`)
+    } else if (succeeded === 0) {
+      addToast('error', 'Failed to move items')
+    } else {
+      addToast('warning', `Moved ${succeeded}, failed ${failed}`)
+    }
+    
+    onRefresh?.(true)
+  }
 
   const renderTreeItem = (file: LocalFile, depth: number = 0) => {
     const isExpanded = expandedFolders.has(file.relativePath)
@@ -1031,7 +1156,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     
     // Get diff counts for folders
     const diffCounts = file.isDirectory ? getFolderDiffCounts(file.relativePath) : null
-    const hasDiffs = diffCounts && (diffCounts.added > 0 || diffCounts.modified > 0 || diffCounts.deleted > 0 || diffCounts.outdated > 0 || diffCounts.cloud > 0)
+    const hasDiffs = diffCounts && (diffCounts.added > 0 || diffCounts.modified > 0 || diffCounts.moved > 0 || diffCounts.deleted > 0 || diffCounts.outdated > 0 || diffCounts.cloud > 0)
     
     // Diff class for files and deleted folders
     const diffClass = file.diffStatus 
@@ -1258,6 +1383,9 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               {diffCounts.modified > 0 && (
                 <span className="text-pdm-warning font-medium">~{diffCounts.modified}</span>
               )}
+              {diffCounts.moved > 0 && (
+                <span className="text-pdm-accent font-medium">→{diffCounts.moved}</span>
+              )}
               {diffCounts.deleted > 0 && (
                 <span className="text-pdm-error font-medium">-{diffCounts.deleted}</span>
               )}
@@ -1338,16 +1466,43 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           })()}
           
         </div>
-        {file.isDirectory && isExpanded && children
-          .filter(child => child && child.name)
-          .sort((a, b) => {
-            // Folders first, then alphabetically
-            if (a.isDirectory && !b.isDirectory) return -1
-            if (!a.isDirectory && b.isDirectory) return 1
-            return a.name.localeCompare(b.name)
-          })
-          .map(child => renderTreeItem(child, depth + 1))
-        }
+        {file.isDirectory && isExpanded && (
+          <div
+            onDragOver={(e) => {
+              // When dragging over expanded folder area, highlight the parent folder
+              e.preventDefault()
+              const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+              if (hasPdmFiles || draggedFiles.length > 0) {
+                e.dataTransfer.dropEffect = 'move'
+                // Only set if not already over a more specific folder
+                if (!dragOverFolder || dragOverFolder === file.relativePath) {
+                  setDragOverFolder(file.relativePath)
+                }
+              }
+            }}
+            onDragLeave={(e) => {
+              // Only clear if leaving to outside this folder's area
+              const relatedTarget = e.relatedTarget as HTMLElement
+              if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+                if (dragOverFolder === file.relativePath) {
+                  setDragOverFolder(null)
+                }
+              }
+            }}
+            onDrop={(e) => handleExplorerDropOnFolder(e, file)}
+          >
+            {children
+              .filter(child => child && child.name)
+              .sort((a, b) => {
+                // Folders first, then alphabetically
+                if (a.isDirectory && !b.isDirectory) return -1
+                if (!a.isDirectory && b.isDirectory) return 1
+                return a.name.localeCompare(b.name)
+              })
+              .map(child => renderTreeItem(child, depth + 1))
+            }
+          </div>
+        )}
       </div>
     )
   }
@@ -1467,9 +1622,14 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           )}
         </div>
         
-        {/* Vault contents */}
+        {/* Vault contents - supports drop to move files to root */}
         {isExpanded && isActive && (
-          <div className="pb-2">
+          <div 
+            className={`pb-2 min-h-[40px] ${dragOverFolder === '' ? 'bg-pdm-accent/10 outline outline-2 outline-dashed outline-pdm-accent/50 rounded' : ''}`}
+            onDragOver={handleVaultRootDragOver}
+            onDragLeave={handleVaultRootDragLeave}
+            onDrop={handleVaultRootDrop}
+          >
             {/* Root items for this vault */}
             {tree['']
               .filter(item => item && item.name)
@@ -1483,7 +1643,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             
             {tree[''].length === 0 && !isLoading && filesLoaded && (
               <div className="px-4 py-4 text-center text-pdm-fg-muted text-xs">
-                No files in vault
+                {dragOverFolder === '' ? 'Drop here to move to root' : 'No files in vault'}
               </div>
             )}
           </div>
@@ -1629,7 +1789,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 const diffCounts = pinned.isDirectory && pinned.vaultId === activeVaultId
                   ? getFolderDiffCounts(pinned.path)
                   : null
-                const hasDiffs = diffCounts && (diffCounts.added > 0 || diffCounts.modified > 0 || diffCounts.deleted > 0 || diffCounts.outdated > 0 || diffCounts.cloud > 0)
+                const hasDiffs = diffCounts && (diffCounts.added > 0 || diffCounts.modified > 0 || diffCounts.moved > 0 || diffCounts.deleted > 0 || diffCounts.outdated > 0 || diffCounts.cloud > 0)
                 
                 // Get status icon for pinned file
                 const getPinnedStatusIcon = () => {
@@ -1913,6 +2073,9 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                           )}
                           {diffCounts.modified > 0 && (
                             <span className="text-pdm-warning font-medium">~{diffCounts.modified}</span>
+                          )}
+                          {diffCounts.moved > 0 && (
+                            <span className="text-pdm-accent font-medium">→{diffCounts.moved}</span>
                           )}
                           {diffCounts.deleted > 0 && (
                             <span className="text-pdm-error font-medium">-{diffCounts.deleted}</span>

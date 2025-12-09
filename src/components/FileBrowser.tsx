@@ -138,6 +138,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: LocalFile } | null>(null)
   const [emptyContextMenu, setEmptyContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [isExternalDrag, setIsExternalDrag] = useState(false) // True when dragging files from outside the app
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [renamingFile, setRenamingFile] = useState<LocalFile | null>(null)
@@ -1575,11 +1576,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     setDragOverFolder(null)
   }
   
-  // Handle drop onto a folder
+  // Handle drop onto a folder row
   const handleDropOnFolder = async (e: React.DragEvent, targetFolder: LocalFile) => {
     e.preventDefault()
     e.stopPropagation()
     setDragOverFolder(null)
+    setIsDraggingOver(false)
     
     if (!window.electronAPI || !vaultPath) {
       setDraggedFiles([])
@@ -1608,69 +1610,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     
     if (filesToMove.length === 0) return
     
-    // Validate the drop
-    const isDroppingIntoSelf = filesToMove.some(f => 
-      f.isDirectory && (targetFolder.relativePath === f.relativePath || targetFolder.relativePath.startsWith(f.relativePath + '/'))
-    )
-    if (isDroppingIntoSelf) {
-      addToast('error', 'Cannot move a folder into itself')
-      return
-    }
-    
-    // Check that all synced files are checked out by the current user
-    const notCheckedOut: string[] = []
-    for (const file of filesToMove) {
-      if (file.isDirectory) {
-        // For folders, check if any synced files inside are not checked out by user
-        const filesInFolder = files.filter(f => 
-          !f.isDirectory && 
-          f.relativePath.startsWith(file.relativePath + '/') &&
-          f.pdmData?.id && // Is synced
-          f.pdmData.checked_out_by !== user?.id // Not checked out by me
-        )
-        if (filesInFolder.length > 0) {
-          notCheckedOut.push(`${file.name} (contains ${filesInFolder.length} file${filesInFolder.length > 1 ? 's' : ''} not checked out)`)
-        }
-      } else if (file.pdmData?.id && file.pdmData.checked_out_by !== user?.id) {
-        // Synced file not checked out by current user
-        notCheckedOut.push(file.name)
-      }
-    }
-    
-    if (notCheckedOut.length > 0) {
-      addToast('error', `Cannot move - check out first: ${notCheckedOut.slice(0, 3).join(', ')}${notCheckedOut.length > 3 ? ` (+${notCheckedOut.length - 3} more)` : ''}`)
-      return
-    }
-    
-    let succeeded = 0
-    let failed = 0
-    
-    for (const file of filesToMove) {
-      const sourcePath = file.path
-      const fileName = file.name
-      const destPath = buildFullPath(vaultPath, targetFolder.relativePath + '/' + fileName)
-      
-      try {
-        const result = await window.electronAPI.moveFile(sourcePath, destPath)
-        if (result.success) {
-          succeeded++
-        } else {
-          failed++
-          console.error(`Failed to move ${fileName}:`, result.error)
-        }
-      } catch (err) {
-        failed++
-        console.error(`Failed to move ${fileName}:`, err)
-      }
-    }
-    
-    if (failed === 0) {
-      addToast('success', `Moved ${succeeded} item${succeeded > 1 ? 's' : ''} to ${targetFolder.name}`)
-    } else if (succeeded > 0) {
-      addToast('warning', `Moved ${succeeded}, failed ${failed}`)
-    } else {
-      addToast('error', 'Failed to move items')
-    }
+    // Use the helper function to perform the move
+    await moveFilesToFolder(filesToMove, targetFolder.relativePath)
     
     onRefresh(true)
   }
@@ -1743,32 +1684,71 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     }
   }
 
-  // Drag and Drop handlers
+  // Drag and Drop handlers for container (supports external files + cross-view drag)
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (e.dataTransfer.types.includes('Files')) {
+    
+    // Check for external files (from outside the app)
+    if (e.dataTransfer.types.includes('Files') && !e.dataTransfer.types.includes('application/x-pdm-files')) {
       setIsDraggingOver(true)
+      setIsExternalDrag(true)
       e.dataTransfer.dropEffect = 'copy'
+      return
+    }
+    
+    // Check for cross-view drag from Explorer (internal move)
+    if (e.dataTransfer.types.includes('application/x-pdm-files')) {
+      // Don't show big overlay for internal moves - folder row highlighting is sufficient
+      // Only set isDraggingOver if we're not over a specific folder (to enable drop on current folder)
+      if (!dragOverFolder) {
+        setIsDraggingOver(true)
+        setIsExternalDrag(false)
+      }
+      e.dataTransfer.dropEffect = 'move'
     }
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDraggingOver(false)
+    // Only clear if leaving the container entirely (not entering a child)
+    const relatedTarget = e.relatedTarget as HTMLElement
+    if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+      setIsDraggingOver(false)
+      setIsExternalDrag(false)
+    }
   }
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDraggingOver(false)
+    setIsExternalDrag(false)
 
     if (!window.electronAPI || !vaultPath) {
       setStatusMessage('No vault connected')
       return
     }
 
+    // First check for cross-view drag from Explorer (move files to current folder)
+    const pdmFilesData = e.dataTransfer.getData('application/x-pdm-files')
+    if (pdmFilesData) {
+      try {
+        const relativePaths: string[] = JSON.parse(pdmFilesData)
+        const filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
+        
+        if (filesToMove.length > 0) {
+          // Move to current folder
+          await moveFilesToFolder(filesToMove, currentFolder)
+          return
+        }
+      } catch (err) {
+        console.error('Failed to parse drag data:', err)
+      }
+    }
+
+    // Handle external files being dropped
     const droppedFiles = Array.from(e.dataTransfer.files)
     if (droppedFiles.length === 0) return
 
@@ -1791,6 +1771,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       return
     }
 
+    // Determine destination folder
+    const destFolder = currentFolder || ''
     const totalFiles = filePaths.length
     const toastId = `drop-files-${Date.now()}`
     addProgressToast(toastId, `Adding ${totalFiles} file${totalFiles > 1 ? 's' : ''}...`, totalFiles)
@@ -1802,7 +1784,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       for (let i = 0; i < filePaths.length; i++) {
         const sourcePath = filePaths[i]
         const fileName = sourcePath.split(/[/\\]/).pop() || 'unknown'
-        const destPath = buildFullPath(vaultPath, fileName)
+        const destPath = destFolder 
+          ? buildFullPath(vaultPath, destFolder + '/' + fileName)
+          : buildFullPath(vaultPath, fileName)
 
         console.log('[Drop] Copying:', sourcePath, '->', destPath)
 
@@ -1835,6 +1819,99 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       removeToast(toastId)
       addToast('error', 'Failed to add files')
     }
+  }
+  
+  // Helper to move files to a target folder (reused by container drop and folder drop)
+  const moveFilesToFolder = async (filesToMove: LocalFile[], targetFolderPath: string) => {
+    if (!window.electronAPI || !vaultPath) return
+    
+    // Validate the drop - don't drop into itself
+    const isDroppingIntoSelf = filesToMove.some(f => 
+      f.isDirectory && (targetFolderPath === f.relativePath || targetFolderPath.startsWith(f.relativePath + '/'))
+    )
+    if (isDroppingIntoSelf) {
+      addToast('error', 'Cannot move a folder into itself')
+      return
+    }
+    
+    // Don't move if already in target folder
+    const wouldStayInPlace = filesToMove.every(f => {
+      const parentPath = f.relativePath.includes('/') 
+        ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
+        : ''
+      return parentPath === targetFolderPath
+    })
+    if (wouldStayInPlace) return
+    
+    // Check that all synced files are checked out by the current user
+    const notCheckedOut: string[] = []
+    for (const file of filesToMove) {
+      if (file.isDirectory) {
+        const filesInFolder = files.filter(f => 
+          !f.isDirectory && 
+          f.relativePath.startsWith(file.relativePath + '/') &&
+          f.pdmData?.id &&
+          f.pdmData.checked_out_by !== user?.id
+        )
+        if (filesInFolder.length > 0) {
+          notCheckedOut.push(`${file.name} (contains ${filesInFolder.length} file${filesInFolder.length > 1 ? 's' : ''} not checked out)`)
+        }
+      } else if (file.pdmData?.id && file.pdmData.checked_out_by !== user?.id) {
+        notCheckedOut.push(file.name)
+      }
+    }
+    
+    if (notCheckedOut.length > 0) {
+      addToast('error', `Cannot move: ${notCheckedOut.slice(0, 3).join(', ')}${notCheckedOut.length > 3 ? ` and ${notCheckedOut.length - 3} more` : ''} not checked out by you`)
+      return
+    }
+    
+    // Perform the move
+    const total = filesToMove.length
+    const toastId = `move-${Date.now()}`
+    addProgressToast(toastId, `Moving ${total} item${total > 1 ? 's' : ''}...`, total)
+    
+    let succeeded = 0
+    let failed = 0
+    
+    for (let i = 0; i < filesToMove.length; i++) {
+      const file = filesToMove[i]
+      const newRelPath = targetFolderPath ? `${targetFolderPath}/${file.name}` : file.name
+      const newFullPath = buildFullPath(vaultPath, newRelPath)
+      
+      addProcessingFolder(file.relativePath)
+      
+      try {
+        const result = await window.electronAPI.renameFile(file.path, newFullPath)
+        if (result.success) {
+          succeeded++
+          // Update file in store with new path
+          renameFileInStore(file.path, newFullPath, newRelPath)
+        } else {
+          failed++
+          console.error('Move failed:', result.error)
+        }
+      } catch (err) {
+        failed++
+        console.error('Move error:', err)
+      }
+      
+      removeProcessingFolder(file.relativePath)
+      updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+    }
+    
+    removeToast(toastId)
+    
+    if (failed === 0) {
+      addToast('success', `Moved ${succeeded} item${succeeded > 1 ? 's' : ''}`)
+    } else if (succeeded === 0) {
+      addToast('error', `Failed to move items`)
+    } else {
+      addToast('warning', `Moved ${succeeded}, failed ${failed}`)
+    }
+    
+    // Refresh
+    setTimeout(() => onRefresh(true), 100)
   }
 
   const renderCellContent = (file: LocalFile, columnId: string) => {
@@ -2223,10 +2300,17 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         }
         
         if (file.diffStatus === 'modified') {
-          // Local changes - local version is effectively cloud+1
+          // Local content changes - local version is effectively cloud+1
           return (
             <span className="text-pdm-warning" title={`Local changes (will be version ${cloudVersion + 1})`}>
               {cloudVersion + 1}/{cloudVersion}
+            </span>
+          )
+        } else if (file.diffStatus === 'moved') {
+          // File was moved but content unchanged - version stays the same
+          return (
+            <span className="text-pdm-accent" title="File moved (version unchanged)">
+              {cloudVersion}*
             </span>
           )
         } else if (file.diffStatus === 'outdated') {
@@ -2453,15 +2537,19 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Drag overlay */}
-      {isDraggingOver && (
+      {/* Drag overlay - only show for external file drops (from outside the app) */}
+      {isDraggingOver && isExternalDrag && !dragOverFolder && (
         <div className="absolute inset-0 z-40 bg-pdm-accent/10 border-2 border-dashed border-pdm-accent rounded-lg flex items-center justify-center pointer-events-none">
           <div className="bg-pdm-bg-light border border-pdm-accent rounded-xl p-6 flex flex-col items-center gap-3 shadow-xl">
             <div className="w-16 h-16 rounded-full bg-pdm-accent/20 flex items-center justify-center">
               <Upload size={32} className="text-pdm-accent" />
             </div>
-            <div className="text-lg font-semibold text-pdm-fg">Drop files to add</div>
-            <div className="text-sm text-pdm-fg-muted">Files will be copied to the vault</div>
+            <div className="text-lg font-semibold text-pdm-fg">Drop to add files</div>
+            <div className="text-sm text-pdm-fg-muted">
+              {currentFolder 
+                ? `Files will be added to "${currentFolder.split('/').pop()}"` 
+                : 'Files will be added to vault root'}
+            </div>
           </div>
         </div>
       )}
@@ -2733,6 +2821,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             {sortedFiles.map((file, index) => {
               const diffClass = file.diffStatus === 'added' ? 'diff-added' 
                 : file.diffStatus === 'modified' ? 'diff-modified'
+                : file.diffStatus === 'moved' ? 'diff-moved'
                 : file.diffStatus === 'deleted' ? 'diff-deleted'
                 : file.diffStatus === 'outdated' ? 'diff-outdated'
                 : file.diffStatus === 'cloud' ? 'diff-cloud' : ''
@@ -3818,7 +3907,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                           
                           // Check for files with local changes that would be lost
                           const checkedOutByMe = filesToProcess.filter(f => f.pdmData?.checked_out_by === user?.id)
-                          const modifiedFiles = filesToProcess.filter(f => f.diffStatus === 'modified')
+                          const modifiedFiles = filesToProcess.filter(f => f.diffStatus === 'modified' || f.diffStatus === 'moved')
                           
                           let warnings: string[] = []
                           if (checkedOutByMe.length > 0) {

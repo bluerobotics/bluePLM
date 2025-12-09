@@ -196,6 +196,50 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
             }
           }
         }
+        
+        // Detect orphaned vault folders: folders that exist on disk but aren't in connectedVaults
+        // This handles the case where user reinstalls the app and already has vault folders
+        if (window.electronAPI) {
+          const connectedPaths = new Set(
+            connectedVaults.map(cv => cv.localPath.toLowerCase().replace(/\\/g, '/'))
+          )
+          
+          for (const serverVault of vaultsData as any[]) {
+            // Check if this server vault is already connected
+            const isConnected = connectedVaults.some(cv => cv.id === serverVault.id)
+            if (isConnected) continue
+            
+            // Check if the expected folder path already exists on disk
+            const expectedPath = buildVaultPath(platform, serverVault.slug)
+            try {
+              const result = await window.electronAPI.setWorkingDir(expectedPath)
+              if (result.success && result.path) {
+                const normalizedPath = result.path.toLowerCase().replace(/\\/g, '/')
+                
+                // Check if this path isn't already connected under a different vault ID
+                if (!connectedPaths.has(normalizedPath)) {
+                  uiLog('info', 'Found orphaned vault folder, auto-reconnecting', { 
+                    vaultName: serverVault.name, 
+                    vaultId: serverVault.id,
+                    path: result.path 
+                  })
+                  
+                  // Auto-reconnect the vault
+                  const connectedVault: ConnectedVault = {
+                    id: serverVault.id,
+                    name: serverVault.name,
+                    localPath: result.path,
+                    isExpanded: true
+                  }
+                  addConnectedVault(connectedVault)
+                  addToast('info', `Reconnected existing vault folder "${serverVault.name}"`)
+                }
+              }
+            } catch {
+              // Folder doesn't exist, that's fine
+            }
+          }
+        }
       } catch (err) {
         console.error('Error loading vaults:', err)
       } finally {
@@ -204,7 +248,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     }
     
     loadOrgVaults()
-  }, [organization?.id, vaultsRefreshKey]) // Refresh when vaultsRefreshKey changes
+  }, [organization?.id, vaultsRefreshKey, platform]) // Refresh when vaultsRefreshKey changes
 
   const handleSignIn = async () => {
     uiLog('info', 'Sign in button clicked')
@@ -256,15 +300,48 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     setConnectingVaultId(vault.id)
     
     try {
-      // Create vault folder based on platform
+      // Build expected vault folder path based on platform
       const vaultPath = buildVaultPath(platform, vault.slug)
-      uiLog('info', 'Creating working directory', { vaultPath, platform })
+      uiLog('info', 'Checking vault path', { vaultPath, platform })
       
+      // Check if this vault ID is already connected (by ID)
+      const existingById = connectedVaults.find(v => v.id === vault.id)
+      if (existingById) {
+        uiLog('info', 'Vault already connected by ID, opening', { vaultName: vault.name, path: existingById.localPath })
+        onOpenRecentVault(existingById.localPath)
+        return
+      }
+      
+      // Check if a vault is already connected with the same local path
+      // (handles case where vault ID changed but folder is the same)
       const result = await window.electronAPI.createWorkingDir(vaultPath)
-      uiLog('info', 'createWorkingDir result', { success: result.success, path: result.path, error: result.error })
-      
       if (result.success && result.path) {
-        // Add to connected vaults
+        const normalizedNewPath = result.path.toLowerCase().replace(/\\/g, '/')
+        const existingByPath = connectedVaults.find(v => 
+          v.localPath.toLowerCase().replace(/\\/g, '/') === normalizedNewPath
+        )
+        
+        if (existingByPath) {
+          uiLog('info', 'Vault already connected by path, updating ID and opening', { 
+            vaultName: vault.name, 
+            oldId: existingByPath.id, 
+            newId: vault.id 
+          })
+          // Update the existing vault entry with the correct ID from server
+          removeConnectedVault(existingByPath.id)
+          const updatedVault: ConnectedVault = {
+            id: vault.id,
+            name: vault.name,
+            localPath: result.path,
+            isExpanded: true
+          }
+          addConnectedVault(updatedVault)
+          onOpenRecentVault(result.path)
+          addToast('success', `Reconnected to "${vault.name}"`)
+          return
+        }
+        
+        // No existing connection - add new one
         const connectedVault: ConnectedVault = {
           id: vault.id,
           name: vault.name,

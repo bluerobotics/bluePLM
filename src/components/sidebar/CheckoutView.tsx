@@ -12,7 +12,9 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
   const { files, user, organization, vaultPath, addToast, activeVaultId, connectedVaults, addProcessingFolder, removeProcessingFolder, updateFileInStore, addProgressToast, updateProgressToast, removeToast, isProgressToastCancelled } = usePDMStore()
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [selectedAddedFiles, setSelectedAddedFiles] = useState<Set<string>>(new Set())
-  const [isProcessing, setIsProcessing] = useState(false)
+  // Separate processing states so operations can run simultaneously
+  const [isProcessingCheckedOut, setIsProcessingCheckedOut] = useState(false)
+  const [isProcessingAdded, setIsProcessingAdded] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
   // Get current vault ID
@@ -85,11 +87,11 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
   const selectedAddedCount = selectedAddedFiles.size
   const allAddedSelected = addedFiles.length > 0 && selectedAddedCount === addedFiles.length
   
-  // Check in selected files
+  // Check in checked-out files (modified files)
   const handleCheckin = async () => {
     if (!organization || !user || selectedCount === 0) return
     
-    setIsProcessing(true)
+    setIsProcessingCheckedOut(true)
     let succeeded = 0
     let failed = 0
     let cancelled = false
@@ -97,7 +99,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     const api = (window as any).electronAPI
     if (!api) {
       addToast('error', 'Electron API not available')
-      setIsProcessing(false)
+      setIsProcessingCheckedOut(false)
       return
     }
     
@@ -228,15 +230,15 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     } finally {
       // Clean up any remaining spinners
       processedPaths.forEach(p => removeProcessingFolder(p))
-      setIsProcessing(false)
+      setIsProcessingCheckedOut(false)
     }
   }
   
-  // Check in added files (first sync to cloud)
+  // Check in new files (sync to cloud)
   const handleCheckinAddedFiles = async () => {
     if (!organization || !user || !currentVaultId || selectedAddedCount === 0) return
     
-    setIsProcessing(true)
+    setIsProcessingAdded(true)
     const filesToSync = Array.from(selectedAddedFiles)
     const total = filesToSync.length
     let cancelled = false
@@ -247,7 +249,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     const api = (window as any).electronAPI
     if (!api) {
       addToast('error', 'Electron API not available')
-      setIsProcessing(false)
+      setIsProcessingAdded(false)
       return
     }
     
@@ -262,7 +264,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     })
     
     const toastId = `sync-${Date.now()}`
-    addProgressToast(toastId, `Syncing ${total} new file${total > 1 ? 's' : ''}...`, total)
+    addProgressToast(toastId, `Checking in ${total} new file${total > 1 ? 's' : ''}...`, total)
     
     try {
       for (let i = 0; i < filesToSync.length; i++) {
@@ -325,11 +327,11 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       removeToast(toastId)
       
       if (cancelled) {
-        addToast('info', `Sync cancelled. ${succeeded} of ${total} files synced.`)
+        addToast('info', `Check-in cancelled. ${succeeded} of ${total} files synced.`)
       } else if (failed > 0) {
-        addToast('warning', `Synced ${succeeded}/${total} files (${failed} failed)`)
+        addToast('warning', `Checked in ${succeeded}/${total} files (${failed} failed)`)
       } else {
-        addToast('success', `Synced ${succeeded} new file${succeeded > 1 ? 's' : ''} to cloud`)
+        addToast('success', `Checked in ${succeeded} new file${succeeded > 1 ? 's' : ''}`)
       }
       
       setSelectedAddedFiles(new Set())
@@ -339,7 +341,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     } finally {
       // Clean up any remaining spinners
       processedPaths.forEach(p => removeProcessingFolder(p))
-      setIsProcessing(false)
+      setIsProcessingAdded(false)
     }
   }
   
@@ -354,7 +356,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     if (!vaultPath || selectedAddedCount === 0) return
     
     setShowDeleteConfirm(false)
-    setIsProcessing(true)
+    setIsProcessingAdded(true)
     
     const filesToDelete = Array.from(selectedAddedFiles)
     const total = filesToDelete.length
@@ -372,7 +374,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     if (!api) {
       addToast('error', 'Electron API not available')
       pathsBeingDeleted.forEach(p => removeProcessingFolder(p))
-      setIsProcessing(false)
+      setIsProcessingAdded(false)
       return
     }
     
@@ -427,7 +429,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     } finally {
       // Clean up spinners
       pathsBeingDeleted.forEach(p => removeProcessingFolder(p))
-      setIsProcessing(false)
+      setIsProcessingAdded(false)
     }
   }
   
@@ -435,7 +437,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
   const handleDiscardChanges = async () => {
     if (!organization || !user || !vaultPath || selectedCount === 0) return
     
-    setIsProcessing(true)
+    setIsProcessingCheckedOut(true)
     let succeeded = 0
     let failed = 0
     let cancelled = false
@@ -443,7 +445,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     const api = (window as any).electronAPI
     if (!api) {
       addToast('error', 'Electron API not available')
-      setIsProcessing(false)
+      setIsProcessingCheckedOut(false)
       return
     }
     
@@ -551,7 +553,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     } finally {
       // Clean up any remaining spinners
       processedPaths.forEach(p => removeProcessingFolder(p))
-      setIsProcessing(false)
+      setIsProcessingCheckedOut(false)
     }
   }
   
@@ -663,7 +665,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
               <div className="flex-1" />
               <button
                 onClick={handleCheckinAddedFiles}
-                disabled={isProcessing || !currentVaultId}
+                disabled={isProcessingAdded || !currentVaultId}
                 className="btn btn-primary btn-sm text-xs flex items-center gap-1"
               >
                 <Upload size={12} />
@@ -671,7 +673,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
               </button>
               <button
                 onClick={handleDeleteClick}
-                disabled={isProcessing}
+                disabled={isProcessingAdded}
                 className="btn btn-sm text-xs flex items-center gap-1 bg-pdm-error hover:bg-pdm-error/80 text-white"
               >
                 <Trash2 size={12} />
@@ -724,7 +726,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
               <div className="flex-1" />
               <button
                 onClick={handleCheckin}
-                disabled={isProcessing}
+                disabled={isProcessingCheckedOut}
                 className="btn btn-primary btn-sm text-xs flex items-center gap-1"
               >
                 <ArrowUp size={12} />
@@ -732,7 +734,7 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
               </button>
               <button
                 onClick={handleDiscardChanges}
-                disabled={isProcessing}
+                disabled={isProcessingCheckedOut}
                 className="btn btn-ghost btn-sm text-xs flex items-center gap-1 text-pdm-warning"
               >
                 <Undo2 size={12} />

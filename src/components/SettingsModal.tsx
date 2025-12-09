@@ -445,7 +445,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const getDisconnectWarnings = () => {
     const checkedOutFiles = files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by === user?.id)
     const newFiles = files.filter(f => !f.isDirectory && f.diffStatus === 'added')
-    const modifiedFiles = files.filter(f => !f.isDirectory && f.diffStatus === 'modified')
+    const modifiedFiles = files.filter(f => !f.isDirectory && (f.diffStatus === 'modified' || f.diffStatus === 'moved'))
     return { checkedOutFiles, newFiles, modifiedFiles }
   }
   

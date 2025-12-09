@@ -295,13 +295,13 @@ function App() {
             const existingLocalActiveVersion = existingLocalActiveVersions.get(localFile.path)
             
             // Determine diff status
-            let diffStatus: 'added' | 'modified' | 'outdated' | undefined
+            let diffStatus: 'added' | 'modified' | 'outdated' | 'moved' | undefined
             if (!pdmData) {
               // File exists locally but not on server = added
               diffStatus = 'added'
             } else if (isMovedFile) {
-              // File was moved - needs check-in to update server path
-              diffStatus = 'modified'
+              // File was moved - needs check-in to update server path (but no version increment)
+              diffStatus = 'moved'
             } else if (pdmData.content_hash && localFile.localHash) {
               // File exists both places - check if modified or outdated
               if (pdmData.content_hash !== localFile.localHash) {

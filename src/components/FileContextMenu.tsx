@@ -1176,6 +1176,7 @@ export function FileContextMenu({
                   {firstFile.diffStatus === 'cloud' ? 'Cloud only (not downloaded)' 
                     : firstFile.diffStatus === 'added' ? 'Local only (not synced)'
                     : firstFile.diffStatus === 'modified' ? 'Modified locally'
+                    : firstFile.diffStatus === 'moved' ? 'Moved (path changed)'
                     : firstFile.diffStatus === 'outdated' ? 'Outdated (newer version on server)'
                     : firstFile.pdmData ? 'Synced' : 'Not synced'}
                 </div>

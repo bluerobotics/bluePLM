@@ -15,7 +15,7 @@ export type SidebarView = 'explorer' | 'checkout' | 'history' | 'search' | 'sett
 export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history'
 export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress'
-export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud'
+export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud' | 'moved'
 
 // Connected vault - an org vault that's connected locally
 export interface ConnectedVault {
@@ -319,7 +319,7 @@ interface PDMState {
   getVisibleFiles: () => LocalFile[]
   getFileByPath: (path: string) => LocalFile | undefined
   getDeletedFiles: () => LocalFile[]  // Files on server but not locally
-  getFolderDiffCounts: (folderPath: string) => { added: number; modified: number; deleted: number; outdated: number; cloud: number }
+  getFolderDiffCounts: (folderPath: string) => { added: number; modified: number; moved: number; deleted: number; outdated: number; cloud: number }
 }
 
 const defaultColumns: ColumnConfig[] = [
@@ -500,8 +500,17 @@ export const usePDMStore = create<PDMState>()(
       setConnectedVaults: (connectedVaults) => set({ connectedVaults }),
       addConnectedVault: (vault) => {
         const { connectedVaults } = get()
-        // Don't add duplicates
+        // Don't add duplicates by ID
         if (connectedVaults.some(v => v.id === vault.id)) return
+        // Don't add duplicates by path (normalized for case-insensitive and path separator comparison)
+        const normalizedNewPath = vault.localPath.toLowerCase().replace(/\\/g, '/')
+        if (connectedVaults.some(v => v.localPath.toLowerCase().replace(/\\/g, '/') === normalizedNewPath)) {
+          console.warn('[PDMStore] Vault with same local path already exists, skipping add', { 
+            newVault: vault.name, 
+            existingVault: connectedVaults.find(v => v.localPath.toLowerCase().replace(/\\/g, '/') === normalizedNewPath)?.name 
+          })
+          return
+        }
         // Add vault and set it as active
         set({ 
           connectedVaults: [...connectedVaults, vault],
@@ -914,6 +923,7 @@ export const usePDMStore = create<PDMState>()(
         
         let added = 0
         let modified = 0
+        let moved = 0
         let deleted = 0
         let outdated = 0
         let cloud = 0
@@ -930,12 +940,13 @@ export const usePDMStore = create<PDMState>()(
           
           if (file.diffStatus === 'added') added++
           else if (file.diffStatus === 'modified') modified++
+          else if (file.diffStatus === 'moved') moved++
           else if (file.diffStatus === 'deleted') deleted++
           else if (file.diffStatus === 'outdated') outdated++
           else if (file.diffStatus === 'cloud') cloud++
         }
         
-        return { added, modified, deleted, outdated, cloud }
+        return { added, modified, moved, deleted, outdated, cloud }
       }
     }),
     {
