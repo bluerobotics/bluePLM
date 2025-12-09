@@ -1121,7 +1121,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
       addProcessingFolder(file.relativePath)
       
       try {
-        const result = await window.electronAPI.renameFile(file.path, newFullPath)
+        const result = await window.electronAPI.moveFile(file.path, newFullPath)
         if (result.success) {
           succeeded++
           renameFileInStore(file.path, newFullPath, newRelPath)
