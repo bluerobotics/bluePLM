@@ -126,11 +126,19 @@ initializeClient()
 // ============================================
 
 let sessionResolver: ((success: boolean) => void) | null = null
+let sessionListenerCleanup: (() => void) | null = null
 
 function setupSessionListener() {
   if (typeof window !== 'undefined' && window.electronAPI?.onSetSession) {
+    // Clean up any existing listener first
+    if (sessionListenerCleanup) {
+      authLog('debug', 'Cleaning up previous session listener')
+      sessionListenerCleanup()
+      sessionListenerCleanup = null
+    }
+    
     authLog('info', 'Setting up onSetSession listener')
-    window.electronAPI.onSetSession(async (tokens) => {
+    sessionListenerCleanup = window.electronAPI.onSetSession(async (tokens) => {
       authLog('info', 'Received tokens from main process', {
         hasAccessToken: !!tokens.access_token,
         accessTokenLength: tokens.access_token?.length,

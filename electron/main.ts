@@ -489,26 +489,94 @@ ipcMain.handle('auth:open-oauth-window', async (_, url: string) => {
     
     log('[OAuth] Starting system browser OAuth flow')
     
+    // Track if we've resolved the promise
+    let hasResolved = false
+    const safeResolve = (result: { success: boolean; canceled?: boolean; error?: string }) => {
+      if (!hasResolved) {
+        hasResolved = true
+        cleanupOAuthServer()
+        resolve(result)
+      }
+    }
+    
     // Create a local HTTP server to receive the OAuth callback
     const server = http.createServer((req, res) => {
       const reqUrl = new URL(req.url || '/', `http://localhost`)
       
-      log('[OAuth] Received callback request:', reqUrl.pathname)
+      log('[OAuth] Received callback request:', reqUrl.pathname, { search: reqUrl.search?.substring(0, 50) })
       
       // Handle the OAuth callback
       if (reqUrl.pathname === '/auth/callback' || reqUrl.pathname === '/') {
-        // Extract tokens from hash fragment or query params
-        // Note: Hash fragments aren't sent to server, so Supabase will redirect with tokens in query for implicit flow
-        // Or we handle it client-side with a redirect page
-        
-        const hashFragment = reqUrl.hash || ''
+        // Check for tokens in query params first (some OAuth flows use this)
         const accessToken = reqUrl.searchParams.get('access_token')
         const refreshToken = reqUrl.searchParams.get('refresh_token')
         const expiresIn = reqUrl.searchParams.get('expires_in')
         const expiresAt = reqUrl.searchParams.get('expires_at')
         
-        // Send a nice HTML response that auto-closes
-        const successHtml = `
+        // Check for OAuth errors
+        const error = reqUrl.searchParams.get('error')
+        const errorDescription = reqUrl.searchParams.get('error_description')
+        
+        if (error) {
+          log('[OAuth] OAuth error in callback:', error, errorDescription)
+          const errorHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign In Failed</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #0a1929 0%, #1a365d 100%);
+      color: #e3f2fd;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      max-width: 400px;
+    }
+    .error-icon {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 20px;
+    }
+    h1 { margin: 0 0 10px 0; font-weight: 500; color: #f44336; }
+    p { margin: 0; opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="#f44336" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M15 9l-6 6M9 9l6 6"/>
+    </svg>
+    <h1>Sign In Failed</h1>
+    <p>${errorDescription || error || 'An error occurred during sign in.'}</p>
+    <p style="margin-top: 16px; font-size: 12px;">You can close this window and try again.</p>
+  </div>
+  <script>setTimeout(() => window.close(), 5000);</script>
+</body>
+</html>`
+          res.writeHead(200, { 'Content-Type': 'text/html' })
+          res.end(errorHtml)
+          safeResolve({ success: false, error: errorDescription || error || 'OAuth error' })
+          return
+        }
+        
+        // If we have tokens directly in query params, process them immediately
+        if (accessToken && refreshToken) {
+          log('[OAuth] Tokens received in query params, sending to renderer')
+          
+          const successHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -550,34 +618,12 @@ ipcMain.handle('auth:open-oauth-window', async (_, url: string) => {
     <h1>Sign In Successful!</h1>
     <p>You can close this window and return to BluePDM.</p>
   </div>
-  <script>
-    // Try to extract tokens from hash fragment (Supabase implicit flow)
-    const hash = window.location.hash.substring(1);
-    if (hash) {
-      const params = new URLSearchParams(hash);
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      if (accessToken) {
-        // Send tokens to the server via a second request
-        fetch('/auth/tokens?' + hash).then(() => {
-          setTimeout(() => window.close(), 1500);
-        });
-      } else {
-        setTimeout(() => window.close(), 2000);
-      }
-    } else {
-      setTimeout(() => window.close(), 2000);
-    }
-  </script>
+  <script>setTimeout(() => window.close(), 2000);</script>
 </body>
 </html>`
-        
-        res.writeHead(200, { 'Content-Type': 'text/html' })
-        res.end(successHtml)
-        
-        // If we have tokens directly in query params, process them
-        if (accessToken && refreshToken) {
-          log('[OAuth] Tokens received in query params, sending to renderer')
+          res.writeHead(200, { 'Content-Type': 'text/html' })
+          res.end(successHtml)
+          
           mainWindow?.webContents.send('auth:set-session', {
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -591,23 +637,207 @@ ipcMain.handle('auth:open-oauth-window', async (_, url: string) => {
             mainWindow.focus()
           }
           
-          cleanupOAuthServer()
-          resolve({ success: true })
+          safeResolve({ success: true })
+          return
         }
+        
+        // No tokens in query - tokens are likely in hash fragment (client-side only)
+        // Send HTML page that extracts tokens from hash and forwards them
+        log('[OAuth] No tokens in query params, serving hash extraction page')
+        const hashExtractHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Completing Sign In...</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #0a1929 0%, #1a365d 100%);
+      color: #e3f2fd;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      max-width: 400px;
+    }
+    .spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(255,255,255,0.2);
+      border-top-color: #4caf50;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .checkmark {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .error-icon {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    h1 { margin: 0 0 10px 0; font-weight: 500; }
+    p { margin: 0; opacity: 0.8; }
+    .status { transition: opacity 0.3s; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="loading" class="status">
+      <div class="spinner"></div>
+      <h1>Completing Sign In...</h1>
+      <p>Please wait a moment.</p>
+    </div>
+    <div id="success" class="status hidden">
+      <svg class="checkmark" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2" style="display:block;margin:0 auto 20px;">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M8 12l3 3 5-6"/>
+      </svg>
+      <h1>Sign In Successful!</h1>
+      <p>You can close this window and return to BluePDM.</p>
+    </div>
+    <div id="error" class="status hidden">
+      <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="#f44336" stroke-width="2" style="display:block;margin:0 auto 20px;">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M15 9l-6 6M9 9l6 6"/>
+      </svg>
+      <h1 style="color:#f44336;">Sign In Issue</h1>
+      <p id="errorMsg">Could not complete sign in. Please try again.</p>
+    </div>
+  </div>
+  <script>
+    (async function() {
+      const showSuccess = () => {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('success').classList.remove('hidden');
+        setTimeout(() => window.close(), 2000);
+      };
+      
+      const showError = (msg) => {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('error').classList.remove('hidden');
+        if (msg) document.getElementById('errorMsg').textContent = msg;
+        setTimeout(() => window.close(), 5000);
+      };
+      
+      try {
+        // Extract tokens from hash fragment
+        const hash = window.location.hash.substring(1);
+        console.log('[OAuth] Hash length:', hash.length);
+        
+        if (!hash) {
+          console.log('[OAuth] No hash fragment found');
+          showError('No authentication data received. Please try signing in again.');
+          return;
+        }
+        
+        const params = new URLSearchParams(hash);
+        
+        // Check for errors in hash
+        const error = params.get('error');
+        const errorDescription = params.get('error_description');
+        if (error) {
+          console.log('[OAuth] Error in hash:', error, errorDescription);
+          showError(errorDescription || error);
+          return;
+        }
+        
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        
+        if (!accessToken) {
+          console.log('[OAuth] No access_token in hash');
+          showError('No access token received. Please try signing in again.');
+          return;
+        }
+        
+        if (!refreshToken) {
+          console.log('[OAuth] No refresh_token in hash');
+          showError('No refresh token received. Please try signing in again.');
+          return;
+        }
+        
+        console.log('[OAuth] Forwarding tokens to server...');
+        
+        // Forward tokens to the server with retry logic
+        let attempts = 0;
+        const maxAttempts = 3;
+        
+        while (attempts < maxAttempts) {
+          attempts++;
+          try {
+            const response = await fetch('/auth/tokens?' + hash, {
+              method: 'GET',
+              cache: 'no-cache'
+            });
+            
+            if (response.ok) {
+              console.log('[OAuth] Tokens forwarded successfully');
+              showSuccess();
+              return;
+            } else {
+              console.log('[OAuth] Server returned error:', response.status);
+              if (attempts >= maxAttempts) {
+                showError('Server error. Please try again.');
+              }
+            }
+          } catch (fetchErr) {
+            console.log('[OAuth] Fetch error (attempt ' + attempts + '):', fetchErr);
+            if (attempts >= maxAttempts) {
+              showError('Could not connect to app. Please try again.');
+            }
+            // Wait before retry
+            await new Promise(r => setTimeout(r, 500));
+          }
+        }
+      } catch (err) {
+        console.error('[OAuth] Exception:', err);
+        showError('An unexpected error occurred. Please try again.');
+      }
+    })();
+  </script>
+</body>
+</html>`
+        
+        res.writeHead(200, { 'Content-Type': 'text/html' })
+        res.end(hashExtractHtml)
         return
       }
       
-      // Handle the second request with tokens from hash fragment
+      // Handle the token forwarding request from hash extraction page
       if (reqUrl.pathname === '/auth/tokens') {
         const accessToken = reqUrl.searchParams.get('access_token')
         const refreshToken = reqUrl.searchParams.get('refresh_token')
         const expiresIn = reqUrl.searchParams.get('expires_in')
         const expiresAt = reqUrl.searchParams.get('expires_at')
         
-        res.writeHead(200, { 'Content-Type': 'text/plain' })
-        res.end('OK')
+        log('[OAuth] /auth/tokens request received', { 
+          hasAccessToken: !!accessToken, 
+          hasRefreshToken: !!refreshToken 
+        })
         
         if (accessToken && refreshToken) {
+          res.writeHead(200, { 'Content-Type': 'text/plain' })
+          res.end('OK')
+          
           log('[OAuth] Tokens received from hash fragment, sending to renderer')
           mainWindow?.webContents.send('auth:set-session', {
             access_token: accessToken,
@@ -622,14 +852,18 @@ ipcMain.handle('auth:open-oauth-window', async (_, url: string) => {
             mainWindow.focus()
           }
           
-          cleanupOAuthServer()
-          resolve({ success: true })
+          safeResolve({ success: true })
+        } else {
+          log('[OAuth] /auth/tokens request missing tokens')
+          res.writeHead(400, { 'Content-Type': 'text/plain' })
+          res.end('Missing tokens')
         }
         return
       }
       
       // Unknown path - redirect to callback
-      res.writeHead(302, { 'Location': '/auth/callback' + (reqUrl.search || '') + (reqUrl.hash || '') })
+      log('[OAuth] Unknown path, redirecting to /auth/callback')
+      res.writeHead(302, { 'Location': '/auth/callback' + (reqUrl.search || '') })
       res.end()
     })
     
@@ -661,21 +895,18 @@ ipcMain.handle('auth:open-oauth-window', async (_, url: string) => {
         // Set a timeout for the OAuth flow (5 minutes)
         oauthTimeout = setTimeout(() => {
           log('[OAuth] Timeout waiting for OAuth callback')
-          cleanupOAuthServer()
-          resolve({ success: false, error: 'OAuth timed out' })
+          safeResolve({ success: false, error: 'OAuth timed out. Please try again.' })
         }, 5 * 60 * 1000)
         
       } catch (err) {
         log('[OAuth] Error parsing OAuth URL:', err)
-        cleanupOAuthServer()
-        resolve({ success: false, error: String(err) })
+        safeResolve({ success: false, error: String(err) })
       }
     })
     
     server.on('error', (err) => {
       log('[OAuth] Server error:', err)
-      cleanupOAuthServer()
-      resolve({ success: false, error: String(err) })
+      safeResolve({ success: false, error: String(err) })
     })
   })
 })
