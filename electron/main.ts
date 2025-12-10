@@ -1483,7 +1483,17 @@ ipcMain.handle('fs:open-in-explorer', async (_, targetPath: string) => {
 })
 
 ipcMain.handle('fs:open-file', async (_, filePath: string) => {
-  shell.openPath(filePath)
+  // Use exec with 'start' command on Windows for faster file opening
+  // shell.openPath() can be slow due to Windows shell association lookup
+  if (process.platform === 'win32') {
+    const { exec } = require('child_process')
+    // Use 'start' with empty title ("") and quoted path for paths with spaces
+    // The empty title "" is needed because start treats the first quoted arg as window title
+    exec(`start "" "${filePath}"`, { windowsHide: true })
+  } else {
+    // On macOS/Linux, shell.openPath is fine
+    shell.openPath(filePath)
+  }
   return { success: true }
 })
 

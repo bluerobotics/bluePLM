@@ -2,6 +2,11 @@
 
 All notable changes to BluePDM will be documented in this file.
 
+## [1.3.6] - 2025-12-10
+
+### Fixed
+- Slow file opening: Double-clicking SolidWorks files (and other files) now opens instantly instead of taking several seconds on Windows
+
 ## [1.3.5] - 2025-12-10
 
 ### Fixed
