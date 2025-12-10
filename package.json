@@ -55,7 +55,7 @@
     "publish": {
       "provider": "github",
       "owner": "bluerobotics",
-      "repo": "blue-pdm"
+      "repo": "bluePDM"
     },
     "win": {
       "target": [

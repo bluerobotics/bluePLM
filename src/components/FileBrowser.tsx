@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react'
 import { 
   ChevronUp, 
   ChevronDown,
@@ -41,7 +41,9 @@ import {
   Loader2,
   History,
   Info,
-  Link
+  Link,
+  FileX,
+  FolderX
 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { getFileIconType, formatFileSize, STATE_INFO } from '../types/pdm'
@@ -121,7 +123,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     toggleDetailsPanel,
     startSync,
     updateSyncProgress,
-    endSync
+    endSync,
+    addIgnorePattern,
+    getIgnorePatterns
   } = usePDMStore()
   
   // Helper to ensure details panel is visible
@@ -147,6 +151,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const [deleteEverywhere, setDeleteEverywhere] = useState(false) // Track if deleting from server too
   const [isDeleting, setIsDeleting] = useState(false) // Track delete operation in progress
   const [platform, setPlatform] = useState<string>('win32')
+  const [showIgnoreSubmenu, setShowIgnoreSubmenu] = useState(false)
+  const ignoreSubmenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
+  const [contextMenuAdjustedPos, setContextMenuAdjustedPos] = useState<{ x: number; y: number } | null>(null)
   const [customConfirm, setCustomConfirm] = useState<{
     title: string
     message: string
@@ -1361,6 +1369,38 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   useEffect(() => {
     window.electronAPI?.getPlatform().then(setPlatform)
   }, [])
+  
+  // Adjust context menu position to stay within viewport
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) {
+      setContextMenuAdjustedPos(null)
+      return
+    }
+    
+    const menu = contextMenuRef.current
+    const rect = menu.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    let newX = contextMenu.x
+    let newY = contextMenu.y
+    
+    // Check right overflow
+    if (contextMenu.x + rect.width > viewportWidth - 10) {
+      newX = viewportWidth - rect.width - 10
+    }
+    
+    // Check bottom overflow
+    if (contextMenu.y + rect.height > viewportHeight - 10) {
+      newY = viewportHeight - rect.height - 10
+    }
+    
+    // Ensure minimum position
+    newX = Math.max(10, newX)
+    newY = Math.max(10, newY)
+    
+    setContextMenuAdjustedPos({ x: newX, y: newY })
+  }, [contextMenu])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -3028,16 +3068,27 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           <>
             <div 
               className="fixed inset-0 z-50" 
-              onClick={() => setContextMenu(null)}
+              onClick={() => {
+                setContextMenu(null)
+                setShowIgnoreSubmenu(false)
+                if (ignoreSubmenuTimeoutRef.current) {
+                  clearTimeout(ignoreSubmenuTimeoutRef.current)
+                }
+              }}
               onContextMenu={(e) => {
                 e.preventDefault()
                 // Allow right-click to reposition or close
                 setContextMenu(null)
+                setShowIgnoreSubmenu(false)
               }}
             />
             <div 
+              ref={contextMenuRef}
               className="context-menu"
-              style={{ left: contextMenu.x, top: contextMenu.y }}
+              style={{ 
+                left: contextMenuAdjustedPos?.x ?? contextMenu.x, 
+                top: contextMenuAdjustedPos?.y ?? contextMenu.y 
+              }}
             >
               {!multiSelect && !isFolder && (
                 <div 
@@ -3400,6 +3451,106 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               </div>
               
               <div className="context-menu-separator" />
+              
+              {/* Keep Local Only (Ignore) - for unsynced files and folders */}
+              {anyUnsynced && !allCloudOnly && currentVaultId && (
+                <div 
+                  className="context-menu-item relative"
+                  onMouseEnter={() => {
+                    if (ignoreSubmenuTimeoutRef.current) {
+                      clearTimeout(ignoreSubmenuTimeoutRef.current)
+                    }
+                    setShowIgnoreSubmenu(true)
+                  }}
+                  onMouseLeave={() => {
+                    ignoreSubmenuTimeoutRef.current = setTimeout(() => {
+                      setShowIgnoreSubmenu(false)
+                    }, 150)
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowIgnoreSubmenu(prev => !prev)
+                  }}
+                >
+                  <EyeOff size={14} />
+                  Keep Local Only
+                  <span className="text-xs text-pdm-fg-muted ml-auto">▶</span>
+                  
+                  {/* Submenu */}
+                  {showIgnoreSubmenu && (
+                    <div 
+                      className="context-menu absolute left-full top-0 ml-1 min-w-[200px]"
+                      style={{ marginTop: '-4px' }}
+                      onMouseEnter={() => {
+                        if (ignoreSubmenuTimeoutRef.current) {
+                          clearTimeout(ignoreSubmenuTimeoutRef.current)
+                        }
+                        setShowIgnoreSubmenu(true)
+                      }}
+                      onMouseLeave={() => {
+                        ignoreSubmenuTimeoutRef.current = setTimeout(() => {
+                          setShowIgnoreSubmenu(false)
+                        }, 150)
+                      }}
+                    >
+                      {/* Ignore this specific file/folder */}
+                      <div 
+                        className="context-menu-item"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          for (const file of contextFiles) {
+                            if (file.isDirectory) {
+                              addIgnorePattern(currentVaultId, file.relativePath + '/')
+                            } else {
+                              addIgnorePattern(currentVaultId, file.relativePath)
+                            }
+                          }
+                          addToast('success', `Added ${contextFiles.length > 1 ? `${contextFiles.length} items` : contextFiles[0].name} to ignore list`)
+                          setContextMenu(null)
+                          onRefresh(true)
+                        }}
+                      >
+                        {isFolder ? <FolderX size={14} /> : <FileX size={14} />}
+                        This {isFolder ? 'folder' : 'file'}{multiSelect ? ` (${contextFiles.length})` : ''}
+                      </div>
+                      
+                      {/* Ignore all files with this extension - only for single file selection */}
+                      {!isFolder && !multiSelect && firstFile.extension && (
+                        <div 
+                          className="context-menu-item"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const pattern = `*${firstFile.extension}`
+                            addIgnorePattern(currentVaultId, pattern)
+                            addToast('success', `Now ignoring all ${firstFile.extension} files`)
+                            setContextMenu(null)
+                            onRefresh(true)
+                          }}
+                        >
+                          <FileX size={14} />
+                          All *{firstFile.extension} files
+                        </div>
+                      )}
+                      
+                      {/* Show current patterns count */}
+                      {(() => {
+                        const currentPatterns = getIgnorePatterns(currentVaultId)
+                        if (currentPatterns.length > 0) {
+                          return (
+                            <>
+                              <div className="context-menu-separator" />
+                              <div className="px-3 py-1.5 text-xs text-pdm-fg-muted">
+                                {currentPatterns.length} pattern{currentPatterns.length > 1 ? 's' : ''} configured
+                              </div>
+                            </>
+                          )
+                        }
+                        return null
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* First Check In - only for unsynced items when no synced content */}
               {anyUnsynced && !anySynced && (

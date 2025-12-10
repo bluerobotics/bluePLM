@@ -20,7 +20,7 @@ import {
   FileX,
   FolderX
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { checkoutFile, checkinFile, syncFile, getSupabaseClient } from '../lib/supabase'
 import { downloadFile } from '../lib/storage'
@@ -80,11 +80,81 @@ export function FileContextMenu({
   const [isDeleting, setIsDeleting] = useState(false)
   const [platform, setPlatform] = useState<string>('win32')
   const [showIgnoreSubmenu, setShowIgnoreSubmenu] = useState(false)
+  const ignoreSubmenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // For positioning the menu within viewport bounds
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [adjustedPosition, setAdjustedPosition] = useState({ x, y })
+  const [submenuPosition, setSubmenuPosition] = useState<'right' | 'left'>('right')
+  
+  // Handle submenu hover with delay to prevent accidental closing
+  const handleIgnoreSubmenuEnter = () => {
+    if (ignoreSubmenuTimeoutRef.current) {
+      clearTimeout(ignoreSubmenuTimeoutRef.current)
+      ignoreSubmenuTimeoutRef.current = null
+    }
+    setShowIgnoreSubmenu(true)
+  }
+  
+  const handleIgnoreSubmenuLeave = () => {
+    ignoreSubmenuTimeoutRef.current = setTimeout(() => {
+      setShowIgnoreSubmenu(false)
+    }, 150) // Small delay to allow moving to submenu
+  }
+  
+  // Toggle submenu on click (for touch/trackpad users)
+  const handleIgnoreSubmenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowIgnoreSubmenu(prev => !prev)
+  }
   
   // Get platform for UI text
   useEffect(() => {
     window.electronAPI?.getPlatform().then(setPlatform)
   }, [])
+  
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (ignoreSubmenuTimeoutRef.current) {
+        clearTimeout(ignoreSubmenuTimeoutRef.current)
+      }
+    }
+  }, [])
+  
+  // Adjust menu position to stay within viewport
+  useLayoutEffect(() => {
+    if (!menuRef.current) return
+    
+    const menu = menuRef.current
+    const rect = menu.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    let newX = x
+    let newY = y
+    
+    // Check right overflow
+    if (x + rect.width > viewportWidth - 10) {
+      newX = viewportWidth - rect.width - 10
+    }
+    
+    // Check bottom overflow
+    if (y + rect.height > viewportHeight - 10) {
+      newY = viewportHeight - rect.height - 10
+    }
+    
+    // Ensure minimum position
+    newX = Math.max(10, newX)
+    newY = Math.max(10, newY)
+    
+    setAdjustedPosition({ x: newX, y: newY })
+    
+    // Determine submenu position based on available space
+    const spaceOnRight = viewportWidth - (newX + rect.width)
+    const submenuWidth = 220 // approximate submenu width
+    setSubmenuPosition(spaceOnRight >= submenuWidth ? 'right' : 'left')
+  }, [x, y])
   
   if (contextFiles.length === 0) return null
   
@@ -859,8 +929,9 @@ export function FileContextMenu({
         }}
       />
       <div 
+        ref={menuRef}
         className="context-menu"
-        style={{ left: x, top: y }}
+        style={{ left: adjustedPosition.x, top: adjustedPosition.y }}
       >
         {/* Download - for cloud-only files - show at TOP for cloud folders */}
         {anyCloudOnly && (
@@ -1093,18 +1164,23 @@ export function FileContextMenu({
         {anyUnsynced && !allCloudOnly && activeVaultId && (
           <div 
             className="context-menu-item relative"
-            onMouseEnter={() => setShowIgnoreSubmenu(true)}
-            onMouseLeave={() => setShowIgnoreSubmenu(false)}
+            onMouseEnter={handleIgnoreSubmenuEnter}
+            onMouseLeave={handleIgnoreSubmenuLeave}
+            onClick={handleIgnoreSubmenuClick}
           >
             <EyeOff size={14} />
             Keep Local Only
-            <span className="text-xs text-pdm-fg-muted ml-auto">▶</span>
+            <span className="text-xs text-pdm-fg-muted ml-auto">{submenuPosition === 'right' ? '▶' : '◀'}</span>
             
             {/* Submenu */}
             {showIgnoreSubmenu && (
               <div 
-                className="context-menu absolute left-full top-0 ml-1 min-w-[200px]"
+                className={`context-menu absolute top-0 min-w-[200px] ${
+                  submenuPosition === 'right' ? 'left-full ml-1' : 'right-full mr-1'
+                }`}
                 style={{ marginTop: '-4px' }}
+                onMouseEnter={handleIgnoreSubmenuEnter}
+                onMouseLeave={handleIgnoreSubmenuLeave}
               >
                 {/* Ignore this specific file/folder */}
                 <div 

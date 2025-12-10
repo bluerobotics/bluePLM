@@ -339,6 +339,7 @@ CREATE POLICY "Users can log activity"
 -- ===========================================
 
 -- Function to auto-assign user to org based on email domain
+-- NOTE: Must use public. prefix for tables since trigger runs in auth schema context
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -348,15 +349,15 @@ BEGIN
   -- Extract domain from email
   user_domain := split_part(NEW.email, '@', 2);
   
-  -- Find org with matching domain
+  -- Find org with matching domain (explicit public schema)
   SELECT id INTO matching_org_id
-  FROM organizations
+  FROM public.organizations
   WHERE user_domain = ANY(email_domains)
   LIMIT 1;
   
   -- Insert user profile with conflict handling
   -- Note: Google OAuth stores avatar as 'picture', not 'avatar_url'
-  INSERT INTO users (id, email, full_name, avatar_url, org_id)
+  INSERT INTO public.users (id, email, full_name, avatar_url, org_id)
   VALUES (
     NEW.id,
     NEW.email,
@@ -366,8 +367,8 @@ BEGIN
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
-    full_name = COALESCE(EXCLUDED.full_name, users.full_name),
-    avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url);
+    full_name = COALESCE(EXCLUDED.full_name, public.users.full_name),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, public.users.avatar_url);
   
   RETURN NEW;
 EXCEPTION WHEN unique_violation THEN
