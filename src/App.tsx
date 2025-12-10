@@ -202,6 +202,61 @@ function App() {
     }
   }, [supabaseReady, setUser, setOrganization, setStatusMessage, setVaultConnected, setIsConnecting])
 
+  // Validate connected vault IDs after organization loads
+  // This cleans up stale vaults that no longer exist on the server
+  useEffect(() => {
+    const validateVaults = async () => {
+      if (!organization || connectedVaults.length === 0) return
+      
+      console.log('[VaultValidation] Checking', connectedVaults.length, 'connected vaults against server')
+      
+      try {
+        // Fetch vault IDs from server
+        const { data: serverVaults, error } = await supabase
+          .from('vaults')
+          .select('id, name, slug')
+          .eq('org_id', organization.id)
+        
+        if (error) {
+          console.error('[VaultValidation] Failed to fetch server vaults:', error)
+          return
+        }
+        
+        const serverVaultIds = new Set((serverVaults || []).map((v: any) => v.id))
+        console.log('[VaultValidation] Server has', serverVaultIds.size, 'vaults:', Array.from(serverVaultIds))
+        
+        // Find stale vaults (connected but not on server)
+        const staleVaults = connectedVaults.filter(cv => !serverVaultIds.has(cv.id))
+        
+        if (staleVaults.length > 0) {
+          console.warn('[VaultValidation] Found', staleVaults.length, 'stale vault(s):', staleVaults.map(v => ({ id: v.id, name: v.name })))
+          
+          // Remove stale vaults
+          const store = usePDMStore.getState()
+          staleVaults.forEach(v => {
+            console.log('[VaultValidation] Removing stale vault:', v.name, v.id)
+            store.removeConnectedVault(v.id)
+          })
+          
+          // If we removed the active vault, try to reconnect to a server vault
+          if (staleVaults.some(v => v.id === currentVaultId) && serverVaults && serverVaults.length > 0) {
+            const defaultVault = (serverVaults as any[]).find((v: any) => v.is_default) || serverVaults[0]
+            console.log('[VaultValidation] Active vault was stale, will need to reconnect to:', (defaultVault as any).name)
+            // Clear vault connected state to trigger reconnection flow
+            setVaultConnected(false)
+            setVaultPath(null)
+          }
+        } else {
+          console.log('[VaultValidation] All connected vaults are valid')
+        }
+      } catch (err) {
+        console.error('[VaultValidation] Error validating vaults:', err)
+      }
+    }
+    
+    validateVaults()
+  }, [organization, connectedVaults, currentVaultId, setVaultConnected, setVaultPath])
+
   // Load files from working directory and merge with PDM data
   // silent = true means no loading spinner (for background refreshes after downloads/uploads)
   const loadFiles = useCallback(async (silent: boolean = false) => {
@@ -233,9 +288,20 @@ function App() {
       
       // Process local files
       if (!localResult.success || !localResult.files) {
-        setStatusMessage(localResult.error || 'Failed to load files')
+        const errorMsg = localResult.error || 'Failed to load files'
+        console.error('[LoadFiles] Local file scan failed:', errorMsg, { vaultPath, hasWorkingDir: !!localResult })
+        setStatusMessage(errorMsg)
         return
       }
+      
+      console.log('[LoadFiles] Scanned', localResult.files.length, 'local items')
+      console.log('[LoadFiles] Server query params:', { 
+        orgId: organization?.id, 
+        vaultId: currentVaultId,
+        shouldFetchServer,
+        serverFileCount: serverResult.files?.length || 0,
+        serverError: serverResult.error?.message 
+      })
       
       // Map hash to localHash for comparison
       let localFiles = localResult.files.map((f: any) => ({
@@ -615,23 +681,47 @@ function App() {
     }
   }, [isVaultConnected])
 
-  // Initialize working directory on startup (only if authenticated or offline)
+  // Initialize working directory on startup
+  // This runs BEFORE auth to ensure electron's workingDirectory is set when we have persisted vaults
+  // This prevents files from showing as "cloud" on startup before auth completes
   useEffect(() => {
     const initWorkingDir = async () => {
-      if (!window.electronAPI || !vaultPath) return
-      if (!user && !isOfflineMode) return
+      if (!window.electronAPI) return
       
-      const result = await window.electronAPI.setWorkingDir(vaultPath)
+      // Get the path from vaultPath (which is synced from activeVault in store merge)
+      // If no vaultPath but we have connected vaults, use the first vault's path
+      const pathToUse = vaultPath || connectedVaults[0]?.localPath
+      if (!pathToUse) {
+        console.log('[Init] No vault path available')
+        return
+      }
+      
+      console.log('[Init] Setting working directory:', pathToUse)
+      const result = await window.electronAPI.setWorkingDir(pathToUse)
+      
       if (result.success) {
-        setVaultConnected(true)
+        console.log('[Init] Working directory set successfully')
+        // Only set vault connected if we have auth (user) or offline mode
+        // This ensures loadFiles waits for org data when online
+        if (user || isOfflineMode) {
+          setVaultConnected(true)
+        }
+        // Update vaultPath if we used connectedVaults fallback
+        if (!vaultPath && connectedVaults[0]?.localPath) {
+          setVaultPath(connectedVaults[0].localPath)
+        }
       } else {
-        setVaultPath(null)
-        setVaultConnected(false)
+        console.error('[Init] Failed to set working directory:', result.error)
+        // Only clear state if user is authenticated (to avoid clearing on startup race)
+        if (user || isOfflineMode) {
+          setVaultPath(null)
+          setVaultConnected(false)
+        }
       }
     }
     
     initWorkingDir()
-  }, [user, isOfflineMode, vaultPath, setVaultPath, setVaultConnected])
+  }, [user, isOfflineMode, vaultPath, connectedVaults, setVaultPath, setVaultConnected])
 
   // Load files when ready - wait for organization to be loaded when online
   // This prevents double-loading (once without org, once with org)

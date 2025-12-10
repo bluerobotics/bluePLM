@@ -2,6 +2,15 @@
 
 All notable changes to BluePDM will be documented in this file.
 
+## [1.3.1] - 2025-12-10
+
+### Fixed
+- Files showing as "added" (green +) on production exe startup even when synced to cloud
+- Stale vault IDs in localStorage causing server file queries to return empty results
+- Added vault ID validation on startup - removes stale vaults that no longer exist on server
+- Electron working directory now set from persisted vaults before auth completes
+- Added diagnostic logging for file loading and vault validation issues
+
 ## [1.3.0] - 2025-12-10
 
 ### Added
