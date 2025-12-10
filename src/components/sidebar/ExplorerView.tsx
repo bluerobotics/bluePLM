@@ -33,6 +33,86 @@ import { usePDMStore, LocalFile, ConnectedVault } from '../../stores/pdmStore'
 import { getFileIconType } from '../../types/pdm'
 import { FileContextMenu } from '../FileContextMenu'
 
+// Component to load OS icon for files in explorer view
+interface ExplorerFileIconProps {
+  file: LocalFile
+  size?: number
+}
+
+function ExplorerFileIcon({ file, size = 16 }: ExplorerFileIconProps) {
+  const [icon, setIcon] = useState<string | null>(null)
+  
+  useEffect(() => {
+    if (file.isDirectory || !file.path) {
+      setIcon(null)
+      return
+    }
+    
+    let cancelled = false
+    
+    const loadIcon = async () => {
+      try {
+        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
+        if (!cancelled && result?.success && result.data) {
+          setIcon(result.data)
+        }
+      } catch {
+        // Silently fail - will show default icon
+      }
+    }
+    
+    loadIcon()
+    
+    return () => { cancelled = true }
+  }, [file.path, file.isDirectory])
+  
+  // Show OS icon if available
+  if (icon) {
+    return (
+      <img 
+        src={icon} 
+        alt=""
+        className="flex-shrink-0"
+        style={{ width: size, height: size }}
+        onError={() => setIcon(null)}
+      />
+    )
+  }
+  
+  // Fallback to React icons
+  const iconType = getFileIconType(file.extension)
+  switch (iconType) {
+    case 'part':
+      return <FileBox size={size} className="text-pdm-accent flex-shrink-0" />
+    case 'assembly':
+      return <Layers size={size} className="text-amber-400 flex-shrink-0" />
+    case 'drawing':
+      return <FilePen size={size} className="text-sky-300 flex-shrink-0" />
+    case 'step':
+      return <FileBox size={size} className="text-orange-400 flex-shrink-0" />
+    case 'pdf':
+      return <FileType size={size} className="text-red-400 flex-shrink-0" />
+    case 'image':
+      return <FileImage size={size} className="text-purple-400 flex-shrink-0" />
+    case 'spreadsheet':
+      return <FileSpreadsheet size={size} className="text-green-400 flex-shrink-0" />
+    case 'archive':
+      return <FileArchive size={size} className="text-yellow-500 flex-shrink-0" />
+    case 'schematic':
+      return <Cpu size={size} className="text-red-400 flex-shrink-0" />
+    case 'library':
+      return <Cpu size={size} className="text-violet-400 flex-shrink-0" />
+    case 'pcb':
+      return <Cpu size={size} className="text-emerald-400 flex-shrink-0" />
+    case 'code':
+      return <FileCode size={size} className="text-sky-400 flex-shrink-0" />
+    case 'text':
+      return <FileText size={size} className="text-pdm-fg-muted flex-shrink-0" />
+    default:
+      return <File size={size} className="text-pdm-fg-muted flex-shrink-0" />
+  }
+}
+
 // Build full path using the correct separator for the platform
 function buildFullPath(vaultPath: string, relativePath: string): string {
   // Detect platform from vaultPath - macOS/Linux use /, Windows uses \
@@ -68,7 +148,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     connectedVaults,
     toggleVaultExpanded,
     activeVaultId,
-    setActiveVault,
+    switchVault,
     addToast,
     pinnedFolders,
     unpinFolder,
@@ -121,6 +201,51 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
   useEffect(() => {
     window.electronAPI?.getPlatform().then(setPlatform)
   }, [])
+  
+  // Switch to a different vault - updates working directory and triggers reload via App.tsx effect
+  // Note: This doesn't toggle expansion - that's handled by the click handler
+  const switchToVault = async (vault: ConnectedVault) => {
+    console.log('[VaultSwitch] Switching to vault:', { 
+      vaultId: vault.id, 
+      vaultName: vault.name, 
+      localPath: vault.localPath,
+      previousActiveId: activeVaultId 
+    })
+    
+    // If clicking same vault, just navigate to root
+    if (vault.id === activeVaultId) {
+      setCurrentFolder('') // Go to root
+      return
+    }
+    
+    // Clear existing file state to avoid stale data showing under wrong vault
+    console.log('[VaultSwitch] Clearing files')
+    setFiles([])
+    setServerFiles([])
+    setFilesLoaded(false)
+    
+    // Tell Electron to switch the working directory FIRST (before state updates)
+    // This ensures listWorkingFiles() reads from the correct directory
+    if (window.electronAPI) {
+      console.log('[VaultSwitch] Setting working directory to:', vault.localPath)
+      const result = await window.electronAPI.setWorkingDir(vault.localPath)
+      if (!result.success) {
+        addToast('error', `Failed to switch vault: ${result.error}`)
+        return
+      }
+    }
+    
+    // Now update state ATOMICALLY - this triggers the loadFiles effect in App.tsx
+    // Using switchVault ensures both activeVaultId and vaultPath update together
+    // so the loadKey change triggers a fresh load with correct values
+    console.log('[VaultSwitch] Updating state atomically - vaultPath:', vault.localPath, 'activeVaultId:', vault.id)
+    switchVault(vault.id, vault.localPath)
+    setCurrentFolder('') // Go to root
+    
+    // DON'T call onRefresh() here - the useEffect in App.tsx will detect
+    // the loadKey change and call loadFiles() with the CORRECT updated state
+    console.log('[VaultSwitch] State update complete, waiting for effect to trigger loadFiles')
+  }
   
   // @ts-ignore - Reserved for future use
   const handleDelete = async (file: LocalFile) => {
@@ -647,37 +772,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
       return <Loader2 size={16} className="text-sky-400 animate-spin" />
     }
     
-    const iconType = getFileIconType(file.extension)
-    switch (iconType) {
-      case 'part':
-        return <FileBox size={16} className="text-pdm-accent" />
-      case 'assembly':
-        return <Layers size={16} className="text-amber-400" />
-      case 'drawing':
-        return <FilePen size={16} className="text-sky-300" />
-      case 'step':
-        return <FileBox size={16} className="text-orange-400" />
-      case 'pdf':
-        return <FileType size={16} className="text-red-400" />
-      case 'image':
-        return <FileImage size={16} className="text-purple-400" />
-      case 'spreadsheet':
-        return <FileSpreadsheet size={16} className="text-green-400" />
-      case 'archive':
-        return <FileArchive size={16} className="text-yellow-500" />
-      case 'schematic':
-        return <Cpu size={16} className="text-red-400" />
-      case 'library':
-        return <Cpu size={16} className="text-violet-400" />
-      case 'pcb':
-        return <Cpu size={16} className="text-emerald-400" />
-      case 'code':
-        return <FileCode size={16} className="text-sky-400" />
-      case 'text':
-        return <FileText size={16} className="text-pdm-fg-muted" />
-      default:
-        return <File size={16} className="text-pdm-fg-muted" />
-    }
+    // Use OS icons for files (not folders)
+    return <ExplorerFileIcon file={file} size={16} />
   }
   
   // Get unique users with checkouts in a folder
@@ -1513,7 +1609,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     const isActive = activeVaultId === vault.id
     const isExpanded = vault.isExpanded
     
-    // Calculate vault stats when active
+    // Calculate vault stats (only meaningful for active vault)
     const cloudFilesCount = isActive ? files.filter(f => !f.isDirectory && f.diffStatus === 'cloud').length : 0
     const checkedOutByMeCount = isActive ? files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by === user?.id).length : 0
     const checkedOutByOthersCount = isActive ? files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id).length : 0
@@ -1559,28 +1655,27 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     
     return (
       <div key={vault.id} className="border-b border-pdm-border last:border-b-0">
-        {/* Vault header */}
+        {/* Vault header - click to select vault (expands automatically) */}
         <div 
           className={`group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
             isActive ? 'bg-pdm-highlight text-pdm-fg' : 'text-pdm-fg-dim hover:bg-pdm-highlight/50'
           }`}
           onClick={() => {
-            setActiveVault(vault.id)
-            setCurrentFolder('') // Go to root
-            if (!isExpanded) {
+            if (isActive) {
+              // Already active - just toggle expand/collapse
               toggleVaultExpanded(vault.id)
+            } else {
+              // Switch to this vault and expand it
+              switchToVault(vault)
+              if (!isExpanded) {
+                toggleVaultExpanded(vault.id)
+              }
             }
           }}
           onContextMenu={(e) => handleVaultContextMenu(e, vault)}
         >
-          <span 
-            className="cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation()
-              toggleVaultExpanded(vault.id)
-            }}
-          >
-            {isExpanded 
+          <span className="flex-shrink-0">
+            {isExpanded && isActive
               ? <ChevronDown size={14} className="text-pdm-fg-muted" />
               : <ChevronRight size={14} className="text-pdm-fg-muted" />
             }
@@ -1590,7 +1685,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             {vault.name}
           </span>
           
-          {/* Inline badges and actions */}
+          {/* Inline badges and actions - only for active vault */}
           {isActive && (
             <div className="flex items-center gap-1">
               {/* Stacked avatars of all users with checkouts */}
@@ -1666,7 +1761,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           )}
         </div>
         
-        {/* Vault contents - supports drop to move files to root */}
+        {/* Vault contents - only show when active and expanded */}
         {isExpanded && isActive && (
           <div 
             className={`pb-2 min-h-[40px] ${dragOverFolder === '' ? 'bg-pdm-accent/10 outline outline-2 outline-dashed outline-pdm-accent/50 rounded' : ''}`}
@@ -1937,8 +2032,12 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                     // Default - grey
                     return <FolderOpen size={16} className="text-pdm-fg-muted" />
                   }
-                  // For files, use actualFile.extension if available, otherwise parse from name
-                  const ext = actualFile?.extension || ('.' + (fileName.split('.').pop()?.toLowerCase() || ''))
+                  // For files, use OS icon if we have the actual file
+                  if (actualFile) {
+                    return <ExplorerFileIcon file={actualFile} size={16} />
+                  }
+                  // Fallback to React icons based on extension from name
+                  const ext = '.' + (fileName.split('.').pop()?.toLowerCase() || '')
                   const iconType = getFileIconType(ext)
                   switch (iconType) {
                     case 'part':
@@ -2017,21 +2116,40 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                       }}
                       className={`tree-item group ${diffClass} ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-t-2 border-pdm-accent' : ''}`}
                       style={{ paddingLeft: pinned.isDirectory ? 8 : 24, cursor: 'grab' }}
-                      onClick={() => {
-                        // Switch to the vault and navigate
-                        if (pinned.vaultId !== activeVaultId) {
-                          setActiveVault(pinned.vaultId)
+                      onClick={async () => {
+                        // Switch to the vault if different
+                        if (pinned.vaultId !== activeVaultId && vault) {
+                          console.log('[PinnedClick] Switching to vault:', vault.name, vault.id)
+                          
+                          // Clear existing file state to avoid stale data
+                          setFiles([])
+                          setServerFiles([])
+                          setFilesLoaded(false)
+                          
+                          // Tell Electron to switch the working directory FIRST
+                          if (window.electronAPI) {
+                            const result = await window.electronAPI.setWorkingDir(vault.localPath)
+                            if (!result.success) {
+                              addToast('error', `Failed to switch vault: ${result.error}`)
+                              return
+                            }
+                          }
+                          
+                          // Update state ATOMICALLY - triggers loadFiles via App.tsx effect
+                          switchVault(pinned.vaultId, vault.localPath)
+                          
+                          // Expand the vault if not expanded
+                          if (!vault.isExpanded) {
+                            toggleVaultExpanded(pinned.vaultId)
+                          }
                         }
-                        // Always set current folder (for files, navigate to parent)
+                        
+                        // Navigate to folder (or parent for files)
                         if (pinned.isDirectory) {
                           setCurrentFolder(pinned.path)
                         } else {
                           const parentPath = pinned.path.split('/').slice(0, -1).join('/') || ''
                           setCurrentFolder(parentPath)
-                        }
-                        // Expand the vault if not expanded
-                        if (vault && !vault.isExpanded) {
-                          toggleVaultExpanded(pinned.vaultId)
                         }
                       }}
                       onDoubleClick={() => {

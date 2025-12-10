@@ -930,7 +930,7 @@ export function FileContextMenu({
       />
       <div 
         ref={menuRef}
-        className="context-menu"
+        className="context-menu z-[60]"
         style={{ left: adjustedPosition.x, top: adjustedPosition.y }}
       >
         {/* Download - for cloud-only files - show at TOP for cloud folders */}
@@ -1175,7 +1175,7 @@ export function FileContextMenu({
             {/* Submenu */}
             {showIgnoreSubmenu && (
               <div 
-                className={`context-menu absolute top-0 min-w-[200px] ${
+                className={`absolute top-0 min-w-[200px] bg-pdm-bg-lighter border border-pdm-border rounded-md py-1 shadow-lg z-[100] ${
                   submenuPosition === 'right' ? 'left-full ml-1' : 'right-full mr-1'
                 }`}
                 style={{ marginTop: '-4px' }}
@@ -1344,6 +1344,7 @@ export function FileContextMenu({
                 <div className="text-sm">
                   {firstFile.diffStatus === 'cloud' ? 'Cloud only (not downloaded)' 
                     : firstFile.diffStatus === 'added' ? 'Local only (not synced)'
+                    : firstFile.diffStatus === 'ignored' ? 'Local only (ignored from sync)'
                     : firstFile.diffStatus === 'modified' ? 'Modified locally'
                     : firstFile.diffStatus === 'moved' ? 'Moved (path changed)'
                     : firstFile.diffStatus === 'outdated' ? 'Outdated (newer version on server)'

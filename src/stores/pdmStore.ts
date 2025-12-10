@@ -15,7 +15,7 @@ export type SidebarView = 'explorer' | 'checkout' | 'history' | 'search' | 'sett
 export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history'
 export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress' | 'update'
-export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud' | 'moved'
+export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud' | 'moved' | 'ignored'
 
 // Connected vault - an org vault that's connected locally
 export interface ConnectedVault {
@@ -116,6 +116,9 @@ interface PDMState {
   activeVaultId: string | null  // Currently selected vault for file browser
   vaultsRefreshKey: number  // Increment to trigger vault list refresh
   
+  // Per-vault file cache (allows viewing multiple vaults simultaneously)
+  vaultFilesCache: Record<string, { files: LocalFile[], serverFiles: ServerFile[], loaded: boolean, loading: boolean }>
+  
   // File Browser
   files: LocalFile[]
   serverFiles: ServerFile[] // Files that exist on server (for tracking deletions)
@@ -188,6 +191,9 @@ interface PDMState {
   
   // Display settings
   lowercaseExtensions: boolean  // Display file extensions in lowercase
+  viewMode: 'list' | 'icons'    // File browser view mode
+  iconSize: number              // Icon size for icon view (48-256 pixels)
+  listRowSize: number           // Row height for list view (16-64 pixels)
   
   // Pinned items (quick access)
   pinnedFolders: { path: string; vaultId: string; vaultName: string; isDirectory: boolean }[]
@@ -241,6 +247,9 @@ interface PDMState {
   
   // Actions - Display settings
   setLowercaseExtensions: (enabled: boolean) => void
+  setViewMode: (mode: 'list' | 'icons') => void
+  setIconSize: (size: number) => void
+  setListRowSize: (size: number) => void
   
   // Actions - Pinned items
   pinFolder: (path: string, vaultId: string, vaultName: string, isDirectory: boolean) => void
@@ -254,8 +263,15 @@ interface PDMState {
   removeConnectedVault: (vaultId: string) => void
   toggleVaultExpanded: (vaultId: string) => void
   setActiveVault: (vaultId: string | null) => void
+  switchVault: (vaultId: string, vaultPath: string) => void  // Atomically switch vault ID and path together
   updateConnectedVault: (vaultId: string, updates: Partial<ConnectedVault>) => void
   triggerVaultsRefresh: () => void
+  
+  // Actions - Vault Files Cache
+  setVaultFiles: (vaultId: string, files: LocalFile[], serverFiles: ServerFile[]) => void
+  setVaultLoading: (vaultId: string, loading: boolean) => void
+  getVaultFiles: (vaultId: string) => { files: LocalFile[], serverFiles: ServerFile[], loaded: boolean, loading: boolean }
+  clearVaultCache: (vaultId: string) => void
   
   // Actions - Files
   setFiles: (files: LocalFile[]) => void
@@ -377,6 +393,7 @@ export const usePDMStore = create<PDMState>()(
       connectedVaults: [],
       activeVaultId: null,
       vaultsRefreshKey: 0,
+      vaultFilesCache: {},
       
       files: [],
       serverFiles: [],
@@ -435,6 +452,9 @@ export const usePDMStore = create<PDMState>()(
       autoConnect: true,
       cadPreviewMode: 'thumbnail',
       lowercaseExtensions: true,
+      viewMode: 'list',
+      iconSize: 96,  // Default icon size (medium)
+      listRowSize: 24, // Default list row height
       pinnedFolders: [],
       pinnedSectionExpanded: true,
       processingFolders: new Set(),
@@ -522,6 +542,9 @@ export const usePDMStore = create<PDMState>()(
       setAutoConnect: (autoConnect) => set({ autoConnect }),
       setCadPreviewMode: (cadPreviewMode) => set({ cadPreviewMode }),
       setLowercaseExtensions: (lowercaseExtensions) => set({ lowercaseExtensions }),
+      setViewMode: (viewMode) => set({ viewMode }),
+      setIconSize: (iconSize) => set({ iconSize: Math.max(48, Math.min(256, iconSize)) }),
+      setListRowSize: (listRowSize) => set({ listRowSize: Math.max(16, Math.min(64, listRowSize)) }),
       
       // Actions - Pinned items
       pinFolder: (path, vaultId, vaultName, isDirectory) => {
@@ -584,6 +607,10 @@ export const usePDMStore = create<PDMState>()(
         })
       },
       setActiveVault: (activeVaultId) => set({ activeVaultId }),
+      switchVault: (activeVaultId, vaultPath) => {
+        console.log('[Store] switchVault called:', { activeVaultId, vaultPath })
+        set({ activeVaultId, vaultPath })
+      },
       updateConnectedVault: (vaultId, updates) => {
         const { connectedVaults } = get()
         set({
@@ -594,6 +621,36 @@ export const usePDMStore = create<PDMState>()(
       },
       triggerVaultsRefresh: () => {
         set({ vaultsRefreshKey: get().vaultsRefreshKey + 1 })
+      },
+      
+      // Actions - Vault Files Cache
+      setVaultFiles: (vaultId, files, serverFiles) => {
+        const { vaultFilesCache } = get()
+        set({
+          vaultFilesCache: {
+            ...vaultFilesCache,
+            [vaultId]: { files, serverFiles, loaded: true, loading: false }
+          }
+        })
+      },
+      setVaultLoading: (vaultId, loading) => {
+        const { vaultFilesCache } = get()
+        const existing = vaultFilesCache[vaultId] || { files: [], serverFiles: [], loaded: false, loading: false }
+        set({
+          vaultFilesCache: {
+            ...vaultFilesCache,
+            [vaultId]: { ...existing, loading }
+          }
+        })
+      },
+      getVaultFiles: (vaultId) => {
+        const { vaultFilesCache } = get()
+        return vaultFilesCache[vaultId] || { files: [], serverFiles: [], loaded: false, loading: false }
+      },
+      clearVaultCache: (vaultId) => {
+        const { vaultFilesCache } = get()
+        const { [vaultId]: _, ...rest } = vaultFilesCache
+        set({ vaultFilesCache: rest })
       },
       
       // Actions - Files
@@ -1085,6 +1142,9 @@ export const usePDMStore = create<PDMState>()(
         autoConnect: state.autoConnect,
         cadPreviewMode: state.cadPreviewMode,
         lowercaseExtensions: state.lowercaseExtensions,
+        viewMode: state.viewMode,
+        iconSize: state.iconSize,
+        listRowSize: state.listRowSize,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         connectedVaults: state.connectedVaults,
@@ -1149,6 +1209,12 @@ export const usePDMStore = create<PDMState>()(
           cadPreviewMode: (persisted.cadPreviewMode as 'thumbnail' | 'edrawings') || 'thumbnail',
           // Ensure lowercaseExtensions has a default (true)
           lowercaseExtensions: persisted.lowercaseExtensions !== undefined ? persisted.lowercaseExtensions as boolean : true,
+          // Ensure viewMode has a default
+          viewMode: (persisted.viewMode as 'list' | 'icons') || 'list',
+          // Ensure iconSize has a default
+          iconSize: (persisted.iconSize as number) || 96,
+          // Ensure listRowSize has a default
+          listRowSize: (persisted.listRowSize as number) || 24,
           // Ensure columns have all fields
           columns: currentState.columns.map(defaultCol => {
             const persistedCol = (persisted.columns as ColumnConfig[] || [])

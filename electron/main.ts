@@ -413,7 +413,7 @@ function createAppMenu() {
           click: () => mainWindow?.webContents.send('menu:toggle-details')
         },
         { type: 'separator' },
-        { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', role: 'zoomIn' },
+        { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', role: 'zoomIn' },
         { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', role: 'zoomOut' },
         { label: 'Reset Zoom', accelerator: 'CmdOrCtrl+0', role: 'resetZoom' },
         { type: 'separator' },
@@ -1219,6 +1219,79 @@ ipcMain.handle('fs:get-hash', async (_, filePath: string) => {
   }
 })
 
+// List files from any directory (for multi-vault support)
+ipcMain.handle('fs:list-dir-files', async (_, dirPath: string) => {
+  if (!dirPath || !fs.existsSync(dirPath)) {
+    return { success: false, error: 'Directory does not exist' }
+  }
+  
+  const files: LocalFileInfo[] = []
+  
+  function walkDir(dir: string, baseDir: string) {
+    try {
+      const items = fs.readdirSync(dir, { withFileTypes: true })
+      
+      for (const item of items) {
+        // Skip hidden files
+        if (item.name.startsWith('.')) continue
+        
+        const fullPath = path.join(dir, item.name)
+        const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, '/')
+        const stats = fs.statSync(fullPath)
+        
+        if (item.isDirectory()) {
+          // Add folder entry
+          files.push({
+            name: item.name,
+            path: fullPath,
+            relativePath,
+            isDirectory: true,
+            extension: '',
+            size: 0,
+            modifiedTime: stats.mtime.toISOString()
+          })
+          // Recurse into folder
+          walkDir(fullPath, baseDir)
+        } else {
+          // Add file entry with hash for comparison
+          let fileHash: string | undefined
+          try {
+            // Compute hash for files (needed for diff detection)
+            const fileData = fs.readFileSync(fullPath)
+            fileHash = crypto.createHash('sha256').update(fileData).digest('hex')
+          } catch {
+            // Skip hash if file can't be read
+          }
+          
+          files.push({
+            name: item.name,
+            path: fullPath,
+            relativePath,
+            isDirectory: false,
+            extension: path.extname(item.name).toLowerCase(),
+            size: stats.size,
+            modifiedTime: stats.mtime.toISOString(),
+            hash: fileHash
+          })
+        }
+      }
+    } catch (err) {
+      log('Error reading directory:', err)
+    }
+  }
+  
+  walkDir(dirPath, dirPath)
+  
+  // Sort: folders first, then by name
+  files.sort((a, b) => {
+    if (a.isDirectory && !b.isDirectory) return -1
+    if (!a.isDirectory && b.isDirectory) return 1
+    return a.relativePath.localeCompare(b.relativePath)
+  })
+  
+  return { success: true, files }
+})
+
 ipcMain.handle('fs:list-working-files', async () => {
   if (!workingDirectory) {
     return { success: false, error: 'No working directory set' }
@@ -1637,58 +1710,46 @@ try {
   log('[eDrawings] Native module not available:', err)
 }
 
-// Extract thumbnail from SolidWorks files (OLE Compound Document)
-// SolidWorks stores preview images in the "\x05SummaryInformation" or as embedded PNG/BMP
+// Extract thumbnail or icon from files using Windows Shell API (same as Explorer)
+// First tries to get a preview thumbnail, then falls back to the file type icon
 async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: boolean; data?: string; error?: string }> {
   try {
-    const buffer = fs.readFileSync(filePath)
-    
-    // Look for PNG signature in the file
-    const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-    let pngStart = buffer.indexOf(pngSignature)
-    
-    if (pngStart !== -1) {
-      // Find PNG end (IEND chunk)
-      const iendSignature = Buffer.from([0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82])
-      let pngEnd = buffer.indexOf(iendSignature, pngStart)
+    // First, try to get a preview thumbnail (works for images, PDFs with preview, SolidWorks, etc.)
+    try {
+      const thumbnail = await nativeImage.createThumbnailFromPath(filePath, { 
+        width: 256, 
+        height: 256 
+      })
       
-      if (pngEnd !== -1) {
-        pngEnd += 8 // Include the IEND chunk
-        const pngData = buffer.slice(pngStart, pngEnd)
-        return { success: true, data: `data:image/png;base64,${pngData.toString('base64')}` }
+      if (thumbnail && !thumbnail.isEmpty()) {
+        const pngData = thumbnail.toPNG()
+        if (pngData && pngData.length > 100) {
+          log('[Thumbnail] Got OS thumbnail for:', path.basename(filePath), 'size:', pngData.length)
+          return { success: true, data: `data:image/png;base64,${pngData.toString('base64')}` }
+        }
       }
+    } catch (thumbErr) {
+      // Thumbnail not available, will try icon below
     }
     
-    // Look for JFIF/JPEG signature
-    const jpegSignature = Buffer.from([0xFF, 0xD8, 0xFF])
-    let jpegStart = buffer.indexOf(jpegSignature)
-    
-    if (jpegStart !== -1) {
-      // Find JPEG end marker
-      const jpegEnd = buffer.indexOf(Buffer.from([0xFF, 0xD9]), jpegStart)
-      if (jpegEnd !== -1) {
-        const jpegData = buffer.slice(jpegStart, jpegEnd + 2)
-        return { success: true, data: `data:image/jpeg;base64,${jpegData.toString('base64')}` }
+    // Fall back to file type icon (like Explorer shows for PDFs, Excel files, etc.)
+    try {
+      const icon = await app.getFileIcon(filePath, { size: 'large' })
+      if (icon && !icon.isEmpty()) {
+        const pngData = icon.toPNG()
+        if (pngData && pngData.length > 100) {
+          log('[Thumbnail] Got OS file icon for:', path.basename(filePath), 'size:', pngData.length)
+          return { success: true, data: `data:image/png;base64,${pngData.toString('base64')}` }
+        }
       }
+    } catch (iconErr) {
+      log('[Thumbnail] Could not get file icon:', String(iconErr))
     }
     
-    // Look for BMP signature
-    const bmpSignature = Buffer.from([0x42, 0x4D]) // "BM"
-    let bmpStart = buffer.indexOf(bmpSignature)
-    
-    // Find a reasonable BMP (check for valid size header)
-    while (bmpStart !== -1 && bmpStart < buffer.length - 54) {
-      // Read BMP file size from header (offset 2, 4 bytes, little-endian)
-      const bmpSize = buffer.readUInt32LE(bmpStart + 2)
-      if (bmpSize > 100 && bmpSize < 10000000 && bmpStart + bmpSize <= buffer.length) {
-        const bmpData = buffer.slice(bmpStart, bmpStart + bmpSize)
-        return { success: true, data: `data:image/bmp;base64,${bmpData.toString('base64')}` }
-      }
-      bmpStart = buffer.indexOf(bmpSignature, bmpStart + 1)
-    }
-    
-    return { success: false, error: 'No embedded thumbnail found' }
+    log('[Thumbnail] No OS thumbnail/icon available for:', path.basename(filePath))
+    return { success: false, error: 'No thumbnail or icon available from OS' }
   } catch (err) {
+    log('[Thumbnail] OS thumbnail extraction failed:', String(err))
     return { success: false, error: String(err) }
   }
 }

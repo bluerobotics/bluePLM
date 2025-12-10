@@ -814,7 +814,7 @@ export async function syncFile(
           file_type: fileType,
           content_hash: contentHash,
           file_size: fileSize,
-          state: 'wip',
+          state: 'not_tracked',
           revision: 'A',
           version: 1,
           created_by: userId,
@@ -832,7 +832,7 @@ export async function syncFile(
         revision: 'A',
         content_hash: contentHash,
         file_size: fileSize,
-        state: 'wip',
+        state: 'not_tracked',
         created_by: userId
       })
       
@@ -1225,6 +1225,233 @@ export async function addUserToOrg(
   }
   
   return { success: true, user: data }
+}
+
+// ============================================
+// Vault Access Management (Admin only)
+// ============================================
+
+/**
+ * Get vault access records for a user
+ * Returns array of vault IDs the user has access to
+ */
+export async function getUserVaultAccess(userId: string): Promise<{ vaultIds: string[]; error?: string }> {
+  const client = getSupabaseClient()
+  
+  const { data, error } = await client
+    .from('vault_access')
+    .select('vault_id')
+    .eq('user_id', userId)
+  
+  if (error) {
+    return { vaultIds: [], error: error.message }
+  }
+  
+  return { vaultIds: data?.map(r => r.vault_id) || [] }
+}
+
+/**
+ * Get all vault access records for an organization
+ * Returns a map of vault_id -> array of user_ids
+ */
+export async function getOrgVaultAccess(orgId: string): Promise<{ 
+  accessMap: Record<string, string[]>; 
+  error?: string 
+}> {
+  const client = getSupabaseClient()
+  
+  // Get all vaults for the org
+  const { data: vaults, error: vaultsError } = await client
+    .from('vaults')
+    .select('id')
+    .eq('org_id', orgId)
+  
+  if (vaultsError) {
+    return { accessMap: {}, error: vaultsError.message }
+  }
+  
+  const vaultIds = vaults?.map(v => v.id) || []
+  
+  if (vaultIds.length === 0) {
+    return { accessMap: {} }
+  }
+  
+  // Get access records for all vaults
+  const { data, error } = await client
+    .from('vault_access')
+    .select('vault_id, user_id')
+    .in('vault_id', vaultIds)
+  
+  if (error) {
+    return { accessMap: {}, error: error.message }
+  }
+  
+  // Build the map
+  const accessMap: Record<string, string[]> = {}
+  for (const record of data || []) {
+    if (!accessMap[record.vault_id]) {
+      accessMap[record.vault_id] = []
+    }
+    accessMap[record.vault_id].push(record.user_id)
+  }
+  
+  return { accessMap }
+}
+
+/**
+ * Grant a user access to a vault (admin only)
+ */
+export async function grantVaultAccess(
+  vaultId: string,
+  userId: string,
+  grantedBy: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  
+  const { error } = await client
+    .from('vault_access')
+    .insert({
+      vault_id: vaultId,
+      user_id: userId,
+      granted_by: grantedBy
+    })
+  
+  if (error) {
+    // Ignore duplicate key errors (user already has access)
+    if (error.code === '23505') {
+      return { success: true }
+    }
+    return { success: false, error: error.message }
+  }
+  
+  return { success: true }
+}
+
+/**
+ * Revoke a user's access to a vault (admin only)
+ */
+export async function revokeVaultAccess(
+  vaultId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  
+  const { error } = await client
+    .from('vault_access')
+    .delete()
+    .eq('vault_id', vaultId)
+    .eq('user_id', userId)
+  
+  if (error) {
+    return { success: false, error: error.message }
+  }
+  
+  return { success: true }
+}
+
+/**
+ * Set a user's vault access to a specific set of vaults (admin only)
+ * This replaces all existing access for the user with the new list
+ */
+export async function setUserVaultAccess(
+  userId: string,
+  vaultIds: string[],
+  grantedBy: string,
+  orgId: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  
+  // Get all vaults for the org to only remove access for vaults in this org
+  const { data: orgVaults, error: vaultsError } = await client
+    .from('vaults')
+    .select('id')
+    .eq('org_id', orgId)
+  
+  if (vaultsError) {
+    return { success: false, error: vaultsError.message }
+  }
+  
+  const orgVaultIds = orgVaults?.map(v => v.id) || []
+  
+  // Delete existing access for vaults in this org
+  if (orgVaultIds.length > 0) {
+    const { error: deleteError } = await client
+      .from('vault_access')
+      .delete()
+      .eq('user_id', userId)
+      .in('vault_id', orgVaultIds)
+    
+    if (deleteError) {
+      return { success: false, error: deleteError.message }
+    }
+  }
+  
+  // Insert new access records
+  if (vaultIds.length > 0) {
+    const records = vaultIds.map(vaultId => ({
+      vault_id: vaultId,
+      user_id: userId,
+      granted_by: grantedBy
+    }))
+    
+    const { error: insertError } = await client
+      .from('vault_access')
+      .insert(records)
+    
+    if (insertError) {
+      return { success: false, error: insertError.message }
+    }
+  }
+  
+  return { success: true }
+}
+
+/**
+ * Check if a user has access to a specific vault
+ * Admins always have access to all vaults
+ * If no vault_access records exist for a vault, everyone has access (legacy behavior)
+ */
+export async function checkVaultAccess(
+  userId: string,
+  vaultId: string,
+  userRole: string
+): Promise<{ hasAccess: boolean; error?: string }> {
+  // Admins always have access
+  if (userRole === 'admin') {
+    return { hasAccess: true }
+  }
+  
+  const client = getSupabaseClient()
+  
+  // Check if any access records exist for this vault
+  const { data: allAccess, error: checkError } = await client
+    .from('vault_access')
+    .select('id')
+    .eq('vault_id', vaultId)
+    .limit(1)
+  
+  if (checkError) {
+    return { hasAccess: false, error: checkError.message }
+  }
+  
+  // If no access records exist, everyone has access (vault is unrestricted)
+  if (!allAccess || allAccess.length === 0) {
+    return { hasAccess: true }
+  }
+  
+  // Check if user has specific access
+  const { data, error } = await client
+    .from('vault_access')
+    .select('id')
+    .eq('vault_id', vaultId)
+    .eq('user_id', userId)
+    .limit(1)
+  
+  if (error) {
+    return { hasAccess: false, error: error.message }
+  }
+  
+  return { hasAccess: (data?.length || 0) > 0 }
 }
 
 export async function updateFileMetadata(

@@ -108,7 +108,7 @@ export interface Database {
           description: string | null
           revision: string
           version: number
-          state: 'wip' | 'in_review' | 'released' | 'obsolete'
+          state: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           state_changed_at: string
           state_changed_by: string | null
           checked_out_by: string | null
@@ -136,7 +136,7 @@ export interface Database {
           description?: string | null
           revision?: string
           version?: number
-          state?: 'wip' | 'in_review' | 'released' | 'obsolete'
+          state?: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           state_changed_at?: string
           state_changed_by?: string | null
           checked_out_by?: string | null
@@ -164,7 +164,7 @@ export interface Database {
           description?: string | null
           revision?: string
           version?: number
-          state?: 'wip' | 'in_review' | 'released' | 'obsolete'
+          state?: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           state_changed_at?: string
           state_changed_by?: string | null
           checked_out_by?: string | null
@@ -192,7 +192,7 @@ export interface Database {
           lfs_oid: string | null
           file_size: number
           comment: string | null
-          state: 'wip' | 'in_review' | 'released' | 'obsolete'
+          state: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           created_at: string
           created_by: string
         }
@@ -206,7 +206,7 @@ export interface Database {
           lfs_oid?: string | null
           file_size: number
           comment?: string | null
-          state: 'wip' | 'in_review' | 'released' | 'obsolete'
+          state: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           created_at?: string
           created_by: string
         }
@@ -220,7 +220,7 @@ export interface Database {
           lfs_oid?: string | null
           file_size?: number
           comment?: string | null
-          state?: 'wip' | 'in_review' | 'released' | 'obsolete'
+          state?: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           created_at?: string
           created_by?: string
         }
@@ -327,11 +327,34 @@ export interface Database {
           created_at?: string
         }
       }
+      vault_access: {
+        Row: {
+          id: string
+          vault_id: string
+          user_id: string
+          granted_by: string | null
+          granted_at: string
+        }
+        Insert: {
+          id?: string
+          vault_id: string
+          user_id: string
+          granted_by?: string | null
+          granted_at?: string
+        }
+        Update: {
+          id?: string
+          vault_id?: string
+          user_id?: string
+          granted_by?: string | null
+          granted_at?: string
+        }
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
     Enums: {
-      file_state: 'wip' | 'in_review' | 'released' | 'obsolete'
+      file_state: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
       file_type: 'part' | 'assembly' | 'drawing' | 'document' | 'other'
       reference_type: 'component' | 'drawing_view' | 'derived' | 'copy'
       user_role: 'admin' | 'engineer' | 'viewer'

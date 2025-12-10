@@ -32,10 +32,11 @@ import {
   ChevronDown,
   Wrench,
   RefreshCw,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Lock
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
-import { supabase, signOut, getCurrentConfig, updateUserRole, removeUserFromOrg } from '../lib/supabase'
+import { supabase, signOut, getCurrentConfig, updateUserRole, removeUserFromOrg, getOrgVaultAccess, setUserVaultAccess } from '../lib/supabase'
 import { generateOrgCode, clearConfig } from '../lib/supabaseConfig'
 
 // Build vault path based on platform
@@ -139,6 +140,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [isRemoving, setIsRemoving] = useState(false)
   const [roleDropdownOpen, setRoleDropdownOpen] = useState<string | null>(null)
   
+  // Vault access state
+  const [vaultAccessMap, setVaultAccessMap] = useState<Record<string, string[]>>({})
+  const [editingVaultAccessUser, setEditingVaultAccessUser] = useState<OrgUser | null>(null)
+  const [pendingVaultAccess, setPendingVaultAccess] = useState<string[]>([])
+  const [isSavingVaultAccess, setIsSavingVaultAccess] = useState(false)
+  
   // Get app version and platform
   useEffect(() => {
     if (window.electronAPI) {
@@ -152,8 +159,20 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (activeTab === 'organization' && organization) {
       loadOrgVaults()
       loadOrgUsers()
+      loadVaultAccess()
     }
   }, [activeTab, organization])
+  
+  const loadVaultAccess = async () => {
+    if (!organization) return
+    
+    const { accessMap, error } = await getOrgVaultAccess(organization.id)
+    if (error) {
+      console.error('Failed to load vault access:', error)
+    } else {
+      setVaultAccessMap(accessMap)
+    }
+  }
   
   // Close on escape
   useEffect(() => {
@@ -623,6 +642,78 @@ See you on the team!`
     }
   }
   
+  // Get vault access count for a user
+  const getUserVaultAccessCount = (userId: string) => {
+    let count = 0
+    for (const vaultId of Object.keys(vaultAccessMap)) {
+      if (vaultAccessMap[vaultId].includes(userId)) {
+        count++
+      }
+    }
+    return count
+  }
+  
+  // Check if a vault has any access restrictions
+  const isVaultRestricted = (vaultId: string) => {
+    return (vaultAccessMap[vaultId]?.length || 0) > 0
+  }
+  
+  // Get vaults a user has access to
+  const getUserAccessibleVaults = (userId: string) => {
+    const accessibleVaultIds: string[] = []
+    for (const vaultId of Object.keys(vaultAccessMap)) {
+      if (vaultAccessMap[vaultId].includes(userId)) {
+        accessibleVaultIds.push(vaultId)
+      }
+    }
+    return accessibleVaultIds
+  }
+  
+  // Open vault access editor for a user
+  const openVaultAccessEditor = (targetUser: OrgUser) => {
+    setEditingVaultAccessUser(targetUser)
+    // Initialize with user's current vault access
+    const currentAccess = getUserAccessibleVaults(targetUser.id)
+    setPendingVaultAccess(currentAccess)
+  }
+  
+  // Save vault access changes
+  const handleSaveVaultAccess = async () => {
+    if (!editingVaultAccessUser || !user || !organization) return
+    
+    setIsSavingVaultAccess(true)
+    try {
+      const result = await setUserVaultAccess(
+        editingVaultAccessUser.id,
+        pendingVaultAccess,
+        user.id,
+        organization.id
+      )
+      
+      if (result.success) {
+        addToast('success', `Updated vault access for ${editingVaultAccessUser.full_name || editingVaultAccessUser.email}`)
+        // Reload vault access data
+        await loadVaultAccess()
+        setEditingVaultAccessUser(null)
+      } else {
+        addToast('error', result.error || 'Failed to update vault access')
+      }
+    } catch (err) {
+      addToast('error', 'Failed to update vault access')
+    } finally {
+      setIsSavingVaultAccess(false)
+    }
+  }
+  
+  // Toggle vault access in pending state
+  const toggleVaultAccess = (vaultId: string) => {
+    setPendingVaultAccess(current => 
+      current.includes(vaultId)
+        ? current.filter(id => id !== vaultId)
+        : [...current, vaultId]
+    )
+  }
+  
   const tabs = [
     { id: 'account' as SettingsTab, icon: User, label: 'Account' },
     { id: 'organization' as SettingsTab, icon: Building2, label: 'Organization' },
@@ -1019,8 +1110,15 @@ See you on the team!`
                                       <span className="text-xs text-pdm-fg-dim">(you)</span>
                                     )}
                                   </div>
-                                  <div className="text-xs text-pdm-fg-muted truncate">
+                                  <div className="text-xs text-pdm-fg-muted truncate flex items-center gap-2">
                                     {orgUser.email}
+                                    {/* Show vault access indicator for non-admins */}
+                                    {orgUser.role !== 'admin' && getUserVaultAccessCount(orgUser.id) > 0 && (
+                                      <span className="flex items-center gap-1 px-1.5 py-0.5 bg-pdm-fg-muted/10 rounded text-pdm-fg-dim">
+                                        <Lock size={10} />
+                                        {getUserVaultAccessCount(orgUser.id)} vault{getUserVaultAccessCount(orgUser.id) !== 1 ? 's' : ''}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                                 
@@ -1078,6 +1176,17 @@ See you on the team!`
                                     </div>
                                   )}
                                 </div>
+                                
+                                {/* Vault Access button */}
+                                {canManage && (
+                                  <button
+                                    onClick={() => openVaultAccessEditor(orgUser)}
+                                    className="p-1.5 text-pdm-fg-muted hover:text-pdm-accent hover:bg-pdm-accent/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                    title="Manage vault access"
+                                  >
+                                    <Lock size={16} />
+                                  </button>
+                                )}
                                 
                                 {/* Remove button */}
                                 {canManage && (
@@ -2025,6 +2134,183 @@ See you on the team!`
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Vault Access Editor Dialog */}
+      {editingVaultAccessUser && (
+        <div 
+          className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center"
+          onClick={() => !isSavingVaultAccess && setEditingVaultAccessUser(null)}
+        >
+          <div 
+            className="bg-pdm-bg-light border border-pdm-accent/50 rounded-xl shadow-2xl w-[520px] overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-pdm-border bg-pdm-accent/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-pdm-accent/20 rounded-full">
+                  <Lock size={24} className="text-pdm-accent" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-pdm-fg">Vault Access</h3>
+                  <p className="text-sm text-pdm-fg-muted">
+                    {editingVaultAccessUser.full_name || editingVaultAccessUser.email}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {/* User info */}
+              <div className="flex items-center gap-3 p-3 bg-pdm-bg rounded-lg">
+                {editingVaultAccessUser.avatar_url ? (
+                  <img 
+                    src={editingVaultAccessUser.avatar_url} 
+                    alt={editingVaultAccessUser.full_name || editingVaultAccessUser.email}
+                    className="w-10 h-10 rounded-full"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-pdm-fg-muted/20 flex items-center justify-center text-sm font-medium">
+                    {(editingVaultAccessUser.full_name || editingVaultAccessUser.email?.split('@')[0] || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-pdm-fg truncate">
+                    {editingVaultAccessUser.full_name || editingVaultAccessUser.email}
+                  </div>
+                  <div className="text-xs text-pdm-fg-muted truncate">
+                    {editingVaultAccessUser.email}
+                  </div>
+                </div>
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs ${
+                  editingVaultAccessUser.role === 'admin' ? 'bg-pdm-accent/20 text-pdm-accent' :
+                  editingVaultAccessUser.role === 'engineer' ? 'bg-pdm-success/20 text-pdm-success' :
+                  'bg-pdm-fg-muted/20 text-pdm-fg-muted'
+                }`}>
+                  {editingVaultAccessUser.role === 'admin' && <Shield size={12} />}
+                  {editingVaultAccessUser.role === 'engineer' && <Wrench size={12} />}
+                  {editingVaultAccessUser.role === 'viewer' && <Eye size={12} />}
+                  {editingVaultAccessUser.role.charAt(0).toUpperCase() + editingVaultAccessUser.role.slice(1)}
+                </div>
+              </div>
+              
+              {editingVaultAccessUser.role === 'admin' ? (
+                <div className="p-4 bg-pdm-accent/10 border border-pdm-accent/30 rounded-lg">
+                  <p className="text-sm text-pdm-fg flex items-center gap-2">
+                    <Shield size={16} className="text-pdm-accent" />
+                    Admins have access to all vaults by default.
+                  </p>
+                  <p className="text-xs text-pdm-fg-muted mt-1">
+                    Change their role to Engineer or Viewer to restrict vault access.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-pdm-fg-muted">
+                    Select which vaults this user can access. If no vaults are selected, 
+                    the user will have access to all unrestricted vaults.
+                  </p>
+                  
+                  {/* Vault list */}
+                  <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                    {orgVaults.length === 0 ? (
+                      <div className="text-center py-8 text-pdm-fg-muted text-sm">
+                        No vaults created yet.
+                      </div>
+                    ) : (
+                      orgVaults.map(vault => {
+                        const hasAccess = pendingVaultAccess.includes(vault.id)
+                        const restricted = isVaultRestricted(vault.id)
+                        
+                        return (
+                          <label
+                            key={vault.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                              hasAccess
+                                ? 'bg-pdm-accent/10 border-pdm-accent'
+                                : 'bg-pdm-bg border-pdm-border hover:border-pdm-fg-muted'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={hasAccess}
+                              onChange={() => toggleVaultAccess(vault.id)}
+                              className="w-4 h-4 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent focus:ring-offset-0"
+                            />
+                            <Folder size={18} className={hasAccess ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-medium ${hasAccess ? 'text-pdm-fg' : 'text-pdm-fg-muted'}`}>
+                                  {vault.name}
+                                </span>
+                                {vault.is_default && (
+                                  <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-xs rounded">
+                                    Default
+                                  </span>
+                                )}
+                                {restricted && !hasAccess && (
+                                  <span className="px-1.5 py-0.5 bg-pdm-warning/20 text-pdm-warning text-xs rounded flex items-center gap-1">
+                                    <Lock size={10} />
+                                    Restricted
+                                  </span>
+                                )}
+                              </div>
+                              {vault.description && (
+                                <div className="text-xs text-pdm-fg-dim truncate">
+                                  {vault.description}
+                                </div>
+                              )}
+                            </div>
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                  
+                  {/* Info box */}
+                  <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
+                    <p className="text-xs text-pdm-fg-dim">
+                      <strong>Note:</strong> Vaults without any access restrictions are available to all organization members.
+                      Once you grant specific users access to a vault, only those users (and admins) can access it.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* Actions */}
+            <div className="p-4 border-t border-pdm-border bg-pdm-bg flex justify-end gap-3">
+              <button
+                onClick={() => setEditingVaultAccessUser(null)}
+                className="btn btn-ghost"
+                disabled={isSavingVaultAccess}
+              >
+                Cancel
+              </button>
+              {editingVaultAccessUser.role !== 'admin' && (
+                <button
+                  onClick={handleSaveVaultAccess}
+                  disabled={isSavingVaultAccess}
+                  className="btn btn-primary flex items-center gap-2"
+                >
+                  {isSavingVaultAccess ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} />
+                      Save Access
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

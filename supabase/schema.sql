@@ -80,8 +80,25 @@ CREATE TABLE vaults (
 CREATE INDEX idx_vaults_org_id ON vaults(org_id);
 
 -- ===========================================
--- FILES (Metadata only - content in Supabase Storage)
+-- VAULT ACCESS (Per-user vault permissions)
 -- ===========================================
+
+CREATE TABLE vault_access (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  vault_id UUID NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  granted_by UUID REFERENCES users(id),
+  granted_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE(vault_id, user_id)
+);
+
+CREATE INDEX idx_vault_access_vault_id ON vault_access(vault_id);
+CREATE INDEX idx_vault_access_user_id ON vault_access(user_id);
+
+-- ===========================================
+-- FILES (Metadata only - content in Supabase Storage)
+-- =========================================== 
 
 CREATE TABLE files (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -105,7 +122,7 @@ CREATE TABLE files (
   file_size BIGINT DEFAULT 0,
   
   -- State management
-  state file_state DEFAULT 'wip',
+  state file_state DEFAULT 'not_tracked',
   state_changed_at TIMESTAMPTZ DEFAULT NOW(),
   state_changed_by UUID REFERENCES users(id),
   
@@ -223,6 +240,7 @@ CREATE INDEX idx_activity_action ON activity(action);
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vaults ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vault_access ENABLE ROW LEVEL SECURITY;
 ALTER TABLE files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_references ENABLE ROW LEVEL SECURITY;
@@ -256,6 +274,33 @@ CREATE POLICY "Admins can update vaults"
 CREATE POLICY "Admins can delete vaults"
   ON vaults FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- Vault Access: authenticated users can view access records
+CREATE POLICY "Authenticated users can view vault access"
+  ON vault_access FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Vault Access: only admins can manage vault access
+CREATE POLICY "Admins can insert vault access"
+  ON vault_access FOR INSERT
+  WITH CHECK (
+    vault_id IN (
+      SELECT v.id FROM vaults v 
+      JOIN users u ON v.org_id = u.org_id 
+      WHERE u.id = auth.uid() AND u.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Admins can delete vault access"
+  ON vault_access FOR DELETE
+  USING (
+    vault_id IN (
+      SELECT v.id FROM vaults v 
+      JOIN users u ON v.org_id = u.org_id 
+      WHERE u.id = auth.uid() AND u.role = 'admin'
+    )
+  );
 
 -- Users: authenticated users can view (app filters by org)
 CREATE POLICY "Authenticated users can view users"

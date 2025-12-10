@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { usePDMStore } from '../stores/pdmStore'
+import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { formatFileSize, getFileIconType } from '../types/pdm'
 import { formatDistanceToNow } from 'date-fns'
 import { getFileVersions } from '../lib/supabase'
@@ -12,6 +12,65 @@ import {
   ExternalLink,
   ArrowLeft
 } from 'lucide-react'
+
+// Component to load OS icon for files
+function RightPanelIcon({ file, size = 24 }: { file: LocalFile; size?: number }) {
+  const [icon, setIcon] = useState<string | null>(null)
+  
+  useEffect(() => {
+    if (file.isDirectory || !file.path) {
+      setIcon(null)
+      return
+    }
+    
+    let cancelled = false
+    
+    const loadIcon = async () => {
+      try {
+        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
+        if (!cancelled && result?.success && result.data) {
+          setIcon(result.data)
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    
+    loadIcon()
+    return () => { cancelled = true }
+  }, [file.path, file.isDirectory])
+  
+  if (icon) {
+    return (
+      <img 
+        src={icon} 
+        alt=""
+        className="flex-shrink-0 rounded"
+        style={{ width: size, height: size }}
+        onError={() => setIcon(null)}
+      />
+    )
+  }
+  
+  // Fallback to React icons
+  const iconType = getFileIconType(file.extension)
+  const iconClassMap: Record<string, string> = {
+    part: 'text-pdm-accent',
+    assembly: 'text-amber-400',
+    drawing: 'text-sky-300',
+    step: 'text-orange-400',
+    pdf: 'text-red-400',
+    image: 'text-purple-400',
+  }
+  const iconClass = iconClassMap[iconType] || 'text-pdm-fg-muted'
+  const iconMap: Record<string, typeof File> = {
+    part: FileBox,
+    assembly: Layers,
+    drawing: FilePen,
+  }
+  const IconComponent = iconMap[iconType] || File
+  return <IconComponent size={size} className={iconClass} />
+}
 
 interface VersionEntry {
   id: string
@@ -118,23 +177,8 @@ export function RightPanel() {
 
   const getFileIcon = () => {
     if (!file) return <File size={24} className="text-pdm-fg-muted" />
-    const iconType = getFileIconType(file.extension)
-    const iconClassMap: Record<string, string> = {
-      part: 'text-pdm-accent',
-      assembly: 'text-amber-400',
-      drawing: 'text-sky-300',
-      step: 'text-orange-400',
-      pdf: 'text-red-400',
-      image: 'text-purple-400',
-    }
-    const iconClass = iconClassMap[iconType] || 'text-pdm-fg-muted'
-    const iconMap: Record<string, typeof File> = {
-      part: FileBox,
-      assembly: Layers,
-      drawing: FilePen,
-    }
-    const IconComponent = iconMap[iconType] || File
-    return <IconComponent size={24} className={iconClass} />
+    // Use OS icons for files
+    return <RightPanelIcon file={file} size={24} />
   }
 
   if (rightPanelTabs.length === 0) return null
@@ -208,7 +252,7 @@ export function RightPanel() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-pdm-fg-muted">Status</span>
-                    <span>{file.pdmData ? 'Synced' : 'Local only'}</span>
+                    <span>{file.pdmData ? 'Synced' : (file.diffStatus === 'ignored' ? 'Local only (ignored)' : 'Local only')}</span>
                   </div>
                 </div>
               </div>

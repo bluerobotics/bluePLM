@@ -43,7 +43,10 @@ import {
   Info,
   Link,
   FileX,
-  FolderX
+  FolderX,
+  List,
+  Grid,
+  LayoutGrid
 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { getFileIconType, formatFileSize, STATE_INFO } from '../types/pdm'
@@ -68,6 +71,742 @@ function getParentDir(fullPath: string): string {
 
 interface FileBrowserProps {
   onRefresh: (silent?: boolean) => void
+}
+
+// File Icon Card for icon view
+interface FileIconCardProps {
+  file: LocalFile
+  iconSize: number
+  isSelected: boolean
+  allFiles: LocalFile[]
+  processingPaths: Set<string>  // Paths currently being processed
+  onClick: (e: React.MouseEvent) => void
+  onDoubleClick: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+  onDownload?: (e: React.MouseEvent, file: LocalFile) => void
+  onCheckout?: (e: React.MouseEvent, file: LocalFile) => void
+  onCheckin?: (e: React.MouseEvent, file: LocalFile) => void
+  onUpload?: (e: React.MouseEvent, file: LocalFile) => void
+  onStateChange?: (file: LocalFile, newState: string) => void
+}
+
+function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, onClick, onDoubleClick, onContextMenu, onDownload, onCheckout, onCheckin, onUpload, onStateChange }: FileIconCardProps) {
+  const [thumbnail, setThumbnail] = useState<string | null>(null)
+  const [thumbnailError, setThumbnailError] = useState(false)
+  const [loadingThumbnail, setLoadingThumbnail] = useState(false)
+  const [showStateDropdown, setShowStateDropdown] = useState(false)
+  const stateDropdownRef = useRef<HTMLDivElement>(null)
+  const { lowercaseExtensions, user } = usePDMStore()
+  
+  // Check if this file is being processed (download, checkout, checkin)
+  const isProcessing = (() => {
+    if (processingPaths.has(file.relativePath)) return true
+    // Check if any parent folder is being processed
+    for (const processingPath of processingPaths) {
+      if (file.relativePath.startsWith(processingPath + '/')) return true
+    }
+    return false
+  })()
+  
+  // Close state dropdown when clicking outside
+  useEffect(() => {
+    if (!showStateDropdown) return
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (stateDropdownRef.current && !stateDropdownRef.current.contains(e.target as Node)) {
+        setShowStateDropdown(false)
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showStateDropdown])
+  
+  // Load SolidWorks thumbnail for supported files
+  useEffect(() => {
+    const loadThumbnail = async () => {
+      const ext = file.extension.toLowerCase()
+      const supportedExts = ['.sldprt', '.sldasm', '.slddrw']
+      
+      if (!file.isDirectory && supportedExts.includes(ext) && file.path && iconSize >= 64) {
+        setLoadingThumbnail(true)
+        setThumbnailError(false)
+        try {
+          const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
+          if (result?.success && result.data && result.data.startsWith('data:image/')) {
+            // Validate it's a proper data URL with reasonable length
+            if (result.data.length > 100 && result.data.length < 10000000) {
+              setThumbnail(result.data)
+            } else {
+              console.warn('Thumbnail data invalid size:', result.data.length)
+              setThumbnail(null)
+            }
+          } else {
+            setThumbnail(null)
+          }
+        } catch (err) {
+          console.error('Failed to extract thumbnail:', err)
+          setThumbnail(null)
+        } finally {
+          setLoadingThumbnail(false)
+        }
+      } else {
+        setThumbnail(null)
+        setThumbnailError(false)
+      }
+    }
+    
+    loadThumbnail()
+  }, [file.path, file.extension, file.isDirectory, iconSize])
+  
+  const iconType = getFileIconType(file.extension)
+  const displayExt = file.extension ? (lowercaseExtensions ? file.extension.toLowerCase() : file.extension.toUpperCase()) : ''
+  
+  // Get diff class color for the card
+  const getDiffClass = () => {
+    if (file.diffStatus === 'added') return 'ring-1 ring-green-500/50 bg-green-500/5'
+    if (file.diffStatus === 'modified') return 'ring-1 ring-yellow-500/50 bg-yellow-500/5'
+    if (file.diffStatus === 'moved') return 'ring-1 ring-blue-500/50 bg-blue-500/5'
+    if (file.diffStatus === 'deleted') return 'ring-1 ring-red-500/50 bg-red-500/5'
+    if (file.diffStatus === 'outdated') return 'ring-1 ring-purple-500/50 bg-purple-500/5'
+    if (file.diffStatus === 'cloud') return 'ring-1 ring-pdm-fg-muted/30 bg-pdm-fg-muted/5'
+    return ''
+  }
+  
+  // Get cloud files count for folders
+  const getCloudFilesCount = () => {
+    if (!file.isDirectory) return 0
+    const folderPrefix = file.relativePath + '/'
+    return allFiles.filter(f => 
+      !f.isDirectory && 
+      f.diffStatus === 'cloud' && 
+      f.relativePath.startsWith(folderPrefix)
+    ).length
+  }
+  
+  // Get checkout users for file/folder
+  const getCheckoutUsers = (): Array<{ id: string; name: string; avatar_url?: string; isMe: boolean }> => {
+    if (file.isDirectory) {
+      // For folders, get unique users who have checked out files inside
+      const folderPrefix = file.relativePath + '/'
+      const folderFiles = allFiles.filter(f => 
+        !f.isDirectory && 
+        f.pdmData?.checked_out_by && 
+        f.relativePath.startsWith(folderPrefix)
+      )
+      
+      const usersMap = new Map<string, { id: string; name: string; avatar_url?: string; isMe: boolean }>()
+      for (const f of folderFiles) {
+        const checkoutUserId = f.pdmData!.checked_out_by!
+        if (!usersMap.has(checkoutUserId)) {
+          const isMe = checkoutUserId === user?.id
+          if (isMe) {
+            usersMap.set(checkoutUserId, {
+              id: checkoutUserId,
+              name: 'You',
+              avatar_url: user?.avatar_url || undefined,
+              isMe: true
+            })
+          } else {
+            const checkedOutUser = (f.pdmData as any).checked_out_user
+            usersMap.set(checkoutUserId, {
+              id: checkoutUserId,
+              name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+              avatar_url: checkedOutUser?.avatar_url,
+              isMe: false
+            })
+          }
+        }
+      }
+      return Array.from(usersMap.values())
+    } else if (file.pdmData?.checked_out_by) {
+      // Single file checkout
+      const isMe = file.pdmData.checked_out_by === user?.id
+      if (isMe) {
+        return [{
+          id: file.pdmData.checked_out_by,
+          name: 'You',
+          avatar_url: user?.avatar_url || undefined,
+          isMe: true
+        }]
+      } else {
+        const checkedOutUser = (file.pdmData as any).checked_out_user
+        return [{
+          id: file.pdmData.checked_out_by,
+          name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+          avatar_url: checkedOutUser?.avatar_url,
+          isMe: false
+        }]
+      }
+    }
+    return []
+  }
+  
+  // Get folder icon color - EXACTLY matches getFileIcon() in list view
+  const getFolderIconColor = () => {
+    if (!file.isDirectory) return ''
+    
+    // Cloud-only folders (exist on server but not locally) - grey and faded
+    if (file.diffStatus === 'cloud') return 'text-pdm-fg-muted opacity-50'
+    
+    // Check folder contents
+    const folderPath = file.relativePath.replace(/\\/g, '/')
+    const folderPrefix = folderPath + '/'
+    
+    // Get files in this folder
+    const folderFiles = allFiles.filter(f => {
+      if (f.isDirectory) return false
+      const filePath = f.relativePath.replace(/\\/g, '/')
+      return filePath.startsWith(folderPrefix)
+    })
+    
+    // Check checkout status (same logic as getFolderCheckoutStatus)
+    const checkedOutByMe = folderFiles.some(f => f.pdmData?.checked_out_by === user?.id)
+    const checkedOutByOthers = folderFiles.some(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id)
+    
+    // Red for folders with files checked out by others
+    if (checkedOutByOthers) return 'text-pdm-error'
+    
+    // Orange for folders with only my checkouts
+    if (checkedOutByMe) return 'text-pdm-warning'
+    
+    // Check if all files are synced (same logic as isFolderSynced)
+    if (folderFiles.length === 0) return 'text-pdm-fg-muted' // Empty folder
+    const allSynced = folderFiles.every(f => !!f.pdmData)
+    
+    // Green for synced folders, grey for unsynced/local-only
+    return allSynced ? 'text-pdm-success' : 'text-pdm-fg-muted'
+  }
+  
+  const cloudFilesCount = getCloudFilesCount()
+  const checkoutUsers = getCheckoutUsers()
+  const iconSizeScaled = iconSize * 0.6
+  
+  // Get icon based on file type
+  const getIcon = () => {
+    if (file.isDirectory) {
+      const folderColor = getFolderIconColor()
+      return <FolderOpen size={iconSizeScaled} className={folderColor || 'text-pdm-accent'} />
+    }
+    
+    // If we have a thumbnail and it hasn't errored, show it
+    if (thumbnail && !thumbnailError) {
+      return (
+        <img 
+          src={thumbnail} 
+          alt={file.name}
+          className="w-full h-full object-contain"
+          style={{ maxWidth: iconSize, maxHeight: iconSize }}
+          onError={() => {
+            console.warn('Thumbnail failed to load for:', file.name)
+            setThumbnailError(true)
+          }}
+        />
+      )
+    }
+    
+    // Show loading state
+    if (loadingThumbnail) {
+      return <Loader2 size={iconSize * 0.4} className="text-pdm-fg-muted animate-spin" />
+    }
+    
+    // Default icons based on type (matches getFileIcon in table view)
+    switch (iconType) {
+      case 'part':
+        return <FileBox size={iconSizeScaled} className="text-pdm-accent" />
+      case 'assembly':
+        return <Layers size={iconSizeScaled} className="text-amber-400" />
+      case 'drawing':
+        return <FilePen size={iconSizeScaled} className="text-sky-300" />
+      case 'step':
+        return <FileBox size={iconSizeScaled} className="text-orange-400" />
+      case 'pdf':
+        return <FileType size={iconSizeScaled} className="text-red-400" />
+      case 'image':
+        return <FileImage size={iconSizeScaled} className="text-purple-400" />
+      case 'spreadsheet':
+        return <FileSpreadsheet size={iconSizeScaled} className="text-green-400" />
+      case 'archive':
+        return <FileArchive size={iconSizeScaled} className="text-yellow-500" />
+      case 'schematic':
+        return <Cpu size={iconSizeScaled} className="text-red-400" />
+      case 'library':
+        return <Cpu size={iconSizeScaled} className="text-violet-400" />
+      case 'pcb':
+        return <Cpu size={iconSizeScaled} className="text-emerald-400" />
+      case 'code':
+        return <FileCode size={iconSizeScaled} className="text-sky-400" />
+      case 'text':
+        return <FileText size={iconSizeScaled} className="text-pdm-fg-muted" />
+      default:
+        return <File size={iconSizeScaled} className="text-pdm-fg-muted" />
+    }
+  }
+  
+  return (
+    <div
+      className={`
+        relative flex flex-col items-center p-2 rounded-lg cursor-pointer group/card
+        transition-colors duration-100
+        ${isSelected 
+          ? 'bg-pdm-accent/20 ring-2 ring-pdm-accent' 
+          : `hover:bg-pdm-bg-lighter ${getDiffClass()}`
+        }
+      `}
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
+      style={{ width: iconSize + 24 }}
+    >
+      {/* Top right status/avatars - scale with icon size */}
+      {(() => {
+        const avatarSize = Math.max(16, Math.min(40, iconSize * 0.25))
+        const avatarFontSize = Math.max(8, avatarSize * 0.45)
+        const statusIconSize = Math.max(12, Math.min(24, iconSize * 0.18))
+        const buttonSize = Math.max(16, Math.min(32, iconSize * 0.2))
+        const buttonIconSize = Math.max(10, Math.min(20, iconSize * 0.14))
+        const spacing = Math.max(2, iconSize * 0.03)
+        
+        return (
+          <>
+            <div className="absolute top-1 right-1 flex items-center z-10" style={{ gap: spacing }}>
+              {/* Checkout avatars */}
+              {checkoutUsers.length > 0 && (
+                <div 
+                  className="flex" 
+                  style={{ marginLeft: -avatarSize * 0.25 }}
+                  title={checkoutUsers.map(u => u.name).join(', ')}
+                >
+                  {checkoutUsers.slice(0, 3).map((u, i) => (
+                    <div 
+                      key={u.id} 
+                      className="relative" 
+                      style={{ 
+                        zIndex: 3 - i,
+                        marginLeft: i > 0 ? -avatarSize * 0.3 : 0
+                      }}
+                    >
+                      {u.avatar_url ? (
+                        <img 
+                          src={u.avatar_url} 
+                          alt={u.name}
+                          className={`rounded-full ring-2 ${u.isMe ? 'ring-pdm-accent' : 'ring-pdm-bg-light'} bg-pdm-bg object-cover`}
+                          style={{ width: avatarSize, height: avatarSize }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                            target.nextElementSibling?.classList.remove('hidden')
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className={`rounded-full ring-2 ${u.isMe ? 'ring-pdm-accent bg-pdm-accent/30 text-pdm-accent' : 'ring-pdm-bg-light bg-pdm-fg-muted/30 text-pdm-fg'} flex items-center justify-center font-medium ${u.avatar_url ? 'hidden' : ''}`}
+                        style={{ width: avatarSize, height: avatarSize, fontSize: avatarFontSize }}
+                      >
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                    </div>
+                  ))}
+                  {checkoutUsers.length > 3 && (
+                    <div 
+                      className="rounded-full ring-2 ring-pdm-fg-muted bg-pdm-bg flex items-center justify-center text-pdm-fg-muted font-medium"
+                      style={{ 
+                        width: avatarSize, 
+                        height: avatarSize, 
+                        fontSize: avatarFontSize,
+                        marginLeft: -avatarSize * 0.3,
+                        zIndex: 0
+                      }}
+                    >
+                      +{checkoutUsers.length - 3}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Status indicator if no avatars */}
+              {checkoutUsers.length === 0 && (
+                <div className="flex items-center" style={{ gap: spacing }}>
+                  {(() => {
+                    if (file.isDirectory) {
+                      if (cloudFilesCount > 0) {
+                        return (
+                          <span 
+                            className="flex items-center text-pdm-info" 
+                            style={{ gap: spacing * 0.5, fontSize: Math.max(10, statusIconSize * 0.8) }}
+                            title={`${cloudFilesCount} files in cloud`}
+                          >
+                            <Cloud size={statusIconSize} />
+                            <span className="font-bold">{cloudFilesCount}</span>
+                          </span>
+                        )
+                      }
+                      return null
+                    }
+                    
+                    if (file.diffStatus === 'cloud') {
+                      return <span title="Cloud only"><Cloud size={statusIconSize} className="text-pdm-info" /></span>
+                    }
+                    if (file.diffStatus === 'added' || file.diffStatus === 'ignored') {
+                      return <span title="Local only"><HardDrive size={statusIconSize} className="text-green-400" /></span>
+                    }
+                    if (file.diffStatus === 'modified') {
+                      return <span title="Modified"><Pencil size={statusIconSize} className="text-yellow-400" /></span>
+                    }
+                    if (file.diffStatus === 'outdated') {
+                      return <span title="Outdated"><AlertTriangle size={statusIconSize} className="text-purple-400" /></span>
+                    }
+                    if (file.pdmData) {
+                      return <span title="Synced"><Cloud size={statusIconSize} className="text-pdm-success" /></span>
+                    }
+                    return null
+                  })()}
+                </div>
+              )}
+            </div>
+            
+            {/* Action buttons - top left */}
+            {(() => {
+              // For folders, calculate checkout status
+              const getFolderCheckoutInfo = () => {
+                if (!file.isDirectory) return null
+                const folderPath = file.relativePath.replace(/\\/g, '/')
+                const folderPrefix = folderPath + '/'
+                const folderFiles = allFiles.filter(f => {
+                  if (f.isDirectory) return false
+                  const filePath = f.relativePath.replace(/\\/g, '/')
+                  return filePath.startsWith(folderPrefix)
+                })
+                
+                const checkedOutByMe = folderFiles.filter(f => f.pdmData?.checked_out_by === user?.id).length
+                const checkedOutByOthers = folderFiles.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id).length
+                const syncedNotCheckedOut = folderFiles.filter(f => f.pdmData && !f.pdmData.checked_out_by && f.diffStatus !== 'cloud').length
+                const localOnly = folderFiles.filter(f => !f.pdmData && f.diffStatus !== 'cloud').length
+                
+                return { checkedOutByMe, checkedOutByOthers, syncedNotCheckedOut, localOnly }
+              }
+              
+              const folderInfo = file.isDirectory ? getFolderCheckoutInfo() : null
+              
+              // If processing, show spinner instead of action buttons
+              if (isProcessing) {
+                return (
+                  <div className="absolute top-1 left-1 flex items-center z-10">
+                    <div
+                      className="rounded-full bg-pdm-accent/30 flex items-center justify-center"
+                      style={{ width: buttonSize, height: buttonSize }}
+                    >
+                      <Loader2 size={buttonIconSize} className="text-pdm-accent animate-spin" />
+                    </div>
+                  </div>
+                )
+              }
+              
+              return (
+                <div className="absolute top-1 left-1 flex items-center z-10" style={{ gap: spacing }}>
+                  {/* Download button for cloud files/folders - blue down arrow */}
+                  {((file.diffStatus === 'cloud' && !file.isDirectory) || (file.isDirectory && cloudFilesCount > 0)) && onDownload && (
+                    <button
+                      className="p-0.5 rounded hover:bg-pdm-info/20 text-pdm-info transition-colors cursor-pointer"
+                      onClick={(e) => onDownload(e, file)}
+                      title={file.isDirectory ? `Download ${cloudFilesCount} files` : 'Download'}
+                    >
+                      <ArrowDown size={buttonIconSize} />
+                    </button>
+                  )}
+                  
+                  {/* FILE: Checked out by me - green up arrow to check in */}
+                  {!file.isDirectory && file.pdmData?.checked_out_by === user?.id && onCheckin && (
+                    <button
+                      className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success transition-colors cursor-pointer"
+                      title="Click to check in"
+                      onClick={(e) => onCheckin(e, file)}
+                    >
+                      <ArrowUp size={buttonIconSize} />
+                    </button>
+                  )}
+                  
+                  {/* FOLDER: Has files checked out by me - green up arrow to check in all */}
+                  {file.isDirectory && folderInfo && folderInfo.checkedOutByMe > 0 && onCheckin && (
+                    <button
+                      className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success transition-colors cursor-pointer"
+                      title={`Click to check in ${folderInfo.checkedOutByMe} file${folderInfo.checkedOutByMe > 1 ? 's' : ''}`}
+                      onClick={(e) => onCheckin(e, file)}
+                    >
+                      <ArrowUp size={buttonIconSize} />
+                    </button>
+                  )}
+                  
+                  {/* FILE: Checked out by others - red down arrow (not clickable) */}
+                  {!file.isDirectory && file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id && (
+                    <div
+                      className="p-0.5 text-pdm-error cursor-not-allowed"
+                      title="Checked out by someone else"
+                    >
+                      <ArrowDown size={buttonIconSize} />
+                    </div>
+                  )}
+                  
+                  {/* FOLDER: Has files checked out by others - no arrow, folder color shows status */}
+                  
+                  {/* FILE: Synced not checked out - orange down arrow to checkout */}
+                  {!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && onCheckout && (
+                    <button
+                      className="p-0.5 rounded hover:bg-pdm-warning/20 text-pdm-warning transition-colors cursor-pointer"
+                      title="Click to check out"
+                      onClick={(e) => onCheckout(e, file)}
+                    >
+                      <ArrowDown size={buttonIconSize} />
+                    </button>
+                  )}
+                  
+                  {/* FOLDER: Has synced files ready to checkout - orange down arrow to checkout all */}
+                  {file.isDirectory && folderInfo && folderInfo.syncedNotCheckedOut > 0 && folderInfo.checkedOutByMe === 0 && folderInfo.checkedOutByOthers === 0 && onCheckout && (
+                    <button
+                      className="p-0.5 rounded hover:bg-pdm-warning/20 text-pdm-warning transition-colors cursor-pointer"
+                      title={`Click to check out ${folderInfo.syncedNotCheckedOut} file${folderInfo.syncedNotCheckedOut > 1 ? 's' : ''}`}
+                      onClick={(e) => onCheckout(e, file)}
+                    >
+                      <ArrowDown size={buttonIconSize} />
+                    </button>
+                  )}
+                  
+                  {/* FILE: Local only - green upload to sync */}
+                  {!file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && onUpload && (
+                    <button
+                      className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success transition-colors cursor-pointer"
+                      title="Click to sync"
+                      onClick={(e) => onUpload(e, file)}
+                    >
+                      <Upload size={buttonIconSize} />
+                    </button>
+                  )}
+                  
+                  {/* FOLDER: Has local only files - green upload to sync all */}
+                  {file.isDirectory && folderInfo && folderInfo.localOnly > 0 && folderInfo.syncedNotCheckedOut === 0 && folderInfo.checkedOutByMe === 0 && folderInfo.checkedOutByOthers === 0 && cloudFilesCount === 0 && onUpload && (
+                    <button
+                      className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success transition-colors cursor-pointer"
+                      title={`Click to sync ${folderInfo.localOnly} file${folderInfo.localOnly > 1 ? 's' : ''}`}
+                      onClick={(e) => onUpload(e, file)}
+                    >
+                      <Upload size={buttonIconSize} />
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
+          </>
+        )
+      })()}
+      
+      {/* Icon/Thumbnail */}
+      <div 
+        className="flex items-center justify-center relative z-0"
+        style={{ width: iconSize, height: iconSize }}
+      >
+        {getIcon()}
+      </div>
+      
+      {/* File name */}
+      <div 
+        className="mt-1 text-center w-full px-1"
+        style={{ fontSize: Math.max(10, Math.min(12, iconSize / 8)) }}
+      >
+        <div 
+          className={`truncate ${file.diffStatus === 'cloud' ? 'italic text-pdm-fg-muted' : 'text-pdm-fg'}`} 
+          title={file.name}
+        >
+          {file.name}
+        </div>
+        {!file.isDirectory && displayExt && iconSize >= 80 && (
+          <div className="text-pdm-fg-muted text-xs truncate">
+            {displayExt.replace('.', '')}
+          </div>
+        )}
+      </div>
+      
+      {/* State badge for synced files - clickable to edit */}
+      {file.pdmData?.state && iconSize >= 80 && (
+        <div className="relative mt-1" ref={stateDropdownRef}>
+          <div 
+            className={`state-badge ${file.pdmData.state.replace('_', '-')} ${file.pdmData?.id ? 'cursor-pointer hover:ring-1 hover:ring-pdm-accent' : ''}`}
+            style={{ fontSize: Math.max(8, Math.min(10, iconSize / 10)) }}
+            onClick={(e) => {
+              if (file.pdmData?.id && onStateChange) {
+                e.stopPropagation()
+                e.preventDefault()
+                setShowStateDropdown(!showStateDropdown)
+              }
+            }}
+            onMouseDown={(e) => {
+              if (file.pdmData?.id) {
+                e.stopPropagation()
+              }
+            }}
+            title={file.pdmData?.id ? 'Click to change state' : 'Sync file first'}
+          >
+            {STATE_INFO[file.pdmData.state]?.label || file.pdmData.state}
+          </div>
+          
+          {/* State dropdown */}
+          {showStateDropdown && file.pdmData?.id && onStateChange && (
+            <div 
+              className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-pdm-bg border border-pdm-border rounded shadow-lg py-1 min-w-[120px]"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {(['not_tracked', 'wip', 'in_review', 'released', 'obsolete'] as const).map((stateOption) => (
+                <div
+                  key={stateOption}
+                  className={`px-3 py-1 text-xs cursor-pointer hover:bg-pdm-bg-light flex items-center gap-2 ${file.pdmData?.state === stateOption ? 'bg-pdm-accent/20' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onStateChange(file, stateOption)
+                    setShowStateDropdown(false)
+                  }}
+                >
+                  <span 
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ 
+                      backgroundColor: stateOption === 'not_tracked' ? '#6b7280' :
+                                      stateOption === 'wip' ? '#f59e0b' :
+                                      stateOption === 'in_review' ? '#3b82f6' :
+                                      stateOption === 'released' ? '#10b981' :
+                                      '#ef4444'
+                    }}
+                  />
+                  {STATE_INFO[stateOption].label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Component for list view icons with OS thumbnail support
+interface ListRowIconProps {
+  file: LocalFile
+  size: number
+  isProcessing: boolean
+  folderCheckoutStatus?: 'mine' | 'others' | 'both' | null
+  isFolderSynced?: boolean
+}
+
+function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderSynced }: ListRowIconProps) {
+  const [thumbnail, setThumbnail] = useState<string | null>(null)
+  const [thumbnailError, setThumbnailError] = useState(false)
+  
+  // Load OS thumbnail for files (not folders) - minimum size of 20 to show thumbnails
+  useEffect(() => {
+    // Skip for folders or if no path
+    if (file.isDirectory || !file.path) {
+      setThumbnail(null)
+      setThumbnailError(false)
+      return
+    }
+    
+    // Only load thumbnails when row is large enough to see details (16px minimum)
+    if (size < 16) {
+      setThumbnail(null)
+      return
+    }
+    
+    let cancelled = false
+    
+    const loadThumbnail = async () => {
+      try {
+        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
+        if (!cancelled) {
+          if (result?.success && result.data && result.data.startsWith('data:image/')) {
+            setThumbnail(result.data)
+            setThumbnailError(false)
+          } else {
+            setThumbnail(null)
+          }
+        }
+      } catch (err) {
+        console.error('Thumbnail load error:', err)
+        if (!cancelled) setThumbnail(null)
+      }
+    }
+    
+    loadThumbnail()
+    
+    return () => {
+      cancelled = true
+    }
+  }, [file.path, file.isDirectory, size])
+  
+  // Processing state - show spinner
+  if (isProcessing) {
+    return <Loader2 size={size} className="text-sky-400 animate-spin flex-shrink-0" />
+  }
+  
+  // For folders, always use React icons
+  if (file.isDirectory) {
+    // Cloud-only folders
+    if (file.diffStatus === 'cloud') {
+      return <FolderOpen size={size} className="text-pdm-fg-muted opacity-50 flex-shrink-0" />
+    }
+    // Folder checkout status colors
+    if (folderCheckoutStatus === 'others' || folderCheckoutStatus === 'both') {
+      return <FolderOpen size={size} className="text-pdm-error flex-shrink-0" />
+    }
+    if (folderCheckoutStatus === 'mine') {
+      return <FolderOpen size={size} className="text-pdm-warning flex-shrink-0" />
+    }
+    // Synced status
+    return <FolderOpen size={size} className={`${isFolderSynced ? 'text-pdm-success' : 'text-pdm-fg-muted'} flex-shrink-0`} />
+  }
+  
+  // For files, show thumbnail if available
+  if (thumbnail && !thumbnailError) {
+    return (
+      <img 
+        src={thumbnail} 
+        alt={file.name}
+        className="object-contain flex-shrink-0 rounded"
+        style={{ width: size, height: size }}
+        onError={() => setThumbnailError(true)}
+      />
+    )
+  }
+  
+  // Fallback to default file icon based on type
+  const iconType = getFileIconType(file.extension)
+  switch (iconType) {
+    case 'part':
+      return <FileBox size={size} className="text-pdm-accent flex-shrink-0" />
+    case 'assembly':
+      return <Layers size={size} className="text-amber-400 flex-shrink-0" />
+    case 'drawing':
+      return <FilePen size={size} className="text-sky-300 flex-shrink-0" />
+    case 'step':
+      return <FileBox size={size} className="text-orange-400 flex-shrink-0" />
+    case 'pdf':
+      return <FileType size={size} className="text-red-400 flex-shrink-0" />
+    case 'image':
+      return <FileImage size={size} className="text-purple-400 flex-shrink-0" />
+    case 'spreadsheet':
+      return <FileSpreadsheet size={size} className="text-green-400 flex-shrink-0" />
+    case 'archive':
+      return <FileArchive size={size} className="text-yellow-500 flex-shrink-0" />
+    case 'schematic':
+      return <Cpu size={size} className="text-red-400 flex-shrink-0" />
+    case 'library':
+      return <Cpu size={size} className="text-violet-400 flex-shrink-0" />
+    case 'pcb':
+      return <Cpu size={size} className="text-emerald-400 flex-shrink-0" />
+    case 'code':
+      return <FileCode size={size} className="text-sky-400 flex-shrink-0" />
+    case 'text':
+      return <FileText size={size} className="text-pdm-fg-muted flex-shrink-0" />
+    default:
+      return <File size={size} className="text-pdm-fg-muted flex-shrink-0" />
+  }
 }
 
 export function FileBrowser({ onRefresh }: FileBrowserProps) {
@@ -125,7 +864,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     updateSyncProgress,
     endSync,
     addIgnorePattern,
-    getIgnorePatterns
+    getIgnorePatterns,
+    viewMode,
+    setViewMode,
+    iconSize,
+    setIconSize,
+    listRowSize,
+    setListRowSize
   } = usePDMStore()
   
   // Helper to ensure details panel is visible
@@ -152,7 +897,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const [isDeleting, setIsDeleting] = useState(false) // Track delete operation in progress
   const [platform, setPlatform] = useState<string>('win32')
   const [showIgnoreSubmenu, setShowIgnoreSubmenu] = useState(false)
+  const [showStateSubmenu, setShowStateSubmenu] = useState(false)
   const ignoreSubmenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const stateSubmenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
   const [contextMenuAdjustedPos, setContextMenuAdjustedPos] = useState<{ x: number; y: number } | null>(null)
   const [customConfirm, setCustomConfirm] = useState<{
@@ -471,6 +1218,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       return
     }
     
+    // Track processing state for spinner
+    addProcessingFolder(file.relativePath)
+    
     let succeeded = 0
     for (const f of filesToCheckout) {
       try {
@@ -494,6 +1244,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         console.error('Checkout error:', err)
       }
     }
+    
+    removeProcessingFolder(file.relativePath)
     
     if (succeeded > 0) {
       addToast('success', `Checked out ${succeeded} file${succeeded > 1 ? 's' : ''}`)
@@ -521,6 +1273,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       addToast('info', 'No files to check in')
       return
     }
+    
+    // Track processing state for spinner
+    addProcessingFolder(file.relativePath)
     
     let succeeded = 0
     for (const f of filesToCheckin) {
@@ -552,69 +1307,76 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       }
     }
     
+    removeProcessingFolder(file.relativePath)
+    
     if (succeeded > 0) {
       addToast('success', `Checked in ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }
   }
 
-  const getFileIcon = (file: LocalFile) => {
+  // Inline action: Upload/sync a single file or folder
+  const handleInlineUpload = async (e: React.MouseEvent, file: LocalFile) => {
+    e.stopPropagation()
+    if (!user || !organization || !currentVaultId) return
+    
+    // Get files to upload
+    let filesToUpload: LocalFile[] = []
     if (file.isDirectory) {
-      // Check if folder is being processed (downloading/deleting) or is inside a processing folder
-      if (isBeingProcessed(file.relativePath)) {
-        return <Loader2 size={16} className="text-sky-400 animate-spin" />
-      }
-      // Cloud-only folders (exist on server but not locally) - grey and faded
-      if (file.diffStatus === 'cloud') {
-        return <FolderOpen size={16} className="text-pdm-fg-muted opacity-50" />
-      }
-      const checkoutStatus = getFolderCheckoutStatus(file.relativePath)
-      if (checkoutStatus === 'others' || checkoutStatus === 'both') {
-        // Red for folders with files checked out by others
-        return <FolderOpen size={16} className="text-pdm-error" />
-      }
-      if (checkoutStatus === 'mine') {
-        // Orange for folders with only my checkouts
-        return <FolderOpen size={16} className="text-pdm-warning" />
-      }
-      const synced = isFolderSynced(file.relativePath)
-      return <FolderOpen size={16} className={synced ? 'text-pdm-success' : 'text-pdm-fg-muted'} />
+      filesToUpload = files.filter(f => 
+        !f.isDirectory && 
+        !f.pdmData &&
+        f.diffStatus !== 'cloud' &&
+        f.relativePath.startsWith(file.relativePath + '/')
+      )
+    } else if (!file.pdmData && file.diffStatus !== 'cloud') {
+      filesToUpload = [file]
     }
     
-    // Check if file is inside a processing folder
-    if (isBeingProcessed(file.relativePath)) {
-      return <Loader2 size={16} className="text-sky-400 animate-spin" />
+    if (filesToUpload.length === 0) {
+      addToast('info', 'No files to sync')
+      return
     }
     
-    const iconType = getFileIconType(file.extension)
-    switch (iconType) {
-      case 'part':
-        return <FileBox size={16} className="text-pdm-accent" />
-      case 'assembly':
-        return <Layers size={16} className="text-amber-400" />
-      case 'drawing':
-        return <FilePen size={16} className="text-sky-300" />
-      case 'step':
-        return <FileBox size={16} className="text-orange-400" />
-      case 'pdf':
-        return <FileType size={16} className="text-red-400" />
-      case 'image':
-        return <FileImage size={16} className="text-purple-400" />
-      case 'spreadsheet':
-        return <FileSpreadsheet size={16} className="text-green-400" />
-      case 'archive':
-        return <FileArchive size={16} className="text-yellow-500" />
-      case 'schematic':
-        return <Cpu size={16} className="text-red-400" />
-      case 'library':
-        return <Cpu size={16} className="text-violet-400" />
-      case 'pcb':
-        return <Cpu size={16} className="text-emerald-400" />
-      case 'code':
-        return <FileCode size={16} className="text-sky-400" />
-      case 'text':
-        return <FileText size={16} className="text-pdm-fg-muted" />
-      default:
-        return <File size={16} className="text-pdm-fg-muted" />
+    const toastId = `sync-${Date.now()}`
+    addProgressToast(toastId, `Syncing ${filesToUpload.length} file${filesToUpload.length > 1 ? 's' : ''}...`, filesToUpload.length)
+    
+    let succeeded = 0
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const f = filesToUpload[i]
+      try {
+        const readResult = await window.electronAPI?.readFile(f.path)
+        if (!readResult?.success || !readResult.data || !readResult.hash) {
+          continue
+        }
+        
+        const { error, file: syncedFile } = await syncFile(
+          organization.id,
+          currentVaultId,
+          user.id,
+          f.relativePath,
+          f.name,
+          f.extension,
+          f.size,
+          readResult.hash,
+          readResult.data
+        )
+        
+        if (!error && syncedFile) {
+          updateFileInStore(f.path, {
+            pdmData: syncedFile,
+            diffStatus: undefined
+          })
+          succeeded++
+        }
+      } catch (err) {
+        console.error('Sync error:', err)
+      }
+      updateProgressToast(toastId, i + 1, Math.round(((i + 1) / filesToUpload.length) * 100))
+    }
+    
+    removeToast(toastId)
+    if (succeeded > 0) {
+      addToast('success', `Synced ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }
   }
 
@@ -878,7 +1640,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         currentValue = file.pdmData?.revision || 'A'
         break
       case 'state':
-        currentValue = file.pdmData?.state || 'wip'
+        currentValue = file.pdmData?.state || 'not_tracked'
         break
     }
     
@@ -929,7 +1691,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           : (file.pdmData?.revision || 'A')
         break
       case 'state':
-        currentValue = file.pdmData?.state || 'wip'
+        currentValue = file.pdmData?.state || 'not_tracked'
         break
     }
     
@@ -1013,6 +1775,60 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     
     setEditingCell(null)
     setEditValue('')
+  }
+
+  // Handle bulk state change for multiple files
+  const handleBulkStateChange = async (filesToChange: LocalFile[], newState: string) => {
+    if (!user) return
+    
+    const syncedFiles = filesToChange.filter(f => f.pdmData?.id && !f.isDirectory)
+    if (syncedFiles.length === 0) {
+      addToast('info', 'No synced files to update')
+      return
+    }
+    
+    let succeeded = 0
+    let failed = 0
+    const CONCURRENCY = 8
+    
+    setStatusMessage(`Changing state to ${newState}...`)
+    
+    const updateOneFile = async (file: LocalFile): Promise<boolean> => {
+      try {
+        const result = await updateFileMetadata(file.pdmData!.id, user.id, {
+          state: newState as 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
+        })
+        
+        if (result.success && result.file) {
+          updateFileInStore(file.path, {
+            pdmData: { ...file.pdmData!, ...result.file }
+          })
+          return true
+        }
+        return false
+      } catch {
+        return false
+      }
+    }
+    
+    // Process in parallel batches
+    for (let i = 0; i < syncedFiles.length; i += CONCURRENCY) {
+      const batch = syncedFiles.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(batch.map(f => updateOneFile(f)))
+      
+      for (const success of results) {
+        if (success) succeeded++
+        else failed++
+      }
+    }
+    
+    setStatusMessage('')
+    
+    if (failed > 0) {
+      addToast('warning', `Updated state for ${succeeded}/${syncedFiles.length} files`)
+    } else {
+      addToast('success', `Changed ${succeeded} file${succeeded > 1 ? 's' : ''} to ${STATE_INFO[newState as keyof typeof STATE_INFO]?.label || newState}`)
+    }
   }
 
   // Get all files in a folder (for folder operations)
@@ -1983,9 +2799,16 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         const isBeingRenamed = renamingFile?.path === file.path
         
         if (isBeingRenamed) {
+          const renameIconSize = Math.max(16, listRowSize - 8)
           return (
-            <div className="flex items-center gap-2">
-              {getFileIcon(file)}
+            <div className="flex items-center gap-2" style={{ minHeight: listRowSize }}>
+              <ListRowIcon 
+                file={file} 
+                size={renameIconSize} 
+                isProcessing={isBeingProcessed(file.relativePath)}
+                folderCheckoutStatus={file.isDirectory ? getFolderCheckoutStatus(file.relativePath) : undefined}
+                isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
+              />
               <input
                 ref={renameInputRef}
                 type="text"
@@ -2100,9 +2923,18 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         const shownUsers = checkoutUsers.slice(0, maxShow)
         const extraUsers = checkoutUsers.length - maxShow
         
+        // Icon size scales with row size, but has a minimum of 16
+        const iconSize = Math.max(16, listRowSize - 8)
+        
         return (
-          <div className="flex items-center gap-2 group/name">
-            {getFileIcon(file)}
+          <div className="flex items-center gap-2 group/name" style={{ minHeight: listRowSize }}>
+            <ListRowIcon 
+              file={file} 
+              size={iconSize} 
+              isProcessing={isBeingProcessed(file.relativePath)}
+              folderCheckoutStatus={file.isDirectory ? getFolderCheckoutStatus(file.relativePath) : undefined}
+              isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
+            />
             <span className={`truncate flex-1 ${file.diffStatus === 'cloud' ? 'italic text-pdm-fg-muted' : ''}`}>{displayFilename}</span>
             
             {/* Cloud count for folders with download button - left of avatar */}
@@ -2197,6 +3029,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 if (isSynced) {
                   return <span title="Synced with cloud"><Cloud size={12} className="text-pdm-success flex-shrink-0" /></span>
                 }
+                if (file.diffStatus === 'ignored') {
+                  return <span title="Local only (ignored from sync)"><HardDrive size={12} className="text-pdm-fg-muted flex-shrink-0" /></span>
+                }
                 return <span title="Local only - not synced"><HardDrive size={12} className="text-pdm-fg-muted flex-shrink-0" /></span>
               }
               
@@ -2232,7 +3067,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         )
       case 'state':
         if (file.isDirectory) return null
-        const state = file.pdmData?.state || 'wip'
+        const state = file.pdmData?.state || 'not_tracked'
         const stateInfo = STATE_INFO[state]
         // State can be changed without checkout - just needs to be synced
         const canEditState = !!file.pdmData?.id
@@ -2727,10 +3562,62 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           >
             <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
+          
+          {/* Separator */}
+          <div className="w-px h-5 bg-pdm-border mx-1" />
+          
+          {/* View mode toggle */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`btn btn-ghost btn-sm p-1 ${viewMode === 'list' ? 'bg-pdm-accent/20 text-pdm-accent' : ''}`}
+              title="List view"
+            >
+              <List size={14} />
+            </button>
+            <button
+              onClick={() => setViewMode('icons')}
+              className={`btn btn-ghost btn-sm p-1 ${viewMode === 'icons' ? 'bg-pdm-accent/20 text-pdm-accent' : ''}`}
+              title="Icon view"
+            >
+              <LayoutGrid size={14} />
+            </button>
+          </div>
+          
+          {/* Size slider - different for each view mode */}
+          {viewMode === 'icons' ? (
+            <div className="flex items-center gap-2 ml-2">
+              <Grid size={12} className="text-pdm-fg-muted" />
+              <input
+                type="range"
+                min="48"
+                max="256"
+                value={iconSize}
+                onChange={(e) => setIconSize(Number(e.target.value))}
+                className="w-20 h-1 accent-pdm-accent cursor-pointer"
+                title={`Icon size: ${iconSize}px`}
+              />
+              <LayoutGrid size={16} className="text-pdm-fg-muted" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 ml-2">
+              <List size={12} className="text-pdm-fg-muted" />
+              <input
+                type="range"
+                min="16"
+                max="64"
+                value={listRowSize}
+                onChange={(e) => setListRowSize(Number(e.target.value))}
+                className="w-20 h-1 accent-pdm-accent cursor-pointer"
+                title={`Row height: ${listRowSize}px`}
+              />
+              <List size={16} className="text-pdm-fg-muted" />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Table */}
+      {/* File View - List or Icons */}
       <div 
         ref={tableRef} 
         className="flex-1 overflow-auto relative"
@@ -2813,6 +3700,37 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           />
         )}
         
+        {/* Icon Grid View */}
+        {viewMode === 'icons' && (
+          <div 
+            className="p-4 grid gap-3"
+            style={{ 
+              gridTemplateColumns: `repeat(auto-fill, minmax(${iconSize + 24}px, 1fr))` 
+            }}
+          >
+            {sortedFiles.map((file, index) => (
+              <FileIconCard
+                key={file.path}
+                file={file}
+                iconSize={iconSize}
+                isSelected={selectedFiles.includes(file.path)}
+                allFiles={files}
+                processingPaths={processingFolders}
+                onClick={(e) => handleRowClick(e, file, index)}
+                onDoubleClick={() => handleRowDoubleClick(file)}
+                onContextMenu={(e) => handleContextMenu(e, file)}
+                onDownload={handleInlineDownload}
+                onCheckout={handleInlineCheckout}
+                onCheckin={handleInlineCheckin}
+                onUpload={handleInlineUpload}
+                onStateChange={handleStateChange}
+              />
+            ))}
+          </div>
+        )}
+        
+        {/* List View Table */}
+        {viewMode === 'list' && (
         <table className={`file-table ${selectionBox ? 'selecting' : ''}`}>
           <thead>
             <tr>
@@ -2894,6 +3812,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               <tr
                 key={file.path}
                 className={`${selectedFiles.includes(file.path) ? 'selected' : ''} ${isProcessing ? 'processing' : ''} ${diffClass} ${isDragTarget ? 'drag-target' : ''}`}
+                style={{ height: listRowSize + 8 }}
                 onClick={(e) => handleRowClick(e, file, index)}
                 onDoubleClick={() => handleRowDoubleClick(file)}
                 onContextMenu={(e) => handleContextMenu(e, file)}
@@ -2913,6 +3832,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             )})}
           </tbody>
         </table>
+        )}
 
         {sortedFiles.length === 0 && !isLoading && filesLoaded && (
           <div className="empty-state">
@@ -3071,8 +3991,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               onClick={() => {
                 setContextMenu(null)
                 setShowIgnoreSubmenu(false)
+                setShowStateSubmenu(false)
                 if (ignoreSubmenuTimeoutRef.current) {
                   clearTimeout(ignoreSubmenuTimeoutRef.current)
+                }
+                if (stateSubmenuTimeoutRef.current) {
+                  clearTimeout(stateSubmenuTimeoutRef.current)
                 }
               }}
               onContextMenu={(e) => {
@@ -3080,11 +4004,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 // Allow right-click to reposition or close
                 setContextMenu(null)
                 setShowIgnoreSubmenu(false)
+                setShowStateSubmenu(false)
               }}
             />
             <div 
               ref={contextMenuRef}
-              className="context-menu"
+              className="context-menu z-[60]"
               style={{ 
                 left: contextMenuAdjustedPos?.x ?? contextMenu.x, 
                 top: contextMenuAdjustedPos?.y ?? contextMenu.y 
@@ -3479,7 +4404,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   {/* Submenu */}
                   {showIgnoreSubmenu && (
                     <div 
-                      className="context-menu absolute left-full top-0 ml-1 min-w-[200px]"
+                      className="absolute left-full top-0 ml-1 min-w-[200px] bg-pdm-bg-lighter border border-pdm-border rounded-md py-1 shadow-lg z-[100]"
                       style={{ marginTop: '-4px' }}
                       onMouseEnter={() => {
                         if (ignoreSubmenuTimeoutRef.current) {
@@ -3980,6 +4905,78 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     {!allCheckedIn && allCheckedOutByOthers && <span className="text-xs text-pdm-fg-muted ml-auto">(by others)</span>}
                   </div>
                 )
+              )}
+              
+              {/* Change State - for synced files */}
+              {anySynced && (
+                <div 
+                  className="context-menu-item relative"
+                  onMouseEnter={() => {
+                    if (stateSubmenuTimeoutRef.current) {
+                      clearTimeout(stateSubmenuTimeoutRef.current)
+                    }
+                    setShowStateSubmenu(true)
+                  }}
+                  onMouseLeave={() => {
+                    stateSubmenuTimeoutRef.current = setTimeout(() => {
+                      setShowStateSubmenu(false)
+                    }, 150)
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowStateSubmenu(prev => !prev)
+                  }}
+                >
+                  <RefreshCw size={14} />
+                  Change State
+                  <span className="text-xs text-pdm-fg-muted ml-auto">▶</span>
+                  
+                  {/* State Submenu */}
+                  {showStateSubmenu && (
+                    <div 
+                      className="absolute left-full top-0 ml-1 min-w-[160px] bg-pdm-bg-lighter border border-pdm-border rounded-md py-1 shadow-lg z-[100]"
+                      style={{ marginTop: '-4px' }}
+                      onMouseEnter={() => {
+                        if (stateSubmenuTimeoutRef.current) {
+                          clearTimeout(stateSubmenuTimeoutRef.current)
+                        }
+                        setShowStateSubmenu(true)
+                      }}
+                      onMouseLeave={() => {
+                        stateSubmenuTimeoutRef.current = setTimeout(() => {
+                          setShowStateSubmenu(false)
+                        }, 150)
+                      }}
+                    >
+                      {(['wip', 'in_review', 'released', 'obsolete'] as const).map((stateOption) => {
+                        const stateColors: Record<string, string> = {
+                          wip: 'var(--pdm-wip)',
+                          in_review: 'var(--pdm-in-review)',
+                          released: 'var(--pdm-released)',
+                          obsolete: 'var(--pdm-obsolete)'
+                        }
+                        return (
+                          <div 
+                            key={stateOption}
+                            className="context-menu-item"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setContextMenu(null)
+                              setShowStateSubmenu(false)
+                              handleBulkStateChange(syncedFilesInSelection, stateOption)
+                            }}
+                          >
+                            <span 
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: stateColors[stateOption] }}
+                            />
+                            {STATE_INFO[stateOption].label}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
               
               <div className="context-menu-separator" />

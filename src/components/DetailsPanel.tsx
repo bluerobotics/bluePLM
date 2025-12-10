@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { usePDMStore } from '../stores/pdmStore'
+import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { formatFileSize, getFileIconType, STATE_INFO } from '../types/pdm'
 import { format, formatDistanceToNow } from 'date-fns'
 import { getFileVersions, getRecentActivity, updateFileMetadata } from '../lib/supabase'
@@ -40,6 +40,79 @@ import {
   Check,
   X
 } from 'lucide-react'
+
+// Component to load OS icon for files
+function DetailsPanelIcon({ file, size = 32 }: { file: LocalFile; size?: number }) {
+  const [icon, setIcon] = useState<string | null>(null)
+  
+  useEffect(() => {
+    if (file.isDirectory || !file.path) {
+      setIcon(null)
+      return
+    }
+    
+    let cancelled = false
+    
+    const loadIcon = async () => {
+      try {
+        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
+        if (!cancelled && result?.success && result.data) {
+          setIcon(result.data)
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    
+    loadIcon()
+    return () => { cancelled = true }
+  }, [file.path, file.isDirectory])
+  
+  if (icon) {
+    return (
+      <img 
+        src={icon} 
+        alt=""
+        className="flex-shrink-0 rounded"
+        style={{ width: size, height: size }}
+        onError={() => setIcon(null)}
+      />
+    )
+  }
+  
+  // Fallback to React icons
+  const iconType = getFileIconType(file.extension)
+  switch (iconType) {
+    case 'part':
+      return <FileBox size={size} className="text-pdm-accent" />
+    case 'assembly':
+      return <Layers size={size} className="text-amber-400" />
+    case 'drawing':
+      return <FilePen size={size} className="text-sky-300" />
+    case 'step':
+      return <FileBox size={size} className="text-orange-400" />
+    case 'pdf':
+      return <FileType size={size} className="text-red-400" />
+    case 'image':
+      return <FileImage size={size} className="text-purple-400" />
+    case 'spreadsheet':
+      return <FileSpreadsheet size={size} className="text-green-400" />
+    case 'archive':
+      return <FileArchive size={size} className="text-yellow-500" />
+    case 'schematic':
+      return <Cpu size={size} className="text-red-400" />
+    case 'library':
+      return <Cpu size={size} className="text-violet-400" />
+    case 'pcb':
+      return <Cpu size={size} className="text-emerald-400" />
+    case 'code':
+      return <FileCode size={size} className="text-sky-400" />
+    case 'text':
+      return <FileText size={size} className="text-pdm-fg-muted" />
+    default:
+      return <File size={size} className="text-pdm-fg-muted" />
+  }
+}
 
 interface ActivityEntry {
   id: string
@@ -413,7 +486,7 @@ export function DetailsPanel() {
         currentValue = file.pdmData?.revision || 'A'
         break
       case 'state':
-        currentValue = file.pdmData?.state || 'wip'
+        currentValue = file.pdmData?.state || 'not_tracked'
         break
     }
     
@@ -450,7 +523,7 @@ export function DetailsPanel() {
           : (file.pdmData?.revision || 'A')
         break
       case 'state':
-        currentValue = file.pdmData?.state || 'wip'
+        currentValue = file.pdmData?.state || 'not_tracked'
         break
     }
     
@@ -547,41 +620,13 @@ export function DetailsPanel() {
   const getFileIcon = () => {
     if (!file) return <File size={32} className="text-pdm-fg-muted" />
     
+    // Keep React icons for folders
     if (file.isDirectory) {
       return <FolderOpen size={32} className="text-pdm-warning" />
     }
     
-    const iconType = getFileIconType(file.extension)
-    switch (iconType) {
-      case 'part':
-        return <FileBox size={32} className="text-pdm-accent" />
-      case 'assembly':
-        return <Layers size={32} className="text-amber-400" />
-      case 'drawing':
-        return <FilePen size={32} className="text-sky-300" />
-      case 'step':
-        return <FileBox size={32} className="text-orange-400" />
-      case 'pdf':
-        return <FileType size={32} className="text-red-400" />
-      case 'image':
-        return <FileImage size={32} className="text-purple-400" />
-      case 'spreadsheet':
-        return <FileSpreadsheet size={32} className="text-green-400" />
-      case 'archive':
-        return <FileArchive size={32} className="text-yellow-500" />
-      case 'schematic':
-        return <Cpu size={32} className="text-red-400" />
-      case 'library':
-        return <Cpu size={32} className="text-violet-400" />
-      case 'pcb':
-        return <Cpu size={32} className="text-emerald-400" />
-      case 'code':
-        return <FileCode size={32} className="text-sky-400" />
-      case 'text':
-        return <FileText size={32} className="text-pdm-fg-muted" />
-      default:
-        return <File size={32} className="text-pdm-fg-muted" />
-    }
+    // Use OS icons for files
+    return <DetailsPanelIcon file={file} size={32} />
   }
 
   const allTabs = [
@@ -752,7 +797,7 @@ export function DetailsPanel() {
                       <StatePropertyItem
                         icon={<RefreshCw size={14} />}
                         label="State"
-                        state={file.pdmData?.state || 'wip'}
+                        state={file.pdmData?.state || 'not_tracked'}
                         isEditing={editingField === 'state'}
                         editValue={editValue}
                         isSaving={isSavingEdit}
@@ -802,7 +847,7 @@ export function DetailsPanel() {
                       <PropertyItem 
                         icon={<Cloud size={14} />}
                         label="Sync Status"
-                        value={file.pdmData ? 'Synced' : 'Local only'}
+                        value={file.pdmData ? 'Synced' : (file.diffStatus === 'ignored' ? 'Local only (ignored)' : 'Local only')}
                       />
                     </>
                   )}

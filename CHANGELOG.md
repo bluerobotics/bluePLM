@@ -2,6 +2,55 @@
 
 All notable changes to BluePDM will be documented in this file.
 
+## [1.4.0] - 2025-12-10
+
+### Added
+- **Icon View Mode** for file browser:
+  - Toggle between list and icon/grid view
+  - Adjustable icon size slider (48-256px)
+  - SolidWorks thumbnail previews in icon view (when size ≥64px)
+  - Status badges, diff indicators, and checkout avatars on icon cards
+  - Cloud download and checkout action buttons on hover
+- **Windows OS Thumbnails & Icons** for file browser:
+  - Uses Windows Shell API to show the same thumbnails/icons as Explorer
+  - SolidWorks files (.sldprt, .sldasm, .slddrw) show actual part previews
+  - PDF, Excel, and other files show their Windows application icons
+  - Falls back to React icons only when OS icons unavailable
+  - Thumbnails now work in both icon view AND list view
+- **List View Row Size Slider**:
+  - Adjustable row height (16-64px) in list view
+  - Icon size scales with row size for better visibility
+  - Thumbnails/icons appear in list view when rows are large enough
+- **Vault User Permissions** (admin-only):
+  - Per-vault access control - restrict which users can access specific vaults
+  - Vault Access editor dialog in Organization Settings
+  - Grant/revoke vault access for individual users
+  - Admins always have access to all vaults
+  - Unrestricted vaults remain accessible to all members (legacy behavior)
+  - New `vault_access` database table with RLS policies
+- **Ignore Patterns** (per-vault):
+  - Exclude files/folders from sync using glob patterns (like .gitignore)
+  - Quick-add presets for common patterns: `*.tmp`, `*.bak`, `build/`, `node_modules/`, etc.
+  - Context menu option to ignore all files with a specific extension
+  - Files matching patterns show "ignored" status (not synced to cloud)
+  - Manage patterns in Settings → Preferences
+- **SolidWorks Add-in** (shell/foundation):
+  - New .NET Framework 4.8 COM add-in project
+  - Task pane for file status and quick actions
+  - Toolbar integration with check out/in buttons
+  - Check-in dialog, history dialog, settings dialog
+  - Supabase service for backend connectivity
+  - File status caching layer
+  - Full COM registration and deployment documentation
+
+### Fixed
+- Drawing files (.slddrw) showing wrong icon (was FileText, now FilePen)
+- Assembly files (.sldasm) icon color inconsistency between views
+- Broken image placeholders when thumbnail extraction fails - now gracefully falls back to default icons
+- Icon view thumbnail error handling improved with proper fallback
+- Avatar fallback not working in icon view - broken avatar URLs now correctly show user initial instead of broken image
+- Zoom functions (Ctrl+Plus/Minus/0) now work correctly
+
 ## [1.3.6] - 2025-12-10
 
 ### Fixed

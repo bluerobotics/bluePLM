@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fileExists: (path: string) => ipcRenderer.invoke('fs:file-exists', path),
   getFileHash: (path: string) => ipcRenderer.invoke('fs:get-hash', path),
   listWorkingFiles: () => ipcRenderer.invoke('fs:list-working-files'),
+  listDirFiles: (dirPath: string) => ipcRenderer.invoke('fs:list-dir-files', dirPath),
   createFolder: (path: string) => ipcRenderer.invoke('fs:create-folder', path),
   deleteItem: (path: string) => ipcRenderer.invoke('fs:delete', path),
   renameItem: (oldPath: string, newPath: string) => ipcRenderer.invoke('fs:rename', oldPath, newPath),
@@ -256,6 +257,7 @@ declare global {
       fileExists: (path: string) => Promise<boolean>
       getFileHash: (path: string) => Promise<HashResult>
       listWorkingFiles: () => Promise<FilesListResult>
+      listDirFiles: (dirPath: string) => Promise<FilesListResult>
       createFolder: (path: string) => Promise<OperationResult>
       deleteItem: (path: string) => Promise<OperationResult>
       renameItem: (oldPath: string, newPath: string) => Promise<OperationResult>

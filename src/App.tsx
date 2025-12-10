@@ -260,6 +260,7 @@ function App() {
   // Load files from working directory and merge with PDM data
   // silent = true means no loading spinner (for background refreshes after downloads/uploads)
   const loadFiles = useCallback(async (silent: boolean = false) => {
+    console.log('[LoadFiles] Called with:', { vaultPath, currentVaultId, silent })
     if (!window.electronAPI || !vaultPath) return
     
     if (!silent) {
@@ -309,16 +310,10 @@ function App() {
         localHash: f.hash
       }))
       
-      // Filter out ignored files/folders based on vault-specific ignore patterns
-      if (currentVaultId) {
-        const { isPathIgnored } = usePDMStore.getState()
-        const beforeCount = localFiles.length
-        localFiles = localFiles.filter((f: any) => !isPathIgnored(currentVaultId, f.relativePath))
-        const filteredCount = beforeCount - localFiles.length
-        if (filteredCount > 0) {
-          console.log('[LoadFiles] Filtered out', filteredCount, 'ignored files/folders')
-        }
-      }
+      // Get ignored paths checker for later use (don't filter, just mark as ignored)
+      const isIgnoredPath = currentVaultId 
+        ? (path: string) => usePDMStore.getState().isPathIgnored(currentVaultId, path)
+        : () => false
       
       // 2. If connected to Supabase, merge PDM data
       if (shouldFetchServer) {
@@ -398,10 +393,15 @@ function App() {
             const existingLocalActiveVersion = existingLocalActiveVersions.get(localFile.path)
             
             // Determine diff status
-            let diffStatus: 'added' | 'modified' | 'outdated' | 'moved' | undefined
+            let diffStatus: 'added' | 'modified' | 'outdated' | 'moved' | 'ignored' | undefined
             if (!pdmData) {
-              // File exists locally but not on server = added
-              diffStatus = 'added'
+              // File exists locally but not on server
+              // Check if it's in the ignore list (keep local only)
+              if (isIgnoredPath(localFile.relativePath)) {
+                diffStatus = 'ignored'
+              } else {
+                diffStatus = 'added'
+              }
             } else if (isMovedFile) {
               // File was moved - needs check-in to update server path (but no version increment)
               diffStatus = 'moved'
@@ -502,10 +502,10 @@ function App() {
           }
         }
       } else {
-        // Offline mode or no org - all local files are "added"
+        // Offline mode or no org - local files are "added" unless ignored
         localFiles = localFiles.map(f => ({
           ...f,
-          diffStatus: f.isDirectory ? undefined : 'added' as const
+          diffStatus: f.isDirectory ? undefined : (isIgnoredPath(f.relativePath) ? 'ignored' as const : 'added' as const)
         }))
       }
       
@@ -758,9 +758,12 @@ function App() {
     // Include vaultPath so switching vaults triggers a new load
     const loadKey = `${vaultPath}:${currentVaultId || 'none'}:${organization?.id || 'none'}`
     
+    console.log('[LoadEffect] loadKey:', loadKey, 'lastLoadKey:', lastLoadKey.current)
+    
     // Skip if we've already loaded for this exact configuration
     if (lastLoadKey.current === loadKey) {
       // Clear stale loading state if we're skipping (handles HMR)
+      console.log('[LoadEffect] Skipping - same loadKey')
       setIsLoading(false)
       if (statusMessage === 'Loading organization...' || statusMessage === 'Loading files...') {
         setStatusMessage('')
@@ -768,6 +771,7 @@ function App() {
       return
     }
     
+    console.log('[LoadEffect] Triggering loadFiles for new loadKey')
     lastLoadKey.current = loadKey
     loadFiles()
   }, [isVaultConnected, vaultPath, isOfflineMode, user, organization, currentVaultId, loadFiles, setIsLoading, setStatusMessage, statusMessage])

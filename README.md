@@ -14,7 +14,7 @@ Product Data Management for engineering teams. Built with Electron, React, and S
 - **Check In / Check Out** with exclusive file locking
 - **Version control** with full history and rollback
 - **File state management** (WIP, In Review, Released, Obsolete)
-- **SolidWorks integration** with thumbnail previews
+- **SolidWorks integration** with thumbnail previews and [native add-in](#solidworks-add-in)
 - **Where-used analysis** for tracking assembly references
 - **Cloud sync** via Supabase with real-time collaboration
 - **Offline mode** for local-only workflows
@@ -108,14 +108,37 @@ Local vaults are stored in platform-specific locations:
 | macOS | `~/Documents/BluePDM/{vault-name}` |
 | Linux | `~/BluePDM/{vault-name}` |
 
+## SolidWorks Add-in
+
+BluePDM includes a native SolidWorks add-in for seamless integration. Check out, check in, and view file status directly within SolidWorks without switching applications.
+
+**Features:**
+- Check out/in from the SolidWorks toolbar
+- Task pane showing file status, version, and state
+- Automatic read-only mode for non-checked-out files
+- Custom properties sync with BluePDM metadata
+
+**Installation:**
+1. Download `BluePDM.SolidWorks.dll` from the [releases page](https://github.com/bluerobotics/blue-pdm/releases)
+2. Run as Administrator: `RegAsm.exe /codebase BluePDM.SolidWorks.dll`
+3. Restart SolidWorks and enable the add-in from Tools → Add-ins
+
+See the [SolidWorks Add-in README](solidworks-addin/README.md) for detailed instructions.
+
 ## Tech Stack
 
+**Desktop App:**
 - Electron 34
 - React 19
 - TypeScript
 - Tailwind CSS
 - Zustand
 - Supabase (PostgreSQL, Auth, Storage)
+
+**SolidWorks Add-in:**
+- C# / .NET Framework 4.8
+- SolidWorks API
+- Windows Forms
 
 ## License
 

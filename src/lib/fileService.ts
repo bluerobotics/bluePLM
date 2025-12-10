@@ -260,7 +260,7 @@ export async function addFile(
       description: metadata.description || null,
       revision: 'A',
       version: 1,
-      state: 'wip',
+      state: 'not_tracked',
       content_hash: hash,
       file_size: size,
       created_by: userId,
@@ -283,7 +283,7 @@ export async function addFile(
       revision: 'A',
       content_hash: hash,
       file_size: size,
-      state: 'wip',
+      state: 'not_tracked',
       created_by: userId,
       comment: 'Initial version'
     })
@@ -437,10 +437,11 @@ export async function changeFileState(
   
   // Validate state transition
   const validTransitions: Record<FileState, FileState[]> = {
-    'wip': ['in_review', 'obsolete'],
-    'in_review': ['wip', 'released', 'obsolete'],
-    'released': ['obsolete', 'wip'], // Can go back to WIP for new revision
-    'obsolete': ['wip'] // Can resurrect
+    'not_tracked': ['wip', 'in_review', 'released', 'obsolete'], // Can transition to any tracked state
+    'wip': ['not_tracked', 'in_review', 'obsolete'],
+    'in_review': ['not_tracked', 'wip', 'released', 'obsolete'],
+    'released': ['not_tracked', 'obsolete', 'wip'], // Can go back to WIP for new revision
+    'obsolete': ['not_tracked', 'wip'] // Can resurrect
   }
   
   if (!validTransitions[file.state]?.includes(newState)) {
