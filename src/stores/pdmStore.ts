@@ -202,6 +202,10 @@ interface PDMState {
   // History filter (for folder-specific history view)
   historyFolderFilter: string | null
   
+  // Ignore patterns (per-vault, keyed by vault ID)
+  // Patterns like: "*.sim", "build/", "__pycache__/", "*.sldprt~"
+  ignorePatterns: Record<string, string[]>
+  
   // Actions - Toasts
   addToast: (type: ToastType, message: string, duration?: number) => void
   addProgressToast: (id: string, message: string, total: number) => void
@@ -299,6 +303,13 @@ interface PDMState {
   // Actions - History
   setHistoryFolderFilter: (folderPath: string | null) => void
   
+  // Actions - Ignore Patterns
+  addIgnorePattern: (vaultId: string, pattern: string) => void
+  removeIgnorePattern: (vaultId: string, pattern: string) => void
+  setIgnorePatterns: (vaultId: string, patterns: string[]) => void
+  getIgnorePatterns: (vaultId: string) => string[]
+  isPathIgnored: (vaultId: string, relativePath: string) => boolean
+  
   // Actions - Columns
   setColumnWidth: (id: string, width: number) => void
   toggleColumnVisibility: (id: string) => void
@@ -338,8 +349,8 @@ interface PDMState {
 
 const defaultColumns: ColumnConfig[] = [
   { id: 'name', label: 'Name', width: 280, visible: true, sortable: true },
-  { id: 'fileStatus', label: 'File Status', width: 100, visible: true, sortable: true },
-  { id: 'checkedOutBy', label: 'Checked Out By', width: 150, visible: true, sortable: true },
+  { id: 'fileStatus', label: 'File Status', width: 100, visible: false, sortable: true },
+  { id: 'checkedOutBy', label: 'Checked Out By', width: 150, visible: false, sortable: true },
   { id: 'version', label: 'Ver', width: 60, visible: true, sortable: true },
   { id: 'itemNumber', label: 'Item Number', width: 120, visible: true, sortable: true },
   { id: 'description', label: 'Description', width: 200, visible: true, sortable: true },
@@ -429,6 +440,7 @@ export const usePDMStore = create<PDMState>()(
       processingFolders: new Set(),
       operationQueue: [],
       historyFolderFilter: null,
+      ignorePatterns: {},
       
       // Actions - Toasts
       addToast: (type, message, duration = 5000) => {
@@ -748,6 +760,83 @@ export const usePDMStore = create<PDMState>()(
       // Actions - History
       setHistoryFolderFilter: (folderPath) => set({ historyFolderFilter: folderPath }),
       
+      // Actions - Ignore Patterns
+      addIgnorePattern: (vaultId, pattern) => {
+        const { ignorePatterns } = get()
+        const current = ignorePatterns[vaultId] || []
+        if (!current.includes(pattern)) {
+          set({
+            ignorePatterns: {
+              ...ignorePatterns,
+              [vaultId]: [...current, pattern]
+            }
+          })
+        }
+      },
+      removeIgnorePattern: (vaultId, pattern) => {
+        const { ignorePatterns } = get()
+        const current = ignorePatterns[vaultId] || []
+        set({
+          ignorePatterns: {
+            ...ignorePatterns,
+            [vaultId]: current.filter(p => p !== pattern)
+          }
+        })
+      },
+      setIgnorePatterns: (vaultId, patterns) => {
+        const { ignorePatterns } = get()
+        set({
+          ignorePatterns: {
+            ...ignorePatterns,
+            [vaultId]: patterns
+          }
+        })
+      },
+      getIgnorePatterns: (vaultId) => {
+        const { ignorePatterns } = get()
+        return ignorePatterns[vaultId] || []
+      },
+      isPathIgnored: (vaultId, relativePath) => {
+        const patterns = get().ignorePatterns[vaultId] || []
+        const normalizedPath = relativePath.replace(/\\/g, '/').toLowerCase()
+        
+        for (const pattern of patterns) {
+          const normalizedPattern = pattern.toLowerCase()
+          
+          // Extension pattern: *.ext
+          if (normalizedPattern.startsWith('*.')) {
+            const ext = normalizedPattern.slice(1) // ".ext"
+            if (normalizedPath.endsWith(ext)) return true
+          }
+          // Folder pattern: foldername/ or foldername/**
+          else if (normalizedPattern.endsWith('/') || normalizedPattern.endsWith('/**')) {
+            const folderPattern = normalizedPattern.replace(/\/\*\*$/, '/').replace(/\/$/, '')
+            // Match exact folder or any nested path
+            if (normalizedPath === folderPattern || 
+                normalizedPath.startsWith(folderPattern + '/') ||
+                normalizedPath.includes('/' + folderPattern + '/') ||
+                normalizedPath.includes('/' + folderPattern)) {
+              return true
+            }
+          }
+          // Exact match pattern
+          else if (normalizedPath === normalizedPattern || 
+                   normalizedPath.endsWith('/' + normalizedPattern)) {
+            return true
+          }
+          // Simple wildcard matching for other patterns
+          else if (normalizedPattern.includes('*')) {
+            const regex = new RegExp(
+              '^' + normalizedPattern
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                .replace(/\*/g, '.*') + '$'
+            )
+            if (regex.test(normalizedPath)) return true
+          }
+        }
+        return false
+      },
+      
       // Actions - Columns
       setColumnWidth: (id, width) => {
         const { columns } = get()
@@ -1009,7 +1098,8 @@ export const usePDMStore = create<PDMState>()(
         rightPanelWidth: state.rightPanelWidth,
         rightPanelTabs: state.rightPanelTabs,
         columns: state.columns,
-        expandedFolders: Array.from(state.expandedFolders)
+        expandedFolders: Array.from(state.expandedFolders),
+        ignorePatterns: state.ignorePatterns
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Record<string, unknown>
@@ -1064,7 +1154,9 @@ export const usePDMStore = create<PDMState>()(
             const persistedCol = (persisted.columns as ColumnConfig[] || [])
               .find(c => c.id === defaultCol.id)
             return persistedCol ? { ...defaultCol, ...persistedCol } : defaultCol
-          })
+          }),
+          // Ensure ignorePatterns has a default
+          ignorePatterns: (persisted.ignorePatterns as Record<string, string[]>) || {}
         }
       }
     }

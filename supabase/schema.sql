@@ -354,7 +354,7 @@ BEGIN
   WHERE user_domain = ANY(email_domains)
   LIMIT 1;
   
-  -- Insert user profile
+  -- Insert user profile with conflict handling
   -- Note: Google OAuth stores avatar as 'picture', not 'avatar_url'
   INSERT INTO users (id, email, full_name, avatar_url, org_id)
   VALUES (
@@ -363,8 +363,20 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', NEW.raw_user_meta_data->>'picture'),
     matching_org_id
-  );
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = COALESCE(EXCLUDED.full_name, users.full_name),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url);
   
+  RETURN NEW;
+EXCEPTION WHEN unique_violation THEN
+  -- Email already exists with different ID - just continue
+  RAISE WARNING 'User with email % already exists', NEW.email;
+  RETURN NEW;
+WHEN OTHERS THEN
+  -- Log error but don't fail the auth signup
+  RAISE WARNING 'handle_new_user error: % %', SQLERRM, SQLSTATE;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -383,8 +395,11 @@ DECLARE
   activity_details JSONB := '{}'::jsonb;
   user_email_val TEXT;
 BEGIN
-  -- Get user email
+  -- Get user email (with fallback to prevent NOT NULL violations)
   SELECT email INTO user_email_val FROM users WHERE id = auth.uid();
+  IF user_email_val IS NULL THEN
+    user_email_val := 'system';
+  END IF;
   
   IF TG_OP = 'INSERT' THEN
     action_type := 'create';
@@ -394,7 +409,7 @@ BEGIN
     );
     
     INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
-    VALUES (NEW.org_id, NEW.id, auth.uid(), COALESCE(user_email_val, 'system'), action_type, activity_details);
+    VALUES (NEW.org_id, NEW.id, COALESCE(auth.uid(), NEW.created_by), user_email_val, action_type, activity_details);
     
   ELSIF TG_OP = 'UPDATE' THEN
     -- Determine what changed
@@ -437,7 +452,7 @@ BEGIN
     END IF;
     
     INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
-    VALUES (NEW.org_id, NEW.id, COALESCE(auth.uid(), NEW.updated_by), COALESCE(user_email_val, 'system'), action_type, activity_details);
+    VALUES (NEW.org_id, NEW.id, COALESCE(auth.uid(), NEW.updated_by), user_email_val, action_type, activity_details);
     
   ELSIF TG_OP = 'DELETE' THEN
     action_type := 'delete';
@@ -447,9 +462,13 @@ BEGIN
     );
     
     INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
-    VALUES (OLD.org_id, NULL, auth.uid(), COALESCE(user_email_val, 'system'), action_type, activity_details);
+    VALUES (OLD.org_id, NULL, auth.uid(), user_email_val, action_type, activity_details);
   END IF;
   
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  -- Don't fail file operations if activity logging fails
+  RAISE WARNING 'Activity logging failed: %', SQLERRM;
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

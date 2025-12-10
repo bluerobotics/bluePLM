@@ -15,7 +15,10 @@ import {
   History,
   Info,
   AlertTriangle,
-  Loader2
+  Loader2,
+  EyeOff,
+  FileX,
+  FolderX
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
@@ -67,7 +70,7 @@ export function FileContextMenu({
   onRename,
   onNewFolder
 }: FileContextMenuProps) {
-  const { user, organization, vaultPath, activeVaultId, addToast, addProgressToast, updateProgressToast, removeToast, isProgressToastCancelled, pinnedFolders, pinFolder, unpinFolder, connectedVaults, addProcessingFolder, removeProcessingFolder, queueOperation, hasPathConflict, updateFileInStore } = usePDMStore()
+  const { user, organization, vaultPath, activeVaultId, addToast, addProgressToast, updateProgressToast, removeToast, isProgressToastCancelled, pinnedFolders, pinFolder, unpinFolder, connectedVaults, addProcessingFolder, removeProcessingFolder, queueOperation, hasPathConflict, updateFileInStore, addIgnorePattern, getIgnorePatterns } = usePDMStore()
   
   const [showProperties, setShowProperties] = useState(false)
   const [folderSize, setFolderSize] = useState<{ size: number; fileCount: number; folderCount: number } | null>(null)
@@ -76,6 +79,7 @@ export function FileContextMenu({
   const [deleteConfirmFiles, setDeleteConfirmFiles] = useState<LocalFile[]>([])
   const [isDeleting, setIsDeleting] = useState(false)
   const [platform, setPlatform] = useState<string>('win32')
+  const [showIgnoreSubmenu, setShowIgnoreSubmenu] = useState(false)
   
   // Get platform for UI text
   useEffect(() => {
@@ -1084,6 +1088,83 @@ export function FileContextMenu({
         </div>
         
         <div className="context-menu-separator" />
+        
+        {/* Keep Local Only (Ignore) - for unsynced files and folders */}
+        {anyUnsynced && !allCloudOnly && activeVaultId && (
+          <div 
+            className="context-menu-item relative"
+            onMouseEnter={() => setShowIgnoreSubmenu(true)}
+            onMouseLeave={() => setShowIgnoreSubmenu(false)}
+          >
+            <EyeOff size={14} />
+            Keep Local Only
+            <span className="text-xs text-pdm-fg-muted ml-auto">▶</span>
+            
+            {/* Submenu */}
+            {showIgnoreSubmenu && (
+              <div 
+                className="context-menu absolute left-full top-0 ml-1 min-w-[200px]"
+                style={{ marginTop: '-4px' }}
+              >
+                {/* Ignore this specific file/folder */}
+                <div 
+                  className="context-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    // For single selection, add exact path pattern
+                    for (const file of contextFiles) {
+                      if (file.isDirectory) {
+                        addIgnorePattern(activeVaultId, file.relativePath + '/')
+                      } else {
+                        addIgnorePattern(activeVaultId, file.relativePath)
+                      }
+                    }
+                    addToast('success', `Added ${contextFiles.length > 1 ? `${contextFiles.length} items` : contextFiles[0].name} to ignore list`)
+                    onRefresh(true)
+                    onClose()
+                  }}
+                >
+                  {isFolder ? <FolderX size={14} /> : <FileX size={14} />}
+                  This {isFolder ? 'folder' : 'file'}{multiSelect ? ` (${contextFiles.length})` : ''}
+                </div>
+                
+                {/* Ignore all files with this extension - only for files */}
+                {!isFolder && !multiSelect && firstFile.extension && (
+                  <div 
+                    className="context-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const pattern = `*${firstFile.extension}`
+                      addIgnorePattern(activeVaultId, pattern)
+                      addToast('success', `Now ignoring all ${firstFile.extension} files`)
+                      onRefresh(true)
+                      onClose()
+                    }}
+                  >
+                    <FileX size={14} />
+                    All *{firstFile.extension} files
+                  </div>
+                )}
+                
+                {/* Show current patterns count */}
+                {(() => {
+                  const currentPatterns = getIgnorePatterns(activeVaultId)
+                  if (currentPatterns.length > 0) {
+                    return (
+                      <>
+                        <div className="context-menu-separator" />
+                        <div className="px-3 py-1.5 text-xs text-pdm-fg-muted">
+                          {currentPatterns.length} pattern{currentPatterns.length > 1 ? 's' : ''} configured
+                        </div>
+                      </>
+                    )
+                  }
+                  return null
+                })()}
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Remove Local Copy - for synced files, removes local but keeps server */}
         {anySynced && !allCloudOnly && (

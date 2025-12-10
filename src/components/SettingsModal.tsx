@@ -26,6 +26,7 @@ import {
   Copy,
   Key,
   Eye,
+  EyeOff,
   Download,
   UserMinus,
   ChevronDown,
@@ -97,7 +98,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     cadPreviewMode,
     setCadPreviewMode,
     lowercaseExtensions,
-    setLowercaseExtensions
+    setLowercaseExtensions,
+    ignorePatterns,
+    addIgnorePattern,
+    removeIgnorePattern
   } = usePDMStore()
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('account')
@@ -122,6 +126,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [updateCheckResult, setUpdateCheckResult] = useState<'none' | 'available' | 'error' | null>(null)
   const [appVersion, setAppVersion] = useState('')
   const [platform, setPlatform] = useState<string>('win32')
+  const [newIgnorePattern, setNewIgnorePattern] = useState('')
   const [showOrgCode, setShowOrgCode] = useState(false)
   const [orgCode, setOrgCode] = useState<string | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
@@ -1264,6 +1269,136 @@ See you on the team!`
                       />
                     </button>
                   </label>
+                </div>
+                
+                {/* Ignore Patterns (Keep Local Only) */}
+                <div className="space-y-3 pt-4 border-t border-pdm-border">
+                  <div className="flex items-center gap-2">
+                    <EyeOff size={16} className="text-pdm-fg-muted" />
+                    <h3 className="text-sm font-semibold text-pdm-fg">Ignored Files & Folders</h3>
+                  </div>
+                  <p className="text-sm text-pdm-fg-muted">
+                    Files and folders matching these patterns will stay local and won't sync to the server.
+                    Useful for build artifacts, simulation results, temp files, etc.
+                  </p>
+                  
+                  {/* Vault selector if multiple vaults */}
+                  {connectedVaults.length > 1 && (
+                    <div className="text-xs text-pdm-fg-dim bg-pdm-bg p-2 rounded border border-pdm-border">
+                      Patterns are per-vault. Currently showing patterns for:{' '}
+                      <span className="text-pdm-fg font-medium">
+                        {connectedVaults.find(v => v.id === activeVaultId)?.name || 'No vault selected'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {activeVaultId && (
+                    <>
+                      {/* Add new pattern */}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Add pattern (e.g., *.sim, build/, __pycache__/)"
+                          value={newIgnorePattern}
+                          onChange={(e) => setNewIgnorePattern(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newIgnorePattern.trim()) {
+                              addIgnorePattern(activeVaultId, newIgnorePattern.trim())
+                              setNewIgnorePattern('')
+                              addToast('success', `Added ignore pattern: ${newIgnorePattern.trim()}`)
+                            }
+                          }}
+                          className="input flex-1"
+                        />
+                        <button
+                          onClick={() => {
+                            if (newIgnorePattern.trim()) {
+                              addIgnorePattern(activeVaultId, newIgnorePattern.trim())
+                              setNewIgnorePattern('')
+                              addToast('success', `Added ignore pattern: ${newIgnorePattern.trim()}`)
+                            }
+                          }}
+                          disabled={!newIgnorePattern.trim()}
+                          className="btn btn-primary px-4"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                      
+                      {/* Current patterns */}
+                      {(ignorePatterns[activeVaultId] || []).length > 0 ? (
+                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                          {(ignorePatterns[activeVaultId] || []).map((pattern, index) => (
+                            <div 
+                              key={index}
+                              className="flex items-center gap-2 p-2 rounded bg-pdm-bg border border-pdm-border group hover:border-pdm-fg-muted"
+                            >
+                              <code className="flex-1 text-sm text-pdm-fg-dim font-mono">
+                                {pattern}
+                              </code>
+                              <button
+                                onClick={() => {
+                                  removeIgnorePattern(activeVaultId, pattern)
+                                  addToast('info', `Removed: ${pattern}`)
+                                }}
+                                className="p-1 text-pdm-fg-muted hover:text-pdm-error opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remove pattern"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-pdm-fg-dim p-4 text-center border border-dashed border-pdm-border rounded-lg">
+                          No ignore patterns configured.
+                          <br />
+                          <span className="text-xs">Right-click files to add them, or enter a pattern above.</span>
+                        </div>
+                      )}
+                      
+                      {/* Common presets */}
+                      <div className="pt-2">
+                        <div className="text-xs text-pdm-fg-muted mb-2">Quick add common patterns:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            '*.tmp', '*.bak', '~$*', '*.log',       // Temp files
+                            'build/', '__pycache__/', 'node_modules/', '.git/',  // Build/dev folders
+                            '*.sim', '*.res', '*.rst',              // Simulation results
+                            '*.lck', '*.~lock.*'                    // Lock files
+                          ].map(preset => {
+                            const isAdded = (ignorePatterns[activeVaultId] || []).includes(preset)
+                            return (
+                              <button
+                                key={preset}
+                                onClick={() => {
+                                  if (!isAdded) {
+                                    addIgnorePattern(activeVaultId, preset)
+                                    addToast('success', `Added: ${preset}`)
+                                  }
+                                }}
+                                disabled={isAdded}
+                                className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                                  isAdded 
+                                    ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-accent cursor-not-allowed' 
+                                    : 'bg-pdm-bg border-pdm-border hover:border-pdm-fg-muted text-pdm-fg-muted hover:text-pdm-fg'
+                                }`}
+                              >
+                                {preset}
+                                {isAdded && <Check size={10} className="inline ml-1" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {!activeVaultId && (
+                    <div className="text-sm text-pdm-fg-dim p-4 text-center border border-dashed border-pdm-border rounded-lg">
+                      Connect to a vault to configure ignore patterns.
+                    </div>
+                  )}
                 </div>
                 
                 {/* Connection Settings */}

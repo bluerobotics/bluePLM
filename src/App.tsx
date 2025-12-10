@@ -309,6 +309,17 @@ function App() {
         localHash: f.hash
       }))
       
+      // Filter out ignored files/folders based on vault-specific ignore patterns
+      if (currentVaultId) {
+        const { isPathIgnored } = usePDMStore.getState()
+        const beforeCount = localFiles.length
+        localFiles = localFiles.filter((f: any) => !isPathIgnored(currentVaultId, f.relativePath))
+        const filteredCount = beforeCount - localFiles.length
+        if (filteredCount > 0) {
+          console.log('[LoadFiles] Filtered out', filteredCount, 'ignored files/folders')
+        }
+      }
+      
       // 2. If connected to Supabase, merge PDM data
       if (shouldFetchServer) {
         const pdmFiles = serverResult.files
