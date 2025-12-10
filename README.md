@@ -19,20 +19,62 @@ Product Data Management for engineering teams. Built with Electron, React, and S
 - **Cloud sync** via Supabase with real-time collaboration
 - **Offline mode** for local-only workflows
 
-## Supported Formats
+## Getting Started as a New User
 
-| Category | Extensions |
-|----------|------------|
-| SolidWorks | `.sldprt`, `.sldasm`, `.slddrw` |
-| CAD Exchange | `.step`, `.stp`, `.iges`, `.igs`, `.stl` |
-| Documents | `.pdf`, `.xlsx`, `.csv` |
-| Electronics | `.sch`, `.brd`, `.kicad_pcb` |
+1. **Download** the latest release from the [releases page](https://github.com/bluerobotics/blue-pdm/releases)
+2. **Install** and launch BluePDM
+3. **Enter your organization's Supabase credentials** (your admin will provide these)
+4. **Sign in with Google** using your work email
+5. **Connect to a vault** from the Organization tab
 
-## Installation
+That's it! You can now check out files, make changes, and check them back in.
 
-Download the latest release for your platform from the [releases page](https://github.com/bluerobotics/blue-pdm/releases).
+## Getting Started as a New Org / Admin
 
-### Building from Source
+### 1. Create a Supabase Project
+
+1. Sign up at [supabase.com](https://supabase.com) and create a new project
+2. Note your **Project URL** and **anon/public key** from Settings → API
+
+### 2. Set Up Google OAuth
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create a new OAuth 2.0 Client ID (Web application)
+3. Add `https://your-project.supabase.co/auth/v1/callback` to Authorized redirect URIs
+4. In Supabase: Authentication → Providers → Google → Enable and paste your Client ID/Secret
+5. Add `http://localhost` to Supabase's Redirect URLs (for the Electron app)
+
+### 3. Set Up Storage
+
+1. In Supabase: Storage → New Bucket → Name it `vault` → Set to **Private**
+
+### 4. Run the Database Schema
+
+1. Go to SQL Editor in Supabase
+2. Copy and run the contents of [`supabase/schema.sql`](supabase/schema.sql)
+
+### 5. Create Your Organization
+
+```sql
+INSERT INTO organizations (name, slug, email_domains)
+VALUES ('Your Company', 'your-company', ARRAY['yourcompany.com']);
+```
+
+Replace with your company name and email domain. Users signing in with emails matching that domain will automatically join your organization.
+
+### 6. Share Credentials with Your Team
+
+Give your team members:
+- Your Supabase **Project URL** 
+- Your Supabase **anon/public key**
+
+They'll enter these on first launch of BluePDM.
+
+### 7. Create Vaults
+
+Once signed in as admin, go to **Settings → Organization** to create vaults for your team.
+
+## Building from Source
 
 ```bash
 git clone https://github.com/bluerobotics/blue-pdm.git
@@ -41,51 +83,13 @@ npm install
 npm run build
 ```
 
-### Supabase Setup
+For development with hot reload:
 
-1. **Create a Supabase project** at [supabase.com](https://supabase.com)
+```bash
+npm run dev
+```
 
-2. **Set up Google OAuth:**
-   - Go to Authentication → Providers → Google
-   - Enable Google provider
-   - Add your Google OAuth credentials (from [Google Cloud Console](https://console.cloud.google.com/apis/credentials))
-   - Add `http://localhost` to Redirect URLs (for Electron app)
-
-3. **Create a storage bucket:**
-   - Go to Storage → New Bucket
-   - Name it `vault`
-   - Set to **Private** (not public)
-
-4. **Run the database schema:**
-   - Go to SQL Editor in your Supabase dashboard
-   - Copy and run the contents of `supabase/schema.sql`
-   - This creates all tables, triggers, and storage policies
-
-5. **Create your organization:**
-   ```sql
-   INSERT INTO organizations (name, slug, email_domains)
-   VALUES ('Your Company', 'your-company', ARRAY['yourcompany.com']);
-   ```
-
-6. **Link existing users** (if you signed into Supabase before running the schema):
-   ```sql
-   INSERT INTO users (id, email, full_name, org_id)
-   SELECT au.id, au.email, au.raw_user_meta_data->>'full_name', o.id
-   FROM auth.users au
-   LEFT JOIN organizations o ON split_part(au.email, '@', 2) = ANY(o.email_domains)
-   WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = au.id);
-   ```
-   New users signing in after this will be auto-linked by the trigger.
-
-7. **Verify setup:**
-   ```sql
-   SELECT tgname FROM pg_trigger WHERE tgname = 'on_auth_user_created';  -- Should return 1 row
-   SELECT * FROM users;  -- Should show your user with org_id set
-   ```
-
-Vaults can be created through the app (Settings → Organization).
-
-### Configuration (Optional)
+### Environment Variables (Optional)
 
 For development, create a `.env` file:
 
@@ -93,8 +97,6 @@ For development, create a `.env` file:
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
-
-For production builds, users configure Supabase credentials through the app's setup screen on first launch.
 
 ## File Storage
 
