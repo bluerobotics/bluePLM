@@ -10,7 +10,7 @@ interface CheckoutViewProps {
 }
 
 export function CheckoutView({ onRefresh }: CheckoutViewProps) {
-  const { files, user, organization, vaultPath, addToast, activeVaultId, connectedVaults, addProcessingFolder, removeProcessingFolder, updateFileInStore, addProgressToast, updateProgressToast, removeToast, isProgressToastCancelled, setActiveView, setCurrentFolder, toggleFolder, expandedFolders } = usePDMStore()
+  const { files, user, organization, vaultPath, addToast, activeVaultId, connectedVaults, addProcessingFolder, removeProcessingFolder, updateFileInStore, addProgressToast, updateProgressToast, removeToast, isProgressToastCancelled: _isProgressToastCancelled, setActiveView, setCurrentFolder, toggleFolder, expandedFolders } = usePDMStore()
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [selectedAddedFiles, setSelectedAddedFiles] = useState<Set<string>>(new Set())
   const [selectedOthersFiles, setSelectedOthersFiles] = useState<Set<string>>(new Set())  // Admin: files checked out by others
@@ -135,100 +135,78 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     
     // Add spinners for all files being processed
     const processedPaths: string[] = []
-    filesToCheckin.forEach(path => {
+    const fileObjects = filesToCheckin.map(path => {
       const file = myCheckedOutFiles.find(f => f.path === path)
       if (file) {
         addProcessingFolder(file.relativePath)
         processedPaths.push(file.relativePath)
       }
-    })
+      return file
+    }).filter(Boolean) as LocalFile[]
     
-    // Calculate total bytes for progress tracking
-    const fileObjects = filesToCheckin.map(path => myCheckedOutFiles.find(f => f.path === path)).filter(Boolean)
-    const totalBytes = fileObjects.reduce((sum, f) => sum + (f?.size || f?.pdmData?.file_size || 0), 0)
+    addProgressToast(toastId, `Checking in ${total} file${total > 1 ? 's' : ''}...`, total)
     
-    addProgressToast(toastId, `Checking in ${total} file${total > 1 ? 's' : ''}...`, totalBytes)
-    
-    const startTime = Date.now()
-    let completedBytes = 0
-    let lastUpdateTime = startTime
-    let lastUpdateBytes = 0
-    
-    const formatSpeed = (bytesPerSec: number) => {
-      if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
-      if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`
-      return `${bytesPerSec.toFixed(0)} B/s`
-    }
-    
-    const formatBytes = (bytes: number) => {
-      if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-      if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-      if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
-      return `${bytes} B`
-    }
-    
-    const updateProgress = () => {
-      const now = Date.now()
-      const elapsedSinceLastUpdate = (now - lastUpdateTime) / 1000
-      const bytesSinceLastUpdate = completedBytes - lastUpdateBytes
-      const recentSpeed = elapsedSinceLastUpdate > 0 ? bytesSinceLastUpdate / elapsedSinceLastUpdate : 0
-      const overallElapsed = (now - startTime) / 1000
-      const overallSpeed = overallElapsed > 0 ? completedBytes / overallElapsed : 0
-      const displaySpeed = recentSpeed > 0 ? recentSpeed : overallSpeed
-      
-      const percent = totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 0
-      const label = `${formatBytes(completedBytes)}/${formatBytes(totalBytes)}`
-      updateProgressToast(toastId, completedBytes, percent, formatSpeed(displaySpeed), label)
-      
-      lastUpdateTime = now
-      lastUpdateBytes = completedBytes
-    }
+    let completedCount = 0
     
     try {
       // Process files in parallel for better performance (same logic as FileBrowser inline checkin)
       const results = await Promise.all(fileObjects.map(async (file) => {
         if (!file || !file.pdmData) {
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         }
         
-        const fileSize = file.size || file.pdmData?.file_size || 0
+        // Check if file was moved (local path differs from server path)
+        const wasFileMoved = file.pdmData?.file_path && file.relativePath !== file.pdmData.file_path
+        const wasFileRenamed = file.pdmData?.file_name && file.name !== file.pdmData.file_name
         
         try {
           const result = await checkinFile(file.pdmData.id, user.id, {
-            pendingMetadata: file.pendingMetadata
+            pendingMetadata: file.pendingMetadata,
+            newFilePath: wasFileMoved ? file.relativePath : undefined,
+            newFileName: wasFileRenamed ? file.name : undefined
           })
           
           if (result.success && result.file) {
             await window.electronAPI?.setReadonly(file.path, true)
             updateFileInStore(file.path, {
               pdmData: { ...file.pdmData, checked_out_by: null, checked_out_user: null, ...result.file },
+              localHash: result.file.content_hash,
+              diffStatus: undefined,
               localActiveVersion: undefined
             })
             removeProcessingFolder(file.relativePath)
-            completedBytes += fileSize
-            updateProgress()
+            completedCount++
+            const percent = Math.round((completedCount / total) * 100)
+            updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
             return true
           } else if (result.success) {
             await window.electronAPI?.setReadonly(file.path, true)
             updateFileInStore(file.path, {
               pdmData: { ...file.pdmData, checked_out_by: null, checked_out_user: null },
+              diffStatus: undefined,
               localActiveVersion: undefined
             })
             removeProcessingFolder(file.relativePath)
-            completedBytes += fileSize
-            updateProgress()
+            completedCount++
+            const percent = Math.round((completedCount / total) * 100)
+            updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
             return true
           }
           
           removeProcessingFolder(file.relativePath)
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         } catch (err) {
           console.error('Check in error:', err)
           removeProcessingFolder(file.relativePath)
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         }
       }))
@@ -238,13 +216,10 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       
       removeToast(toastId)
       
-      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-      const avgSpeed = formatSpeed(completedBytes / Math.max(parseFloat(totalTime), 0.001))
-      
       if (failed > 0) {
-        addToast('warning', `Checked in ${succeeded}/${total} files in ${totalTime}s (${avgSpeed})`)
+        addToast('warning', `Checked in ${succeeded}/${total} files`)
       } else {
-        addToast('success', `Checked in ${succeeded} file${succeeded > 1 ? 's' : ''} in ${totalTime}s (${avgSpeed})`)
+        addToast('success', `Checked in ${succeeded} file${succeeded > 1 ? 's' : ''}`)
       }
     } finally {
       // Clean up any remaining spinners
@@ -289,57 +264,20 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       }
     })
     
-    // Calculate total bytes for progress tracking
-    const fileObjects = filesToSync.map(path => addedFiles.find(f => f.path === path)).filter(Boolean)
-    const totalBytes = fileObjects.reduce((sum, f) => sum + (f?.size || 0), 0)
-    
     const toastId = `sync-${Date.now()}`
-    addProgressToast(toastId, `Checking in ${total} new file${total > 1 ? 's' : ''}...`, totalBytes)
+    addProgressToast(toastId, `Checking in ${total} new file${total > 1 ? 's' : ''}...`, total)
     
-    const startTime = Date.now()
-    let completedBytes = 0
-    let lastUpdateTime = startTime
-    let lastUpdateBytes = 0
-    
-    const formatSpeed = (bytesPerSec: number) => {
-      if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
-      if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`
-      return `${bytesPerSec.toFixed(0)} B/s`
-    }
-    
-    const formatBytes = (bytes: number) => {
-      if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-      if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-      if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
-      return `${bytes} B`
-    }
-    
-    const updateProgress = () => {
-      const now = Date.now()
-      const elapsedSinceLastUpdate = (now - lastUpdateTime) / 1000
-      const bytesSinceLastUpdate = completedBytes - lastUpdateBytes
-      const recentSpeed = elapsedSinceLastUpdate > 0 ? bytesSinceLastUpdate / elapsedSinceLastUpdate : 0
-      const overallElapsed = (now - startTime) / 1000
-      const overallSpeed = overallElapsed > 0 ? completedBytes / overallElapsed : 0
-      const displaySpeed = recentSpeed > 0 ? recentSpeed : overallSpeed
-      
-      const percent = totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 0
-      const label = `${formatBytes(completedBytes)}/${formatBytes(totalBytes)}`
-      updateProgressToast(toastId, completedBytes, percent, formatSpeed(displaySpeed), label)
-      
-      lastUpdateTime = now
-      lastUpdateBytes = completedBytes
-    }
+    let completedCount = 0
     
     try {
       // Process files in parallel for better performance
       const results = await Promise.all(filesToSync.map(async (path) => {
         const file = addedFiles.find(f => f.path === path)
-        const fileSize = file?.size || 0
         
         if (!file) {
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         }
         
@@ -348,8 +286,9 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           if (!readResult?.success || !readResult.data || !readResult.hash) {
             console.error('Failed to read file:', file.name)
             removeProcessingFolder(file.relativePath)
-            completedBytes += fileSize
-            updateProgress()
+            completedCount++
+            const percent = Math.round((completedCount / total) * 100)
+            updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
             return false
           }
           
@@ -368,8 +307,9 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           if (error) {
             console.error('Sync failed:', error)
             removeProcessingFolder(file.relativePath)
-            completedBytes += fileSize
-            updateProgress()
+            completedCount++
+            const percent = Math.round((completedCount / total) * 100)
+            updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
             return false
           }
           
@@ -382,14 +322,16 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
             })
           }
           removeProcessingFolder(file.relativePath)
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return true
         } catch (err) {
           console.error('Check in error:', err)
           removeProcessingFolder(file.relativePath)
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         }
       }))
@@ -399,13 +341,10 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       
       removeToast(toastId)
       
-      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-      const avgSpeed = formatSpeed(completedBytes / Math.max(parseFloat(totalTime), 0.001))
-      
       if (failed > 0) {
-        addToast('warning', `Checked in ${succeeded}/${total} files in ${totalTime}s (${avgSpeed})`)
+        addToast('warning', `Checked in ${succeeded}/${total} new files`)
       } else {
-        addToast('success', `Checked in ${succeeded} new file${succeeded > 1 ? 's' : ''} in ${totalTime}s (${avgSpeed})`)
+        addToast('success', `Checked in ${succeeded} new file${succeeded > 1 ? 's' : ''}`)
       }
     } finally {
       // Clean up any remaining spinners
@@ -446,9 +385,6 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
     const pathsBeingDeleted = fileObjects.map(f => f.relativePath)
     pathsBeingDeleted.forEach(p => addProcessingFolder(p))
     
-    let succeeded = 0
-    let failed = 0
-    
     const api = (window as any).electronAPI
     if (!api) {
       addToast('error', 'Electron API not available')
@@ -457,59 +393,27 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       return
     }
     
-    const totalBytes = fileObjects.reduce((sum, f) => sum + (f?.size || f?.pdmData?.file_size || 0), 0)
     const toastId = `delete-${Date.now()}`
-    addProgressToast(toastId, `Deleting ${total} file${total > 1 ? 's' : ''}...`, totalBytes)
+    addProgressToast(toastId, `Deleting ${total} file${total > 1 ? 's' : ''}...`, total)
     
-    const startTime = Date.now()
-    let completedBytes = 0
-    let lastUpdateTime = startTime
-    let lastUpdateBytes = 0
-    
-    const formatSpeed = (bytesPerSec: number) => {
-      if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
-      if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`
-      return `${bytesPerSec.toFixed(0)} B/s`
-    }
-    
-    const formatBytes = (bytes: number) => {
-      if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-      if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`
-      if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
-      return `${bytes} B`
-    }
-    
-    const updateProgress = () => {
-      const now = Date.now()
-      const elapsedSinceLastUpdate = (now - lastUpdateTime) / 1000
-      const bytesSinceLastUpdate = completedBytes - lastUpdateBytes
-      const recentSpeed = elapsedSinceLastUpdate > 0 ? bytesSinceLastUpdate / elapsedSinceLastUpdate : 0
-      const overallElapsed = (now - startTime) / 1000
-      const overallSpeed = overallElapsed > 0 ? completedBytes / overallElapsed : 0
-      const displaySpeed = recentSpeed > 0 ? recentSpeed : overallSpeed
-      
-      const percent = totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 0
-      const label = `${formatBytes(completedBytes)}/${formatBytes(totalBytes)}`
-      updateProgressToast(toastId, completedBytes, percent, formatSpeed(displaySpeed), label)
-      
-      lastUpdateTime = now
-      lastUpdateBytes = completedBytes
-    }
+    let completedCount = 0
     
     try {
       // Process files in parallel for better performance
       const results = await Promise.all(fileObjects.map(async (file) => {
         if (!file) {
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         }
-        
-        const fileSize = file.size || file.pdmData?.file_size || 0
         
         try {
           console.log('Deleting file:', file.path)
           const result = await api.deleteItem(file.path)
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           
           if (result?.success) {
             console.log('Delete succeeded:', file.path)
@@ -520,24 +424,22 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           }
         } catch (err) {
           console.error('Delete error:', file.path, err)
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         }
       }))
       
-      succeeded = results.filter(r => r).length
-      failed = results.filter(r => !r).length
+      const succeeded = results.filter(r => r).length
+      const failed = results.filter(r => !r).length
       
       removeToast(toastId)
       
-      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-      const avgSpeed = formatSpeed(completedBytes / Math.max(parseFloat(totalTime), 0.001))
-      
       if (failed > 0) {
-        addToast('warning', `Deleted ${succeeded}/${total} files in ${totalTime}s (${avgSpeed})`)
+        addToast('warning', `Deleted ${succeeded}/${total} files`)
       } else {
-        addToast('success', `Deleted ${succeeded} file${succeeded > 1 ? 's' : ''} in ${totalTime}s (${avgSpeed})`)
+        addToast('success', `Deleted ${succeeded} file${succeeded > 1 ? 's' : ''}`)
       }
       
       // Refresh file list to update the UI
@@ -586,57 +488,20 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       }
     })
     
-    // Calculate total bytes for progress tracking
-    const fileObjects = filesToDiscard.map(path => myCheckedOutFiles.find(f => f.path === path)).filter(Boolean)
-    const totalBytes = fileObjects.reduce((sum, f) => sum + (f?.size || f?.pdmData?.file_size || 0), 0)
-    
     const toastId = `discard-${Date.now()}`
-    addProgressToast(toastId, `Discarding changes for ${total} file${total > 1 ? 's' : ''}...`, totalBytes)
+    addProgressToast(toastId, `Discarding changes for ${total} file${total > 1 ? 's' : ''}...`, total)
     
-    const startTime = Date.now()
-    let completedBytes = 0
-    let lastUpdateTime = startTime
-    let lastUpdateBytes = 0
-    
-    const formatSpeed = (bytesPerSec: number) => {
-      if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
-      if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`
-      return `${bytesPerSec.toFixed(0)} B/s`
-    }
-    
-    const formatBytes = (bytes: number) => {
-      if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-      if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-      if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
-      return `${bytes} B`
-    }
-    
-    const updateProgress = () => {
-      const now = Date.now()
-      const elapsedSinceLastUpdate = (now - lastUpdateTime) / 1000
-      const bytesSinceLastUpdate = completedBytes - lastUpdateBytes
-      const recentSpeed = elapsedSinceLastUpdate > 0 ? bytesSinceLastUpdate / elapsedSinceLastUpdate : 0
-      const overallElapsed = (now - startTime) / 1000
-      const overallSpeed = overallElapsed > 0 ? completedBytes / overallElapsed : 0
-      const displaySpeed = recentSpeed > 0 ? recentSpeed : overallSpeed
-      
-      const percent = totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 0
-      const label = `${formatBytes(completedBytes)}/${formatBytes(totalBytes)}`
-      updateProgressToast(toastId, completedBytes, percent, formatSpeed(displaySpeed), label)
-      
-      lastUpdateTime = now
-      lastUpdateBytes = completedBytes
-    }
+    let completedCount = 0
     
     try {
       // Process files in parallel for better performance
       const results = await Promise.all(filesToDiscard.map(async (path) => {
         const file = myCheckedOutFiles.find(f => f.path === path)
-        const fileSize = file?.size || file?.pdmData?.file_size || 0
         
         if (!file || !file.pdmData) {
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         }
         
@@ -644,8 +509,9 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           const contentHash = file.pdmData.content_hash
           if (!contentHash) {
             removeProcessingFolder(file.relativePath)
-            completedBytes += fileSize
-            updateProgress()
+            completedCount++
+            const percent = Math.round((completedCount / total) * 100)
+            updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
             return false
           }
           
@@ -653,8 +519,9 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           if (urlError || !url) {
             console.error('Failed to get download URL:', urlError)
             removeProcessingFolder(file.relativePath)
-            completedBytes += fileSize
-            updateProgress()
+            completedCount++
+            const percent = Math.round((completedCount / total) * 100)
+            updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
             return false
           }
           
@@ -664,8 +531,9 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           if (!writeResult?.success) {
             console.error('Download failed:', writeResult?.error)
             removeProcessingFolder(file.relativePath)
-            completedBytes += fileSize
-            updateProgress()
+            completedCount++
+            const percent = Math.round((completedCount / total) * 100)
+            updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
             return false
           }
           
@@ -673,21 +541,24 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
           if (!result.success) {
             console.error('Release checkout failed:', result.error)
             removeProcessingFolder(file.relativePath)
-            completedBytes += fileSize
-            updateProgress()
+            completedCount++
+            const percent = Math.round((completedCount / total) * 100)
+            updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
             return false
           }
           
           await api.setReadonly(file.path, true)
           removeProcessingFolder(file.relativePath)
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return true
         } catch (err) {
           console.error('Discard changes error:', err)
           removeProcessingFolder(file.relativePath)
-          completedBytes += fileSize
-          updateProgress()
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
           return false
         }
       }))
@@ -697,13 +568,10 @@ export function CheckoutView({ onRefresh }: CheckoutViewProps) {
       
       removeToast(toastId)
       
-      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1)
-      const avgSpeed = formatSpeed(completedBytes / Math.max(parseFloat(totalTime), 0.001))
-      
       if (failed > 0) {
-        addToast('warning', `Discarded ${succeeded}/${total} files in ${totalTime}s (${avgSpeed})`)
+        addToast('warning', `Discarded ${succeeded}/${total} files`)
       } else {
-        addToast('success', `Discarded ${succeeded} file${succeeded > 1 ? 's' : ''} in ${totalTime}s (${avgSpeed})`)
+        addToast('success', `Discarded ${succeeded} file${succeeded > 1 ? 's' : ''}`)
       }
       
       // Refresh file list to update the UI

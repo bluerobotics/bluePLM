@@ -917,7 +917,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const [renameValue, setRenameValue] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<LocalFile | null>(null)
   const [deleteEverywhere, setDeleteEverywhere] = useState(false) // Track if deleting from server too
-  const [isDeleting, setIsDeleting] = useState(false) // Track delete operation in progress
+  const [_isDeleting, _setIsDeleting] = useState(false) // Track delete operation in progress
   const [platform, setPlatform] = useState<string>('win32')
   const [showIgnoreSubmenu, setShowIgnoreSubmenu] = useState(false)
   const [showStateSubmenu, setShowStateSubmenu] = useState(false)
@@ -1299,18 +1299,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     const total = filesToCheckout.length
     addProgressToast(toastId, `Checking out ${total} file${total > 1 ? 's' : ''}...`, total)
     
-    let succeeded = 0
     let completedCount = 0
-    let cancelled = false
     
-    // Process files sequentially so we can check for cancellation after each
-    for (const f of filesToCheckout) {
-      // Check for cancellation before processing each file
-      if (isProgressToastCancelled(toastId)) {
-        cancelled = true
-        break
-      }
-      
+    // Process files in parallel for better performance (matches ExplorerView behavior)
+    const results = await Promise.all(filesToCheckout.map(async (f) => {
       try {
         const result = await checkoutFile(f.pdmData!.id, user.id)
         if (result.success) {
@@ -1326,25 +1318,30 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               }
             }
           })
-          succeeded++
+          completedCount++
+          const percent = Math.round((completedCount / total) * 100)
+          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
+          return true
         }
         completedCount++
         const percent = Math.round((completedCount / total) * 100)
         updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
+        return false
       } catch (err) {
         console.error('Checkout error:', err)
         completedCount++
         const percent = Math.round((completedCount / total) * 100)
         updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
+        return false
       }
-    }
+    }))
+    
+    const succeeded = results.filter(Boolean).length
     
     removeProcessingFolder(file.relativePath)
     removeToast(toastId)
     
-    if (cancelled) {
-      addToast('info', `Checkout cancelled. ${succeeded} file${succeeded !== 1 ? 's' : ''} checked out.`)
-    } else if (succeeded > 0) {
+    if (succeeded > 0) {
       addToast('success', `Checked out ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }
   }
@@ -1384,8 +1381,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     // Process files in parallel for better performance
     const results = await Promise.all(filesToCheckin.map(async (f) => {
       try {
+        // Check if file was moved (local path differs from server path)
+        const wasFileMoved = f.pdmData?.file_path && f.relativePath !== f.pdmData.file_path
+        const wasFileRenamed = f.pdmData?.file_name && f.name !== f.pdmData.file_name
+        
         const result = await checkinFile(f.pdmData!.id, user.id, {
-          pendingMetadata: f.pendingMetadata
+          pendingMetadata: f.pendingMetadata,
+          newFilePath: wasFileMoved ? f.relativePath : undefined,
+          newFileName: wasFileRenamed ? f.name : undefined
         })
         if (result.success && result.file) {
           await window.electronAPI?.setReadonly(f.path, true)
@@ -1394,6 +1397,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           clearPendingMetadata(f.path)
           updateFileInStore(f.path, {
             pdmData: { ...f.pdmData!, checked_out_by: null, checked_out_user: null, ...result.file },
+            localHash: result.file.content_hash,
+            diffStatus: undefined,
             localActiveVersion: undefined  // Clear rollback state
           })
           completedCount++
@@ -1405,6 +1410,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           clearPendingMetadata(f.path)
           updateFileInStore(f.path, {
             pdmData: { ...f.pdmData!, checked_out_by: null, checked_out_user: null },
+            diffStatus: undefined,
             localActiveVersion: undefined
           })
           completedCount++
@@ -4709,9 +4715,6 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     onClick={async () => {
                       setContextMenu(null)
                       
-                      // Get folder paths being operated on
-                      const foldersBeingProcessed = contextFiles.filter(f => f.isDirectory).map(f => f.relativePath)
-                      
                       // Define the download operation
                       const executeDownload = async () => {
                       // Collect all cloud-only files to download and track which folders have them
@@ -5195,7 +5198,6 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     let failed = 0
                     const errors: string[] = []
                     const total = unsyncedFiles.length
-                    const totalBytes = unsyncedFiles.reduce((sum, f) => sum + f.size, 0)
                     let uploadedBytes = 0
                     const startTime = Date.now()
                     const syncedFileIds: string[] = [] // Track synced file IDs for potential rollback
@@ -5377,13 +5379,27 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     const results = await Promise.all(filesToCheckout.map(async (file) => {
                       try {
                         const result = await checkoutFile(file.pdmData!.id, user.id)
+                        if (result.success) {
+                          await window.electronAPI?.setReadonly(file.path, false)
+                          updateFileInStore(file.path, {
+                            pdmData: { 
+                              ...file.pdmData!, 
+                              checked_out_by: user.id,
+                              checked_out_user: { 
+                                full_name: user.full_name, 
+                                email: user.email, 
+                                avatar_url: user.avatar_url 
+                              }
+                            }
+                          })
+                          completedCount++
+                          const percent = Math.round((completedCount / total) * 100)
+                          updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
+                          return true
+                        }
                         completedCount++
                         const percent = Math.round((completedCount / total) * 100)
                         updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total} files`)
-                        if (result.success) {
-                          await window.electronAPI?.setReadonly(file.path, false)
-                          return true
-                        }
                         return false
                       } catch {
                         completedCount++
@@ -6578,7 +6594,6 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                       let deletedLocal = 0
                       let deletedServer = 0
                       let failedServer = 0
-                      let currentProgress = 0
                       
                       try {
                         if (isDeleteEverywhere) {

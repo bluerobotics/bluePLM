@@ -1033,6 +1033,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
         const wasFileRenamed = f.pdmData?.file_name && f.name !== f.pdmData.file_name
         
         const result = await checkinFile(f.pdmData!.id, user.id, {
+          pendingMetadata: f.pendingMetadata,
           newFilePath: wasFileMoved ? f.relativePath : undefined,
           newFileName: wasFileRenamed ? f.name : undefined
         })

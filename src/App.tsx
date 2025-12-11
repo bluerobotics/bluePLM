@@ -305,14 +305,14 @@ function App() {
       })
       
       // Debug: Log first few paths for comparison (helps debug path matching issues)
-      if (serverResult.files?.length > 0) {
+      if (serverResult.files && serverResult.files.length > 0) {
         const sampleServer = serverResult.files.slice(0, 5).map((f: any) => f.file_path)
         const sampleLocal = localResult.files.filter((f: any) => !f.isDirectory).slice(0, 5).map((f: any) => f.relativePath)
         window.electronAPI?.log('info', '[LoadFiles] Sample SERVER paths', sampleServer)
         window.electronAPI?.log('info', '[LoadFiles] Sample LOCAL paths', sampleLocal)
         
         // Try to find a matching file by name and compare full paths
-        const firstServerFile = serverResult.files[0]
+        const firstServerFile = serverResult.files[0] as any
         if (firstServerFile) {
           const serverFileName = firstServerFile.file_name || firstServerFile.file_path.split('/').pop()
           const matchingLocal = localResult.files.find((f: any) => f.name === serverFileName)

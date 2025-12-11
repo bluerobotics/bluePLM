@@ -35,7 +35,8 @@ import {
   FileText,
   FolderOpen,
   Clock,
-  ChevronLeft
+  ChevronLeft,
+  User
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { supabase, signOut, getCurrentConfig, updateUserRole, removeUserFromOrg, getOrgVaultAccess, setUserVaultAccess } from '../lib/supabase'
@@ -95,8 +96,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setFilesLoaded,
     setVaultPath,
     setVaultConnected,
-    setUser,
-    setOrganization,
+    setUser: _setUser,
+    setOrganization: _setOrganization,
     addToast,
     triggerVaultsRefresh,
     cadPreviewMode,

@@ -12,7 +12,6 @@ import {
   Pin,
   History,
   Info,
-  Loader2,
   EyeOff,
   FileX,
   FolderX,
@@ -596,9 +595,6 @@ export function FileContextMenu({
     if (!organization || !vaultPath) return
     onClose()
     
-    // Get folder paths being operated on
-    const foldersBeingProcessed = contextFiles.filter(f => f.isDirectory).map(f => f.relativePath)
-    
     // Define the download operation
     const executeDownload = async () => {
       // Get cloud-only files and track which folders actually have files to download
@@ -640,7 +636,6 @@ export function FileContextMenu({
     let failed = 0
     let downloadedBytes = 0
     const startTime = Date.now()
-    const total = cloudFiles.length
     const totalBytes = cloudFiles.reduce((sum, f) => sum + (f.pdmData?.file_size || 0), 0)
     
     addProgressToast(toastId, `Downloading ${folderName}...`, totalBytes)
