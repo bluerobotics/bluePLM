@@ -1,0 +1,22 @@
+# Render Blueprint for BluePDM API
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: bluepdm-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: npx tsx api/server.ts
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false # User must set this
+      - key: SUPABASE_KEY
+        sync: false # User must set this
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: RATE_LIMIT_MAX
+        value: "100"
+      - key: NODE_ENV
+        value: production
+

@@ -1,6 +1,69 @@
 # BluePDM REST API
 
-A standalone REST API for BluePDM that enables external applications to interact with the PDM system.
+Integration API for external systems (ERP, CI/CD, automation) built with [Fastify](https://fastify.dev/) and TypeScript.
+
+> **Note**: This API is designed for **integrations**, not daily app use.
+> - Desktop app users → Direct to Supabase (faster)
+> - SolidWorks add-in → Direct to Supabase (faster)  
+> - ERP systems (Odoo, SAP) → This API
+> - CI/CD, webhooks, automation → This API
+
+## Setup for Your Organization
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Step 1: Deploy API (5 min)                                 │
+│  Click "Deploy to Railway" button below                     │
+│  Set your Supabase URL and Key                              │
+├─────────────────────────────────────────────────────────────┤
+│  Step 2: Get API URL                                        │
+│  Railway gives you: https://your-app.railway.app            │
+├─────────────────────────────────────────────────────────────┤
+│  Step 3: Configure in BluePDM                               │
+│  Settings → REST API → Enter your API URL                   │
+├─────────────────────────────────────────────────────────────┤
+│  Step 4: Connect Odoo/ERP                                   │
+│  Use the API URL + your access token from Settings          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Heavy Operations (CAD files)                               │
+│  Desktop App / SolidWorks Add-in → Supabase Direct (fast)   │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Integration Layer (this REST API)                          │
+│  ERP / Purchasing / CI/CD / Slack → Lightweight queries     │
+│  • State queries                                            │
+│  • Metadata lookups                                         │
+│  • Trigger actions (release, obsolete)                      │
+│  • Webhooks → Push notifications                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Integration | What They Can Do |
+|-------------|------------------|
+| **Odoo/ERP** | Query released parts, sync BOMs, get part numbers |
+| **Purchasing** | "Get all files in Released state" |
+| **Manufacturing** | "Download latest released drawing for part X" |
+| **CI/CD** | "Automatically release files after tests pass" |
+| **Slack Bot** | "Notify channel when files are released" |
+
+## Features
+
+- **ERP-Ready** - Endpoints designed for Odoo, SAP, and other ERP systems
+- **Signed URLs** - Large files transfer direct to Supabase (not through API)
+- **Fast** - Built on Fastify (~30k req/s)
+- **Type-Safe** - Written in TypeScript
+- **Validated** - JSON Schema validation
+- **Documented** - Interactive Swagger UI at `/docs`
+- **Rate Limited** - Built-in rate limiting
+- **Webhooks** - Real-time notifications
 
 ## Quick Start
 
@@ -21,6 +84,8 @@ npm run api:dev
 
 The server will start on `http://127.0.0.1:3001` by default.
 
+**Interactive API Documentation**: Open http://127.0.0.1:3001/docs for Swagger UI.
+
 ## Configuration
 
 | Variable | Default | Description |
@@ -28,9 +93,126 @@ The server will start on `http://127.0.0.1:3001` by default.
 | `SUPABASE_URL` | - | Supabase project URL (required) |
 | `SUPABASE_KEY` | - | Supabase anon key (required) |
 | `API_PORT` | `3001` | Port to listen on |
-| `API_HOST` | `127.0.0.1` | Host to bind to |
+| `API_HOST` | `0.0.0.0` | Host to bind to |
+| `RATE_LIMIT_MAX` | `100` | Max requests per window |
+| `RATE_LIMIT_WINDOW` | `60000` | Time window in ms (60s) |
+| `CORS_ORIGINS` | `*` | Allowed origins (comma-separated) |
 
 You can also use `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` if you have them set for development.
+
+## Deployment
+
+Each organization hosts their own API server. This keeps your data under your control.
+
+### Deploy from Docker Image (Recommended)
+
+The easiest way - no repo access needed:
+
+**Railway:**
+1. Go to [railway.app/new](https://railway.app/new)
+2. Select **"Deploy from Docker Image"**
+3. Enter: `ghcr.io/bluerobotics/bluepdm-api:latest`
+4. Add variables: `SUPABASE_URL`, `SUPABASE_KEY`
+5. Deploy!
+
+**Render:**
+1. Go to [render.com](https://render.com) → New → Web Service
+2. Select **"Deploy an existing image from a registry"**
+3. Enter: `ghcr.io/bluerobotics/bluepdm-api:latest`
+4. Add environment variables
+5. Deploy!
+
+**Fly.io:**
+```bash
+fly launch --image ghcr.io/bluerobotics/bluepdm-api:latest
+fly secrets set SUPABASE_URL=https://xxx.supabase.co SUPABASE_KEY=your-key
+fly deploy
+```
+
+**Docker (self-hosted):**
+```bash
+docker run -d -p 3001:3001 \
+  -e SUPABASE_URL=https://xxx.supabase.co \
+  -e SUPABASE_KEY=your-anon-key \
+  ghcr.io/bluerobotics/bluepdm-api:latest
+```
+
+### Railway (from source)
+
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login and initialize
+railway login
+railway init
+
+# Set environment variables (get these from your Supabase project settings)
+railway variables set SUPABASE_URL=https://xxx.supabase.co
+railway variables set SUPABASE_KEY=your-anon-key
+railway variables set CORS_ORIGINS=https://your-erp.com,https://odoo.yourcompany.com
+
+# Deploy
+railway up
+```
+
+Your API will be live at `https://your-app.railway.app`
+
+### Where to Find Your Supabase Credentials
+
+1. Go to your [Supabase Dashboard](https://supabase.com/dashboard)
+2. Select your BluePDM project
+3. Go to **Settings → API**
+4. Copy:
+   - **Project URL** → `SUPABASE_URL`
+   - **anon public** key → `SUPABASE_KEY`
+
+### Render
+
+1. Create new **Web Service** from your GitHub repo
+2. Set:
+   - **Build Command**: `npm install`
+   - **Start Command**: `npx tsx api/server.ts`
+3. Add environment variables in dashboard
+4. Deploy
+
+### Docker
+
+```bash
+# Build
+docker build -f api/Dockerfile -t bluepdm-api .
+
+# Run
+docker run -p 3001:3001 \
+  -e SUPABASE_URL=https://xxx.supabase.co \
+  -e SUPABASE_KEY=your-anon-key \
+  bluepdm-api
+```
+
+### Fly.io
+
+```bash
+# Install Fly CLI and login
+fly auth login
+
+# Launch (creates fly.toml)
+fly launch
+
+# Set secrets
+fly secrets set SUPABASE_URL=https://xxx.supabase.co
+fly secrets set SUPABASE_KEY=your-anon-key
+
+# Deploy
+fly deploy
+```
+
+### Production Checklist
+
+- [ ] Set `CORS_ORIGINS` to only allow your ERP/integration domains
+- [ ] Configure rate limiting appropriately (`RATE_LIMIT_MAX`)
+- [ ] Set up monitoring/alerting on the `/health` endpoint
+- [ ] Enable HTTPS (most platforms do this automatically)
+- [ ] Consider adding API keys for additional security
 
 ## Authentication
 
@@ -258,25 +440,45 @@ curl -X POST http://localhost:3001/files/sync-batch \
 ### Download
 
 #### `GET /files/:id/download`
-Download file content.
+Get a **signed URL** for downloading file content (direct from Supabase Storage).
+
+> **Note**: Files download directly from Supabase, not through this API. 
+> This keeps large CAD files off the API server.
 
 **Query Parameters:**
 - `version` - Download a specific version (optional)
 
+**Response:**
+```json
+{
+  "file_id": "uuid",
+  "file_name": "bracket.SLDPRT",
+  "file_size": 1234567,
+  "content_hash": "sha256...",
+  "download_url": "https://xxx.supabase.co/storage/v1/object/sign/vault/...",
+  "expires_in": 3600
+}
+```
+
 ```bash
-# Download as JSON with base64 content
+# Get signed download URL
 curl http://localhost:3001/files/file-uuid/download \
   -H "Authorization: Bearer $TOKEN"
 
-# Download as binary file
-curl http://localhost:3001/files/file-uuid/download \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Accept: application/octet-stream" \
-  -o downloaded-file.SLDPRT
+# Then download directly from the signed URL
+curl -o bracket.SLDPRT "https://xxx.supabase.co/storage/v1/object/sign/..."
+```
 
-# Download specific version
-curl "http://localhost:3001/files/file-uuid/download?version=3" \
+#### `GET /files/:id/upload-url`
+Get a **signed URL** for uploading new file content (direct to Supabase Storage).
+
+```bash
+# Get signed upload URL
+curl http://localhost:3001/files/file-uuid/upload-url \
   -H "Authorization: Bearer $TOKEN"
+
+# Upload directly to Supabase
+curl -X PUT -T new-content.SLDPRT "https://xxx.supabase.co/storage/v1/object/upload/..."
 ```
 
 ---
@@ -375,6 +577,151 @@ curl -X PATCH http://localhost:3001/files/file-uuid/metadata \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"state": "released"}'
+```
+
+---
+
+### ERP Integration
+
+These endpoints are designed for ERP systems like **Odoo**, SAP, or custom integrations.
+
+#### `GET /parts`
+List all parts with part numbers. Ideal for syncing with ERP.
+
+**Query Parameters:**
+- `vault_id` - Filter by vault
+- `state` - Filter by state
+- `released_only` - Only return released parts (boolean)
+- `search` - Search by part number
+- `limit` / `offset` - Pagination
+
+```bash
+# Get all released parts for ERP sync
+curl "http://localhost:3001/parts?released_only=true" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Search for a specific part number
+curl "http://localhost:3001/parts?search=BRK-001" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+#### `GET /bom/:id`
+Get Bill of Materials for an assembly.
+
+**Query Parameters:**
+- `released_only` - Only include released components
+
+```bash
+curl http://localhost:3001/bom/assembly-uuid \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+```json
+{
+  "assembly": {
+    "id": "uuid",
+    "part_number": "ASSY-001",
+    "file_name": "thruster-assembly.SLDASM",
+    "revision": "B",
+    "state": "released"
+  },
+  "components": [
+    {
+      "id": "uuid",
+      "part_number": "BRK-001",
+      "file_name": "bracket.SLDPRT",
+      "revision": "A",
+      "state": "released",
+      "quantity": 2
+    },
+    ...
+  ],
+  "total_components": 15
+}
+```
+
+#### `GET /files/:id/drawing`
+Get the associated drawing for a part or assembly.
+
+```bash
+curl http://localhost:3001/files/part-uuid/drawing \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+```json
+{
+  "has_drawing": true,
+  "drawing": {
+    "id": "uuid",
+    "file_name": "bracket.SLDDRW",
+    "revision": "A",
+    "state": "released",
+    "download_url": "https://...",
+    "expires_in": 3600
+  }
+}
+```
+
+#### `POST /files/:id/release`
+Quick release: Change file state to "released".
+
+```bash
+curl -X POST http://localhost:3001/files/file-uuid/release \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+#### `POST /files/:id/obsolete`
+Quick obsolete: Change file state to "obsolete".
+
+```bash
+curl -X POST http://localhost:3001/files/file-uuid/obsolete \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Odoo Integration Example
+
+```python
+# Python example for Odoo integration
+import requests
+
+API_URL = "https://api.bluepdm.yourcompany.com"
+TOKEN = "your-jwt-token"
+
+headers = {"Authorization": f"Bearer {TOKEN}"}
+
+# Sync released parts to Odoo product catalog
+response = requests.get(
+    f"{API_URL}/parts",
+    params={"released_only": True},
+    headers=headers
+)
+
+for part in response.json()["parts"]:
+    # Create/update product in Odoo
+    odoo.execute_kw(
+        db, uid, password,
+        "product.product", "create",
+        [{
+            "name": part["file_name"],
+            "default_code": part["part_number"],
+            "x_revision": part["revision"],
+            "x_pdm_id": part["id"]
+        }]
+    )
+
+# Get BOM for manufacturing
+bom = requests.get(
+    f"{API_URL}/bom/{assembly_id}",
+    headers=headers
+).json()
+
+# Create Odoo BOM
+odoo_bom_lines = [
+    (0, 0, {"product_id": find_product(c["part_number"]), "product_qty": c["quantity"]})
+    for c in bom["components"]
+]
 ```
 
 Valid states: `not_tracked`, `wip`, `in_review`, `released`, `obsolete`
@@ -574,17 +921,116 @@ public class BluePdmClient
 
 ---
 
+### Webhooks
+
+Webhooks allow external systems to receive real-time notifications when events occur in BluePDM.
+
+#### Webhook Events
+
+| Event | Description |
+|-------|-------------|
+| `file.checkout` | File was checked out |
+| `file.checkin` | File was checked in |
+| `file.sync` | New file uploaded or existing file updated |
+| `file.delete` | File was moved to trash |
+| `file.restore` | File was restored from trash |
+| `file.state_change` | File state changed (WIP → Released, etc.) |
+| `file.version` | New version created |
+
+#### `GET /webhooks`
+List all webhooks for your organization.
+
+#### `POST /webhooks`
+Create a new webhook (admin only).
+
+```bash
+curl -X POST http://localhost:3001/webhooks \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-server.com/webhook",
+    "events": ["file.checkin", "file.state_change"]
+  }'
+```
+
+Response includes a `secret` for verifying webhook signatures (only shown once).
+
+#### `PATCH /webhooks/:id`
+Update webhook (toggle active, change events).
+
+#### `DELETE /webhooks/:id`
+Delete a webhook (admin only).
+
+#### Webhook Payload
+
+```json
+{
+  "event": "file.checkin",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "org_id": "org-uuid",
+  "data": {
+    "file_id": "file-uuid",
+    "file_path": "Parts/bracket.SLDPRT",
+    "file_name": "bracket.SLDPRT",
+    "user_id": "user-uuid",
+    "user_email": "user@example.com"
+  }
+}
+```
+
+#### Verifying Signatures
+
+Webhooks include `X-BluePDM-Signature` header (HMAC-SHA256):
+
+```python
+import hmac, hashlib
+
+def verify(payload: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+```
+
+---
+
 ## Rate Limiting
 
-The API does not currently implement rate limiting. For production use, consider placing it behind a reverse proxy (nginx, Caddy) with rate limiting configured.
+Rate limiting is enabled by default:
+- **100 requests** per **60 seconds** per IP
+- Configure via `RATE_LIMIT_MAX` and `RATE_LIMIT_WINDOW` env vars
+- Returns `429 Too Many Requests` when exceeded
 
 ## Security Notes
 
 - The API binds to `127.0.0.1` by default for security
 - To expose externally, set `API_HOST=0.0.0.0` (not recommended without additional security)
-- All requests are logged with timestamps
+- All requests are logged with structured Pino logging
 - Tokens expire after the Supabase-configured time (default 1 hour)
 - Use HTTPS in production by placing behind a reverse proxy
+- JSON Schema validation protects against malformed requests
+
+## Performance
+
+Built on Fastify for maximum performance:
+- ~30,000 requests/second (2x faster than Express)
+- Low memory footprint
+- Efficient JSON serialization
+- Native async/await support
+
+## Logging
+
+The API uses [Pino](https://getpino.io/) for structured JSON logging:
+
+```
+[05:08:38 UTC] INFO: incoming request
+    reqId: "req-1"
+    req: { "method": "GET", "url": "/health" }
+[05:08:38 UTC] INFO: request completed
+    reqId: "req-1"
+    res: { "statusCode": 200 }
+    responseTime: 0.58
+```
+
+For JSON output (production), remove the `pino-pretty` transport in `server.js`.
 
 ## Troubleshooting
 
@@ -599,7 +1045,11 @@ The API does not currently implement rate limiting. For production use, consider
 - User exists in Supabase Auth but not in the `users` table
 - Sign in via the BluePDM desktop app first to create the profile
 
+**"Validation Error" response**
+- Request body doesn't match the JSON Schema
+- Check the `details` field for specific validation errors
+
 **File upload fails**
 - Check that content is valid base64
-- Ensure file size is under 100MB (configurable in server.js)
+- Ensure file size is under 100MB (configurable via `bodyLimit` in server.js)
 

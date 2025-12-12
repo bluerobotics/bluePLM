@@ -14,13 +14,26 @@ import {
   ExternalLink,
   RefreshCw,
   Download,
-  CheckCircle
+  CheckCircle,
+  Key,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  Plug,
+  Circle,
+  Clock,
+  Trash2,
+  Activity,
+  Wrench,
+  FolderOpen,
+  Info
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase, signOut } from '../../lib/supabase'
 import { getInitials } from '../../types/pdm'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'preferences'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'solidworks' | 'api' | 'preferences'
 
 interface OrgUser {
   id: string
@@ -30,6 +43,19 @@ interface OrgUser {
   role: string
   last_sign_in: string | null
 }
+
+interface ApiCallRecord {
+  id: string
+  timestamp: Date
+  method: string
+  endpoint: string
+  status: number
+  duration: number
+}
+
+const API_URL_KEY = 'bluepdm_api_url'
+const API_HISTORY_KEY = 'bluepdm_api_history'
+const DEFAULT_API_URL = 'http://127.0.0.1:3001'
 
 export function SettingsView() {
   const { 
@@ -41,7 +67,9 @@ export function SettingsView() {
     setUser,
     setOrganization,
     cadPreviewMode,
-    setCadPreviewMode
+    setCadPreviewMode,
+    solidworksPath,
+    setSolidworksPath
   } = usePDMStore()
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('account')
@@ -52,6 +80,23 @@ export function SettingsView() {
   const [appVersion, setAppVersion] = useState<string>('')
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [updateCheckResult, setUpdateCheckResult] = useState<'none' | 'available' | 'error' | null>(null)
+  const [apiToken, setApiToken] = useState<string | null>(null)
+  const [showToken, setShowToken] = useState(false)
+  const [tokenCopied, setTokenCopied] = useState(false)
+  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL)
+  const [editingApiUrl, setEditingApiUrl] = useState(false)
+  const [apiUrlInput, setApiUrlInput] = useState('')
+  const [apiStatus, setApiStatus] = useState<'unknown' | 'online' | 'offline' | 'checking'>('unknown')
+  const [apiVersion, setApiVersion] = useState<string | null>(null)
+  const [apiHistory, setApiHistory] = useState<ApiCallRecord[]>(() => {
+    try {
+      const stored = localStorage.getItem(API_HISTORY_KEY)
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+  const [lastChecked, setLastChecked] = useState<Date | null>(null)
   
   const displayName = vaultName || vaultPath?.split(/[/\\]/).pop() || 'vault'
   
@@ -68,6 +113,108 @@ export function SettingsView() {
       window.electronAPI.getVersion().then(setAppVersion)
     }
   }, [])
+  
+  // Get API token from Supabase session
+  useEffect(() => {
+    const getToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        setApiToken(session.access_token)
+      }
+    }
+    getToken()
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setApiToken(session?.access_token || null)
+    })
+    
+    return () => subscription.unsubscribe()
+  }, [])
+  
+  // Check API status when tab is selected
+  useEffect(() => {
+    if (activeTab === 'api') {
+      checkApiStatus()
+    }
+  }, [activeTab])
+  
+  const checkApiStatus = async () => {
+    setApiStatus('checking')
+    const start = Date.now()
+    try {
+      const response = await fetch(`${apiUrl}/health`, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(5000)
+      })
+      const duration = Date.now() - start
+      
+      if (response.ok) {
+        const data = await response.json()
+        setApiStatus('online')
+        setApiVersion(data.version || null)
+        addApiCall('GET', '/health', response.status, duration)
+      } else {
+        setApiStatus('offline')
+        addApiCall('GET', '/health', response.status, duration)
+      }
+    } catch (err) {
+      setApiStatus('offline')
+      addApiCall('GET', '/health', 0, Date.now() - start)
+    }
+    setLastChecked(new Date())
+  }
+  
+  const addApiCall = (method: string, endpoint: string, status: number, duration: number) => {
+    const newCall: ApiCallRecord = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      method,
+      endpoint,
+      status,
+      duration
+    }
+    setApiHistory(prev => {
+      const updated = [newCall, ...prev].slice(0, 50) // Keep last 50 calls
+      localStorage.setItem(API_HISTORY_KEY, JSON.stringify(updated))
+      return updated
+    })
+  }
+  
+  const clearApiHistory = () => {
+    setApiHistory([])
+    localStorage.removeItem(API_HISTORY_KEY)
+  }
+  
+  const handleSaveApiUrl = () => {
+    const url = apiUrlInput.trim()
+    if (url) {
+      setApiUrl(url)
+      localStorage.setItem(API_URL_KEY, url)
+      // Save external URLs separately so we can toggle back to them
+      if (url !== 'http://127.0.0.1:3001') {
+        localStorage.setItem('bluepdm_external_api_url', url)
+      }
+    }
+    setEditingApiUrl(false)
+    // Re-check status with new URL
+    setTimeout(checkApiStatus, 100)
+  }
+  
+  const testApiEndpoint = async (endpoint: string) => {
+    if (!apiToken) return
+    
+    const start = Date.now()
+    try {
+      const response = await fetch(`${apiUrl}${endpoint}`, {
+        headers: { 'Authorization': `Bearer ${apiToken}` },
+        signal: AbortSignal.timeout(10000)
+      })
+      addApiCall('GET', endpoint, response.status, Date.now() - start)
+    } catch {
+      addApiCall('GET', endpoint, 0, Date.now() - start)
+    }
+  }
   
   // Handle manual update check
   const handleCheckForUpdates = async () => {
@@ -124,6 +271,17 @@ export function SettingsView() {
     setOrganization(null)
   }
   
+  const handleCopyToken = async () => {
+    if (!apiToken) return
+    try {
+      await navigator.clipboard.writeText(apiToken)
+      setTokenCopied(true)
+      setTimeout(() => setTokenCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy token:', err)
+    }
+  }
+  
   const handleSaveVaultName = () => {
     if (vaultNameInput.trim()) {
       setVaultName(vaultNameInput.trim())
@@ -135,6 +293,8 @@ export function SettingsView() {
     { id: 'account' as SettingsTab, icon: User, label: 'Account' },
     { id: 'vault' as SettingsTab, icon: FolderCog, label: 'Vault' },
     { id: 'organization' as SettingsTab, icon: Building2, label: 'Organization' },
+    { id: 'solidworks' as SettingsTab, icon: Wrench, label: 'SolidWorks' },
+    { id: 'api' as SettingsTab, icon: Plug, label: 'REST API' },
     { id: 'preferences' as SettingsTab, icon: Settings, label: 'Preferences' },
   ]
 
@@ -352,6 +512,423 @@ export function SettingsView() {
           </div>
         )}
         
+        {activeTab === 'solidworks' && (
+          <div className="space-y-4">
+            {/* Preview Mode */}
+            <div className="space-y-2">
+              <label className="text-xs text-pdm-fg-muted uppercase tracking-wide">
+                Preview Mode
+              </label>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setCadPreviewMode('thumbnail')}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    cadPreviewMode === 'thumbnail'
+                      ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-fg'
+                      : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                  }`}
+                >
+                  <Image size={20} className={cadPreviewMode === 'thumbnail' ? 'text-pdm-accent' : ''} />
+                  <div className="text-left">
+                    <div className="text-sm font-medium">Embedded Thumbnail</div>
+                    <div className="text-xs opacity-70">
+                      Extract and show preview image from SW file
+                    </div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => setCadPreviewMode('edrawings')}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    cadPreviewMode === 'edrawings'
+                      ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-fg'
+                      : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                  }`}
+                >
+                  <ExternalLink size={20} className={cadPreviewMode === 'edrawings' ? 'text-pdm-accent' : ''} />
+                  <div className="text-left">
+                    <div className="text-sm font-medium">eDrawings (External)</div>
+                    <div className="text-xs opacity-70">
+                      Open files in external eDrawings app
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+            
+            {/* Installation Path */}
+            <div className="space-y-2">
+              <label className="text-xs text-pdm-fg-muted uppercase tracking-wide">
+                Installation Path
+              </label>
+              <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border space-y-2">
+                <div className="flex items-start gap-2">
+                  <FolderOpen size={16} className="text-pdm-fg-muted mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={solidworksPath || ''}
+                      onChange={(e) => setSolidworksPath(e.target.value || null)}
+                      placeholder="C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS"
+                      className="w-full bg-pdm-bg-secondary border border-pdm-border rounded px-2 py-1.5 text-sm font-mono text-pdm-fg placeholder:text-pdm-fg-dim"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-start gap-1.5 text-xs text-pdm-fg-muted">
+                  <Info size={12} className="mt-0.5 flex-shrink-0" />
+                  <span>Only needed if SolidWorks is installed in a non-default location.</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Document Manager License */}
+            <div className="space-y-2">
+              <label className="text-xs text-pdm-fg-muted uppercase tracking-wide">
+                Document Manager License
+              </label>
+              <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Key size={16} className={organization?.settings?.solidworks_dm_license_key ? 'text-green-400' : 'text-pdm-fg-muted'} />
+                  <span className="text-sm text-pdm-fg">
+                    {organization?.settings?.solidworks_dm_license_key ? (
+                      <span className="text-green-400">Configured</span>
+                    ) : (
+                      <span className="text-pdm-fg-muted">Not configured</span>
+                    )}
+                  </span>
+                </div>
+                <div className="text-xs text-pdm-fg-muted space-y-1">
+                  {organization?.settings?.solidworks_dm_license_key ? (
+                    <p>Using fast Document Manager API for file reading.</p>
+                  ) : (
+                    <p>Using SolidWorks API (slower, launches SW in background).</p>
+                  )}
+                  <p className="pt-1">
+                    DM license key is configured at the organization level.{' '}
+                    <a
+                      href="https://customerportal.solidworks.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-pdm-accent hover:underline"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        window.electronAPI?.openFile('https://customerportal.solidworks.com/')
+                      }}
+                    >
+                      Get key from SOLIDWORKS Customer Portal
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* eDrawings link */}
+            <div className="pt-2">
+              <a
+                href="https://www.solidworks.com/support/free-downloads"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-pdm-accent hover:underline"
+                onClick={(e) => {
+                  e.preventDefault()
+                  window.electronAPI?.openFile('https://www.solidworks.com/support/free-downloads')
+                }}
+              >
+                <Download size={14} />
+                Download eDrawings Viewer (Free)
+              </a>
+            </div>
+          </div>
+        )}
+        
+        {activeTab === 'api' && (
+          <div className="space-y-4">
+            {user?.role !== 'admin' ? (
+              <div className="text-center py-8">
+                <Shield size={32} className="mx-auto text-pdm-fg-muted mb-2" />
+                <div className="text-sm font-medium text-pdm-fg">Admin Only</div>
+                <p className="text-xs text-pdm-fg-muted mt-1">
+                  API settings require admin access.
+                </p>
+              </div>
+            ) : (
+              <>
+            {/* Environment Toggle */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  setApiUrl('http://127.0.0.1:3001')
+                  localStorage.setItem(API_URL_KEY, 'http://127.0.0.1:3001')
+                  setTimeout(checkApiStatus, 100)
+                }}
+                className={`flex-1 px-2 py-1.5 text-xs rounded border transition-colors ${
+                  apiUrl === 'http://127.0.0.1:3001'
+                    ? 'bg-pdm-accent/20 border-pdm-accent text-pdm-fg'
+                    : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                }`}
+              >
+                🖥️ Local
+              </button>
+              <button
+                onClick={() => {
+                  const externalUrl = localStorage.getItem('bluepdm_external_api_url') || ''
+                  if (externalUrl) {
+                    setApiUrl(externalUrl)
+                    localStorage.setItem(API_URL_KEY, externalUrl)
+                    setTimeout(checkApiStatus, 100)
+                  } else {
+                    setEditingApiUrl(true)
+                    setApiUrlInput('https://')
+                  }
+                }}
+                className={`flex-1 px-2 py-1.5 text-xs rounded border transition-colors ${
+                  apiUrl !== 'http://127.0.0.1:3001'
+                    ? 'bg-pdm-accent/20 border-pdm-accent text-pdm-fg'
+                    : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                }`}
+              >
+                ☁️ External
+              </button>
+            </div>
+            
+            {/* Server Status */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-pdm-fg-muted uppercase tracking-wide">
+                  Server Status
+                </label>
+                <button
+                  onClick={checkApiStatus}
+                  disabled={apiStatus === 'checking'}
+                  className="text-xs text-pdm-fg-muted hover:text-pdm-fg flex items-center gap-1"
+                >
+                  <RefreshCw size={12} className={apiStatus === 'checking' ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+              <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-full ${
+                    apiStatus === 'online' ? 'bg-green-500/20' :
+                    apiStatus === 'offline' ? 'bg-red-500/20' :
+                    apiStatus === 'checking' ? 'bg-yellow-500/20' :
+                    'bg-pdm-fg-muted/20'
+                  }`}>
+                    {apiStatus === 'checking' ? (
+                      <Loader2 size={16} className="animate-spin text-yellow-400" />
+                    ) : (
+                      <Circle size={16} className={`${
+                        apiStatus === 'online' ? 'text-green-400 fill-green-400' :
+                        apiStatus === 'offline' ? 'text-red-400' :
+                        'text-pdm-fg-muted'
+                      }`} />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-pdm-fg">
+                      {apiStatus === 'online' && 'API Server Online'}
+                      {apiStatus === 'offline' && 'API Server Offline'}
+                      {apiStatus === 'checking' && 'Checking...'}
+                      {apiStatus === 'unknown' && 'Status Unknown'}
+                    </div>
+                    <div className="text-xs text-pdm-fg-muted">
+                      {apiVersion && `v${apiVersion} • `}
+                      {lastChecked && `Checked ${lastChecked.toLocaleTimeString()}`}
+                    </div>
+                  </div>
+                </div>
+                {(apiStatus === 'offline' || apiStatus === 'unknown') && (
+                  <div className="mt-3 p-2 bg-pdm-bg-secondary rounded text-xs space-y-2">
+                    <div className="font-medium text-pdm-fg">🚀 Need to deploy?</div>
+                    <p className="text-pdm-fg-muted">
+                      Each org hosts their own API. Deploy to Railway or Render in 5 min.
+                    </p>
+                    <div className="flex gap-2">
+                      <a href="https://railway.app/new" target="_blank" rel="noopener noreferrer" className="text-pdm-accent hover:underline">Railway</a>
+                      <span className="text-pdm-fg-muted">•</span>
+                      <a href="https://render.com/deploy" target="_blank" rel="noopener noreferrer" className="text-pdm-accent hover:underline">Render</a>
+                      <span className="text-pdm-fg-muted">•</span>
+                      <a href="https://github.com/bluerobotics/blue-pdm/blob/main/api/README.md#deployment" target="_blank" rel="noopener noreferrer" className="text-pdm-accent hover:underline">Guide</a>
+                    </div>
+                    <div className="pt-1 text-pdm-fg-dim">
+                      Local: <code className="bg-pdm-bg px-1 rounded">npm run api</code>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* API URL */}
+            <div className="space-y-2">
+              <label className="text-xs text-pdm-fg-muted uppercase tracking-wide">
+                API URL
+              </label>
+              {editingApiUrl ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={apiUrlInput}
+                    onChange={(e) => setApiUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveApiUrl()
+                      if (e.key === 'Escape') setEditingApiUrl(false)
+                    }}
+                    placeholder="http://127.0.0.1:3001"
+                    className="flex-1 bg-pdm-bg border border-pdm-border rounded px-2 py-1 text-sm font-mono"
+                    autoFocus
+                  />
+                  <button onClick={handleSaveApiUrl} className="btn btn-primary btn-sm">
+                    Save
+                  </button>
+                </div>
+              ) : (
+                <div 
+                  className="p-2 bg-pdm-bg rounded border border-pdm-border cursor-pointer hover:border-pdm-accent transition-colors"
+                  onClick={() => {
+                    setApiUrlInput(apiUrl)
+                    setEditingApiUrl(true)
+                  }}
+                >
+                  <code className="text-sm text-pdm-fg font-mono">{apiUrl}</code>
+                </div>
+              )}
+            </div>
+            
+            {/* API Token */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide">
+                <Key size={12} />
+                Access Token
+              </div>
+              {apiToken ? (
+                <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border space-y-2">
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs font-mono text-pdm-fg-muted overflow-hidden text-ellipsis">
+                      {showToken 
+                        ? apiToken 
+                        : `${apiToken.substring(0, 20)}${'•'.repeat(30)}`
+                      }
+                    </code>
+                    <button
+                      onClick={() => setShowToken(!showToken)}
+                      className="p-1.5 text-pdm-fg-muted hover:text-pdm-fg rounded transition-colors"
+                      title={showToken ? 'Hide token' : 'Show token'}
+                    >
+                      {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                    <button
+                      onClick={handleCopyToken}
+                      className={`p-1.5 rounded transition-colors ${
+                        tokenCopied 
+                          ? 'text-green-400 bg-green-400/10' 
+                          : 'text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-highlight'
+                      }`}
+                      title="Copy token"
+                    >
+                      {tokenCopied ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                  <div className="text-xs text-pdm-fg-muted">
+                    <code className="block p-1.5 bg-pdm-bg-secondary rounded text-pdm-fg-dim">
+                      curl -H "Authorization: Bearer $TOKEN" {apiUrl}/files
+                    </code>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border text-sm text-pdm-fg-muted">
+                  Sign in to get an API token
+                </div>
+              )}
+            </div>
+            
+            {/* Quick Test */}
+            {apiToken && apiStatus === 'online' && (
+              <div className="space-y-2">
+                <label className="text-xs text-pdm-fg-muted uppercase tracking-wide">
+                  Quick Test
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {['/vaults', '/files?limit=5', '/checkouts', '/activity?limit=5'].map(endpoint => (
+                    <button
+                      key={endpoint}
+                      onClick={() => testApiEndpoint(endpoint)}
+                      className="px-2 py-1 text-xs bg-pdm-bg border border-pdm-border rounded hover:border-pdm-accent transition-colors font-mono"
+                    >
+                      GET {endpoint}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* API Call History */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide">
+                  <Activity size={12} />
+                  Recent API Calls
+                </div>
+                {apiHistory.length > 0 && (
+                  <button
+                    onClick={clearApiHistory}
+                    className="text-xs text-pdm-fg-muted hover:text-pdm-error flex items-center gap-1"
+                  >
+                    <Trash2 size={12} />
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="bg-pdm-bg rounded-lg border border-pdm-border overflow-hidden">
+                {apiHistory.length === 0 ? (
+                  <div className="p-3 text-sm text-pdm-fg-muted text-center">
+                    No API calls recorded
+                  </div>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto">
+                    {apiHistory.slice(0, 20).map(call => (
+                      <div 
+                        key={call.id}
+                        className="flex items-center gap-2 px-3 py-1.5 border-b border-pdm-border last:border-0 text-xs"
+                      >
+                        <span className={`px-1.5 py-0.5 rounded font-medium ${
+                          call.status >= 200 && call.status < 300 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : call.status === 0
+                            ? 'bg-red-500/20 text-red-400'
+                            : 'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {call.status || 'ERR'}
+                        </span>
+                        <span className="text-pdm-fg-muted">{call.method}</span>
+                        <span className="text-pdm-fg font-mono flex-1 truncate">{call.endpoint}</span>
+                        <span className="text-pdm-fg-muted flex items-center gap-1">
+                          <Clock size={10} />
+                          {call.duration}ms
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Documentation Link */}
+            <div className="pt-2">
+              <a
+                href={`${apiUrl}/docs`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-pdm-accent hover:underline"
+              >
+                <ExternalLink size={14} />
+                Open API Documentation (Swagger)
+              </a>
+            </div>
+              </>
+            )}
+          </div>
+        )}
+        
         {activeTab === 'preferences' && (
           <div className="space-y-4">
             {/* App Updates */}
@@ -406,48 +983,6 @@ export function SettingsView() {
                     )}
                   </button>
                 </div>
-              </div>
-            </div>
-            
-            {/* CAD Preview Mode */}
-            <div className="space-y-2">
-              <label className="text-xs text-pdm-fg-muted uppercase tracking-wide">
-                SolidWorks Preview
-              </label>
-              <div className="space-y-2">
-                <button
-                  onClick={() => setCadPreviewMode('thumbnail')}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                    cadPreviewMode === 'thumbnail'
-                      ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-fg'
-                      : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
-                  }`}
-                >
-                  <Image size={20} className={cadPreviewMode === 'thumbnail' ? 'text-pdm-accent' : ''} />
-                  <div className="text-left">
-                    <div className="text-sm font-medium">Embedded Thumbnail</div>
-                    <div className="text-xs opacity-70">
-                      Extract and show preview image from SW file
-                    </div>
-                  </div>
-                </button>
-                
-                <button
-                  onClick={() => setCadPreviewMode('edrawings')}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                    cadPreviewMode === 'edrawings'
-                      ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-fg'
-                      : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
-                  }`}
-                >
-                  <ExternalLink size={20} className={cadPreviewMode === 'edrawings' ? 'text-pdm-accent' : ''} />
-                  <div className="text-left">
-                    <div className="text-sm font-medium">eDrawings (External)</div>
-                    <div className="text-xs opacity-70">
-                      Open files in external eDrawings app
-                    </div>
-                  </div>
-                </button>
               </div>
             </div>
           </div>

@@ -12,7 +12,6 @@ import { WelcomeScreen } from './components/WelcomeScreen'
 import { SetupScreen } from './components/SetupScreen'
 import { Toast } from './components/Toast'
 import { RightPanel } from './components/RightPanel'
-import { Terminal } from './components/Terminal'
 
 // Build full path using the correct separator for the platform
 function buildFullPath(vaultPath: string, relativePath: string): string {
@@ -1106,8 +1105,8 @@ function App() {
     }
   }, [])
 
-  // Get terminal toggle
-  const { toggleTerminal } = usePDMStore()
+  // Get setActiveView for terminal shortcut
+  const { setActiveView } = usePDMStore()
   
   // Keyboard shortcuts
   useEffect(() => {
@@ -1128,9 +1127,9 @@ function App() {
             e.preventDefault()
             toggleDetailsPanel()
             break
-          case '`':  // Ctrl+` or Cmd+` to toggle terminal
+          case '`':  // Ctrl+` or Cmd+` to switch to terminal view
             e.preventDefault()
-            toggleTerminal()
+            setActiveView('terminal')
             break
         }
       }
@@ -1143,7 +1142,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleOpenVault, toggleSidebar, toggleDetailsPanel, loadFiles, toggleTerminal])
+  }, [handleOpenVault, toggleSidebar, toggleDetailsPanel, loadFiles, setActiveView])
 
   // Determine if we should show the welcome screen
   const showWelcome = (!user && !isOfflineMode) || !hasVaultConnected
@@ -1209,9 +1208,6 @@ function App() {
           <DetailsPanel />
                 </>
               )}
-              
-              {/* Terminal Panel */}
-              <Terminal onRefresh={loadFiles} />
             </>
           )}
         </div>

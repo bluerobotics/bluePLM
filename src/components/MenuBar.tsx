@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { LogOut, ChevronDown, Building2, Settings, Search, File, Folder, LayoutGrid, Terminal } from 'lucide-react'
+import { LogOut, ChevronDown, Building2, Settings, Search, File, Folder, LayoutGrid } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
 import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization } from '../lib/supabase'
 import { SettingsModal } from './SettingsModal'
@@ -28,7 +28,7 @@ interface MenuBarProps {
 }
 
 export function MenuBar({ minimal = false }: MenuBarProps) {
-  const { user, organization, setUser, setOrganization, addToast, setSearchQuery, searchQuery, searchType, setSearchType, terminalVisible, toggleTerminal } = usePDMStore()
+  const { user, organization, setUser, setOrganization, addToast, setSearchQuery, searchQuery, searchType, setSearchType } = usePDMStore()
   const [appVersion, setAppVersion] = useState('')
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -238,22 +238,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         
         {/* Separator */}
         {!minimal && <div className="w-px h-4 bg-pdm-border" />}
-        
-        {/* Terminal toggle - hidden on welcome/signin screens */}
-        {!minimal && (
-          <button
-            onClick={toggleTerminal}
-            className={`p-1.5 rounded hover:bg-pdm-bg-lighter transition-colors ${
-              terminalVisible 
-                ? 'text-emerald-500 bg-pdm-bg-lighter' 
-                : 'text-pdm-fg-muted hover:text-pdm-fg'
-            }`}
-            title="Toggle Terminal (Ctrl+`)"
-            data-testid="terminal-toggle"
-          >
-            <Terminal size={18} />
-          </button>
-        )}
         
         {/* Settings gear - hidden on welcome/signin screens */}
         {!minimal && (

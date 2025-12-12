@@ -5,6 +5,7 @@ import { HistoryView } from './sidebar/HistoryView'
 import { SearchView } from './sidebar/SearchView'
 import { TrashView } from './sidebar/TrashView'
 import { SettingsView } from './sidebar/SettingsView'
+import { TerminalView } from './sidebar/TerminalView'
 
 interface SidebarProps {
   onOpenVault: () => void
@@ -29,6 +30,8 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh }: SidebarPr
         return <TrashView />
       case 'settings':
         return <SettingsView />
+      case 'terminal':
+        return <TerminalView onRefresh={onRefresh} />
       default:
         return <ExplorerView onOpenVault={onOpenVault} onOpenRecentVault={onOpenRecentVault} />
     }
@@ -48,6 +51,8 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh }: SidebarPr
         return 'TRASH'
       case 'settings':
         return 'SETTINGS'
+      case 'terminal':
+        return 'TERMINAL'
       default:
         return ''
     }

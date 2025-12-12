@@ -12,8 +12,9 @@
     "release": "node scripts/release.js",
     "download-restic": "node scripts/download-restic.js",
     "cli": "node cli/bluepdm.js",
-    "api": "node api/server.js",
-    "api:dev": "node --watch api/server.js"
+    "api": "npx tsx api/server.ts",
+    "api:dev": "npx tsx --watch api/server.ts",
+    "api:build": "npx tsc api/server.ts --outDir dist-api --esModuleInterop --module commonjs --target ES2020"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
@@ -23,6 +24,9 @@
     "chokidar": "^5.0.0",
     "clsx": "^2.0.0",
     "@fastify/cors": "^10.0.2",
+    "@fastify/rate-limit": "^10.2.1",
+    "@fastify/swagger": "^9.4.2",
+    "@fastify/swagger-ui": "^5.2.1",
     "date-fns": "^3.0.6",
     "electron-updater": "^6.3.9",
     "fastify": "^5.2.1",
@@ -35,6 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",

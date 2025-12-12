@@ -39,7 +39,11 @@ import {
   User,
   HardDrive,
   Filter,
-  Calendar
+  Calendar,
+  FileBox,
+  Plug,
+  Circle,
+  Activity
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { BackupPanel } from './BackupPanel'
@@ -60,7 +64,7 @@ function buildVaultPath(platform: string, vaultSlug: string): string {
   }
 }
 
-type SettingsTab = 'organization' | 'backup' | 'preferences' | 'logs' | 'about'
+type SettingsTab = 'organization' | 'backup' | 'api' | 'preferences' | 'logs' | 'about'
 
 interface OrgUser {
   id: string
@@ -70,6 +74,19 @@ interface OrgUser {
   role: string
   last_sign_in: string | null
 }
+
+interface ApiCallRecord {
+  id: string
+  timestamp: Date
+  method: string
+  endpoint: string
+  status: number
+  duration: number
+}
+
+const API_URL_KEY = 'bluepdm_api_url'
+const API_HISTORY_KEY = 'bluepdm_api_history'
+const DEFAULT_API_URL = 'http://127.0.0.1:3001'
 
 interface Vault {
   id: string
@@ -169,6 +186,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [pendingVaultAccess, setPendingVaultAccess] = useState<string[]>([])
   const [isSavingVaultAccess, setIsSavingVaultAccess] = useState(false)
   
+  // API state
+  const [apiToken, setApiToken] = useState<string | null>(null)
+  const [showApiToken, setShowApiToken] = useState(false)
+  const [apiTokenCopied, setApiTokenCopied] = useState(false)
+  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL)
+  const [editingApiUrl, setEditingApiUrl] = useState(false)
+  const [apiUrlInput, setApiUrlInput] = useState('')
+  const [apiStatus, setApiStatus] = useState<'unknown' | 'online' | 'offline' | 'checking'>('unknown')
+  const [apiVersion, setApiVersion] = useState<string | null>(null)
+  const [apiHistory, setApiHistory] = useState<ApiCallRecord[]>(() => {
+    try {
+      const stored = localStorage.getItem(API_HISTORY_KEY)
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+  const [lastApiCheck, setLastApiCheck] = useState<Date | null>(null)
+  
   // Get app version and platform
   useEffect(() => {
     if (window.electronAPI) {
@@ -176,6 +212,116 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       window.electronAPI.getPlatform().then(setPlatform)
     }
   }, [])
+  
+  // Get API token from Supabase session
+  useEffect(() => {
+    const getToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        setApiToken(session.access_token)
+      }
+    }
+    getToken()
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setApiToken(session?.access_token || null)
+    })
+    
+    return () => subscription.unsubscribe()
+  }, [])
+  
+  // Check API status when tab is selected
+  useEffect(() => {
+    if (activeTab === 'api') {
+      checkApiStatus()
+    }
+  }, [activeTab])
+  
+  const checkApiStatus = async () => {
+    setApiStatus('checking')
+    const start = Date.now()
+    try {
+      const response = await fetch(`${apiUrl}/health`, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(5000)
+      })
+      const duration = Date.now() - start
+      
+      if (response.ok) {
+        const data = await response.json()
+        setApiStatus('online')
+        setApiVersion(data.version || null)
+        addApiCall('GET', '/health', response.status, duration)
+      } else {
+        setApiStatus('offline')
+        addApiCall('GET', '/health', response.status, duration)
+      }
+    } catch {
+      setApiStatus('offline')
+      addApiCall('GET', '/health', 0, Date.now() - start)
+    }
+    setLastApiCheck(new Date())
+  }
+  
+  const addApiCall = (method: string, endpoint: string, status: number, duration: number) => {
+    const newCall: ApiCallRecord = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      method,
+      endpoint,
+      status,
+      duration
+    }
+    setApiHistory(prev => {
+      const updated = [newCall, ...prev].slice(0, 50)
+      localStorage.setItem(API_HISTORY_KEY, JSON.stringify(updated))
+      return updated
+    })
+  }
+  
+  const clearApiHistory = () => {
+    setApiHistory([])
+    localStorage.removeItem(API_HISTORY_KEY)
+  }
+  
+  const handleSaveApiUrl = () => {
+    const url = apiUrlInput.trim()
+    if (url) {
+      setApiUrl(url)
+      localStorage.setItem(API_URL_KEY, url)
+      // Save external URLs separately so we can toggle back to them
+      if (url !== 'http://127.0.0.1:3001') {
+        localStorage.setItem('bluepdm_external_api_url', url)
+      }
+    }
+    setEditingApiUrl(false)
+    setTimeout(checkApiStatus, 100)
+  }
+  
+  const handleCopyApiToken = async () => {
+    if (!apiToken) return
+    try {
+      await navigator.clipboard.writeText(apiToken)
+      setApiTokenCopied(true)
+      setTimeout(() => setApiTokenCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy token:', err)
+    }
+  }
+  
+  const testApiEndpoint = async (endpoint: string) => {
+    if (!apiToken) return
+    const start = Date.now()
+    try {
+      const response = await fetch(`${apiUrl}${endpoint}`, {
+        headers: { 'Authorization': `Bearer ${apiToken}` },
+        signal: AbortSignal.timeout(10000)
+      })
+      addApiCall('GET', endpoint, response.status, Date.now() - start)
+    } catch {
+      addApiCall('GET', endpoint, 0, Date.now() - start)
+    }
+  }
   
   // Load org users and vaults when organization tab is selected
   useEffect(() => {
@@ -948,6 +1094,7 @@ See you on the team!`
   const tabs = [
     { id: 'organization' as SettingsTab, icon: Building2, label: 'Organization' },
     { id: 'backup' as SettingsTab, icon: HardDrive, label: 'Backups' },
+    { id: 'api' as SettingsTab, icon: Plug, label: 'REST API' },
     { id: 'preferences' as SettingsTab, icon: Settings, label: 'Preferences' },
     { id: 'logs' as SettingsTab, icon: FileText, label: 'Logs' },
     { id: 'about' as SettingsTab, icon: Info, label: 'About' },
@@ -1560,6 +1707,346 @@ See you on the team!`
                   <div className="text-center py-12 text-pdm-fg-muted">
                     Connect to an organization to configure backups
                   </div>
+                )}
+              </div>
+            )}
+            
+            {activeTab === 'api' && (
+              <div className="p-6 space-y-6">
+                {user?.role !== 'admin' ? (
+                  <div className="text-center py-12">
+                    <Shield size={48} className="mx-auto text-pdm-fg-muted mb-4" />
+                    <h3 className="text-lg font-semibold text-pdm-fg mb-2">Admin Access Required</h3>
+                    <p className="text-sm text-pdm-fg-muted">
+                      REST API settings are only available to organization admins.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                <div>
+                  <h3 className="text-lg font-semibold text-pdm-fg mb-1">REST API</h3>
+                  <p className="text-sm text-pdm-fg-muted">
+                    Integration API for external systems like Odoo, SAP, CI/CD pipelines
+                  </p>
+                </div>
+                
+                {/* Environment Toggle */}
+                <div className="space-y-2">
+                  <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+                    Environment
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setApiUrl('http://127.0.0.1:3001')
+                        localStorage.setItem(API_URL_KEY, 'http://127.0.0.1:3001')
+                        setTimeout(checkApiStatus, 100)
+                      }}
+                      className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                        apiUrl === 'http://127.0.0.1:3001'
+                          ? 'bg-pdm-accent/20 border-pdm-accent text-pdm-fg'
+                          : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                      }`}
+                    >
+                      🖥️ Local Dev
+                      <div className="text-xs opacity-70">127.0.0.1:3001</div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const externalUrl = localStorage.getItem('bluepdm_external_api_url') || ''
+                        if (externalUrl) {
+                          setApiUrl(externalUrl)
+                          localStorage.setItem(API_URL_KEY, externalUrl)
+                          setTimeout(checkApiStatus, 100)
+                        } else {
+                          setEditingApiUrl(true)
+                          setApiUrlInput('https://')
+                        }
+                      }}
+                      className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                        apiUrl !== 'http://127.0.0.1:3001'
+                          ? 'bg-pdm-accent/20 border-pdm-accent text-pdm-fg'
+                          : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                      }`}
+                    >
+                      ☁️ External
+                      <div className="text-xs opacity-70 truncate">
+                        {apiUrl !== 'http://127.0.0.1:3001' ? new URL(apiUrl).host : 'Click to set'}
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Server Status */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+                      Server Status
+                    </label>
+                    <button
+                      onClick={checkApiStatus}
+                      disabled={apiStatus === 'checking'}
+                      className="text-xs text-pdm-fg-muted hover:text-pdm-fg flex items-center gap-1"
+                    >
+                      <RefreshCw size={12} className={apiStatus === 'checking' ? 'animate-spin' : ''} />
+                      Refresh
+                    </button>
+                  </div>
+                  <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-full ${
+                        apiStatus === 'online' ? 'bg-green-500/20' :
+                        apiStatus === 'offline' ? 'bg-red-500/20' :
+                        apiStatus === 'checking' ? 'bg-yellow-500/20' :
+                        'bg-pdm-fg-muted/20'
+                      }`}>
+                        {apiStatus === 'checking' ? (
+                          <Loader2 size={16} className="animate-spin text-yellow-400" />
+                        ) : (
+                          <Circle size={16} className={`${
+                            apiStatus === 'online' ? 'text-green-400 fill-green-400' :
+                            apiStatus === 'offline' ? 'text-red-400' :
+                            'text-pdm-fg-muted'
+                          }`} />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-pdm-fg">
+                          {apiStatus === 'online' && 'API Server Online'}
+                          {apiStatus === 'offline' && 'API Server Offline'}
+                          {apiStatus === 'checking' && 'Checking...'}
+                          {apiStatus === 'unknown' && 'Status Unknown'}
+                        </div>
+                        <div className="text-xs text-pdm-fg-muted">
+                          {apiVersion && `v${apiVersion} • `}
+                          {lastApiCheck && `Checked ${lastApiCheck.toLocaleTimeString()}`}
+                        </div>
+                      </div>
+                    </div>
+                    {(apiStatus === 'offline' || apiStatus === 'unknown') && (
+                      <div className="mt-3 space-y-3">
+                        <div className="p-3 bg-pdm-bg-secondary rounded-lg text-sm">
+                          <div className="font-medium text-pdm-fg mb-2">🚀 Deploy Your API Server</div>
+                          <div className="text-pdm-fg-muted text-xs space-y-2">
+                            <p>Each organization hosts their own API for ERP/Odoo integrations.</p>
+                            <div className="space-y-1">
+                              <div className="font-medium text-pdm-fg-dim">Quick Deploy (5 min):</div>
+                              <ol className="list-decimal list-inside space-y-1 text-pdm-fg-muted">
+                                <li>Go to <a href="https://railway.app/new" target="_blank" rel="noopener noreferrer" className="text-pdm-accent hover:underline">railway.app/new</a></li>
+                                <li>Select <strong>"Deploy from Docker Image"</strong></li>
+                                <li>Enter: <code className="bg-pdm-bg px-1 rounded">ghcr.io/bluerobotics/bluepdm-api:latest</code></li>
+                                <li>Add variables: <code className="bg-pdm-bg px-1 rounded">SUPABASE_URL</code> and <code className="bg-pdm-bg px-1 rounded">SUPABASE_KEY</code></li>
+                                <li>Deploy and copy your URL</li>
+                              </ol>
+                            </div>
+                            <div className="pt-2 border-t border-pdm-border mt-2">
+                              <div className="font-medium text-pdm-fg-dim mb-1">Supabase Credentials:</div>
+                              <p>Find these in <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-pdm-accent hover:underline">Supabase Dashboard</a> → Your Project → Settings → API</p>
+                            </div>
+                            <div className="pt-2 flex gap-3">
+                              <a 
+                                href="https://github.com/bluerobotics/blue-pdm/blob/main/api/README.md#deployment" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-pdm-accent hover:underline flex items-center gap-1"
+                              >
+                                <ExternalLink size={12} />
+                                Full guide
+                              </a>
+                              <a 
+                                href="https://railway.app/new" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-pdm-accent hover:underline flex items-center gap-1"
+                              >
+                                <ExternalLink size={12} />
+                                Railway
+                              </a>
+                              <a 
+                                href="https://render.com/deploy" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-pdm-accent hover:underline flex items-center gap-1"
+                              >
+                                <ExternalLink size={12} />
+                                Render
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-2 bg-pdm-highlight rounded text-xs text-pdm-fg-muted">
+                          <span className="font-medium">Local dev?</span> Run: <code className="bg-pdm-bg px-1 rounded">npm run api</code>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* API URL */}
+                <div className="space-y-2">
+                  <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+                    API URL
+                  </label>
+                  {editingApiUrl ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={apiUrlInput}
+                        onChange={(e) => setApiUrlInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveApiUrl()
+                          if (e.key === 'Escape') setEditingApiUrl(false)
+                        }}
+                        placeholder="http://127.0.0.1:3001"
+                        className="flex-1 bg-pdm-bg border border-pdm-border rounded px-3 py-2 text-sm font-mono"
+                        autoFocus
+                      />
+                      <button onClick={handleSaveApiUrl} className="px-4 py-2 bg-pdm-accent text-white rounded text-sm font-medium hover:bg-pdm-accent-hover">
+                        Save
+                      </button>
+                    </div>
+                  ) : (
+                    <div 
+                      className="p-3 bg-pdm-bg rounded-lg border border-pdm-border cursor-pointer hover:border-pdm-accent transition-colors"
+                      onClick={() => {
+                        setApiUrlInput(apiUrl)
+                        setEditingApiUrl(true)
+                      }}
+                    >
+                      <code className="text-sm text-pdm-fg font-mono">{apiUrl}</code>
+                    </div>
+                  )}
+                </div>
+                
+                {/* API Token */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+                    <Key size={12} />
+                    Access Token
+                  </div>
+                  {apiToken ? (
+                    <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border space-y-3">
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs font-mono text-pdm-fg-muted overflow-hidden text-ellipsis whitespace-nowrap">
+                          {showApiToken 
+                            ? apiToken 
+                            : `${apiToken.substring(0, 25)}${'•'.repeat(40)}`
+                          }
+                        </code>
+                        <button
+                          onClick={() => setShowApiToken(!showApiToken)}
+                          className="p-2 text-pdm-fg-muted hover:text-pdm-fg rounded transition-colors"
+                          title={showApiToken ? 'Hide token' : 'Show token'}
+                        >
+                          {showApiToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                        <button
+                          onClick={handleCopyApiToken}
+                          className={`p-2 rounded transition-colors ${
+                            apiTokenCopied 
+                              ? 'text-green-400 bg-green-400/10' 
+                              : 'text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-highlight'
+                          }`}
+                          title="Copy token"
+                        >
+                          {apiTokenCopied ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      </div>
+                      <div className="text-xs text-pdm-fg-muted bg-pdm-bg-secondary p-2 rounded font-mono">
+                        curl -H "Authorization: Bearer $TOKEN" {apiUrl}/files
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border text-sm text-pdm-fg-muted">
+                      Sign in to get an API token
+                    </div>
+                  )}
+                </div>
+                
+                {/* Quick Test */}
+                {apiToken && apiStatus === 'online' && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+                      Quick Test
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {['/vaults', '/files?limit=5', '/checkouts', '/activity?limit=5', '/parts'].map(endpoint => (
+                        <button
+                          key={endpoint}
+                          onClick={() => testApiEndpoint(endpoint)}
+                          className="px-3 py-1.5 text-xs bg-pdm-bg border border-pdm-border rounded hover:border-pdm-accent transition-colors font-mono"
+                        >
+                          GET {endpoint}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* API Call History */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+                      <Activity size={12} />
+                      Recent API Calls
+                    </div>
+                    {apiHistory.length > 0 && (
+                      <button
+                        onClick={clearApiHistory}
+                        className="text-xs text-pdm-fg-muted hover:text-pdm-error flex items-center gap-1"
+                      >
+                        <Trash2 size={12} />
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="bg-pdm-bg rounded-lg border border-pdm-border overflow-hidden">
+                    {apiHistory.length === 0 ? (
+                      <div className="p-4 text-sm text-pdm-fg-muted text-center">
+                        No API calls recorded
+                      </div>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto">
+                        {apiHistory.slice(0, 20).map(call => (
+                          <div 
+                            key={call.id}
+                            className="flex items-center gap-2 px-3 py-2 border-b border-pdm-border last:border-0 text-xs"
+                          >
+                            <span className={`px-1.5 py-0.5 rounded font-medium ${
+                              call.status >= 200 && call.status < 300 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : call.status === 0
+                                ? 'bg-red-500/20 text-red-400'
+                                : 'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {call.status || 'ERR'}
+                            </span>
+                            <span className="text-pdm-fg-muted">{call.method}</span>
+                            <span className="text-pdm-fg font-mono flex-1 truncate">{call.endpoint}</span>
+                            <span className="text-pdm-fg-muted flex items-center gap-1">
+                              <Clock size={10} />
+                              {call.duration}ms
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Documentation Link */}
+                <div className="pt-2 flex gap-4">
+                  <a
+                    href={`${apiUrl}/docs`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-pdm-accent hover:underline"
+                  >
+                    <ExternalLink size={14} />
+                    Open API Documentation (Swagger)
+                  </a>
+                </div>
+                  </>
                 )}
               </div>
             )}

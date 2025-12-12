@@ -3,7 +3,8 @@ import {
   ArrowDownUp, 
   History, 
   Search,
-  Trash2
+  Trash2,
+  Terminal
 } from 'lucide-react'
 import { usePDMStore, SidebarView } from '../stores/pdmStore'
 
@@ -64,6 +65,15 @@ export function ActivityBar() {
       </div>
       
       <div className="flex-1" />
+      
+      {/* Terminal at the bottom */}
+      <div className="flex flex-col">
+        <ActivityItem
+          icon={<Terminal size={24} />}
+          view="terminal"
+          title="Terminal (Ctrl+`)"
+        />
+      </div>
     </div>
   )
 }

@@ -11,7 +11,7 @@ function buildFullPath(vaultPath: string, relativePath: string): string {
   return `${vaultPath}${sep}${normalizedRelative}`
 }
 
-export type SidebarView = 'explorer' | 'pending' | 'history' | 'search' | 'trash' | 'settings'
+export type SidebarView = 'explorer' | 'pending' | 'history' | 'search' | 'trash' | 'settings' | 'terminal'
 export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history'
 export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress' | 'update'
