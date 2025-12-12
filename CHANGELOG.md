@@ -2,6 +2,13 @@
 
 All notable changes to BluePDM will be documented in this file.
 
+## [2.1.1] - 2025-12-12
+
+### Fixed
+- **Auto-Updater**: Fixed check for updates by including `latest.yml` in GitHub release artifacts
+
+---
+
 ## [2.1.0] - 2025-12-12
 
 ### Added
