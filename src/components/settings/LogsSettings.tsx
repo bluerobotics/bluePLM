@@ -221,13 +221,13 @@ export function LogsSettings() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setSelectedLogFile(null)}
-            className="flex items-center gap-1.5 text-sm text-pdm-accent hover:underline"
+            className="flex items-center gap-1.5 text-base text-pdm-accent hover:underline"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={18} />
             Back to log files
           </button>
-          <span className="text-sm text-pdm-fg-muted">|</span>
-          <span className="text-sm text-pdm-fg">{selectedLogFile.name}</span>
+          <span className="text-base text-pdm-fg-muted">|</span>
+          <span className="text-base text-pdm-fg">{selectedLogFile.name}</span>
         </div>
         
         {isLoadingLogContent ? (
@@ -235,7 +235,7 @@ export function LogsSettings() {
             <Loader2 className="animate-spin text-pdm-fg-muted" size={24} />
           </div>
         ) : (
-          <pre className="flex-1 p-4 bg-pdm-bg rounded-lg border border-pdm-border text-xs font-mono text-pdm-fg overflow-auto whitespace-pre-wrap">
+          <pre className="flex-1 p-4 bg-pdm-bg rounded-lg border border-pdm-border text-sm font-mono text-pdm-fg overflow-auto whitespace-pre-wrap">
             {selectedLogFile.content}
           </pre>
         )}
@@ -254,7 +254,7 @@ export function LogsSettings() {
             className="p-1 text-pdm-fg-muted hover:text-pdm-fg"
             title={allFilteredSelected ? 'Deselect all' : 'Select all'}
           >
-            {allFilteredSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+            {allFilteredSelected ? <CheckSquare size={20} /> : <Square size={20} />}
           </button>
           
           {/* Bulk actions */}
@@ -263,18 +263,18 @@ export function LogsSettings() {
               <button
                 onClick={bulkCopyLogs}
                 disabled={isBulkCopying}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-fg-muted transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-fg-muted transition-colors"
               >
-                {isBulkCopying ? <Loader2 size={12} className="animate-spin" /> : <Copy size={12} />}
+                {isBulkCopying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
                 Copy ({selectedLogPaths.size})
               </button>
               {deletableSelectedCount > 0 && (
                 <button
                   onClick={bulkDeleteLogs}
                   disabled={isBulkDeleting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-pdm-error/10 text-pdm-error border border-pdm-error/20 rounded-lg hover:bg-pdm-error/20 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-pdm-error/10 text-pdm-error border border-pdm-error/20 rounded-lg hover:bg-pdm-error/20 transition-colors"
                 >
-                  {isBulkDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  {isBulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   Delete ({deletableSelectedCount})
                 </button>
               )}
@@ -286,11 +286,11 @@ export function LogsSettings() {
         <div className="relative">
           <button
             onClick={() => setLogFilterDropdownOpen(!logFilterDropdownOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-fg-muted transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-base bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-fg-muted transition-colors"
           >
-            <Filter size={14} />
+            <Filter size={16} />
             {logFilter === 'today' ? 'Today' : logFilter === 'week' ? 'This Week' : 'All Time'}
-            <ChevronDown size={14} />
+            <ChevronDown size={16} />
           </button>
           {logFilterDropdownOpen && (
             <div className="absolute right-0 mt-1 w-36 bg-pdm-bg border border-pdm-border rounded-lg shadow-lg z-10">
@@ -301,7 +301,7 @@ export function LogsSettings() {
                     setLogFilter(filter)
                     setLogFilterDropdownOpen(false)
                   }}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-pdm-highlight transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                  className={`w-full text-left px-3 py-2 text-base hover:bg-pdm-highlight transition-colors first:rounded-t-lg last:rounded-b-lg ${
                     logFilter === filter ? 'text-pdm-accent' : 'text-pdm-fg'
                   }`}
                 >
@@ -317,7 +317,7 @@ export function LogsSettings() {
       {filteredLogFiles.length === 0 ? (
         <div className="text-center py-12">
           <FileText size={40} className="mx-auto mb-4 text-pdm-fg-muted opacity-50" />
-          <p className="text-sm text-pdm-fg-muted">No log files found</p>
+          <p className="text-base text-pdm-fg-muted">No log files found</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -334,7 +334,7 @@ export function LogsSettings() {
                 }}
                 className="text-pdm-fg-muted hover:text-pdm-fg"
               >
-                {selectedLogPaths.has(file.path) ? <CheckSquare size={18} /> : <Square size={18} />}
+                {selectedLogPaths.has(file.path) ? <CheckSquare size={20} /> : <Square size={20} />}
               </button>
               
               {/* File info */}
@@ -342,19 +342,19 @@ export function LogsSettings() {
                 onClick={() => viewLogFile(file)}
                 className="flex-1 flex items-center gap-3 text-left min-w-0"
               >
-                <FileText size={18} className={file.isCurrentSession ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                <FileText size={20} className={file.isCurrentSession ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-pdm-fg truncate">{file.name}</span>
+                    <span className="text-base text-pdm-fg truncate">{file.name}</span>
                     {file.isCurrentSession && (
-                      <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-xs rounded flex-shrink-0">
+                      <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-sm rounded flex-shrink-0">
                         Current
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-pdm-fg-muted">
+                  <div className="flex items-center gap-3 text-sm text-pdm-fg-muted">
                     <span className="flex items-center gap-1">
-                      <Calendar size={10} />
+                      <Calendar size={12} />
                       {new Date(file.modifiedTime).toLocaleDateString()}
                     </span>
                     <span>{formatFileSize(file.size)}</span>

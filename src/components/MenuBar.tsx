@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { LogOut, ChevronDown, Building2, Settings, Search, File, Folder, LayoutGrid } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { LogOut, ChevronDown, Building2, Settings, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
 import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization } from '../lib/supabase'
 import { SettingsModal } from './SettingsModal'
@@ -29,11 +29,29 @@ interface MenuBarProps {
 }
 
 export function MenuBar({ minimal = false }: MenuBarProps) {
-  const { user, organization, setUser, setOrganization, addToast, setSearchQuery, searchQuery, searchType, setSearchType } = usePDMStore()
+  const { 
+    user, 
+    organization, 
+    setUser, 
+    setOrganization, 
+    addToast, 
+    setSearchQuery, 
+    searchQuery, 
+    searchType, 
+    setSearchType,
+    connectedVaults,
+    activeVaultId,
+    switchVault
+  } = usePDMStore()
   const [appVersion, setAppVersion] = useState('')
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showVaultDropdown, setShowVaultDropdown] = useState(false)
+  const [showZoomDropdown, setShowZoomDropdown] = useState(false)
+  const [zoomFactor, setZoomFactor] = useState(1)
+  const vaultDropdownRef = useRef<HTMLDivElement>(null)
+  const zoomDropdownRef = useRef<HTMLDivElement>(null)
   const [titleBarPadding, setTitleBarPadding] = useState(140) // Default fallback
   const [platform, setPlatform] = useState<string>('win32') // Default to Windows
   const [localSearch, setLocalSearch] = useState(searchQuery || '')
@@ -42,29 +60,67 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const menuBarRef = useRef<HTMLDivElement>(null)
 
-  // Close menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setShowUserMenu(false)
       }
+      if (vaultDropdownRef.current && !vaultDropdownRef.current.contains(e.target as Node)) {
+        setShowVaultDropdown(false)
+      }
+      if (zoomDropdownRef.current && !zoomDropdownRef.current.contains(e.target as Node)) {
+        setShowZoomDropdown(false)
+      }
     }
-    if (showUserMenu) {
+    if (showUserMenu || showVaultDropdown || showZoomDropdown) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showUserMenu])
+  }, [showUserMenu, showVaultDropdown, showZoomDropdown])
 
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.getVersion().then(setAppVersion)
       window.electronAPI.getPlatform().then(setPlatform)
+      window.electronAPI.getZoomFactor?.().then(z => setZoomFactor(z || 1))
       // Get the actual titlebar overlay rect
       window.electronAPI.getTitleBarOverlayRect?.().then((rect) => {
         if (rect?.width) {
           setTitleBarPadding(rect.width + 8) // Add small margin
         }
       })
+    }
+  }, [])
+  
+  // Zoom handlers
+  const handleZoomIn = useCallback(async () => {
+    const newZoom = Math.min(2.0, zoomFactor + 0.1)
+    const result = await window.electronAPI?.setZoomFactor?.(newZoom)
+    if (result?.success && result.factor) {
+      setZoomFactor(result.factor)
+    }
+  }, [zoomFactor])
+  
+  const handleZoomOut = useCallback(async () => {
+    const newZoom = Math.max(0.5, zoomFactor - 0.1)
+    const result = await window.electronAPI?.setZoomFactor?.(newZoom)
+    if (result?.success && result.factor) {
+      setZoomFactor(result.factor)
+    }
+  }, [zoomFactor])
+  
+  const handleResetZoom = useCallback(async () => {
+    const result = await window.electronAPI?.setZoomFactor?.(1)
+    if (result?.success && result.factor) {
+      setZoomFactor(result.factor)
+    }
+  }, [])
+  
+  const handleSliderChange = useCallback(async (value: number) => {
+    const result = await window.electronAPI?.setZoomFactor?.(value)
+    if (result?.success && result.factor) {
+      setZoomFactor(result.factor)
     }
   }, [])
 
@@ -152,38 +208,97 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
 
   return (
     <div ref={menuBarRef} className="h-[38px] bg-pdm-activitybar border-b border-pdm-border select-none flex-shrink-0 titlebar-drag-region relative">
-      {/* Left side - App name (add padding on macOS for window buttons) */}
+      {/* Left side - Logo, Organization, and Vault (add padding on macOS for window buttons) */}
       <div 
         className="absolute left-0 top-0 h-full flex items-center"
         style={{ paddingLeft: platform === 'darwin' ? 72 : 0 }}
       >
-        <div className="flex items-center gap-2 px-4 titlebar-no-drag">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-pdm-accent">
-            <path 
-              d="M12 2L2 7L12 12L22 7L12 2Z" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            />
-            <path 
-              d="M2 17L12 22L22 17" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            />
-            <path 
-              d="M2 12L12 17L22 12" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span className="text-sm font-semibold text-pdm-fg">BluePDM</span>
-          {appVersion && (
-            <span className="text-xs text-pdm-fg-muted">v{appVersion}</span>
+        <div className="flex items-center gap-1 px-3 titlebar-no-drag">
+          {/* BluePDM Logo */}
+          <div className="flex items-center justify-center w-7 h-7 rounded hover:bg-pdm-bg-lighter transition-colors" title="BluePDM">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-pdm-accent">
+              <path 
+                d="M12 2L2 7L12 12L22 7L12 2Z" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              />
+              <path 
+                d="M2 17L12 22L22 17" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              />
+              <path 
+                d="M2 12L12 17L22 12" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          
+          {/* Separator */}
+          {!minimal && organization && <div className="w-px h-4 bg-pdm-border mx-1" />}
+          
+          {/* Organization (no dropdown for now - single org per user) */}
+          {!minimal && organization && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded text-sm text-pdm-fg-dim">
+              <Building2 size={14} className="text-pdm-fg-muted" />
+              <span className="max-w-[120px] truncate">{organization.name}</span>
+            </div>
+          )}
+          
+          {/* Separator */}
+          {!minimal && connectedVaults.length > 0 && <div className="w-px h-4 bg-pdm-border mx-1" />}
+          
+          {/* Vault Dropdown */}
+          {!minimal && connectedVaults.length > 0 && (
+            <div className="relative" ref={vaultDropdownRef}>
+              <button
+                onClick={() => setShowVaultDropdown(!showVaultDropdown)}
+                className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-pdm-bg-lighter transition-colors text-sm"
+              >
+                <Database size={14} className="text-pdm-fg-muted" />
+                <span className="text-pdm-fg max-w-[140px] truncate">
+                  {connectedVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
+                </span>
+                {connectedVaults.length > 1 && (
+                  <ChevronDown size={12} className={`text-pdm-fg-muted transition-transform ${showVaultDropdown ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+              
+              {/* Vault Dropdown Menu */}
+              {showVaultDropdown && connectedVaults.length > 1 && (
+                <div className="absolute left-0 top-full mt-1 w-56 bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl overflow-hidden z-50">
+                  <div className="py-1">
+                    {connectedVaults.map(vault => (
+                      <button
+                        key={vault.id}
+                        onClick={() => {
+                          switchVault(vault.id, vault.localPath)
+                          setShowVaultDropdown(false)
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                          vault.id === activeVaultId 
+                            ? 'bg-pdm-accent/10 text-pdm-accent' 
+                            : 'text-pdm-fg hover:bg-pdm-bg-lighter'
+                        }`}
+                      >
+                        <Database size={14} className={vault.id === activeVaultId ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                        <div className="flex-1 text-left truncate">{vault.name}</div>
+                        {vault.id === activeVaultId && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-pdm-accent" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -276,6 +391,74 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         
         {/* Separator */}
         {!minimal && <div className="w-px h-4 bg-pdm-border" />}
+        
+        {/* Zoom dropdown - hidden on welcome/signin screens */}
+        {!minimal && (
+          <div className="relative" ref={zoomDropdownRef}>
+            <button
+              onClick={() => setShowZoomDropdown(!showZoomDropdown)}
+              className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-pdm-bg-lighter transition-colors text-pdm-fg-muted hover:text-pdm-fg"
+              title={`Zoom: ${Math.round(zoomFactor * 100)}%`}
+            >
+              <ZoomIn size={16} />
+              <span className="text-[10px] min-w-[28px] text-center">{Math.round(zoomFactor * 100)}%</span>
+            </button>
+            
+            {/* Zoom Dropdown */}
+            {showZoomDropdown && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl overflow-hidden z-50">
+                <div className="p-3">
+                  {/* Zoom label and reset */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs text-pdm-fg-dim">Zoom</span>
+                    <button
+                      onClick={handleResetZoom}
+                      className="flex items-center gap-1 text-[10px] text-pdm-fg-muted hover:text-pdm-accent transition-colors"
+                      title="Reset to 100%"
+                    >
+                      <RotateCcw size={10} />
+                      Reset
+                    </button>
+                  </div>
+                  
+                  {/* Slider with +/- buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleZoomOut}
+                      className="p-1 rounded hover:bg-pdm-bg-lighter text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                      title="Zoom Out"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2"
+                      step="0.1"
+                      value={zoomFactor}
+                      onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
+                      className="flex-1 h-1.5 bg-pdm-border rounded-full appearance-none cursor-pointer accent-pdm-accent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-pdm-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
+                    />
+                    
+                    <button
+                      onClick={handleZoomIn}
+                      className="p-1 rounded hover:bg-pdm-bg-lighter text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                      title="Zoom In"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  
+                  {/* Current percentage */}
+                  <div className="text-center mt-2">
+                    <span className="text-sm font-medium text-pdm-fg">{Math.round(zoomFactor * 100)}%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Settings gear - hidden on welcome/signin screens */}
         {!minimal && (

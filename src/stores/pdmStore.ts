@@ -28,6 +28,8 @@ export type SidebarView =
   | 'schedule'   // ECO schedule
   | 'reviews'    // Gate approvals & reviews
   | 'gsd'        // ECO summary (Getting Stuff Done)
+  | 'suppliers'  // Supplier database
+  | 'supplier-portal'  // Supplier portal
   | 'google-drive' // Google Drive integration
   | 'integrations' // Slack, Odoo integrations
   // System
@@ -35,6 +37,8 @@ export type SidebarView =
 export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history'
 export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress' | 'update'
+export type ThemeMode = 'dark' | 'deep-blue' | 'light' | 'system'
+export type Language = 'en' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ja' | 'zh-CN' | 'zh-TW' | 'ko' | 'nl' | 'sv' | 'pl' | 'ru'
 export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud' | 'cloud_new' | 'moved' | 'ignored' | 'deleted_remote'
 
 // Connected vault - an org vault that's connected locally
@@ -242,6 +246,8 @@ interface PDMState {
   viewMode: 'list' | 'icons'    // File browser view mode
   iconSize: number              // Icon size for icon view (48-256 pixels)
   listRowSize: number           // Row height for list view (16-64 pixels)
+  theme: ThemeMode              // Theme: dark, light, blue, or system
+  language: Language            // UI language
   
   // Pinned items (quick access)
   pinnedFolders: { path: string; vaultId: string; vaultName: string; isDirectory: boolean }[]
@@ -274,6 +280,14 @@ interface PDMState {
   
   // Orphaned checkouts (files force-checked-in from another machine)
   orphanedCheckouts: OrphanedCheckout[]
+  
+  // Onboarding (first app boot)
+  onboardingComplete: boolean
+  logSharingEnabled: boolean
+  
+  // Actions - Onboarding
+  completeOnboarding: () => void
+  setLogSharingEnabled: (enabled: boolean) => void
   
   // Actions - Toasts
   addToast: (type: ToastType, message: string, duration?: number) => void
@@ -317,6 +331,8 @@ interface PDMState {
   setViewMode: (mode: 'list' | 'icons') => void
   setIconSize: (size: number) => void
   setListRowSize: (size: number) => void
+  setTheme: (theme: ThemeMode) => void
+  setLanguage: (language: Language) => void
   
   // Actions - Pinned items
   pinFolder: (path: string, vaultId: string, vaultName: string, isDirectory: boolean) => void
@@ -485,6 +501,10 @@ export const usePDMStore = create<PDMState>()(
       isOfflineMode: false,
       isConnecting: false,
       
+      // Onboarding (first app boot)
+      onboardingComplete: false,
+      logSharingEnabled: false,
+      
       vaultPath: null,
       vaultName: null,
       isVaultConnected: false,
@@ -565,6 +585,8 @@ export const usePDMStore = create<PDMState>()(
       viewMode: 'list',
       iconSize: 96,  // Default icon size (medium)
       listRowSize: 24, // Default list row height
+      theme: 'dark',  // Default theme
+      language: 'en',  // Default language
       pinnedFolders: [],
       pinnedSectionExpanded: true,
       processingFolders: new Set(),
@@ -644,6 +666,10 @@ export const usePDMStore = create<PDMState>()(
         set(state => ({ toasts: state.toasts.filter(t => t.id !== 'update-available') }))
       },
       
+      // Actions - Onboarding
+      completeOnboarding: () => set({ onboardingComplete: true }),
+      setLogSharingEnabled: (logSharingEnabled) => set({ logSharingEnabled }),
+      
       // Actions - Auth
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setOrganization: (organization) => set({ organization, isConnecting: false }),  // Clear connecting state when org loads
@@ -668,6 +694,8 @@ export const usePDMStore = create<PDMState>()(
       setViewMode: (viewMode) => set({ viewMode }),
       setIconSize: (iconSize) => set({ iconSize: Math.max(48, Math.min(256, iconSize)) }),
       setListRowSize: (listRowSize) => set({ listRowSize: Math.max(16, Math.min(64, listRowSize)) }),
+      setTheme: (theme) => set({ theme }),
+      setLanguage: (language) => set({ language }),
       
       // Actions - Pinned items
       pinFolder: (path, vaultId, vaultName, isDirectory) => {
@@ -1451,6 +1479,8 @@ export const usePDMStore = create<PDMState>()(
         viewMode: state.viewMode,
         iconSize: state.iconSize,
         listRowSize: state.listRowSize,
+        theme: state.theme,
+        language: state.language,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         connectedVaults: state.connectedVaults,
@@ -1528,6 +1558,10 @@ export const usePDMStore = create<PDMState>()(
           iconSize: (persisted.iconSize as number) || 96,
           // Ensure listRowSize has a default
           listRowSize: (persisted.listRowSize as number) || 24,
+          // Ensure theme has a default
+          theme: (persisted.theme as ThemeMode) || 'dark',
+          // Ensure language has a default
+          language: (persisted.language as Language) || 'en',
           // Ensure columns have all fields
           columns: currentState.columns.map(defaultCol => {
             const persistedCol = (persisted.columns as ColumnConfig[] || [])

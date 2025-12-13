@@ -77,7 +77,7 @@ export function IntegrationsSettings() {
     return (
       <div className="text-center py-12">
         <Puzzle size={40} className="mx-auto mb-4 text-pdm-fg-muted opacity-50" />
-        <p className="text-sm text-pdm-fg-muted">
+        <p className="text-base text-pdm-fg-muted">
           Only administrators can manage integrations.
         </p>
       </div>
@@ -93,8 +93,8 @@ export function IntegrationsSettings() {
             <HardDrive size={24} className="text-pdm-accent" />
           </div>
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-pdm-fg">Google Drive</h3>
-            <p className="text-xs text-pdm-fg-muted">
+            <h3 className="text-base font-medium text-pdm-fg">Google Drive</h3>
+            <p className="text-sm text-pdm-fg-muted">
               Allow org members to connect their Google Drive
             </p>
           </div>
@@ -104,7 +104,7 @@ export function IntegrationsSettings() {
         <div className="space-y-4 p-4 bg-pdm-bg rounded-lg border border-pdm-border">
           {/* Enable toggle */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-pdm-fg">Enable Google Drive</span>
+            <span className="text-base text-pdm-fg">Enable Google Drive</span>
             <button
               onClick={() => setGdriveEnabled(!gdriveEnabled)}
               className={`w-11 h-6 rounded-full transition-colors relative ${
@@ -121,26 +121,26 @@ export function IntegrationsSettings() {
             <>
               {/* Client ID */}
               <div className="space-y-2">
-                <label className="text-xs text-pdm-fg-muted">Client ID</label>
+                <label className="text-sm text-pdm-fg-muted">Client ID</label>
                 <input
                   type="text"
                   value={gdriveClientId}
                   onChange={(e) => setGdriveClientId(e.target.value)}
                   placeholder="xxxxxxx.apps.googleusercontent.com"
-                  className="w-full px-3 py-2 text-sm bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
+                  className="w-full px-3 py-2 text-base bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
                 />
               </div>
               
               {/* Client Secret */}
               <div className="space-y-2">
-                <label className="text-xs text-pdm-fg-muted">Client Secret</label>
+                <label className="text-sm text-pdm-fg-muted">Client Secret</label>
                 <div className="relative">
                   <input
                     type={showGdriveSecret ? 'text' : 'password'}
                     value={gdriveClientSecret}
                     onChange={(e) => setGdriveClientSecret(e.target.value)}
                     placeholder="GOCSPX-xxxxxxxxxxxx"
-                    className="w-full px-3 py-2 pr-10 text-sm bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
+                    className="w-full px-3 py-2 pr-10 text-base bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
                   />
                   <button
                     type="button"
@@ -154,8 +154,8 @@ export function IntegrationsSettings() {
               
               {/* Help text */}
               <div className="p-4 bg-pdm-sidebar rounded-lg">
-                <p className="text-xs text-pdm-fg-muted font-medium mb-2">Setup instructions:</p>
-                <ol className="text-xs text-pdm-fg-muted space-y-1 list-decimal list-inside">
+                <p className="text-sm text-pdm-fg-muted font-medium mb-2">Setup instructions:</p>
+                <ol className="text-sm text-pdm-fg-muted space-y-1 list-decimal list-inside">
                   <li>
                     Go to{' '}
                     <a 
@@ -178,7 +178,7 @@ export function IntegrationsSettings() {
               <button
                 onClick={saveGdriveSettings}
                 disabled={isSavingGdrive}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-pdm-accent text-white rounded-lg hover:bg-pdm-accent/90 transition-colors disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-pdm-accent text-white rounded-lg hover:bg-pdm-accent/90 transition-colors disabled:opacity-50"
               >
                 {isSavingGdrive ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -194,7 +194,7 @@ export function IntegrationsSettings() {
       
       {/* More integrations placeholder */}
       <div className="pt-4 border-t border-pdm-border">
-        <p className="text-sm text-pdm-fg-muted text-center">
+        <p className="text-base text-pdm-fg-muted text-center">
           More integrations coming soon...
         </p>
       </div>

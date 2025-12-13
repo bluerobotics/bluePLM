@@ -17,7 +17,7 @@ export function VaultSettings() {
 
   if (!vaultPath) {
     return (
-      <div className="text-center py-12 text-pdm-fg-muted text-sm">
+      <div className="text-center py-12 text-pdm-fg-muted text-base">
         No vault connected
       </div>
     )
@@ -27,7 +27,7 @@ export function VaultSettings() {
     <div className="space-y-6">
       {/* Vault name */}
       <div className="space-y-2">
-        <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
           Vault Name
         </label>
         {editingVaultName ? (
@@ -40,7 +40,7 @@ export function VaultSettings() {
                 if (e.key === 'Enter') handleSaveVaultName()
                 if (e.key === 'Escape') setEditingVaultName(false)
               }}
-              className="flex-1 bg-pdm-bg border border-pdm-border rounded-lg px-3 py-2 text-sm focus:border-pdm-accent focus:outline-none"
+              className="flex-1 bg-pdm-bg border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
               autoFocus
             />
             <button onClick={handleSaveVaultName} className="btn btn-primary btn-sm">
@@ -61,19 +61,19 @@ export function VaultSettings() {
               setEditingVaultName(true)
             }}
           >
-            <span className="text-sm text-pdm-fg">{displayName}</span>
-            <span className="text-xs text-pdm-fg-dim ml-2">(click to edit)</span>
+            <span className="text-base text-pdm-fg">{displayName}</span>
+            <span className="text-sm text-pdm-fg-dim ml-2">(click to edit)</span>
           </div>
         )}
       </div>
 
       {/* Vault path */}
       <div className="space-y-2">
-        <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
           Local Path
         </label>
         <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
-          <span className="text-sm text-pdm-fg-dim font-mono break-all">
+          <span className="text-base text-pdm-fg-dim font-mono break-all">
             {vaultPath}
           </span>
         </div>

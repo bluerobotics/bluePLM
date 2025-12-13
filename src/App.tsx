@@ -11,7 +11,7 @@ import { ActivityBar } from './components/ActivityBar'
 import { Sidebar } from './components/Sidebar'
 import { FileBrowser } from './components/FileBrowser'
 import { DetailsPanel } from './components/DetailsPanel'
-import { StatusBar } from './components/StatusBar'
+// StatusBar removed - zoom now in MenuBar
 import { WelcomeScreen } from './components/WelcomeScreen'
 import { SetupScreen } from './components/SetupScreen'
 import { Toast } from './components/Toast'
@@ -29,7 +29,54 @@ function buildFullPath(vaultPath: string, relativePath: string): string {
   return `${vaultPath}${sep}${normalizedRelative}`
 }
 
+// Titlebar overlay colors for each theme
+const titleBarOverlayColors: Record<string, { color: string; symbolColor: string }> = {
+  'dark': { color: '#181818', symbolColor: '#cccccc' },
+  'deep-blue': { color: '#071320', symbolColor: '#e3f2fd' },
+  'light': { color: '#f0f0f0', symbolColor: '#333333' },
+}
+
+// Apply theme to document and update titlebar overlay
+function useTheme() {
+  const theme = usePDMStore(s => s.theme)
+  
+  useEffect(() => {
+    // Determine the actual theme to apply
+    let effectiveTheme: string = theme
+    
+    if (theme === 'system') {
+      // Check system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      effectiveTheme = prefersDark ? 'dark' : 'light'
+    }
+    
+    // Apply theme to document
+    document.documentElement.setAttribute('data-theme', effectiveTheme)
+    
+    // Update titlebar overlay colors (Windows only)
+    const overlayColors = titleBarOverlayColors[effectiveTheme] || titleBarOverlayColors['dark']
+    window.electronAPI?.setTitleBarOverlay?.(overlayColors)
+    
+    // Listen for system preference changes when using system theme
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      const handleChange = (e: MediaQueryListEvent) => {
+        const newTheme = e.matches ? 'dark' : 'light'
+        document.documentElement.setAttribute('data-theme', newTheme)
+        // Also update titlebar overlay
+        const colors = titleBarOverlayColors[newTheme] || titleBarOverlayColors['dark']
+        window.electronAPI?.setTitleBarOverlay?.(colors)
+      }
+      mediaQuery.addEventListener('change', handleChange)
+      return () => mediaQuery.removeEventListener('change', handleChange)
+    }
+  }, [theme])
+}
+
 function App() {
+  // Apply theme
+  useTheme()
+  
   const {
     user,
     organization,
@@ -1340,13 +1387,16 @@ function App() {
               settingsTab={settingsTab}
               onSettingsTabChange={setSettingsTab}
             />
-            <div
-              className="w-1.5 bg-pdm-border hover:bg-pdm-accent cursor-col-resize transition-colors flex-shrink-0 relative group"
-              onMouseDown={() => setIsResizingSidebar(true)}
-            >
-              {/* Wider invisible hit area for easier grabbing */}
-              <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
-            </div>
+            {/* Hide resize handle for settings view (fixed width) */}
+            {activeView !== 'settings' && (
+              <div
+                className="w-1.5 bg-pdm-border hover:bg-pdm-accent cursor-col-resize transition-colors flex-shrink-0 relative group"
+                onMouseDown={() => setIsResizingSidebar(true)}
+              >
+                {/* Wider invisible hit area for easier grabbing */}
+                <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
+              </div>
+            )}
           </>
         )}
 
@@ -1400,7 +1450,6 @@ function App() {
         )}
       </div>
 
-      <StatusBar />
       <Toast />
       
       {/* Orphaned Checkouts Dialog */}

@@ -591,7 +591,7 @@ See you on the team!`
 
   if (!organization) {
     return (
-      <div className="text-center py-12 text-pdm-fg-muted">
+      <div className="text-center py-12 text-pdm-fg-muted text-base">
         No organization connected
       </div>
     )
@@ -602,10 +602,10 @@ See you on the team!`
       {/* Organization info */}
       <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
         <div className="flex items-center gap-3 mb-2">
-          <Building2 size={22} className="text-pdm-accent" />
-          <span className="text-lg font-medium text-pdm-fg">{organization.name}</span>
+          <Building2 size={24} className="text-pdm-accent" />
+          <span className="text-xl font-medium text-pdm-fg">{organization.name}</span>
         </div>
-        <div className="text-sm text-pdm-fg-muted mb-4">
+        <div className="text-base text-pdm-fg-muted mb-4">
           Email domains: {organization.email_domains?.join(', ')}
         </div>
         
@@ -615,16 +615,16 @@ See you on the team!`
             {showOrgCode && orgCode ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-pdm-fg-muted uppercase tracking-wide">Organization Code</span>
+                  <span className="text-sm text-pdm-fg-muted uppercase tracking-wide">Organization Code</span>
                   <button
                     onClick={() => setShowOrgCode(false)}
-                    className="text-xs text-pdm-fg-muted hover:text-pdm-fg"
+                    className="text-sm text-pdm-fg-muted hover:text-pdm-fg"
                   >
                     Hide
                   </button>
                 </div>
                 <div className="relative">
-                  <div className="font-mono text-xs bg-pdm-bg-secondary border border-pdm-border rounded-lg p-3 pr-12 break-all text-pdm-fg max-h-24 overflow-y-auto">
+                  <div className="font-mono text-sm bg-pdm-bg-secondary border border-pdm-border rounded-lg p-3 pr-12 break-all text-pdm-fg max-h-24 overflow-y-auto">
                     {orgCode}
                   </div>
                   <button
@@ -647,7 +647,7 @@ See you on the team!`
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-pdm-fg-dim">
+                <p className="text-sm text-pdm-fg-dim">
                   Share with team members to connect to your organization.
                 </p>
               </div>
@@ -661,9 +661,9 @@ See you on the team!`
                     setShowOrgCode(true)
                   }
                 }}
-                className="flex items-center gap-2 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                className="flex items-center gap-2 text-base text-pdm-fg-muted hover:text-pdm-fg transition-colors"
               >
-                <Key size={14} />
+                <Key size={16} />
                 Show Organization Code
               </button>
             )}
@@ -674,8 +674,8 @@ See you on the team!`
       {/* Vaults */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
-            <Folder size={14} />
+          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+            <Folder size={16} />
             Vaults ({orgVaults.length})
           </div>
           {user?.role === 'admin' && (
@@ -693,24 +693,24 @@ See you on the team!`
         {isCreatingVault && (
           <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-accent space-y-3">
             <div className="space-y-2">
-              <label className="text-xs text-pdm-fg-muted">Vault Name</label>
+              <label className="text-sm text-pdm-fg-muted">Vault Name</label>
               <input
                 type="text"
                 value={newVaultName}
                 onChange={(e) => setNewVaultName(e.target.value)}
                 placeholder="e.g., Main Vault, Archive, Projects"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-sm focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
                 autoFocus
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs text-pdm-fg-muted">Description (optional)</label>
+              <label className="text-sm text-pdm-fg-muted">Description (optional)</label>
               <input
                 type="text"
                 value={newVaultDescription}
                 onChange={(e) => setNewVaultDescription(e.target.value)}
                 placeholder="e.g., Main production files"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-sm focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
               />
             </div>
             <div className="flex gap-2 justify-end">
@@ -741,7 +741,7 @@ See you on the team!`
             <Loader2 className="animate-spin text-pdm-fg-muted" size={24} />
           </div>
         ) : orgVaults.length === 0 ? (
-          <div className="text-center py-8 text-pdm-fg-muted text-sm">
+          <div className="text-center py-8 text-pdm-fg-muted text-base">
             {user?.role === 'admin' 
               ? 'No vaults created yet. Add a vault to get started.'
               : 'No vaults created yet. Ask an organization admin to create one.'}
@@ -765,7 +765,7 @@ See you on the team!`
                           if (e.key === 'Enter') handleRenameVault(vault)
                           if (e.key === 'Escape') setRenamingVaultId(null)
                         }}
-                        className="flex-1 bg-pdm-bg-light border border-pdm-border rounded px-2 py-1 text-sm focus:border-pdm-accent focus:outline-none"
+                        className="flex-1 bg-pdm-bg-light border border-pdm-border rounded px-2 py-1 text-base focus:border-pdm-accent focus:outline-none"
                         autoFocus
                       />
                       <button onClick={() => handleRenameVault(vault)} className="p-1 hover:bg-pdm-highlight rounded">
@@ -778,22 +778,22 @@ See you on the team!`
                   ) : (
                     <>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-pdm-fg font-medium truncate">
+                        <span className="text-base text-pdm-fg font-medium truncate">
                           {vault.name}
                         </span>
                         {vault.is_default && (
-                          <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-xs rounded">
+                          <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-sm rounded">
                             Default
                           </span>
                         )}
                         {isVaultConnected(vault.id) && (
-                          <span className="px-1.5 py-0.5 bg-pdm-success/20 text-pdm-success text-xs rounded">
+                          <span className="px-1.5 py-0.5 bg-pdm-success/20 text-pdm-success text-sm rounded">
                             Connected
                           </span>
                         )}
                       </div>
                       {vault.description && (
-                        <div className="text-xs text-pdm-fg-muted truncate">
+                        <div className="text-sm text-pdm-fg-muted truncate">
                           {vault.description}
                         </div>
                       )}
@@ -872,8 +872,8 @@ See you on the team!`
       {/* Users */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
-            <Users size={14} />
+          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+            <Users size={16} />
             Members ({orgUsers.length})
             <button
               onClick={loadOrgUsers}
@@ -927,17 +927,17 @@ See you on the team!`
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-pdm-fg truncate flex items-center gap-2">
+                    <div className="text-base text-pdm-fg truncate flex items-center gap-2">
                       {orgUser.full_name || orgUser.email}
                       {isCurrentUser && (
-                        <span className="text-xs text-pdm-fg-dim">(you)</span>
+                        <span className="text-sm text-pdm-fg-dim">(you)</span>
                       )}
                     </div>
-                    <div className="text-xs text-pdm-fg-muted truncate flex items-center gap-2">
+                    <div className="text-sm text-pdm-fg-muted truncate flex items-center gap-2">
                       {orgUser.email}
                       {orgUser.role !== 'admin' && getUserVaultAccessCount(orgUser.id) > 0 && (
                         <span className="flex items-center gap-1 px-1.5 py-0.5 bg-pdm-fg-muted/10 rounded text-pdm-fg-dim">
-                          <Lock size={10} />
+                          <Lock size={12} />
                           {getUserVaultAccessCount(orgUser.id)} vault{getUserVaultAccessCount(orgUser.id) !== 1 ? 's' : ''}
                         </span>
                       )}
@@ -951,7 +951,7 @@ See you on the team!`
                         <button
                           onClick={() => setRoleDropdownOpen(roleDropdownOpen === orgUser.id ? null : orgUser.id)}
                           disabled={changingRoleUserId === orgUser.id}
-                          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors ${
                             orgUser.role === 'admin' ? 'bg-pdm-accent/20 text-pdm-accent' :
                             orgUser.role === 'engineer' ? 'bg-pdm-success/20 text-pdm-success' :
                             'bg-pdm-fg-muted/20 text-pdm-fg-muted'
@@ -972,22 +972,22 @@ See you on the team!`
                               <button
                                 key={role}
                                 onClick={() => handleChangeRole(orgUser, role)}
-                                className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-pdm-highlight ${
+                                className={`w-full flex items-center gap-2 px-3 py-2 text-base text-left transition-colors hover:bg-pdm-highlight ${
                                   orgUser.role === role ? 'text-pdm-accent' : 'text-pdm-fg'
                                 }`}
                               >
-                                {role === 'admin' && <Shield size={14} />}
-                                {role === 'engineer' && <Wrench size={14} />}
-                                {role === 'viewer' && <Eye size={14} />}
+                                {role === 'admin' && <Shield size={16} />}
+                                {role === 'engineer' && <Wrench size={16} />}
+                                {role === 'viewer' && <Eye size={16} />}
                                 {role.charAt(0).toUpperCase() + role.slice(1)}
-                                {orgUser.role === role && <Check size={14} className="ml-auto" />}
+                                {orgUser.role === role && <Check size={16} className="ml-auto" />}
                               </button>
                             ))}
                           </div>
                         )}
                       </>
                     ) : (
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs ${
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-sm ${
                         orgUser.role === 'admin' ? 'bg-pdm-accent/20 text-pdm-accent' :
                         orgUser.role === 'engineer' ? 'bg-pdm-success/20 text-pdm-success' :
                         'bg-pdm-fg-muted/20 text-pdm-fg-muted'
@@ -1028,18 +1028,18 @@ See you on the team!`
         {/* Role permissions info */}
         {user?.role === 'admin' && (
           <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
-            <p className="text-xs text-pdm-fg-muted mb-2 font-medium">Role Permissions:</p>
-            <div className="space-y-1 text-xs text-pdm-fg-dim">
+            <p className="text-sm text-pdm-fg-muted mb-2 font-medium">Role Permissions:</p>
+            <div className="space-y-1 text-sm text-pdm-fg-dim">
               <div className="flex items-center gap-2">
-                <Shield size={12} className="text-pdm-accent" />
+                <Shield size={14} className="text-pdm-accent" />
                 <span><strong>Admin:</strong> Full access, manage users & vaults</span>
               </div>
               <div className="flex items-center gap-2">
-                <Wrench size={12} className="text-pdm-success" />
+                <Wrench size={14} className="text-pdm-success" />
                 <span><strong>Engineer:</strong> Check out, check in, modify files</span>
               </div>
               <div className="flex items-center gap-2">
-                <Eye size={12} className="text-pdm-fg-muted" />
+                <Eye size={14} className="text-pdm-fg-muted" />
                 <span><strong>Viewer:</strong> View and download files only</span>
               </div>
             </div>
@@ -1050,16 +1050,16 @@ See you on the team!`
       {/* SolidWorks DM License (Admin only) */}
       {user?.role === 'admin' && (
         <div className="space-y-3 pt-4 border-t border-pdm-border">
-          <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
-            <FileBox size={14} />
+          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+            <FileBox size={16} />
             SolidWorks Integration
           </div>
-          <p className="text-sm text-pdm-fg-muted">
+          <p className="text-base text-pdm-fg-muted">
             Enter your organization's Document Manager API license key to enable direct file reading.
           </p>
           
           <div className="space-y-2">
-            <label className="text-xs text-pdm-fg-dim">Document Manager License Key</label>
+            <label className="text-sm text-pdm-fg-dim">Document Manager License Key</label>
             <input
               type="password"
               value={organization?.settings?.solidworks_dm_license_key || ''}
@@ -1087,9 +1087,9 @@ See you on the team!`
                 }
               }}
               placeholder="Enter your organization's DM API license key"
-              className="w-full px-3 py-2 bg-pdm-bg border border-pdm-border rounded-lg text-sm text-pdm-fg placeholder-pdm-fg-dim focus:outline-none focus:border-pdm-accent font-mono"
+              className="w-full px-3 py-2 bg-pdm-bg border border-pdm-border rounded-lg text-base text-pdm-fg placeholder-pdm-fg-dim focus:outline-none focus:border-pdm-accent font-mono"
             />
-            <p className="text-xs text-pdm-fg-dim">
+            <p className="text-sm text-pdm-fg-dim">
               Free with SolidWorks subscription.{' '}
               <a 
                 href="https://customerportal.solidworks.com/" 
@@ -1105,8 +1105,8 @@ See you on the team!`
               </a>
             </p>
             {organization?.settings?.solidworks_dm_license_key && (
-              <div className="flex items-center gap-2 text-xs text-green-400">
-                <Check size={12} />
+              <div className="flex items-center gap-2 text-sm text-green-400">
+                <Check size={14} />
                 Direct file access enabled for all org users
               </div>
             )}
@@ -1124,18 +1124,18 @@ See you on the team!`
               </div>
               <h3 className="text-lg font-medium text-pdm-fg">Delete Vault</h3>
             </div>
-            <p className="text-sm text-pdm-fg-muted mb-4">
+            <p className="text-base text-pdm-fg-muted mb-4">
               This will permanently delete the vault <strong>"{deletingVault.name}"</strong> and all its files from the cloud.
               This action cannot be undone.
             </p>
             <div className="space-y-2 mb-4">
-              <label className="text-xs text-pdm-fg-dim">Type vault name to confirm:</label>
+              <label className="text-sm text-pdm-fg-dim">Type vault name to confirm:</label>
               <input
                 type="text"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder={deletingVault.name}
-                className="w-full px-3 py-2 bg-pdm-bg border border-pdm-border rounded-lg text-sm focus:outline-none focus:border-pdm-error"
+                className="w-full px-3 py-2 bg-pdm-bg border border-pdm-border rounded-lg text-base focus:outline-none focus:border-pdm-error"
               />
             </div>
             <div className="flex gap-2 justify-end">
@@ -1164,7 +1164,7 @@ See you on the team!`
               </div>
               <h3 className="text-lg font-medium text-pdm-fg">Disconnect Vault</h3>
             </div>
-            <p className="text-sm text-pdm-fg-muted mb-4">
+            <p className="text-base text-pdm-fg-muted mb-4">
               This will disconnect <strong>"{disconnectingVault.name}"</strong> and delete the local folder.
               Cloud files will not be affected.
             </p>
@@ -1189,10 +1189,10 @@ See you on the team!`
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowInviteDialog(false)}>
           <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-lg w-full mx-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-medium text-pdm-fg mb-4">Invite User</h3>
-            <p className="text-sm text-pdm-fg-muted mb-4">
+            <p className="text-base text-pdm-fg-muted mb-4">
               Copy the invite message below and send it to your team member via email or chat.
             </p>
-            <div className="bg-pdm-bg border border-pdm-border rounded-lg p-4 text-sm text-pdm-fg-muted font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-4">
+            <div className="bg-pdm-bg border border-pdm-border rounded-lg p-4 text-base text-pdm-fg-muted font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-4">
               {generateInviteMessage()}
             </div>
             <div className="flex gap-2 justify-end">
@@ -1213,7 +1213,7 @@ See you on the team!`
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setRemovingUser(null)}>
           <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-medium text-pdm-fg mb-4">Remove User</h3>
-            <p className="text-sm text-pdm-fg-muted mb-4">
+            <p className="text-base text-pdm-fg-muted mb-4">
               Are you sure you want to remove <strong>{removingUser.full_name || removingUser.email}</strong> from the organization?
             </p>
             <div className="flex gap-2 justify-end">
@@ -1237,7 +1237,7 @@ See you on the team!`
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setEditingVaultAccessUser(null)}>
           <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-medium text-pdm-fg mb-2">Vault Access</h3>
-            <p className="text-sm text-pdm-fg-muted mb-4">
+            <p className="text-base text-pdm-fg-muted mb-4">
               Select which vaults <strong>{editingVaultAccessUser.full_name || editingVaultAccessUser.email}</strong> can access.
               Leave all unchecked for full access.
             </p>
@@ -1250,10 +1250,10 @@ See you on the team!`
                     onChange={() => toggleVaultAccess(vault.id)}
                     className="w-4 h-4 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent"
                   />
-                  <Folder size={16} className={vault.is_default ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
-                  <span className="text-sm text-pdm-fg">{vault.name}</span>
+                  <Folder size={18} className={vault.is_default ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                  <span className="text-base text-pdm-fg">{vault.name}</span>
                   {vault.is_default && (
-                    <span className="text-xs text-pdm-accent">(default)</span>
+                    <span className="text-sm text-pdm-accent">(default)</span>
                   )}
                 </label>
               ))}

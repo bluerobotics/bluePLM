@@ -382,6 +382,248 @@ function signWebhookPayload(payload: string, secret: string): string {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex')
 }
 
+// ============================================
+// Odoo XML-RPC Helpers
+// ============================================
+
+interface OdooSupplier {
+  id: number
+  name: string
+  ref: string | false
+  email: string | false
+  phone: string | false
+  mobile: string | false
+  website: string | false
+  street: string | false
+  street2: string | false
+  city: string | false
+  zip: string | false
+  state_id: [number, string] | false
+  country_id: [number, string] | false
+  active: boolean
+}
+
+async function odooXmlRpc(
+  url: string, 
+  service: string, 
+  method: string, 
+  params: unknown[]
+): Promise<unknown> {
+  // Build XML-RPC request
+  const xmlPayload = buildXmlRpcRequest(method, params)
+  
+  const response = await fetch(`${url}/xmlrpc/2/${service}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/xml' },
+    body: xmlPayload,
+    signal: AbortSignal.timeout(30000) // 30s timeout
+  })
+  
+  if (!response.ok) {
+    throw new Error(`Odoo API error: ${response.status} ${response.statusText}`)
+  }
+  
+  const xmlResponse = await response.text()
+  return parseXmlRpcResponse(xmlResponse)
+}
+
+function buildXmlRpcRequest(method: string, params: unknown[]): string {
+  const paramXml = params.map(p => `<param>${valueToXml(p)}</param>`).join('')
+  return `<?xml version="1.0"?>
+<methodCall>
+  <methodName>${method}</methodName>
+  <params>${paramXml}</params>
+</methodCall>`
+}
+
+function valueToXml(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '<value><boolean>0</boolean></value>'
+  }
+  if (typeof value === 'boolean') {
+    return `<value><boolean>${value ? 1 : 0}</boolean></value>`
+  }
+  if (typeof value === 'number') {
+    if (Number.isInteger(value)) {
+      return `<value><int>${value}</int></value>`
+    }
+    return `<value><double>${value}</double></value>`
+  }
+  if (typeof value === 'string') {
+    const escaped = value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    return `<value><string>${escaped}</string></value>`
+  }
+  if (Array.isArray(value)) {
+    const items = value.map(v => valueToXml(v)).join('')
+    return `<value><array><data>${items}</data></array></value>`
+  }
+  if (typeof value === 'object') {
+    const members = Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => `<member><name>${k}</name>${valueToXml(v)}</member>`)
+      .join('')
+    return `<value><struct>${members}</struct></value>`
+  }
+  return `<value><string>${String(value)}</string></value>`
+}
+
+function parseXmlRpcResponse(xml: string): unknown {
+  // Simple XML-RPC response parser
+  // Check for fault
+  const faultMatch = xml.match(/<fault>[\s\S]*?<string>([^<]*)<\/string>[\s\S]*?<\/fault>/)
+  if (faultMatch) {
+    throw new Error(`Odoo fault: ${faultMatch[1]}`)
+  }
+  
+  // Extract value from params
+  const valueMatch = xml.match(/<params>\s*<param>\s*<value>([\s\S]*?)<\/value>\s*<\/param>\s*<\/params>/)
+  if (!valueMatch) {
+    // Check if it's a simple response
+    const simpleMatch = xml.match(/<value>[\s\S]*?<(int|boolean|string)>([^<]*)</)
+    if (simpleMatch) {
+      if (simpleMatch[1] === 'int') return parseInt(simpleMatch[2], 10)
+      if (simpleMatch[1] === 'boolean') return simpleMatch[2] === '1'
+      return simpleMatch[2]
+    }
+    throw new Error('Invalid XML-RPC response')
+  }
+  
+  return parseXmlValue(valueMatch[1])
+}
+
+function parseXmlValue(valueXml: string): unknown {
+  // Integer
+  const intMatch = valueXml.match(/<int>(-?\d+)<\/int>/)
+  if (intMatch) return parseInt(intMatch[1], 10)
+  
+  const i4Match = valueXml.match(/<i4>(-?\d+)<\/i4>/)
+  if (i4Match) return parseInt(i4Match[1], 10)
+  
+  // Boolean
+  const boolMatch = valueXml.match(/<boolean>(\d)<\/boolean>/)
+  if (boolMatch) return boolMatch[1] === '1'
+  
+  // String
+  const strMatch = valueXml.match(/<string>([^<]*)<\/string>/)
+  if (strMatch) return strMatch[1]
+  
+  // Empty string (no type tag, just value tags)
+  if (valueXml.match(/^[\s\n]*$/)) return ''
+  
+  // Double
+  const doubleMatch = valueXml.match(/<double>([^<]+)<\/double>/)
+  if (doubleMatch) return parseFloat(doubleMatch[1])
+  
+  // Array
+  const arrayMatch = valueXml.match(/<array>\s*<data>([\s\S]*?)<\/data>\s*<\/array>/)
+  if (arrayMatch) {
+    const items: unknown[] = []
+    const valueRegex = /<value>([\s\S]*?)<\/value>/g
+    let match
+    while ((match = valueRegex.exec(arrayMatch[1])) !== null) {
+      items.push(parseXmlValue(match[1]))
+    }
+    return items
+  }
+  
+  // Struct
+  const structMatch = valueXml.match(/<struct>([\s\S]*?)<\/struct>/)
+  if (structMatch) {
+    const obj: Record<string, unknown> = {}
+    const memberRegex = /<member>\s*<name>([^<]+)<\/name>\s*<value>([\s\S]*?)<\/value>\s*<\/member>/g
+    let match
+    while ((match = memberRegex.exec(structMatch[1])) !== null) {
+      obj[match[1]] = parseXmlValue(match[2])
+    }
+    return obj
+  }
+  
+  // Default to raw string
+  return valueXml.trim()
+}
+
+async function testOdooConnection(
+  url: string, 
+  database: string, 
+  username: string, 
+  apiKey: string
+): Promise<{ success: boolean; user_name?: string; version?: string; error?: string }> {
+  try {
+    // Get version info (no auth required)
+    const version = await odooXmlRpc(url, 'common', 'version', []) as { server_version?: string }
+    
+    // Authenticate
+    const uid = await odooXmlRpc(url, 'common', 'authenticate', [
+      database, username, apiKey, {}
+    ])
+    
+    if (!uid || uid === false) {
+      return { success: false, error: 'Invalid credentials' }
+    }
+    
+    // Get user name
+    const users = await odooXmlRpc(url, 'object', 'execute_kw', [
+      database, uid, apiKey,
+      'res.users', 'read',
+      [[uid as number], ['name']]
+    ]) as Array<{ name: string }>
+    
+    return {
+      success: true,
+      user_name: users[0]?.name || username,
+      version: version?.server_version || 'Unknown'
+    }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+async function fetchOdooSuppliers(
+  url: string,
+  database: string,
+  username: string,
+  apiKey: string
+): Promise<{ success: boolean; suppliers: OdooSupplier[]; error?: string }> {
+  try {
+    // Authenticate first
+    const uid = await odooXmlRpc(url, 'common', 'authenticate', [
+      database, username, apiKey, {}
+    ])
+    
+    if (!uid || uid === false) {
+      return { success: false, suppliers: [], error: 'Authentication failed' }
+    }
+    
+    // Search for suppliers (partners with supplier_rank > 0)
+    const supplierIds = await odooXmlRpc(url, 'object', 'execute_kw', [
+      database, uid, apiKey,
+      'res.partner', 'search',
+      [[['supplier_rank', '>', 0]]],
+      { limit: 5000 }  // Reasonable limit
+    ]) as number[]
+    
+    if (!supplierIds || supplierIds.length === 0) {
+      return { success: true, suppliers: [] }
+    }
+    
+    // Read supplier details
+    const suppliers = await odooXmlRpc(url, 'object', 'execute_kw', [
+      database, uid, apiKey,
+      'res.partner', 'read',
+      [supplierIds, [
+        'id', 'name', 'ref', 'email', 'phone', 'mobile', 'website',
+        'street', 'street2', 'city', 'zip', 'state_id', 'country_id', 'active'
+      ]]
+    ]) as OdooSupplier[]
+    
+    return { success: true, suppliers }
+  } catch (err) {
+    return { success: false, suppliers: [], error: String(err) }
+  }
+}
+
 // In-memory webhook store (in production, use database)
 const webhooks: Map<string, Webhook[]> = new Map()
 
@@ -2913,6 +3155,350 @@ export async function buildServer(): Promise<FastifyInstance> {
       parts: data,
       count: data?.length || 0
     }
+  })
+
+  // ============================================
+  // Odoo Integration Routes
+  // ============================================
+
+  // Get Odoo integration settings
+  fastify.get('/integrations/odoo', {
+    schema: {
+      description: 'Get Odoo integration settings',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            configured: { type: 'boolean' },
+            settings: {
+              type: 'object',
+              properties: {
+                url: { type: 'string' },
+                database: { type: 'string' },
+                username: { type: 'string' }
+              }
+            },
+            is_connected: { type: 'boolean' },
+            last_sync_at: { type: 'string', nullable: true },
+            last_sync_status: { type: 'string', nullable: true },
+            last_sync_count: { type: 'number', nullable: true },
+            auto_sync: { type: 'boolean' }
+          }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request) => {
+    const { data, error } = await supabase
+      .from('organization_integrations')
+      .select('*')
+      .eq('org_id', request.user!.org_id)
+      .eq('integration_type', 'odoo')
+      .single()
+    
+    if (error || !data) {
+      return { configured: false }
+    }
+    
+    return {
+      configured: true,
+      settings: {
+        url: data.settings?.url,
+        database: data.settings?.database,
+        username: data.settings?.username
+      },
+      is_connected: data.is_connected,
+      last_sync_at: data.last_sync_at,
+      last_sync_status: data.last_sync_status,
+      last_sync_count: data.last_sync_count,
+      auto_sync: data.auto_sync
+    }
+  })
+
+  // Configure Odoo integration
+  fastify.post('/integrations/odoo', {
+    schema: {
+      description: 'Configure Odoo integration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['url', 'database', 'username', 'api_key'],
+        properties: {
+          url: { type: 'string', description: 'Odoo instance URL (e.g., https://mycompany.odoo.com)' },
+          database: { type: 'string', description: 'Odoo database name' },
+          username: { type: 'string', description: 'Odoo username (email)' },
+          api_key: { type: 'string', description: 'Odoo API key' },
+          auto_sync: { type: 'boolean', default: false }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (request.user!.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can configure integrations' })
+    }
+    
+    const { url, database, username, api_key, auto_sync } = request.body as {
+      url: string
+      database: string
+      username: string
+      api_key: string
+      auto_sync?: boolean
+    }
+    
+    // Test connection to Odoo
+    try {
+      const testResult = await testOdooConnection(url, database, username, api_key)
+      if (!testResult.success) {
+        return reply.code(400).send({ error: 'Connection failed', message: testResult.error })
+      }
+    } catch (err) {
+      return reply.code(400).send({ error: 'Connection failed', message: String(err) })
+    }
+    
+    // Upsert integration settings
+    const { error } = await supabase
+      .from('organization_integrations')
+      .upsert({
+        org_id: request.user!.org_id,
+        integration_type: 'odoo',
+        settings: { url, database, username },
+        credentials_encrypted: api_key, // In production, encrypt this
+        is_active: true,
+        is_connected: true,
+        last_connected_at: new Date().toISOString(),
+        auto_sync: auto_sync || false,
+        updated_by: request.user!.id
+      }, {
+        onConflict: 'org_id,integration_type'
+      })
+    
+    if (error) throw error
+    
+    return { success: true, message: 'Odoo integration configured successfully' }
+  })
+
+  // Test Odoo connection
+  fastify.post('/integrations/odoo/test', {
+    schema: {
+      description: 'Test Odoo connection',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['url', 'database', 'username', 'api_key'],
+        properties: {
+          url: { type: 'string' },
+          database: { type: 'string' },
+          username: { type: 'string' },
+          api_key: { type: 'string' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    const { url, database, username, api_key } = request.body as {
+      url: string
+      database: string
+      username: string
+      api_key: string
+    }
+    
+    const result = await testOdooConnection(url, database, username, api_key)
+    
+    if (!result.success) {
+      return reply.code(400).send({ success: false, error: result.error })
+    }
+    
+    return { success: true, user_name: result.user_name, version: result.version }
+  })
+
+  // Sync suppliers from Odoo
+  fastify.post('/integrations/odoo/sync/suppliers', {
+    schema: {
+      description: 'Sync suppliers from Odoo',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            created: { type: 'number' },
+            updated: { type: 'number' },
+            skipped: { type: 'number' },
+            errors: { type: 'number' },
+            message: { type: 'string' }
+          }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (request.user!.role !== 'admin' && request.user!.role !== 'engineer') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins and engineers can sync' })
+    }
+    
+    // Get Odoo integration settings
+    const { data: integration, error: intError } = await supabase
+      .from('organization_integrations')
+      .select('*')
+      .eq('org_id', request.user!.org_id)
+      .eq('integration_type', 'odoo')
+      .single()
+    
+    if (intError || !integration) {
+      return reply.code(400).send({ error: 'Not configured', message: 'Odoo integration not configured' })
+    }
+    
+    // Fetch suppliers from Odoo
+    const odooSuppliers = await fetchOdooSuppliers(
+      integration.settings.url,
+      integration.settings.database,
+      integration.settings.username,
+      integration.credentials_encrypted
+    )
+    
+    if (!odooSuppliers.success) {
+      // Update integration status with error
+      await supabase
+        .from('organization_integrations')
+        .update({
+          last_sync_at: new Date().toISOString(),
+          last_sync_status: 'error',
+          last_sync_message: odooSuppliers.error,
+          last_error: odooSuppliers.error
+        })
+        .eq('id', integration.id)
+      
+      return reply.code(400).send({ error: 'Sync failed', message: odooSuppliers.error })
+    }
+    
+    // Process suppliers
+    let created = 0, updated = 0, skipped = 0, errors = 0
+    
+    for (const odooSupplier of odooSuppliers.suppliers) {
+      try {
+        // Check if supplier already exists by erp_id
+        const { data: existing } = await supabase
+          .from('suppliers')
+          .select('id')
+          .eq('org_id', request.user!.org_id)
+          .eq('erp_id', String(odooSupplier.id))
+          .single()
+        
+        const supplierData = {
+          org_id: request.user!.org_id,
+          name: odooSupplier.name,
+          code: odooSupplier.ref || null,
+          contact_email: odooSupplier.email || null,
+          contact_phone: odooSupplier.phone || odooSupplier.mobile || null,
+          website: odooSupplier.website || null,
+          address_line1: odooSupplier.street || null,
+          address_line2: odooSupplier.street2 || null,
+          city: odooSupplier.city || null,
+          state: odooSupplier.state_id?.[1] || null,
+          postal_code: odooSupplier.zip || null,
+          country: odooSupplier.country_id?.[1] || 'USA',
+          is_active: odooSupplier.active !== false,
+          erp_id: String(odooSupplier.id),
+          erp_synced_at: new Date().toISOString(),
+          updated_by: request.user!.id
+        }
+        
+        if (existing) {
+          // Update existing supplier
+          await supabase
+            .from('suppliers')
+            .update(supplierData)
+            .eq('id', existing.id)
+          updated++
+        } else {
+          // Create new supplier
+          await supabase
+            .from('suppliers')
+            .insert({
+              ...supplierData,
+              created_by: request.user!.id
+            })
+          created++
+        }
+      } catch (err) {
+        console.error('Error syncing supplier:', odooSupplier.name, err)
+        errors++
+      }
+    }
+    
+    // Update integration status
+    await supabase
+      .from('organization_integrations')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: errors > 0 ? 'partial' : 'success',
+        last_sync_count: created + updated,
+        last_sync_message: `Created: ${created}, Updated: ${updated}, Errors: ${errors}`
+      })
+      .eq('id', integration.id)
+    
+    // Log the sync
+    await supabase
+      .from('integration_sync_log')
+      .insert({
+        org_id: request.user!.org_id,
+        integration_id: integration.id,
+        sync_type: 'suppliers',
+        sync_direction: 'pull',
+        status: errors > 0 ? 'partial' : 'success',
+        completed_at: new Date().toISOString(),
+        records_processed: odooSuppliers.suppliers.length,
+        records_created: created,
+        records_updated: updated,
+        records_skipped: skipped,
+        records_errored: errors,
+        triggered_by: request.user!.id,
+        trigger_type: 'manual'
+      })
+    
+    return {
+      success: true,
+      created,
+      updated,
+      skipped,
+      errors,
+      message: `Synced ${created + updated} suppliers from Odoo`
+    }
+  })
+
+  // Disconnect Odoo integration
+  fastify.delete('/integrations/odoo', {
+    schema: {
+      description: 'Disconnect Odoo integration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }]
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (request.user!.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can disconnect integrations' })
+    }
+    
+    const { error } = await supabase
+      .from('organization_integrations')
+      .update({
+        is_active: false,
+        is_connected: false,
+        credentials_encrypted: null,
+        updated_by: request.user!.id
+      })
+      .eq('org_id', request.user!.org_id)
+      .eq('integration_type', 'odoo')
+    
+    if (error) throw error
+    
+    return { success: true, message: 'Odoo integration disconnected' }
   })
 
   // ============================================

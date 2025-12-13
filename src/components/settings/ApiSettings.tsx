@@ -201,8 +201,8 @@ export function ApiSettings() {
     return (
       <div className="text-center py-12">
         <Shield size={40} className="mx-auto text-pdm-fg-muted mb-4" />
-        <div className="text-sm font-medium text-pdm-fg">Admin Only</div>
-        <p className="text-xs text-pdm-fg-muted mt-1">
+        <div className="text-base font-medium text-pdm-fg">Admin Only</div>
+        <p className="text-sm text-pdm-fg-muted mt-1">
           API settings require admin access.
         </p>
       </div>
@@ -219,7 +219,7 @@ export function ApiSettings() {
             localStorage.setItem(API_URL_KEY, 'http://127.0.0.1:3001')
             setTimeout(checkApiStatus, 100)
           }}
-          className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+          className={`flex-1 px-3 py-2 text-base rounded-lg border transition-colors ${
             apiUrl === 'http://127.0.0.1:3001'
               ? 'bg-pdm-accent/20 border-pdm-accent text-pdm-fg'
               : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
@@ -239,7 +239,7 @@ export function ApiSettings() {
               setApiUrlInput('')
             }
           }}
-          className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+          className={`flex-1 px-3 py-2 text-base rounded-lg border transition-colors ${
             apiUrl !== 'http://127.0.0.1:3001'
               ? 'bg-pdm-accent/20 border-pdm-accent text-pdm-fg'
               : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
@@ -252,15 +252,15 @@ export function ApiSettings() {
       {/* Server Status */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+          <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
             Server Status
           </label>
           <button
             onClick={checkApiStatus}
             disabled={apiStatus === 'checking'}
-            className="text-xs text-pdm-fg-muted hover:text-pdm-fg flex items-center gap-1"
+            className="text-sm text-pdm-fg-muted hover:text-pdm-fg flex items-center gap-1"
           >
-            <RefreshCw size={12} className={apiStatus === 'checking' ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={apiStatus === 'checking' ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -283,13 +283,13 @@ export function ApiSettings() {
               )}
             </div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-pdm-fg">
+              <div className="text-base font-medium text-pdm-fg">
                 {apiStatus === 'online' && 'API Server Online'}
                 {apiStatus === 'offline' && 'API Server Offline'}
                 {apiStatus === 'checking' && 'Checking...'}
                 {apiStatus === 'unknown' && 'Status Unknown'}
               </div>
-              <div className="text-xs text-pdm-fg-muted">
+              <div className="text-sm text-pdm-fg-muted">
                 {apiVersion && `v${apiVersion} • `}
                 {lastChecked && `Checked ${lastChecked.toLocaleTimeString()}`}
               </div>
@@ -297,7 +297,7 @@ export function ApiSettings() {
           </div>
           
           {(apiStatus === 'offline' || apiStatus === 'unknown') && (
-            <div className="mt-4 p-3 bg-pdm-bg-secondary rounded-lg text-xs space-y-2">
+            <div className="mt-4 p-3 bg-pdm-bg-secondary rounded-lg text-sm space-y-2">
               <div className="font-medium text-pdm-fg">🚀 Need to deploy?</div>
               <p className="text-pdm-fg-muted">
                 Each org hosts their own API. Deploy to Railway or Render in 5 min.
@@ -319,7 +319,7 @@ export function ApiSettings() {
 
       {/* API URL */}
       <div className="space-y-2">
-        <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
           API URL
         </label>
         {editingApiUrl ? (
@@ -347,14 +347,14 @@ export function ApiSettings() {
                   if (e.key === 'Escape') setEditingApiUrl(false)
                 }}
                 placeholder="bluepdm-api.example.com"
-                className="flex-1 bg-pdm-bg border border-pdm-border rounded-lg px-3 py-2 text-sm font-mono focus:border-pdm-accent focus:outline-none"
+                className="flex-1 bg-pdm-bg border border-pdm-border rounded-lg px-3 py-2 text-base font-mono focus:border-pdm-accent focus:outline-none"
                 autoFocus
               />
               <button onClick={handleSaveApiUrl} className="btn btn-primary btn-sm">
                 Save
               </button>
             </div>
-            <p className="text-xs text-pdm-fg-dim">
+            <p className="text-sm text-pdm-fg-dim">
               Paste domain with or without https:// — we'll normalize it automatically
             </p>
           </div>
@@ -366,21 +366,21 @@ export function ApiSettings() {
               setEditingApiUrl(true)
             }}
           >
-            <code className="text-sm text-pdm-fg font-mono">{apiUrl}</code>
+            <code className="text-base text-pdm-fg font-mono">{apiUrl}</code>
           </div>
         )}
       </div>
 
       {/* API Token */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
-          <Key size={12} />
+        <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+          <Key size={14} />
           Access Token
         </div>
         {apiToken ? (
           <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border space-y-3">
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs font-mono text-pdm-fg-muted overflow-hidden text-ellipsis">
+              <code className="flex-1 text-sm font-mono text-pdm-fg-muted overflow-hidden text-ellipsis">
                 {showToken 
                   ? apiToken 
                   : `${apiToken.substring(0, 20)}${'•'.repeat(30)}`
@@ -405,14 +405,14 @@ export function ApiSettings() {
                 {tokenCopied ? <Check size={16} /> : <Copy size={16} />}
               </button>
             </div>
-            <div className="text-xs text-pdm-fg-muted">
+            <div className="text-sm text-pdm-fg-muted">
               <code className="block p-2 bg-pdm-bg-secondary rounded text-pdm-fg-dim">
                 curl -H "Authorization: Bearer $TOKEN" {apiUrl}/files
               </code>
             </div>
           </div>
         ) : (
-          <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border text-sm text-pdm-fg-muted">
+          <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border text-base text-pdm-fg-muted">
             Sign in to get an API token
           </div>
         )}
@@ -421,7 +421,7 @@ export function ApiSettings() {
       {/* Quick Test */}
       {apiToken && apiStatus === 'online' && (
         <div className="space-y-2">
-          <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+          <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
             Quick Test
           </label>
           <div className="flex flex-wrap gap-2">
@@ -429,7 +429,7 @@ export function ApiSettings() {
               <button
                 key={endpoint}
                 onClick={() => testApiEndpoint(endpoint)}
-                className="px-3 py-1.5 text-xs bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-accent transition-colors font-mono"
+                className="px-3 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-accent transition-colors font-mono"
               >
                 GET {endpoint}
               </button>
@@ -441,23 +441,23 @@ export function ApiSettings() {
       {/* API Call History */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
-            <Activity size={12} />
+          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+            <Activity size={14} />
             Recent API Calls
           </div>
           {apiHistory.length > 0 && (
             <button
               onClick={clearApiHistory}
-              className="text-xs text-pdm-fg-muted hover:text-pdm-error flex items-center gap-1"
+              className="text-sm text-pdm-fg-muted hover:text-pdm-error flex items-center gap-1"
             >
-              <Trash2 size={12} />
+              <Trash2 size={14} />
               Clear
             </button>
           )}
         </div>
         <div className="bg-pdm-bg rounded-lg border border-pdm-border overflow-hidden">
           {apiHistory.length === 0 ? (
-            <div className="p-4 text-sm text-pdm-fg-muted text-center">
+            <div className="p-4 text-base text-pdm-fg-muted text-center">
               No API calls recorded
             </div>
           ) : (
@@ -465,7 +465,7 @@ export function ApiSettings() {
               {apiHistory.slice(0, 20).map(call => (
                 <div 
                   key={call.id}
-                  className="flex items-center gap-2 px-4 py-2 border-b border-pdm-border last:border-0 text-xs"
+                  className="flex items-center gap-2 px-4 py-2 border-b border-pdm-border last:border-0 text-sm"
                 >
                   <span className={`px-2 py-0.5 rounded font-medium ${
                     call.status >= 200 && call.status < 300 
@@ -495,9 +495,9 @@ export function ApiSettings() {
           href={`${apiUrl}/docs`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-sm text-pdm-accent hover:underline"
+          className="flex items-center gap-2 text-base text-pdm-accent hover:underline"
         >
-          <ExternalLink size={16} />
+          <ExternalLink size={18} />
           Open API Documentation (Swagger)
         </a>
       </div>

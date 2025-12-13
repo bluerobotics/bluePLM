@@ -108,6 +108,9 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     const allPathsBeingProcessed = [...foldersBeingProcessed, ...filesBeingProcessed]
     allPathsBeingProcessed.forEach(p => ctx.addProcessingFolder(p))
     
+    // Yield to event loop so React can render spinners before starting operation
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
     const total = filesToRemove.length
     
     // Progress tracking with file count (not bytes)
@@ -331,6 +334,9 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       const foldersToDelete = files.filter(f => f.isDirectory && f.diffStatus !== 'cloud')
       foldersToDelete.forEach(f => ctx.addProcessingFolder(f.relativePath))
       
+      // Yield to event loop so React can render spinners before starting operation
+      await new Promise(resolve => setTimeout(resolve, 0))
+      
       let deleted = 0
       for (const folder of foldersToDelete) {
         try {
@@ -362,6 +368,9 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     const pathsBeingProcessed = uniqueFiles.map(f => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...pathsBeingProcessed, ...foldersSelected])]
     allPathsBeingProcessed.forEach(p => ctx.addProcessingFolder(p))
+    
+    // Yield to event loop so React can render spinners before starting operation
+    await new Promise(resolve => setTimeout(resolve, 0))
     
     const toastId = `delete-server-${Date.now()}`
     ctx.addProgressToast(toastId, `Deleting...`, 2)

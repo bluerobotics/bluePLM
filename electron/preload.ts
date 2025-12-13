@@ -90,6 +90,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('auth:google-drive', credentials),
   getPlatform: () => ipcRenderer.invoke('app:get-platform'),
   getTitleBarOverlayRect: (): Promise<TitleBarOverlayRect> => ipcRenderer.invoke('app:get-titlebar-overlay-rect'),
+  setTitleBarOverlay: (options: { color: string; symbolColor: string }) => ipcRenderer.invoke('app:set-titlebar-overlay', options),
+  getZoomFactor: () => ipcRenderer.invoke('app:get-zoom-factor'),
+  setZoomFactor: (factor: number) => ipcRenderer.invoke('app:set-zoom-factor', factor),
   
   // Machine identification (for backup service)
   getMachineId: () => ipcRenderer.invoke('app:get-machine-id'),
@@ -415,6 +418,7 @@ declare global {
       getVersion: () => Promise<string>
       getPlatform: () => Promise<string>
       getTitleBarOverlayRect: () => Promise<{ x: number; y: number; width: number; height: number }>
+      setTitleBarOverlay: (options: { color: string; symbolColor: string }) => Promise<{ success: boolean; error?: string }>
       getPathForFile: (file: File) => string
       reloadApp: () => Promise<{ success: boolean; error?: string }>
       

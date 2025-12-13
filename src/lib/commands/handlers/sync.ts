@@ -68,6 +68,9 @@ export const syncCommand: Command<SyncParams> = {
       .map(f => f.relativePath)
     foldersBeingProcessed.forEach(p => ctx.addProcessingFolder(p))
     
+    // Yield to event loop so React can render spinners before starting operation
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
     const total = filesToSync.length
     
     // Progress tracking

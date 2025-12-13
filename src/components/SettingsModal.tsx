@@ -1217,20 +1217,20 @@ See you on the team!`
         {/* Sidebar */}
         <div className="w-48 bg-pdm-sidebar border-r border-pdm-border flex flex-col">
           <div className="p-4 border-b border-pdm-border">
-            <h2 className="text-sm font-semibold text-pdm-fg">Settings</h2>
+            <h2 className="text-base font-semibold text-pdm-fg">Settings</h2>
           </div>
           <div className="flex-1 py-2">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-base transition-colors ${
                   activeTab === tab.id
                     ? 'bg-pdm-highlight text-pdm-fg border-l-2 border-pdm-accent'
                     : 'text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-highlight/50 border-l-2 border-transparent'
                 }`}
               >
-                <tab.icon size={16} />
+                <tab.icon size={18} />
                 {tab.label}
               </button>
             ))}
@@ -1241,7 +1241,7 @@ See you on the team!`
         <div className="flex-1 flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-pdm-border">
-            <h3 className="text-lg font-medium text-pdm-fg">
+            <h3 className="text-xl font-medium text-pdm-fg">
               {tabs.find(t => t.id === activeTab)?.label}
             </h3>
             <button 

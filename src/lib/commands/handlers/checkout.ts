@@ -69,6 +69,9 @@ export const checkoutCommand: Command<CheckoutParams> = {
       .map(f => f.relativePath)
     foldersBeingProcessed.forEach(p => ctx.addProcessingFolder(p))
     
+    // Yield to event loop so React can render spinners before starting operation
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
     // Progress tracking
     const toastId = `checkout-${Date.now()}`
     const total = filesToCheckout.length

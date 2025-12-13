@@ -1751,3 +1751,640 @@ $$ LANGUAGE plpgsql;
 -- Grant execute permissions for Google Drive functions
 GRANT EXECUTE ON FUNCTION get_google_drive_settings(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION update_google_drive_settings(UUID, TEXT, TEXT, BOOLEAN) TO authenticated;
+
+-- ===========================================
+-- RFQ (REQUEST FOR QUOTE) SYSTEM
+-- ===========================================
+
+-- RFQ Status enum
+CREATE TYPE rfq_status AS ENUM (
+  'draft',           -- RFQ is being prepared
+  'pending_files',   -- Files need to be added
+  'generating',      -- Release files are being generated
+  'ready',           -- RFQ is ready to send
+  'sent',            -- RFQ has been sent to suppliers
+  'awaiting_quote',  -- Waiting for supplier responses
+  'quoted',          -- All quotes received
+  'awarded',         -- Contract awarded to supplier
+  'cancelled',       -- RFQ was cancelled
+  'completed'        -- Order completed
+);
+
+-- RFQs (Request for Quote header)
+CREATE TABLE rfqs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- RFQ identity
+  rfq_number TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  
+  -- Status tracking
+  status rfq_status DEFAULT 'draft',
+  
+  -- Dates
+  due_date DATE,
+  required_date DATE,
+  valid_until DATE,
+  
+  -- Options
+  requires_samples BOOLEAN DEFAULT false,
+  requires_first_article BOOLEAN DEFAULT false,
+  allow_partial_quotes BOOLEAN DEFAULT true,
+  
+  -- File generation
+  release_files_generated BOOLEAN DEFAULT false,
+  release_files_generated_at TIMESTAMPTZ,
+  release_folder_path TEXT,
+  
+  -- Shipping/delivery
+  shipping_address TEXT,
+  shipping_notes TEXT,
+  incoterms TEXT,
+  
+  -- Notes
+  internal_notes TEXT,
+  supplier_notes TEXT,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID NOT NULL REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  sent_at TIMESTAMPTZ,
+  sent_by UUID REFERENCES users(id),
+  completed_at TIMESTAMPTZ,
+  
+  UNIQUE(org_id, rfq_number)
+);
+
+CREATE INDEX idx_rfqs_org_id ON rfqs(org_id);
+CREATE INDEX idx_rfqs_status ON rfqs(status);
+CREATE INDEX idx_rfqs_rfq_number ON rfqs(rfq_number);
+CREATE INDEX idx_rfqs_created_at ON rfqs(created_at DESC);
+CREATE INDEX idx_rfqs_due_date ON rfqs(due_date);
+
+-- RFQ Items (Line items / files on the RFQ)
+CREATE TABLE rfq_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  rfq_id UUID NOT NULL REFERENCES rfqs(id) ON DELETE CASCADE,
+  
+  line_number INT NOT NULL,
+  file_id UUID REFERENCES files(id) ON DELETE SET NULL,
+  
+  part_number TEXT NOT NULL,
+  description TEXT,
+  revision TEXT,
+  
+  quantity INT NOT NULL DEFAULT 1,
+  unit TEXT DEFAULT 'each',
+  
+  material TEXT,
+  finish TEXT,
+  tolerance_class TEXT,
+  special_requirements TEXT,
+  
+  step_file_path TEXT,
+  pdf_file_path TEXT,
+  step_file_generated BOOLEAN DEFAULT false,
+  pdf_file_generated BOOLEAN DEFAULT false,
+  step_file_size BIGINT,
+  pdf_file_size BIGINT,
+  step_storage_path TEXT,
+  pdf_storage_path TEXT,
+  
+  attachments JSONB DEFAULT '[]'::jsonb,
+  notes TEXT,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE(rfq_id, line_number)
+);
+
+CREATE INDEX idx_rfq_items_rfq_id ON rfq_items(rfq_id);
+CREATE INDEX idx_rfq_items_file_id ON rfq_items(file_id) WHERE file_id IS NOT NULL;
+CREATE INDEX idx_rfq_items_part_number ON rfq_items(part_number);
+
+-- RFQ Suppliers (Suppliers assigned to an RFQ)
+CREATE TABLE rfq_suppliers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  rfq_id UUID NOT NULL REFERENCES rfqs(id) ON DELETE CASCADE,
+  supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  
+  sent_at TIMESTAMPTZ,
+  viewed_at TIMESTAMPTZ,
+  quoted_at TIMESTAMPTZ,
+  declined_at TIMESTAMPTZ,
+  declined_reason TEXT,
+  
+  total_quoted_amount DECIMAL(12,2),
+  currency TEXT DEFAULT 'USD',
+  lead_time_days INT,
+  
+  is_selected BOOLEAN DEFAULT false,
+  selected_at TIMESTAMPTZ,
+  selected_by UUID REFERENCES users(id),
+  
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE(rfq_id, supplier_id)
+);
+
+CREATE INDEX idx_rfq_suppliers_rfq_id ON rfq_suppliers(rfq_id);
+CREATE INDEX idx_rfq_suppliers_supplier_id ON rfq_suppliers(supplier_id);
+
+-- RFQ Quotes (Line item quotes from suppliers)
+CREATE TABLE rfq_quotes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  rfq_id UUID NOT NULL REFERENCES rfqs(id) ON DELETE CASCADE,
+  rfq_supplier_id UUID NOT NULL REFERENCES rfq_suppliers(id) ON DELETE CASCADE,
+  rfq_item_id UUID NOT NULL REFERENCES rfq_items(id) ON DELETE CASCADE,
+  
+  unit_price DECIMAL(12,4),
+  currency TEXT DEFAULT 'USD',
+  tooling_cost DECIMAL(12,2),
+  price_breaks JSONB DEFAULT '[]'::jsonb,
+  lead_time_days INT,
+  
+  notes TEXT,
+  can_quote BOOLEAN DEFAULT true,
+  cannot_quote_reason TEXT,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE(rfq_supplier_id, rfq_item_id)
+);
+
+CREATE INDEX idx_rfq_quotes_rfq_id ON rfq_quotes(rfq_id);
+CREATE INDEX idx_rfq_quotes_rfq_supplier_id ON rfq_quotes(rfq_supplier_id);
+CREATE INDEX idx_rfq_quotes_rfq_item_id ON rfq_quotes(rfq_item_id);
+
+-- RFQ Activity Log
+CREATE TABLE rfq_activity (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  rfq_id UUID NOT NULL REFERENCES rfqs(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  description TEXT,
+  user_id UUID REFERENCES users(id),
+  supplier_id UUID REFERENCES suppliers(id),
+  details JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_rfq_activity_rfq_id ON rfq_activity(rfq_id);
+CREATE INDEX idx_rfq_activity_created_at ON rfq_activity(created_at DESC);
+
+-- RFQ RLS
+ALTER TABLE rfqs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rfq_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rfq_suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rfq_quotes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rfq_activity ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view org RFQs"
+  ON rfqs FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "Engineers can create RFQs"
+  ON rfqs FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+
+CREATE POLICY "Engineers can update RFQs"
+  ON rfqs FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+
+CREATE POLICY "Admins can delete RFQs"
+  ON rfqs FOR DELETE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Users can view RFQ items"
+  ON rfq_items FOR SELECT
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+
+CREATE POLICY "Engineers can manage RFQ items"
+  ON rfq_items FOR ALL
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+
+CREATE POLICY "Users can view RFQ suppliers"
+  ON rfq_suppliers FOR SELECT
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+
+CREATE POLICY "Engineers can manage RFQ suppliers"
+  ON rfq_suppliers FOR ALL
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+
+CREATE POLICY "Users can view RFQ quotes"
+  ON rfq_quotes FOR SELECT
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+
+CREATE POLICY "Engineers can manage RFQ quotes"
+  ON rfq_quotes FOR ALL
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+
+CREATE POLICY "Users can view RFQ activity"
+  ON rfq_activity FOR SELECT
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+
+CREATE POLICY "System can log RFQ activity"
+  ON rfq_activity FOR INSERT
+  WITH CHECK (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+
+-- RFQ Helper Functions
+CREATE OR REPLACE FUNCTION generate_rfq_number(p_org_id UUID)
+RETURNS TEXT AS $$
+DECLARE
+  v_year TEXT := EXTRACT(YEAR FROM NOW())::TEXT;
+  v_max_seq INT;
+  v_new_seq INT;
+BEGIN
+  SELECT COALESCE(MAX(
+    CASE 
+      WHEN rfq_number ~ ('^RFQ-' || v_year || '-\d{4}$')
+      THEN SUBSTRING(rfq_number FROM 'RFQ-' || v_year || '-(\d{4})')::INT
+      ELSE 0
+    END
+  ), 0)
+  INTO v_max_seq
+  FROM rfqs
+  WHERE org_id = p_org_id;
+  
+  v_new_seq := v_max_seq + 1;
+  
+  RETURN 'RFQ-' || v_year || '-' || LPAD(v_new_seq::TEXT, 4, '0');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION get_rfq_summary(p_rfq_id UUID)
+RETURNS TABLE (
+  total_items INT,
+  total_quantity INT,
+  suppliers_invited INT,
+  suppliers_quoted INT,
+  lowest_quote DECIMAL(12,2),
+  highest_quote DECIMAL(12,2)
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    (SELECT COUNT(*)::INT FROM rfq_items WHERE rfq_id = p_rfq_id) as total_items,
+    (SELECT COALESCE(SUM(quantity), 0)::INT FROM rfq_items WHERE rfq_id = p_rfq_id) as total_quantity,
+    (SELECT COUNT(*)::INT FROM rfq_suppliers WHERE rfq_id = p_rfq_id) as suppliers_invited,
+    (SELECT COUNT(*)::INT FROM rfq_suppliers WHERE rfq_id = p_rfq_id AND quoted_at IS NOT NULL) as suppliers_quoted,
+    (SELECT MIN(total_quoted_amount) FROM rfq_suppliers WHERE rfq_id = p_rfq_id AND total_quoted_amount IS NOT NULL) as lowest_quote,
+    (SELECT MAX(total_quoted_amount) FROM rfq_suppliers WHERE rfq_id = p_rfq_id AND total_quoted_amount IS NOT NULL) as highest_quote;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Enable realtime for RFQ tables
+ALTER TABLE rfqs REPLICA IDENTITY FULL;
+ALTER TABLE rfq_items REPLICA IDENTITY FULL;
+ALTER TABLE rfq_suppliers REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE rfqs;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE rfq_items;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE rfq_suppliers;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+END $$;
+
+-- ===========================================
+-- ORGANIZATION INTEGRATIONS (Odoo, Slack, etc.)
+-- ===========================================
+
+CREATE TABLE organization_integrations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Integration type
+  integration_type TEXT NOT NULL,  -- 'odoo', 'slack', 'webhook', etc.
+  
+  -- Connection settings (stored as JSONB for flexibility)
+  -- For Odoo: { url, database, username }
+  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  
+  -- Encrypted credentials (API keys, passwords)
+  credentials_encrypted TEXT,
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  is_connected BOOLEAN DEFAULT false,
+  last_connected_at TIMESTAMPTZ,
+  last_error TEXT,
+  
+  -- Sync settings
+  auto_sync BOOLEAN DEFAULT false,
+  sync_interval_minutes INT DEFAULT 60,
+  last_sync_at TIMESTAMPTZ,
+  last_sync_status TEXT,  -- 'success', 'error', 'partial'
+  last_sync_message TEXT,
+  last_sync_count INT,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  -- One integration per type per org
+  UNIQUE(org_id, integration_type)
+);
+
+CREATE INDEX idx_org_integrations_org_id ON organization_integrations(org_id);
+CREATE INDEX idx_org_integrations_type ON organization_integrations(integration_type);
+CREATE INDEX idx_org_integrations_active ON organization_integrations(is_active) WHERE is_active = true;
+
+-- ===========================================
+-- INTEGRATION SYNC LOG (Audit trail)
+-- ===========================================
+
+CREATE TABLE integration_sync_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  integration_id UUID NOT NULL REFERENCES organization_integrations(id) ON DELETE CASCADE,
+  
+  -- Sync details
+  sync_type TEXT NOT NULL,  -- 'suppliers', 'products', 'full'
+  sync_direction TEXT NOT NULL DEFAULT 'pull',  -- 'pull', 'push', 'bidirectional'
+  
+  -- Results
+  status TEXT NOT NULL,  -- 'started', 'success', 'error', 'partial'
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  
+  -- Counts
+  records_processed INT DEFAULT 0,
+  records_created INT DEFAULT 0,
+  records_updated INT DEFAULT 0,
+  records_skipped INT DEFAULT 0,
+  records_errored INT DEFAULT 0,
+  
+  -- Error details
+  error_message TEXT,
+  error_details JSONB,
+  
+  -- Triggered by
+  triggered_by UUID REFERENCES users(id),
+  trigger_type TEXT DEFAULT 'manual'  -- 'manual', 'scheduled', 'webhook'
+);
+
+CREATE INDEX idx_sync_log_org_id ON integration_sync_log(org_id);
+CREATE INDEX idx_sync_log_integration_id ON integration_sync_log(integration_id);
+CREATE INDEX idx_sync_log_started_at ON integration_sync_log(started_at DESC);
+
+-- ===========================================
+-- INTEGRATION RLS POLICIES
+-- ===========================================
+
+ALTER TABLE organization_integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration_sync_log ENABLE ROW LEVEL SECURITY;
+
+-- Only admins can view/manage integrations
+CREATE POLICY "Admins can view org integrations"
+  ON organization_integrations FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Admins can manage org integrations"
+  ON organization_integrations FOR ALL
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- Admins and engineers can view sync logs
+CREATE POLICY "Engineers can view sync logs"
+  ON integration_sync_log FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+
+CREATE POLICY "System can insert sync logs"
+  ON integration_sync_log FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+-- ===========================================
+-- SUPPLIER AUTHENTICATION SYSTEM
+-- ===========================================
+
+-- Auth method enum for suppliers (not all have Google access in China)
+CREATE TYPE supplier_auth_method AS ENUM ('email', 'phone', 'wechat');
+
+-- ===========================================
+-- SUPPLIER CONTACTS (Supplier Portal Users)
+-- ===========================================
+-- These are people who work at supplier companies and need portal access
+
+CREATE TABLE supplier_contacts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Link to Supabase auth (if they have one)
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  
+  -- Which supplier company they work for
+  supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  
+  -- Contact info
+  email TEXT,                            -- Email address (used for email login)
+  phone TEXT,                            -- Phone number with country code (e.g., +86 138 0000 0000)
+  phone_country_code TEXT,               -- Country code for display (e.g., 'CN', 'US')
+  full_name TEXT NOT NULL,
+  job_title TEXT,
+  avatar_url TEXT,
+  
+  -- Auth configuration
+  auth_method supplier_auth_method DEFAULT 'email',
+  wechat_openid TEXT,                    -- WeChat OpenID for WeChat login
+  
+  -- Status
+  is_primary BOOLEAN DEFAULT false,      -- Primary contact for the supplier
+  is_active BOOLEAN DEFAULT true,
+  email_verified BOOLEAN DEFAULT false,
+  phone_verified BOOLEAN DEFAULT false,
+  
+  -- Portal access permissions
+  can_view_rfqs BOOLEAN DEFAULT true,    -- Can view Requests for Quote
+  can_submit_quotes BOOLEAN DEFAULT true,
+  can_view_orders BOOLEAN DEFAULT true,
+  can_update_pricing BOOLEAN DEFAULT true,
+  can_manage_catalog BOOLEAN DEFAULT true,
+  
+  -- Last activity
+  last_sign_in TIMESTAMPTZ,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Ensure unique email/phone per org's suppliers
+  UNIQUE(email),
+  UNIQUE(phone),
+  UNIQUE(wechat_openid)
+);
+
+CREATE INDEX idx_supplier_contacts_supplier_id ON supplier_contacts(supplier_id);
+CREATE INDEX idx_supplier_contacts_email ON supplier_contacts(email) WHERE email IS NOT NULL;
+CREATE INDEX idx_supplier_contacts_phone ON supplier_contacts(phone) WHERE phone IS NOT NULL;
+CREATE INDEX idx_supplier_contacts_auth_user_id ON supplier_contacts(auth_user_id) WHERE auth_user_id IS NOT NULL;
+CREATE INDEX idx_supplier_contacts_wechat_openid ON supplier_contacts(wechat_openid) WHERE wechat_openid IS NOT NULL;
+CREATE INDEX idx_supplier_contacts_is_active ON supplier_contacts(is_active) WHERE is_active = true;
+
+-- ===========================================
+-- SUPPLIER INVITATIONS
+-- ===========================================
+-- Organizations can invite suppliers to the portal
+
+CREATE TABLE supplier_invitations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Who invited
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  invited_by UUID NOT NULL REFERENCES users(id),
+  
+  -- Invitation details
+  email TEXT,                            -- Email to invite (if email auth)
+  phone TEXT,                            -- Phone to invite (if phone auth)
+  contact_name TEXT NOT NULL,
+  
+  -- Token for invitation link
+  token TEXT NOT NULL UNIQUE,
+  
+  -- Status
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'accepted', 'expired', 'cancelled'
+  
+  -- Timestamps
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '7 days'),
+  accepted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_supplier_invitations_org_id ON supplier_invitations(org_id);
+CREATE INDEX idx_supplier_invitations_supplier_id ON supplier_invitations(supplier_id);
+CREATE INDEX idx_supplier_invitations_token ON supplier_invitations(token);
+CREATE INDEX idx_supplier_invitations_status ON supplier_invitations(status);
+CREATE INDEX idx_supplier_invitations_email ON supplier_invitations(email) WHERE email IS NOT NULL;
+
+-- ===========================================
+-- SUPPLIER AUTH RLS POLICIES
+-- ===========================================
+
+ALTER TABLE supplier_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE supplier_invitations ENABLE ROW LEVEL SECURITY;
+
+-- Supplier contacts: Org members can view suppliers linked to their org
+CREATE POLICY "Org members can view supplier contacts"
+  ON supplier_contacts FOR SELECT
+  USING (
+    supplier_id IN (
+      SELECT s.id FROM suppliers s 
+      WHERE s.org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    )
+    OR auth_user_id = auth.uid()  -- Supplier can see their own record
+  );
+
+-- Supplier contacts: Only admins/engineers can invite (create) new contacts
+CREATE POLICY "Engineers can create supplier contacts"
+  ON supplier_contacts FOR INSERT
+  WITH CHECK (
+    supplier_id IN (
+      SELECT s.id FROM suppliers s 
+      WHERE s.org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))
+    )
+  );
+
+-- Supplier contacts: Contacts can update their own profile
+CREATE POLICY "Suppliers can update own profile"
+  ON supplier_contacts FOR UPDATE
+  USING (auth_user_id = auth.uid());
+
+-- Supplier contacts: Admins can update any contact in their org's suppliers
+CREATE POLICY "Admins can update supplier contacts"
+  ON supplier_contacts FOR UPDATE
+  USING (
+    supplier_id IN (
+      SELECT s.id FROM suppliers s 
+      WHERE s.org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')
+    )
+  );
+
+-- Supplier invitations: Org members can view
+CREATE POLICY "Org members can view supplier invitations"
+  ON supplier_invitations FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+-- Supplier invitations: Engineers can create
+CREATE POLICY "Engineers can create supplier invitations"
+  ON supplier_invitations FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+
+-- Supplier invitations: Admins can update/delete
+CREATE POLICY "Admins can manage supplier invitations"
+  ON supplier_invitations FOR ALL
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- ===========================================
+-- SUPPLIER AUTH HELPER FUNCTIONS
+-- ===========================================
+
+-- Function to check if an email/phone belongs to a supplier
+CREATE OR REPLACE FUNCTION is_supplier_account(p_identifier TEXT)
+RETURNS JSONB AS $$
+DECLARE
+  v_contact RECORD;
+BEGIN
+  -- Check by email
+  SELECT sc.*, s.name as supplier_name, s.org_id
+  INTO v_contact
+  FROM supplier_contacts sc
+  JOIN suppliers s ON sc.supplier_id = s.id
+  WHERE (sc.email = p_identifier OR sc.phone = p_identifier)
+    AND sc.is_active = true;
+  
+  IF v_contact IS NOT NULL THEN
+    RETURN jsonb_build_object(
+      'is_supplier', true,
+      'contact_id', v_contact.id,
+      'supplier_id', v_contact.supplier_id,
+      'supplier_name', v_contact.supplier_name,
+      'full_name', v_contact.full_name,
+      'auth_method', v_contact.auth_method,
+      'org_id', v_contact.org_id
+    );
+  END IF;
+  
+  -- Check pending invitations
+  SELECT si.*, s.name as supplier_name
+  INTO v_contact
+  FROM supplier_invitations si
+  JOIN suppliers s ON si.supplier_id = s.id
+  WHERE (si.email = p_identifier OR si.phone = p_identifier)
+    AND si.status = 'pending'
+    AND si.expires_at > NOW();
+  
+  IF v_contact IS NOT NULL THEN
+    RETURN jsonb_build_object(
+      'is_supplier', true,
+      'is_invitation', true,
+      'invitation_id', v_contact.id,
+      'supplier_id', v_contact.supplier_id,
+      'supplier_name', v_contact.supplier_name,
+      'contact_name', v_contact.contact_name
+    );
+  END IF;
+  
+  RETURN jsonb_build_object('is_supplier', false);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION is_supplier_account(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION is_supplier_account(TEXT) TO authenticated;

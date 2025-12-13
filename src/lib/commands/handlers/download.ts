@@ -104,6 +104,9 @@ export const downloadCommand: Command<DownloadParams> = {
     const cloudFilePaths = cloudFiles.map(f => f.relativePath)
     cloudFilePaths.forEach(p => ctx.addProcessingFolder(p))
     
+    // Yield to event loop so React can render spinners before starting download
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
     const total = cloudFiles.length
     
     // Progress tracking

@@ -77,6 +77,9 @@ export const checkinCommand: Command<CheckinParams> = {
       .map(f => f.relativePath)
     foldersBeingProcessed.forEach(p => ctx.addProcessingFolder(p))
     
+    // Yield to event loop so React can render spinners before starting operation
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
     // Progress tracking
     const toastId = `checkin-${Date.now()}`
     const total = filesToCheckin.length

@@ -1113,6 +1113,129 @@ export interface Database {
           created_at?: string
         }
       }
+      // Supplier contacts (supplier portal users)
+      supplier_contacts: {
+        Row: {
+          id: string
+          auth_user_id: string | null
+          supplier_id: string
+          email: string | null
+          phone: string | null
+          phone_country_code: string | null
+          full_name: string
+          job_title: string | null
+          avatar_url: string | null
+          auth_method: 'email' | 'phone' | 'wechat'
+          wechat_openid: string | null
+          is_primary: boolean
+          is_active: boolean
+          email_verified: boolean
+          phone_verified: boolean
+          can_view_rfqs: boolean
+          can_submit_quotes: boolean
+          can_view_orders: boolean
+          can_update_pricing: boolean
+          can_manage_catalog: boolean
+          last_sign_in: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          auth_user_id?: string | null
+          supplier_id: string
+          email?: string | null
+          phone?: string | null
+          phone_country_code?: string | null
+          full_name: string
+          job_title?: string | null
+          avatar_url?: string | null
+          auth_method?: 'email' | 'phone' | 'wechat'
+          wechat_openid?: string | null
+          is_primary?: boolean
+          is_active?: boolean
+          email_verified?: boolean
+          phone_verified?: boolean
+          can_view_rfqs?: boolean
+          can_submit_quotes?: boolean
+          can_view_orders?: boolean
+          can_update_pricing?: boolean
+          can_manage_catalog?: boolean
+          last_sign_in?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          auth_user_id?: string | null
+          supplier_id?: string
+          email?: string | null
+          phone?: string | null
+          phone_country_code?: string | null
+          full_name?: string
+          job_title?: string | null
+          avatar_url?: string | null
+          auth_method?: 'email' | 'phone' | 'wechat'
+          wechat_openid?: string | null
+          is_primary?: boolean
+          is_active?: boolean
+          email_verified?: boolean
+          phone_verified?: boolean
+          can_view_rfqs?: boolean
+          can_submit_quotes?: boolean
+          can_view_orders?: boolean
+          can_update_pricing?: boolean
+          can_manage_catalog?: boolean
+          last_sign_in?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      // Supplier invitations
+      supplier_invitations: {
+        Row: {
+          id: string
+          org_id: string
+          supplier_id: string
+          invited_by: string
+          email: string | null
+          phone: string | null
+          contact_name: string
+          token: string
+          status: 'pending' | 'accepted' | 'expired' | 'cancelled'
+          expires_at: string
+          accepted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          supplier_id: string
+          invited_by: string
+          email?: string | null
+          phone?: string | null
+          contact_name: string
+          token: string
+          status?: 'pending' | 'accepted' | 'expired' | 'cancelled'
+          expires_at?: string
+          accepted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          supplier_id?: string
+          invited_by?: string
+          email?: string | null
+          phone?: string | null
+          contact_name?: string
+          token?: string
+          status?: 'pending' | 'accepted' | 'expired' | 'cancelled'
+          expires_at?: string
+          accepted_at?: string | null
+          created_at?: string
+        }
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -1152,6 +1275,21 @@ export interface Database {
         Args: { p_org_id: string; p_machine_id: string }
         Returns: boolean
       }
+      is_supplier_account: {
+        Args: { p_identifier: string }
+        Returns: {
+          is_supplier: boolean
+          is_invitation?: boolean
+          contact_id?: string
+          invitation_id?: string
+          supplier_id?: string
+          supplier_name?: string
+          full_name?: string
+          contact_name?: string
+          auth_method?: 'email' | 'phone' | 'wechat'
+          org_id?: string
+        }
+      }
     }
     Enums: {
       file_state: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
@@ -1168,6 +1306,8 @@ export interface Database {
       approval_mode: 'any' | 'all' | 'sequential'
       reviewer_type: 'user' | 'role' | 'group' | 'file_owner' | 'checkout_user'
       transition_line_style: 'solid' | 'dashed' | 'dotted'
+      supplier_auth_method: 'email' | 'phone' | 'wechat'
+      supplier_invitation_status: 'pending' | 'accepted' | 'expired' | 'cancelled'
     }
     CompositeTypes: Record<string, never>
   }
@@ -1179,6 +1319,59 @@ export interface Database {
 
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 export type NotificationType = 'review_request' | 'review_approved' | 'review_rejected' | 'review_comment' | 'mention' | 'file_updated' | 'checkout_request'
+
+// ===========================================
+// Account Types (User vs Supplier)
+// ===========================================
+
+export type AccountType = 'user' | 'supplier'
+export type SupplierAuthMethod = 'email' | 'phone' | 'wechat'
+
+export interface SupplierContact {
+  id: string
+  auth_user_id: string | null
+  supplier_id: string
+  email: string | null
+  phone: string | null
+  phone_country_code: string | null
+  full_name: string
+  job_title: string | null
+  avatar_url: string | null
+  auth_method: SupplierAuthMethod
+  wechat_openid: string | null
+  is_primary: boolean
+  is_active: boolean
+  email_verified: boolean
+  phone_verified: boolean
+  can_view_rfqs: boolean
+  can_submit_quotes: boolean
+  can_view_orders: boolean
+  can_update_pricing: boolean
+  can_manage_catalog: boolean
+  last_sign_in: string | null
+  created_at: string
+  updated_at: string
+  // Joined fields
+  supplier?: {
+    id: string
+    name: string
+    code: string | null
+    org_id: string
+  }
+}
+
+export interface SupplierAccountCheck {
+  is_supplier: boolean
+  is_invitation?: boolean
+  contact_id?: string
+  invitation_id?: string
+  supplier_id?: string
+  supplier_name?: string
+  full_name?: string
+  contact_name?: string
+  auth_method?: SupplierAuthMethod
+  org_id?: string
+}
 
 export interface Review {
   id: string

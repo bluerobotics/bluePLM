@@ -15,6 +15,8 @@ import { ProcessView } from './sidebar/ProcessView'
 import { ScheduleView } from './sidebar/ScheduleView'
 import { ReviewsView } from './sidebar/ReviewsView'
 import { GSDView } from './sidebar/GSDView'
+import { SuppliersView } from './sidebar/SuppliersView'
+import { SupplierPortalView } from './sidebar/SupplierPortalView'
 import { GoogleDriveView } from './sidebar/GoogleDriveView'
 import { IntegrationsView } from './sidebar/IntegrationsView'
 // System Views
@@ -30,8 +32,14 @@ interface SidebarProps {
   onSettingsTabChange?: (tab: SettingsTab) => void
 }
 
+// Fixed width for settings view (not resizable)
+const SETTINGS_SIDEBAR_WIDTH = 200
+
 export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab = 'account', onSettingsTabChange }: SidebarProps) {
   const { activeView, sidebarWidth, connectedVaults, setGdriveNavigation, gdriveCurrentFolderId } = usePDMStore()
+  
+  // Settings view uses fixed width, others use resizable width
+  const effectiveWidth = activeView === 'settings' ? SETTINGS_SIDEBAR_WIDTH : sidebarWidth
 
   const handleGdriveNavigate = (folderId: string | null, folderName?: string, isSharedDrive?: boolean, driveId?: string) => {
     setGdriveNavigation(folderId, folderName, isSharedDrive, driveId)
@@ -69,6 +77,10 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
         return <ReviewsView />
       case 'gsd':
         return <GSDView />
+      case 'suppliers':
+        return <SuppliersView />
+      case 'supplier-portal':
+        return <SupplierPortalView />
       case 'google-drive':
         return <GoogleDriveView onNavigate={handleGdriveNavigate} currentFolderId={gdriveCurrentFolderId} />
       case 'integrations':
@@ -113,6 +125,10 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
         return 'REVIEWS'
       case 'gsd':
         return 'GSD SUMMARY'
+      case 'suppliers':
+        return 'SUPPLIERS'
+      case 'supplier-portal':
+        return 'SUPPLIER PORTAL'
       case 'google-drive':
         return 'GOOGLE DRIVE'
       case 'integrations':
@@ -125,19 +141,30 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
     }
   }
 
+  // Settings view has a different header style
+  const isSettings = activeView === 'settings'
+
   return (
     <div
       className="bg-pdm-sidebar flex flex-col overflow-hidden"
-      style={{ width: sidebarWidth }}
+      style={{ width: effectiveWidth }}
     >
-      <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold text-pdm-fg-dim tracking-wide border-b border-pdm-border">
-        <span>{getTitle()}</span>
-        {activeView === 'explorer' && connectedVaults.length > 0 && (
-          <span className="text-pdm-fg-muted font-normal">
-            {connectedVaults.length} vault{connectedVaults.length > 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
+      {isSettings ? (
+        /* Settings header - bigger, more padding, like Supabase */
+        <div className="h-12 flex items-center px-6 border-b border-pdm-border">
+          <h4 className="text-xl font-medium text-pdm-fg">Settings</h4>
+        </div>
+      ) : (
+        /* Default header - compact uppercase */
+        <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold text-pdm-fg-dim tracking-wide border-b border-pdm-border">
+          <span>{getTitle()}</span>
+          {activeView === 'explorer' && connectedVaults.length > 0 && (
+            <span className="text-pdm-fg-muted font-normal">
+              {connectedVaults.length} vault{connectedVaults.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex-1 overflow-auto">
         {renderView()}
       </div>

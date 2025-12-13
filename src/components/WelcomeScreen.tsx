@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Settings, Database, Link } from 'lucide-react'
+import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Settings, Database, Link, User, Truck, Mail, Phone, ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
-import { signInWithGoogle, isSupabaseConfigured, supabase } from '../lib/supabase'
+import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
 import { SettingsModal } from './SettingsModal'
+import type { AccountType } from '../types/database'
 
 // Helper to log to both console and electron log file
 const uiLog = (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => {
@@ -74,6 +75,21 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   const [isConnectingVault, setIsConnectingVault] = useState(false)  // Local vault connection state
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  
+  // Account type selection state
+  const [accountType, setAccountType] = useState<AccountType | null>(null)
+  
+  // Supplier auth state
+  const [supplierAuthMethod, setSupplierAuthMethod] = useState<'email' | 'phone'>('email')
+  const [supplierEmail, setSupplierEmail] = useState('')
+  const [supplierPassword, setSupplierPassword] = useState('')
+  const [supplierPhone, setSupplierPhone] = useState('')
+  const [phoneOtp, setPhoneOtp] = useState('')
+  const [isOtpSent, setIsOtpSent] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [isNewAccount, setIsNewAccount] = useState(false)
+  const [supplierName, setSupplierName] = useState('')
+  const [authError, setAuthError] = useState<string | null>(null)
   const [orgVaults, setOrgVaults] = useState<Vault[]>([])
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
   const [connectingVaultId, setConnectingVaultId] = useState<string | null>(null)
@@ -301,6 +317,120 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     }
   }
 
+  // Supplier email/password sign-in
+  const handleSupplierEmailAuth = async () => {
+    if (!supplierEmail || !supplierPassword) {
+      setAuthError('Please enter email and password')
+      return
+    }
+    
+    setIsSigningIn(true)
+    setAuthError(null)
+    
+    try {
+      if (isNewAccount) {
+        // Sign up
+        uiLog('info', 'Starting supplier email sign-up')
+        const { data, error } = await signUpWithEmail(supplierEmail, supplierPassword, supplierName || undefined)
+        
+        if (error) {
+          setAuthError(error.message)
+          return
+        }
+        
+        if (!data?.session) {
+          // Email confirmation needed
+          setAuthError('Please check your email to confirm your account')
+          setIsNewAccount(false)  // Switch back to login view
+          return
+        }
+        
+        uiLog('info', 'Supplier sign-up successful')
+      } else {
+        // Sign in
+        uiLog('info', 'Starting supplier email sign-in')
+        const { data, error } = await signInWithEmail(supplierEmail, supplierPassword)
+        
+        if (error) {
+          setAuthError(error.message)
+          return
+        }
+        
+        uiLog('info', 'Supplier sign-in successful')
+      }
+    } catch (err) {
+      setAuthError('Authentication failed. Please try again.')
+    } finally {
+      setIsSigningIn(false)
+    }
+  }
+
+  // Supplier phone OTP sign-in
+  const handleSendPhoneOTP = async () => {
+    if (!supplierPhone) {
+      setAuthError('Please enter your phone number')
+      return
+    }
+    
+    setIsSigningIn(true)
+    setAuthError(null)
+    
+    try {
+      uiLog('info', 'Sending phone OTP')
+      const { error } = await signInWithPhone(supplierPhone)
+      
+      if (error) {
+        setAuthError(error.message)
+        return
+      }
+      
+      setIsOtpSent(true)
+      uiLog('info', 'Phone OTP sent successfully')
+    } catch (err) {
+      setAuthError('Failed to send verification code. Please try again.')
+    } finally {
+      setIsSigningIn(false)
+    }
+  }
+
+  const handleVerifyPhoneOTP = async () => {
+    if (!phoneOtp) {
+      setAuthError('Please enter the verification code')
+      return
+    }
+    
+    setIsSigningIn(true)
+    setAuthError(null)
+    
+    try {
+      uiLog('info', 'Verifying phone OTP')
+      const { error } = await verifyPhoneOTP(supplierPhone, phoneOtp)
+      
+      if (error) {
+        setAuthError(error.message)
+        return
+      }
+      
+      uiLog('info', 'Phone verification successful')
+    } catch (err) {
+      setAuthError('Verification failed. Please try again.')
+    } finally {
+      setIsSigningIn(false)
+    }
+  }
+
+  // Reset supplier auth state
+  const resetSupplierAuth = () => {
+    setSupplierEmail('')
+    setSupplierPassword('')
+    setSupplierPhone('')
+    setPhoneOtp('')
+    setIsOtpSent(false)
+    setIsNewAccount(false)
+    setSupplierName('')
+    setAuthError(null)
+  }
+
   const handleOfflineMode = () => {
     setOfflineMode(true)
   }
@@ -498,38 +628,333 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
             </p>
           </div>
 
-          {/* Sign In Options */}
-          <div className="space-y-4">
-            <button
-              onClick={handleSignIn}
-              disabled={isSigningIn || !isSupabaseConfigured()}
-              className="w-full btn btn-primary btn-lg gap-3 justify-center py-4"
-            >
-              {isSigningIn ? (
-                <Loader2 size={20} className="animate-spin" />
-              ) : (
-                <LogIn size={20} />
-              )}
-              Sign In with Google
-            </button>
+          {/* ============================================ */}
+          {/* STEP 1: Account Type Selection */}
+          {/* ============================================ */}
+          {!accountType && (
+            <div className="space-y-4">
+              <p className="text-center text-sm text-pdm-fg-muted mb-6">
+                Select your account type
+              </p>
+              
+              <button
+                onClick={() => setAccountType('user')}
+                className="w-full bg-pdm-bg-light border-2 border-pdm-border hover:border-pdm-accent rounded-xl p-6 transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-pdm-accent/20 flex items-center justify-center group-hover:bg-pdm-accent/30 transition-colors">
+                    <User size={28} className="text-pdm-accent" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="font-semibold text-pdm-fg text-lg">Team Member</h3>
+                    <p className="text-sm text-pdm-fg-muted">
+                      Engineers, admins, and viewers
+                    </p>
+                  </div>
+                </div>
+              </button>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-pdm-border"></div>
+              <button
+                onClick={() => setAccountType('supplier')}
+                className="w-full bg-pdm-bg-light border-2 border-pdm-border hover:border-amber-500 rounded-xl p-6 transition-colors group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/30 transition-colors">
+                    <Truck size={28} className="text-amber-500" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="font-semibold text-pdm-fg text-lg">Supplier</h3>
+                    <p className="text-sm text-pdm-fg-muted">
+                      Vendor portal access
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-pdm-border"></div>
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="px-2 bg-pdm-bg text-pdm-fg-muted">or</span>
+                </div>
               </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-2 bg-pdm-bg text-pdm-fg-muted">or</span>
+
+              <button
+                onClick={handleOfflineMode}
+                className="w-full btn btn-secondary gap-3 justify-center py-3"
+              >
+                <WifiOff size={18} />
+                Work Offline
+              </button>
+            </div>
+          )}
+
+          {/* ============================================ */}
+          {/* STEP 2a: User Sign In (Google OAuth) */}
+          {/* ============================================ */}
+          {accountType === 'user' && (
+            <div className="space-y-4">
+              <button
+                onClick={() => { setAccountType(null); resetSupplierAuth() }}
+                className="flex items-center gap-2 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors mb-4"
+              >
+                <ArrowLeft size={16} />
+                Back
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="w-12 h-12 rounded-xl bg-pdm-accent/20 flex items-center justify-center mx-auto mb-3">
+                  <User size={24} className="text-pdm-accent" />
+                </div>
+                <h2 className="text-xl font-semibold text-pdm-fg">Team Member Sign In</h2>
+                <p className="text-sm text-pdm-fg-muted mt-1">
+                  Sign in with your organization account
+                </p>
+              </div>
+              
+              <button
+                onClick={handleSignIn}
+                disabled={isSigningIn || !isSupabaseConfigured()}
+                className="w-full btn btn-primary btn-lg gap-3 justify-center py-4"
+              >
+                {isSigningIn ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                )}
+                Sign In with Google
+              </button>
+
+              <div className="text-center text-xs text-pdm-fg-muted mt-4">
+                Your role (Admin, Engineer, Viewer) is set by your organization
               </div>
             </div>
+          )}
 
-            <button
-              onClick={handleOfflineMode}
-              className="w-full btn btn-secondary gap-3 justify-center py-3"
-            >
-              <WifiOff size={18} />
-              Work Offline
-            </button>
-          </div>
+          {/* ============================================ */}
+          {/* STEP 2b: Supplier Sign In */}
+          {/* ============================================ */}
+          {accountType === 'supplier' && (
+            <div className="space-y-4">
+              <button
+                onClick={() => { setAccountType(null); resetSupplierAuth() }}
+                className="flex items-center gap-2 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors mb-4"
+              >
+                <ArrowLeft size={16} />
+                Back
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center mx-auto mb-3">
+                  <Truck size={24} className="text-amber-500" />
+                </div>
+                <h2 className="text-xl font-semibold text-pdm-fg">Supplier Portal</h2>
+                <p className="text-sm text-pdm-fg-muted mt-1">
+                  {isNewAccount ? 'Create your supplier account' : 'Sign in to your account'}
+                </p>
+              </div>
+
+              {/* Auth Method Tabs */}
+              <div className="flex rounded-lg bg-pdm-bg-light p-1 mb-4">
+                <button
+                  onClick={() => { setSupplierAuthMethod('email'); setIsOtpSent(false) }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    supplierAuthMethod === 'email' 
+                      ? 'bg-pdm-bg text-pdm-fg shadow-sm' 
+                      : 'text-pdm-fg-muted hover:text-pdm-fg'
+                  }`}
+                >
+                  <Mail size={16} />
+                  Email
+                </button>
+                <button
+                  onClick={() => { setSupplierAuthMethod('phone'); setIsNewAccount(false) }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    supplierAuthMethod === 'phone' 
+                      ? 'bg-pdm-bg text-pdm-fg shadow-sm' 
+                      : 'text-pdm-fg-muted hover:text-pdm-fg'
+                  }`}
+                >
+                  <Phone size={16} />
+                  Phone
+                </button>
+              </div>
+
+              {/* Error Message */}
+              {authError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-sm text-red-400">{authError}</p>
+                </div>
+              )}
+
+              {/* Email Auth Form */}
+              {supplierAuthMethod === 'email' && (
+                <div className="space-y-4">
+                  {isNewAccount && (
+                    <div>
+                      <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={supplierName}
+                        onChange={(e) => setSupplierName(e.target.value)}
+                        placeholder="Your name"
+                        className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
+                      />
+                    </div>
+                  )}
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={supplierEmail}
+                      onChange={(e) => setSupplierEmail(e.target.value)}
+                      placeholder="you@company.com"
+                      className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={supplierPassword}
+                        onChange={(e) => setSupplierPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-4 py-3 pr-12 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleSupplierEmailAuth}
+                    disabled={isSigningIn}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isSigningIn ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : (
+                      <LogIn size={20} />
+                    )}
+                    {isNewAccount ? 'Create Account' : 'Sign In'}
+                  </button>
+
+                  <div className="text-center">
+                    <button
+                      onClick={() => { setIsNewAccount(!isNewAccount); setAuthError(null) }}
+                      className="text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                    >
+                      {isNewAccount 
+                        ? 'Already have an account? Sign in' 
+                        : "Don't have an account? Create one"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Phone Auth Form */}
+              {supplierAuthMethod === 'phone' && (
+                <div className="space-y-4">
+                  {!isOtpSent ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                          Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={supplierPhone}
+                          onChange={(e) => setSupplierPhone(e.target.value)}
+                          placeholder="+86 138 0000 0000"
+                          className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
+                        />
+                        <p className="text-xs text-pdm-fg-muted mt-1.5">
+                          Include country code (e.g., +86 for China, +1 for US)
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={handleSendPhoneOTP}
+                        disabled={isSigningIn}
+                        className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isSigningIn ? (
+                          <Loader2 size={20} className="animate-spin" />
+                        ) : (
+                          <Phone size={20} />
+                        )}
+                        Send Verification Code
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-center text-sm text-pdm-fg-muted mb-4">
+                        A verification code was sent to <span className="text-pdm-fg font-medium">{supplierPhone}</span>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                          Verification Code
+                        </label>
+                        <input
+                          type="text"
+                          value={phoneOtp}
+                          onChange={(e) => setPhoneOtp(e.target.value)}
+                          placeholder="123456"
+                          maxLength={6}
+                          className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors text-center text-2xl tracking-widest"
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleVerifyPhoneOTP}
+                        disabled={isSigningIn}
+                        className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isSigningIn ? (
+                          <Loader2 size={20} className="animate-spin" />
+                        ) : (
+                          <Check size={20} />
+                        )}
+                        Verify & Sign In
+                      </button>
+
+                      <button
+                        onClick={() => { setIsOtpSent(false); setPhoneOtp('') }}
+                        className="w-full text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                      >
+                        Use a different number
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <div className="text-center text-xs text-pdm-fg-muted mt-4 pt-4 border-t border-pdm-border">
+                Suppliers are invited by organizations. Contact your buyer if you need access.
+              </div>
+            </div>
+          )}
 
           {/* Footer */}
           <div className="text-center mt-12 text-xs text-pdm-fg-muted">

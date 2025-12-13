@@ -287,6 +287,211 @@ export async function signInWithGoogle() {
   return { data, error }
 }
 
+// ============================================
+// Email/Password Auth (for Users and Suppliers)
+// ============================================
+
+export async function signInWithEmail(email: string, password: string) {
+  const client = getSupabaseClient()
+  authLog('info', 'signInWithEmail called', { email })
+  
+  try {
+    const { data, error } = await client.auth.signInWithPassword({
+      email,
+      password
+    })
+    
+    if (error) {
+      authLog('error', 'Email sign-in failed', { error: error.message })
+      return { data: null, error }
+    }
+    
+    authLog('info', 'Email sign-in successful', { userId: data.user?.id?.substring(0, 8) })
+    return { data, error: null }
+  } catch (err) {
+    authLog('error', 'signInWithEmail exception', { error: String(err) })
+    return { data: null, error: err as Error }
+  }
+}
+
+export async function signUpWithEmail(email: string, password: string, fullName?: string) {
+  const client = getSupabaseClient()
+  authLog('info', 'signUpWithEmail called', { email, hasName: !!fullName })
+  
+  try {
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName
+        }
+      }
+    })
+    
+    if (error) {
+      authLog('error', 'Email sign-up failed', { error: error.message })
+      return { data: null, error }
+    }
+    
+    authLog('info', 'Email sign-up successful', { 
+      userId: data.user?.id?.substring(0, 8),
+      needsConfirmation: !data.session  // No session means email confirmation needed
+    })
+    return { data, error: null }
+  } catch (err) {
+    authLog('error', 'signUpWithEmail exception', { error: String(err) })
+    return { data: null, error: err as Error }
+  }
+}
+
+// ============================================
+// Phone/SMS Auth (Best for China)
+// ============================================
+
+export async function signInWithPhone(phone: string) {
+  const client = getSupabaseClient()
+  authLog('info', 'signInWithPhone called - sending OTP', { phone: phone.substring(0, 6) + '...' })
+  
+  try {
+    const { data, error } = await client.auth.signInWithOtp({
+      phone,
+      options: {
+        // Channel can be 'sms' or 'whatsapp' (SMS works in China)
+        channel: 'sms'
+      }
+    })
+    
+    if (error) {
+      authLog('error', 'Phone OTP send failed', { error: error.message })
+      return { data: null, error }
+    }
+    
+    authLog('info', 'Phone OTP sent successfully')
+    return { data, error: null }
+  } catch (err) {
+    authLog('error', 'signInWithPhone exception', { error: String(err) })
+    return { data: null, error: err as Error }
+  }
+}
+
+export async function verifyPhoneOTP(phone: string, token: string) {
+  const client = getSupabaseClient()
+  authLog('info', 'verifyPhoneOTP called', { phone: phone.substring(0, 6) + '...' })
+  
+  try {
+    const { data, error } = await client.auth.verifyOtp({
+      phone,
+      token,
+      type: 'sms'
+    })
+    
+    if (error) {
+      authLog('error', 'Phone OTP verification failed', { error: error.message })
+      return { data: null, error }
+    }
+    
+    authLog('info', 'Phone OTP verified successfully', { userId: data.user?.id?.substring(0, 8) })
+    return { data, error: null }
+  } catch (err) {
+    authLog('error', 'verifyPhoneOTP exception', { error: String(err) })
+    return { data: null, error: err as Error }
+  }
+}
+
+// ============================================
+// Supplier Account Check
+// ============================================
+
+export async function checkIfSupplierAccount(identifier: string): Promise<{
+  isSupplier: boolean
+  isInvitation?: boolean
+  contactId?: string
+  invitationId?: string
+  supplierId?: string
+  supplierName?: string
+  fullName?: string
+  contactName?: string
+  authMethod?: 'email' | 'phone' | 'wechat'
+  orgId?: string
+}> {
+  authLog('info', 'checkIfSupplierAccount called', { identifier: identifier.substring(0, 5) + '...' })
+  
+  try {
+    const url = currentConfig?.url || import.meta.env.VITE_SUPABASE_URL
+    const key = currentConfig?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY
+    
+    // Call the database function
+    const response = await fetch(`${url}/rest/v1/rpc/is_supplier_account`, {
+      method: 'POST',
+      headers: {
+        'apikey': key,
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ p_identifier: identifier })
+    })
+    
+    const result = await response.json()
+    authLog('debug', 'Supplier account check result', result)
+    
+    if (result && result.is_supplier) {
+      return {
+        isSupplier: true,
+        isInvitation: result.is_invitation || false,
+        contactId: result.contact_id,
+        invitationId: result.invitation_id,
+        supplierId: result.supplier_id,
+        supplierName: result.supplier_name,
+        fullName: result.full_name,
+        contactName: result.contact_name,
+        authMethod: result.auth_method,
+        orgId: result.org_id
+      }
+    }
+    
+    return { isSupplier: false }
+  } catch (err) {
+    authLog('error', 'checkIfSupplierAccount failed', { error: String(err) })
+    return { isSupplier: false }
+  }
+}
+
+// ============================================
+// Supplier Contact Profile
+// ============================================
+
+export async function getSupplierContact(authUserId: string) {
+  authLog('debug', 'getSupplierContact called', { authUserId: authUserId?.substring(0, 8) + '...' })
+  
+  try {
+    const url = currentConfig?.url || import.meta.env.VITE_SUPABASE_URL
+    const key = currentConfig?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY
+    const accessToken = currentAccessToken || key
+    
+    const response = await fetch(
+      `${url}/rest/v1/supplier_contacts?select=*,supplier:suppliers(id,name,code,org_id)&auth_user_id=eq.${authUserId}`, 
+      {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    const data = await response.json()
+    
+    if (data && data.length > 0) {
+      authLog('debug', 'Found supplier contact', { contactId: data[0].id })
+      return { contact: data[0], error: null }
+    }
+    return { contact: null, error: new Error('Supplier contact not found') }
+  } catch (err) {
+    authLog('error', 'getSupplierContact failed', { error: String(err) })
+    return { contact: null, error: err as Error }
+  }
+}
+
 export async function signOut() {
   const client = getSupabaseClient()
   
@@ -652,22 +857,41 @@ export async function getCheckedOutUsers(fileIds: string[]) {
   if (fileIds.length === 0) return { users: {}, error: null }
   
   const client = getSupabaseClient()
-  const { data, error } = await client
+  
+  // First get files with their checked_out_by user IDs
+  const { data: files, error: filesError } = await client
     .from('files')
-    .select(`
-      id,
-      checked_out_user:users!checked_out_by(email, full_name, avatar_url)
-    `)
+    .select('id, checked_out_by')
     .in('id', fileIds)
     .not('checked_out_by', 'is', null)
   
-  if (error) return { users: {}, error }
+  if (filesError) return { users: {}, error: filesError }
+  if (!files || files.length === 0) return { users: {}, error: null }
   
-  // Convert to a map for easy lookup
+  // Get unique user IDs
+  const userIds = [...new Set(files.map(f => f.checked_out_by).filter(Boolean))]
+  
+  // Fetch user info separately
+  const { data: usersData, error: usersError } = await client
+    .from('users')
+    .select('id, email, full_name, avatar_url')
+    .in('id', userIds)
+  
+  if (usersError) return { users: {}, error: usersError }
+  
+  // Create a user lookup map
+  const userLookup = new Map(usersData?.map(u => [u.id, u]) || [])
+  
+  // Convert to a map for easy lookup by file ID
   const users: Record<string, { email: string; full_name: string; avatar_url?: string }> = {}
-  for (const file of data || []) {
-    if (file.checked_out_user) {
-      users[file.id] = file.checked_out_user as { email: string; full_name: string; avatar_url?: string }
+  for (const file of files) {
+    const user = userLookup.get(file.checked_out_by)
+    if (user) {
+      users[file.id] = {
+        email: user.email,
+        full_name: user.full_name || '',
+        avatar_url: user.avatar_url || undefined
+      }
     }
   }
   
@@ -1120,10 +1344,10 @@ export async function checkoutFile(fileId: string, userId: string, message?: str
   const machineId = await getMachineId()
   const machineName = await getMachineName()
   
-  // First check if file is already checked out
+  // First check if file is already checked out (simple query without join)
   const { data: file, error: fetchError } = await client
     .from('files')
-    .select('id, file_name, checked_out_by, checked_out_by_machine_id, checked_out_user:users!checked_out_by(email, full_name, avatar_url)')
+    .select('id, file_name, checked_out_by, checked_out_by_machine_id')
     .eq('id', fileId)
     .single()
   
@@ -1132,7 +1356,13 @@ export async function checkoutFile(fileId: string, userId: string, message?: str
   }
   
   if (file.checked_out_by && file.checked_out_by !== userId) {
-    const checkedOutUser = file.checked_out_user as { email: string; full_name: string } | null
+    // File is checked out by someone else - fetch their info separately
+    const { data: checkedOutUser } = await client
+      .from('users')
+      .select('email, full_name')
+      .eq('id', file.checked_out_by)
+      .single()
+    
     return { 
       success: false, 
       error: `File is already checked out by ${checkedOutUser?.full_name || checkedOutUser?.email || 'another user'}` 
@@ -1399,7 +1629,7 @@ export async function adminForceDiscardCheckout(
   // Get the file info
   const { data: file, error: fetchError } = await client
     .from('files')
-    .select('*, checked_out_user:users!checked_out_by(id, email, full_name)')
+    .select('*')
     .eq('id', fileId)
     .single()
   
@@ -1411,7 +1641,17 @@ export async function adminForceDiscardCheckout(
     return { success: false, error: 'File is not checked out' }
   }
   
-  const checkedOutUser = file.checked_out_user as { id: string; email: string; full_name: string } | null
+  // Get the checked out user info separately
+  let checkedOutUser: { id: string; email: string; full_name: string } | null = null
+  const { data: userData } = await client
+    .from('users')
+    .select('id, email, full_name')
+    .eq('id', file.checked_out_by)
+    .single()
+  
+  if (userData) {
+    checkedOutUser = userData
+  }
   
   // Release the checkout
   const { data, error } = await client
@@ -2993,24 +3233,33 @@ export async function getCheckedOutByUser(
 ): Promise<{ user: { id: string; email: string; full_name: string | null; avatar_url: string | null } | null; error?: string }> {
   const client = getSupabaseClient()
   
-  const { data, error } = await client
+  // First get the file's checked_out_by
+  const { data: file, error: fileError } = await client
     .from('files')
-    .select(`
-      checked_out_by,
-      checked_out_user:users!checked_out_by(id, email, full_name, avatar_url)
-    `)
+    .select('checked_out_by')
     .eq('id', fileId)
     .single()
   
-  if (error) {
-    return { user: null, error: error.message }
+  if (fileError) {
+    return { user: null, error: fileError.message }
   }
   
-  if (!data?.checked_out_by) {
+  if (!file?.checked_out_by) {
     return { user: null }
   }
   
-  return { user: data.checked_out_user as any }
+  // Then get the user info
+  const { data: user, error: userError } = await client
+    .from('users')
+    .select('id, email, full_name, avatar_url')
+    .eq('id', file.checked_out_by)
+    .single()
+  
+  if (userError) {
+    return { user: null, error: userError.message }
+  }
+  
+  return { user }
 }
 
 // ============================================

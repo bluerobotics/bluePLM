@@ -99,6 +99,9 @@ declare global {
       getVersion: () => Promise<string>
       getPlatform: () => Promise<string>
       getTitleBarOverlayRect: () => Promise<{ x: number; y: number; width: number; height: number }>
+      setTitleBarOverlay: (options: { color: string; symbolColor: string }) => Promise<{ success: boolean; error?: string }>
+      getZoomFactor: () => Promise<number>
+      setZoomFactor: (factor: number) => Promise<{ success: boolean; factor?: number; error?: string }>
       getPathForFile: (file: File) => string
       reloadApp: () => Promise<{ success: boolean; error?: string }>
       

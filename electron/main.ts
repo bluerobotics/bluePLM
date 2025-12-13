@@ -320,8 +320,8 @@ function createWindow() {
     backgroundColor: '#0a1929',
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#071320',
-      symbolColor: '#e3f2fd',
+      color: '#181818',      // Default to dark theme - updated dynamically based on app theme
+      symbolColor: '#cccccc',
       height: 36
     },
     webPreferences: {
@@ -1224,6 +1224,22 @@ ipcMain.handle('app:get-titlebar-overlay-rect', () => {
   return mainWindow.getTitleBarOverlayRect?.() || { x: 0, y: 0, width: 138, height: 38 }
 })
 
+ipcMain.handle('app:set-titlebar-overlay', (_event, options: { color: string; symbolColor: string }) => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+  try {
+    // setTitleBarOverlay is available for Windows when using titleBarStyle: 'hidden' with titleBarOverlay
+    mainWindow.setTitleBarOverlay({
+      color: options.color,
+      symbolColor: options.symbolColor,
+      height: 36
+    })
+    return { success: true }
+  } catch (err) {
+    log(`[Main] Failed to set titlebar overlay: ${err}`)
+    return { success: false, error: String(err) }
+  }
+})
+
 ipcMain.handle('app:reload', () => {
   log('[Main] Reload requested via CLI')
   if (mainWindow) {
@@ -1231,6 +1247,20 @@ ipcMain.handle('app:reload', () => {
     return { success: true }
   }
   return { success: false, error: 'No window' }
+})
+
+// Zoom level handlers
+ipcMain.handle('app:get-zoom-factor', () => {
+  if (!mainWindow) return 1
+  return mainWindow.webContents.getZoomFactor()
+})
+
+ipcMain.handle('app:set-zoom-factor', (_event, factor: number) => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+  // Clamp zoom factor between 0.5 (50%) and 2.0 (200%)
+  const clampedFactor = Math.max(0.5, Math.min(2.0, factor))
+  mainWindow.webContents.setZoomFactor(clampedFactor)
+  return { success: true, factor: clampedFactor }
 })
 
 // ============================================

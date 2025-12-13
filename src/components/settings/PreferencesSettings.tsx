@@ -8,9 +8,39 @@ import {
   X,
   FileText,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Moon,
+  Sun,
+  Waves,
+  Monitor,
+  Globe,
+  ChevronDown
 } from 'lucide-react'
-import { usePDMStore } from '../../stores/pdmStore'
+import { usePDMStore, ThemeMode, Language } from '../../stores/pdmStore'
+
+const themeOptions: { value: ThemeMode; label: string; icon: React.ReactNode; description: string }[] = [
+  { value: 'dark', label: 'Dark', icon: <Moon size={18} />, description: 'VS Code Dark+ style' },
+  { value: 'deep-blue', label: 'Deep Blue', icon: <Waves size={18} />, description: 'Ocean blue theme' },
+  { value: 'light', label: 'Light', icon: <Sun size={18} />, description: 'VS Code Light+ style' },
+  { value: 'system', label: 'System', icon: <Monitor size={18} />, description: 'Follow OS preference' },
+]
+
+const languageOptions: { value: Language; label: string; nativeLabel: string }[] = [
+  { value: 'en', label: 'English', nativeLabel: 'English' },
+  { value: 'fr', label: 'French', nativeLabel: 'Français' },
+  { value: 'de', label: 'German', nativeLabel: 'Deutsch' },
+  { value: 'es', label: 'Spanish', nativeLabel: 'Español' },
+  { value: 'it', label: 'Italian', nativeLabel: 'Italiano' },
+  { value: 'pt', label: 'Portuguese', nativeLabel: 'Português' },
+  { value: 'nl', label: 'Dutch', nativeLabel: 'Nederlands' },
+  { value: 'sv', label: 'Swedish', nativeLabel: 'Svenska' },
+  { value: 'pl', label: 'Polish', nativeLabel: 'Polski' },
+  { value: 'ru', label: 'Russian', nativeLabel: 'Русский' },
+  { value: 'ja', label: 'Japanese', nativeLabel: '日本語' },
+  { value: 'zh-CN', label: 'Chinese (Simplified)', nativeLabel: '简体中文' },
+  { value: 'zh-TW', label: 'Chinese (Traditional)', nativeLabel: '繁體中文' },
+  { value: 'ko', label: 'Korean', nativeLabel: '한국어' },
+]
 
 export function PreferencesSettings() {
   const { 
@@ -19,13 +49,18 @@ export function PreferencesSettings() {
     setLowercaseExtensions,
     ignorePatterns,
     addIgnorePattern,
-    removeIgnorePattern
+    removeIgnorePattern,
+    theme,
+    setTheme,
+    language,
+    setLanguage
   } = usePDMStore()
   
   const [appVersion, setAppVersion] = useState<string>('')
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [updateCheckResult, setUpdateCheckResult] = useState<'none' | 'available' | 'error' | null>(null)
   const [newIgnorePattern, setNewIgnorePattern] = useState('')
+  const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false)
   
   // Get app version on mount
   useEffect(() => {
@@ -72,16 +107,16 @@ export function PreferencesSettings() {
     <div className="space-y-6">
       {/* Application Updates */}
       <div className="space-y-3">
-        <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
           Application Updates
         </label>
         <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-sm font-medium text-pdm-fg">
+              <div className="text-base font-medium text-pdm-fg">
                 BluePDM {appVersion || '...'}
               </div>
-              <div className="text-xs text-pdm-fg-muted mt-0.5">
+              <div className="text-sm text-pdm-fg-muted mt-0.5">
                 {updateCheckResult === 'none' && 'You have the latest version'}
                 {updateCheckResult === 'available' && 'Update available! Check the notification.'}
                 {updateCheckResult === 'error' && 'Could not check for updates'}
@@ -91,7 +126,7 @@ export function PreferencesSettings() {
             <button
               onClick={handleCheckForUpdates}
               disabled={isCheckingUpdate}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 text-base font-medium rounded-lg transition-colors ${
                 updateCheckResult === 'none'
                   ? 'bg-green-600/20 text-green-400 border border-green-600/30'
                   : updateCheckResult === 'available'
@@ -125,16 +160,135 @@ export function PreferencesSettings() {
         </div>
       </div>
 
+      {/* Theme Selection */}
+      <div className="space-y-3">
+        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+          Appearance
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          {themeOptions.map((option) => {
+            const isSelected = theme === option.value
+            return (
+              <button
+                key={option.value}
+                onClick={() => !isSelected && setTheme(option.value)}
+                className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all text-left ${
+                  isSelected
+                    ? 'bg-pdm-accent/15 border-pdm-accent cursor-default'
+                    : 'bg-pdm-bg border-pdm-border hover:border-pdm-accent/50 hover:bg-pdm-highlight cursor-pointer'
+                }`}
+              >
+                <div className={`p-2.5 rounded-lg ${
+                  isSelected 
+                    ? 'bg-pdm-accent text-white' 
+                    : 'bg-pdm-bg-lighter text-pdm-fg-muted'
+                }`}>
+                  {option.icon}
+                </div>
+                <div className="flex-1">
+                  <div className={`text-base font-medium ${isSelected ? 'text-pdm-fg' : 'text-pdm-fg-dim'}`}>
+                    {option.label}
+                  </div>
+                  <div className="text-sm text-pdm-fg-muted">{option.description}</div>
+                </div>
+                {isSelected && (
+                  <CheckCircle size={18} className="text-pdm-accent flex-shrink-0" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Language Selection */}
+      <div className="space-y-3">
+        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+          Language
+        </label>
+        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-pdm-accent text-white">
+                <Globe size={18} />
+              </div>
+              <div>
+                <div className="text-base font-medium text-pdm-fg">
+                  Display Language
+                </div>
+                <div className="text-sm text-pdm-fg-muted mt-0.5">
+                  Choose the language for the interface
+                </div>
+              </div>
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-pdm-bg-secondary border border-pdm-border rounded-lg hover:border-pdm-accent/50 transition-colors min-w-[180px]"
+              >
+                <span className="flex-1 text-left">
+                  <span className="text-pdm-fg font-medium">
+                    {languageOptions.find(l => l.value === language)?.nativeLabel || 'English'}
+                  </span>
+                  <span className="text-pdm-fg-muted text-sm ml-2">
+                    ({languageOptions.find(l => l.value === language)?.label || 'English'})
+                  </span>
+                </span>
+                <ChevronDown size={16} className={`text-pdm-fg-muted transition-transform ${isLanguageDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {isLanguageDropdownOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsLanguageDropdownOpen(false)} 
+                  />
+                  {/* Dropdown */}
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-pdm-bg-secondary border border-pdm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[240px]">
+                    {languageOptions.map((option) => {
+                      const isSelected = language === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            setLanguage(option.value)
+                            setIsLanguageDropdownOpen(false)
+                          }}
+                          className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors ${
+                            isSelected
+                              ? 'bg-pdm-accent/15 text-pdm-accent'
+                              : 'text-pdm-fg hover:bg-pdm-highlight'
+                          }`}
+                        >
+                          <div>
+                            <span className="font-medium">{option.nativeLabel}</span>
+                            <span className="text-pdm-fg-muted text-sm ml-2">({option.label})</span>
+                          </div>
+                          {isSelected && <CheckCircle size={16} className="flex-shrink-0" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-pdm-fg-dim mt-3">
+            Note: Some translations may be incomplete. Restart may be required.
+          </p>
+        </div>
+      </div>
+
       {/* File Extensions */}
       <div className="space-y-3">
-        <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
           File Extensions
         </label>
         <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-pdm-fg">Lowercase Extensions on Upload</div>
-              <div className="text-xs text-pdm-fg-muted mt-0.5">
+              <div className="text-base text-pdm-fg">Lowercase Extensions on Upload</div>
+              <div className="text-sm text-pdm-fg-muted mt-0.5">
                 Convert .SLDPRT to .sldprt when checking in files
               </div>
             </div>
@@ -154,11 +308,11 @@ export function PreferencesSettings() {
 
       {/* Ignore Patterns */}
       <div className="space-y-3">
-        <label className="text-xs text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
           Ignore Patterns (Keep Local Only)
         </label>
         <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border space-y-3">
-          <p className="text-xs text-pdm-fg-muted">
+          <p className="text-sm text-pdm-fg-muted">
             Files matching these patterns will stay local and not sync to cloud.
           </p>
           
@@ -172,7 +326,7 @@ export function PreferencesSettings() {
                 if (e.key === 'Enter') handleAddIgnorePattern()
               }}
               placeholder="e.g., *.tmp, .git/*, thumbs.db"
-              className="flex-1 bg-pdm-bg-secondary border border-pdm-border rounded-lg px-3 py-2 text-sm focus:border-pdm-accent focus:outline-none font-mono"
+              className="flex-1 bg-pdm-bg-secondary border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none font-mono"
               disabled={!activeVaultId}
             />
             <button
@@ -186,7 +340,7 @@ export function PreferencesSettings() {
           </div>
           
           {!activeVaultId && (
-            <p className="text-xs text-pdm-warning">
+            <p className="text-sm text-pdm-warning">
               Connect to a vault to manage ignore patterns.
             </p>
           )}
@@ -199,8 +353,8 @@ export function PreferencesSettings() {
                   key={index}
                   className="flex items-center gap-2 px-3 py-2 bg-pdm-bg-secondary rounded-lg group"
                 >
-                  <FileText size={14} className="text-pdm-fg-muted flex-shrink-0" />
-                  <code className="flex-1 text-sm font-mono text-pdm-fg">{pattern}</code>
+                  <FileText size={16} className="text-pdm-fg-muted flex-shrink-0" />
+                  <code className="flex-1 text-base font-mono text-pdm-fg">{pattern}</code>
                   <button
                     onClick={() => activeVaultId && removeIgnorePattern(activeVaultId, pattern)}
                     className="p-1 text-pdm-fg-muted hover:text-pdm-error rounded opacity-0 group-hover:opacity-100 transition-opacity"
@@ -211,7 +365,7 @@ export function PreferencesSettings() {
               ))}
             </div>
           ) : activeVaultId ? (
-            <p className="text-xs text-pdm-fg-dim text-center py-2">
+            <p className="text-sm text-pdm-fg-dim text-center py-2">
               No ignore patterns configured
             </p>
           ) : null}

@@ -2,11 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Deep ocean blue theme */
+/* VS Code Dark Modern Theme (default) */
+:root,
+[data-theme="dark"] {
+  --pdm-bg: #181818;
+  --pdm-bg-light: #1f1f1f;
+  --pdm-bg-lighter: #252526;
+  --pdm-bg-secondary: #1f1f1f;
+  --pdm-sidebar: #181818;
+  --pdm-activitybar: #181818;
+  --pdm-panel: #181818;
+  --pdm-input: #313131;
+  --pdm-border: #2b2b2b;
+  --pdm-border-light: #3c3c3c;
+  --pdm-fg: #cccccc;
+  --pdm-fg-dim: #b4b4b4;
+  --pdm-fg-muted: #6e6e6e;
+  --pdm-accent: #0078d4;
+  --pdm-accent-hover: #1177bb;
+  --pdm-accent-dim: #005a9e;
+  --pdm-selection: #264f78;
+  --pdm-highlight: rgba(0, 120, 212, 0.15);
+  /* Status colors */
+  --pdm-success: #4ec9b0;
+  --pdm-warning: #dcdcaa;
+  --pdm-error: #f14c4c;
+  --pdm-info: #3794ff;
+  /* File state colors */
+  --pdm-wip: #dcdcaa;
+  --pdm-released: #4ec9b0;
+  --pdm-in-review: #3794ff;
+  --pdm-obsolete: #6b7280;
+  --pdm-locked: #f14c4c;
+  /* Titlebar height */
+  --titlebar-height: 30px;
+}
+
+/* Deep Blue Theme - Ocean inspired */
+[data-theme="deep-blue"] {
   --pdm-bg: #0a1929;
   --pdm-bg-light: #0d2137;
   --pdm-bg-lighter: #122a44;
+  --pdm-bg-secondary: #0d2137;
   --pdm-sidebar: #0d2137;
   --pdm-activitybar: #071320;
   --pdm-panel: #0a1929;
@@ -36,6 +73,41 @@
   --titlebar-height: 30px;
 }
 
+/* VS Code Light+ Theme */
+[data-theme="light"] {
+  --pdm-bg: #ffffff;
+  --pdm-bg-light: #f3f3f3;
+  --pdm-bg-lighter: #e8e8e8;
+  --pdm-bg-secondary: #f3f3f3;
+  --pdm-sidebar: #f3f3f3;
+  --pdm-activitybar: #f0f0f0;
+  --pdm-panel: #ffffff;
+  --pdm-input: #ffffff;
+  --pdm-border: #e0e0e0;
+  --pdm-border-light: #c8c8c8;
+  --pdm-fg: #333333;
+  --pdm-fg-dim: #444444;
+  --pdm-fg-muted: #717171;
+  --pdm-accent: #0078d4;
+  --pdm-accent-hover: #005a9e;
+  --pdm-accent-dim: #004578;
+  --pdm-selection: rgba(0, 120, 212, 0.15);
+  --pdm-highlight: rgba(0, 120, 212, 0.08);
+  /* Status colors */
+  --pdm-success: #388a34;
+  --pdm-warning: #bf8803;
+  --pdm-error: #e51400;
+  --pdm-info: #0066bf;
+  /* File state colors */
+  --pdm-wip: #bf8803;
+  --pdm-released: #388a34;
+  --pdm-in-review: #0066bf;
+  --pdm-obsolete: #6b7280;
+  --pdm-locked: #e51400;
+  /* Titlebar height */
+  --titlebar-height: 30px;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -45,7 +117,7 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   font-size: 13px;
   color: var(--pdm-fg);
   background-color: var(--pdm-bg);
@@ -64,16 +136,44 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 180, 216, 0.3);
+  background: var(--pdm-accent);
+  opacity: 0.3;
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 180, 216, 0.5);
+  opacity: 0.5;
 }
 
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Theme-aware scrollbar colors */
+[data-theme="dark"] ::-webkit-scrollbar-thumb,
+:root ::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.4);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover,
+:root ::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.6);
+}
+
+[data-theme="deep-blue"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 180, 216, 0.3);
+}
+
+[data-theme="deep-blue"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 180, 216, 0.5);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(100, 100, 100, 0.3);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 100, 100, 0.5);
 }
 
 ::selection {

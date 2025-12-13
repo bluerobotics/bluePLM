@@ -1,16 +1,3 @@
-import { 
-  User, 
-  Building2, 
-  FolderCog, 
-  Wrench,
-  Puzzle,
-  Plug,
-  Settings,
-  HardDrive,
-  FileText,
-  Info
-} from 'lucide-react'
-
 type SettingsTab = 'account' | 'vault' | 'organization' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
 
 interface SettingsNavigationProps {
@@ -18,48 +5,88 @@ interface SettingsNavigationProps {
   onTabChange: (tab: SettingsTab) => void
 }
 
-const tabs: { id: SettingsTab; icon: typeof User; label: string }[] = [
-  { id: 'account', icon: User, label: 'Account' },
-  { id: 'vault', icon: FolderCog, label: 'Vault' },
-  { id: 'organization', icon: Building2, label: 'Organization' },
-  { id: 'backup', icon: HardDrive, label: 'Backups' },
-  { id: 'solidworks', icon: Wrench, label: 'SolidWorks' },
-  { id: 'integrations', icon: Puzzle, label: 'Integrations' },
-  { id: 'api', icon: Plug, label: 'REST API' },
-  { id: 'preferences', icon: Settings, label: 'Preferences' },
-  { id: 'logs', icon: FileText, label: 'Logs' },
-  { id: 'about', icon: Info, label: 'About' },
+interface SettingsSection {
+  category: string
+  items: { id: SettingsTab; label: string }[]
+}
+
+const settingsSections: SettingsSection[] = [
+  {
+    category: 'Account',
+    items: [
+      { id: 'account', label: 'Profile' },
+      { id: 'preferences', label: 'Preferences' },
+    ]
+  },
+  {
+    category: 'Workspace',
+    items: [
+      { id: 'vault', label: 'Vault' },
+      { id: 'organization', label: 'Organization' },
+      { id: 'backup', label: 'Backups' },
+    ]
+  },
+  {
+    category: 'Integrations',
+    items: [
+      { id: 'solidworks', label: 'SolidWorks' },
+      { id: 'integrations', label: 'Third Party' },
+      { id: 'api', label: 'REST API' },
+    ]
+  },
+  {
+    category: 'System',
+    items: [
+      { id: 'logs', label: 'Logs' },
+      { id: 'about', label: 'About' },
+    ]
+  },
 ]
 
 export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigationProps) {
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-pdm-border">
-        <h2 className="text-sm font-semibold text-pdm-fg">Settings</h2>
-      </div>
-      
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto">
-        {tabs.map(tab => {
-          const Icon = tab.icon
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-pdm-highlight text-pdm-fg border-l-2 border-pdm-accent'
-                  : 'text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-highlight/50'
-              }`}
-            >
-              <Icon size={16} />
-              {tab.label}
-            </button>
-          )
-        })}
-      </div>
+    <div className="flex flex-col h-full bg-pdm-sidebar">
+      {/* Scrollable navigation */}
+      <nav className="flex-1 overflow-y-auto hide-scrollbar" role="menu" aria-label="Settings navigation">
+        <div className="flex flex-col py-1">
+          {settingsSections.map((section, sectionIndex) => (
+            <div key={section.category}>
+              {/* Section */}
+              <div className="mt-4 mb-1 mx-3">
+                {/* Category header - uppercase mono, faded */}
+                <div className="px-3 mb-1">
+                  <span className="text-[13px] font-mono uppercase text-pdm-fg-muted/45">
+                    {section.category}
+                  </span>
+                </div>
+                
+                {/* Menu items - tighter spacing */}
+                <div>
+                  {section.items.map(item => (
+                    <button
+                      key={item.id}
+                      role="menuitem"
+                      onClick={() => onTabChange(item.id)}
+                      className={`w-full text-left px-3 py-1 rounded-lg text-[13px] font-sans transition-colors outline-none focus-visible:ring-1 focus-visible:ring-pdm-accent ${
+                        activeTab === item.id
+                          ? 'bg-pdm-highlight text-pdm-fg font-semibold'
+                          : 'text-pdm-fg-dim hover:text-pdm-fg'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Divider between sections (except after last) */}
+              {sectionIndex < settingsSections.length - 1 && (
+                <div className="h-px w-full bg-pdm-border/50 mt-3" />
+              )}
+            </div>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }
-

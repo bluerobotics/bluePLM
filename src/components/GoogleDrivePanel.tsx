@@ -960,17 +960,20 @@ export function GoogleDrivePanel() {
         <div className="flex-1 overflow-hidden bg-white relative">
           {/* First-time sign-in info */}
           {!localStorage.getItem('gdrive_iframe_info_dismissed') && (
-            <div className="absolute top-0 left-0 right-0 z-10 bg-blue-600 text-white px-4 py-2 text-sm flex items-center justify-between">
-              <span>First time? You may need to sign in to Google once within this view to enable editing.</span>
+            <div className="absolute top-0 left-0 right-0 z-10 bg-amber-600 text-white px-4 py-2 text-sm flex items-center justify-between">
+              <span>
+                <strong>Note:</strong> If Google asks you to sign in below, that's normal — the embedded view uses a separate session from BluePDM.
+                You only need to do this once.
+              </span>
               <button
                 onClick={() => {
                   localStorage.setItem('gdrive_iframe_info_dismissed', 'true')
                   // Force re-render
                   setGdriveOpenDocument({ ...gdriveOpenDocument })
                 }}
-                className="ml-4 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-xs"
+                className="ml-4 px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-medium"
               >
-                Got it
+                Dismiss
               </button>
             </div>
           )}
@@ -979,7 +982,7 @@ export function GoogleDrivePanel() {
             className="w-full h-full border-0"
             title={gdriveOpenDocument.name}
             allow="clipboard-read; clipboard-write; fullscreen"
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-top-navigation-by-user-activation"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-top-navigation allow-top-navigation-by-user-activation"
           />
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { usePDMStore } from '../stores/pdmStore'
-import { Cloud, CloudOff, Building2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Cloud, ZoomIn, ZoomOut } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
 
 export function StatusBar() {
   const { 
@@ -9,15 +9,38 @@ export function StatusBar() {
     connectedVaults,
     statusMessage,
     isLoading,
-    user,
-    organization,
     vaultName
   } = usePDMStore()
   
   const [appVersion, setAppVersion] = useState('')
+  const [zoomFactor, setZoomFactor] = useState(1)
   
   useEffect(() => {
     window.electronAPI?.getVersion().then(v => setAppVersion(v))
+    window.electronAPI?.getZoomFactor?.().then(z => setZoomFactor(z || 1))
+  }, [])
+  
+  const handleZoomIn = useCallback(async () => {
+    const newZoom = Math.min(2.0, zoomFactor + 0.1)
+    const result = await window.electronAPI?.setZoomFactor?.(newZoom)
+    if (result?.success && result.factor) {
+      setZoomFactor(result.factor)
+    }
+  }, [zoomFactor])
+  
+  const handleZoomOut = useCallback(async () => {
+    const newZoom = Math.max(0.5, zoomFactor - 0.1)
+    const result = await window.electronAPI?.setZoomFactor?.(newZoom)
+    if (result?.success && result.factor) {
+      setZoomFactor(result.factor)
+    }
+  }, [zoomFactor])
+  
+  const handleResetZoom = useCallback(async () => {
+    const result = await window.electronAPI?.setZoomFactor?.(1)
+    if (result?.success && result.factor) {
+      setZoomFactor(result.factor)
+    }
   }, [])
 
   // Check if any vault is connected (legacy or multi-vault)
@@ -57,20 +80,36 @@ export function StatusBar() {
       </div>
 
       <div className="flex items-center gap-4 flex-shrink-0">
-        {/* Organization status */}
-        <div className="flex items-center gap-1.5">
-          {user ? (
-            <>
-              <Building2 size={12} className="text-pdm-success" />
-              <span>{organization?.name || user.email}</span>
-            </>
-          ) : (
-            <>
-              <CloudOff size={12} className="text-pdm-fg-muted" />
-              <span>Offline</span>
-            </>
-          )}
+        {/* Zoom level control */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleZoomOut}
+            className="p-0.5 rounded hover:bg-pdm-bg-lighter text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+            title="Zoom Out"
+          >
+            <ZoomOut size={12} />
+          </button>
+          <button
+            onClick={handleResetZoom}
+            className="text-pdm-fg-dim hover:text-pdm-fg transition-colors text-[10px] min-w-[36px] text-center"
+            title="Reset Zoom (100%)"
+          >
+            {Math.round(zoomFactor * 100)}%
+          </button>
+          <button
+            onClick={handleZoomIn}
+            className="p-0.5 rounded hover:bg-pdm-bg-lighter text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+            title="Zoom In"
+          >
+            <ZoomIn size={12} />
+          </button>
         </div>
+        
+        {/* Separator */}
+        <div className="w-px h-3 bg-pdm-border" />
+        
+        {/* App version */}
+        <span className="text-pdm-fg-muted text-[10px]">v{appVersion || '...'}</span>
       </div>
     </div>
   )

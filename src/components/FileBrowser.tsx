@@ -4651,6 +4651,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                       // Only mark folders that actually have cloud files
                       foldersWithCloudFiles.forEach(p => addProcessingFolder(p))
                       
+                      // Yield to event loop so React can render spinners before starting download
+                      await new Promise(resolve => setTimeout(resolve, 0))
+                      
                       const total = uniqueFiles.length
                       const totalBytes = uniqueFiles.reduce((sum, f) => sum + (f.pdmData?.file_size || 0), 0)
                       let downloadedBytes = 0
