@@ -87,18 +87,24 @@ export const checkoutCommand: Command<CheckoutParams> = {
     let failed = 0
     const errors: string[] = []
     
-    // Process all files in parallel
+    // Process all files in parallel, collect updates for batch store update
+    const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
+    
     const results = await Promise.all(filesToCheckout.map(async (file) => {
       try {
         const result = await checkoutFile(file.pdmData!.id, user.id)
         
         if (result.success) {
           await window.electronAPI?.setReadonly(file.path, false)
-          ctx.updateFileInStore(file.path, {
-            pdmData: {
-              ...file.pdmData!,
-              checked_out_by: user.id,
-              checked_out_user: { full_name: user.full_name, email: user.email, avatar_url: user.avatar_url }
+          // Queue update for batch processing
+          pendingUpdates.push({
+            path: file.path,
+            updates: {
+              pdmData: {
+                ...file.pdmData!,
+                checked_out_by: user.id,
+                checked_out_user: { full_name: user.full_name, email: user.email, avatar_url: user.avatar_url }
+              }
             }
           })
           progress.update()
@@ -112,6 +118,11 @@ export const checkoutCommand: Command<CheckoutParams> = {
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
     }))
+    
+    // Apply all store updates in a single batch (avoids N re-renders)
+    if (pendingUpdates.length > 0) {
+      ctx.updateFilesInStore(pendingUpdates)
+    }
     
     // Count results
     for (const result of results) {

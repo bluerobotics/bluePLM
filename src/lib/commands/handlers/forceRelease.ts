@@ -80,18 +80,23 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
     let failed = 0
     const errors: string[] = []
     
-    // Process all files in parallel
+    // Process all files in parallel, collect updates for batch store update
+    const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
+    
     const results = await Promise.all(filesToRelease.map(async (file) => {
       try {
         const result = await adminForceDiscardCheckout(file.pdmData!.id, user.id)
         
         if (result.success) {
-          // Update store
-          ctx.updateFileInStore(file.path, {
-            pdmData: {
-              ...file.pdmData!,
-              checked_out_by: null,
-              checked_out_user: null
+          // Queue update for batch processing
+          pendingUpdates.push({
+            path: file.path,
+            updates: {
+              pdmData: {
+                ...file.pdmData!,
+                checked_out_by: null,
+                checked_out_user: null
+              }
             }
           })
           
@@ -107,6 +112,11 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
         return { success: false, error: `${file.name}: ${errorMsg}` }
       }
     }))
+    
+    // Apply all store updates in a single batch (avoids N re-renders)
+    if (pendingUpdates.length > 0) {
+      ctx.updateFilesInStore(pendingUpdates)
+    }
     
     // Count results
     for (const result of results) {

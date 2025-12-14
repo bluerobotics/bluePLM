@@ -32,6 +32,7 @@ export interface RFQ {
   // Options
   requires_samples: boolean
   requires_first_article: boolean
+  requires_quality_report: boolean
   allow_partial_quotes: boolean
   
   // File generation
@@ -65,8 +66,10 @@ export interface RFQ {
   items?: RFQItem[]
   suppliers?: RFQSupplier[]
   created_by_user?: {
+    id: string
     email: string
     full_name: string | null
+    avatar_url: string | null
   }
 }
 
@@ -92,6 +95,9 @@ export interface RFQItem {
   finish: string | null
   tolerance_class: string | null
   special_requirements: string | null
+  
+  // SolidWorks configuration for export
+  sw_configuration: string | null
   
   // Release files
   step_file_path: string | null

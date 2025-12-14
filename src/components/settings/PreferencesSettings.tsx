@@ -18,7 +18,8 @@ import {
   Globe,
   ChevronDown,
   Snowflake,
-  Ghost
+  Ghost,
+  CloudDownload
 } from 'lucide-react'
 import { usePDMStore, ThemeMode, Language } from '../../stores/pdmStore'
 import { signOut, getSupabaseClient, endRemoteSession } from '../../lib/supabase'
@@ -62,7 +63,11 @@ export function PreferencesSettings() {
     theme,
     setTheme,
     language,
-    setLanguage
+    setLanguage,
+    autoDownloadCloudFiles,
+    setAutoDownloadCloudFiles,
+    autoDownloadUpdates,
+    setAutoDownloadUpdates
   } = usePDMStore()
   
   const [sessions, setSessions] = useState<UserSession[]>([])
@@ -479,6 +484,64 @@ export function PreferencesSettings() {
           <p className="text-xs text-plm-fg-dim mt-3">
             {t('preferences.translationsNote')}
           </p>
+        </div>
+      </section>
+
+      {/* Sync Settings */}
+      <section>
+        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+          {t('preferences.syncSettings')}
+        </h2>
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
+          {/* Auto-download cloud files */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-plm-highlight">
+                <CloudDownload size={18} className="text-plm-fg-muted" />
+              </div>
+              <div>
+                <div className="text-base text-plm-fg">{t('preferences.autoDownloadCloudFiles')}</div>
+                <div className="text-sm text-plm-fg-muted mt-0.5">
+                  {t('preferences.autoDownloadCloudFilesDesc')}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoDownloadCloudFiles(!autoDownloadCloudFiles)}
+              className="text-plm-accent"
+            >
+              {autoDownloadCloudFiles ? (
+                <ToggleRight size={28} />
+              ) : (
+                <ToggleLeft size={28} className="text-plm-fg-muted" />
+              )}
+            </button>
+          </div>
+          
+          {/* Auto-download updates */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-plm-highlight">
+                <Download size={18} className="text-plm-fg-muted" />
+              </div>
+              <div>
+                <div className="text-base text-plm-fg">{t('preferences.autoDownloadUpdates')}</div>
+                <div className="text-sm text-plm-fg-muted mt-0.5">
+                  {t('preferences.autoDownloadUpdatesDesc')}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoDownloadUpdates(!autoDownloadUpdates)}
+              className="text-plm-accent"
+            >
+              {autoDownloadUpdates ? (
+                <ToggleRight size={28} />
+              ) : (
+                <ToggleLeft size={28} className="text-plm-fg-muted" />
+              )}
+            </button>
+          </div>
         </div>
       </section>
 

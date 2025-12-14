@@ -41,6 +41,7 @@ export interface CommandContext {
   
   // Store updates
   updateFileInStore: (path: string, updates: Partial<LocalFile>) => void
+  updateFilesInStore: (updates: Array<{ path: string; updates: Partial<LocalFile> }>) => void  // Batch update
   removeFilesFromStore: (paths: string[]) => void
   addProcessingFolder: (path: string) => void
   removeProcessingFolder: (path: string) => void

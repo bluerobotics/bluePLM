@@ -37,6 +37,15 @@ import { generateRFQPdf, type OrgBranding } from '@/lib/rfqPdf'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
 
+// Helper to get initials from name or email
+function getInitials(name: string): string {
+  const parts = name.split(/[\s@]+/).filter(p => p.length > 0)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length > 2 ? parts.length - 2 : 1][0]).toUpperCase()
+  }
+  return (parts[0]?.[0] || '?').toUpperCase()
+}
+
 // RFQ List View
 function RFQListView({ 
   onSelectRFQ, 
@@ -189,6 +198,8 @@ function RFQListView({
         ) : (
           filteredRFQs.map((rfq) => {
             const statusInfo = getRFQStatusInfo(rfq.status)
+            const creatorUser = rfq.created_by_user
+            const creatorName = creatorUser?.full_name || creatorUser?.email?.split('@')[0] || 'Unknown'
             return (
               <div
                 key={rfq.id}
@@ -196,12 +207,31 @@ function RFQListView({
                 className="p-3 border-b border-plm-border hover:bg-plm-highlight/50 cursor-pointer transition-colors group"
               >
                 <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-plm-accent">{rfq.rfq_number}</span>
-                      <ChevronRight size={12} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="flex items-start gap-2">
+                    {/* Creator Avatar */}
+                    <div 
+                      className="flex-shrink-0 mt-0.5"
+                      title={`Created by ${creatorName}`}
+                    >
+                      {creatorUser?.avatar_url ? (
+                        <img 
+                          src={creatorUser.avatar_url} 
+                          alt={creatorName}
+                          className="w-6 h-6 rounded-full ring-1 ring-plm-border object-cover"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full ring-1 ring-plm-border bg-plm-accent/20 text-plm-accent flex items-center justify-center text-[10px] font-medium">
+                          {getInitials(creatorName)}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-sm font-medium text-plm-fg mt-0.5">{rfq.title}</div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-plm-accent">{rfq.rfq_number}</span>
+                        <ChevronRight size={12} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div className="text-sm font-medium text-plm-fg mt-0.5">{rfq.title}</div>
+                    </div>
                   </div>
                   <span className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded ${statusInfo.color} ${statusInfo.bgColor}`}>
                     {rfq.status === 'generating' && <Loader2 size={10} className="animate-spin" />}
@@ -280,6 +310,10 @@ function RFQDetailView({
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  
+  // Configuration state for SolidWorks files
+  const [itemConfigurations, setItemConfigurations] = useState<Record<string, string[]>>({})
+  const [loadingConfigs, setLoadingConfigs] = useState<string | null>(null)
   
   // Address state
   const [billingAddresses, setBillingAddresses] = useState<OrgAddress[]>([])
@@ -453,6 +487,47 @@ function RFQDetailView({
     }
   }
 
+  // Load SolidWorks configurations for an item
+  const loadItemConfigurations = async (item: RFQItem) => {
+    if (!item.file || !vaultPath) return
+    
+    const ext = item.file.extension?.toLowerCase()
+    if (!['.sldprt', '.sldasm'].includes(ext)) return
+    
+    // Already loaded
+    if (itemConfigurations[item.id]) return
+    
+    setLoadingConfigs(item.id)
+    try {
+      const filePath = buildFullPath(vaultPath, item.file.file_path)
+      const result = await window.electronAPI?.solidworks?.getConfigurations(filePath)
+      
+      if (result?.success && result.data?.configurations) {
+        const configNames = result.data.configurations.map((c: { name: string }) => c.name)
+        setItemConfigurations(prev => ({ ...prev, [item.id]: configNames }))
+      }
+    } catch (err) {
+      console.error('Failed to load configurations:', err)
+    } finally {
+      setLoadingConfigs(null)
+    }
+  }
+
+  // Update item configuration selection
+  const handleUpdateItemConfig = async (itemId: string, config: string | null) => {
+    try {
+      const { error } = await db.from('rfq_items')
+        .update({ sw_configuration: config })
+        .eq('id', itemId)
+
+      if (error) throw error
+      setItems(items.map(i => i.id === itemId ? { ...i, sw_configuration: config } : i))
+    } catch (err) {
+      console.error('Failed to update configuration:', err)
+      addToast('error', 'Failed to update configuration')
+    }
+  }
+
   // Generate PDF
   const handleGeneratePdf = async () => {
     if (!organization) return
@@ -587,7 +662,8 @@ function RFQDetailView({
               sourceFilePath,
               exportType: 'step',
               partNumber: item.part_number || item.file.part_number,
-              revision: item.file.revision
+              revision: item.file.revision,
+              configuration: item.sw_configuration || undefined
             })
             if (result?.success) {
               // Update RFQ item
@@ -674,10 +750,16 @@ function RFQDetailView({
       }
 
       // Update RFQ with generation results
+      // Note: RFQ only becomes 'ready' if files are generated AND at least one supplier is assigned
       const allGenerated = failCount === 0
+      const hasSuppliers = suppliers.length > 0
+      const newStatus = allGenerated 
+        ? (hasSuppliers ? 'ready' : 'draft')  // Stay draft if no suppliers, ready if suppliers exist
+        : 'pending_files'
+      
       await db.from('rfqs')
         .update({
-          status: allGenerated ? 'ready' : 'pending_files',
+          status: newStatus,
           release_files_generated: allGenerated,
           release_files_generated_at: allGenerated ? new Date().toISOString() : null
         })
@@ -695,8 +777,12 @@ function RFQDetailView({
       if (updatedItems) setItems(updatedItems as RFQItem[])
 
       if (failCount === 0) {
-        addToast('success', `Generated ${successCount} release files`)
-        onUpdate({ ...rfq, status: 'ready', release_files_generated: true })
+        if (hasSuppliers) {
+          addToast('success', `Generated ${successCount} release files - RFQ is ready`)
+        } else {
+          addToast('success', `Generated ${successCount} release files. Add suppliers to mark RFQ as ready.`)
+        }
+        onUpdate({ ...rfq, status: newStatus as RFQStatus, release_files_generated: true })
       } else {
         addToast('warning', `Generated ${successCount} files, ${failCount} failed`)
         onUpdate({ ...rfq, status: 'pending_files' })
@@ -1036,7 +1122,7 @@ function RFQDetailView({
                 {items.map((item) => {
                   const isExpanded = expandedItemId === item.id
                   return (
-                    <div key={item.id} className="border border-plm-border rounded bg-plm-bg/50 overflow-hidden">
+                    <div key={item.id} className="border border-plm-border rounded bg-plm-bg/50 overflow-hidden hover:bg-plm-highlight/30 hover:border-plm-border-light transition-colors">
                       {/* Item header */}
                       <div className="p-2">
                         <div className="flex items-start justify-between">
@@ -1058,7 +1144,14 @@ function RFQDetailView({
                           </div>
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                              onClick={() => {
+                                const newExpandedId = isExpanded ? null : item.id
+                                setExpandedItemId(newExpandedId)
+                                // Load configurations when expanding a SolidWorks part/assembly
+                                if (newExpandedId && item.file) {
+                                  loadItemConfigurations(item)
+                                }
+                              }}
                               className="p-1 text-plm-fg-muted hover:text-plm-fg transition-colors"
                               title="Edit details"
                             >
@@ -1134,6 +1227,36 @@ function RFQDetailView({
                       {/* Expandable details panel */}
                       {isExpanded && (
                         <div className="px-2 pb-2 pt-1 border-t border-plm-border bg-plm-highlight/30 space-y-2">
+                          {/* SolidWorks Configuration selector - only for parts/assemblies */}
+                          {item.file && ['.sldprt', '.sldasm'].includes(item.file.extension?.toLowerCase()) && (
+                            <div>
+                              <label className="text-[10px] text-plm-fg-muted block mb-1">
+                                STEP Export Configuration
+                              </label>
+                              {loadingConfigs === item.id ? (
+                                <div className="flex items-center gap-2 text-xs text-plm-fg-muted py-1">
+                                  <Loader2 size={12} className="animate-spin" />
+                                  Loading configurations...
+                                </div>
+                              ) : itemConfigurations[item.id]?.length ? (
+                                <select
+                                  value={item.sw_configuration || ''}
+                                  onChange={(e) => handleUpdateItemConfig(item.id, e.target.value || null)}
+                                  className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg focus:outline-none focus:border-plm-accent"
+                                >
+                                  <option value="">Default configuration</option>
+                                  {itemConfigurations[item.id].map(config => (
+                                    <option key={config} value={config}>{config}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="text-[10px] text-plm-fg-muted italic py-1">
+                                  No configurations available (SolidWorks service may not be running)
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[10px] text-plm-fg-muted block mb-1">Material</label>
@@ -1184,61 +1307,31 @@ function RFQDetailView({
               </div>
             )}
 
-            {/* Release file actions */}
-            {items.length > 0 && (
-              <div className="space-y-2">
-                {/* Generate button - show if any item needs export */}
-                {items.some(i => {
-                  if (!i.file) return false
-                  const ext = i.file.extension?.toLowerCase()
-                  const needsStep = ['.sldprt', '.sldasm'].includes(ext) && !i.step_file_generated
-                  const needsPdf = ext === '.slddrw' && !i.pdf_file_generated
-                  return needsStep || needsPdf
-                }) && (
-                  <button
-                    onClick={handleGenerateReleaseFiles}
-                    disabled={generating}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                  >
-                    {generating ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        Generating Release Files...
-                      </>
-                    ) : (
-                      <>
-                        <Cog size={16} />
-                        Generate STEP & PDF Files
-                      </>
-                    )}
-                  </button>
+            {/* Generate button - show if any item needs export */}
+            {items.length > 0 && items.some(i => {
+              if (!i.file) return false
+              const ext = i.file.extension?.toLowerCase()
+              const needsStep = ['.sldprt', '.sldasm'].includes(ext) && !i.step_file_generated
+              const needsPdf = ext === '.slddrw' && !i.pdf_file_generated
+              return needsStep || needsPdf
+            }) && (
+              <button
+                onClick={handleGenerateReleaseFiles}
+                disabled={generating}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Cog size={16} />
+                    Generate STEP & PDF Files
+                  </>
                 )}
-
-                {/* ZIP and folder buttons - show if any files are generated */}
-                {items.some(i => i.step_file_generated || i.pdf_file_generated) && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleGenerateZip}
-                      disabled={generating}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-bg-light hover:bg-plm-highlight border border-plm-border rounded text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      {generating ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Archive size={14} />
-                      )}
-                      Create ZIP Package
-                    </button>
-                    <button
-                      onClick={handleOpenReleaseFolder}
-                      className="flex items-center justify-center gap-1 px-3 py-2 bg-plm-bg-light hover:bg-plm-highlight border border-plm-border rounded text-sm transition-colors"
-                      title="Open release folder"
-                    >
-                      <FolderOpen size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
+              </button>
             )}
           </div>
         )}
@@ -1250,6 +1343,12 @@ function RFQDetailView({
                 <Building2 size={32} className="mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No suppliers assigned</p>
                 <p className="text-xs">Add suppliers to send this RFQ</p>
+                {rfq.release_files_generated && (
+                  <div className="mt-3 mx-4 p-2 bg-plm-warning/10 border border-plm-warning/30 rounded text-plm-warning text-xs">
+                    <AlertCircle size={12} className="inline mr-1" />
+                    Files generated. Add suppliers to mark RFQ as ready.
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -1401,13 +1500,56 @@ function RFQDetailView({
                 placeholder="Special instructions, requirements, etc."
               />
             </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="samples" checked={rfq.requires_samples} className="rounded" />
-              <label htmlFor="samples" className="text-xs text-plm-fg">Requires samples</label>
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="fai" checked={rfq.requires_first_article} className="rounded" />
-              <label htmlFor="fai" className="text-xs text-plm-fg">Requires first article inspection</label>
+            <div className="space-y-2 pt-2 border-t border-plm-border">
+              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">Requirements</div>
+              <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={rfq.requires_samples} 
+                  onChange={async (e) => {
+                    try {
+                      await db.from('rfqs').update({ requires_samples: e.target.checked }).eq('id', rfq.id)
+                      onUpdate({ ...rfq, requires_samples: e.target.checked })
+                    } catch (err) {
+                      console.error('Failed to update:', err)
+                    }
+                  }}
+                  className="rounded" 
+                />
+                <span className="text-xs text-plm-fg">Requires samples</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={rfq.requires_first_article} 
+                  onChange={async (e) => {
+                    try {
+                      await db.from('rfqs').update({ requires_first_article: e.target.checked }).eq('id', rfq.id)
+                      onUpdate({ ...rfq, requires_first_article: e.target.checked })
+                    } catch (err) {
+                      console.error('Failed to update:', err)
+                    }
+                  }}
+                  className="rounded" 
+                />
+                <span className="text-xs text-plm-fg">Requires first article inspection (FAI)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={rfq.requires_quality_report ?? false} 
+                  onChange={async (e) => {
+                    try {
+                      await db.from('rfqs').update({ requires_quality_report: e.target.checked }).eq('id', rfq.id)
+                      onUpdate({ ...rfq, requires_quality_report: e.target.checked })
+                    } catch (err) {
+                      console.error('Failed to update:', err)
+                    }
+                  }}
+                  className="rounded" 
+                />
+                <span className="text-xs text-plm-fg">Requires quality report / CoC</span>
+              </label>
             </div>
           </div>
         )}
@@ -1416,24 +1558,48 @@ function RFQDetailView({
       {/* Footer actions */}
       {items.length > 0 && (
         <div className="p-3 border-t border-plm-border space-y-2">
-          {/* PDF Generation */}
-          <button 
-            onClick={handleGeneratePdf}
-            disabled={generatingPdf}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            {generatingPdf ? (
+          {/* PDF and ZIP row */}
+          <div className="flex gap-2">
+            <button 
+              onClick={handleGeneratePdf}
+              disabled={generatingPdf}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
+              title="Generate RFQ PDF document"
+            >
+              {generatingPdf ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Printer size={14} />
+              )}
+              RFQ PDF
+            </button>
+            
+            {/* ZIP Package - show if any release files exist */}
+            {items.some(i => i.step_file_generated || i.pdf_file_generated) && (
               <>
-                <Loader2 size={16} className="animate-spin" />
-                Generating PDF...
-              </>
-            ) : (
-              <>
-                <Printer size={16} />
-                Generate RFQ PDF
+                <button
+                  onClick={handleGenerateZip}
+                  disabled={generating}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
+                  title="Create ZIP with all release files and RFQ PDF"
+                >
+                  {generating ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Archive size={14} />
+                  )}
+                  ZIP Package
+                </button>
+                <button
+                  onClick={handleOpenReleaseFolder}
+                  className="flex items-center justify-center px-2.5 py-2 bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded transition-colors"
+                  title="Open release folder"
+                >
+                  <FolderOpen size={14} />
+                </button>
               </>
             )}
-          </button>
+          </div>
 
           {/* Send to suppliers (only when ready) */}
           {rfq.status === 'ready' && (

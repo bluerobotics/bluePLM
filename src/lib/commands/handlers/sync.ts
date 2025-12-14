@@ -87,7 +87,9 @@ export const syncCommand: Command<SyncParams> = {
     let failed = 0
     const errors: string[] = []
     
-    // Process all files in parallel
+    // Process all files in parallel, collect updates for batch store update
+    const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
+    
     const results = await Promise.all(filesToSync.map(async (file) => {
       try {
         const readResult = await window.electronAPI?.readFile(file.path)
@@ -111,7 +113,11 @@ export const syncCommand: Command<SyncParams> = {
         }
         
         await window.electronAPI?.setReadonly(file.path, true)
-        ctx.updateFileInStore(file.path, { pdmData: syncedFile, localHash: readResult.hash, diffStatus: undefined })
+        // Queue update for batch processing
+        pendingUpdates.push({
+          path: file.path,
+          updates: { pdmData: syncedFile, localHash: readResult.hash, diffStatus: undefined }
+        })
         progress.update()
         return { success: true }
         
@@ -120,6 +126,11 @@ export const syncCommand: Command<SyncParams> = {
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
     }))
+    
+    // Apply all store updates in a single batch (avoids N re-renders)
+    if (pendingUpdates.length > 0) {
+      ctx.updateFilesInStore(pendingUpdates)
+    }
     
     // Count results
     for (const result of results) {

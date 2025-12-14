@@ -95,7 +95,9 @@ export const checkinCommand: Command<CheckinParams> = {
     let failed = 0
     const errors: string[] = []
     
-    // Process all files in parallel
+    // Process all files in parallel, collect updates for batch store update
+    const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
+    
     const results = await Promise.all(filesToCheckin.map(async (file) => {
       try {
         const wasFileMoved = file.pdmData?.file_path && 
@@ -116,12 +118,16 @@ export const checkinCommand: Command<CheckinParams> = {
           
           if (result.success && result.file) {
             await window.electronAPI?.setReadonly(file.path, true)
-            ctx.updateFileInStore(file.path, {
-              pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
-              localHash: readResult.hash,
-              diffStatus: undefined,
-              localActiveVersion: undefined,
-              pendingMetadata: undefined
+            // Queue update for batch processing
+            pendingUpdates.push({
+              path: file.path,
+              updates: {
+                pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
+                localHash: readResult.hash,
+                diffStatus: undefined,
+                localActiveVersion: undefined,
+                pendingMetadata: undefined
+              }
             })
             progress.update()
             return { success: true }
@@ -138,12 +144,16 @@ export const checkinCommand: Command<CheckinParams> = {
           
           if (result.success && result.file) {
             await window.electronAPI?.setReadonly(file.path, true)
-            ctx.updateFileInStore(file.path, {
-              pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
-              localHash: result.file.content_hash,
-              diffStatus: undefined,
-              localActiveVersion: undefined,
-              pendingMetadata: undefined
+            // Queue update for batch processing
+            pendingUpdates.push({
+              path: file.path,
+              updates: {
+                pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
+                localHash: result.file.content_hash,
+                diffStatus: undefined,
+                localActiveVersion: undefined,
+                pendingMetadata: undefined
+              }
             })
             progress.update()
             return { success: true }
@@ -157,6 +167,11 @@ export const checkinCommand: Command<CheckinParams> = {
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
     }))
+    
+    // Apply all store updates in a single batch (avoids N re-renders)
+    if (pendingUpdates.length > 0) {
+      ctx.updateFilesInStore(pendingUpdates)
+    }
     
     // Count results
     for (const result of results) {

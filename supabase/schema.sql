@@ -1997,6 +1997,7 @@ CREATE TABLE rfqs (
   -- Options
   requires_samples BOOLEAN DEFAULT false,
   requires_first_article BOOLEAN DEFAULT false,
+  requires_quality_report BOOLEAN DEFAULT false,
   allow_partial_quotes BOOLEAN DEFAULT true,
   
   -- File generation
@@ -2054,6 +2055,9 @@ CREATE TABLE rfq_items (
   finish TEXT,
   tolerance_class TEXT,
   special_requirements TEXT,
+  
+  -- SolidWorks configuration for export
+  sw_configuration TEXT,
   
   step_file_path TEXT,
   pdf_file_path TEXT,

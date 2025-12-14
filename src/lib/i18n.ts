@@ -226,6 +226,12 @@ const en: TranslationDict = {
     ignorePlaceholder: 'e.g., *.tmp, .git/*, thumbs.db',
     connectVaultForPatterns: 'Connect to a vault to manage ignore patterns.',
     noIgnorePatterns: 'No ignore patterns configured',
+    
+    syncSettings: 'Sync Settings',
+    autoDownloadCloudFiles: 'Auto-download cloud files',
+    autoDownloadCloudFilesDesc: 'Automatically download files that exist on server but not locally',
+    autoDownloadUpdates: 'Auto-download file updates',
+    autoDownloadUpdatesDesc: 'Automatically download when server has newer versions',
   },
   
   // Activity bar / Sidebar
@@ -525,6 +531,12 @@ const fr: TranslationDict = {
     ignorePlaceholder: 'ex: *.tmp, .git/*, thumbs.db',
     connectVaultForPatterns: 'Connectez-vous à un coffre pour gérer les modèles à ignorer.',
     noIgnorePatterns: 'Aucun modèle d\'exclusion configuré',
+    
+    syncSettings: 'Paramètres de synchronisation',
+    autoDownloadCloudFiles: 'Téléchargement auto des fichiers cloud',
+    autoDownloadCloudFilesDesc: 'Télécharger automatiquement les fichiers qui existent sur le serveur mais pas localement',
+    autoDownloadUpdates: 'Téléchargement auto des mises à jour',
+    autoDownloadUpdatesDesc: 'Télécharger automatiquement lorsque le serveur a des versions plus récentes',
   },
   
   sidebar: {

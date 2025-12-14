@@ -160,6 +160,7 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void): Com
     
     // Store updates
     updateFileInStore: store.updateFileInStore,
+    updateFilesInStore: store.updateFilesInStore,
     removeFilesFromStore: store.removeFilesFromStore,
     addProcessingFolder: store.addProcessingFolder,
     removeProcessingFolder: store.removeProcessingFolder,

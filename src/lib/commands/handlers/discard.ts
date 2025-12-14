@@ -88,7 +88,9 @@ export const discardCommand: Command<DiscardParams> = {
     let failed = 0
     const errors: string[] = []
     
-    // Process all files in parallel
+    // Process all files in parallel, collect updates for batch store update
+    const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
+    
     const results = await Promise.all(filesToDiscard.map(async (file) => {
       try {
         const contentHash = file.pdmData?.content_hash
@@ -117,11 +119,15 @@ export const discardCommand: Command<DiscardParams> = {
         }
         
         await window.electronAPI?.setReadonly(file.path, true)
-        ctx.updateFileInStore(file.path, {
-          pdmData: { ...file.pdmData!, checked_out_by: null, checked_out_user: null },
-          localHash: contentHash,
-          diffStatus: undefined,
-          localActiveVersion: undefined
+        // Queue update for batch processing
+        pendingUpdates.push({
+          path: file.path,
+          updates: {
+            pdmData: { ...file.pdmData!, checked_out_by: null, checked_out_user: null },
+            localHash: contentHash,
+            diffStatus: undefined,
+            localActiveVersion: undefined
+          }
         })
         progress.update()
         return { success: true }
@@ -131,6 +137,11 @@ export const discardCommand: Command<DiscardParams> = {
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
     }))
+    
+    // Apply all store updates in a single batch (avoids N re-renders)
+    if (pendingUpdates.length > 0) {
+      ctx.updateFilesInStore(pendingUpdates)
+    }
     
     // Count results
     for (const result of results) {

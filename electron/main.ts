@@ -2960,9 +2960,10 @@ ipcMain.handle('rfq:export-release-file', async (_, options: {
   exportType: 'step' | 'pdf' | 'dxf' | 'iges'
   partNumber?: string
   revision?: string
+  configuration?: string
 }) => {
   try {
-    const { rfqId, rfqNumber, sourceFilePath, exportType, partNumber, revision } = options
+    const { rfqId, rfqNumber, sourceFilePath, exportType, partNumber, revision, configuration } = options
     
     // Create RFQ output directory
     const baseDir = path.join(app.getPath('userData'), 'rfq-releases')
@@ -2971,17 +2972,24 @@ ipcMain.handle('rfq:export-release-file', async (_, options: {
       fs.mkdirSync(rfqDir, { recursive: true })
     }
     
-    // Generate output filename based on part number and revision
+    // Generate output filename based on part number, revision, and optionally configuration
     const baseName = partNumber || path.basename(sourceFilePath, path.extname(sourceFilePath))
     const revSuffix = revision ? `_REV${revision}` : ''
-    const outputName = `${baseName}${revSuffix}.${exportType}`
+    const configSuffix = configuration ? `_${configuration}` : ''
+    const outputName = `${baseName}${revSuffix}${configSuffix}.${exportType}`
     const outputPath = path.join(rfqDir, outputName)
     
     // Export using SolidWorks service
     let result
     switch (exportType) {
       case 'step':
-        result = await sendSWCommand({ action: 'exportStep', filePath: sourceFilePath, outputPath, exportAllConfigs: false })
+        result = await sendSWCommand({ 
+          action: 'exportStep', 
+          filePath: sourceFilePath, 
+          outputPath, 
+          exportAllConfigs: false,
+          configuration: configuration || undefined
+        })
         break
       case 'pdf':
         result = await sendSWCommand({ action: 'exportPdf', filePath: sourceFilePath, outputPath })

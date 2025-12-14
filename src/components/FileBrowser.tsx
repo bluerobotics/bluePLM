@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, memo } from 'react'
 import { 
   ChevronUp, 
   ChevronDown,
@@ -127,7 +127,8 @@ interface FileIconCardProps {
   onStateChange?: (file: LocalFile, newState: string) => void
 }
 
-function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, currentMachineId, onClick, onDoubleClick, onContextMenu, onDownload, onCheckout, onCheckin, onUpload, onStateChange }: FileIconCardProps) {
+// Memoized to prevent re-renders when other files change
+const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, currentMachineId, onClick, onDoubleClick, onContextMenu, onDownload, onCheckout, onCheckin, onUpload, onStateChange }: FileIconCardProps) {
   const [thumbnail, setThumbnail] = useState<string | null>(null)
   const [thumbnailError, setThumbnailError] = useState(false)
   const [loadingThumbnail, setLoadingThumbnail] = useState(false)
@@ -805,7 +806,32 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
       )}
     </div>
   )
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison to avoid re-renders when allFiles changes but this file didn't
+  // Only re-render if relevant props changed
+  if (prevProps.file !== nextProps.file) {
+    // Deep check important file properties
+    const prev = prevProps.file
+    const next = nextProps.file
+    if (prev.path !== next.path) return false
+    if (prev.name !== next.name) return false
+    if (prev.diffStatus !== next.diffStatus) return false
+    if (prev.pdmData?.checked_out_by !== next.pdmData?.checked_out_by) return false
+    if (prev.pdmData?.version !== next.pdmData?.version) return false
+    if (prev.pdmData?.state !== next.pdmData?.state) return false
+    if (prev.localHash !== next.localHash) return false
+  }
+  if (prevProps.iconSize !== nextProps.iconSize) return false
+  if (prevProps.isSelected !== nextProps.isSelected) return false
+  if (prevProps.currentMachineId !== nextProps.currentMachineId) return false
+  // Don't compare allFiles or processingPaths - too expensive
+  // Instead, check if this specific file is affected
+  const prevProcessing = prevProps.processingPaths.has(prevProps.file.relativePath)
+  const nextProcessing = nextProps.processingPaths.has(nextProps.file.relativePath)
+  if (prevProcessing !== nextProcessing) return false
+  // For callbacks, assume they're stable (wrapped with useCallback in parent)
+  return true
+})
 
 // Component for list view icons with OS thumbnail support
 interface ListRowIconProps {
@@ -816,7 +842,8 @@ interface ListRowIconProps {
   isFolderSynced?: boolean
 }
 
-function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderSynced }: ListRowIconProps) {
+// Memoized to prevent re-renders when unrelated state changes
+const ListRowIcon = memo(function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderSynced }: ListRowIconProps) {
   const [thumbnail, setThumbnail] = useState<string | null>(null)
   const [thumbnailError, setThumbnailError] = useState(false)
   
@@ -928,7 +955,7 @@ function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderS
     default:
       return <File size={size} className="text-plm-fg-muted flex-shrink-0" />
   }
-}
+})
 
 export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const { t } = useTranslation()
@@ -1137,149 +1164,153 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   // Check if we're in search mode
   const isSearching = searchQuery && searchQuery.trim().length > 0
 
-  // Get files in current folder (direct children only)
-  // First filter out any invalid/undefined files
-  const validFiles = files.filter(f => f && f.relativePath && f.name)
-  
-  // Fuzzy search helper - checks if query matches any part of the text
-  const fuzzyMatch = (text: string | undefined | null, query: string): boolean => {
-    if (!text) return false
-    const lowerText = text.toLowerCase()
-    const lowerQuery = query.toLowerCase()
+  // Memoize sorted files to avoid expensive recomputation on every render
+  // This is the main performance optimization for the file browser
+  const sortedFiles = useMemo(() => {
+    // Get files in current folder (direct children only)
+    // First filter out any invalid/undefined files
+    const validFiles = files.filter(f => f && f.relativePath && f.name)
     
-    // Simple fuzzy: check if all characters in query appear in order
-    let queryIndex = 0
-    for (let i = 0; i < lowerText.length && queryIndex < lowerQuery.length; i++) {
-      if (lowerText[i] === lowerQuery[queryIndex]) {
-        queryIndex++
-      }
-    }
-    return queryIndex === lowerQuery.length
-  }
-  
-  // Search score - higher = better match, prioritizes filename > description > other
-  const getSearchScore = (file: LocalFile, query: string): number => {
-    const q = query.toLowerCase().trim()
-    let score = 0
-    
-    // Priority 1: Filename matches (highest scores)
-    const nameLower = file.name.toLowerCase()
-    if (nameLower === q) {
-      score = 1000 // Exact match
-    } else if (nameLower.startsWith(q)) {
-      score = 900 // Starts with query
-    } else if (nameLower.includes(q)) {
-      score = 800 // Contains query
-    } else if (fuzzyMatch(file.name, q)) {
-      score = 700 // Fuzzy match on name
-    }
-    
-    // Priority 2: Description matches
-    if (file.pdmData?.description) {
-      const descLower = file.pdmData.description.toLowerCase()
-      if (descLower.includes(q)) {
-        score = Math.max(score, 500)
-      }
-    }
-    
-    // Priority 3: Part number matches
-    if (file.pdmData?.part_number?.toLowerCase().includes(q)) {
-      score = Math.max(score, 400)
-    }
-    
-    // Priority 4: Path matches
-    if (file.relativePath.toLowerCase().includes(q)) {
-      score = Math.max(score, 300)
-    }
-    
-    // Priority 5: Other metadata matches
-    if (file.pdmData) {
-      if (file.pdmData.revision?.toLowerCase().includes(q)) score = Math.max(score, 200)
-      if ((file.pdmData as any).material?.toLowerCase().includes(q)) score = Math.max(score, 200)
-      if ((file.pdmData as any).vendor?.toLowerCase().includes(q)) score = Math.max(score, 200)
-      if ((file.pdmData as any).project?.toLowerCase().includes(q)) score = Math.max(score, 200)
-    }
-    
-    // Extension match (lowest priority)
-    if (file.extension?.toLowerCase().includes(q)) {
-      score = Math.max(score, 100)
-    }
-    
-    return score
-  }
-  
-  // Search across all metadata - returns true if any match
-  const matchesSearch = (file: LocalFile, query: string): boolean => {
-    return getSearchScore(file, query) > 0
-  }
-  
-  const currentFolderFiles = isSearching 
-    ? validFiles
-        .filter(file => {
-          // Filter by search type
-          if (searchType === 'files' && file.isDirectory) return false
-          if (searchType === 'folders' && !file.isDirectory) return false
-          return matchesSearch(file, searchQuery)
-        })
-        .sort((a, b) => getSearchScore(b, searchQuery) - getSearchScore(a, searchQuery))
-    : validFiles.filter(file => {
-        const fileParts = file.relativePath.split('/')
-        
-        if (currentPath === '') {
-          // Root level - show only top-level items
-          return fileParts.length === 1
-        } else {
-          // In a subfolder - show direct children
-          const currentParts = currentPath.split('/')
-          
-          // File must be exactly one level deeper than current path
-          if (fileParts.length !== currentParts.length + 1) return false
-          
-          // File must start with current path
-          for (let i = 0; i < currentParts.length; i++) {
-            if (fileParts[i] !== currentParts[i]) return false
-          }
-          
-          return true
+    // Fuzzy search helper - checks if query matches any part of the text
+    const fuzzyMatch = (text: string | undefined | null, query: string): boolean => {
+      if (!text) return false
+      const lowerText = text.toLowerCase()
+      const lowerQuery = query.toLowerCase()
+      
+      // Simple fuzzy: check if all characters in query appear in order
+      let queryIndex = 0
+      for (let i = 0; i < lowerText.length && queryIndex < lowerQuery.length; i++) {
+        if (lowerText[i] === lowerQuery[queryIndex]) {
+          queryIndex++
         }
-      })
-
-  // Sort: folders first, then by selected column (but preserve search relevance when searching)
-  const sortedFiles = [...currentFolderFiles].filter(f => f && f.name).sort((a, b) => {
-    // When searching, preserve the relevance order (already sorted by score)
-    if (isSearching) {
-      return 0 // Keep the order from search scoring
+      }
+      return queryIndex === lowerQuery.length
     }
     
-    // Folders always first
-    if (a.isDirectory && !b.isDirectory) return -1
-    if (!a.isDirectory && b.isDirectory) return 1
-
-    let comparison = 0
-    switch (sortColumn) {
-      case 'name':
-        comparison = a.name.localeCompare(b.name)
-        break
-      case 'size':
-        comparison = a.size - b.size
-        break
-      case 'modifiedTime':
-        const aTime = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0
-        const bTime = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0
-        comparison = (isNaN(aTime) ? 0 : aTime) - (isNaN(bTime) ? 0 : bTime)
-        break
-      case 'extension':
-        comparison = a.extension.localeCompare(b.extension)
-        break
-      default:
-        comparison = a.name.localeCompare(b.name)
+    // Search score - higher = better match, prioritizes filename > description > other
+    const getSearchScore = (file: LocalFile, query: string): number => {
+      const q = query.toLowerCase().trim()
+      let score = 0
+      
+      // Priority 1: Filename matches (highest scores)
+      const nameLower = file.name.toLowerCase()
+      if (nameLower === q) {
+        score = 1000 // Exact match
+      } else if (nameLower.startsWith(q)) {
+        score = 900 // Starts with query
+      } else if (nameLower.includes(q)) {
+        score = 800 // Contains query
+      } else if (fuzzyMatch(file.name, q)) {
+        score = 700 // Fuzzy match on name
+      }
+      
+      // Priority 2: Description matches
+      if (file.pdmData?.description) {
+        const descLower = file.pdmData.description.toLowerCase()
+        if (descLower.includes(q)) {
+          score = Math.max(score, 500)
+        }
+      }
+      
+      // Priority 3: Part number matches
+      if (file.pdmData?.part_number?.toLowerCase().includes(q)) {
+        score = Math.max(score, 400)
+      }
+      
+      // Priority 4: Path matches
+      if (file.relativePath.toLowerCase().includes(q)) {
+        score = Math.max(score, 300)
+      }
+      
+      // Priority 5: Other metadata matches
+      if (file.pdmData) {
+        if (file.pdmData.revision?.toLowerCase().includes(q)) score = Math.max(score, 200)
+        if ((file.pdmData as any).material?.toLowerCase().includes(q)) score = Math.max(score, 200)
+        if ((file.pdmData as any).vendor?.toLowerCase().includes(q)) score = Math.max(score, 200)
+        if ((file.pdmData as any).project?.toLowerCase().includes(q)) score = Math.max(score, 200)
+      }
+      
+      // Extension match (lowest priority)
+      if (file.extension?.toLowerCase().includes(q)) {
+        score = Math.max(score, 100)
+      }
+      
+      return score
     }
+    
+    // Search across all metadata - returns true if any match
+    const matchesSearch = (file: LocalFile, query: string): boolean => {
+      return getSearchScore(file, query) > 0
+    }
+    
+    const currentFolderFiles = isSearching 
+      ? validFiles
+          .filter(file => {
+            // Filter by search type
+            if (searchType === 'files' && file.isDirectory) return false
+            if (searchType === 'folders' && !file.isDirectory) return false
+            return matchesSearch(file, searchQuery)
+          })
+          .sort((a, b) => getSearchScore(b, searchQuery) - getSearchScore(a, searchQuery))
+      : validFiles.filter(file => {
+          const fileParts = file.relativePath.split('/')
+          
+          if (currentPath === '') {
+            // Root level - show only top-level items
+            return fileParts.length === 1
+          } else {
+            // In a subfolder - show direct children
+            const currentParts = currentPath.split('/')
+            
+            // File must be exactly one level deeper than current path
+            if (fileParts.length !== currentParts.length + 1) return false
+            
+            // File must start with current path
+            for (let i = 0; i < currentParts.length; i++) {
+              if (fileParts[i] !== currentParts[i]) return false
+            }
+            
+            return true
+          }
+        })
 
-    return sortDirection === 'asc' ? comparison : -comparison
-  })
+    // Sort: folders first, then by selected column (but preserve search relevance when searching)
+    return [...currentFolderFiles].filter(f => f && f.name).sort((a, b) => {
+      // When searching, preserve the relevance order (already sorted by score)
+      if (isSearching) {
+        return 0 // Keep the order from search scoring
+      }
+      
+      // Folders always first
+      if (a.isDirectory && !b.isDirectory) return -1
+      if (!a.isDirectory && b.isDirectory) return 1
+
+      let comparison = 0
+      switch (sortColumn) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name)
+          break
+        case 'size':
+          comparison = a.size - b.size
+          break
+        case 'modifiedTime':
+          const aTime = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0
+          const bTime = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0
+          comparison = (isNaN(aTime) ? 0 : aTime) - (isNaN(bTime) ? 0 : bTime)
+          break
+        case 'extension':
+          comparison = a.extension.localeCompare(b.extension)
+          break
+        default:
+          comparison = a.name.localeCompare(b.name)
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+  }, [files, currentPath, isSearching, searchQuery, searchType, sortColumn, sortDirection])
 
   // Check if all files in a folder are synced (truly synced, not just content-matched)
-  const isFolderSynced = (folderPath: string): boolean => {
+  const isFolderSynced = useCallback((folderPath: string): boolean => {
     const folderFiles = files.filter(f => 
       !f.isDirectory && 
       f.relativePath.startsWith(folderPath + '/')
@@ -1287,10 +1318,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     if (folderFiles.length === 0) return false // Empty folder = not synced
     // Only consider synced if ALL files have pdmData AND none are marked as 'added'
     return folderFiles.every(f => !!f.pdmData && f.diffStatus !== 'added')
-  }
+  }, [files])
 
   // Get folder checkout status: 'mine' | 'others' | 'both' | null
-  const getFolderCheckoutStatus = (folderPath: string): 'mine' | 'others' | 'both' | null => {
+  const getFolderCheckoutStatus = useCallback((folderPath: string): 'mine' | 'others' | 'both' | null => {
     const folderFiles = files.filter(f => 
       !f.isDirectory && 
       f.relativePath.startsWith(folderPath + '/')
@@ -1302,10 +1333,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     if (checkedOutByMe) return 'mine'
     if (checkedOutByOthers) return 'others'
     return null
-  }
+  }, [files, user?.id])
 
   // Check if a file/folder is affected by any processing operation
-  const isBeingProcessed = (relativePath: string) => {
+  const isBeingProcessed = useCallback((relativePath: string) => {
     // Check if this exact path is being processed
     if (processingFolders.has(relativePath)) return true
     // Check if any parent folder is being processed
@@ -1313,7 +1344,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       if (relativePath.startsWith(processingPath + '/')) return true
     }
     return false
-  }
+  }, [processingFolders])
 
   // Inline action: Download a single file or folder (uses command system)
   const handleInlineDownload = (e: React.MouseEvent, file: LocalFile) => {

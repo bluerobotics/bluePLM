@@ -253,6 +253,7 @@ declare global {
           exportType: 'step' | 'pdf' | 'dxf' | 'iges'
           partNumber?: string
           revision?: string
+          configuration?: string
         }) => Promise<{ success: boolean; outputPath?: string; fileName?: string; fileSize?: number; error?: string }>
         createZip: (options: {
           rfqId: string

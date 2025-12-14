@@ -296,6 +296,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       exportType: 'step' | 'pdf' | 'dxf' | 'iges'
       partNumber?: string
       revision?: string
+      configuration?: string
     }) => ipcRenderer.invoke('rfq:export-release-file', options),
     createZip: (options: {
       rfqId: string

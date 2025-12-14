@@ -256,6 +256,10 @@ interface PDMState {
   halloweenSparksSpeed: number    // Halloween theme bonfire sparks speed (10-100)
   halloweenGhostsOpacity: number // Halloween theme ghost opacity (0-100)
   
+  // Auto-download settings
+  autoDownloadCloudFiles: boolean  // Auto-download files that exist on server but not locally
+  autoDownloadUpdates: boolean     // Auto-download when server has new versions
+  
   // Pinned items (quick access)
   pinnedFolders: { path: string; vaultId: string; vaultName: string; isDirectory: boolean }[]
   pinnedSectionExpanded: boolean
@@ -348,6 +352,10 @@ interface PDMState {
   setHalloweenSparksSpeed: (speed: number) => void
   setHalloweenGhostsOpacity: (opacity: number) => void
   
+  // Actions - Auto-download settings
+  setAutoDownloadCloudFiles: (enabled: boolean) => void
+  setAutoDownloadUpdates: (enabled: boolean) => void
+  
   // Actions - Pinned items
   pinFolder: (path: string, vaultId: string, vaultName: string, isDirectory: boolean) => void
   unpinFolder: (path: string) => void
@@ -375,6 +383,7 @@ interface PDMState {
   setServerFiles: (files: ServerFile[]) => void
   setServerFolderPaths: (paths: Set<string>) => void
   updateFileInStore: (path: string, updates: Partial<LocalFile>) => void
+  updateFilesInStore: (updates: Array<{ path: string; updates: Partial<LocalFile> }>) => void  // Batch update
   removeFilesFromStore: (paths: string[]) => void
   updatePendingMetadata: (path: string, metadata: PendingMetadata) => void
   clearPendingMetadata: (path: string) => void
@@ -606,6 +615,8 @@ export const usePDMStore = create<PDMState>()(
       theme: 'dark',  // Default theme
       language: 'en',  // Default language
       christmasSnowOpacity: 50,  // Default 50%
+      autoDownloadCloudFiles: false,  // Off by default
+      autoDownloadUpdates: false,     // Off by default
       christmasSleighEnabled: true,  // Default ON
       halloweenSparksEnabled: true,  // Default ON
       halloweenSparksOpacity: 70,  // Default 70%
@@ -728,6 +739,10 @@ export const usePDMStore = create<PDMState>()(
       setHalloweenSparksSpeed: (halloweenSparksSpeed) => set({ halloweenSparksSpeed }),
       setHalloweenGhostsOpacity: (halloweenGhostsOpacity) => set({ halloweenGhostsOpacity }),
       
+      // Actions - Auto-download settings
+      setAutoDownloadCloudFiles: (autoDownloadCloudFiles) => set({ autoDownloadCloudFiles }),
+      setAutoDownloadUpdates: (autoDownloadUpdates) => set({ autoDownloadUpdates }),
+      
       // Actions - Pinned items
       pinFolder: (path, vaultId, vaultName, isDirectory) => {
         const { pinnedFolders } = get()
@@ -844,6 +859,18 @@ export const usePDMStore = create<PDMState>()(
           files: state.files.map(f => 
             f.path === path ? { ...f, ...updates } : f
           )
+        }))
+      },
+      // Batch update multiple files in a single state change (avoids N re-renders)
+      updateFilesInStore: (updates) => {
+        if (updates.length === 0) return
+        // Build a map for O(1) lookups
+        const updateMap = new Map(updates.map(u => [u.path, u.updates]))
+        set(state => ({
+          files: state.files.map(f => {
+            const fileUpdates = updateMap.get(f.path)
+            return fileUpdates ? { ...f, ...fileUpdates } : f
+          })
         }))
       },
       removeFilesFromStore: (paths) => {
@@ -1593,6 +1620,8 @@ export const usePDMStore = create<PDMState>()(
         halloweenSparksOpacity: state.halloweenSparksOpacity,
         halloweenSparksSpeed: state.halloweenSparksSpeed,
         halloweenGhostsOpacity: state.halloweenGhostsOpacity,
+        autoDownloadCloudFiles: state.autoDownloadCloudFiles,
+        autoDownloadUpdates: state.autoDownloadUpdates,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         connectedVaults: state.connectedVaults,
@@ -1678,6 +1707,9 @@ export const usePDMStore = create<PDMState>()(
           // Ensure onboarding state has defaults
           onboardingComplete: (persisted.onboardingComplete as boolean) || false,
           logSharingEnabled: (persisted.logSharingEnabled as boolean) || false,
+          // Ensure auto-download settings have defaults
+          autoDownloadCloudFiles: (persisted.autoDownloadCloudFiles as boolean) || false,
+          autoDownloadUpdates: (persisted.autoDownloadUpdates as boolean) || false,
           // Ensure columns have all fields
           columns: currentState.columns.map(defaultCol => {
             const persistedCol = (persisted.columns as ColumnConfig[] || [])

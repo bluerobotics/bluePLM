@@ -3714,6 +3714,7 @@ export async function buildServer(): Promise<FastifyInstance> {
           postal_code: odooSupplier.zip || null,
           country: odooSupplier.country_id?.[1] || 'USA',
           is_active: odooSupplier.active !== false,
+          is_approved: true,  // Auto-approve synced suppliers from Odoo
           erp_id: String(odooSupplier.id),
           erp_synced_at: new Date().toISOString(),
           updated_by: request.user.id

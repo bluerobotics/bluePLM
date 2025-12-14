@@ -43,6 +43,7 @@ CREATE TABLE rfqs (
   -- Options
   requires_samples BOOLEAN DEFAULT false,
   requires_first_article BOOLEAN DEFAULT false,
+  requires_quality_report BOOLEAN DEFAULT false,
   allow_partial_quotes BOOLEAN DEFAULT true,
   
   -- File generation
@@ -107,6 +108,9 @@ CREATE TABLE rfq_items (
   -- Tolerances/specs
   tolerance_class TEXT,                    -- e.g., "ISO 2768-mK"
   special_requirements TEXT,
+  
+  -- SolidWorks configuration for export
+  sw_configuration TEXT,                   -- Configuration to use for STEP export
   
   -- Release files (paths to generated STEP/PDF)
   step_file_path TEXT,
