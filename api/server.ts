@@ -715,10 +715,11 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       log.warn('>>> [Auth] Missing or invalid auth header')
-      return reply.code(401).send({ 
+      reply.code(401).send({ 
         error: 'Unauthorized',
         message: 'Missing or invalid Authorization header'
       })
+      throw new Error('Auth: Missing header')
     }
     
     const token = authHeader.substring(7)
@@ -726,66 +727,62 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     // Check for literal "undefined" string (frontend bug protection)
     if (!token || token === 'undefined' || token === 'null') {
       log.warn('>>> [Auth] Empty or invalid token string')
-      return reply.code(401).send({ 
+      reply.code(401).send({ 
         error: 'Unauthorized',
         message: 'Invalid or missing access token'
       })
+      throw new Error('Auth: Invalid token string')
     }
     
-    try {
-      const supabase = createSupabaseClient(token)
-      const { data: { user }, error } = await supabase.auth.getUser(token)
-      
-      if (error || !user) {
-        // Log detailed auth failure for debugging
-        log.error({ 
-          msg: '>>> [Auth] Token verification failed',
-          error: error?.message,
-          errorCode: error?.code,
-          hasUser: !!user,
-          tokenPrefix: token.substring(0, 20) + '...'
-        })
-        return reply.code(401).send({ 
-          error: 'Invalid token',
-          message: error?.message || 'Token verification failed',
-          hint: 'Ensure API server SUPABASE_URL matches your app\'s Supabase project'
-        })
-      }
-      
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('id, email, role, org_id, full_name')
-        .eq('id', user.id)
-        .single()
-      
-      if (profileError || !profile) {
-        log.error({ msg: '>>> [Auth] Profile lookup failed', error: profileError?.message })
-        return reply.code(401).send({ 
-          error: 'Profile not found',
-          message: 'User profile does not exist'
-        })
-      }
-      
-      if (!profile.org_id) {
-        log.warn({ msg: '>>> [Auth] User has no organization', email: profile.email })
-        return reply.code(403).send({ 
-          error: 'No organization',
-          message: 'User is not a member of any organization'
-        })
-      }
-      
-      // Success - set user on request
-      request.user = profile as UserProfile
-      request.supabase = supabase
-      request.accessToken = token
-      log.info({ msg: '>>> [Auth] Authenticated', email: profile.email })
-    } catch (err) {
-      log.error({ msg: '>>> [Auth] Unexpected error', error: err })
-      return reply.code(500).send({ 
-        error: 'Auth error',
-        message: err instanceof Error ? err.message : 'Unknown error'
+    const supabase = createSupabaseClient(token)
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    
+    if (error || !user) {
+      // Log detailed auth failure for debugging
+      log.error({ 
+        msg: '>>> [Auth] Token verification failed',
+        error: error?.message,
+        errorCode: error?.code,
+        hasUser: !!user,
+        tokenPrefix: token.substring(0, 20) + '...'
       })
+      reply.code(401).send({ 
+        error: 'Invalid token',
+        message: error?.message || 'Token verification failed',
+        hint: 'Ensure API server SUPABASE_URL matches your app\'s Supabase project'
+      })
+      throw new Error('Auth: Token verification failed')
     }
+    
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('id, email, role, org_id, full_name')
+      .eq('id', user.id)
+      .single()
+    
+    if (profileError || !profile) {
+      log.error({ msg: '>>> [Auth] Profile lookup failed', error: profileError?.message })
+      reply.code(401).send({ 
+        error: 'Profile not found',
+        message: 'User profile does not exist'
+      })
+      throw new Error('Auth: Profile not found')
+    }
+    
+    if (!profile.org_id) {
+      log.warn({ msg: '>>> [Auth] User has no organization', email: profile.email })
+      reply.code(403).send({ 
+        error: 'No organization',
+        message: 'User is not a member of any organization'
+      })
+      throw new Error('Auth: No organization')
+    }
+    
+    // Success - set user on request
+    request.user = profile as UserProfile
+    request.supabase = supabase
+    request.accessToken = token
+    log.info({ msg: '>>> [Auth] Authenticated', email: profile.email })
   })
 }
 
