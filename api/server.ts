@@ -45,6 +45,13 @@ import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 import { createClient, SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import fs from 'fs'
+import path from 'path'
+
+// Load version from package.json
+const packageJsonPath = path.join(__dirname, '..', 'package.json')
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+const API_VERSION = packageJson.version || '0.0.0'
 
 // ============================================
 // Types
@@ -826,7 +833,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       info: {
         title: 'BluePLM REST API',
         description: 'Product Data Management API for engineering teams',
-        version: '2.0.0'
+        version: API_VERSION
       },
       servers: [
         { url: `http://${HOST}:${PORT}`, description: 'Local server' }
@@ -910,7 +917,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     }
   }, async () => ({
     name: 'BluePLM REST API',
-    version: '2.0.0',
+    version: API_VERSION,
     status: 'running',
     docs: `http://${HOST}:${PORT}/docs`
   }))
@@ -940,7 +947,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       timestamp: new Date().toISOString(),
       supabase: SUPABASE_URL ? 'configured' : 'not configured',
       supabase_project: supabaseProject, // Shows project ID for verification
-      version: '2.0.0',
+      version: API_VERSION,
       build: process.env.RAILWAY_GIT_COMMIT_SHA?.substring(0, 7) || process.env.RENDER_GIT_COMMIT?.substring(0, 7) || null
     }
   })
@@ -3804,9 +3811,10 @@ async function start(): Promise<void> {
     const server = await buildServer()
     await server.listen({ port: PORT, host: HOST })
     
+    const versionLine = `BluePLM REST API v${API_VERSION}`.padStart(35).padEnd(55)
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║           BluePLM REST API v2.0 (TypeScript)                 ║
+║  ${versionLine}   ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  Server:    http://${HOST}:${PORT.toString().padEnd(38)}║
 ║  Docs:      http://${HOST}:${PORT}/docs${''.padEnd(30)}║
