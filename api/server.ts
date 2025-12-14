@@ -896,6 +896,18 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Register Auth Plugin
   await fastify.register(authPlugin)
 
+  // DEBUG: Log all requests with auth header info
+  fastify.addHook('onRequest', async (request) => {
+    const authHeader = request.headers.authorization
+    request.log.info({
+      msg: '>>> REQUEST DEBUG',
+      url: request.url,
+      method: request.method,
+      hasAuthHeader: !!authHeader,
+      authHeaderStart: authHeader?.substring(0, 30) || 'none'
+    })
+  })
+
   // ============================================
   // Health & Info Routes
   // ============================================
