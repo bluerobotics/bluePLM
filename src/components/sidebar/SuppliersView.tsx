@@ -100,6 +100,12 @@ export function SuppliersView() {
       })
 
       const data = await response.json()
+      
+      // Log debug info to console for troubleshooting
+      console.log('[Odoo Sync] Response:', response.status, data)
+      if (data.debug) {
+        console.log('[Odoo Sync] Debug info:', data.debug)
+      }
 
       if (response.ok) {
         addToast('success', `Synced ${data.created} new, ${data.updated} updated suppliers`)
@@ -109,7 +115,9 @@ export function SuppliersView() {
           addToast('warning', 'Odoo not configured. Go to Settings > Google Drive & ERP to set it up.')
           setActiveView('settings')
         } else {
-          addToast('error', data.message || 'Sync failed')
+          // Show more detailed error
+          const debugInfo = data.debug ? ` (auth: ${data.debug.auth_uid ? 'ok' : 'failed'}, found: ${data.debug.supplier_ids_count})` : ''
+          addToast('error', (data.message || 'Sync failed') + debugInfo)
         }
       }
     } catch (err) {
