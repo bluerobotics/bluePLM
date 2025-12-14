@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'branding' | 'metadata-columns' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
 import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken } from './lib/supabase'
 import { subscribeToFiles, subscribeToActivity, unsubscribeAll } from './lib/realtime'
 // Backup services removed - now handled directly via restic
@@ -14,6 +14,7 @@ import { DetailsPanel } from './components/DetailsPanel'
 // StatusBar removed - zoom now in MenuBar
 import { WelcomeScreen } from './components/WelcomeScreen'
 import { SetupScreen } from './components/SetupScreen'
+import { OnboardingScreen } from './components/OnboardingScreen'
 import { Toast } from './components/Toast'
 import { RightPanel } from './components/RightPanel'
 import { GoogleDrivePanel } from './components/GoogleDrivePanel'
@@ -123,6 +124,9 @@ function App() {
   
   // Track if Supabase is configured (can change at runtime)
   const [supabaseReady, setSupabaseReady] = useState(() => isSupabaseConfigured())
+  
+  // Get onboarding state
+  const onboardingComplete = usePDMStore(s => s.onboardingComplete)
   
   // Handle Supabase being configured (from SetupScreen)
   const handleSupabaseConfigured = useCallback(() => {
@@ -1356,6 +1360,11 @@ function App() {
   
   // Only show minimal menu bar on the sign-in screen (not authenticated)
   const isSignInScreen = !user && !isOfflineMode
+  
+  // Show onboarding screen on first app boot (before Supabase setup)
+  if (!onboardingComplete) {
+    return <OnboardingScreen />
+  }
   
   // Show setup screen if Supabase is not configured
   if (!supabaseReady) {

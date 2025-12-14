@@ -60,6 +60,7 @@ import {
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { getFileIconType, formatFileSize, STATE_INFO, getInitials } from '../types/pdm'
 import { 
+  supabase,
   updateFileMetadata, 
   getOrgUsers,
   createReviewRequest,
@@ -72,10 +73,28 @@ import {
   getActiveECOs,
   addFileToECO
 } from '../lib/supabase'
+import type { FileMetadataColumn } from '../types/database'
 // Use command system for PDM operations
 import { executeCommand } from '../lib/commands'
 import { getSyncedFilesFromSelection } from '../lib/commands/types'
 import { format } from 'date-fns'
+import { useTranslation } from '../lib/i18n'
+
+// Column ID to translation key mapping
+const columnTranslationKeys: Record<string, string> = {
+  name: 'fileBrowser.name',
+  fileStatus: 'fileBrowser.fileStatus',
+  checkedOutBy: 'fileBrowser.checkedOutBy',
+  version: 'fileBrowser.version',
+  itemNumber: 'fileBrowser.itemNumber',
+  description: 'fileBrowser.description',
+  revision: 'fileBrowser.revision',
+  state: 'fileBrowser.state',
+  ecoTags: 'fileBrowser.ecoTags',
+  extension: 'fileBrowser.extension',
+  size: 'fileBrowser.size',
+  modifiedTime: 'fileBrowser.modified',
+}
 
 // Build full path using the correct separator for the platform
 function buildFullPath(vaultPath: string, relativePath: string): string {
@@ -912,6 +931,7 @@ function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderS
 }
 
 export function FileBrowser({ onRefresh }: FileBrowserProps) {
+  const { t } = useTranslation()
   const {
     files,
     selectedFiles,
@@ -972,6 +992,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     listRowSize,
     setListRowSize
   } = usePDMStore()
+  
+  // Helper function to get translated column label
+  const getColumnLabel = (columnId: string): string => {
+    const key = columnTranslationKeys[columnId]
+    return key ? t(key) : columnId
+  }
   
   // Helper to ensure details panel is visible
   const setDetailsPanelVisible = (visible: boolean) => {
@@ -1097,6 +1123,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const [ecoNotes, setEcoNotes] = useState('')
   const [loadingECOs, setLoadingECOs] = useState(false)
   const [isAddingToECO, setIsAddingToECO] = useState(false)
+  
+  // Custom metadata columns from organization settings
+  const [customMetadataColumns, setCustomMetadataColumns] = useState<FileMetadataColumn[]>([])
   
   // Internal drag and drop state for moving files/folders
   const [draggedFiles, setDraggedFiles] = useState<LocalFile[]>([])
@@ -1731,6 +1760,35 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     }
     loadMachineId()
   }, [])
+  
+  // Load custom metadata columns from organization settings
+  useEffect(() => {
+    const loadCustomColumns = async () => {
+      if (!organization?.id) {
+        setCustomMetadataColumns([])
+        return
+      }
+      
+      try {
+        const { data, error } = await supabase
+          .from('file_metadata_columns')
+          .select('*')
+          .eq('org_id', organization.id)
+          .order('sort_order')
+        
+        if (error) {
+          console.error('Failed to load custom metadata columns:', error)
+          return
+        }
+        
+        setCustomMetadataColumns(data || [])
+      } catch (err) {
+        console.error('Failed to load custom metadata columns:', err)
+      }
+    }
+    
+    loadCustomColumns()
+  }, [organization?.id])
   
   // Check if user is watching a file when context menu opens
   useEffect(() => {
@@ -3911,11 +3969,58 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           return '-'
         }
       default:
+        // Check if this is a custom metadata column
+        if (columnId.startsWith('custom_')) {
+          const customColumnName = columnId.replace('custom_', '')
+          const customValue = file.pdmData?.custom_properties?.[customColumnName]
+          
+          if (customValue === null || customValue === undefined) {
+            return <span className="text-pdm-fg-muted/50">—</span>
+          }
+          
+          // Find the column definition for type-specific formatting
+          const columnDef = customMetadataColumns.find(c => c.name === customColumnName)
+          
+          if (columnDef?.data_type === 'boolean') {
+            return customValue === 'true' || customValue === true ? (
+              <span className="text-pdm-success">Yes</span>
+            ) : (
+              <span className="text-pdm-fg-muted">No</span>
+            )
+          }
+          
+          if (columnDef?.data_type === 'date' && customValue) {
+            try {
+              const date = new Date(customValue as string)
+              if (!isNaN(date.getTime())) {
+                return format(date, 'MMM d, yyyy')
+              }
+            } catch {
+              // Fall through to default display
+            }
+          }
+          
+          return String(customValue)
+        }
         return ''
     }
   }
 
-  const visibleColumns = columns.filter(c => c.visible)
+  // Combine default columns with custom metadata columns
+  const allColumns = [
+    ...columns,
+    ...customMetadataColumns
+      .filter(c => c.visible)
+      .map(c => ({
+        id: `custom_${c.name}`,
+        label: c.label,
+        width: c.width,
+        visible: c.visible,
+        sortable: c.sortable
+      }))
+  ]
+  
+  const visibleColumns = allColumns.filter(c => c.visible)
 
   return (
     <div 
@@ -4274,7 +4379,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     >
                       <GripVertical size={12} className="text-pdm-fg-muted opacity-50" />
                     </span>
-                    <span>{column.label}</span>
+                    <span>{getColumnLabel(column.id)}</span>
                     {sortColumn === column.id && (
                       sortDirection === 'asc' 
                         ? <ChevronUp size={12} />
@@ -5625,7 +5730,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 ) : (
                   <EyeOff size={14} className="text-pdm-fg-muted" />
                 )}
-                <span className={column.visible ? '' : 'text-pdm-fg-muted'}>{column.label}</span>
+                <span className={column.visible ? '' : 'text-pdm-fg-muted'}>{getColumnLabel(column.id)}</span>
               </div>
             ))}
           </div>

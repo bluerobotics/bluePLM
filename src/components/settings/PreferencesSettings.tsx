@@ -17,13 +17,7 @@ import {
   ChevronDown
 } from 'lucide-react'
 import { usePDMStore, ThemeMode, Language } from '../../stores/pdmStore'
-
-const themeOptions: { value: ThemeMode; label: string; icon: React.ReactNode; description: string }[] = [
-  { value: 'dark', label: 'Dark', icon: <Moon size={18} />, description: 'VS Code Dark+ style' },
-  { value: 'deep-blue', label: 'Deep Blue', icon: <Waves size={18} />, description: 'Ocean blue theme' },
-  { value: 'light', label: 'Light', icon: <Sun size={18} />, description: 'VS Code Light+ style' },
-  { value: 'system', label: 'System', icon: <Monitor size={18} />, description: 'Follow OS preference' },
-]
+import { useTranslation } from '../../lib/i18n'
 
 const languageOptions: { value: Language; label: string; nativeLabel: string }[] = [
   { value: 'en', label: 'English', nativeLabel: 'English' },
@@ -43,6 +37,7 @@ const languageOptions: { value: Language; label: string; nativeLabel: string }[]
 ]
 
 export function PreferencesSettings() {
+  const { t } = useTranslation()
   const { 
     activeVaultId,
     lowercaseExtensions, 
@@ -55,6 +50,14 @@ export function PreferencesSettings() {
     language,
     setLanguage
   } = usePDMStore()
+  
+  // Theme options with translations
+  const themeOptions: { value: ThemeMode; label: string; icon: React.ReactNode; description: string }[] = [
+    { value: 'dark', label: t('preferences.themeDark'), icon: <Moon size={18} />, description: t('preferences.themeDarkDesc') },
+    { value: 'deep-blue', label: t('preferences.themeDeepBlue'), icon: <Waves size={18} />, description: t('preferences.themeDeepBlueDesc') },
+    { value: 'light', label: t('preferences.themeLight'), icon: <Sun size={18} />, description: t('preferences.themeLightDesc') },
+    { value: 'system', label: t('preferences.themeSystem'), icon: <Monitor size={18} />, description: t('preferences.themeSystemDesc') },
+  ]
   
   const [appVersion, setAppVersion] = useState<string>('')
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
@@ -108,7 +111,7 @@ export function PreferencesSettings() {
       {/* Application Updates */}
       <div className="space-y-3">
         <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
-          Application Updates
+          {t('preferences.applicationUpdates')}
         </label>
         <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
           <div className="flex items-center justify-between gap-4">
@@ -117,10 +120,10 @@ export function PreferencesSettings() {
                 BluePDM {appVersion || '...'}
               </div>
               <div className="text-sm text-pdm-fg-muted mt-0.5">
-                {updateCheckResult === 'none' && 'You have the latest version'}
-                {updateCheckResult === 'available' && 'Update available! Check the notification.'}
-                {updateCheckResult === 'error' && 'Could not check for updates'}
-                {updateCheckResult === null && !isCheckingUpdate && 'Check for new versions'}
+                {updateCheckResult === 'none' && t('preferences.youHaveLatest')}
+                {updateCheckResult === 'available' && t('preferences.updateAvailable')}
+                {updateCheckResult === 'error' && t('preferences.couldNotCheck')}
+                {updateCheckResult === null && !isCheckingUpdate && t('preferences.checkForNewVersions')}
               </div>
             </div>
             <button
@@ -137,22 +140,22 @@ export function PreferencesSettings() {
               {isCheckingUpdate ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  Checking...
+                  {t('preferences.checking')}
                 </>
               ) : updateCheckResult === 'none' ? (
                 <>
                   <CheckCircle size={14} />
-                  Up to date
+                  {t('preferences.upToDate')}
                 </>
               ) : updateCheckResult === 'available' ? (
                 <>
                   <Download size={14} />
-                  Available
+                  {t('preferences.available')}
                 </>
               ) : (
                 <>
                   <RefreshCw size={14} />
-                  Check for Updates
+                  {t('preferences.checkForUpdates')}
                 </>
               )}
             </button>
@@ -163,7 +166,7 @@ export function PreferencesSettings() {
       {/* Theme Selection */}
       <div className="space-y-3">
         <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
-          Appearance
+          {t('preferences.appearance')}
         </label>
         <div className="grid grid-cols-2 gap-3">
           {themeOptions.map((option) => {
@@ -203,7 +206,7 @@ export function PreferencesSettings() {
       {/* Language Selection */}
       <div className="space-y-3">
         <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
-          Language
+          {t('preferences.language')}
         </label>
         <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
           <div className="flex items-center justify-between gap-4">
@@ -213,10 +216,10 @@ export function PreferencesSettings() {
               </div>
               <div>
                 <div className="text-base font-medium text-pdm-fg">
-                  Display Language
+                  {t('preferences.displayLanguage')}
                 </div>
                 <div className="text-sm text-pdm-fg-muted mt-0.5">
-                  Choose the language for the interface
+                  {t('preferences.chooseLanguage')}
                 </div>
               </div>
             </div>
@@ -274,7 +277,7 @@ export function PreferencesSettings() {
             </div>
           </div>
           <p className="text-xs text-pdm-fg-dim mt-3">
-            Note: Some translations may be incomplete. Restart may be required.
+            {t('preferences.translationsNote')}
           </p>
         </div>
       </div>
@@ -282,14 +285,14 @@ export function PreferencesSettings() {
       {/* File Extensions */}
       <div className="space-y-3">
         <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
-          File Extensions
+          {t('preferences.fileExtensions')}
         </label>
         <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-base text-pdm-fg">Lowercase Extensions on Upload</div>
+              <div className="text-base text-pdm-fg">{t('preferences.lowercaseExtensions')}</div>
               <div className="text-sm text-pdm-fg-muted mt-0.5">
-                Convert .SLDPRT to .sldprt when checking in files
+                {t('preferences.lowercaseExtensionsDesc')}
               </div>
             </div>
             <button
@@ -309,11 +312,11 @@ export function PreferencesSettings() {
       {/* Ignore Patterns */}
       <div className="space-y-3">
         <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
-          Ignore Patterns (Keep Local Only)
+          {t('preferences.ignorePatterns')}
         </label>
         <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border space-y-3">
           <p className="text-sm text-pdm-fg-muted">
-            Files matching these patterns will stay local and not sync to cloud.
+            {t('preferences.ignorePatternsDesc')}
           </p>
           
           {/* Add new pattern */}
@@ -325,7 +328,7 @@ export function PreferencesSettings() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAddIgnorePattern()
               }}
-              placeholder="e.g., *.tmp, .git/*, thumbs.db"
+              placeholder={t('preferences.ignorePlaceholder')}
               className="flex-1 bg-pdm-bg-secondary border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none font-mono"
               disabled={!activeVaultId}
             />
@@ -335,13 +338,13 @@ export function PreferencesSettings() {
               className="btn btn-primary btn-sm flex items-center gap-1"
             >
               <Plus size={14} />
-              Add
+              {t('common.add')}
             </button>
           </div>
           
           {!activeVaultId && (
             <p className="text-sm text-pdm-warning">
-              Connect to a vault to manage ignore patterns.
+              {t('preferences.connectVaultForPatterns')}
             </p>
           )}
           
@@ -366,7 +369,7 @@ export function PreferencesSettings() {
             </div>
           ) : activeVaultId ? (
             <p className="text-sm text-pdm-fg-dim text-center py-2">
-              No ignore patterns configured
+              {t('preferences.noIgnorePatterns')}
             </p>
           ) : null}
         </div>
@@ -374,4 +377,3 @@ export function PreferencesSettings() {
     </div>
   )
 }
-

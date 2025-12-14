@@ -1,4 +1,4 @@
-type SettingsTab = 'account' | 'vault' | 'organization' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'metadata-columns' | 'branding' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
 
 interface SettingsNavigationProps {
   activeTab: SettingsTab
@@ -23,6 +23,8 @@ const settingsSections: SettingsSection[] = [
     items: [
       { id: 'vault', label: 'Vault' },
       { id: 'organization', label: 'Organization' },
+      { id: 'branding', label: 'Branding & RFQ' },
+      { id: 'metadata-columns', label: 'Metadata Columns' },
       { id: 'backup', label: 'Backups' },
     ]
   },

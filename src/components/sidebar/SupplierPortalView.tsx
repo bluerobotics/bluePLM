@@ -22,6 +22,10 @@ import { RFQView } from './RFQView'
 import type { RFQ, RFQStatus } from '@/types/rfq'
 import { getRFQStatusInfo } from '@/types/rfq'
 
+// Supabase client with any type to bypass strict typing for new tables
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any
+
 interface PortalStats {
   activeRFQs: number
   pendingQuotes: number
@@ -32,6 +36,7 @@ interface PortalStats {
 export function SupplierPortalView() {
   const { organization, setActiveView } = usePDMStore()
   const [view, setView] = useState<'dashboard' | 'rfqs'>('dashboard')
+  const [showNewRFQDialog, setShowNewRFQDialog] = useState(false)
   const [recentRFQs, setRecentRFQs] = useState<RFQ[]>([])
   const [stats, setStats] = useState<PortalStats>({
     activeRFQs: 0,
@@ -49,8 +54,7 @@ export function SupplierPortalView() {
       setLoading(true)
       try {
         // Load recent RFQs
-        const { data: rfqs, error: rfqError } = await supabase
-          .from('rfqs')
+        const { data: rfqs, error: rfqError } = await db.from('rfqs')
           .select(`
             *,
             items:rfq_items(count),
@@ -61,23 +65,23 @@ export function SupplierPortalView() {
           .limit(5)
 
         if (rfqError) throw rfqError
-        setRecentRFQs(rfqs || [])
+        setRecentRFQs((rfqs as RFQ[]) || [])
 
         // Calculate stats
-        const { data: allRfqs } = await supabase
-          .from('rfqs')
+        const { data: allRfqs } = await db.from('rfqs')
           .select('status')
           .eq('org_id', organization.id)
 
         if (allRfqs) {
+          const rfqList = allRfqs as { status: RFQStatus }[]
           const activeStatuses: RFQStatus[] = ['draft', 'pending_files', 'generating', 'ready', 'sent', 'awaiting_quote']
           const pendingStatuses: RFQStatus[] = ['awaiting_quote', 'sent']
           const completedStatuses: RFQStatus[] = ['completed', 'awarded']
 
           setStats({
-            activeRFQs: allRfqs.filter(r => activeStatuses.includes(r.status)).length,
-            pendingQuotes: allRfqs.filter(r => pendingStatuses.includes(r.status)).length,
-            completedRFQs: allRfqs.filter(r => completedStatuses.includes(r.status)).length,
+            activeRFQs: rfqList.filter(r => activeStatuses.includes(r.status)).length,
+            pendingQuotes: rfqList.filter(r => pendingStatuses.includes(r.status)).length,
+            completedRFQs: rfqList.filter(r => completedStatuses.includes(r.status)).length,
             totalSpent: 0 // Would need to sum from awarded RFQs with quotes
           })
         }
@@ -105,7 +109,10 @@ export function SupplierPortalView() {
             Back to Portal
           </button>
         </div>
-        <RFQView />
+        <RFQView 
+          initialShowNewDialog={showNewRFQDialog} 
+          onDialogClose={() => setShowNewRFQDialog(false)} 
+        />
       </div>
     )
   }
@@ -135,7 +142,10 @@ export function SupplierPortalView() {
         {/* Quick action buttons */}
         <div className="grid grid-cols-2 gap-2">
           <button 
-            onClick={() => setView('rfqs')}
+            onClick={() => {
+              setShowNewRFQDialog(true)
+              setView('rfqs')
+            }}
             className="flex items-center justify-center gap-1.5 px-3 py-2 bg-pdm-accent hover:bg-pdm-accent/90 text-white rounded text-xs font-medium transition-colors"
           >
             <Plus size={14} />

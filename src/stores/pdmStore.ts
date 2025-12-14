@@ -1472,6 +1472,8 @@ export const usePDMStore = create<PDMState>()(
         vaultName: state.vaultName,
         recentVaults: state.recentVaults,
         autoConnect: state.autoConnect,
+        onboardingComplete: state.onboardingComplete,
+        logSharingEnabled: state.logSharingEnabled,
         cadPreviewMode: state.cadPreviewMode,
         solidworksPath: state.solidworksPath,
         solidworksDmLicenseKey: state.solidworksDmLicenseKey,
@@ -1562,6 +1564,9 @@ export const usePDMStore = create<PDMState>()(
           theme: (persisted.theme as ThemeMode) || 'dark',
           // Ensure language has a default
           language: (persisted.language as Language) || 'en',
+          // Ensure onboarding state has defaults
+          onboardingComplete: (persisted.onboardingComplete as boolean) || false,
+          logSharingEnabled: (persisted.logSharingEnabled as boolean) || false,
           // Ensure columns have all fields
           columns: currentState.columns.map(defaultCol => {
             const persistedCol = (persisted.columns as ColumnConfig[] || [])

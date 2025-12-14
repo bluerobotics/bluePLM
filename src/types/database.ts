@@ -1236,6 +1236,63 @@ export interface Database {
           created_at?: string
         }
       }
+      // Custom metadata columns for files
+      file_metadata_columns: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          label: string
+          data_type: 'text' | 'number' | 'date' | 'boolean' | 'select'
+          select_options: string[]
+          width: number
+          visible: boolean
+          sortable: boolean
+          sort_order: number
+          required: boolean
+          default_value: string | null
+          created_at: string
+          created_by: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          label: string
+          data_type?: 'text' | 'number' | 'date' | 'boolean' | 'select'
+          select_options?: string[]
+          width?: number
+          visible?: boolean
+          sortable?: boolean
+          sort_order?: number
+          required?: boolean
+          default_value?: string | null
+          created_at?: string
+          created_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string
+          label?: string
+          data_type?: 'text' | 'number' | 'date' | 'boolean' | 'select'
+          select_options?: string[]
+          width?: number
+          visible?: boolean
+          sortable?: boolean
+          sort_order?: number
+          required?: boolean
+          default_value?: string | null
+          created_at?: string
+          created_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -1308,6 +1365,7 @@ export interface Database {
       transition_line_style: 'solid' | 'dashed' | 'dotted'
       supplier_auth_method: 'email' | 'phone' | 'wechat'
       supplier_invitation_status: 'pending' | 'accepted' | 'expired' | 'cancelled'
+      metadata_column_type: 'text' | 'number' | 'date' | 'boolean' | 'select'
     }
     CompositeTypes: Record<string, never>
   }
@@ -1371,6 +1429,31 @@ export interface SupplierAccountCheck {
   contact_name?: string
   auth_method?: SupplierAuthMethod
   org_id?: string
+}
+
+// ===========================================
+// File Metadata Column Types
+// ===========================================
+
+export type MetadataColumnType = 'text' | 'number' | 'date' | 'boolean' | 'select'
+
+export interface FileMetadataColumn {
+  id: string
+  org_id: string
+  name: string
+  label: string
+  data_type: MetadataColumnType
+  select_options: string[]
+  width: number
+  visible: boolean
+  sortable: boolean
+  sort_order: number
+  required: boolean
+  default_value: string | null
+  created_at: string
+  created_by: string | null
+  updated_at: string
+  updated_by: string | null
 }
 
 export interface Review {

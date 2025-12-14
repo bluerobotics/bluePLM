@@ -40,7 +40,38 @@ CREATE TABLE organizations (
   -- Google Drive integration
   google_drive_client_id TEXT,
   google_drive_client_secret TEXT,
-  google_drive_enabled BOOLEAN DEFAULT FALSE
+  google_drive_enabled BOOLEAN DEFAULT FALSE,
+  
+  -- Company branding
+  logo_url TEXT,
+  logo_storage_path TEXT,
+  
+  -- Company address
+  address_line1 TEXT,
+  address_line2 TEXT,
+  city TEXT,
+  state TEXT,
+  postal_code TEXT,
+  country TEXT DEFAULT 'USA',
+  
+  -- Company contact
+  phone TEXT,
+  website TEXT,
+  contact_email TEXT,
+  
+  -- RFQ template settings
+  rfq_settings JSONB DEFAULT '{
+    "default_payment_terms": "Net 30",
+    "default_incoterms": "FOB",
+    "default_valid_days": 30,
+    "show_company_logo": true,
+    "show_revision_column": true,
+    "show_material_column": true,
+    "show_finish_column": true,
+    "show_notes_column": true,
+    "terms_and_conditions": "",
+    "footer_text": ""
+  }'::jsonb
 );
 
 -- Index for email domain lookup
@@ -2172,6 +2203,70 @@ CREATE POLICY "System can insert sync logs"
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- ===========================================
+-- FILE METADATA COLUMNS (Custom metadata fields per org)
+-- ===========================================
+-- Org admins can define custom metadata columns that appear in the file browser
+-- Values are stored in files.custom_properties JSONB field
+
+CREATE TYPE metadata_column_type AS ENUM ('text', 'number', 'date', 'boolean', 'select');
+
+CREATE TABLE file_metadata_columns (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Column identity
+  name TEXT NOT NULL,                     -- Internal key name (e.g., "material", "weight")
+  label TEXT NOT NULL,                    -- Display label (e.g., "Material", "Weight (kg)")
+  
+  -- Column type and options
+  data_type metadata_column_type DEFAULT 'text',
+  select_options TEXT[] DEFAULT '{}',    -- Options for 'select' type
+  
+  -- Display settings
+  width INTEGER DEFAULT 120,
+  visible BOOLEAN DEFAULT true,
+  sortable BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,          -- Order in column list
+  
+  -- Validation
+  required BOOLEAN DEFAULT false,
+  default_value TEXT,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  -- Unique column name per organization
+  UNIQUE(org_id, name)
+);
+
+CREATE INDEX idx_file_metadata_columns_org_id ON file_metadata_columns(org_id);
+CREATE INDEX idx_file_metadata_columns_sort_order ON file_metadata_columns(org_id, sort_order);
+
+-- Enable RLS
+ALTER TABLE file_metadata_columns ENABLE ROW LEVEL SECURITY;
+
+-- All org members can view metadata columns
+CREATE POLICY "Users can view org metadata columns"
+  ON file_metadata_columns FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+-- Only admins can manage metadata columns
+CREATE POLICY "Admins can create metadata columns"
+  ON file_metadata_columns FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Admins can update metadata columns"
+  ON file_metadata_columns FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Admins can delete metadata columns"
+  ON file_metadata_columns FOR DELETE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- ===========================================
 -- SUPPLIER AUTHENTICATION SYSTEM
 -- ===========================================
 
@@ -2388,3 +2483,96 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Grant execute permission
 GRANT EXECUTE ON FUNCTION is_supplier_account(TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION is_supplier_account(TEXT) TO authenticated;
+
+-- ===========================================
+-- ORGANIZATION BRANDING FUNCTIONS
+-- ===========================================
+
+-- Update org RFQ settings (admin only)
+CREATE OR REPLACE FUNCTION update_org_rfq_settings(
+  p_org_id UUID,
+  p_settings JSONB
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_user_role TEXT;
+BEGIN
+  SELECT role INTO v_user_role
+  FROM users 
+  WHERE id = auth.uid() 
+  AND org_id = p_org_id;
+  
+  IF v_user_role IS NULL THEN
+    RAISE EXCEPTION 'User not found in organization';
+  END IF;
+  
+  IF v_user_role != 'admin' THEN
+    RAISE EXCEPTION 'Only admins can update organization settings';
+  END IF;
+  
+  UPDATE organizations
+  SET rfq_settings = rfq_settings || p_settings
+  WHERE id = p_org_id;
+  
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION update_org_rfq_settings(UUID, JSONB) TO authenticated;
+
+-- Update org branding (admin only)
+CREATE OR REPLACE FUNCTION update_org_branding(
+  p_org_id UUID,
+  p_logo_url TEXT DEFAULT NULL,
+  p_logo_storage_path TEXT DEFAULT NULL,
+  p_address_line1 TEXT DEFAULT NULL,
+  p_address_line2 TEXT DEFAULT NULL,
+  p_city TEXT DEFAULT NULL,
+  p_state TEXT DEFAULT NULL,
+  p_postal_code TEXT DEFAULT NULL,
+  p_country TEXT DEFAULT NULL,
+  p_phone TEXT DEFAULT NULL,
+  p_website TEXT DEFAULT NULL,
+  p_contact_email TEXT DEFAULT NULL
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_user_role TEXT;
+BEGIN
+  SELECT role INTO v_user_role
+  FROM users 
+  WHERE id = auth.uid() 
+  AND org_id = p_org_id;
+  
+  IF v_user_role IS NULL THEN
+    RAISE EXCEPTION 'User not found in organization';
+  END IF;
+  
+  IF v_user_role != 'admin' THEN
+    RAISE EXCEPTION 'Only admins can update organization branding';
+  END IF;
+  
+  UPDATE organizations
+  SET 
+    logo_url = COALESCE(p_logo_url, logo_url),
+    logo_storage_path = COALESCE(p_logo_storage_path, logo_storage_path),
+    address_line1 = COALESCE(p_address_line1, address_line1),
+    address_line2 = COALESCE(p_address_line2, address_line2),
+    city = COALESCE(p_city, city),
+    state = COALESCE(p_state, state),
+    postal_code = COALESCE(p_postal_code, postal_code),
+    country = COALESCE(p_country, country),
+    phone = COALESCE(p_phone, phone),
+    website = COALESCE(p_website, website),
+    contact_email = COALESCE(p_contact_email, contact_email)
+  WHERE id = p_org_id;
+  
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION update_org_branding(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;

@@ -1,7 +1,21 @@
 import { useState, useEffect } from 'react'
-import { HardDrive, Loader2, Check, Eye, EyeOff, Puzzle } from 'lucide-react'
+import { HardDrive, Loader2, Check, Eye, EyeOff, Puzzle, ShoppingCart, RefreshCw, AlertCircle, Plug, ExternalLink } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
+
+interface OdooSettings {
+  configured: boolean
+  settings?: {
+    url: string
+    database: string
+    username: string
+  }
+  is_connected: boolean
+  last_sync_at: string | null
+  last_sync_status: string | null
+  last_sync_count: number | null
+  auto_sync: boolean
+}
 
 export function IntegrationsSettings() {
   const { user, organization, addToast } = usePDMStore()
@@ -14,9 +28,24 @@ export function IntegrationsSettings() {
   const [isSavingGdrive, setIsSavingGdrive] = useState(false)
   const [showGdriveSecret, setShowGdriveSecret] = useState(false)
   
-  // Load Google Drive settings on mount
+  // Odoo settings state
+  const [odooSettings, setOdooSettings] = useState<OdooSettings | null>(null)
+  const [odooUrl, setOdooUrl] = useState('')
+  const [odooDatabase, setOdooDatabase] = useState('')
+  const [odooUsername, setOdooUsername] = useState('')
+  const [odooApiKey, setOdooApiKey] = useState('')
+  const [showOdooApiKey, setShowOdooApiKey] = useState(false)
+  const [isLoadingOdoo, setIsLoadingOdoo] = useState(false)
+  const [isSavingOdoo, setIsSavingOdoo] = useState(false)
+  const [isTestingOdoo, setIsTestingOdoo] = useState(false)
+  const [isSyncingOdoo, setIsSyncingOdoo] = useState(false)
+  const [odooTestResult, setOdooTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [odooEnabled, setOdooEnabled] = useState(false)
+  
+  // Load settings on mount
   useEffect(() => {
     loadGdriveSettings()
+    loadOdooSettings()
   }, [])
   
   const loadGdriveSettings = async () => {
@@ -70,6 +99,162 @@ export function IntegrationsSettings() {
       addToast('error', 'Failed to save Google Drive settings')
     } finally {
       setIsSavingGdrive(false)
+    }
+  }
+  
+  // Odoo functions
+  const loadOdooSettings = async () => {
+    setIsLoadingOdoo(true)
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/integrations/odoo`, {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setOdooSettings(data)
+        if (data.configured && data.settings) {
+          setOdooUrl(data.settings.url || '')
+          setOdooDatabase(data.settings.database || '')
+          setOdooUsername(data.settings.username || '')
+          setOdooEnabled(true)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load Odoo settings:', err)
+    } finally {
+      setIsLoadingOdoo(false)
+    }
+  }
+  
+  const handleTestOdoo = async () => {
+    if (!odooUrl || !odooDatabase || !odooUsername || !odooApiKey) {
+      addToast('warning', 'Please fill in all Odoo fields')
+      return
+    }
+
+    setIsTestingOdoo(true)
+    setOdooTestResult(null)
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/integrations/odoo/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({ 
+          url: odooUrl, 
+          database: odooDatabase, 
+          username: odooUsername, 
+          api_key: odooApiKey 
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setOdooTestResult({ success: true, message: `Connected! User: ${data.user_name}, Odoo ${data.version}` })
+      } else {
+        setOdooTestResult({ success: false, message: data.message || data.error || 'Connection failed' })
+      }
+    } catch (err) {
+      setOdooTestResult({ success: false, message: String(err) })
+    } finally {
+      setIsTestingOdoo(false)
+    }
+  }
+  
+  const handleSaveOdoo = async () => {
+    if (!odooUrl || !odooDatabase || !odooUsername || !odooApiKey) {
+      addToast('warning', 'Please fill in all Odoo fields')
+      return
+    }
+
+    setIsSavingOdoo(true)
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/integrations/odoo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({ 
+          url: odooUrl, 
+          database: odooDatabase, 
+          username: odooUsername, 
+          api_key: odooApiKey 
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        addToast('success', 'Odoo integration configured successfully!')
+        loadOdooSettings()
+      } else {
+        addToast('error', data.message || data.error || 'Failed to save configuration')
+      }
+    } catch (err) {
+      addToast('error', `Error: ${err}`)
+    } finally {
+      setIsSavingOdoo(false)
+    }
+  }
+  
+  const handleSyncOdoo = async () => {
+    setIsSyncingOdoo(true)
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/integrations/odoo/sync/suppliers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        addToast('success', `Synced ${data.created} new, ${data.updated} updated suppliers from Odoo`)
+        loadOdooSettings()
+      } else {
+        addToast('error', data.message || data.error || 'Sync failed')
+      }
+    } catch (err) {
+      addToast('error', `Sync error: ${err}`)
+    } finally {
+      setIsSyncingOdoo(false)
+    }
+  }
+  
+  const handleDisconnectOdoo = async () => {
+    if (!confirm('Are you sure you want to disconnect Odoo?')) return
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/integrations/odoo`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+
+      if (response.ok) {
+        addToast('info', 'Odoo integration disconnected')
+        setOdooSettings(null)
+        setOdooUrl('')
+        setOdooDatabase('')
+        setOdooUsername('')
+        setOdooApiKey('')
+        setOdooEnabled(false)
+        setOdooTestResult(null)
+      }
+    } catch (err) {
+      addToast('error', `Error: ${err}`)
     }
   }
 
@@ -192,10 +377,196 @@ export function IntegrationsSettings() {
         </div>
       </div>
       
+      {/* Odoo Integration */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-[#714B67] flex items-center justify-center">
+            <ShoppingCart size={24} className="text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-base font-medium text-pdm-fg">Odoo ERP</h3>
+            <p className="text-sm text-pdm-fg-muted">
+              Sync suppliers, products, and BOMs from your Odoo instance
+            </p>
+          </div>
+          {isLoadingOdoo && <Loader2 size={16} className="animate-spin text-pdm-fg-muted" />}
+          {odooSettings?.is_connected && (
+            <span className="px-2 py-1 text-xs font-medium bg-pdm-success/20 text-pdm-success rounded">
+              CONNECTED
+            </span>
+          )}
+        </div>
+        
+        <div className="space-y-4 p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+          {/* Enable toggle */}
+          <div className="flex items-center justify-between">
+            <span className="text-base text-pdm-fg">Enable Odoo Integration</span>
+            <button
+              onClick={() => setOdooEnabled(!odooEnabled)}
+              className={`w-11 h-6 rounded-full transition-colors relative ${
+                odooEnabled ? 'bg-pdm-accent' : 'bg-pdm-border'
+              }`}
+            >
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                odooEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+          
+          {odooEnabled && (
+            <>
+              {/* Status banner if connected */}
+              {odooSettings?.is_connected && (
+                <div className="flex items-center justify-between p-3 bg-pdm-success/10 border border-pdm-success/30 rounded-lg text-sm">
+                  <div className="flex items-center gap-2 text-pdm-success">
+                    <Check size={16} />
+                    <span>Connected to {odooSettings.settings?.url}</span>
+                  </div>
+                  {odooSettings.last_sync_at && (
+                    <span className="text-pdm-fg-muted text-xs">
+                      Last sync: {new Date(odooSettings.last_sync_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              {/* Odoo URL */}
+              <div className="space-y-2">
+                <label className="text-sm text-pdm-fg-muted">Odoo URL</label>
+                <input
+                  type="text"
+                  value={odooUrl}
+                  onChange={(e) => setOdooUrl(e.target.value)}
+                  placeholder="https://mycompany.odoo.com or erp.mycompany.com"
+                  className="w-full px-3 py-2 text-base bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
+                />
+                <p className="text-xs text-pdm-fg-muted">https:// will be added automatically if not provided</p>
+              </div>
+              
+              {/* Database */}
+              <div className="space-y-2">
+                <label className="text-sm text-pdm-fg-muted">Database</label>
+                <input
+                  type="text"
+                  value={odooDatabase}
+                  onChange={(e) => setOdooDatabase(e.target.value)}
+                  placeholder="master or mycompany-main"
+                  className="w-full px-3 py-2 text-base bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
+                />
+                <p className="text-xs text-pdm-fg-muted">
+                  Find at: your-odoo-url/web/database/manager
+                </p>
+              </div>
+              
+              {/* Username */}
+              <div className="space-y-2">
+                <label className="text-sm text-pdm-fg-muted">Username (Email)</label>
+                <input
+                  type="email"
+                  value={odooUsername}
+                  onChange={(e) => setOdooUsername(e.target.value)}
+                  placeholder="admin@mycompany.com"
+                  className="w-full px-3 py-2 text-base bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent"
+                />
+              </div>
+              
+              {/* API Key */}
+              <div className="space-y-2">
+                <label className="text-sm text-pdm-fg-muted">API Key</label>
+                <div className="relative">
+                  <input
+                    type={showOdooApiKey ? 'text' : 'password'}
+                    value={odooApiKey}
+                    onChange={(e) => setOdooApiKey(e.target.value)}
+                    placeholder={odooSettings?.is_connected ? '••••••••••••' : 'Enter API key'}
+                    className="w-full px-3 py-2 pr-10 text-base bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOdooApiKey(!showOdooApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+                  >
+                    {showOdooApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <p className="text-xs text-pdm-fg-muted">
+                  Generate at: Odoo → Settings → Users → [Your User] → API Keys
+                </p>
+              </div>
+              
+              {/* Test result */}
+              {odooTestResult && (
+                <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                  odooTestResult.success 
+                    ? 'bg-pdm-success/10 text-pdm-success border border-pdm-success/30' 
+                    : 'bg-pdm-error/10 text-pdm-error border border-pdm-error/30'
+                }`}>
+                  {odooTestResult.success ? <Check size={16} /> : <AlertCircle size={16} />}
+                  {odooTestResult.message}
+                </div>
+              )}
+              
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTestOdoo}
+                  disabled={isTestingOdoo || !odooUrl || !odooDatabase || !odooUsername || !odooApiKey}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-pdm-sidebar border border-pdm-border text-pdm-fg rounded-lg hover:bg-pdm-highlight transition-colors disabled:opacity-50"
+                >
+                  {isTestingOdoo ? <Loader2 size={16} className="animate-spin" /> : <Plug size={16} />}
+                  Test Connection
+                </button>
+                <button
+                  onClick={handleSaveOdoo}
+                  disabled={isSavingOdoo || !odooUrl || !odooDatabase || !odooUsername || !odooApiKey}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-pdm-accent text-white rounded-lg hover:bg-pdm-accent/90 transition-colors disabled:opacity-50"
+                >
+                  {isSavingOdoo ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  Save & Connect
+                </button>
+              </div>
+              
+              {/* Sync and disconnect when connected */}
+              {odooSettings?.is_connected && (
+                <div className="flex gap-2 pt-2 border-t border-pdm-border">
+                  <button
+                    onClick={handleSyncOdoo}
+                    disabled={isSyncingOdoo}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-pdm-success/20 hover:bg-pdm-success/30 text-pdm-success rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {isSyncingOdoo ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                    Sync Suppliers Now
+                  </button>
+                  <button
+                    onClick={handleDisconnectOdoo}
+                    className="px-4 py-2.5 text-base text-pdm-error hover:bg-pdm-error/10 rounded-lg transition-colors"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              )}
+              
+              {/* Help link */}
+              <div className="pt-2">
+                <a
+                  href="https://www.odoo.com/documentation/17.0/developer/reference/external_api.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-pdm-accent hover:underline"
+                >
+                  <ExternalLink size={14} />
+                  Odoo API Documentation
+                </a>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      
       {/* More integrations placeholder */}
       <div className="pt-4 border-t border-pdm-border">
         <p className="text-base text-pdm-fg-muted text-center">
-          More integrations coming soon...
+          More integrations coming soon (Slack, Webhooks)...
         </p>
       </div>
     </div>

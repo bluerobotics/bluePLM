@@ -22,7 +22,7 @@ import { IntegrationsView } from './sidebar/IntegrationsView'
 // System Views
 import { SettingsNavigation } from './sidebar/SettingsNavigation'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'branding' | 'metadata-columns' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
 
 interface SidebarProps {
   onOpenVault: () => void

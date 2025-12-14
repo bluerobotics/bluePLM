@@ -1,6 +1,8 @@
 export { AccountSettings } from './AccountSettings'
 export { VaultSettings } from './VaultSettings'
 export { OrganizationSettings } from './OrganizationSettings'
+export { MetadataColumnsSettings } from './MetadataColumnsSettings'
+export { BrandingSettings } from './BrandingSettings'
 export { BackupSettings } from './BackupSettings'
 export { SolidWorksSettings } from './SolidWorksSettings'
 export { IntegrationsSettings } from './IntegrationsSettings'

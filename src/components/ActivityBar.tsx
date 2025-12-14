@@ -34,6 +34,7 @@ function GoogleIcon({ size = 22 }: { size?: number }) {
 import { createContext, useContext, useEffect, useState } from 'react'
 import { usePDMStore, SidebarView } from '../stores/pdmStore'
 import { getUnreadNotificationCount, getPendingReviewsForUser } from '../lib/supabase'
+import { useTranslation } from '../lib/i18n'
 
 // Context to share expanded state
 const ExpandedContext = createContext(false)
@@ -101,12 +102,13 @@ function SectionDivider() {
 
 function SidebarControl() {
   const { activityBarMode, setActivityBarMode } = usePDMStore()
+  const { t } = useTranslation()
   const [showMenu, setShowMenu] = useState(false)
   
   const modeLabels: Record<SidebarMode, string> = {
-    expanded: 'Expanded',
-    collapsed: 'Collapsed', 
-    hover: 'Expand on hover'
+    expanded: t('sidebar.expanded'),
+    collapsed: t('sidebar.collapsed'), 
+    hover: t('sidebar.expandOnHover')
   }
   
   // Close menu when clicking outside
@@ -137,7 +139,7 @@ function SidebarControl() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-3 py-2 border-b border-pdm-border">
-              <div className="text-[10px] uppercase tracking-wider text-pdm-fg-muted">Sidebar control</div>
+              <div className="text-[10px] uppercase tracking-wider text-pdm-fg-muted">{t('sidebar.sidebarControl')}</div>
             </div>
             {(['expanded', 'collapsed', 'hover'] as SidebarMode[]).map((mode) => (
               <button
@@ -175,6 +177,7 @@ export function ActivityBar() {
     setPendingReviewCount,
     activityBarMode
   } = usePDMStore()
+  const { t } = useTranslation()
   
   const [isHovering, setIsHovering] = useState(false)
   
@@ -227,37 +230,37 @@ export function ActivityBar() {
             <ActivityItem
               icon={<FolderTree size={22} />}
               view="explorer"
-              title="Explorer"
+              title={t('sidebar.explorer')}
             />
             <ActivityItem
               icon={<ArrowDownUp size={22} />}
               view="pending"
-              title="Pending"
+              title={t('sidebar.pending')}
             />
             <ActivityItem
               icon={<Search size={22} />}
               view="search"
-              title="Search"
+              title={t('sidebar.search')}
             />
             <ActivityItem
               icon={<GitBranch size={22} />}
               view="workflows"
-              title="File Workflows"
+              title={t('sidebar.workflows')}
             />
             <ActivityItem
               icon={<History size={22} />}
               view="history"
-              title="History"
+              title={t('sidebar.history')}
             />
             <ActivityItem
               icon={<Trash2 size={22} />}
               view="trash"
-              title="Trash"
+              title={t('sidebar.trash')}
             />
             <ActivityItem
               icon={<Terminal size={22} />}
               view="terminal"
-              title="Terminal"
+              title={t('sidebar.terminal')}
             />
           </div>
 
@@ -269,58 +272,58 @@ export function ActivityBar() {
             <ActivityItem
               icon={<ClipboardList size={22} />}
               view="eco"
-              title="ECOs"
+              title={t('sidebar.eco')}
             />
             <ActivityItem
               icon={<Telescope size={22} />}
               view="gsd"
-              title="GSD Summary"
+              title={t('sidebar.gsd')}
             />
             <ActivityItem
               icon={<AlertCircle size={22} />}
               view="ecr"
-              title="ECRs / Issues"
+              title={t('sidebar.ecr')}
             />
             <ActivityItem
               icon={<Package size={22} />}
               view="products"
-              title="Products"
+              title={t('sidebar.products')}
             />
             <ActivityItem
               icon={<Network size={22} />}
               view="process"
-              title="Process Editor"
+              title={t('sidebar.process')}
             />
             <ActivityItem
               icon={<Calendar size={22} />}
               view="schedule"
-              title="Schedule"
+              title={t('sidebar.schedule')}
             />
           <ActivityItem
             icon={<ClipboardCheck size={22} />}
             view="reviews"
-            title="Reviews/Approvals"
+            title={t('sidebar.reviews')}
             badge={totalBadge}
           />
             <ActivityItem
               icon={<Building2 size={22} />}
               view="suppliers"
-              title="Suppliers"
+              title={t('sidebar.suppliers')}
             />
             <ActivityItem
               icon={<Globe size={22} />}
               view="supplier-portal"
-              title="Supplier Portal"
+              title={t('sidebar.supplierPortal')}
             />
             <ActivityItem
               icon={<GoogleIcon size={22} />}
               view="google-drive"
-              title="Google Drive"
+              title={t('sidebar.googleDrive')}
             />
             <ActivityItem
               icon={<Plug size={22} />}
               view="integrations"
-              title="Integrations"
+              title={t('sidebar.integrations')}
             />
           </div>
 
@@ -329,7 +332,7 @@ export function ActivityBar() {
           <ActivityItem
             icon={<Settings size={22} />}
             view="settings"
-            title="Settings"
+            title={t('sidebar.settings')}
           />
 
           {/* Spacer to push sidebar control to bottom */}

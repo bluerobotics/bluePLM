@@ -8,6 +8,8 @@ import {
   type SupabaseConfig 
 } from '../lib/supabaseConfig'
 import { reconfigureSupabase } from '../lib/supabase'
+import { LanguageSelector } from './LanguageSelector'
+import { useTranslation } from '../lib/i18n'
 
 interface SetupScreenProps {
   onConfigured: () => void
@@ -83,6 +85,7 @@ function SetupTitleBar() {
 }
 
 export function SetupScreen({ onConfigured }: SetupScreenProps) {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<SetupMode>('select')
   const [isValidating, setIsValidating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -194,16 +197,21 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
     return (
       <div className="h-full flex flex-col bg-pdm-bg">
         <SetupTitleBar />
-        <div className="flex-1 flex items-center justify-center p-8">
+        <div className="flex-1 flex items-center justify-center p-8 relative">
+          {/* Language selector in corner */}
+          <div className="absolute top-4 right-4">
+            <LanguageSelector compact dropdownPosition="bottom-right" />
+          </div>
+          
         <div className="max-w-xl w-full">
           {/* Logo and Title */}
           <div className="text-center mb-8">
             <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
               <Database size={40} className="text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-pdm-fg mb-2">Welcome to BluePDM</h1>
+            <h1 className="text-3xl font-bold text-pdm-fg mb-2">{t('setup.welcome')}</h1>
             <p className="text-pdm-fg-muted">
-              Connect to your organization's Supabase backend to get started
+              {t('setup.connectToBackend')}
             </p>
           </div>
           
@@ -219,12 +227,11 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-pdm-fg text-lg">I'm an Organization Admin</h3>
+                    <h3 className="font-semibold text-pdm-fg text-lg">{t('setup.imAdmin')}</h3>
                     <ChevronRight size={20} className="text-pdm-fg-muted group-hover:text-pdm-accent transition-colors" />
                   </div>
                   <p className="text-sm text-pdm-fg-muted mt-1">
-                    Set up BluePDM with your organization's Supabase credentials. 
-                    You'll get a code to share with your team.
+                    {t('setup.imAdminDesc')}
                   </p>
                 </div>
               </div>
@@ -240,11 +247,11 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-pdm-fg text-lg">I have an Organization Code</h3>
+                    <h3 className="font-semibold text-pdm-fg text-lg">{t('setup.haveCode')}</h3>
                     <ChevronRight size={20} className="text-pdm-fg-muted group-hover:text-pdm-accent transition-colors" />
                   </div>
                   <p className="text-sm text-pdm-fg-muted mt-1">
-                    Enter the code provided by your organization admin to connect.
+                    {t('setup.haveCodeDesc')}
                   </p>
                 </div>
               </div>
@@ -259,7 +266,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sm text-pdm-fg-muted hover:text-pdm-accent transition-colors"
             >
-              Need help setting up Supabase?
+              {t('setup.needHelp')}
               <ExternalLink size={14} />
             </a>
           </div>
@@ -282,16 +289,16 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
                 <Check size={32} className="text-green-500" />
               </div>
-              <h1 className="text-2xl font-bold text-pdm-fg mb-2">Connected Successfully!</h1>
+              <h1 className="text-2xl font-bold text-pdm-fg mb-2">{t('setup.connectedSuccess')}</h1>
               <p className="text-pdm-fg-muted">
-                Share this code with your team members so they can connect
+                {t('setup.shareCode')}
               </p>
             </div>
             
             {/* Organization Code */}
             <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 mb-6">
               <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
-                Organization Code
+                {t('setup.organizationCode')}
               </label>
               <div className="relative">
                 <div className="font-mono text-sm bg-pdm-bg border border-pdm-border rounded-lg p-4 pr-12 break-all text-pdm-fg">
@@ -310,8 +317,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                 </button>
               </div>
               <p className="text-xs text-pdm-fg-muted mt-3">
-                Team members can paste this code when they first open BluePDM. 
-                Keep this code secure - it contains your Supabase credentials.
+                {t('setup.keepCodeSecure')}
               </p>
             </div>
             
@@ -319,7 +325,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
               onClick={handleFinishAdminSetup}
               className="w-full btn btn-primary btn-lg justify-center"
             >
-              Continue to BluePDM
+              {t('setup.continueToBluePDM')}
             </button>
           </div>
           </div>
@@ -337,16 +343,16 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             onClick={() => setMode('select')}
             className="mb-6 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
           >
-            ← Back
+            ← {t('common.back')}
           </button>
           
           <div className="text-center mb-8">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-pdm-accent/20 flex items-center justify-center">
               <Key size={32} className="text-pdm-accent" />
             </div>
-            <h1 className="text-2xl font-bold text-pdm-fg mb-2">Admin Setup</h1>
+            <h1 className="text-2xl font-bold text-pdm-fg mb-2">{t('setup.adminSetup')}</h1>
             <p className="text-pdm-fg-muted">
-              Enter your Supabase credentials from your project's API settings
+              {t('setup.enterCredentials')}
             </p>
           </div>
           
@@ -354,7 +360,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             {/* Supabase URL */}
             <div>
               <label className="block text-sm text-pdm-fg-muted mb-1.5">
-                Supabase URL
+                {t('setup.supabaseUrl')}
               </label>
               <input
                 type="url"
@@ -368,7 +374,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             {/* Anon Key */}
             <div>
               <label className="block text-sm text-pdm-fg-muted mb-1.5">
-                Anon (Public) Key
+                {t('setup.anonKey')}
               </label>
               <div className="relative">
                 <input
@@ -391,7 +397,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             {/* Organization Slug (optional) */}
             <div>
               <label className="block text-sm text-pdm-fg-muted mb-1.5">
-                Organization Slug <span className="text-pdm-fg-dim">(optional)</span>
+                {t('setup.orgSlug')} <span className="text-pdm-fg-dim">({t('common.optional')})</span>
               </label>
               <input
                 type="text"
@@ -401,7 +407,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                 className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-4 py-3 text-pdm-fg placeholder-pdm-fg-dim focus:border-pdm-accent focus:outline-none"
               />
               <p className="text-xs text-pdm-fg-dim mt-1">
-                This helps identify your organization in the generated code
+                {t('setup.orgSlugHelp')}
               </p>
             </div>
             
@@ -422,11 +428,11 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
               {isValidating ? (
                 <>
                   <Loader2 size={20} className="animate-spin" />
-                  Connecting...
+                  {t('common.connecting')}
                 </>
               ) : (
                 <>
-                  Connect to Supabase
+                  {t('setup.connectToSupabase')}
                 </>
               )}
             </button>
@@ -434,7 +440,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           
           {/* Help Text */}
           <p className="text-xs text-pdm-fg-dim text-center mt-6">
-            Find these values in your Supabase Dashboard → Project Settings → API
+            {t('setup.findInDashboard')}
           </p>
         </div>
         </div>
@@ -453,16 +459,16 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             onClick={() => setMode('select')}
             className="mb-6 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
           >
-            ← Back
+            ← {t('common.back')}
           </button>
           
           <div className="text-center mb-8">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-green-500/20 flex items-center justify-center">
               <Users size={32} className="text-green-500" />
             </div>
-            <h1 className="text-2xl font-bold text-pdm-fg mb-2">Join Your Organization</h1>
+            <h1 className="text-2xl font-bold text-pdm-fg mb-2">{t('setup.joinOrg')}</h1>
             <p className="text-pdm-fg-muted">
-              Enter the code provided by your organization admin
+              {t('setup.enterCode')}
             </p>
           </div>
           
@@ -470,7 +476,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             {/* Organization Code Input */}
             <div>
               <label className="block text-sm text-pdm-fg-muted mb-1.5">
-                Organization Code
+                {t('setup.organizationCode')}
               </label>
               <textarea
                 value={orgCode}
@@ -498,11 +504,11 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
               {isValidating ? (
                 <>
                   <Loader2 size={20} className="animate-spin" />
-                  Connecting...
+                  {t('common.connecting')}
                 </>
               ) : (
                 <>
-                  Connect
+                  {t('common.connect')}
                 </>
               )}
             </button>

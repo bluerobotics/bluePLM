@@ -544,18 +544,31 @@ function parseXmlValue(valueXml: string): unknown {
   return valueXml.trim()
 }
 
+// Normalize Odoo URL - ensure https:// prefix
+function normalizeOdooUrl(url: string): string {
+  let normalized = url.trim()
+  // Remove trailing slashes
+  normalized = normalized.replace(/\/+$/, '')
+  // Add https:// if no protocol specified
+  if (!normalized.match(/^https?:\/\//i)) {
+    normalized = 'https://' + normalized
+  }
+  return normalized
+}
+
 async function testOdooConnection(
   url: string, 
   database: string, 
   username: string, 
   apiKey: string
 ): Promise<{ success: boolean; user_name?: string; version?: string; error?: string }> {
+  const normalizedUrl = normalizeOdooUrl(url)
   try {
     // Get version info (no auth required)
-    const version = await odooXmlRpc(url, 'common', 'version', []) as { server_version?: string }
+    const version = await odooXmlRpc(normalizedUrl, 'common', 'version', []) as { server_version?: string }
     
     // Authenticate
-    const uid = await odooXmlRpc(url, 'common', 'authenticate', [
+    const uid = await odooXmlRpc(normalizedUrl, 'common', 'authenticate', [
       database, username, apiKey, {}
     ])
     
@@ -564,7 +577,7 @@ async function testOdooConnection(
     }
     
     // Get user name
-    const users = await odooXmlRpc(url, 'object', 'execute_kw', [
+    const users = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
       database, uid, apiKey,
       'res.users', 'read',
       [[uid as number], ['name']]
@@ -586,9 +599,10 @@ async function fetchOdooSuppliers(
   username: string,
   apiKey: string
 ): Promise<{ success: boolean; suppliers: OdooSupplier[]; error?: string }> {
+  const normalizedUrl = normalizeOdooUrl(url)
   try {
     // Authenticate first
-    const uid = await odooXmlRpc(url, 'common', 'authenticate', [
+    const uid = await odooXmlRpc(normalizedUrl, 'common', 'authenticate', [
       database, username, apiKey, {}
     ])
     
@@ -597,7 +611,7 @@ async function fetchOdooSuppliers(
     }
     
     // Search for suppliers (partners with supplier_rank > 0)
-    const supplierIds = await odooXmlRpc(url, 'object', 'execute_kw', [
+    const supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
       database, uid, apiKey,
       'res.partner', 'search',
       [[['supplier_rank', '>', 0]]],
@@ -609,7 +623,7 @@ async function fetchOdooSuppliers(
     }
     
     // Read supplier details
-    const suppliers = await odooXmlRpc(url, 'object', 'execute_kw', [
+    const suppliers = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
       database, uid, apiKey,
       'res.partner', 'read',
       [supplierIds, [
@@ -3249,9 +3263,12 @@ export async function buildServer(): Promise<FastifyInstance> {
       auto_sync?: boolean
     }
     
+    // Normalize URL (add https:// if missing)
+    const normalizedUrl = normalizeOdooUrl(url)
+    
     // Test connection to Odoo
     try {
-      const testResult = await testOdooConnection(url, database, username, api_key)
+      const testResult = await testOdooConnection(normalizedUrl, database, username, api_key)
       if (!testResult.success) {
         return reply.code(400).send({ error: 'Connection failed', message: testResult.error })
       }
@@ -3259,13 +3276,13 @@ export async function buildServer(): Promise<FastifyInstance> {
       return reply.code(400).send({ error: 'Connection failed', message: String(err) })
     }
     
-    // Upsert integration settings
+    // Upsert integration settings (store normalized URL)
     const { error } = await supabase
       .from('organization_integrations')
       .upsert({
         org_id: request.user!.org_id,
         integration_type: 'odoo',
-        settings: { url, database, username },
+        settings: { url: normalizedUrl, database, username },
         credentials_encrypted: api_key, // In production, encrypt this
         is_active: true,
         is_connected: true,

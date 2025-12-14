@@ -3,7 +3,9 @@ import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Settings, Databa
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
-import { SettingsModal } from './SettingsModal'
+import { SettingsModal } from './deprecated_SettingsModal'
+import { LanguageSelector } from './LanguageSelector'
+import { useTranslation } from '../lib/i18n'
 import type { AccountType } from '../types/database'
 
 // Helper to log to both console and electron log file
@@ -71,6 +73,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     vaultsRefreshKey,
     isConnecting: isAuthConnecting  // Global auth connecting state
   } = usePDMStore()
+  const { t } = useTranslation()
   
   const [isConnectingVault, setIsConnectingVault] = useState(false)  // Local vault connection state
   const [isSigningIn, setIsSigningIn] = useState(false)
@@ -578,11 +581,11 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 strokeLinejoin="round"
               />
             </svg>
-            <h1 className="text-3xl font-bold text-pdm-fg">BluePDM</h1>
+            <h1 className="text-3xl font-bold text-pdm-fg">{t('welcome.title')}</h1>
           </div>
           
           <Loader2 size={40} className="animate-spin text-pdm-accent mx-auto mb-4" />
-          <p className="text-pdm-fg-muted">Connecting to your organization...</p>
+          <p className="text-pdm-fg-muted">{t('welcome.connectingToOrg')}</p>
         </div>
       </div>
     )
@@ -593,7 +596,12 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   // ============================================
   if (!user && !isOfflineMode) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-pdm-bg overflow-auto">
+      <div className="flex-1 flex items-center justify-center bg-pdm-bg overflow-auto relative">
+        {/* Language selector in corner */}
+        <div className="absolute top-4 right-4">
+          <LanguageSelector compact dropdownPosition="bottom-right" />
+        </div>
+        
         <div className="max-w-md w-full p-8">
           {/* Logo and Title */}
           <div className="text-center mb-10">
@@ -621,10 +629,10 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   strokeLinejoin="round"
                 />
               </svg>
-              <h1 className="text-3xl font-bold text-pdm-fg">BluePDM</h1>
+              <h1 className="text-3xl font-bold text-pdm-fg">{t('welcome.title')}</h1>
             </div>
             <p className="text-pdm-fg-dim">
-              Open source Product Data Management for engineering teams
+              {t('welcome.tagline')}
             </p>
           </div>
 
@@ -634,7 +642,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           {!accountType && (
             <div className="space-y-4">
               <p className="text-center text-sm text-pdm-fg-muted mb-6">
-                Select your account type
+                {t('welcome.selectAccountType')}
               </p>
               
               <button
@@ -646,9 +654,9 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                     <User size={28} className="text-pdm-accent" />
                   </div>
                   <div className="text-left flex-1">
-                    <h3 className="font-semibold text-pdm-fg text-lg">Team Member</h3>
+                    <h3 className="font-semibold text-pdm-fg text-lg">{t('welcome.teamMember')}</h3>
                     <p className="text-sm text-pdm-fg-muted">
-                      Engineers, admins, and viewers
+                      {t('welcome.teamMemberDesc')}
                     </p>
                   </div>
                 </div>
@@ -663,9 +671,9 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                     <Truck size={28} className="text-amber-500" />
                   </div>
                   <div className="text-left flex-1">
-                    <h3 className="font-semibold text-pdm-fg text-lg">Supplier</h3>
+                    <h3 className="font-semibold text-pdm-fg text-lg">{t('welcome.supplier')}</h3>
                     <p className="text-sm text-pdm-fg-muted">
-                      Vendor portal access
+                      {t('welcome.supplierDesc')}
                     </p>
                   </div>
                 </div>
@@ -676,7 +684,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   <div className="w-full border-t border-pdm-border"></div>
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-2 bg-pdm-bg text-pdm-fg-muted">or</span>
+                  <span className="px-2 bg-pdm-bg text-pdm-fg-muted">{t('common.or')}</span>
                 </div>
               </div>
 
@@ -685,7 +693,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 className="w-full btn btn-secondary gap-3 justify-center py-3"
               >
                 <WifiOff size={18} />
-                Work Offline
+                {t('welcome.workOffline')}
               </button>
             </div>
           )}
@@ -700,16 +708,16 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 className="flex items-center gap-2 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors mb-4"
               >
                 <ArrowLeft size={16} />
-                Back
+                {t('common.back')}
               </button>
 
               <div className="text-center mb-6">
                 <div className="w-12 h-12 rounded-xl bg-pdm-accent/20 flex items-center justify-center mx-auto mb-3">
                   <User size={24} className="text-pdm-accent" />
                 </div>
-                <h2 className="text-xl font-semibold text-pdm-fg">Team Member Sign In</h2>
+                <h2 className="text-xl font-semibold text-pdm-fg">{t('welcome.teamSignIn')}</h2>
                 <p className="text-sm text-pdm-fg-muted mt-1">
-                  Sign in with your organization account
+                  {t('welcome.signInWithOrg')}
                 </p>
               </div>
               
@@ -728,11 +736,11 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
                 )}
-                Sign In with Google
+                {t('welcome.signInWithGoogle')}
               </button>
 
               <div className="text-center text-xs text-pdm-fg-muted mt-4">
-                Your role (Admin, Engineer, Viewer) is set by your organization
+                {t('welcome.roleSetByOrg')}
               </div>
             </div>
           )}
@@ -747,16 +755,16 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 className="flex items-center gap-2 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors mb-4"
               >
                 <ArrowLeft size={16} />
-                Back
+                {t('common.back')}
               </button>
 
               <div className="text-center mb-6">
                 <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center mx-auto mb-3">
                   <Truck size={24} className="text-amber-500" />
                 </div>
-                <h2 className="text-xl font-semibold text-pdm-fg">Supplier Portal</h2>
+                <h2 className="text-xl font-semibold text-pdm-fg">{t('welcome.supplierPortal')}</h2>
                 <p className="text-sm text-pdm-fg-muted mt-1">
-                  {isNewAccount ? 'Create your supplier account' : 'Sign in to your account'}
+                  {isNewAccount ? t('welcome.createAccount') : t('welcome.signInToAccount')}
                 </p>
               </div>
 
@@ -771,7 +779,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   }`}
                 >
                   <Mail size={16} />
-                  Email
+                  {t('welcome.email')}
                 </button>
                 <button
                   onClick={() => { setSupplierAuthMethod('phone'); setIsNewAccount(false) }}
@@ -782,7 +790,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   }`}
                 >
                   <Phone size={16} />
-                  Phone
+                  {t('welcome.phone')}
                 </button>
               </div>
 
@@ -799,7 +807,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   {isNewAccount && (
                     <div>
                       <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
-                        Full Name
+                        {t('welcome.fullName')}
                       </label>
                       <input
                         type="text"
@@ -813,7 +821,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   
                   <div>
                     <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
-                      Email
+                      {t('welcome.email')}
                     </label>
                     <input
                       type="email"
@@ -826,7 +834,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   
                   <div>
                     <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
-                      Password
+                      {t('welcome.password')}
                     </label>
                     <div className="relative">
                       <input
@@ -856,7 +864,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                     ) : (
                       <LogIn size={20} />
                     )}
-                    {isNewAccount ? 'Create Account' : 'Sign In'}
+                    {isNewAccount ? t('welcome.createAccountBtn') : t('welcome.signIn')}
                   </button>
 
                   <div className="text-center">
@@ -865,8 +873,8 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                       className="text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
                     >
                       {isNewAccount 
-                        ? 'Already have an account? Sign in' 
-                        : "Don't have an account? Create one"}
+                        ? t('welcome.alreadyHaveAccount') 
+                        : t('welcome.noAccount')}
                     </button>
                   </div>
                 </div>
@@ -879,7 +887,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                     <>
                       <div>
                         <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
-                          Phone Number
+                          {t('welcome.phoneNumber')}
                         </label>
                         <input
                           type="tel"
@@ -889,7 +897,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                           className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
                         />
                         <p className="text-xs text-pdm-fg-muted mt-1.5">
-                          Include country code (e.g., +86 for China, +1 for US)
+                          {t('welcome.includeCountryCode')}
                         </p>
                       </div>
 
@@ -903,18 +911,18 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                         ) : (
                           <Phone size={20} />
                         )}
-                        Send Verification Code
+                        {t('welcome.sendVerificationCode')}
                       </button>
                     </>
                   ) : (
                     <>
                       <div className="text-center text-sm text-pdm-fg-muted mb-4">
-                        A verification code was sent to <span className="text-pdm-fg font-medium">{supplierPhone}</span>
+                        {t('welcome.verificationSent')} <span className="text-pdm-fg font-medium">{supplierPhone}</span>
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
-                          Verification Code
+                          {t('welcome.verificationCode')}
                         </label>
                         <input
                           type="text"
@@ -936,14 +944,14 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                         ) : (
                           <Check size={20} />
                         )}
-                        Verify & Sign In
+                        {t('welcome.verifyAndSignIn')}
                       </button>
 
                       <button
                         onClick={() => { setIsOtpSent(false); setPhoneOtp('') }}
                         className="w-full text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
                       >
-                        Use a different number
+                        {t('welcome.useDifferentNumber')}
                       </button>
                     </>
                   )}
@@ -951,14 +959,14 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               )}
 
               <div className="text-center text-xs text-pdm-fg-muted mt-4 pt-4 border-t border-pdm-border">
-                Suppliers are invited by organizations. Contact your buyer if you need access.
+                {t('welcome.supplierInviteNote')}
               </div>
             </div>
           )}
 
           {/* Footer */}
           <div className="text-center mt-12 text-xs text-pdm-fg-muted">
-            Made with 💙 by Blue Robotics
+            {t('welcome.madeWith')}
           </div>
         </div>
       </div>
@@ -997,14 +1005,14 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 strokeLinejoin="round"
               />
             </svg>
-            <h1 className="text-2xl font-bold text-pdm-fg">BluePDM</h1>
+            <h1 className="text-2xl font-bold text-pdm-fg">{t('welcome.title')}</h1>
           </div>
           
           {/* User & Org Info or Offline Badge */}
           {isOfflineMode ? (
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-pdm-warning/10 border border-pdm-warning/30 rounded-full">
               <WifiOff size={14} className="text-pdm-warning" />
-              <span className="text-sm text-pdm-warning font-medium">Offline Mode</span>
+              <span className="text-sm text-pdm-warning font-medium">{t('welcome.offlineMode')}</span>
             </div>
           ) : user && (
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-pdm-bg-light border border-pdm-border rounded-full">
@@ -1049,7 +1057,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           <div className="mb-6">
             <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-3 flex items-center gap-2">
               <Database size={14} />
-              Organization Vaults
+              {t('welcome.organizationVaults')}
             </div>
             
             <div className="space-y-2">
@@ -1077,7 +1085,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                           </h3>
                           {vault.is_default && (
                             <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-[10px] rounded">
-                              Default
+                              {t('common.default')}
                             </span>
                           )}
                           {connected && (
@@ -1110,7 +1118,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                           className="btn btn-primary btn-sm gap-1"
                         >
                           <FolderPlus size={14} />
-                          Open
+                          {t('common.open')}
                         </button>
                       ) : (
                         <button
@@ -1123,7 +1131,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                           ) : (
                             <Link size={14} />
                           )}
-                          Connect
+                          {t('common.connect')}
                         </button>
                       )}
                     </div>
@@ -1138,15 +1146,15 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
         {!isOfflineMode && organization && orgVaults.length === 0 && !isLoadingVaults && (
           <div className="mb-6 p-6 bg-pdm-bg-light border border-pdm-border rounded-xl text-center">
             <Database size={32} className="text-pdm-fg-muted mx-auto mb-3" />
-            <h3 className="font-medium text-pdm-fg mb-1">No Vaults Created</h3>
+            <h3 className="font-medium text-pdm-fg mb-1">{t('welcome.noVaultsCreated')}</h3>
             <p className="text-sm text-pdm-fg-muted mb-4">
               {user?.role === 'admin' 
-                ? 'Create a vault in Settings → Organization to get started.'
-                : 'Ask an organization admin to create a vault.'}
+                ? t('welcome.noVaultsAdminMsg')
+                : t('welcome.noVaultsUserMsg')}
             </p>
             {user?.role === 'admin' && (
               <p className="text-xs text-pdm-fg-dim">
-                Or use the advanced options below to connect manually.
+                {t('welcome.advancedOptions')}
               </p>
             )}
           </div>
@@ -1168,7 +1176,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-semibold text-pdm-fg truncate">
-                  Local Vault
+                  {t('welcome.localVault')}
                 </h2>
                 <p className="text-xs text-pdm-fg-muted truncate">
                   {recentVaults[0] || buildVaultPath(platform, 'local-vault')}
@@ -1186,7 +1194,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               ) : (
                 <FolderPlus size={20} />
               )}
-              Connect
+              {t('common.connect')}
             </button>
           </div>
         )}
@@ -1198,13 +1206,13 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
             className="w-full btn btn-secondary gap-2 justify-center py-3"
           >
             <Settings size={18} />
-            Settings
+            {t('common.settings')}
           </button>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-6 text-xs text-pdm-fg-muted">
-          Made with 💙 by Blue Robotics
+          {t('welcome.madeWith')}
         </div>
       </div>
       

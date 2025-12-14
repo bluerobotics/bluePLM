@@ -18,20 +18,21 @@ import {
   File,
   Hash,
   Layers,
-  Cog
+  Cog,
+  Printer,
+  ChevronUp,
+  Pencil
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { RFQ, RFQItem, RFQStatus, RFQSupplier } from '@/types/rfq'
-import { getRFQStatusInfo } from '@/types/rfq'
+import { getRFQStatusInfo, formatCurrency } from '@/types/rfq'
+import { generateRFQPdf, type OrgBranding } from '@/lib/rfqPdf'
 
-// Type-safe wrapper for RFQ tables (until database.ts is regenerated)
+// Supabase client with any type to bypass strict typing for new tables
+// These tables are defined in rfq_migration.sql but not yet in database.ts
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const rfqsTable = () => supabase.from('rfqs' as any)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const rfqItemsTable = () => supabase.from('rfq_items' as any)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const rfqSuppliersTable = () => supabase.from('rfq_suppliers' as any)
+const db = supabase as any
 
 // RFQ List View
 function RFQListView({ 
@@ -54,7 +55,7 @@ function RFQListView({
     const loadRFQs = async () => {
       setLoading(true)
       try {
-        const { data, error } = await rfqsTable()
+        const { data, error } = await db.from('rfqs')
           .select(`
             *,
             items:rfq_items(count),
@@ -242,13 +243,16 @@ function RFQDetailView({
   onBack: () => void
   onUpdate: (rfq: RFQ) => void
 }) {
-  const { addToast, files } = usePDMStore()
+  const { addToast, files, organization } = usePDMStore()
   const [items, setItems] = useState<RFQItem[]>([])
   const [suppliers, setSuppliers] = useState<RFQSupplier[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [activeTab, setActiveTab] = useState<'items' | 'suppliers' | 'settings'>('items')
   const [showAddFiles, setShowAddFiles] = useState(false)
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
 
   // Load RFQ details
   useEffect(() => {
@@ -256,7 +260,7 @@ function RFQDetailView({
       setLoading(true)
       try {
         // Load items
-        const { data: itemsData, error: itemsError } = await rfqItemsTable()
+        const { data: itemsData, error: itemsError } = await db.from('rfq_items')
           .select(`
             *,
             file:files(id, file_name, file_path, part_number, description, revision, file_type, extension)
@@ -268,7 +272,7 @@ function RFQDetailView({
         setItems((itemsData as RFQItem[]) || [])
 
         // Load suppliers
-        const { data: suppliersData, error: suppliersError } = await rfqSuppliersTable()
+        const { data: suppliersData, error: suppliersError } = await db.from('rfq_suppliers')
           .select(`
             *,
             supplier:suppliers(id, name, code, contact_email, contact_name)
@@ -289,14 +293,14 @@ function RFQDetailView({
   }, [rfq.id, addToast])
 
   // Add file to RFQ
-  const handleAddFile = async (fileId: string) => {
+  const handleAddFile = async (fileId: string, silent = false) => {
     const file = files.find(f => f.pdmData?.id === fileId)
-    if (!file?.pdmData) return
+    if (!file?.pdmData) return false
 
     const nextLineNumber = items.length + 1
     
     try {
-      const { data, error } = await rfqItemsTable()
+      const { data, error } = await db.from('rfq_items')
         .insert({
           rfq_id: rfq.id,
           line_number: nextLineNumber,
@@ -313,11 +317,17 @@ function RFQDetailView({
         .single()
 
       if (error) throw error
-      setItems([...items, data as RFQItem])
-      addToast('success', `Added ${file.name} to RFQ`)
+      setItems(prev => [...prev, data as RFQItem])
+      if (!silent) {
+        addToast('success', `Added ${file.name} to RFQ`)
+      }
+      return true
     } catch (err) {
       console.error('Failed to add file:', err)
-      addToast('error', 'Failed to add file to RFQ')
+      if (!silent) {
+        addToast('error', 'Failed to add file to RFQ')
+      }
+      return false
     }
   }
 
@@ -326,8 +336,7 @@ function RFQDetailView({
     if (quantity < 1) return
 
     try {
-      const { error } = await supabase
-        .from('rfq_items')
+      const { error } = await db.from('rfq_items')
         .update({ quantity })
         .eq('id', itemId)
 
@@ -342,8 +351,7 @@ function RFQDetailView({
   // Remove item
   const handleRemoveItem = async (itemId: string) => {
     try {
-      const { error } = await supabase
-        .from('rfq_items')
+      const { error } = await db.from('rfq_items')
         .delete()
         .eq('id', itemId)
 
@@ -353,6 +361,62 @@ function RFQDetailView({
     } catch (err) {
       console.error('Failed to remove item:', err)
       addToast('error', 'Failed to remove item')
+    }
+  }
+
+  // Update item metadata (material, finish, notes, etc.)
+  const handleUpdateItemMeta = async (
+    itemId: string, 
+    field: 'material' | 'finish' | 'notes' | 'tolerance_class' | 'special_requirements',
+    value: string
+  ) => {
+    try {
+      const { error } = await db.from('rfq_items')
+        .update({ [field]: value || null })
+        .eq('id', itemId)
+
+      if (error) throw error
+      setItems(items.map(i => i.id === itemId ? { ...i, [field]: value || null } : i))
+    } catch (err) {
+      console.error('Failed to update item:', err)
+      addToast('error', 'Failed to update item')
+    }
+  }
+
+  // Generate PDF
+  const handleGeneratePdf = async () => {
+    if (!organization) return
+    
+    setGeneratingPdf(true)
+    try {
+      // Get org branding info (use db wrapper for new columns)
+      const { data: orgData } = await db.from('organizations')
+        .select('name, logo_url, address_line1, address_line2, city, state, postal_code, country, phone, website, contact_email, rfq_settings')
+        .eq('id', organization.id)
+        .single()
+
+      const orgBranding: OrgBranding = {
+        name: (orgData as Record<string, unknown>)?.name as string || organization.name,
+        logo_url: (orgData as Record<string, unknown>)?.logo_url as string | null,
+        address_line1: (orgData as Record<string, unknown>)?.address_line1 as string | null,
+        address_line2: (orgData as Record<string, unknown>)?.address_line2 as string | null,
+        city: (orgData as Record<string, unknown>)?.city as string | null,
+        state: (orgData as Record<string, unknown>)?.state as string | null,
+        postal_code: (orgData as Record<string, unknown>)?.postal_code as string | null,
+        country: (orgData as Record<string, unknown>)?.country as string | null,
+        phone: (orgData as Record<string, unknown>)?.phone as string | null,
+        website: (orgData as Record<string, unknown>)?.website as string | null,
+        contact_email: (orgData as Record<string, unknown>)?.contact_email as string | null,
+        rfq_settings: (orgData as Record<string, unknown>)?.rfq_settings as OrgBranding['rfq_settings']
+      }
+
+      await generateRFQPdf({ rfq, items, org: orgBranding })
+      addToast('success', 'RFQ document saved and opened')
+    } catch (err) {
+      console.error('Failed to generate PDF:', err)
+      addToast('error', err instanceof Error ? err.message : 'Failed to generate PDF')
+    } finally {
+      setGeneratingPdf(false)
     }
   }
 
@@ -369,8 +433,7 @@ function RFQDetailView({
 
     try {
       // Update RFQ status to generating
-      await supabase
-        .from('rfqs')
+      await db.from('rfqs')
         .update({ status: 'generating' })
         .eq('id', rfq.id)
 
@@ -385,8 +448,7 @@ function RFQDetailView({
           try {
             const result = await window.electronAPI.solidworks.exportStep(filePath, { exportAllConfigs: false })
             if (result?.success) {
-              await supabase
-                .from('rfq_items')
+              await db.from('rfq_items')
                 .update({
                   step_file_generated: true,
                   step_file_path: result.data?.exportedFiles?.[0]
@@ -407,8 +469,7 @@ function RFQDetailView({
           try {
             const result = await window.electronAPI.solidworks.exportPdf(filePath)
             if (result?.success) {
-              await supabase
-                .from('rfq_items')
+              await db.from('rfq_items')
                 .update({
                   pdf_file_generated: true,
                   pdf_file_path: result.data?.outputFile,
@@ -428,8 +489,7 @@ function RFQDetailView({
 
       // Update RFQ with generation results
       const allGenerated = failCount === 0
-      await supabase
-        .from('rfqs')
+      await db.from('rfqs')
         .update({
           status: allGenerated ? 'ready' : 'pending_files',
           release_files_generated: allGenerated,
@@ -438,8 +498,7 @@ function RFQDetailView({
         .eq('id', rfq.id)
 
       // Reload items to get updated paths
-      const { data: updatedItems } = await supabase
-        .from('rfq_items')
+      const { data: updatedItems } = await db.from('rfq_items')
         .select(`
           *,
           file:files(id, file_name, file_path, part_number, description, revision, file_type, extension)
@@ -447,7 +506,7 @@ function RFQDetailView({
         .eq('rfq_id', rfq.id)
         .order('line_number')
 
-      if (updatedItems) setItems(updatedItems)
+      if (updatedItems) setItems(updatedItems as RFQItem[])
 
       if (failCount === 0) {
         addToast('success', `Generated ${successCount} release files`)
@@ -461,6 +520,62 @@ function RFQDetailView({
       addToast('error', 'Failed to generate release files')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  // Handle drag over for file drops
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    // Check if we have PDM files being dragged
+    if (e.dataTransfer.types.includes('application/x-pdm-files')) {
+      e.dataTransfer.dropEffect = 'copy'
+      setIsDraggingOver(true)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(false)
+  }
+
+  // Handle drop of files from the file browser
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(false)
+
+    const pdmFilesData = e.dataTransfer.getData('application/x-pdm-files')
+    if (!pdmFilesData) return
+
+    try {
+      const relativePaths: string[] = JSON.parse(pdmFilesData)
+      
+      // Find matching files in the store and add them
+      let addedCount = 0
+      for (const relPath of relativePaths) {
+        const file = files.find(f => 
+          f.relativePath.toLowerCase() === relPath.toLowerCase() && 
+          f.pdmData?.id &&
+          !items.some(i => i.file_id === f.pdmData?.id)
+        )
+        
+        if (file?.pdmData?.id) {
+          const success = await handleAddFile(file.pdmData.id, true) // silent mode
+          if (success) addedCount++
+        }
+      }
+
+      if (addedCount > 0) {
+        addToast('success', `Added ${addedCount} file${addedCount > 1 ? 's' : ''} to RFQ`)
+      } else if (relativePaths.length > 0) {
+        addToast('info', 'Files are already in this RFQ or not tracked')
+      }
+    } catch (err) {
+      console.error('Failed to handle drop:', err)
+      addToast('error', 'Failed to add dropped files')
     }
   }
 
@@ -539,15 +654,46 @@ function RFQDetailView({
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'items' && (
-          <div className="p-3 space-y-3">
-            {/* Add files button */}
-            <button
-              onClick={() => setShowAddFiles(!showAddFiles)}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-pdm-border hover:border-pdm-accent text-pdm-fg-muted hover:text-pdm-fg rounded text-sm transition-colors"
+          <div 
+            className="p-3 space-y-3 h-full"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {/* Drop zone / Add files button */}
+            <div
+              className={`w-full flex flex-col items-center justify-center gap-2 px-3 py-4 border-2 border-dashed rounded text-sm transition-all ${
+                isDraggingOver 
+                  ? 'border-pdm-accent bg-pdm-accent/10 text-pdm-accent' 
+                  : 'border-pdm-border hover:border-pdm-accent text-pdm-fg-muted hover:text-pdm-fg'
+              }`}
             >
-              <Plus size={16} />
-              Add Files from Vault
-            </button>
+              {isDraggingOver ? (
+                <>
+                  <Package size={24} className="animate-bounce" />
+                  <span className="font-medium">Drop files here to add</span>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <Package size={16} />
+                      <span>Drag files here</span>
+                    </div>
+                    <span className="text-pdm-fg-muted">or</span>
+                    <button
+                      onClick={() => setShowAddFiles(!showAddFiles)}
+                      className="text-pdm-accent hover:underline"
+                    >
+                      browse files
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-pdm-fg-muted">
+                    Drag from the file browser to add parts
+                  </span>
+                </>
+              )}
+            </div>
 
             {/* File picker */}
             {showAddFiles && (
@@ -582,71 +728,144 @@ function RFQDetailView({
               </div>
             ) : (
               <div className="space-y-2">
-                {items.map((item) => (
-                  <div key={item.id} className="border border-pdm-border rounded p-2 bg-pdm-bg/50">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-pdm-fg-muted">#{item.line_number}</span>
-                          <span className="text-xs font-medium text-pdm-fg truncate">
-                            {item.part_number}
-                          </span>
-                          {item.revision && (
-                            <span className="text-[10px] text-pdm-fg-muted">Rev {item.revision}</span>
-                          )}
+                {items.map((item) => {
+                  const isExpanded = expandedItemId === item.id
+                  return (
+                    <div key={item.id} className="border border-pdm-border rounded bg-pdm-bg/50 overflow-hidden">
+                      {/* Item header */}
+                      <div className="p-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-pdm-fg-muted">#{item.line_number}</span>
+                              <span className="text-xs font-medium text-pdm-fg truncate">
+                                {item.part_number}
+                              </span>
+                              {item.revision && (
+                                <span className="text-[10px] text-pdm-fg-muted">Rev {item.revision}</span>
+                              )}
+                            </div>
+                            {item.description && (
+                              <p className="text-[11px] text-pdm-fg-muted truncate mt-0.5">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                              className="p-1 text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                              title="Edit details"
+                            >
+                              {isExpanded ? <ChevronUp size={14} /> : <Pencil size={14} />}
+                            </button>
+                            <button
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="p-1 text-pdm-fg-muted hover:text-pdm-error transition-colors"
+                              title="Remove"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
-                        {item.description && (
-                          <p className="text-[11px] text-pdm-fg-muted truncate mt-0.5">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="p-1 text-pdm-fg-muted hover:text-pdm-error transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 mt-2">
-                      {/* Quantity */}
-                      <div className="flex items-center gap-1">
-                        <Hash size={12} className="text-pdm-fg-muted" />
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)}
-                          className="w-16 px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg focus:outline-none focus:border-pdm-accent"
-                        />
-                        <span className="text-[10px] text-pdm-fg-muted">{item.unit}</span>
+                        
+                        <div className="flex items-center gap-3 mt-2">
+                          {/* Quantity */}
+                          <div className="flex items-center gap-1">
+                            <Hash size={12} className="text-pdm-fg-muted" />
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)}
+                              className="w-16 px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg focus:outline-none focus:border-pdm-accent"
+                            />
+                            <span className="text-[10px] text-pdm-fg-muted">{item.unit}</span>
+                          </div>
+
+                          {/* Quick metadata preview */}
+                          {(item.material || item.finish) && (
+                            <div className="flex items-center gap-2 text-[10px] text-pdm-fg-muted">
+                              {item.material && <span>{item.material}</span>}
+                              {item.material && item.finish && <span>•</span>}
+                              {item.finish && <span>{item.finish}</span>}
+                            </div>
+                          )}
+
+                          {/* File status indicators */}
+                          <div className="flex items-center gap-2 ml-auto">
+                            {item.step_file_generated && (
+                              <span className="flex items-center gap-1 text-[10px] text-pdm-success">
+                                <Layers size={10} />
+                                STEP
+                              </span>
+                            )}
+                            {item.pdf_file_generated && (
+                              <span className="flex items-center gap-1 text-[10px] text-pdm-success">
+                                <FileText size={10} />
+                                PDF
+                              </span>
+                            )}
+                            {!item.step_file_generated && !item.pdf_file_generated && item.file && (
+                              <span className="flex items-center gap-1 text-[10px] text-pdm-warning">
+                                <AlertCircle size={10} />
+                                Needs export
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* File status indicators */}
-                      <div className="flex items-center gap-2 ml-auto">
-                        {item.step_file_generated && (
-                          <span className="flex items-center gap-1 text-[10px] text-pdm-success">
-                            <Layers size={10} />
-                            STEP
-                          </span>
-                        )}
-                        {item.pdf_file_generated && (
-                          <span className="flex items-center gap-1 text-[10px] text-pdm-success">
-                            <FileText size={10} />
-                            PDF
-                          </span>
-                        )}
-                        {!item.step_file_generated && !item.pdf_file_generated && item.file && (
-                          <span className="flex items-center gap-1 text-[10px] text-pdm-warning">
-                            <AlertCircle size={10} />
-                            Needs export
-                          </span>
-                        )}
-                      </div>
+                      {/* Expandable details panel */}
+                      {isExpanded && (
+                        <div className="px-2 pb-2 pt-1 border-t border-pdm-border bg-pdm-highlight/30 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] text-pdm-fg-muted block mb-1">Material</label>
+                              <input
+                                type="text"
+                                value={item.material || ''}
+                                onChange={(e) => handleUpdateItemMeta(item.id, 'material', e.target.value)}
+                                placeholder="e.g., 6061-T6 Aluminum"
+                                className="w-full px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-pdm-fg-muted block mb-1">Finish</label>
+                              <input
+                                type="text"
+                                value={item.finish || ''}
+                                onChange={(e) => handleUpdateItemMeta(item.id, 'finish', e.target.value)}
+                                placeholder="e.g., Anodized Black"
+                                className="w-full px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-pdm-fg-muted block mb-1">Tolerance Class</label>
+                            <input
+                              type="text"
+                              value={item.tolerance_class || ''}
+                              onChange={(e) => handleUpdateItemMeta(item.id, 'tolerance_class', e.target.value)}
+                              placeholder="e.g., ISO 2768-mK"
+                              className="w-full px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-pdm-fg-muted block mb-1">Notes</label>
+                            <textarea
+                              value={item.notes || ''}
+                              onChange={(e) => handleUpdateItemMeta(item.id, 'notes', e.target.value)}
+                              placeholder="Special requirements, instructions..."
+                              rows={2}
+                              className="w-full px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent resize-none"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
@@ -756,12 +975,34 @@ function RFQDetailView({
       </div>
 
       {/* Footer actions */}
-      {rfq.status === 'ready' && (
-        <div className="p-3 border-t border-pdm-border">
-          <button className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-pdm-success hover:bg-pdm-success/90 text-white rounded text-sm font-medium transition-colors">
-            <Send size={16} />
-            Send to Suppliers
+      {items.length > 0 && (
+        <div className="p-3 border-t border-pdm-border space-y-2">
+          {/* PDF Generation */}
+          <button 
+            onClick={handleGeneratePdf}
+            disabled={generatingPdf}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {generatingPdf ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <Printer size={16} />
+                Generate RFQ PDF
+              </>
+            )}
           </button>
+
+          {/* Send to suppliers (only when ready) */}
+          {rfq.status === 'ready' && (
+            <button className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-pdm-success hover:bg-pdm-success/90 text-white rounded text-sm font-medium transition-colors">
+              <Send size={16} />
+              Send to Suppliers
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -792,13 +1033,12 @@ function NewRFQDialog({
     try {
       // Generate RFQ number
       const { data: rfqNumber, error: numError } = await supabase
-        .rpc('generate_rfq_number', { p_org_id: organization.id })
+        .rpc('generate_rfq_number' as never, { p_org_id: organization.id } as never)
 
       if (numError) throw numError
 
       // Create RFQ
-      const { data, error } = await supabase
-        .from('rfqs')
+      const { data, error } = await db.from('rfqs')
         .insert({
           org_id: organization.id,
           rfq_number: rfqNumber,
@@ -813,7 +1053,7 @@ function NewRFQDialog({
       if (error) throw error
 
       addToast('success', `Created RFQ ${rfqNumber}`)
-      onCreate(data)
+      onCreate(data as RFQ)
     } catch (err) {
       console.error('Failed to create RFQ:', err)
       addToast('error', 'Failed to create RFQ')
@@ -878,13 +1118,32 @@ function NewRFQDialog({
 }
 
 // Main RFQ View Component
-export function RFQView() {
+export function RFQView({ 
+  initialShowNewDialog = false,
+  onDialogClose
+}: { 
+  initialShowNewDialog?: boolean
+  onDialogClose?: () => void
+} = {}) {
   const [selectedRFQ, setSelectedRFQ] = useState<RFQ | null>(null)
-  const [showNewDialog, setShowNewDialog] = useState(false)
+  const [showNewDialog, setShowNewDialog] = useState(initialShowNewDialog)
+
+  // Sync with parent's initial state
+  useEffect(() => {
+    if (initialShowNewDialog) {
+      setShowNewDialog(true)
+    }
+  }, [initialShowNewDialog])
 
   const handleRFQCreated = (rfq: RFQ) => {
     setShowNewDialog(false)
+    onDialogClose?.()
     setSelectedRFQ(rfq)
+  }
+
+  const handleCloseDialog = () => {
+    setShowNewDialog(false)
+    onDialogClose?.()
   }
 
   const handleRFQUpdated = (rfq: RFQ) => {
@@ -908,7 +1167,7 @@ export function RFQView() {
 
       {showNewDialog && (
         <NewRFQDialog 
-          onClose={() => setShowNewDialog(false)}
+          onClose={handleCloseDialog}
           onCreate={handleRFQCreated}
         />
       )}

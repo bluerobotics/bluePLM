@@ -2,6 +2,8 @@ import {
   AccountSettings,
   VaultSettings,
   OrganizationSettings,
+  BrandingSettings,
+  MetadataColumnsSettings,
   BackupSettings,
   SolidWorksSettings,
   IntegrationsSettings,
@@ -11,7 +13,7 @@ import {
   AboutSettings
 } from './settings'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'branding' | 'metadata-columns' | 'backup' | 'solidworks' | 'integrations' | 'api' | 'preferences' | 'logs' | 'about'
 
 interface SettingsContentProps {
   activeTab: SettingsTab
@@ -26,6 +28,10 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <VaultSettings />
       case 'organization':
         return <OrganizationSettings />
+      case 'branding':
+        return <BrandingSettings />
+      case 'metadata-columns':
+        return <MetadataColumnsSettings />
       case 'backup':
         return <BackupSettings />
       case 'solidworks':

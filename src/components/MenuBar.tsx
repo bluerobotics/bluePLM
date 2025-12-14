@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { LogOut, ChevronDown, Building2, Settings, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw } from 'lucide-react'
+import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
 import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization } from '../lib/supabase'
-import { SettingsModal } from './SettingsModal'
 import { getInitials } from '../types/pdm'
 import { SystemStats } from './SystemStats'
 import { DevicePresenceIndicator } from './DevicePresenceIndicator'
@@ -46,7 +45,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const [appVersion, setAppVersion] = useState('')
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
   const [showVaultDropdown, setShowVaultDropdown] = useState(false)
   const [showZoomDropdown, setShowZoomDropdown] = useState(false)
   const [zoomFactor, setZoomFactor] = useState(1)
@@ -460,17 +458,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           </div>
         )}
         
-        {/* Settings gear - hidden on welcome/signin screens */}
-        {!minimal && (
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-1.5 rounded hover:bg-pdm-bg-lighter transition-colors text-pdm-fg-muted hover:text-pdm-fg"
-            title="Settings"
-          >
-            <Settings size={18} />
-          </button>
-        )}
-        
         {/* Device presence indicator - shows how many computers are online */}
         {!minimal && <DevicePresenceIndicator />}
         
@@ -602,9 +589,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           </button>
         ) : null}
       </div>
-      
-      {/* Settings Modal */}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   )
 }
