@@ -933,6 +933,7 @@ export async function buildServer(): Promise<FastifyInstance> {
             status: { type: 'string' },
             timestamp: { type: 'string' },
             supabase: { type: 'string' },
+            supabase_project: { type: ['string', 'null'] },
             version: { type: 'string' },
             build: { type: ['string', 'null'] }
           }
