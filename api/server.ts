@@ -1,7 +1,7 @@
 #!/usr/bin/env npx ts-node
 /**
  * BluePLM REST API Server (Fastify + TypeScript)
- * Build: 2025-12-14T06:25-v2.1.2
+ * Build: 2025-12-14T06:26-v2.1.3-pino
  * 
  * Integration API for external systems (ERP, CI/CD, Slack, etc.)
  * 
@@ -709,7 +709,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     const authHeader = request.headers.authorization
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.warn('[Auth] Missing or invalid auth header')
+      request.log.warn('[Auth] Missing or invalid auth header')
       return reply.code(401).send({ 
         error: 'Unauthorized',
         message: 'Missing or invalid Authorization header'
@@ -720,7 +720,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     
     // Check for literal "undefined" string (frontend bug protection)
     if (!token || token === 'undefined' || token === 'null') {
-      console.warn('[Auth] Empty or invalid token string')
+      request.log.warn('[Auth] Empty or invalid token string')
       return reply.code(401).send({ 
         error: 'Unauthorized',
         message: 'Invalid or missing access token'
@@ -733,7 +733,8 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       
       if (error || !user) {
         // Log detailed auth failure for debugging
-        console.error('[Auth] Token verification failed:', {
+        request.log.error({ 
+          msg: '[Auth] Token verification failed',
           error: error?.message,
           errorCode: error?.code,
           hasUser: !!user,
@@ -753,7 +754,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         .single()
       
       if (profileError || !profile) {
-        console.error('[Auth] Profile lookup failed:', profileError?.message)
+        request.log.error({ msg: '[Auth] Profile lookup failed', error: profileError?.message })
         return reply.code(401).send({ 
           error: 'Profile not found',
           message: 'User profile does not exist'
@@ -761,7 +762,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       }
       
       if (!profile.org_id) {
-        console.warn('[Auth] User has no organization:', profile.email)
+        request.log.warn({ msg: '[Auth] User has no organization', email: profile.email })
         return reply.code(403).send({ 
           error: 'No organization',
           message: 'User is not a member of any organization'
@@ -772,9 +773,9 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       request.user = profile as UserProfile
       request.supabase = supabase
       request.accessToken = token
-      console.log('[Auth] Authenticated:', profile.email)
+      request.log.info({ msg: '[Auth] Authenticated', email: profile.email })
     } catch (err) {
-      console.error('[Auth] Unexpected error:', err)
+      request.log.error({ msg: '[Auth] Unexpected error', error: err })
       return reply.code(500).send({ 
         error: 'Auth error',
         message: err instanceof Error ? err.message : 'Unknown error'
