@@ -610,7 +610,7 @@ export const usePDMStore = create<PDMState>()(
       halloweenSparksEnabled: true,  // Default ON
       halloweenSparksOpacity: 70,  // Default 70%
       halloweenSparksSpeed: 40,    // Default 40% speed
-      halloweenGhostsOpacity: 50,  // Default 50%
+      halloweenGhostsOpacity: 30,  // Default 30%
       pinnedFolders: [],
       pinnedSectionExpanded: true,
       processingFolders: new Set(),

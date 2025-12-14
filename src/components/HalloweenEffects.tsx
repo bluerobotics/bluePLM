@@ -47,14 +47,22 @@ export function HalloweenEffects() {
   const [sparks, setSparks] = useState<Spark[]>([])
   const [ghosts, setGhosts] = useState<Ghost[]>([])
   const [pumpkins, setPumpkins] = useState<Pumpkin[]>([])
+  const [flyingGhost, setFlyingGhost] = useState({ x: -200, y: 80, visible: false })
   const [showControls, setShowControls] = useState(false)
   const animationRef = useRef<number>(0)
   const sparksSpeedRef = useRef(sparksSpeed ?? 40) // Default to 40 if undefined
+  const flyingGhostTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const flyingGhostAnimationRef = useRef<number | null>(null)
+  const ghostsOpacityRef = useRef(ghostsOpacity ?? 30)
   
-  // Keep speed ref in sync
+  // Keep refs in sync
   useEffect(() => {
     sparksSpeedRef.current = sparksSpeed ?? 40
   }, [sparksSpeed])
+  
+  useEffect(() => {
+    ghostsOpacityRef.current = ghostsOpacity ?? 30
+  }, [ghostsOpacity])
   
   // Only render if Halloween theme is active
   const isHalloween = theme === 'halloween'
@@ -100,6 +108,89 @@ export function HalloweenEffects() {
       })
     }
     setGhosts(newGhosts)
+  }, [isHalloween])
+  
+  // Flying ghost animation - flies across periodically like Santa's sleigh
+  useEffect(() => {
+    // Clean up any existing animations/timeouts first
+    if (flyingGhostTimeoutRef.current) {
+      clearTimeout(flyingGhostTimeoutRef.current)
+      flyingGhostTimeoutRef.current = null
+    }
+    if (flyingGhostAnimationRef.current) {
+      cancelAnimationFrame(flyingGhostAnimationRef.current)
+      flyingGhostAnimationRef.current = null
+    }
+    
+    if (!isHalloween) {
+      setFlyingGhost({ x: -200, y: 80, visible: false })
+      return
+    }
+    
+    const scheduleFlyingGhost = () => {
+      // Random delay between 20-60 seconds
+      const delay = Math.random() * 40000 + 20000
+      
+      flyingGhostTimeoutRef.current = setTimeout(() => {
+        // Check if ghosts are enabled
+        if (ghostsOpacityRef.current <= 0) {
+          scheduleFlyingGhost()
+          return
+        }
+        
+        // Start flying ghost animation
+        const startY = 15 + Math.random() * 30 // Random height (15-45% from top)
+        setFlyingGhost({ x: -200, y: startY, visible: true })
+        
+        // Animate ghost across screen
+        let x = -200
+        const animateFlyingGhost = () => {
+          x += 4 // Speed across screen
+          setFlyingGhost(prev => ({ ...prev, x }))
+          
+          if (x < window.innerWidth + 200) {
+            flyingGhostAnimationRef.current = requestAnimationFrame(animateFlyingGhost)
+          } else {
+            setFlyingGhost({ x: -200, y: 80, visible: false })
+            scheduleFlyingGhost() // Schedule next ghost
+          }
+        }
+        flyingGhostAnimationRef.current = requestAnimationFrame(animateFlyingGhost)
+      }, delay)
+    }
+    
+    // Initial flying ghost after 8 seconds
+    flyingGhostTimeoutRef.current = setTimeout(() => {
+      if (ghostsOpacityRef.current <= 0) {
+        scheduleFlyingGhost()
+        return
+      }
+      
+      setFlyingGhost({ x: -200, y: 25, visible: true })
+      
+      let x = -200
+      const animateFlyingGhost = () => {
+        x += 4
+        setFlyingGhost(prev => ({ ...prev, x }))
+        
+        if (x < window.innerWidth + 200) {
+          flyingGhostAnimationRef.current = requestAnimationFrame(animateFlyingGhost)
+        } else {
+          setFlyingGhost({ x: -200, y: 80, visible: false })
+          scheduleFlyingGhost()
+        }
+      }
+      flyingGhostAnimationRef.current = requestAnimationFrame(animateFlyingGhost)
+    }, 8000)
+    
+    return () => {
+      if (flyingGhostTimeoutRef.current) {
+        clearTimeout(flyingGhostTimeoutRef.current)
+      }
+      if (flyingGhostAnimationRef.current) {
+        cancelAnimationFrame(flyingGhostAnimationRef.current)
+      }
+    }
   }, [isHalloween])
   
   // Initialize sparks and animate
@@ -264,8 +355,45 @@ export function HalloweenEffects() {
         />
       </div>
       
+      {/* Flying ghost - travels across screen like Santa's sleigh */}
+      {flyingGhost.visible && (ghostsOpacity ?? 30) > 0 && (
+        <div
+          className="fixed pointer-events-none"
+          style={{
+            zIndex: 10000,
+            left: `${flyingGhost.x}px`,
+            top: `${flyingGhost.y}%`,
+            transform: 'translateY(-50%)',
+            animation: 'ghostFloat 1.5s ease-in-out infinite',
+          }}
+        >
+          {/* Large flying ghost */}
+          <svg width="120" height="156" viewBox="0 0 40 52" style={{ opacity: (ghostsOpacity ?? 30) / 100 }}>
+            <defs>
+              <filter id="flying-ghost-glow">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <path 
+              d="M20 0 C8 0 0 10 0 22 L0 42 L8 35 L16 42 L24 35 L32 42 L40 35 L40 22 C40 10 32 0 20 0 Z" 
+              fill="white"
+              fillOpacity="0.9"
+              filter="url(#flying-ghost-glow)"
+            />
+            <circle cx="12" cy="18" r="4" fill="#1a1a1a" fillOpacity="0.9" />
+            <circle cx="28" cy="18" r="4" fill="#1a1a1a" fillOpacity="0.9" />
+            <ellipse cx="20" cy="28" rx="5" ry="6" fill="#1a1a1a" fillOpacity="0.7" />
+          </svg>
+        </div>
+      )}
+      
       {/* Floating ghosts - in front of backgrounds, behind sparks */}
-      {(ghostsOpacity ?? 50) > 0 && (
+      {(ghostsOpacity ?? 30) > 0 && (
         <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 9998 }}>
           {ghosts.map(ghost => (
             <div
@@ -276,7 +404,7 @@ export function HalloweenEffects() {
                 top: `${ghost.y + Math.sin(ghost.floatOffset) * 5}%`,
                 width: `${ghost.size}px`,
                 height: `${ghost.size * 1.3}px`,
-                opacity: ghost.opacity * ((ghostsOpacity ?? 50) / 100),
+                opacity: ghost.opacity * ((ghostsOpacity ?? 30) / 100),
               }}
             >
               {/* Ghost SVG */}
@@ -448,6 +576,11 @@ export function HalloweenEffects() {
         @keyframes bonfireGlow {
           0%, 100% { opacity: 0.8; }
           50% { opacity: 1; }
+        }
+        
+        @keyframes ghostFloat {
+          0%, 100% { transform: translateY(-50%) rotate(-3deg); }
+          50% { transform: translateY(calc(-50% - 8px)) rotate(3deg); }
         }
       `}</style>
     </>

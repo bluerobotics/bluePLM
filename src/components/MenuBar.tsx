@@ -404,7 +404,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
             
             {/* Zoom Dropdown */}
             {showZoomDropdown && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl overflow-hidden z-50">
+              <div className="absolute right-0 top-full mt-1 w-52 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl overflow-hidden z-50">
                 <div className="p-3">
                   {/* Zoom label and reset */}
                   <div className="flex items-center justify-between mb-3">
@@ -420,10 +420,10 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                   </div>
                   
                   {/* Slider with +/- buttons */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={handleZoomOut}
-                      className="p-1 rounded hover:bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg transition-colors"
+                      className="p-1 rounded hover:bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg transition-colors flex-shrink-0"
                       title="Zoom Out"
                     >
                       <Minus size={14} />
@@ -436,12 +436,12 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                       step="0.1"
                       value={zoomFactor}
                       onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
-                      className="flex-1 h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-plm-accent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-plm-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
+                      className="flex-1 min-w-0 h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-plm-accent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-plm-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
                     />
                     
                     <button
                       onClick={handleZoomIn}
-                      className="p-1 rounded hover:bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg transition-colors"
+                      className="p-1 rounded hover:bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg transition-colors flex-shrink-0"
                       title="Zoom In"
                     >
                       <Plus size={14} />
