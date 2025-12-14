@@ -759,17 +759,16 @@ async function fetchOdooSuppliers(
     debug.timing_ms = Date.now() - startTime
     
     // Include raw XML samples for debugging
-    (debug as any).raw_xml_samples = getLastXmlResponses()
+    const debugWithXml = { ...debug, raw_xml_samples: getLastXmlResponses() }
     
-    return { success: true, suppliers, debug }
+    return { success: true, suppliers, debug: debugWithXml }
   } catch (err) {
-    debug.timing_ms = Date.now() - startTime
-    ;(debug as any).raw_xml_samples = getLastXmlResponses()
+    const debugWithXml = { ...debug, timing_ms: Date.now() - startTime, raw_xml_samples: getLastXmlResponses() }
     return { 
       success: false, 
       suppliers: [], 
       error: `Odoo API error: ${err instanceof Error ? err.message : String(err)}`,
-      debug 
+      debug: debugWithXml 
     }
   }
 }

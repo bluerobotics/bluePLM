@@ -250,6 +250,14 @@ interface OrgAddress {
 }
 
 // RFQ Detail View
+// Build full path using the correct separator for the platform
+function buildFullPath(vaultPath: string, relativePath: string): string {
+  const isWindows = vaultPath.includes('\\')
+  const sep = isWindows ? '\\' : '/'
+  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
+  return `${vaultPath}${sep}${normalizedRelative}`
+}
+
 function RFQDetailView({ 
   rfq, 
   onBack,
@@ -259,7 +267,7 @@ function RFQDetailView({
   onBack: () => void
   onUpdate: (rfq: RFQ) => void
 }) {
-  const { addToast, files, organization } = usePDMStore()
+  const { addToast, files, organization, vaultPath } = usePDMStore()
   const [items, setItems] = useState<RFQItem[]>([])
   const [suppliers, setSuppliers] = useState<RFQSupplier[]>([])
   const [loading, setLoading] = useState(true)
@@ -545,6 +553,11 @@ function RFQDetailView({
       return
     }
 
+    if (!vaultPath) {
+      addToast('error', 'No vault connected. Please connect to a vault first.')
+      return
+    }
+
     setGenerating(true)
     let successCount = 0
     let failCount = 0
@@ -558,7 +571,8 @@ function RFQDetailView({
       for (const item of items) {
         if (!item.file_id || !item.file) continue
 
-        const filePath = item.file.file_path
+        // Build absolute path from vault path and relative file path
+        const filePath = buildFullPath(vaultPath, item.file.file_path)
         const ext = item.file.extension?.toLowerCase()
 
         // Generate STEP for parts/assemblies
