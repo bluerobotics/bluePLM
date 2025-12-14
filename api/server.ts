@@ -648,15 +648,26 @@ async function fetchOdooSuppliers(
       return { success: false, suppliers: [], error: 'Odoo authentication failed - check credentials', debug }
     }
     
-    // Search for suppliers (partners with supplier_rank > 0)
-    const supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+    // Search for suppliers - try supplier_rank first (Odoo 13+), fall back to supplier field (older)
+    let supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
       database, uid, apiKey,
       'res.partner', 'search',
       [[['supplier_rank', '>', 0]]],
       { limit: 5000 }
     ])
     
-    debug.supplier_ids_type = typeof supplierIds + (Array.isArray(supplierIds) ? '[]' : '')
+    // If no results with supplier_rank, try the older 'supplier' boolean field
+    if (!supplierIds || (Array.isArray(supplierIds) && supplierIds.length === 0)) {
+      supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+        database, uid, apiKey,
+        'res.partner', 'search',
+        [[['supplier', '=', true]]],
+        { limit: 5000 }
+      ])
+      debug.supplier_ids_type = 'supplier_boolean'
+    }
+    
+    debug.supplier_ids_type = (debug.supplier_ids_type || 'supplier_rank') + ':' + typeof supplierIds + (Array.isArray(supplierIds) ? '[]' : '')
     
     // Ensure supplierIds is an array
     const ids = Array.isArray(supplierIds) ? supplierIds : []

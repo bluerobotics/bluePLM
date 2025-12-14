@@ -1234,9 +1234,25 @@ function App() {
               import('@/lib/backup').then(async ({ getMachineId }) => {
                 const currentMachineId = await getMachineId()
                 
-                if (oldMachineId && oldMachineId === currentMachineId) {
-                  // File was checked out on THIS machine but released from elsewhere
-                  // This is a force check-in scenario!
+                // Only trigger orphaned checkout if:
+                // 1. File was checked out on THIS machine (oldMachineId === currentMachineId)
+                //    AND someone ELSE did the check-in (force release scenario)
+                // 2. OR file was checked out on ANOTHER machine (oldMachineId !== currentMachineId)
+                //    AND current user checked it in from here (user's other machine has orphaned changes)
+                
+                const wasCheckedOutOnThisMachine = oldMachineId && oldMachineId === currentMachineId
+                const currentUserDidTheCheckin = newFile.updated_by === currentUserId
+                
+                // If user checked in their own file from the same machine, it's NOT an orphan
+                // That's just a normal check-in
+                if (wasCheckedOutOnThisMachine && currentUserDidTheCheckin) {
+                  // Normal check-in by user on the same machine - no orphan
+                  return
+                }
+                
+                // If file was checked out on this machine but released by someone else
+                // OR if user checked in from a different machine (their other machine has orphaned local copy)
+                if (wasCheckedOutOnThisMachine || (oldMachineId && !currentUserDidTheCheckin)) {
                   console.log('[Realtime] Force check-in detected! File:', newFile.file_name, 'Your local changes may need attention.')
                   
                   // Get the machine name that did the force check-in
