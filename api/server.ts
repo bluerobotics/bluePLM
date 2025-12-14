@@ -706,7 +706,9 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     request: FastifyRequest, 
     reply: FastifyReply
   ): Promise<void> {
+    request.log.info('[Auth] authenticate() called')
     const authHeader = request.headers.authorization
+    request.log.info({ msg: '[Auth] Header check', hasAuth: !!authHeader, authPrefix: authHeader?.substring(0, 20) })
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       request.log.warn('[Auth] Missing or invalid auth header')
