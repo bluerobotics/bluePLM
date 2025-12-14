@@ -22,7 +22,7 @@ import {
   Ghost
 } from 'lucide-react'
 import { usePDMStore, ThemeMode, Language } from '../../stores/pdmStore'
-import { signOut, getSupabaseClient } from '../../lib/supabase'
+import { signOut, getSupabaseClient, endRemoteSession } from '../../lib/supabase'
 import { getInitials } from '../../types/pdm'
 import { getMachineId } from '../../lib/backup'
 import { useTranslation } from '../../lib/i18n'
@@ -70,6 +70,7 @@ export function AccountSettings() {
   const [sessions, setSessions] = useState<UserSession[]>([])
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [signingOutSessionId, setSigningOutSessionId] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string>('')
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [updateCheckResult, setUpdateCheckResult] = useState<'none' | 'available' | 'error' | null>(null)
@@ -152,6 +153,23 @@ export function AccountSettings() {
   const getPlatformIcon = (platform: string | null) => {
     if (platform === 'darwin') return <Laptop size={16} className="text-plm-fg-muted" />
     return <Monitor size={16} className="text-plm-fg-muted" />
+  }
+
+  const handleRemoteSignOut = async (sessionId: string) => {
+    setSigningOutSessionId(sessionId)
+    try {
+      const { success, error } = await endRemoteSession(sessionId)
+      if (success) {
+        // Remove the session from state immediately
+        setSessions(prev => prev.filter(s => s.id !== sessionId))
+      } else {
+        console.error('Failed to sign out session:', error)
+      }
+    } catch (err) {
+      console.error('Error signing out session:', err)
+    } finally {
+      setSigningOutSessionId(null)
+    }
   }
 
   // Handle manual update check
@@ -273,6 +291,7 @@ export function AccountSettings() {
               <div className="space-y-2">
                 {sortedSessions.map(session => {
                   const isCurrentDevice = session.machine_id === currentMachineId
+                  const isSigningOut = signingOutSessionId === session.id
                   return (
                     <div 
                       key={session.id}
@@ -306,9 +325,25 @@ export function AccountSettings() {
                           )}
                         </div>
                       </div>
-                      <div className="text-sm text-plm-fg-muted flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full bg-plm-success ${isCurrentDevice ? 'animate-pulse' : ''}`} />
-                        {formatLastSeen(session.last_seen)}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm text-plm-fg-muted flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full bg-plm-success ${isCurrentDevice ? 'animate-pulse' : ''}`} />
+                          {formatLastSeen(session.last_seen)}
+                        </div>
+                        {!isCurrentDevice && (
+                          <button
+                            onClick={() => handleRemoteSignOut(session.id)}
+                            disabled={isSigningOut}
+                            className="p-1.5 rounded hover:bg-plm-error/20 text-plm-fg-muted hover:text-plm-error transition-colors disabled:opacity-50"
+                            title="Sign out this device"
+                          >
+                            {isSigningOut ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <LogOut size={14} />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )

@@ -3819,6 +3819,24 @@ export async function endDeviceSession(userId: string): Promise<void> {
 }
 
 /**
+ * End a remote session by session ID (for signing out other devices)
+ */
+export async function endRemoteSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  
+  const { error } = await client
+    .from('user_sessions')
+    .update({ is_active: false })
+    .eq('id', sessionId)
+  
+  if (error) {
+    return { success: false, error: error.message }
+  }
+  
+  return { success: true }
+}
+
+/**
  * Get all active sessions for the current user
  * Returns sessions that have been seen in the last 2 minutes
  */

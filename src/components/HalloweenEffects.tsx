@@ -16,14 +16,13 @@ interface Spark {
   color: string // orange to red gradient
 }
 
-interface Ghost {
+interface FlyingGhost {
   id: number
   x: number
   y: number
   size: number
-  opacity: number
-  floatSpeed: number
-  floatOffset: number
+  speed: number
+  active: boolean
 }
 
 interface Pumpkin {
@@ -45,14 +44,11 @@ export function HalloweenEffects() {
   const setSparksSpeed = usePDMStore(s => s.setHalloweenSparksSpeed)
   
   const [sparks, setSparks] = useState<Spark[]>([])
-  const [ghosts, setGhosts] = useState<Ghost[]>([])
+  const [flyingGhosts, setFlyingGhosts] = useState<FlyingGhost[]>([])
   const [pumpkins, setPumpkins] = useState<Pumpkin[]>([])
-  const [flyingGhost, setFlyingGhost] = useState({ x: -200, y: 80, visible: false })
   const [showControls, setShowControls] = useState(false)
   const animationRef = useRef<number>(0)
-  const sparksSpeedRef = useRef(sparksSpeed ?? 40) // Default to 40 if undefined
-  const flyingGhostTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const flyingGhostAnimationRef = useRef<number | null>(null)
+  const sparksSpeedRef = useRef(sparksSpeed ?? 40)
   const ghostsOpacityRef = useRef(ghostsOpacity ?? 30)
   
   // Keep refs in sync
@@ -88,127 +84,78 @@ export function HalloweenEffects() {
     setPumpkins(newPumpkins)
   }, [isHalloween])
   
-  // Initialize ghosts
+  // Initialize flying ghosts - several small ghosts that fly across the top
   useEffect(() => {
     if (!isHalloween) {
-      setGhosts([])
+      setFlyingGhosts([])
       return
     }
     
-    const newGhosts: Ghost[] = []
-    for (let i = 0; i < 12; i++) {
-      newGhosts.push({
+    // Create ghost slots - they'll be activated periodically
+    const ghosts: FlyingGhost[] = []
+    for (let i = 0; i < 5; i++) {
+      ghosts.push({
         id: i,
-        x: Math.random() * 90 + 5,
-        y: Math.random() * 70 + 5,
-        size: Math.random() * 40 + 40, // Bigger ghosts (40-80px)
-        opacity: Math.random() * 0.4 + 0.3, // Higher opacity (0.3-0.7)
-        floatSpeed: Math.random() * 0.02 + 0.01,
-        floatOffset: Math.random() * Math.PI * 2,
+        x: -100 - (i * 200), // Stagger starting positions off-screen
+        y: 3 + Math.random() * 8, // 3-11% from top
+        size: 25 + Math.random() * 20, // 25-45px (smaller ghosts)
+        speed: 1.5 + Math.random() * 1.5, // 1.5-3 speed
+        active: false,
       })
     }
-    setGhosts(newGhosts)
-  }, [isHalloween])
-  
-  // Flying ghost animation - flies across periodically like Santa's sleigh
-  useEffect(() => {
-    // Clean up any existing animations/timeouts first
-    if (flyingGhostTimeoutRef.current) {
-      clearTimeout(flyingGhostTimeoutRef.current)
-      flyingGhostTimeoutRef.current = null
-    }
-    if (flyingGhostAnimationRef.current) {
-      cancelAnimationFrame(flyingGhostAnimationRef.current)
-      flyingGhostAnimationRef.current = null
+    setFlyingGhosts(ghosts)
+    
+    // Activate ghosts periodically
+    const activateGhost = () => {
+      if (ghostsOpacityRef.current <= 0) return
+      
+      setFlyingGhosts(prev => {
+        const inactive = prev.filter(g => !g.active)
+        if (inactive.length === 0) return prev
+        
+        // Activate a random inactive ghost
+        const ghostToActivate = inactive[Math.floor(Math.random() * inactive.length)]
+        return prev.map(g => 
+          g.id === ghostToActivate.id 
+            ? { 
+                ...g, 
+                active: true, 
+                x: -80,
+                y: 3 + Math.random() * 8,
+                size: 25 + Math.random() * 20,
+                speed: 1.5 + Math.random() * 1.5,
+              } 
+            : g
+        )
+      })
     }
     
-    if (!isHalloween) {
-      setFlyingGhost({ x: -200, y: 80, visible: false })
-      return
-    }
-    
-    const scheduleFlyingGhost = () => {
-      // Random delay between 20-60 seconds
-      const delay = Math.random() * 40000 + 20000
-      
-      flyingGhostTimeoutRef.current = setTimeout(() => {
-        // Check if ghosts are enabled
-        if (ghostsOpacityRef.current <= 0) {
-          scheduleFlyingGhost()
-          return
-        }
-        
-        // Start flying ghost animation
-        const startY = 15 + Math.random() * 30 // Random height (15-45% from top)
-        setFlyingGhost({ x: -200, y: startY, visible: true })
-        
-        // Animate ghost across screen
-        let x = -200
-        const animateFlyingGhost = () => {
-          x += 4 // Speed across screen
-          setFlyingGhost(prev => ({ ...prev, x }))
-          
-          if (x < window.innerWidth + 200) {
-            flyingGhostAnimationRef.current = requestAnimationFrame(animateFlyingGhost)
-          } else {
-            setFlyingGhost({ x: -200, y: 80, visible: false })
-            scheduleFlyingGhost() // Schedule next ghost
-          }
-        }
-        flyingGhostAnimationRef.current = requestAnimationFrame(animateFlyingGhost)
-      }, delay)
-    }
-    
-    // Initial flying ghost after 8 seconds
-    flyingGhostTimeoutRef.current = setTimeout(() => {
-      if (ghostsOpacityRef.current <= 0) {
-        scheduleFlyingGhost()
-        return
-      }
-      
-      setFlyingGhost({ x: -200, y: 25, visible: true })
-      
-      let x = -200
-      const animateFlyingGhost = () => {
-        x += 4
-        setFlyingGhost(prev => ({ ...prev, x }))
-        
-        if (x < window.innerWidth + 200) {
-          flyingGhostAnimationRef.current = requestAnimationFrame(animateFlyingGhost)
-        } else {
-          setFlyingGhost({ x: -200, y: 80, visible: false })
-          scheduleFlyingGhost()
-        }
-      }
-      flyingGhostAnimationRef.current = requestAnimationFrame(animateFlyingGhost)
-    }, 8000)
+    // Start first ghost quickly, then periodically
+    const firstTimeout = setTimeout(activateGhost, 2000)
+    const interval = setInterval(activateGhost, 8000 + Math.random() * 7000) // Every 8-15 seconds
     
     return () => {
-      if (flyingGhostTimeoutRef.current) {
-        clearTimeout(flyingGhostTimeoutRef.current)
-      }
-      if (flyingGhostAnimationRef.current) {
-        cancelAnimationFrame(flyingGhostAnimationRef.current)
-      }
+      clearTimeout(firstTimeout)
+      clearInterval(interval)
     }
   }, [isHalloween])
   
-  // Initialize sparks and animate
+  // Initialize sparks and animate everything
   useEffect(() => {
     if (!isHalloween) {
       setSparks([])
       return
     }
     
-    // Create initial sparks - spread them throughout the screen so some are visible immediately
+    // Create initial sparks
     const initialSparks: Spark[] = []
     for (let i = 0; i < 80; i++) {
       initialSparks.push({
         id: i,
-        x: Math.random() * 100, // Spread across screen
-        y: Math.random() * 120, // Spread from top to below screen (some visible immediately)
+        x: Math.random() * 100,
+        y: Math.random() * 120,
         size: Math.random() * 4 + 2,
-        speed: Math.random() * 2 + 1, // Faster speed (1-3)
+        speed: Math.random() * 2 + 1,
         baseOpacity: Math.random() * 0.8 + 0.2,
         wobble: Math.random() * Math.PI * 2,
         wobbleSpeed: Math.random() * 0.05 + 0.02,
@@ -217,19 +164,18 @@ export function HalloweenEffects() {
     }
     setSparks(initialSparks)
     
-    // Animate sparks floating upward
+    // Main animation loop
     const animate = () => {
-      // Speed multiplier: 10% = slow (0.3x), 100% = fast (3x)
       const speedValue = sparksSpeedRef.current ?? 40
-      const speedMultiplier = 0.1 + (speedValue / 100) * 2.9 // Range: 0.1 to 3.0
+      const speedMultiplier = 0.1 + (speedValue / 100) * 2.9
       
+      // Animate sparks
       setSparks(prev => prev.map(spark => {
-        let newY = spark.y - spark.speed * 0.1 * speedMultiplier // Speed controlled by slider
+        let newY = spark.y - spark.speed * 0.1 * speedMultiplier
         let newWobble = spark.wobble + spark.wobbleSpeed
-        let newX = spark.x + Math.sin(newWobble) * 0.1 // Gentle side-to-side
+        let newX = spark.x + Math.sin(newWobble) * 0.1
         let newBaseOpacity = spark.baseOpacity
         
-        // Reset if off screen top
         if (newY < -5) {
           newY = 105 + Math.random() * 10
           newX = Math.random() * 100
@@ -246,19 +192,22 @@ export function HalloweenEffects() {
           }
         }
         
-        return {
-          ...spark,
-          x: newX,
-          y: newY,
-          wobble: newWobble,
-        }
+        return { ...spark, x: newX, y: newY, wobble: newWobble }
       }))
       
-      // Animate ghosts floating
-      setGhosts(prev => prev.map(ghost => ({
-        ...ghost,
-        floatOffset: ghost.floatOffset + ghost.floatSpeed,
-      })))
+      // Animate flying ghosts
+      setFlyingGhosts(prev => prev.map(ghost => {
+        if (!ghost.active) return ghost
+        
+        const newX = ghost.x + ghost.speed
+        
+        // Deactivate if off screen right
+        if (newX > window.innerWidth + 100) {
+          return { ...ghost, active: false, x: -100 }
+        }
+        
+        return { ...ghost, x: newX }
+      }))
       
       animationRef.current = requestAnimationFrame(animate)
     }
@@ -276,7 +225,7 @@ export function HalloweenEffects() {
   
   return (
     <>
-      {/* Background gradient with spooky atmosphere - z-index negative to go behind everything */}
+      {/* Background gradient with spooky atmosphere */}
       <div 
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -304,7 +253,7 @@ export function HalloweenEffects() {
         }}
       />
       
-      {/* Secondary ambient glow - pulsing */}
+      {/* Secondary ambient glow */}
       <div 
         className="fixed inset-x-0 bottom-0 pointer-events-none"
         style={{ 
@@ -317,7 +266,7 @@ export function HalloweenEffects() {
         }}
       />
       
-      {/* Moon - behind content */}
+      {/* Moon */}
       <div 
         className="fixed pointer-events-none"
         style={{ 
@@ -332,88 +281,29 @@ export function HalloweenEffects() {
           opacity: 0.9,
         }}
       >
-        {/* Moon craters */}
-        <div 
-          style={{
-            position: 'absolute',
-            top: '25%',
-            left: '30%',
-            width: '15px',
-            height: '15px',
-            borderRadius: '50%',
-            background: 'rgba(139, 119, 42, 0.3)',
-          }}
-        />
-        <div 
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '55%',
-            width: '10px',
-            height: '10px',
-            borderRadius: '50%',
-            background: 'rgba(139, 119, 42, 0.25)',
-          }}
-        />
+        <div style={{ position: 'absolute', top: '25%', left: '30%', width: '15px', height: '15px', borderRadius: '50%', background: 'rgba(139, 119, 42, 0.3)' }} />
+        <div style={{ position: 'absolute', top: '50%', left: '55%', width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(139, 119, 42, 0.25)' }} />
       </div>
       
-      {/* Flying ghost - travels across screen like Santa's sleigh */}
-      {flyingGhost.visible && (ghostsOpacity ?? 30) > 0 && (
-        <div
-          className="fixed pointer-events-none"
-          style={{
-            zIndex: 10000,
-            left: `${flyingGhost.x}px`,
-            top: `${flyingGhost.y}%`,
-            transform: 'translateY(-50%)',
-            animation: 'ghostFloat 1.5s ease-in-out infinite',
-          }}
-        >
-          {/* Large flying ghost */}
-          <svg width="120" height="156" viewBox="0 0 40 52" style={{ opacity: (ghostsOpacity ?? 30) / 100 }}>
-            <defs>
-              <filter id="flying-ghost-glow">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-            <path 
-              d="M20 0 C8 0 0 10 0 22 L0 42 L8 35 L16 42 L24 35 L32 42 L40 35 L40 22 C40 10 32 0 20 0 Z" 
-              fill="white"
-              fillOpacity="0.9"
-              filter="url(#flying-ghost-glow)"
-            />
-            <circle cx="12" cy="18" r="4" fill="#1a1a1a" fillOpacity="0.9" />
-            <circle cx="28" cy="18" r="4" fill="#1a1a1a" fillOpacity="0.9" />
-            <ellipse cx="20" cy="28" rx="5" ry="6" fill="#1a1a1a" fillOpacity="0.7" />
-          </svg>
-        </div>
-      )}
-      
-      {/* Floating ghosts - in front of backgrounds, behind sparks */}
+      {/* Flying ghosts across the top */}
       {(ghostsOpacity ?? 30) > 0 && (
-        <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 9998 }}>
-          {ghosts.map(ghost => (
+        <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 10000 }}>
+          {flyingGhosts.filter(g => g.active).map(ghost => (
             <div
               key={ghost.id}
               style={{
                 position: 'absolute',
-                left: `${ghost.x}%`,
-                top: `${ghost.y + Math.sin(ghost.floatOffset) * 5}%`,
+                left: `${ghost.x}px`,
+                top: `${ghost.y}%`,
                 width: `${ghost.size}px`,
                 height: `${ghost.size * 1.3}px`,
-                opacity: ghost.opacity * ((ghostsOpacity ?? 30) / 100),
+                opacity: (ghostsOpacity ?? 30) / 100,
               }}
             >
-              {/* Ghost SVG */}
               <svg viewBox="0 0 40 52" style={{ width: '100%', height: '100%' }}>
                 <defs>
-                  <filter id={`ghost-glow-${ghost.id}`}>
-                    <feGaussianBlur stdDeviation="2" result="blur" />
+                  <filter id={`flying-ghost-glow-${ghost.id}`}>
+                    <feGaussianBlur stdDeviation="1.5" result="blur" />
                     <feMerge>
                       <feMergeNode in="blur" />
                       <feMergeNode in="SourceGraphic" />
@@ -424,22 +314,21 @@ export function HalloweenEffects() {
                   d="M20 0 C8 0 0 10 0 22 L0 42 L8 35 L16 42 L24 35 L32 42 L40 35 L40 22 C40 10 32 0 20 0 Z" 
                   fill="white"
                   fillOpacity="0.85"
-                  filter={`url(#ghost-glow-${ghost.id})`}
+                  filter={`url(#flying-ghost-glow-${ghost.id})`}
                 />
-                <circle cx="12" cy="18" r="4" fill="#1a1a1a" fillOpacity="0.9" />
-                <circle cx="28" cy="18" r="4" fill="#1a1a1a" fillOpacity="0.9" />
-                <ellipse cx="20" cy="28" rx="5" ry="6" fill="#1a1a1a" fillOpacity="0.7" />
+                <circle cx="12" cy="18" r="3" fill="#1a1a1a" fillOpacity="0.9" />
+                <circle cx="28" cy="18" r="3" fill="#1a1a1a" fillOpacity="0.9" />
+                <ellipse cx="20" cy="27" rx="4" ry="5" fill="#1a1a1a" fillOpacity="0.7" />
               </svg>
             </div>
           ))}
         </div>
       )}
       
-      {/* Bonfire sparks floating upward - in front of everything! */}
+      {/* Bonfire sparks floating upward */}
       {sparksOpacity > 0 && (
         <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 9999 }}>
           {sparks.map(spark => {
-            // Calculate display opacity - fade out in top 30% of screen
             let displayOpacity = spark.baseOpacity
             if (spark.y < 30) {
               displayOpacity = spark.baseOpacity * (spark.y / 30)
@@ -480,17 +369,12 @@ export function HalloweenEffects() {
               animation: `pumpkinGlow ${pumpkin.glowSpeed}s ease-in-out infinite`,
             }}
           >
-            {/* Pumpkin SVG */}
             <svg viewBox="0 0 50 45" style={{ width: '100%', height: '100%' }}>
-              {/* Stem */}
               <path d="M23 5 Q25 0 27 5 L26 10 L24 10 Z" fill="#228B22" />
-              {/* Main pumpkin body */}
               <ellipse cx="25" cy="27" rx="24" ry="17" fill="#ff6b2b" />
-              {/* Ridges */}
               <ellipse cx="12" cy="27" rx="8" ry="17" fill="#e85a20" />
               <ellipse cx="25" cy="27" rx="7" ry="17" fill="#ff7a40" />
               <ellipse cx="38" cy="27" rx="8" ry="17" fill="#e85a20" />
-              {/* Glowing face */}
               <polygon points="15,22 20,22 17.5,28" fill="#ffb347" style={{ filter: 'drop-shadow(0 0 5px #ff6b2b)' }} />
               <polygon points="30,22 35,22 32.5,28" fill="#ffb347" style={{ filter: 'drop-shadow(0 0 5px #ff6b2b)' }} />
               <path d="M18 32 Q25 40 32 32 L30 34 Q25 38 20 34 Z" fill="#ffb347" style={{ filter: 'drop-shadow(0 0 5px #ff6b2b)' }} />
@@ -499,7 +383,7 @@ export function HalloweenEffects() {
         ))}
       </div>
       
-      {/* Halloween controls button - always on top */}
+      {/* Halloween controls button */}
       <div 
         className="fixed bottom-4 right-4"
         style={{ zIndex: 10001 }}
@@ -510,39 +394,36 @@ export function HalloweenEffects() {
           <div className="mb-2 p-2.5 bg-plm-bg-lighter rounded-lg border border-plm-border shadow-lg text-xs min-w-[160px]">
             <div className="text-plm-fg-muted mb-2">🎃 Halloween Effects</div>
             
-            {/* Ghost opacity slider */}
             <div className="mb-2 px-1">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-plm-fg">👻 Ghosts</span>
-                <span className="text-plm-fg-muted">{ghostsOpacity}%</span>
+                <span className="text-plm-fg-muted">{ghostsOpacity ?? 30}%</span>
               </div>
               <input
                 type="range"
                 min="0"
                 max="100"
-                value={ghostsOpacity}
+                value={ghostsOpacity ?? 30}
                 onChange={(e) => setGhostsOpacity(Number(e.target.value))}
                 className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-orange-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
               />
             </div>
             
-            {/* Sparks opacity slider */}
             <div className="mb-2 px-1">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-plm-fg">🔥 Sparks</span>
-                <span className="text-plm-fg-muted">{sparksOpacity}%</span>
+                <span className="text-plm-fg-muted">{sparksOpacity ?? 70}%</span>
               </div>
               <input
                 type="range"
                 min="0"
                 max="100"
-                value={sparksOpacity}
+                value={sparksOpacity ?? 70}
                 onChange={(e) => setSparksOpacity(Number(e.target.value))}
                 className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-orange-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
               />
             </div>
             
-            {/* Sparks speed slider */}
             <div className="px-1">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-plm-fg">💨 Spark Speed</span>
@@ -578,11 +459,6 @@ export function HalloweenEffects() {
         @keyframes bonfireGlow {
           0%, 100% { opacity: 0.8; }
           50% { opacity: 1; }
-        }
-        
-        @keyframes ghostFloat {
-          0%, 100% { transform: translateY(-50%) rotate(-3deg); }
-          50% { transform: translateY(calc(-50% - 8px)) rotate(3deg); }
         }
       `}</style>
     </>
