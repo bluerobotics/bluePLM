@@ -1,16 +1,25 @@
 -- Organization Addresses Migration
 -- Adds support for multiple billing and shipping addresses per organization
+-- This migration is idempotent (safe to run multiple times)
 
--- Create address type enum
-CREATE TYPE address_type AS ENUM ('billing', 'shipping');
+-- Create address type enum (if not exists)
+DO $$ BEGIN
+  CREATE TYPE address_type AS ENUM ('billing', 'shipping');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Create organization_addresses table
-CREATE TABLE organization_addresses (
+CREATE TABLE IF NOT EXISTS organization_addresses (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   address_type address_type NOT NULL,
   label TEXT NOT NULL, -- e.g., "Main Office", "Warehouse", "HQ"
   is_default BOOLEAN DEFAULT FALSE,
+  
+  -- Billing-specific fields
+  company_name TEXT, -- Company name (billing addresses only)
+  contact_name TEXT, -- Contact person name (billing addresses only)
   
   -- Address fields
   address_line1 TEXT NOT NULL,
@@ -21,16 +30,25 @@ CREATE TABLE organization_addresses (
   country TEXT DEFAULT 'USA',
   
   -- Contact info for this specific address
-  attention_to TEXT, -- "ATTN: Receiving Dept"
+  attention_to TEXT, -- "ATTN: Receiving Dept" (shipping addresses only)
   phone TEXT,
   
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Billing addresses should not have ATTN field
+  CONSTRAINT no_attn_for_billing CHECK (
+    address_type != 'billing' OR attention_to IS NULL
+  )
 );
 
--- Indexes
-CREATE INDEX idx_org_addresses_org_id ON organization_addresses(org_id);
-CREATE INDEX idx_org_addresses_type ON organization_addresses(org_id, address_type);
+-- Add new columns if they don't exist (for existing tables)
+ALTER TABLE organization_addresses ADD COLUMN IF NOT EXISTS company_name TEXT;
+ALTER TABLE organization_addresses ADD COLUMN IF NOT EXISTS contact_name TEXT;
+
+-- Indexes (IF NOT EXISTS)
+CREATE INDEX IF NOT EXISTS idx_org_addresses_org_id ON organization_addresses(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_addresses_type ON organization_addresses(org_id, address_type);
 
 -- Trigger to update updated_at
 CREATE OR REPLACE FUNCTION update_org_address_timestamp()
@@ -41,6 +59,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS org_address_updated ON organization_addresses;
 CREATE TRIGGER org_address_updated
   BEFORE UPDATE ON organization_addresses
   FOR EACH ROW
@@ -63,6 +82,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS ensure_single_default ON organization_addresses;
 CREATE TRIGGER ensure_single_default
   BEFORE INSERT OR UPDATE ON organization_addresses
   FOR EACH ROW
@@ -70,6 +90,12 @@ CREATE TRIGGER ensure_single_default
 
 -- RLS Policies
 ALTER TABLE organization_addresses ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies first (idempotent)
+DROP POLICY IF EXISTS "Users can view org addresses" ON organization_addresses;
+DROP POLICY IF EXISTS "Admins can insert addresses" ON organization_addresses;
+DROP POLICY IF EXISTS "Admins can update addresses" ON organization_addresses;
+DROP POLICY IF EXISTS "Admins can delete addresses" ON organization_addresses;
 
 -- Users can view addresses for their organization
 CREATE POLICY "Users can view org addresses"
@@ -119,7 +145,7 @@ ALTER TABLE rfqs ADD COLUMN IF NOT EXISTS billing_address_id UUID REFERENCES org
 ALTER TABLE rfqs ADD COLUMN IF NOT EXISTS shipping_address_id UUID REFERENCES organization_addresses(id) ON DELETE SET NULL;
 
 -- Migrate existing organization address to default addresses
--- This creates billing and shipping addresses from the existing org address fields
+-- Only creates addresses if none exist yet for the org
 DO $$
 DECLARE
   org RECORD;
@@ -129,13 +155,15 @@ BEGIN
     FROM organizations 
     WHERE address_line1 IS NOT NULL
   LOOP
-    -- Create default billing address
-    INSERT INTO organization_addresses (org_id, address_type, label, is_default, address_line1, address_line2, city, state, postal_code, country, phone)
-    VALUES (org.id, 'billing', 'Main Office', TRUE, org.address_line1, org.address_line2, org.city, org.state, org.postal_code, org.country, org.phone);
-    
-    -- Create default shipping address (same as billing initially)
-    INSERT INTO organization_addresses (org_id, address_type, label, is_default, address_line1, address_line2, city, state, postal_code, country, phone)
-    VALUES (org.id, 'shipping', 'Main Office', TRUE, org.address_line1, org.address_line2, org.city, org.state, org.postal_code, org.country, org.phone);
+    -- Only create if no addresses exist for this org yet
+    IF NOT EXISTS (SELECT 1 FROM organization_addresses WHERE org_id = org.id) THEN
+      -- Create default billing address
+      INSERT INTO organization_addresses (org_id, address_type, label, is_default, address_line1, address_line2, city, state, postal_code, country, phone)
+      VALUES (org.id, 'billing', 'Main Office', TRUE, org.address_line1, org.address_line2, org.city, org.state, org.postal_code, org.country, org.phone);
+      
+      -- Create default shipping address (same as billing initially)
+      INSERT INTO organization_addresses (org_id, address_type, label, is_default, address_line1, address_line2, city, state, postal_code, country, phone)
+      VALUES (org.id, 'shipping', 'Main Office', TRUE, org.address_line1, org.address_line2, org.city, org.state, org.postal_code, org.country, org.phone);
+    END IF;
   END LOOP;
 END $$;
-

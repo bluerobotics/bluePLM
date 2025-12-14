@@ -3,7 +3,7 @@ import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 
 type SettingsTab = 'account' | 'vault' | 'organization' | 'branding' | 'metadata-columns' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'preferences' | 'logs' | 'about'
-import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken } from './lib/supabase'
+import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat } from './lib/supabase'
 import { subscribeToFiles, subscribeToActivity, unsubscribeAll } from './lib/realtime'
 // Backup services removed - now handled directly via restic
 import { MenuBar } from './components/MenuBar'
@@ -1306,6 +1306,33 @@ function App() {
   // Start backup heartbeat and scheduler when user and org are available
   // Backup services removed - all backup operations are now handled directly via restic
   // when the user clicks "Backup Now" or "Restore" in the BackupPanel
+
+  // Register device session and start heartbeat when user is logged in
+  useEffect(() => {
+    if (!user) {
+      stopSessionHeartbeat()
+      return
+    }
+    
+    // Register this device's session
+    registerDeviceSession(user.id, user.org_id || null)
+      .then(result => {
+        if (result.success) {
+          console.log('[Session] Device session registered')
+          // Start heartbeat to keep session alive
+          startSessionHeartbeat(user.id)
+        } else {
+          console.error('[Session] Failed to register session:', result.error)
+        }
+      })
+      .catch(err => {
+        console.error('[Session] Error registering session:', err)
+      })
+    
+    return () => {
+      stopSessionHeartbeat()
+    }
+  }, [user?.id, user?.org_id])
 
   // Auto-start SolidWorks service if enabled
   useEffect(() => {

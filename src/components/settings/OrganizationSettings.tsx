@@ -118,6 +118,9 @@ export function OrganizationSettings() {
   const [pendingVaultAccess, setPendingVaultAccess] = useState<string[]>([])
   const [isSavingVaultAccess, setIsSavingVaultAccess] = useState(false)
   
+  // Organization logo
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
+  
   // Get platform on mount
   useEffect(() => {
     if (window.electronAPI) {
@@ -133,6 +136,37 @@ export function OrganizationSettings() {
       loadVaultAccess()
     }
   }, [organization])
+  
+  // Load organization logo (with signed URL refresh)
+  useEffect(() => {
+    if (!organization?.id) {
+      setOrgLogoUrl(null)
+      return
+    }
+
+    const loadOrgLogo = async () => {
+      // If there's a storage path, generate a fresh signed URL
+      if (organization.logo_storage_path) {
+        const { data: signedData } = await supabase.storage
+          .from('vault')
+          .createSignedUrl(organization.logo_storage_path, 60 * 60 * 24) // 24 hours
+        
+        if (signedData?.signedUrl) {
+          setOrgLogoUrl(signedData.signedUrl)
+          return
+        }
+      }
+      
+      // Fall back to stored logo_url if no storage path or signing failed
+      if (organization.logo_url) {
+        setOrgLogoUrl(organization.logo_url)
+      } else {
+        setOrgLogoUrl(null)
+      }
+    }
+
+    loadOrgLogo()
+  }, [organization?.id, organization?.logo_storage_path, organization?.logo_url])
   
   const loadOrgUsers = async () => {
     if (!organization) return
@@ -602,7 +636,15 @@ See you on the team!`
       {/* Organization info */}
       <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-3 mb-2">
-          <Building2 size={24} className="text-plm-accent" />
+          {orgLogoUrl ? (
+            <img 
+              src={orgLogoUrl} 
+              alt={organization.name} 
+              className="h-8 max-w-[120px] object-contain rounded"
+            />
+          ) : (
+            <Building2 size={24} className="text-plm-accent" />
+          )}
           <span className="text-xl font-medium text-plm-fg">{organization.name}</span>
         </div>
         <div className="text-base text-plm-fg-muted mb-4">

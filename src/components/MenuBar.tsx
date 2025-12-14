@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, Settings } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
-import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization, getActiveSessions, endRemoteSession, UserSession } from '../lib/supabase'
+import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization, getActiveSessions, endRemoteSession, UserSession, supabase } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
 import { SystemStats } from './SystemStats'
 import { getMachineId } from '../lib/backup'
@@ -48,6 +48,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showVaultDropdown, setShowVaultDropdown] = useState(false)
   const [showZoomDropdown, setShowZoomDropdown] = useState(false)
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
   const [zoomFactor, setZoomFactor] = useState(1)
   const [sessions, setSessions] = useState<UserSession[]>([])
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
@@ -108,6 +109,37 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     
     loadSessions()
   }, [user?.id, showUserMenu])
+
+  // Load organization logo (with signed URL refresh)
+  useEffect(() => {
+    if (!organization?.id) {
+      setOrgLogoUrl(null)
+      return
+    }
+
+    const loadOrgLogo = async () => {
+      // If there's a storage path, generate a fresh signed URL
+      if (organization.logo_storage_path) {
+        const { data: signedData } = await supabase.storage
+          .from('vault')
+          .createSignedUrl(organization.logo_storage_path, 60 * 60 * 24) // 24 hours
+        
+        if (signedData?.signedUrl) {
+          setOrgLogoUrl(signedData.signedUrl)
+          return
+        }
+      }
+      
+      // Fall back to stored logo_url if no storage path or signing failed
+      if (organization.logo_url) {
+        setOrgLogoUrl(organization.logo_url)
+      } else {
+        setOrgLogoUrl(null)
+      }
+    }
+
+    loadOrgLogo()
+  }, [organization?.id, organization?.logo_storage_path, organization?.logo_url])
 
   const handleRemoteSignOut = async (sessionId: string) => {
     setSigningOutSessionId(sessionId)
@@ -280,7 +312,15 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           {/* Organization (no dropdown for now - single org per user) */}
           {!minimal && organization && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded text-sm text-plm-fg-dim">
-              <Building2 size={14} className="text-plm-fg-muted" />
+              {orgLogoUrl ? (
+                <img 
+                  src={orgLogoUrl} 
+                  alt={organization.name} 
+                  className="h-5 max-w-[80px] object-contain rounded-sm"
+                />
+              ) : (
+                <Building2 size={16} className="text-plm-fg-muted" />
+              )}
               <span className="max-w-[120px] truncate">{organization.name}</span>
             </div>
           )}
@@ -568,7 +608,15 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                 <div className="px-4 py-2 border-b border-plm-border">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs text-plm-fg-dim">
-                      <Building2 size={14} />
+                      {orgLogoUrl ? (
+                        <img 
+                          src={orgLogoUrl} 
+                          alt={organization?.name || 'Organization'} 
+                          className="h-4 max-w-[60px] object-contain rounded-sm"
+                        />
+                      ) : (
+                        <Building2 size={14} />
+                      )}
                       {organization ? (
                         <span>{organization.name}</span>
                       ) : (

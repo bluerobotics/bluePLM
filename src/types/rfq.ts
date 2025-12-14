@@ -39,6 +39,10 @@ export interface RFQ {
   release_files_generated_at: string | null
   release_folder_path: string | null
   
+  // Addresses (references to organization_addresses)
+  billing_address_id: string | null
+  shipping_address_id: string | null
+  
   // Shipping
   shipping_address: string | null
   shipping_notes: string | null

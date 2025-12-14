@@ -1076,12 +1076,12 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-public class BluePdmClient
+public class BluePlmClient
 {
     private readonly HttpClient _client;
     private string _token;
 
-    public BluePdmClient(string baseUrl = "http://localhost:3001")
+    public BluePlmClient(string baseUrl = "http://localhost:3001")
     {
         _client = new HttpClient { BaseAddress = new Uri(baseUrl) };
     }

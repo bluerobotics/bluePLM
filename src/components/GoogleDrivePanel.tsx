@@ -977,7 +977,7 @@ export function GoogleDrivePanel() {
             <div className="absolute top-0 left-0 right-0 z-10 bg-amber-600 text-white px-4 py-2 text-sm flex items-center justify-between">
               <span>
                 <strong>First time?</strong> Google may ask you to sign in — this is a one-time setup.
-                Save your password when prompted and BluePDM will remember it.
+                Save your password when prompted and BluePLM will remember it.
               </span>
               <button
                 onClick={() => {

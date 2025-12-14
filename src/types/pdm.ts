@@ -133,6 +133,9 @@ export interface Organization {
   revision_scheme: RevisionScheme
   settings: OrgSettings
   created_at: string
+  // Company profile
+  logo_url?: string | null           // Signed URL for logo (may expire)
+  logo_storage_path?: string | null  // Path in Supabase storage bucket
 }
 
 export interface OrgSettings {

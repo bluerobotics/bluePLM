@@ -233,6 +233,22 @@ function RFQListView({
   )
 }
 
+// Address type for organization addresses
+interface OrgAddress {
+  id: string
+  address_type: 'billing' | 'shipping'
+  label: string
+  is_default: boolean
+  address_line1: string
+  address_line2: string | null
+  city: string
+  state: string | null
+  postal_code: string | null
+  country: string
+  attention_to: string | null
+  phone: string | null
+}
+
 // RFQ Detail View
 function RFQDetailView({ 
   rfq, 
@@ -253,6 +269,13 @@ function RFQDetailView({
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  
+  // Address state
+  const [billingAddresses, setBillingAddresses] = useState<OrgAddress[]>([])
+  const [shippingAddresses, setShippingAddresses] = useState<OrgAddress[]>([])
+  const [selectedBillingId, setSelectedBillingId] = useState<string | null>(rfq.billing_address_id || null)
+  const [selectedShippingId, setSelectedShippingId] = useState<string | null>(rfq.shipping_address_id || null)
+  const [savingAddresses, setSavingAddresses] = useState(false)
 
   // Load RFQ details
   useEffect(() => {
@@ -291,6 +314,42 @@ function RFQDetailView({
 
     loadDetails()
   }, [rfq.id, addToast])
+
+  // Load organization addresses
+  useEffect(() => {
+    if (!organization?.id) return
+
+    const loadAddresses = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('organization_addresses')
+          .select('*')
+          .eq('org_id', organization.id)
+          .order('is_default', { ascending: false })
+          .order('label')
+
+        if (error) throw error
+        
+        const addresses = (data || []) as OrgAddress[]
+        setBillingAddresses(addresses.filter(a => a.address_type === 'billing'))
+        setShippingAddresses(addresses.filter(a => a.address_type === 'shipping'))
+        
+        // Set defaults if not already selected
+        if (!selectedBillingId) {
+          const defaultBilling = addresses.find(a => a.address_type === 'billing' && a.is_default)
+          if (defaultBilling) setSelectedBillingId(defaultBilling.id)
+        }
+        if (!selectedShippingId) {
+          const defaultShipping = addresses.find(a => a.address_type === 'shipping' && a.is_default)
+          if (defaultShipping) setSelectedShippingId(defaultShipping.id)
+        }
+      } catch (err) {
+        console.error('Failed to load addresses:', err)
+      }
+    }
+
+    loadAddresses()
+  }, [organization?.id])
 
   // Add file to RFQ
   const handleAddFile = async (fileId: string, silent = false) => {
@@ -407,6 +466,44 @@ function RFQDetailView({
         }
       }
 
+      // Get selected billing address
+      let billingAddressData = null
+      if (selectedBillingId) {
+        const addr = billingAddresses.find(a => a.id === selectedBillingId)
+        if (addr) {
+          billingAddressData = {
+            label: addr.label,
+            attention_to: addr.attention_to,
+            address_line1: addr.address_line1,
+            address_line2: addr.address_line2,
+            city: addr.city,
+            state: addr.state,
+            postal_code: addr.postal_code,
+            country: addr.country,
+            phone: addr.phone
+          }
+        }
+      }
+
+      // Get selected shipping address
+      let shippingAddressData = null
+      if (selectedShippingId) {
+        const addr = shippingAddresses.find(a => a.id === selectedShippingId)
+        if (addr) {
+          shippingAddressData = {
+            label: addr.label,
+            attention_to: addr.attention_to,
+            address_line1: addr.address_line1,
+            address_line2: addr.address_line2,
+            city: addr.city,
+            state: addr.state,
+            postal_code: addr.postal_code,
+            country: addr.country,
+            phone: addr.phone
+          }
+        }
+      }
+
       const orgBranding: OrgBranding = {
         name: (orgData as Record<string, unknown>)?.name as string || organization.name,
         logo_url: logoUrl,
@@ -419,6 +516,8 @@ function RFQDetailView({
         phone: (orgData as Record<string, unknown>)?.phone as string | null,
         website: (orgData as Record<string, unknown>)?.website as string | null,
         contact_email: (orgData as Record<string, unknown>)?.contact_email as string | null,
+        billing_address: billingAddressData,
+        shipping_address: shippingAddressData,
         rfq_settings: (orgData as Record<string, unknown>)?.rfq_settings as OrgBranding['rfq_settings']
       }
 
@@ -956,6 +1055,94 @@ function RFQDetailView({
 
         {activeTab === 'settings' && (
           <div className="p-3 space-y-4">
+            {/* Addresses Section */}
+            <div className="border-b border-plm-border pb-4">
+              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">Billing Address</div>
+              {billingAddresses.length === 0 ? (
+                <div className="text-xs text-plm-fg-muted italic">No billing addresses. Add in Settings → Company Profile.</div>
+              ) : (
+                <select
+                  value={selectedBillingId || ''}
+                  onChange={async (e) => {
+                    const newId = e.target.value || null
+                    setSelectedBillingId(newId)
+                    setSavingAddresses(true)
+                    try {
+                      await db.from('rfqs').update({ billing_address_id: newId }).eq('id', rfq.id)
+                      onUpdate({ ...rfq, billing_address_id: newId })
+                    } catch (err) {
+                      console.error('Failed to update billing address:', err)
+                    } finally {
+                      setSavingAddresses(false)
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+                >
+                  <option value="">Select billing address...</option>
+                  {billingAddresses.map(addr => (
+                    <option key={addr.id} value={addr.id}>
+                      {addr.label} {addr.is_default ? '(Default)' : ''} - {addr.city}, {addr.state || addr.country}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedBillingId && (() => {
+                const addr = billingAddresses.find(a => a.id === selectedBillingId)
+                return addr ? (
+                  <div className="mt-2 text-[11px] text-plm-fg-muted bg-plm-highlight/50 rounded p-2">
+                    {addr.attention_to && <div>ATTN: {addr.attention_to}</div>}
+                    <div>{addr.address_line1}</div>
+                    {addr.address_line2 && <div>{addr.address_line2}</div>}
+                    <div>{addr.city}{addr.state && `, ${addr.state}`} {addr.postal_code}</div>
+                  </div>
+                ) : null
+              })()}
+            </div>
+
+            <div className="border-b border-plm-border pb-4">
+              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">Shipping Address</div>
+              {shippingAddresses.length === 0 ? (
+                <div className="text-xs text-plm-fg-muted italic">No shipping addresses. Add in Settings → Company Profile.</div>
+              ) : (
+                <select
+                  value={selectedShippingId || ''}
+                  onChange={async (e) => {
+                    const newId = e.target.value || null
+                    setSelectedShippingId(newId)
+                    setSavingAddresses(true)
+                    try {
+                      await db.from('rfqs').update({ shipping_address_id: newId }).eq('id', rfq.id)
+                      onUpdate({ ...rfq, shipping_address_id: newId })
+                    } catch (err) {
+                      console.error('Failed to update shipping address:', err)
+                    } finally {
+                      setSavingAddresses(false)
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+                >
+                  <option value="">Select shipping address...</option>
+                  {shippingAddresses.map(addr => (
+                    <option key={addr.id} value={addr.id}>
+                      {addr.label} {addr.is_default ? '(Default)' : ''} - {addr.city}, {addr.state || addr.country}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedShippingId && (() => {
+                const addr = shippingAddresses.find(a => a.id === selectedShippingId)
+                return addr ? (
+                  <div className="mt-2 text-[11px] text-plm-fg-muted bg-plm-highlight/50 rounded p-2">
+                    {addr.attention_to && <div>ATTN: {addr.attention_to}</div>}
+                    <div>{addr.address_line1}</div>
+                    {addr.address_line2 && <div>{addr.address_line2}</div>}
+                    <div>{addr.city}{addr.state && `, ${addr.state}`} {addr.postal_code}</div>
+                  </div>
+                ) : null
+              })()}
+            </div>
+
+            {/* Dates */}
             <div>
               <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">Due Date</label>
               <input

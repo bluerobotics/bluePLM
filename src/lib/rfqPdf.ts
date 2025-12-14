@@ -3,9 +3,22 @@
 
 import type { RFQ, RFQItem } from '@/types/rfq'
 
+export interface AddressInfo {
+  label?: string
+  attention_to?: string | null
+  address_line1: string
+  address_line2?: string | null
+  city: string
+  state?: string | null
+  postal_code?: string | null
+  country?: string
+  phone?: string | null
+}
+
 export interface OrgBranding {
   name: string
   logo_url?: string | null
+  // Legacy address fields (fallback if no specific addresses provided)
   address_line1?: string | null
   address_line2?: string | null
   city?: string | null
@@ -15,6 +28,9 @@ export interface OrgBranding {
   phone?: string | null
   website?: string | null
   contact_email?: string | null
+  // New specific addresses
+  billing_address?: AddressInfo | null
+  shipping_address?: AddressInfo | null
   rfq_settings?: {
     default_payment_terms?: string
     default_incoterms?: string
@@ -33,11 +49,36 @@ interface RFQPdfOptions {
   org: OrgBranding
 }
 
+// Helper to format an address
+function formatAddress(addr: AddressInfo | null | undefined): string[] {
+  if (!addr) return []
+  return [
+    addr.attention_to ? `ATTN: ${addr.attention_to}` : null,
+    addr.address_line1,
+    addr.address_line2,
+    [addr.city, addr.state, addr.postal_code].filter(Boolean).join(', '),
+    addr.country && addr.country !== 'USA' ? addr.country : null
+  ].filter(Boolean) as string[]
+}
+
 // Generate HTML content for the RFQ
 function generateRFQHtml({ rfq, items, org }: RFQPdfOptions): string {
   const settings = org.rfq_settings || {}
   
-  // Build address string
+  // Build billing address - use specific billing_address if available, else fall back to legacy
+  const billingAddress = org.billing_address || (org.address_line1 ? {
+    address_line1: org.address_line1,
+    address_line2: org.address_line2,
+    city: org.city || '',
+    state: org.state,
+    postal_code: org.postal_code,
+    country: org.country
+  } : null)
+  
+  // Build shipping address - use specific shipping_address if available
+  const shippingAddress = org.shipping_address
+  
+  // Legacy address parts for company info header
   const addressParts = [
     org.address_line1,
     org.address_line2,
@@ -201,6 +242,33 @@ function generateRFQHtml({ rfq, items, org }: RFQPdfOptions): string {
     .meta-value {
       font-size: 12px;
       font-weight: 500;
+    }
+    
+    .addresses-section {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 25px;
+    }
+    
+    .address-box {
+      flex: 1;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+    
+    .address-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .address-content {
+      font-size: 11px;
+      line-height: 1.5;
     }
     
     .section-title {
@@ -383,6 +451,27 @@ function generateRFQHtml({ rfq, items, org }: RFQPdfOptions): string {
     <div class="notes-section">
       <div class="section-title">Project Description</div>
       <div class="notes-content">${escapeHtml(rfq.description)}</div>
+    </div>
+  ` : ''}
+  
+  ${(billingAddress || shippingAddress) ? `
+    <div class="addresses-section">
+      ${billingAddress ? `
+        <div class="address-box">
+          <div class="address-label">Bill To:</div>
+          <div class="address-content">
+            ${formatAddress(billingAddress).map(p => escapeHtml(p)).join('<br>')}
+          </div>
+        </div>
+      ` : ''}
+      ${shippingAddress ? `
+        <div class="address-box">
+          <div class="address-label">Ship To:</div>
+          <div class="address-content">
+            ${formatAddress(shippingAddress).map(p => escapeHtml(p)).join('<br>')}
+          </div>
+        </div>
+      ` : ''}
     </div>
   ` : ''}
   

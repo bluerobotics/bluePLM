@@ -27,8 +27,8 @@ interface ApiCallRecord {
   duration: number
 }
 
-const API_URL_KEY = 'bluepdm_api_url'
-const API_HISTORY_KEY = 'bluepdm_api_history'
+const API_URL_KEY = 'blueplm_api_url'
+const API_HISTORY_KEY = 'blueplm_api_history'
 
 export function ApiSettings() {
   const { user, organization, setOrganization, addToast } = usePDMStore()
