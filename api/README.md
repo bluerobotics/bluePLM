@@ -2,6 +2,8 @@
 
 Integration API for external systems (ERP, CI/CD, automation) built with [Fastify](https://fastify.dev/) and TypeScript.
 
+**Package:** `ghcr.io/bluerobotics/blueplm-api`
+
 > **Note**: This API is designed for **integrations**, not daily app use.
 > - Desktop app users → Direct to Supabase (faster)
 > - SolidWorks add-in → Direct to Supabase (faster)  
