@@ -3545,7 +3545,8 @@ export async function buildServer(): Promise<FastifyInstance> {
             updated: { type: 'number' },
             skipped: { type: 'number' },
             errors: { type: 'number' },
-            message: { type: 'string' }
+            message: { type: 'string' },
+            debug: { type: 'object', additionalProperties: true }
           }
         }
       }
