@@ -724,9 +724,17 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       const { data: { user }, error } = await supabase.auth.getUser(token)
       
       if (error || !user) {
+        // Log detailed auth failure for debugging
+        console.error('[Auth] Token verification failed:', {
+          error: error?.message,
+          errorCode: error?.code,
+          hasUser: !!user,
+          tokenPrefix: token.substring(0, 20) + '...'
+        })
         reply.code(401).send({ 
           error: 'Invalid token',
-          message: error?.message || 'Token verification failed'
+          message: error?.message || 'Token verification failed',
+          hint: 'Ensure API server SUPABASE_URL matches your app\'s Supabase project'
         })
         throw new Error('Token verification failed')
       }
@@ -924,13 +932,18 @@ export async function buildServer(): Promise<FastifyInstance> {
         }
       }
     }
-  }, async () => ({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    supabase: SUPABASE_URL ? 'configured' : 'not configured',
-    version: '2.0.0',
-    build: process.env.RAILWAY_GIT_COMMIT_SHA?.substring(0, 7) || process.env.RENDER_GIT_COMMIT?.substring(0, 7) || null
-  }))
+  }, async () => {
+    // Extract project ID from Supabase URL for debugging (e.g., https://abcdefgh.supabase.co -> abcdefgh)
+    const supabaseProject = SUPABASE_URL ? SUPABASE_URL.match(/https:\/\/([^.]+)\.supabase/)?.[1] || 'custom' : null
+    return {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      supabase: SUPABASE_URL ? 'configured' : 'not configured',
+      supabase_project: supabaseProject, // Shows project ID for verification
+      version: '2.0.0',
+      build: process.env.RAILWAY_GIT_COMMIT_SHA?.substring(0, 7) || process.env.RENDER_GIT_COMMIT?.substring(0, 7) || null
+    }
+  })
 
   // ============================================
   // Auth Routes
@@ -3271,7 +3284,8 @@ export async function buildServer(): Promise<FastifyInstance> {
           database: { type: 'string', description: 'Odoo database name' },
           username: { type: 'string', description: 'Odoo username (email)' },
           api_key: { type: 'string', description: 'Odoo API key' },
-          auto_sync: { type: 'boolean', default: false }
+          auto_sync: { type: 'boolean', default: false },
+          skip_test: { type: 'boolean', default: false, description: 'Save without testing connection' }
         }
       }
     },
@@ -3284,28 +3298,36 @@ export async function buildServer(): Promise<FastifyInstance> {
       return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can configure integrations' })
     }
     
-    const { url, database, username, api_key, auto_sync } = request.body as {
+    const { url, database, username, api_key, auto_sync, skip_test } = request.body as {
       url: string
       database: string
       username: string
       api_key: string
       auto_sync?: boolean
+      skip_test?: boolean
     }
     
     // Normalize URL (add https:// if missing)
     const normalizedUrl = normalizeOdooUrl(url)
     
-    // Test connection to Odoo
-    try {
-      const testResult = await testOdooConnection(normalizedUrl, database, username, api_key)
-      if (!testResult.success) {
-        return reply.code(400).send({ error: 'Connection failed', message: testResult.error })
+    let isConnected = false
+    let connectionError: string | null = null
+    
+    // Test connection to Odoo (unless skip_test is true)
+    if (!skip_test) {
+      try {
+        const testResult = await testOdooConnection(normalizedUrl, database, username, api_key)
+        if (testResult.success) {
+          isConnected = true
+        } else {
+          connectionError = testResult.error || 'Connection failed'
+        }
+      } catch (err) {
+        connectionError = String(err)
       }
-    } catch (err) {
-      return reply.code(400).send({ error: 'Connection failed', message: String(err) })
     }
     
-    // Upsert integration settings (store normalized URL)
+    // Always save the settings (even if connection failed)
     const { error } = await supabase
       .from('organization_integrations')
       .upsert({
@@ -3314,8 +3336,9 @@ export async function buildServer(): Promise<FastifyInstance> {
         settings: { url: normalizedUrl, database, username },
         credentials_encrypted: api_key, // In production, encrypt this
         is_active: true,
-        is_connected: true,
-        last_connected_at: new Date().toISOString(),
+        is_connected: isConnected,
+        last_connected_at: isConnected ? new Date().toISOString() : null,
+        last_error: connectionError,
         auto_sync: auto_sync || false,
         updated_by: request.user.id
       }, {
@@ -3324,7 +3347,13 @@ export async function buildServer(): Promise<FastifyInstance> {
     
     if (error) throw error
     
-    return { success: true, message: 'Odoo integration configured successfully' }
+    if (skip_test) {
+      return { success: true, message: 'Odoo credentials saved (connection not tested)' }
+    } else if (isConnected) {
+      return { success: true, message: 'Odoo integration configured and connected!' }
+    } else {
+      return { success: true, message: `Credentials saved but connection failed: ${connectionError}`, connection_error: connectionError }
+    }
   })
 
   // Test Odoo connection
