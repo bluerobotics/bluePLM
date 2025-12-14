@@ -11,7 +11,6 @@ export { OdooSettings } from './OdooSettings'
 export { SlackSettings } from './SlackSettings'
 export { WebhooksSettings } from './WebhooksSettings'
 export { ApiSettings } from './ApiSettings'
-export { PreferencesSettings } from './PreferencesSettings'
 export { LogsSettings } from './LogsSettings'
 export { AboutSettings } from './AboutSettings'
 

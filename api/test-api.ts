@@ -158,9 +158,9 @@ async function runTests() {
   })
 
   // If no token, try to use env var
-  if (!accessToken && process.env.BLUEPDM_TOKEN) {
-    accessToken = process.env.BLUEPDM_TOKEN
-    log('dim', '    Using BLUEPDM_TOKEN from environment')
+  if (!accessToken && process.env.BLUEPLM_TOKEN) {
+    accessToken = process.env.BLUEPLM_TOKEN
+    log('dim', '    Using BLUEPLM_TOKEN from environment')
   }
 
   const hasAuth = !!accessToken
@@ -367,7 +367,7 @@ async function runTests() {
   if (skipped > 0 && !hasAuth) {
     console.log('\n  💡 To run authenticated tests:')
     console.log('     npx tsx api/test-api.ts --email=your@email.com --password=yourpass')
-    console.log('     or set BLUEPDM_TOKEN environment variable')
+    console.log('     or set BLUEPLM_TOKEN environment variable')
   }
   
   console.log('')

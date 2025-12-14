@@ -3998,7 +3998,7 @@ ipcMain.on('cli-response', (_, { requestId, result }) => {
 
 // Start CLI server when app is ready (only in dev mode or if env var is set)
 app.whenReady().then(() => {
-  if (isDev || process.env.BLUEPDM_CLI === '1') {
+  if (isDev || process.env.BLUEPLM_CLI === '1') {
     startCliServer()
   }
 })
