@@ -708,22 +708,22 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     const authHeader = request.headers.authorization
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      reply.code(401).send({ 
+      console.warn('[Auth] Missing or invalid auth header')
+      return reply.code(401).send({ 
         error: 'Unauthorized',
         message: 'Missing or invalid Authorization header'
       })
-      throw new Error('Unauthorized')
     }
     
     const token = authHeader.substring(7)
     
     // Check for literal "undefined" string (frontend bug protection)
     if (!token || token === 'undefined' || token === 'null') {
-      reply.code(401).send({ 
+      console.warn('[Auth] Empty or invalid token string')
+      return reply.code(401).send({ 
         error: 'Unauthorized',
         message: 'Invalid or missing access token'
       })
-      throw new Error('Invalid token')
     }
     
     try {
@@ -738,12 +738,11 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
           hasUser: !!user,
           tokenPrefix: token.substring(0, 20) + '...'
         })
-        reply.code(401).send({ 
+        return reply.code(401).send({ 
           error: 'Invalid token',
           message: error?.message || 'Token verification failed',
           hint: 'Ensure API server SUPABASE_URL matches your app\'s Supabase project'
         })
-        throw new Error('Token verification failed')
       }
       
       const { data: profile, error: profileError } = await supabase
@@ -753,34 +752,32 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         .single()
       
       if (profileError || !profile) {
-        reply.code(401).send({ 
+        console.error('[Auth] Profile lookup failed:', profileError?.message)
+        return reply.code(401).send({ 
           error: 'Profile not found',
           message: 'User profile does not exist'
         })
-        throw new Error('Profile not found')
       }
       
       if (!profile.org_id) {
-        reply.code(403).send({ 
+        console.warn('[Auth] User has no organization:', profile.email)
+        return reply.code(403).send({ 
           error: 'No organization',
           message: 'User is not a member of any organization'
         })
-        throw new Error('No organization')
       }
       
+      // Success - set user on request
       request.user = profile as UserProfile
       request.supabase = supabase
       request.accessToken = token
+      console.log('[Auth] Authenticated:', profile.email)
     } catch (err) {
-      // Only handle unexpected errors, not our thrown auth errors
-      if (!reply.sent) {
-        request.log.error(err, 'Authentication error')
-        reply.code(500).send({ 
-          error: 'Auth error',
-          message: err instanceof Error ? err.message : 'Unknown error'
-        })
-      }
-      throw err
+      console.error('[Auth] Unexpected error:', err)
+      return reply.code(500).send({ 
+        error: 'Auth error',
+        message: err instanceof Error ? err.message : 'Unknown error'
+      })
     }
   })
 }
