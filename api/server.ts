@@ -1,7 +1,7 @@
 #!/usr/bin/env npx ts-node
 /**
  * BluePLM REST API Server (Fastify + TypeScript)
- * Build: 2025-12-14T06:15
+ * Build: 2025-12-14T06:20-nocache
  * 
  * Integration API for external systems (ERP, CI/CD, Slack, etc.)
  * 
