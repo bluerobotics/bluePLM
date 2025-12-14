@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Image, ExternalLink, FolderOpen, Info, Key, Download, Play, Square, Loader2, Zap } from 'lucide-react'
+import { Image, ExternalLink, FolderOpen, Info, Key, Download, Play, Square, Loader2, Zap, Check } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
+import { supabase } from '../../lib/supabase'
 
 // Hook to manage SolidWorks service connection (minimal version for settings)
 function useSolidWorksServiceStatus() {
@@ -78,6 +79,9 @@ function useSolidWorksServiceStatus() {
 export function SolidWorksSettings() {
   const { 
     organization,
+    setOrganization,
+    user,
+    addToast,
     cadPreviewMode, 
     setCadPreviewMode,
     solidworksPath,
@@ -87,6 +91,7 @@ export function SolidWorksSettings() {
   } = usePDMStore()
   
   const { status, isStarting, isStopping, startService, stopService } = useSolidWorksServiceStatus()
+  const isAdmin = user?.role === 'admin'
 
   return (
     <div className="space-y-6">
@@ -252,44 +257,95 @@ export function SolidWorksSettings() {
       {/* Document Manager License */}
       <div className="space-y-3">
         <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-          Document Manager License
+          Document Manager License (Organization-wide)
         </label>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-          <div className="flex items-center gap-3 mb-3">
-            <Key 
-              size={22} 
-              className={organization?.settings?.solidworks_dm_license_key ? 'text-green-400' : 'text-plm-fg-muted'} 
-            />
-            <span className="text-base text-plm-fg">
-              {organization?.settings?.solidworks_dm_license_key ? (
-                <span className="text-green-400 font-medium">Configured</span>
-              ) : (
-                <span className="text-plm-fg-muted">Not configured</span>
-              )}
-            </span>
-          </div>
-          <div className="text-sm text-plm-fg-muted space-y-2">
-            {organization?.settings?.solidworks_dm_license_key ? (
-              <p>Using fast Document Manager API for file reading.</p>
-            ) : (
-              <p>Using SolidWorks API (slower, launches SW in background).</p>
-            )}
-            <p className="pt-1">
-              DM license key is configured at the organization level.{' '}
-              <a
-                href="https://customerportal.solidworks.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-plm-accent hover:underline"
-                onClick={(e) => {
-                  e.preventDefault()
-                  window.electronAPI?.openFile('https://customerportal.solidworks.com/')
-                }}
-              >
-                Get key from SOLIDWORKS Customer Portal
-              </a>
-            </p>
-          </div>
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
+          {isAdmin ? (
+            <>
+              <p className="text-sm text-plm-fg-muted">
+                Enter your organization's Document Manager API license key to enable direct file reading.
+              </p>
+              <div className="space-y-2">
+                <label className="text-sm text-plm-fg-dim">License Key</label>
+                <input
+                  type="password"
+                  value={organization?.settings?.solidworks_dm_license_key || ''}
+                  onChange={async (e) => {
+                    const newKey = e.target.value || null
+                    if (!organization) return
+                    try {
+                      const { error } = await supabase
+                        .from('organizations')
+                        .update({ 
+                          settings: { 
+                            ...organization.settings, 
+                            solidworks_dm_license_key: newKey 
+                          } 
+                        })
+                        .eq('id', organization.id)
+                      if (error) throw error
+                      setOrganization({
+                        ...organization,
+                        settings: { ...organization.settings, solidworks_dm_license_key: newKey || undefined }
+                      })
+                      addToast('success', 'SolidWorks license key updated')
+                    } catch (err) {
+                      addToast('error', 'Failed to save license key')
+                    }
+                  }}
+                  placeholder="Enter your organization's DM API license key"
+                  className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded-lg text-base text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent font-mono"
+                />
+                <p className="text-sm text-plm-fg-dim">
+                  Free with SolidWorks subscription.{' '}
+                  <a 
+                    href="https://customerportal.solidworks.com/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-plm-accent hover:underline"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      window.electronAPI?.openFile('https://customerportal.solidworks.com/')
+                    }}
+                  >
+                    Request key →
+                  </a>
+                </p>
+                {organization?.settings?.solidworks_dm_license_key && (
+                  <div className="flex items-center gap-2 text-sm text-green-400">
+                    <Check size={14} />
+                    Direct file access enabled for all org users
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <Key 
+                  size={22} 
+                  className={organization?.settings?.solidworks_dm_license_key ? 'text-green-400' : 'text-plm-fg-muted'} 
+                />
+                <span className="text-base text-plm-fg">
+                  {organization?.settings?.solidworks_dm_license_key ? (
+                    <span className="text-green-400 font-medium">Configured</span>
+                  ) : (
+                    <span className="text-plm-fg-muted">Not configured</span>
+                  )}
+                </span>
+              </div>
+              <div className="text-sm text-plm-fg-muted space-y-2">
+                {organization?.settings?.solidworks_dm_license_key ? (
+                  <p>Using fast Document Manager API for file reading.</p>
+                ) : (
+                  <p>Using SolidWorks API (slower, launches SW in background).</p>
+                )}
+                <p className="pt-1 text-plm-fg-dim">
+                  Ask an organization admin to configure the license key.
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

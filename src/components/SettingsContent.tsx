@@ -1,6 +1,5 @@
 import {
   AccountSettings,
-  VaultSettings,
   OrganizationSettings,
   CompanyProfileSettings,
   RFQSettings,
@@ -16,7 +15,7 @@ import {
   AboutSettings
 } from './settings'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'company-profile' | 'rfq' | 'metadata-columns' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'logs' | 'about'
+type SettingsTab = 'account' | 'organization' | 'company-profile' | 'rfq' | 'metadata-columns' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'logs' | 'about'
 
 interface SettingsContentProps {
   activeTab: SettingsTab
@@ -27,8 +26,6 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
     switch (activeTab) {
       case 'account':
         return <AccountSettings />
-      case 'vault':
-        return <VaultSettings />
       case 'organization':
         return <OrganizationSettings />
       case 'company-profile':

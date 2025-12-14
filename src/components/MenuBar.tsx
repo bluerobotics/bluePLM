@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2 } from 'lucide-react'
+import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, Settings } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
 import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization, getActiveSessions, endRemoteSession, UserSession } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
@@ -40,7 +40,8 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     setSearchType,
     connectedVaults,
     activeVaultId,
-    switchVault
+    switchVault,
+    setActiveView
   } = usePDMStore()
   const [appVersion, setAppVersion] = useState('')
   const [isSigningIn, setIsSigningIn] = useState(false)
@@ -594,6 +595,20 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                   </div>
                 </div>
 
+                {/* Profile & Settings */}
+                <div className="py-1 border-b border-plm-border">
+                  <button 
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      setActiveView('settings')
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
+                  >
+                    <Settings size={14} />
+                    Settings
+                  </button>
+                </div>
+
                 {/* Sessions */}
                 <div className="px-4 py-2 border-b border-plm-border">
                   <div className="text-[10px] uppercase tracking-wide text-plm-fg-dim mb-1.5">Sessions</div>
@@ -601,6 +616,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                     {sessions.map(session => {
                       const isCurrentDevice = session.machine_id === currentMachineId
                       const isSigningOut = signingOutSessionId === session.id
+                      // Format last seen for other devices
+                      const formatLastSeen = (lastSeen: string) => {
+                        const diff = Math.floor((Date.now() - new Date(lastSeen).getTime()) / 1000)
+                        if (diff < 60) return 'now'
+                        if (diff < 120) return '1m ago'
+                        return `${Math.floor(diff / 60)}m ago`
+                      }
                       return (
                         <div 
                           key={session.id}
@@ -608,6 +630,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                             isCurrentDevice ? 'bg-plm-accent/10' : ''
                           }`}
                         >
+                          <span className="w-2 h-2 rounded-full bg-plm-success flex-shrink-0" />
                           <span className={isCurrentDevice ? 'text-plm-accent' : 'text-plm-fg-muted'}>
                             {getPlatformIcon(session.platform)}
                           </span>
@@ -616,24 +639,29 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                           </span>
                           {isCurrentDevice ? (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-plm-accent/20 text-plm-accent">
-                              this device
+                              now
                             </span>
                           ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRemoteSignOut(session.id)
-                              }}
-                              disabled={isSigningOut}
-                              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-plm-bg-lighter hover:bg-plm-error/20 text-plm-fg-dim hover:text-plm-error transition-colors disabled:opacity-50"
-                            >
-                              {isSigningOut ? (
-                                <Loader2 size={10} className="animate-spin" />
-                              ) : (
-                                <LogOut size={10} />
-                              )}
-                              <span>Sign out</span>
-                            </button>
+                            <>
+                              <span className="text-[9px] text-plm-fg-dim">
+                                {formatLastSeen(session.last_seen)}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRemoteSignOut(session.id)
+                                }}
+                                disabled={isSigningOut}
+                                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-plm-bg-lighter hover:bg-plm-error/20 text-plm-fg-dim hover:text-plm-error transition-colors disabled:opacity-50"
+                              >
+                                {isSigningOut ? (
+                                  <Loader2 size={10} className="animate-spin" />
+                                ) : (
+                                  <LogOut size={10} />
+                                )}
+                                <span>Sign out</span>
+                              </button>
+                            </>
                           )}
                         </div>
                       )

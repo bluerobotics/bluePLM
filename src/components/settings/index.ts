@@ -1,5 +1,4 @@
 export { AccountSettings } from './AccountSettings'
-export { VaultSettings } from './VaultSettings'
 export { OrganizationSettings } from './OrganizationSettings'
 export { CompanyProfileSettings } from './CompanyProfileSettings'
 export { RFQSettings } from './RFQSettings'

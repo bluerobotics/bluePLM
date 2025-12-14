@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'metadata-columns' | 'company-profile' | 'rfq' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'logs' | 'about'
+type SettingsTab = 'account' | 'organization' | 'metadata-columns' | 'company-profile' | 'rfq' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'logs' | 'about'
 
 type IntegrationStatus = 'online' | 'offline' | 'not-configured' | 'coming-soon'
 
@@ -26,7 +26,6 @@ const settingsSections: SettingsSection[] = [
   {
     category: 'Workspace',
     items: [
-      { id: 'vault', label: 'Vault' },
       { id: 'organization', label: 'Organization' },
       { id: 'company-profile', label: 'Company Profile' },
       { id: 'metadata-columns', label: 'File Metadata' },

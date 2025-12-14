@@ -8,6 +8,7 @@ import {
   Loader2, 
   Plus, 
   Folder, 
+  FolderOpen,
   Trash2, 
   Star, 
   Pencil, 
@@ -23,7 +24,6 @@ import {
   Eye,
   Lock,
   UserMinus,
-  FileBox,
   AlertTriangle
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../../stores/pdmStore'
@@ -802,6 +802,22 @@ See you on the team!`
                 </div>
                 {renamingVaultId !== vault.id && (
                   <div className="flex items-center gap-2">
+                    {/* Show in folder button (only for connected vaults) */}
+                    {isVaultConnected(vault.id) && (
+                      <button
+                        onClick={() => {
+                          const connectedVault = connectedVaults.find(v => v.id === vault.id)
+                          if (connectedVault?.localPath) {
+                            window.electronAPI?.showInExplorer(connectedVault.localPath)
+                          }
+                        }}
+                        className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
+                        title="Show in folder"
+                      >
+                        <FolderOpen size={14} className="text-plm-fg-muted" />
+                      </button>
+                    )}
+                    
                     {/* Connect/Disconnect button */}
                     {isVaultConnected(vault.id) ? (
                       <button
@@ -900,7 +916,7 @@ See you on the team!`
             <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
           </div>
         ) : (
-          <div className="space-y-1 max-h-[300px] overflow-y-auto">
+          <div className="space-y-1 max-h-[600px] overflow-y-auto">
             {orgUsers.map(orgUser => {
               const RoleIcon = getRoleIcon(orgUser.role)
               const isCurrentUser = orgUser.id === user?.id
@@ -1046,73 +1062,6 @@ See you on the team!`
           </div>
         )}
       </div>
-
-      {/* SolidWorks DM License (Admin only) */}
-      {user?.role === 'admin' && (
-        <div className="space-y-3 pt-4 border-t border-plm-border">
-          <div className="flex items-center gap-2 text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-            <FileBox size={16} />
-            SolidWorks Integration
-          </div>
-          <p className="text-base text-plm-fg-muted">
-            Enter your organization's Document Manager API license key to enable direct file reading.
-          </p>
-          
-          <div className="space-y-2">
-            <label className="text-sm text-plm-fg-dim">Document Manager License Key</label>
-            <input
-              type="password"
-              value={organization?.settings?.solidworks_dm_license_key || ''}
-              onChange={async (e) => {
-                const newKey = e.target.value || null
-                if (!organization) return
-                try {
-                  const { error } = await supabase
-                    .from('organizations')
-                    .update({ 
-                      settings: { 
-                        ...organization.settings, 
-                        solidworks_dm_license_key: newKey 
-                      } 
-                    })
-                    .eq('id', organization.id)
-                  if (error) throw error
-                  setOrganization({
-                    ...organization,
-                    settings: { ...organization.settings, solidworks_dm_license_key: newKey || undefined }
-                  })
-                  addToast('success', 'SolidWorks license key updated')
-                } catch (err) {
-                  addToast('error', 'Failed to save license key')
-                }
-              }}
-              placeholder="Enter your organization's DM API license key"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-base text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent font-mono"
-            />
-            <p className="text-sm text-plm-fg-dim">
-              Free with SolidWorks subscription.{' '}
-              <a 
-                href="https://customerportal.solidworks.com/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-plm-accent hover:underline"
-                onClick={(e) => {
-                  e.preventDefault()
-                  window.electronAPI?.openFile('https://customerportal.solidworks.com/')
-                }}
-              >
-                Request key →
-              </a>
-            </p>
-            {organization?.settings?.solidworks_dm_license_key && (
-              <div className="flex items-center gap-2 text-sm text-green-400">
-                <Check size={14} />
-                Direct file access enabled for all org users
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Delete Vault Dialog */}
       {deletingVault && (

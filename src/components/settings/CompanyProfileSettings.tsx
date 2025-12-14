@@ -269,7 +269,7 @@ export function CompanyProfileSettings() {
               <img 
                 src={profile.logo_url} 
                 alt="Company logo" 
-                className="h-16 max-w-48 object-contain rounded border border-plm-border bg-white p-2"
+                className="h-16 max-w-48 object-contain rounded border border-plm-border p-2"
               />
               <button
                 onClick={handleRemoveLogo}

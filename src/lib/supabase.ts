@@ -3843,15 +3843,15 @@ export async function endRemoteSession(sessionId: string): Promise<{ success: bo
 export async function getActiveSessions(userId: string): Promise<{ sessions: UserSession[]; error?: string }> {
   const client = getSupabaseClient()
   
-  // Get sessions active within the last 2 minutes
-  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  // Get sessions active within the last 5 minutes
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
   
   const { data, error } = await client
     .from('user_sessions')
     .select('*')
     .eq('user_id', userId)
     .eq('is_active', true)
-    .gte('last_seen', twoMinutesAgo)
+    .gte('last_seen', fiveMinutesAgo)
     .order('last_seen', { ascending: false })
   
   if (error) {
