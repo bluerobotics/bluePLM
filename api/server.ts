@@ -40,6 +40,7 @@ import Fastify, {
   FastifyReply,
   FastifyPluginAsync 
 } from 'fastify'
+import fp from 'fastify-plugin'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import swagger from '@fastify/swagger'
@@ -697,7 +698,7 @@ async function triggerWebhooks(
 // Authentication Plugin
 // ============================================
 
-const authPlugin: FastifyPluginAsync = async (fastify) => {
+const authPluginImpl: FastifyPluginAsync = async (fastify) => {
   fastify.decorateRequest('user', null)
   fastify.decorateRequest('supabase', null)
   fastify.decorateRequest('accessToken', null)
@@ -786,6 +787,11 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     }
   })
 }
+
+// Wrap with fastify-plugin to make decorators available to parent scope
+const authPlugin = fp(authPluginImpl, {
+  name: 'auth-plugin'
+})
 
 // ============================================
 // Build Server
