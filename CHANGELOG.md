@@ -2,7 +2,7 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [2.2.0] - UNRELEASED
+## [2.2.0] - 2025-12-14
 
 ### Added
 - **Webhooks Integration**: Send HTTP notifications to external services when events occur in BluePLM
@@ -14,6 +14,70 @@ All notable changes to BluePLM will be documented in this file.
   - Delivery history with status tracking (success, failed, retrying)
   - Auto-retry failed deliveries with configurable retry count and delay
   - Enable/disable toggle per webhook
+
+- **RFQ System Enhancements**:
+  - SolidWorks configuration selection for RFQ items
+  - File size tracking for STEP and PDF exports
+  - Cloud storage paths for exported files
+  - Quality report requirement flag per RFQ
+  - Billing and shipping address selection per RFQ
+
+- **Organization Addresses**: New address management system for billing and shipping
+  - Multiple billing and shipping addresses per organization
+  - Default address selection per type
+  - Company name and contact fields for billing addresses
+  - Attention-to field for shipping addresses
+  - Address picker in RFQ creation flow
+  - Auto-migration of existing organization address to new system
+
+- **Backup System Enhancements**:
+  - Designated backup machine tracking (machine ID, name, platform, user)
+  - Backup request queue with requester tracking
+  - Running backup status with start time
+  - Scheduled backup support with timezone selection
+  - Enable/disable scheduled backups
+  - Heartbeat tracking for designated machines
+
+- **Odoo ERP Integration**: Sync vendors/suppliers from Odoo to BluePLM
+  - Configure Odoo connection in Settings → Integrations (admin-only)
+  - XML-RPC connection with API key authentication
+  - Sync suppliers from Odoo to BluePLM supplier database
+  - Auto-approve suppliers synced from Odoo
+  - Support for Odoo 14-17+ (adaptive query strategies)
+  - Connection test button and sync status tracking
+  - Last sync timestamp and count display
+
+- **Orphaned Checkout Resolution**: Handle files checked in from another machine
+  - Dialog appears when your checked-out file was force-checked-in elsewhere
+  - Four resolution options: Discard, Re-checkout, Backup, Upload as new version
+  - Multi-file support with "Apply to All" functionality
+  - File selection with checkboxes and expand/collapse details
+  - Clear visual indicators for processing state
+
+- **Device Sessions in Avatar Dropdown**: View and manage active sessions
+  - See all devices where you're logged in
+  - Current device indicator
+  - Quick access from user avatar menu
+
+- **Festive Themes**:
+  - **Christmas Theme** 🎄: Falling snow with opacity slider, twinkling stars, aurora background, Santa's sleigh with reindeer (periodic fly-by with toggle), floating controls panel
+  - **Halloween Theme** 🎃: Bonfire sparks with opacity/speed sliders, flying ghosts across top of screen, glowing pumpkins, spooky moon, orange/purple atmosphere
+
+### Changed
+- Rebranded from BluePDM to BluePLM throughout the application
+- Moved Integrations (Google Drive, Odoo) from sidebar to Settings
+- Reorganized settings navigation with cleaner layout
+- Device sessions moved to avatar dropdown from settings
+- Removed top-right settings button (settings now accessed via sidebar)
+- Removed vault page from settings, improved org settings UI
+
+### Fixed
+- Auto-updater now includes "Later" button with 24-hour reminder
+- Google Drive bugs and sidebar resizer issues
+- Activity bar button centering and icon jump on expand
+- API authentication middleware returning properly after sending response
+- API XML-RPC parser handling nested value tags correctly
+- Various API deployment and Docker build fixes
 
 ---
 
