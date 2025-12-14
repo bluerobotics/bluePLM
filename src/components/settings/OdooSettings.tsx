@@ -157,7 +157,7 @@ export function OdooSettings() {
     }
   }
   
-  const handleSave = async () => {
+  const handleSave = async (skipTest: boolean = false) => {
     if (!url || !database || !username || !apiKey) {
       addToast('warning', 'Please fill in all Odoo fields')
       return
@@ -166,35 +166,65 @@ export function OdooSettings() {
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
+      console.error('[OdooSettings] No auth token available')
       return
     }
 
+    console.log('=== ODOO SAVE DEBUG ===')
+    console.log('[OdooSettings] API URL:', apiUrl)
+    console.log('[OdooSettings] Full token:', token)
+    console.log('[OdooSettings] Token length:', token.length)
+    console.log('[OdooSettings] Authorization header:', `Bearer ${token.substring(0, 50)}...`)
+
     setIsSaving(true)
 
+    const requestUrl = `${apiUrl}/integrations/odoo`
+    const requestHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+    const requestBody = { 
+      url, 
+      database, 
+      username, 
+      api_key: apiKey,
+      skip_test: skipTest
+    }
+
+    console.log('[OdooSettings] Request URL:', requestUrl)
+    console.log('[OdooSettings] Request headers:', { ...requestHeaders, Authorization: requestHeaders.Authorization.substring(0, 30) + '...' })
+    console.log('[OdooSettings] Request body:', { ...requestBody, api_key: '***' })
+
     try {
-      const response = await fetch(`${apiUrl}/integrations/odoo`, {
+      const response = await fetch(requestUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          url, 
-          database, 
-          username, 
-          api_key: apiKey 
-        })
+        headers: requestHeaders,
+        body: JSON.stringify(requestBody)
       })
 
       const data = await response.json()
+      console.log('[OdooSettings] Response status:', response.status)
+      console.log('[OdooSettings] Response headers:', Object.fromEntries(response.headers.entries()))
+      console.log('[OdooSettings] Response data:', data)
+      console.log('=== END ODOO SAVE DEBUG ===')
 
       if (response.ok) {
-        addToast('success', 'Odoo integration configured successfully!')
+        if (data.connection_error) {
+          addToast('warning', `Saved! But connection failed: ${data.connection_error}`)
+        } else {
+          addToast('success', data.message || 'Odoo credentials saved!')
+        }
         loadSettings()
       } else {
-        addToast('error', data.message || data.error || 'Failed to save configuration')
+        // Show more detailed error for auth issues
+        if (response.status === 401) {
+          addToast('error', `Auth failed: ${data.message || 'Check API server Supabase config'}`)
+        } else {
+          addToast('error', data.message || data.error || 'Failed to save configuration')
+        }
       }
     } catch (err) {
+      console.error('[OdooSettings] Error:', err)
       addToast('error', `Error: ${err}`)
     } finally {
       setIsSaving(false)
@@ -431,22 +461,30 @@ export function OdooSettings() {
             )}
             
             {/* Action buttons */}
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={handleTest}
                 disabled={isTesting || !url || !database || !username || !apiKey}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
               >
                 {isTesting ? <Loader2 size={16} className="animate-spin" /> : <Plug size={16} />}
-                Test Connection
+                Test
               </button>
               <button
-                onClick={handleSave}
+                onClick={() => handleSave(true)}
                 disabled={isSaving || !url || !database || !username || !apiKey}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
               >
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                Save & Connect
+                Save
+              </button>
+              <button
+                onClick={() => handleSave(false)}
+                disabled={isSaving || !url || !database || !username || !apiKey}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                Save & Test
               </button>
             </div>
             
