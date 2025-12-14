@@ -412,6 +412,9 @@ interface OdooSupplier {
   active: boolean
 }
 
+// Store last XML responses for debugging
+let lastXmlResponses: string[] = []
+
 async function odooXmlRpc(
   url: string, 
   service: string, 
@@ -433,7 +436,16 @@ async function odooXmlRpc(
   }
   
   const xmlResponse = await response.text()
+  
+  // Store for debugging (keep last 5, truncate to 300 chars each)
+  lastXmlResponses.push(`${service}.${method}: ${xmlResponse.substring(0, 300)}...`)
+  if (lastXmlResponses.length > 5) lastXmlResponses.shift()
+  
   return parseXmlRpcResponse(xmlResponse)
+}
+
+function getLastXmlResponses(): string[] {
+  return lastXmlResponses
 }
 
 function buildXmlRpcRequest(method: string, params: unknown[]): string {
@@ -746,9 +758,13 @@ async function fetchOdooSuppliers(
     debug.suppliers_count = suppliers.length
     debug.timing_ms = Date.now() - startTime
     
+    // Include raw XML samples for debugging
+    (debug as any).raw_xml_samples = getLastXmlResponses()
+    
     return { success: true, suppliers, debug }
   } catch (err) {
     debug.timing_ms = Date.now() - startTime
+    ;(debug as any).raw_xml_samples = getLastXmlResponses()
     return { 
       success: false, 
       suppliers: [], 
