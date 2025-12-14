@@ -45,6 +45,7 @@ export function ApiSettings() {
   const [apiUrlInput, setApiUrlInput] = useState('')
   const [apiStatus, setApiStatus] = useState<'unknown' | 'online' | 'offline' | 'checking'>('unknown')
   const [apiVersion, setApiVersion] = useState<string | null>(null)
+  const [apiBuild, setApiBuild] = useState<string | null>(null)
   const [apiHistory, setApiHistory] = useState<ApiCallRecord[]>(() => {
     try {
       const stored = localStorage.getItem(API_HISTORY_KEY)
@@ -99,6 +100,7 @@ export function ApiSettings() {
         const data = await response.json()
         setApiStatus('online')
         setApiVersion(data.version || null)
+        setApiBuild(data.build || null)
         addApiCall('GET', '/health', response.status, duration)
       } else {
         setApiStatus('offline')
@@ -289,9 +291,14 @@ export function ApiSettings() {
                 {apiStatus === 'checking' && 'Checking...'}
                 {apiStatus === 'unknown' && 'Status Unknown'}
               </div>
-              <div className="text-sm text-pdm-fg-muted">
-                {apiVersion && `v${apiVersion} • `}
-                {lastChecked && `Checked ${lastChecked.toLocaleTimeString()}`}
+              <div className="text-sm text-pdm-fg-muted flex items-center gap-2 flex-wrap">
+                {apiVersion && <span>v{apiVersion}</span>}
+                {apiBuild && (
+                  <code className="px-1.5 py-0.5 bg-pdm-bg-secondary rounded text-xs font-mono text-pdm-accent">
+                    {apiBuild}
+                  </code>
+                )}
+                {lastChecked && <span>• Checked {lastChecked.toLocaleTimeString()}</span>}
               </div>
             </div>
           </div>

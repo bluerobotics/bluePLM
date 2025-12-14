@@ -899,7 +899,9 @@ export async function buildServer(): Promise<FastifyInstance> {
           properties: {
             status: { type: 'string' },
             timestamp: { type: 'string' },
-            supabase: { type: 'string' }
+            supabase: { type: 'string' },
+            version: { type: 'string' },
+            build: { type: ['string', 'null'] }
           }
         }
       }
@@ -907,7 +909,9 @@ export async function buildServer(): Promise<FastifyInstance> {
   }, async () => ({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    supabase: SUPABASE_URL ? 'configured' : 'not configured'
+    supabase: SUPABASE_URL ? 'configured' : 'not configured',
+    version: '2.0.0',
+    build: process.env.RAILWAY_GIT_COMMIT_SHA?.substring(0, 7) || process.env.RENDER_GIT_COMMIT?.substring(0, 7) || null
   }))
 
   // ============================================
