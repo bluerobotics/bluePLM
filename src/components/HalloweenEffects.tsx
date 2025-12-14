@@ -219,10 +219,12 @@ export function HalloweenEffects() {
     
     // Animate sparks floating upward
     const animate = () => {
-      const speedMultiplier = sparksSpeedRef.current / 100 // 0.1 to 1.0
+      // Speed multiplier: 10% = slow (0.3x), 100% = fast (3x)
+      const speedValue = sparksSpeedRef.current ?? 40
+      const speedMultiplier = 0.1 + (speedValue / 100) * 2.9 // Range: 0.1 to 3.0
       
       setSparks(prev => prev.map(spark => {
-        let newY = spark.y - spark.speed * 0.15 * (speedMultiplier * 2 + 0.2) // Speed controlled by slider
+        let newY = spark.y - spark.speed * 0.1 * speedMultiplier // Speed controlled by slider
         let newWobble = spark.wobble + spark.wobbleSpeed
         let newX = spark.x + Math.sin(newWobble) * 0.1 // Gentle side-to-side
         let newBaseOpacity = spark.baseOpacity
@@ -543,14 +545,14 @@ export function HalloweenEffects() {
             {/* Sparks speed slider */}
             <div className="px-1">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-plm-fg">💨 Speed</span>
-                <span className="text-plm-fg-muted">{sparksSpeed}%</span>
+                <span className="text-plm-fg">💨 Spark Speed</span>
+                <span className="text-plm-fg-muted">{sparksSpeed ?? 40}%</span>
               </div>
               <input
                 type="range"
                 min="10"
                 max="100"
-                value={sparksSpeed}
+                value={sparksSpeed ?? 40}
                 onChange={(e) => setSparksSpeed(Number(e.target.value))}
                 className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-orange-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
               />

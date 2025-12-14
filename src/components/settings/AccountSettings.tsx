@@ -196,7 +196,12 @@ export function AccountSettings() {
     )
   }
 
-  const otherSessions = sessions.filter(s => s.machine_id !== currentMachineId)
+  // Sort sessions so current device is first
+  const sortedSessions = [...sessions].sort((a, b) => {
+    if (a.machine_id === currentMachineId) return -1
+    if (b.machine_id === currentMachineId) return 1
+    return 0
+  })
 
   return (
     <div className="space-y-8">
@@ -242,15 +247,14 @@ export function AccountSettings() {
         </div>
       </section>
 
-      {/* Your Other Machines */}
+      {/* Sessions */}
       <section>
         <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
           Sessions
         </h2>
         <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
           <div className="px-4 py-3 border-b border-plm-border">
-            <h3 className="text-base font-semibold text-plm-fg">Your Other Machines</h3>
-            <p className="text-sm text-plm-fg-muted mt-0.5">
+            <p className="text-sm text-plm-fg-muted">
               Devices where you're currently signed in
             </p>
           </div>
@@ -261,40 +265,54 @@ export function AccountSettings() {
                 <Loader2 size={18} className="animate-spin mr-2" />
                 <span className="text-base">Loading sessions...</span>
               </div>
-            ) : otherSessions.length === 0 ? (
+            ) : sortedSessions.length === 0 ? (
               <div className="text-center py-4 text-plm-fg-muted text-base">
-                No other active sessions
+                No active sessions
               </div>
             ) : (
               <div className="space-y-2">
-                {otherSessions.map(session => (
-                  <div 
-                    key={session.id}
-                    className="flex items-center gap-3 p-3 bg-plm-bg-light rounded-lg border border-plm-border"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-plm-highlight flex items-center justify-center">
-                      {getPlatformIcon(session.platform)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-base font-medium text-plm-fg truncate">
-                        {session.machine_name}
+                {sortedSessions.map(session => {
+                  const isCurrentDevice = session.machine_id === currentMachineId
+                  return (
+                    <div 
+                      key={session.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border ${
+                        isCurrentDevice 
+                          ? 'bg-plm-accent/5 border-plm-accent/30' 
+                          : 'bg-plm-bg-light border-plm-border'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        isCurrentDevice ? 'bg-plm-accent/20' : 'bg-plm-highlight'
+                      }`}>
+                        {getPlatformIcon(session.platform)}
                       </div>
-                      <div className="text-sm text-plm-fg-muted flex items-center gap-2">
-                        <span className="capitalize">{session.platform || 'Unknown'}</span>
-                        {session.app_version && (
-                          <>
-                            <span className="text-plm-border">•</span>
-                            <span>v{session.app_version}</span>
-                          </>
-                        )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-medium text-plm-fg truncate flex items-center gap-2">
+                          {session.machine_name}
+                          {isCurrentDevice && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-accent/20 text-plm-accent font-medium">
+                              This device
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-plm-fg-muted flex items-center gap-2">
+                          <span className="capitalize">{session.platform || 'Unknown'}</span>
+                          {session.app_version && (
+                            <>
+                              <span className="text-plm-border">•</span>
+                              <span>v{session.app_version}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-sm text-plm-fg-muted flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full bg-plm-success ${isCurrentDevice ? 'animate-pulse' : ''}`} />
+                        {formatLastSeen(session.last_seen)}
                       </div>
                     </div>
-                    <div className="text-sm text-plm-fg-muted flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-plm-success" />
-                      {formatLastSeen(session.last_seen)}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
