@@ -1,5 +1,5 @@
 -- ============================================
--- BluePDM: Fix Unique Constraint for Soft Delete
+-- BluePLM: Fix Unique Constraint for Soft Delete
 -- ============================================
 -- 
 -- PROBLEM:

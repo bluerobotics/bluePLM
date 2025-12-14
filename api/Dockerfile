@@ -1,11 +1,11 @@
-# BluePDM API Server
+# BluePLM API Server
 # Deploy this image to Railway, Render, Fly.io, etc.
 #
 # Usage:
 #   docker run -p 3001:3001 \
 #     -e SUPABASE_URL=https://xxx.supabase.co \
 #     -e SUPABASE_KEY=your-anon-key \
-#     ghcr.io/bluerobotics/bluepdm-api:latest
+#     ghcr.io/bluerobotics/blueplm-api:latest
 
 FROM node:20-alpine
 

@@ -18,6 +18,17 @@ import {
   Building2,
   Globe
 } from 'lucide-react'
+
+// Custom Google Drive icon
+function GoogleDriveIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M8.24 2L1 14.19L4.24 19.83L11.47 7.64L8.24 2Z" fill="currentColor"/>
+      <path d="M15.76 2H8.24L15.47 14.19H22.99L15.76 2Z" fill="currentColor" fillOpacity="0.7"/>
+      <path d="M1 14.19L4.24 19.83H19.76L22.99 14.19H1Z" fill="currentColor" fillOpacity="0.4"/>
+    </svg>
+  )
+}
 import { createContext, useContext, useEffect, useState } from 'react'
 import { usePDMStore, SidebarView } from '../stores/pdmStore'
 import { getUnreadNotificationCount, getPendingReviewsForUser } from '../lib/supabase'
@@ -49,14 +60,14 @@ function ActivityItem({ icon, view, title, badge }: ActivityItemProps) {
         onMouseLeave={() => setShowTooltip(false)}
         className={`relative h-11 w-full flex items-center gap-3 px-[9px] rounded-lg transition-colors overflow-hidden ${
           isActive
-            ? 'text-pdm-accent bg-pdm-highlight'
-            : 'text-pdm-fg-dim hover:text-pdm-fg hover:bg-pdm-highlight'
+            ? 'text-plm-accent bg-plm-highlight'
+            : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight'
         }`}
       >
         {/* Tooltip for collapsed state */}
         {showTooltip && !isExpanded && (
           <div className="absolute left-full ml-3 z-50 pointer-events-none">
-            <div className="px-2.5 py-1.5 bg-pdm-fg text-pdm-bg text-sm font-medium rounded whitespace-nowrap">
+            <div className="px-2.5 py-1.5 bg-plm-fg text-plm-bg text-sm font-medium rounded whitespace-nowrap">
               {title}
             </div>
           </div>
@@ -64,7 +75,7 @@ function ActivityItem({ icon, view, title, badge }: ActivityItemProps) {
         <div className="relative w-[22px] h-[22px] flex items-center justify-center flex-shrink-0">
           {icon}
           {badge && badge > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-pdm-activitybar">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-plm-activitybar">
               {badge > 99 ? '99+' : badge}
             </span>
           )}
@@ -82,7 +93,7 @@ function ActivityItem({ icon, view, title, badge }: ActivityItemProps) {
 function SectionDivider() {
   return (
     <div className="mx-4 my-2">
-      <div className="h-px bg-pdm-border" />
+      <div className="h-px bg-plm-border" />
     </div>
   )
 }
@@ -115,18 +126,18 @@ function SidebarControl() {
             e.stopPropagation()
             setShowMenu(!showMenu)
           }}
-          className="w-full h-10 flex items-center px-[9px] rounded-lg text-pdm-fg-dim hover:text-pdm-fg hover:bg-pdm-highlight/50 transition-colors"
+          className="w-full h-10 flex items-center px-[9px] rounded-lg text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight/50 transition-colors"
         >
           <PanelLeft size={18} />
         </button>
         
         {showMenu && (
           <div 
-            className="absolute bottom-full left-0 mb-1 w-44 bg-pdm-bg border border-pdm-border rounded-md shadow-xl overflow-hidden z-50"
+            className="absolute bottom-full left-0 mb-1 w-44 bg-plm-bg border border-plm-border rounded-md shadow-xl overflow-hidden z-50"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-3 py-2 border-b border-pdm-border">
-              <div className="text-[10px] uppercase tracking-wider text-pdm-fg-muted">{t('sidebar.sidebarControl')}</div>
+            <div className="px-3 py-2 border-b border-plm-border">
+              <div className="text-[10px] uppercase tracking-wider text-plm-fg-muted">{t('sidebar.sidebarControl')}</div>
             </div>
             {(['expanded', 'collapsed', 'hover'] as SidebarMode[]).map((mode) => (
               <button
@@ -137,12 +148,12 @@ function SidebarControl() {
                 }}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
                   activityBarMode === mode 
-                    ? 'bg-pdm-highlight text-pdm-fg' 
-                    : 'text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-highlight/50'
+                    ? 'bg-plm-highlight text-plm-fg' 
+                    : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/50'
                 }`}
               >
                 {activityBarMode === mode && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-pdm-accent" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-plm-accent" />
                 )}
                 <span className={activityBarMode !== mode ? 'ml-3.5' : ''}>{modeLabels[mode]}</span>
               </button>
@@ -206,7 +217,7 @@ export function ActivityBar() {
       <div className={`relative flex-shrink-0 transition-all duration-200 ${containerWidth}`}>
         {/* Actual activity bar - expands on hover, overlays content */}
         <div 
-          className={`absolute inset-y-0 left-0 bg-pdm-activitybar flex flex-col border-r border-pdm-border z-40 transition-all duration-200 ease-out ${
+          className={`absolute inset-y-0 left-0 bg-plm-activitybar flex flex-col border-r border-plm-border z-40 transition-all duration-200 ease-out ${
             isExpanded ? 'w-64' : 'w-[53px]'
           } ${activityBarMode === 'hover' && isExpanded ? 'shadow-xl' : ''}`}
           onMouseEnter={() => setIsHovering(true)}
@@ -301,6 +312,11 @@ export function ActivityBar() {
               icon={<Globe size={22} />}
               view="supplier-portal"
               title={t('sidebar.supplierPortal')}
+            />
+            <ActivityItem
+              icon={<GoogleDriveIcon size={22} />}
+              view="google-drive"
+              title={t('sidebar.googleDrive')}
             />
           </div>
 

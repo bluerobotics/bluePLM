@@ -31,7 +31,7 @@ function formatSpeed(bytesPerSec: number): string {
 // Tiny progress bar component (kept for future use)
 function _MicroBar({ percent, color }: { percent: number; color: string }) {
   return (
-    <div className="w-6 h-1.5 bg-pdm-bg rounded-sm overflow-hidden">
+    <div className="w-6 h-1.5 bg-plm-bg rounded-sm overflow-hidden">
       <div
         className={`h-full transition-all duration-300 ${color}`}
         style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
@@ -89,19 +89,19 @@ export function SystemStats({ availableWidth = Infinity }: SystemStatsProps) {
     >
       {/* CPU - minimal view (icon + percentage) */}
       <div className="flex items-center gap-1" title="CPU">
-        <Cpu size={12} className="text-pdm-fg-muted" />
-        <span className="text-[10px] text-pdm-fg-dim w-5 tabular-nums">{stats.cpu.usage}%</span>
+        <Cpu size={12} className="text-plm-fg-muted" />
+        <span className="text-[10px] text-plm-fg-dim w-5 tabular-nums">{stats.cpu.usage}%</span>
       </div>
 
       {/* Memory - minimal view (icon + percentage) */}
       <div className="flex items-center gap-1" title="Memory">
-        <MemoryStick size={12} className="text-pdm-fg-muted" />
-        <span className="text-[10px] text-pdm-fg-dim w-5 tabular-nums">{stats.memory.percent}%</span>
+        <MemoryStick size={12} className="text-plm-fg-muted" />
+        <span className="text-[10px] text-plm-fg-dim w-5 tabular-nums">{stats.memory.percent}%</span>
       </div>
 
       {/* Network - minimal view (only show if > 1 KB/s) */}
       {(stats.network.rxSpeed >= 1024 || stats.network.txSpeed >= 1024) && (
-        <div className="flex items-center gap-0.5 text-[10px] text-pdm-fg-dim" title="Network">
+        <div className="flex items-center gap-0.5 text-[10px] text-plm-fg-dim" title="Network">
           <ArrowDown size={10} className="text-emerald-500" />
           <span className="w-12 tabular-nums">{formatSpeed(stats.network.rxSpeed)}</span>
           <ArrowUp size={10} className="text-amber-500" />
@@ -111,11 +111,11 @@ export function SystemStats({ availableWidth = Infinity }: SystemStatsProps) {
 
       {/* Tooltip with detailed info */}
       {showTooltip && (
-        <div className="absolute top-full right-0 mt-2 p-3 bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl z-50 text-xs min-w-[220px]">
+        <div className="absolute top-full right-0 mt-2 p-3 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl z-50 text-xs min-w-[220px]">
           <div className="space-y-3">
             {/* CPU Details */}
             <div>
-              <div className="flex items-center justify-between text-pdm-fg mb-1.5">
+              <div className="flex items-center justify-between text-plm-fg mb-1.5">
                 <span className="flex items-center gap-1.5">
                   <Cpu size={12} />
                   CPU
@@ -126,7 +126,7 @@ export function SystemStats({ availableWidth = Infinity }: SystemStatsProps) {
                 {stats.cpu.cores.map((core, i) => (
                   <div
                     key={i}
-                    className="flex-1 h-3 bg-pdm-bg rounded-sm overflow-hidden"
+                    className="flex-1 h-3 bg-plm-bg rounded-sm overflow-hidden"
                     title={`Core ${i}: ${core}%`}
                   >
                     <div
@@ -136,59 +136,59 @@ export function SystemStats({ availableWidth = Infinity }: SystemStatsProps) {
                   </div>
                 ))}
               </div>
-              <div className="text-pdm-fg-muted text-[10px] mt-1">
+              <div className="text-plm-fg-muted text-[10px] mt-1">
                 {stats.cpu.cores.length} cores
               </div>
             </div>
 
             {/* Memory Details */}
             <div>
-              <div className="flex items-center justify-between text-pdm-fg mb-1.5">
+              <div className="flex items-center justify-between text-plm-fg mb-1.5">
                 <span className="flex items-center gap-1.5">
                   <MemoryStick size={12} />
                   Memory
                 </span>
                 <span className="font-medium tabular-nums">{stats.memory.percent}%</span>
               </div>
-              <div className="h-2 bg-pdm-bg rounded-sm overflow-hidden">
+              <div className="h-2 bg-plm-bg rounded-sm overflow-hidden">
                 <div
                   className={`h-full transition-all duration-300 ${getBarColor(stats.memory.percent)}`}
                   style={{ width: `${stats.memory.percent}%` }}
                 />
               </div>
-              <div className="text-pdm-fg-muted text-[10px] mt-1">
+              <div className="text-plm-fg-muted text-[10px] mt-1">
                 {formatBytes(stats.memory.used)} / {formatBytes(stats.memory.total)}
               </div>
             </div>
 
             {/* Disk Details */}
             <div>
-              <div className="flex items-center justify-between text-pdm-fg mb-1.5">
+              <div className="flex items-center justify-between text-plm-fg mb-1.5">
                 <span className="flex items-center gap-1.5">
                   <HardDrive size={12} />
                   Disk
                 </span>
                 <span className="font-medium tabular-nums">{stats.disk.percent}%</span>
               </div>
-              <div className="h-2 bg-pdm-bg rounded-sm overflow-hidden">
+              <div className="h-2 bg-plm-bg rounded-sm overflow-hidden">
                 <div
                   className={`h-full transition-all duration-300 ${getBarColor(stats.disk.percent)}`}
                   style={{ width: `${stats.disk.percent}%` }}
                 />
               </div>
-              <div className="text-pdm-fg-muted text-[10px] mt-1">
+              <div className="text-plm-fg-muted text-[10px] mt-1">
                 {formatBytes(stats.disk.used)} / {formatBytes(stats.disk.total)}
               </div>
             </div>
 
             {/* Network Details */}
             <div>
-              <div className="flex items-center gap-1.5 text-pdm-fg mb-1.5">
+              <div className="flex items-center gap-1.5 text-plm-fg mb-1.5">
                 <ArrowDown size={12} className="text-emerald-500" />
                 <ArrowUp size={12} className="text-amber-500" />
                 Network
               </div>
-              <div className="flex justify-between text-pdm-fg-muted">
+              <div className="flex justify-between text-plm-fg-muted">
                 <span className="flex items-center gap-1">
                   <ArrowDown size={10} className="text-emerald-500" />
                   {formatSpeed(stats.network.rxSpeed)}

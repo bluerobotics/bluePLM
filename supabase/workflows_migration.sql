@@ -1,4 +1,4 @@
--- BluePDM Workflows Migration
+-- BluePLM Workflows Migration
 -- Visual workflow builder for managing file states, gates, and reviews
 -- Run this in your Supabase SQL editor after the main schema.sql
 

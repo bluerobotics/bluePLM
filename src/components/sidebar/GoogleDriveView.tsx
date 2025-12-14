@@ -365,7 +365,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
     if (mimeType === 'application/pdf') {
       return <FileText size={size} className={`${iconClass} text-red-600`} />
     }
-    return <File size={size} className={`${iconClass} text-pdm-fg-muted`} />
+    return <File size={size} className={`${iconClass} text-plm-fg-muted`} />
   }
   
   const renderFileTree = (folderId: string, depth: number = 0) => {
@@ -380,7 +380,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
     const sortedFiles = [...folders, ...regularFiles]
     
     return (
-      <div className={depth > 0 ? 'ml-3 border-l border-pdm-border/50' : ''}>
+      <div className={depth > 0 ? 'ml-3 border-l border-plm-border/50' : ''}>
         {sortedFiles.map(file => {
           const isFolder = file.mimeType === 'application/vnd.google-apps.folder'
           const isFolderExpanded = expandedFolders.has(file.id)
@@ -406,20 +406,20 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
                     }
                   }
                 }}
-                className={`w-full flex items-center gap-1.5 px-2 py-1 text-sm hover:bg-pdm-highlight rounded transition-colors cursor-pointer select-none ${
-                  isSelected ? 'bg-pdm-accent/20 text-pdm-accent' : 
-                  currentFolderId === file.id ? 'bg-pdm-highlight text-pdm-accent' : 'text-pdm-fg'
+                className={`w-full flex items-center gap-1.5 px-2 py-1 text-sm hover:bg-plm-highlight rounded transition-colors cursor-pointer select-none ${
+                  isSelected ? 'bg-plm-accent/20 text-plm-accent' : 
+                  currentFolderId === file.id ? 'bg-plm-highlight text-plm-accent' : 'text-plm-fg'
                 }`}
               >
                 {isFolder ? (
                   <button
                     onClick={(e) => handleChevronClick(e, file.id)}
-                    className="p-0.5 -ml-0.5 hover:bg-pdm-highlight/50 rounded transition-colors"
+                    className="p-0.5 -ml-0.5 hover:bg-plm-highlight/50 rounded transition-colors"
                   >
                     {isFolderExpanded ? (
-                      <ChevronDown size={14} className="text-pdm-fg-muted" />
+                      <ChevronDown size={14} className="text-plm-fg-muted" />
                     ) : (
-                      <ChevronRight size={14} className="text-pdm-fg-muted" />
+                      <ChevronRight size={14} className="text-plm-fg-muted" />
                     )}
                   </button>
                 ) : (
@@ -438,7 +438,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
           )
         })}
         {isLoading && files.length === 0 && depth > 0 && (
-          <div className="flex items-center gap-2 px-2 py-1 text-xs text-pdm-fg-muted">
+          <div className="flex items-center gap-2 px-2 py-1 text-xs text-plm-fg-muted">
             <Loader2 size={12} className="animate-spin" />
             Loading...
           </div>
@@ -451,8 +451,8 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
   if (!isAuthenticated) {
     return (
       <div className="p-4 flex flex-col items-center justify-center text-center h-full">
-        <HardDrive size={40} className="text-pdm-fg-muted mb-3 opacity-50" />
-        <p className="text-xs text-pdm-fg-muted">
+        <HardDrive size={40} className="text-plm-fg-muted mb-3 opacity-50" />
+        <p className="text-xs text-plm-fg-muted">
           Sign in to Google Drive in the main panel to browse your files.
         </p>
       </div>
@@ -462,69 +462,69 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
   return (
     <div className="flex flex-col h-full">
       {/* User info header */}
-      <div className="p-2 border-b border-pdm-border flex items-center justify-between">
+      <div className="p-2 border-b border-plm-border flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
           {userInfo?.picture ? (
             <img src={userInfo.picture} alt="" className="w-6 h-6 rounded-full" />
           ) : (
-            <HardDrive size={20} className="text-pdm-accent" />
+            <HardDrive size={20} className="text-plm-accent" />
           )}
-          <span className="text-xs text-pdm-fg-muted truncate">{userInfo?.email || 'Google Drive'}</span>
+          <span className="text-xs text-plm-fg-muted truncate">{userInfo?.email || 'Google Drive'}</span>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => selectedDrive && loadDriveContents(selectedDrive)}
-            className="p-1 hover:bg-pdm-highlight rounded transition-colors"
+            className="p-1 hover:bg-plm-highlight rounded transition-colors"
             title="Refresh"
           >
-            <RefreshCw size={14} className={`text-pdm-fg-muted ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw size={14} className={`text-plm-fg-muted ${isLoading ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={handleSignOut}
-            className="p-1 hover:bg-pdm-highlight rounded transition-colors"
+            className="p-1 hover:bg-plm-highlight rounded transition-colors"
             title="Disconnect"
           >
-            <LogOut size={14} className="text-pdm-fg-muted" />
+            <LogOut size={14} className="text-plm-fg-muted" />
           </button>
         </div>
       </div>
       
       {/* Drive selector */}
-      <div className="p-2 border-b border-pdm-border">
+      <div className="p-2 border-b border-plm-border">
         <div className="relative">
           <button
             onClick={() => setShowDriveSelector(!showDriveSelector)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm bg-pdm-highlight hover:bg-pdm-highlight/80 rounded-lg transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm bg-plm-highlight hover:bg-plm-highlight/80 rounded-lg transition-colors"
           >
             {selectedDrive?.type === 'my-drive' ? (
-              <Home size={16} className="text-pdm-accent" />
+              <Home size={16} className="text-plm-accent" />
             ) : (
               <HardDrive size={16} className="text-yellow-600" />
             )}
             <span className="flex-1 text-left truncate font-medium">
               {selectedDrive?.name || 'Select Drive'}
             </span>
-            <ChevronDown size={14} className={`text-pdm-fg-muted transition-transform ${showDriveSelector ? 'rotate-180' : ''}`} />
+            <ChevronDown size={14} className={`text-plm-fg-muted transition-transform ${showDriveSelector ? 'rotate-180' : ''}`} />
           </button>
           
           {showDriveSelector && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-pdm-sidebar border border-pdm-border rounded-lg shadow-xl py-1 z-50 max-h-[300px] overflow-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-plm-sidebar border border-plm-border rounded-lg shadow-xl py-1 z-50 max-h-[300px] overflow-auto">
               {availableDrives.map(drive => (
                 <button
                   key={drive.id}
                   onClick={() => selectDrive(drive)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-pdm-highlight transition-colors ${
-                    selectedDrive?.id === drive.id ? 'bg-pdm-highlight' : ''
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-plm-highlight transition-colors ${
+                    selectedDrive?.id === drive.id ? 'bg-plm-highlight' : ''
                   }`}
                 >
                   {drive.type === 'my-drive' ? (
-                    <Home size={16} className="text-pdm-accent" />
+                    <Home size={16} className="text-plm-accent" />
                   ) : (
                     <HardDrive size={16} className="text-yellow-600" />
                   )}
                   <span className="flex-1 text-left truncate">{drive.name}</span>
                   {selectedDrive?.id === drive.id && (
-                    <Check size={14} className="text-pdm-accent" />
+                    <Check size={14} className="text-plm-accent" />
                   )}
                 </button>
               ))}
@@ -534,11 +534,11 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
       </div>
       
       {/* Quick access buttons */}
-      <div className="p-2 border-b border-pdm-border flex gap-1 overflow-x-auto">
+      <div className="p-2 border-b border-plm-border flex gap-1 overflow-x-auto">
         <button
           onClick={() => { setActiveSection('drive'); selectedDrive && loadDriveContents(selectedDrive) }}
           className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-            activeSection === 'drive' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            activeSection === 'drive' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
           title="Browse drive"
         >
@@ -548,7 +548,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         <button
           onClick={() => { setActiveSection('starred'); onNavigate?.('starred') }}
           className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-            activeSection === 'starred' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            activeSection === 'starred' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
           title="Starred files"
         >
@@ -557,7 +557,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         <button
           onClick={() => { setActiveSection('recent'); onNavigate?.('recent') }}
           className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-            activeSection === 'recent' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            activeSection === 'recent' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
           title="Recent files"
         >
@@ -566,7 +566,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         <button
           onClick={() => { setActiveSection('shared'); onNavigate?.('shared') }}
           className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-            activeSection === 'shared' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            activeSection === 'shared' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
           title="Shared with me"
         >
@@ -575,7 +575,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         <button
           onClick={() => { setActiveSection('trash'); onNavigate?.('trash') }}
           className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${
-            activeSection === 'trash' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            activeSection === 'trash' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
           title="Trash"
         >
@@ -587,10 +587,10 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
       <div className="flex-1 overflow-auto p-2">
         {isLoading && rootFiles.length === 0 ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 size={24} className="animate-spin text-pdm-fg-muted" />
+            <Loader2 size={24} className="animate-spin text-plm-fg-muted" />
           </div>
         ) : rootFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-pdm-fg-muted">
+          <div className="flex flex-col items-center justify-center py-8 text-plm-fg-muted">
             <Folder size={32} className="mb-2 opacity-50" />
             <p className="text-xs">No files in this drive</p>
           </div>

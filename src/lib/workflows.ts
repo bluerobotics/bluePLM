@@ -1,5 +1,5 @@
 // @ts-nocheck - Supabase type inference issues with Database generics
-// Workflow Service Functions for BluePDM
+// Workflow Service Functions for BluePLM
 // Handles all Supabase interactions for workflow management
 
 import { supabase } from './supabase'

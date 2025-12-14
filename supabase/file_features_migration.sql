@@ -53,7 +53,7 @@ CREATE TABLE file_share_links (
   
   -- Permissions
   allow_download BOOLEAN DEFAULT true,
-  require_auth BOOLEAN DEFAULT false,         -- Require BluePDM login to access
+  require_auth BOOLEAN DEFAULT false,         -- Require BluePLM login to access
   
   -- Metadata
   created_at TIMESTAMPTZ DEFAULT NOW(),

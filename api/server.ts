@@ -1,6 +1,6 @@
 #!/usr/bin/env npx ts-node
 /**
- * BluePDM REST API Server (Fastify + TypeScript)
+ * BluePLM REST API Server (Fastify + TypeScript)
  * 
  * Integration API for external systems (ERP, CI/CD, Slack, etc.)
  * 
@@ -669,8 +669,8 @@ async function triggerWebhooks(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-BluePDM-Signature': signature,
-          'X-BluePDM-Event': event
+          'X-BluePLM-Signature': signature,
+          'X-BluePLM-Event': event
         },
         body: payloadString,
         signal: AbortSignal.timeout(10000) // 10s timeout
@@ -816,7 +816,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await fastify.register(swagger, {
     openapi: {
       info: {
-        title: 'BluePDM REST API',
+        title: 'BluePLM REST API',
         description: 'Product Data Management API for engineering teams',
         version: '2.0.0'
       },
@@ -855,7 +855,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       displayRequestDuration: true
     },
     theme: {
-      title: 'BluePDM API',
+      title: 'BluePLM API',
       favicon: [
         {
           filename: 'favicon.png',
@@ -901,7 +901,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       }
     }
   }, async () => ({
-    name: 'BluePDM REST API',
+    name: 'BluePLM REST API',
     version: '2.0.0',
     status: 'running',
     docs: `http://${HOST}:${PORT}/docs`
@@ -3777,7 +3777,7 @@ async function start(): Promise<void> {
     
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║           BluePDM REST API v2.0 (TypeScript)                 ║
+║           BluePLM REST API v2.0 (TypeScript)                 ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  Server:    http://${HOST}:${PORT.toString().padEnd(38)}║
 ║  Docs:      http://${HOST}:${PORT}/docs${''.padEnd(30)}║

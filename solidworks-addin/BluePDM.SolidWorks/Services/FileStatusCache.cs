@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace BluePDM.SolidWorks
+namespace BluePLM.SolidWorks
 {
     /// <summary>
     /// Cache for file status to avoid repeated API calls

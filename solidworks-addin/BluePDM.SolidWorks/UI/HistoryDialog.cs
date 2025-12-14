@@ -5,7 +5,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace BluePDM.SolidWorks
+namespace BluePLM.SolidWorks
 {
     /// <summary>
     /// Dialog showing version history for a file
@@ -36,7 +36,7 @@ namespace BluePDM.SolidWorks
 
         private void InitializeUI()
         {
-            this.Text = $"History - {Path.GetFileName(_filePath)} - BluePDM";
+            this.Text = $"History - {Path.GetFileName(_filePath)} - BluePLM";
             this.Size = new Size(700, 450);
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.StartPosition = FormStartPosition.CenterParent;

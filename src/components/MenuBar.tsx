@@ -205,16 +205,16 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   }
 
   return (
-    <div ref={menuBarRef} className="h-[38px] bg-pdm-activitybar border-b border-pdm-border select-none flex-shrink-0 titlebar-drag-region relative">
+    <div ref={menuBarRef} className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region relative">
       {/* Left side - Logo, Organization, and Vault (add padding on macOS for window buttons) */}
       <div 
         className="absolute left-0 top-0 h-full flex items-center"
         style={{ paddingLeft: platform === 'darwin' ? 72 : 0 }}
       >
         <div className="flex items-center gap-1 px-3 titlebar-no-drag">
-          {/* BluePDM Logo */}
-          <div className="flex items-center justify-center w-7 h-7 rounded hover:bg-pdm-bg-lighter transition-colors" title="BluePDM">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-pdm-accent">
+          {/* BluePLM Logo */}
+          <div className="flex items-center justify-center w-7 h-7 rounded hover:bg-plm-bg-lighter transition-colors" title="BluePLM">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
               <path 
                 d="M12 2L2 7L12 12L22 7L12 2Z" 
                 stroke="currentColor" 
@@ -240,38 +240,38 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           </div>
           
           {/* Separator */}
-          {!minimal && organization && <div className="w-px h-4 bg-pdm-border mx-1" />}
+          {!minimal && organization && <div className="w-px h-4 bg-plm-border mx-1" />}
           
           {/* Organization (no dropdown for now - single org per user) */}
           {!minimal && organization && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded text-sm text-pdm-fg-dim">
-              <Building2 size={14} className="text-pdm-fg-muted" />
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded text-sm text-plm-fg-dim">
+              <Building2 size={14} className="text-plm-fg-muted" />
               <span className="max-w-[120px] truncate">{organization.name}</span>
             </div>
           )}
           
           {/* Separator */}
-          {!minimal && connectedVaults.length > 0 && <div className="w-px h-4 bg-pdm-border mx-1" />}
+          {!minimal && connectedVaults.length > 0 && <div className="w-px h-4 bg-plm-border mx-1" />}
           
           {/* Vault Dropdown */}
           {!minimal && connectedVaults.length > 0 && (
             <div className="relative" ref={vaultDropdownRef}>
               <button
                 onClick={() => setShowVaultDropdown(!showVaultDropdown)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-pdm-bg-lighter transition-colors text-sm"
+                className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-plm-bg-lighter transition-colors text-sm"
               >
-                <Database size={14} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg max-w-[140px] truncate">
+                <Database size={14} className="text-plm-fg-muted" />
+                <span className="text-plm-fg max-w-[140px] truncate">
                   {connectedVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
                 </span>
                 {connectedVaults.length > 1 && (
-                  <ChevronDown size={12} className={`text-pdm-fg-muted transition-transform ${showVaultDropdown ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={12} className={`text-plm-fg-muted transition-transform ${showVaultDropdown ? 'rotate-180' : ''}`} />
                 )}
               </button>
               
               {/* Vault Dropdown Menu */}
               {showVaultDropdown && connectedVaults.length > 1 && (
-                <div className="absolute left-0 top-full mt-1 w-56 bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl overflow-hidden z-50">
+                <div className="absolute left-0 top-full mt-1 w-56 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl overflow-hidden z-50">
                   <div className="py-1">
                     {connectedVaults.map(vault => (
                       <button
@@ -282,14 +282,14 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                         }}
                         className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
                           vault.id === activeVaultId 
-                            ? 'bg-pdm-accent/10 text-pdm-accent' 
-                            : 'text-pdm-fg hover:bg-pdm-bg-lighter'
+                            ? 'bg-plm-accent/10 text-plm-accent' 
+                            : 'text-plm-fg hover:bg-plm-bg-lighter'
                         }`}
                       >
-                        <Database size={14} className={vault.id === activeVaultId ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                        <Database size={14} className={vault.id === activeVaultId ? 'text-plm-accent' : 'text-plm-fg-muted'} />
                         <div className="flex-1 text-left truncate">{vault.name}</div>
                         {vault.id === activeVaultId && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-pdm-accent" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-plm-accent" />
                         )}
                       </button>
                     ))}
@@ -306,13 +306,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         {!minimal && (
           <div className="flex items-center gap-1 w-full titlebar-no-drag">
             {/* Search type toggle */}
-            <div className="flex items-center bg-pdm-bg border border-pdm-border rounded-md h-7">
+            <div className="flex items-center bg-plm-bg border border-plm-border rounded-md h-7">
               <button
                 onClick={() => setSearchType('all')}
                 className={`px-2 h-full flex items-center gap-1 text-xs rounded-l-md transition-colors ${
                   searchType === 'all' 
-                    ? 'bg-pdm-accent/20 text-pdm-accent' 
-                    : 'text-pdm-fg-muted hover:text-pdm-fg'
+                    ? 'bg-plm-accent/20 text-plm-accent' 
+                    : 'text-plm-fg-muted hover:text-plm-fg'
                 }`}
                 title="Search all"
               >
@@ -320,10 +320,10 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
               </button>
               <button
                 onClick={() => setSearchType('folders')}
-                className={`px-2 h-full flex items-center gap-1 text-xs border-l border-pdm-border transition-colors ${
+                className={`px-2 h-full flex items-center gap-1 text-xs border-l border-plm-border transition-colors ${
                   searchType === 'folders' 
-                    ? 'bg-pdm-accent/20 text-pdm-accent' 
-                    : 'text-pdm-fg-muted hover:text-pdm-fg'
+                    ? 'bg-plm-accent/20 text-plm-accent' 
+                    : 'text-plm-fg-muted hover:text-plm-fg'
                 }`}
                 title="Search folders"
               >
@@ -331,10 +331,10 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
               </button>
               <button
                 onClick={() => setSearchType('files')}
-                className={`px-2 h-full flex items-center gap-1 text-xs border-l border-pdm-border rounded-r-md transition-colors ${
+                className={`px-2 h-full flex items-center gap-1 text-xs border-l border-plm-border rounded-r-md transition-colors ${
                   searchType === 'files' 
-                    ? 'bg-pdm-accent/20 text-pdm-accent' 
-                    : 'text-pdm-fg-muted hover:text-pdm-fg'
+                    ? 'bg-plm-accent/20 text-plm-accent' 
+                    : 'text-plm-fg-muted hover:text-plm-fg'
                 }`}
                 title="Search files"
               >
@@ -344,7 +344,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
             
             {/* Search input */}
             <div className="relative flex-1">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -361,7 +361,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                     searchInputRef.current?.blur()
                   }
                 }}
-                className="w-full h-7 pl-9 pr-8 bg-pdm-bg border border-pdm-border rounded-md text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent focus:ring-1 focus:ring-pdm-accent/50 transition-colors"
+                className="w-full h-7 pl-9 pr-8 bg-plm-bg border border-plm-border rounded-md text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent focus:ring-1 focus:ring-plm-accent/50 transition-colors"
               />
               {localSearch && (
                 <button
@@ -369,7 +369,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                     setLocalSearch('')
                     setSearchQuery('')
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg p-0.5"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg p-0.5"
                 >
                   <span className="text-xs">✕</span>
                 </button>
@@ -388,14 +388,14 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         {!minimal && <SystemStats availableWidth={availableWidth} />}
         
         {/* Separator */}
-        {!minimal && <div className="w-px h-4 bg-pdm-border" />}
+        {!minimal && <div className="w-px h-4 bg-plm-border" />}
         
         {/* Zoom dropdown - hidden on welcome/signin screens */}
         {!minimal && (
           <div className="relative" ref={zoomDropdownRef}>
             <button
               onClick={() => setShowZoomDropdown(!showZoomDropdown)}
-              className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-pdm-bg-lighter transition-colors text-pdm-fg-muted hover:text-pdm-fg"
+              className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-plm-bg-lighter transition-colors text-plm-fg-muted hover:text-plm-fg"
               title={`Zoom: ${Math.round(zoomFactor * 100)}%`}
             >
               <ZoomIn size={16} />
@@ -404,14 +404,14 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
             
             {/* Zoom Dropdown */}
             {showZoomDropdown && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl overflow-hidden z-50">
+              <div className="absolute right-0 top-full mt-1 w-48 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl overflow-hidden z-50">
                 <div className="p-3">
                   {/* Zoom label and reset */}
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs text-pdm-fg-dim">Zoom</span>
+                    <span className="text-xs text-plm-fg-dim">Zoom</span>
                     <button
                       onClick={handleResetZoom}
-                      className="flex items-center gap-1 text-[10px] text-pdm-fg-muted hover:text-pdm-accent transition-colors"
+                      className="flex items-center gap-1 text-[10px] text-plm-fg-muted hover:text-plm-accent transition-colors"
                       title="Reset to 100%"
                     >
                       <RotateCcw size={10} />
@@ -423,7 +423,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleZoomOut}
-                      className="p-1 rounded hover:bg-pdm-bg-lighter text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                      className="p-1 rounded hover:bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg transition-colors"
                       title="Zoom Out"
                     >
                       <Minus size={14} />
@@ -436,12 +436,12 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                       step="0.1"
                       value={zoomFactor}
                       onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
-                      className="flex-1 h-1.5 bg-pdm-border rounded-full appearance-none cursor-pointer accent-pdm-accent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-pdm-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
+                      className="flex-1 h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-plm-accent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-plm-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
                     />
                     
                     <button
                       onClick={handleZoomIn}
-                      className="p-1 rounded hover:bg-pdm-bg-lighter text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                      className="p-1 rounded hover:bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg transition-colors"
                       title="Zoom In"
                     >
                       <Plus size={14} />
@@ -450,7 +450,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                   
                   {/* Current percentage */}
                   <div className="text-center mt-2">
-                    <span className="text-sm font-medium text-pdm-fg">{Math.round(zoomFactor * 100)}%</span>
+                    <span className="text-sm font-medium text-plm-fg">{Math.round(zoomFactor * 100)}%</span>
                   </div>
                 </div>
               </div>
@@ -465,7 +465,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           <div className="relative" ref={menuRef}>
             <button 
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 px-2 py-1 rounded hover:bg-pdm-bg-lighter transition-colors"
+              className="flex items-center gap-2 px-2 py-1 rounded hover:bg-plm-bg-lighter transition-colors"
             >
               {user.avatar_url ? (
                 <>
@@ -479,26 +479,26 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                       target.nextElementSibling?.classList.remove('hidden')
                     }}
                   />
-                  <div className="w-6 h-6 rounded-full bg-pdm-accent flex items-center justify-center text-xs text-white font-semibold hidden">
+                  <div className="w-6 h-6 rounded-full bg-plm-accent flex items-center justify-center text-xs text-white font-semibold hidden">
                     {getUserInitial(user)}
                   </div>
                 </>
               ) : (
-                <div className="w-6 h-6 rounded-full bg-pdm-accent flex items-center justify-center text-xs text-white font-semibold">
+                <div className="w-6 h-6 rounded-full bg-plm-accent flex items-center justify-center text-xs text-white font-semibold">
                   {getUserInitial(user)}
                 </div>
               )}
-              <span className="text-xs text-pdm-fg-dim max-w-[120px] truncate">
+              <span className="text-xs text-plm-fg-dim max-w-[120px] truncate">
                 {user.full_name || user.email}
               </span>
-              <ChevronDown size={12} className={`text-pdm-fg-muted transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+              <ChevronDown size={12} className={`text-plm-fg-muted transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Simplified Dropdown Menu */}
             {showUserMenu && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl overflow-hidden z-50">
+              <div className="absolute right-0 top-full mt-1 w-56 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl overflow-hidden z-50">
                 {/* User Info Header */}
-                <div className="px-4 py-3 border-b border-pdm-border">
+                <div className="px-4 py-3 border-b border-plm-border">
                   <div className="flex items-center gap-3">
                     {user.avatar_url ? (
                       <>
@@ -512,20 +512,20 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                             target.nextElementSibling?.classList.remove('hidden')
                           }}
                         />
-                        <div className="w-10 h-10 rounded-full bg-pdm-accent flex items-center justify-center text-sm text-white font-semibold hidden">
+                        <div className="w-10 h-10 rounded-full bg-plm-accent flex items-center justify-center text-sm text-white font-semibold hidden">
                           {getUserInitial(user)}
                         </div>
                       </>
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-pdm-accent flex items-center justify-center text-sm text-white font-semibold">
+                      <div className="w-10 h-10 rounded-full bg-plm-accent flex items-center justify-center text-sm text-white font-semibold">
                         {getUserInitial(user)}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-pdm-fg truncate">
+                      <div className="text-sm font-medium text-plm-fg truncate">
                         {user.full_name || 'No name'}
                       </div>
-                      <div className="text-xs text-pdm-fg-muted truncate">
+                      <div className="text-xs text-plm-fg-muted truncate">
                         {user.email}
                       </div>
                     </div>
@@ -533,14 +533,14 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                 </div>
 
                 {/* Organization Info */}
-                <div className="px-4 py-2 border-b border-pdm-border">
+                <div className="px-4 py-2 border-b border-plm-border">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-pdm-fg-dim">
+                    <div className="flex items-center gap-2 text-xs text-plm-fg-dim">
                       <Building2 size={14} />
                       {organization ? (
                         <span>{organization.name}</span>
                       ) : (
-                        <span className="text-pdm-warning">No organization</span>
+                        <span className="text-plm-warning">No organization</span>
                       )}
                     </div>
                     {!organization && user && (
@@ -555,7 +555,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                             setShowUserMenu(false)
                           }
                         }}
-                        className="text-xs text-pdm-accent hover:text-pdm-accent-hover"
+                        className="text-xs text-plm-accent hover:text-plm-accent-hover"
                       >
                         Link
                       </button>
@@ -570,7 +570,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                       setShowUserMenu(false)
                       handleSignOut()
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-pdm-error hover:bg-red-900/20 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-plm-error hover:bg-red-900/20 transition-colors"
                   >
                     <LogOut size={14} />
                     Sign Out
@@ -583,7 +583,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           <button 
             onClick={handleSignIn}
             disabled={isSigningIn}
-            className="text-xs text-pdm-accent hover:text-pdm-accent-hover transition-colors font-medium disabled:opacity-50"
+            className="text-xs text-plm-accent hover:text-plm-accent-hover transition-colors font-medium disabled:opacity-50"
           >
             {isSigningIn ? 'Signing in...' : 'Sign In with Google'}
           </button>

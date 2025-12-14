@@ -1,4 +1,4 @@
--- BluePDM Database Schema (Supabase Storage Edition)
+-- BluePLM Database Schema (Supabase Storage Edition)
 -- Run this in your Supabase SQL editor to set up the database
 
 -- Enable UUID extension

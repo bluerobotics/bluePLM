@@ -111,13 +111,13 @@ export function useSolidWorksService() {
 function SWFileIcon({ fileType, size = 16 }: { fileType: string; size?: number }) {
   switch (fileType) {
     case 'Part':
-      return <FileBox size={size} className="text-pdm-accent" />
+      return <FileBox size={size} className="text-plm-accent" />
     case 'Assembly':
       return <Layers size={size} className="text-amber-400" />
     case 'Drawing':
       return <FilePen size={size} className="text-sky-300" />
     default:
-      return <File size={size} className="text-pdm-fg-muted" />
+      return <File size={size} className="text-plm-fg-muted" />
   }
 }
 
@@ -136,13 +136,13 @@ function BomTreeItem({
   return (
     <div className="select-none">
       <div 
-        className="flex items-center gap-2 py-1.5 px-2 hover:bg-pdm-bg-light rounded cursor-pointer group"
+        className="flex items-center gap-2 py-1.5 px-2 hover:bg-plm-bg-light rounded cursor-pointer group"
         style={{ paddingLeft: `${level * 16 + 8}px` }}
       >
         {item.fileType === 'Assembly' ? (
           <button 
             onClick={() => setExpanded(!expanded)}
-            className="p-0.5 hover:bg-pdm-bg rounded"
+            className="p-0.5 hover:bg-plm-bg rounded"
           >
             {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
@@ -156,18 +156,18 @@ function BomTreeItem({
           {item.fileName}
         </span>
         
-        <span className="text-xs text-pdm-fg-muted bg-pdm-bg px-1.5 py-0.5 rounded">
+        <span className="text-xs text-plm-fg-muted bg-plm-bg px-1.5 py-0.5 rounded">
           ×{item.quantity}
         </span>
         
         {item.partNumber && (
-          <span className="text-xs text-pdm-accent">{item.partNumber}</span>
+          <span className="text-xs text-plm-accent">{item.partNumber}</span>
         )}
         
         {onNavigate && (
           <button
             onClick={() => onNavigate(item.filePath)}
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-pdm-accent/20 rounded"
+            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-plm-accent/20 rounded"
             title="Navigate to file"
           >
             <ArrowUpRight size={12} />
@@ -177,7 +177,7 @@ function BomTreeItem({
       
       {item.configuration && (
         <div 
-          className="text-xs text-pdm-fg-muted ml-10 mb-1"
+          className="text-xs text-plm-fg-muted ml-10 mb-1"
           style={{ paddingLeft: `${level * 16 + 8}px` }}
         >
           Config: {item.configuration}
@@ -271,7 +271,7 @@ export function ContainsTab({ file }: { file: LocalFile }) {
 
   if (!isAssembly) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-pdm-fg-muted py-8">
+      <div className="flex flex-col items-center justify-center h-full text-plm-fg-muted py-8">
         <FileBox size={48} className="mb-4 opacity-30" />
         <div className="text-sm">Select an assembly file to view BOM</div>
         <div className="text-xs mt-1 opacity-70">.sldasm files only</div>
@@ -282,8 +282,8 @@ export function ContainsTab({ file }: { file: LocalFile }) {
   if (!status.running) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-8">
-        <Settings2 size={48} className="mb-4 text-pdm-fg-muted opacity-50" />
-        <div className="text-sm text-pdm-fg-muted mb-4">SolidWorks service not running</div>
+        <Settings2 size={48} className="mb-4 text-plm-fg-muted opacity-50" />
+        <div className="text-sm text-plm-fg-muted mb-4">SolidWorks service not running</div>
         <button 
           onClick={startService}
           disabled={isStarting}
@@ -292,7 +292,7 @@ export function ContainsTab({ file }: { file: LocalFile }) {
           {isStarting ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
           Start Service
         </button>
-        <div className="text-xs text-pdm-fg-muted mt-4 text-center max-w-xs">
+        <div className="text-xs text-plm-fg-muted mt-4 text-center max-w-xs">
           The service will start SolidWorks in the background to read assembly data.
         </div>
       </div>
@@ -303,11 +303,11 @@ export function ContainsTab({ file }: { file: LocalFile }) {
     <div className="flex flex-col h-full">
       {/* Configuration selector */}
       <div className="flex items-center gap-2 mb-3 flex-shrink-0">
-        <label className="text-xs text-pdm-fg-muted">Configuration:</label>
+        <label className="text-xs text-plm-fg-muted">Configuration:</label>
         <select
           value={selectedConfig}
           onChange={(e) => setSelectedConfig(e.target.value)}
-          className="flex-1 bg-pdm-bg border border-pdm-border rounded px-2 py-1 text-sm"
+          className="flex-1 bg-plm-bg border border-plm-border rounded px-2 py-1 text-sm"
           disabled={configurations.length === 0}
         >
           {configurations.map(config => (
@@ -330,11 +330,11 @@ export function ContainsTab({ file }: { file: LocalFile }) {
       <div className="flex-1 overflow-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="animate-spin text-pdm-accent" size={24} />
-            <span className="ml-2 text-sm text-pdm-fg-muted">Loading BOM...</span>
+            <Loader2 className="animate-spin text-plm-accent" size={24} />
+            <span className="ml-2 text-sm text-plm-fg-muted">Loading BOM...</span>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center py-8 text-pdm-error">
+          <div className="flex flex-col items-center py-8 text-plm-error">
             <AlertCircle size={32} className="mb-2" />
             <div className="text-sm">{error}</div>
             <button onClick={loadBom} className="btn btn-sm btn-ghost mt-2">
@@ -342,13 +342,13 @@ export function ContainsTab({ file }: { file: LocalFile }) {
             </button>
           </div>
         ) : bom.length === 0 ? (
-          <div className="text-sm text-pdm-fg-muted text-center py-8">
+          <div className="text-sm text-plm-fg-muted text-center py-8">
             No components found
           </div>
         ) : (
           <div className="space-y-0.5">
             {/* Summary */}
-            <div className="text-xs text-pdm-fg-muted mb-2 px-2">
+            <div className="text-xs text-plm-fg-muted mb-2 px-2">
               {bom.length} unique parts • {bom.reduce((sum, b) => sum + b.quantity, 0)} total
             </div>
             
@@ -440,7 +440,7 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
 
   if (!isSolidWorks) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-pdm-fg-muted py-8">
+      <div className="flex flex-col items-center justify-center h-full text-plm-fg-muted py-8">
         <Search size={48} className="mb-4 opacity-30" />
         <div className="text-sm">Select a SolidWorks file</div>
         <div className="text-xs mt-1 opacity-70">.sldprt or .sldasm files only</div>
@@ -451,8 +451,8 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
   if (!status.running) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-8">
-        <Settings2 size={48} className="mb-4 text-pdm-fg-muted opacity-50" />
-        <div className="text-sm text-pdm-fg-muted mb-4">SolidWorks service not running</div>
+        <Settings2 size={48} className="mb-4 text-plm-fg-muted opacity-50" />
+        <div className="text-sm text-plm-fg-muted mb-4">SolidWorks service not running</div>
         <button 
           onClick={startService}
           disabled={isStarting}
@@ -468,8 +468,8 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3 flex-shrink-0">
-        <span className="text-xs text-pdm-fg-muted">
-          Assemblies using: <span className="text-pdm-fg">{file.name}</span>
+        <span className="text-xs text-plm-fg-muted">
+          Assemblies using: <span className="text-plm-fg">{file.name}</span>
         </span>
         <button
           onClick={findWhereUsed}
@@ -484,16 +484,16 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
       <div className="flex-1 overflow-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="animate-spin text-pdm-accent" size={24} />
-            <span className="ml-2 text-sm text-pdm-fg-muted">Scanning assemblies...</span>
+            <Loader2 className="animate-spin text-plm-accent" size={24} />
+            <span className="ml-2 text-sm text-plm-fg-muted">Scanning assemblies...</span>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center py-8 text-pdm-error">
+          <div className="flex flex-col items-center py-8 text-plm-error">
             <AlertCircle size={32} className="mb-2" />
             <div className="text-sm">{error}</div>
           </div>
         ) : usedIn.length === 0 ? (
-          <div className="text-sm text-pdm-fg-muted text-center py-8">
+          <div className="text-sm text-plm-fg-muted text-center py-8">
             Not used in any assemblies
           </div>
         ) : (
@@ -501,12 +501,12 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
             {usedIn.map((asm, idx) => (
               <div 
                 key={`${asm.filePath}-${idx}`}
-                className="flex items-center gap-2 py-1.5 px-2 hover:bg-pdm-bg-light rounded cursor-pointer group"
+                className="flex items-center gap-2 py-1.5 px-2 hover:bg-plm-bg-light rounded cursor-pointer group"
                 onClick={() => handleNavigate(asm.filePath)}
               >
                 <SWFileIcon fileType={asm.fileType} size={16} />
                 <span className="flex-1 text-sm truncate">{asm.fileName}</span>
-                <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 text-pdm-fg-muted" />
+                <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 text-plm-fg-muted" />
               </div>
             ))}
           </div>
@@ -551,13 +551,13 @@ const STANDARD_SW_PROPERTIES = {
 // Property category colors
 const CATEGORY_COLORS: Record<string, string> = {
   summary: 'text-sky-400',
-  identification: 'text-pdm-accent',
+  identification: 'text-plm-accent',
   physical: 'text-amber-400',
   procurement: 'text-emerald-400',
   approval: 'text-violet-400',
   documentation: 'text-blue-400',
   workflow: 'text-rose-400',
-  dates: 'text-pdm-fg-muted',
+  dates: 'text-plm-fg-muted',
 }
 
 // Mock Datacard Component - shows placeholder UI when service isn't running
@@ -617,7 +617,7 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
       <div className="flex items-center justify-between mb-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <SWFileIcon fileType={fileType} size={18} />
-          <span className="text-sm font-medium text-pdm-fg">{fileType} Properties</span>
+          <span className="text-sm font-medium text-plm-fg">{fileType} Properties</span>
         </div>
         {!hasApiKey && (
           <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400">
@@ -628,11 +628,11 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
       
       {/* API Key Notice */}
       {!hasApiKey && (
-        <div className="mb-3 p-2 rounded bg-pdm-bg border border-pdm-border/50 flex-shrink-0">
+        <div className="mb-3 p-2 rounded bg-plm-bg border border-plm-border/50 flex-shrink-0">
           <div className="flex items-start gap-2 text-xs">
             <AlertCircle size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
-            <div className="text-pdm-fg-muted">
-              <span className="text-pdm-fg">No DM License Key configured.</span>{' '}
+            <div className="text-plm-fg-muted">
+              <span className="text-plm-fg">No DM License Key configured.</span>{' '}
               Properties will be populated when a key is added in Settings → SolidWorks.
             </div>
           </div>
@@ -642,11 +642,11 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
       {/* Configuration selector (for parts/assemblies) */}
       {(ext === '.sldprt' || ext === '.sldasm') && (
         <div className="flex items-center gap-2 mb-3 flex-shrink-0">
-          <label className="text-xs text-pdm-fg-muted">Configuration:</label>
+          <label className="text-xs text-plm-fg-muted">Configuration:</label>
           <select
             value={selectedConfigIndex}
             onChange={(e) => setSelectedConfigIndex(Number(e.target.value))}
-            className="flex-1 bg-pdm-bg border border-pdm-border rounded px-2 py-1.5 text-sm text-pdm-fg"
+            className="flex-1 bg-plm-bg border border-plm-border rounded px-2 py-1.5 text-sm text-plm-fg"
           >
             {mockConfigurations.map((config, idx) => (
               <option key={config} value={idx}>
@@ -660,21 +660,21 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
       {/* Properties Grid - Scrollable */}
       <div className="flex-1 overflow-auto space-y-2">
         {/* File Summary Properties */}
-        <div className="border border-pdm-border rounded overflow-hidden">
+        <div className="border border-plm-border rounded overflow-hidden">
           <button
             onClick={() => toggleCategory('summary')}
-            className="w-full flex items-center gap-2 px-3 py-2 bg-pdm-bg-light hover:bg-pdm-bg-lighter transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 bg-plm-bg-light hover:bg-plm-bg-lighter transition-colors"
           >
             {expandedCategories.has('summary') ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             <span className={`text-xs font-medium ${CATEGORY_COLORS.summary}`}>Document Summary</span>
-            <span className="text-xs text-pdm-fg-muted ml-auto">{STANDARD_SW_PROPERTIES.file.length}</span>
+            <span className="text-xs text-plm-fg-muted ml-auto">{STANDARD_SW_PROPERTIES.file.length}</span>
           </button>
           {expandedCategories.has('summary') && (
-            <div className="p-2 space-y-1.5 bg-pdm-bg/50">
+            <div className="p-2 space-y-1.5 bg-plm-bg/50">
               {STANDARD_SW_PROPERTIES.file.map(prop => (
                 <div key={prop.key} className="flex items-center gap-2 text-xs group">
-                  <span className="text-pdm-fg-muted w-24 truncate" title={prop.key}>{prop.label}:</span>
-                  <span className="flex-1 text-pdm-fg-dim italic">—</span>
+                  <span className="text-plm-fg-muted w-24 truncate" title={prop.key}>{prop.label}:</span>
+                  <span className="flex-1 text-plm-fg-dim italic">—</span>
                 </div>
               ))}
             </div>
@@ -683,27 +683,27 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
         
         {/* Custom Properties by Category */}
         {Object.entries(groupedProperties).map(([category, props]) => (
-          <div key={category} className="border border-pdm-border rounded overflow-hidden">
+          <div key={category} className="border border-plm-border rounded overflow-hidden">
             <button
               onClick={() => toggleCategory(category)}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-pdm-bg-light hover:bg-pdm-bg-lighter transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 bg-plm-bg-light hover:bg-plm-bg-lighter transition-colors"
             >
               {expandedCategories.has(category) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <span className={`text-xs font-medium ${CATEGORY_COLORS[category] || 'text-pdm-fg'}`}>
+              <span className={`text-xs font-medium ${CATEGORY_COLORS[category] || 'text-plm-fg'}`}>
                 {categoryLabels[category] || category}
               </span>
-              <span className="text-xs text-pdm-fg-muted ml-auto">{props.length}</span>
+              <span className="text-xs text-plm-fg-muted ml-auto">{props.length}</span>
             </button>
             {expandedCategories.has(category) && (
-              <div className="p-2 space-y-1.5 bg-pdm-bg/50">
+              <div className="p-2 space-y-1.5 bg-plm-bg/50">
                 {props.map(prop => (
                   <div key={prop.key} className="flex items-center gap-2 text-xs group">
-                    <span className="text-pdm-fg-muted w-28 truncate" title={prop.aliases?.join(', ') || prop.key}>
+                    <span className="text-plm-fg-muted w-28 truncate" title={prop.aliases?.join(', ') || prop.key}>
                       {prop.label}:
                     </span>
-                    <span className="flex-1 text-pdm-fg-dim italic">—</span>
+                    <span className="flex-1 text-plm-fg-dim italic">—</span>
                     {prop.aliases && prop.aliases.length > 0 && (
-                      <span className="opacity-0 group-hover:opacity-100 text-pdm-fg-muted transition-opacity" title={`Aliases: ${prop.aliases.join(', ')}`}>
+                      <span className="opacity-0 group-hover:opacity-100 text-plm-fg-muted transition-opacity" title={`Aliases: ${prop.aliases.join(', ')}`}>
                         <Info size={10} />
                       </span>
                     )}
@@ -716,21 +716,21 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
         
         {/* Mass Properties (computed) */}
         {(ext === '.sldprt' || ext === '.sldasm') && (
-          <div className="border border-pdm-border rounded overflow-hidden">
+          <div className="border border-plm-border rounded overflow-hidden">
             <button
               onClick={() => toggleCategory('mass')}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-pdm-bg-light hover:bg-pdm-bg-lighter transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 bg-plm-bg-light hover:bg-plm-bg-lighter transition-colors"
             >
               {expandedCategories.has('mass') ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               <span className="text-xs font-medium text-orange-400">Mass Properties (Computed)</span>
-              <span className="text-xs text-pdm-fg-muted ml-auto">6</span>
+              <span className="text-xs text-plm-fg-muted ml-auto">6</span>
             </button>
             {expandedCategories.has('mass') && (
-              <div className="p-2 space-y-1.5 bg-pdm-bg/50">
+              <div className="p-2 space-y-1.5 bg-plm-bg/50">
                 {['Mass', 'Volume', 'Surface Area', 'Center of Mass X', 'Center of Mass Y', 'Center of Mass Z'].map(prop => (
                   <div key={prop} className="flex items-center gap-2 text-xs">
-                    <span className="text-pdm-fg-muted w-28 truncate">{prop}:</span>
-                    <span className="flex-1 text-pdm-fg-dim italic">—</span>
+                    <span className="text-plm-fg-muted w-28 truncate">{prop}:</span>
+                    <span className="flex-1 text-plm-fg-dim italic">—</span>
                   </div>
                 ))}
               </div>
@@ -741,7 +741,7 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
       
       {/* Start Service Button */}
       {onStartService && (
-        <div className="mt-3 pt-3 border-t border-pdm-border flex-shrink-0">
+        <div className="mt-3 pt-3 border-t border-plm-border flex-shrink-0">
           <button
             onClick={onStartService}
             disabled={isStarting}
@@ -750,7 +750,7 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
             {isStarting ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
             {hasApiKey ? 'Load Properties' : 'Start SolidWorks Service'}
           </button>
-          <div className="text-xs text-pdm-fg-muted text-center mt-2">
+          <div className="text-xs text-plm-fg-muted text-center mt-2">
             {hasApiKey 
               ? 'Uses Document Manager API for fast reading'
               : 'Will launch SolidWorks in background'
@@ -848,7 +848,7 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
   // Show mock datacard when service isn't running
   if (!status.running || showMockDatacard) {
     return (
-      <div className="mt-4 p-3 bg-pdm-bg rounded border border-pdm-border">
+      <div className="mt-4 p-3 bg-plm-bg rounded border border-plm-border">
         <SWDatacardMock 
           file={file} 
           onStartService={startService}
@@ -860,8 +860,8 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
 
   if (isLoading) {
     return (
-      <div className="mt-4 p-3 bg-pdm-bg rounded border border-pdm-border">
-        <div className="flex items-center gap-2 text-sm text-pdm-fg-muted">
+      <div className="mt-4 p-3 bg-plm-bg rounded border border-plm-border">
+        <div className="flex items-center gap-2 text-sm text-plm-fg-muted">
           <Loader2 size={14} className="animate-spin" />
           Loading SolidWorks properties...
         </div>
@@ -877,14 +877,14 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
   }
 
   return (
-    <div className="mt-4 p-3 bg-pdm-bg rounded border border-pdm-border">
+    <div className="mt-4 p-3 bg-plm-bg rounded border border-plm-border">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs text-pdm-fg-muted">SolidWorks Properties</div>
+        <div className="text-xs text-plm-fg-muted">SolidWorks Properties</div>
         {configurations.length > 1 && (
           <select
             value={selectedConfig}
             onChange={(e) => setSelectedConfig(e.target.value)}
-            className="text-xs bg-pdm-panel border border-pdm-border rounded px-1 py-0.5"
+            className="text-xs bg-plm-panel border border-plm-border rounded px-1 py-0.5"
           >
             {configurations.map(config => (
               <option key={config.name} value={config.name}>
@@ -898,12 +898,12 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
       <div className="space-y-1.5">
         {propertyEntries.slice(0, 10).map(([key, value]) => (
           <div key={key} className="flex gap-2 text-xs">
-            <span className="text-pdm-fg-muted truncate" style={{ minWidth: '80px' }}>{key}:</span>
-            <span className="text-pdm-fg truncate flex-1">{value || '-'}</span>
+            <span className="text-plm-fg-muted truncate" style={{ minWidth: '80px' }}>{key}:</span>
+            <span className="text-plm-fg truncate flex-1">{value || '-'}</span>
           </div>
         ))}
         {propertyEntries.length > 10 && (
-          <div className="text-xs text-pdm-fg-muted">
+          <div className="text-xs text-plm-fg-muted">
             +{propertyEntries.length - 10} more properties
           </div>
         )}
@@ -919,8 +919,8 @@ type ExportConfigMode = 'current' | 'all' | 'selected'
 function CompactProp({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="flex items-baseline gap-1.5 min-w-0">
-      <span className="text-[10px] text-pdm-fg-muted uppercase tracking-wide flex-shrink-0">{label}</span>
-      <span className="text-xs text-pdm-fg truncate">{value || '—'}</span>
+      <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide flex-shrink-0">{label}</span>
+      <span className="text-xs text-plm-fg truncate">{value || '—'}</span>
     </div>
   )
 }
@@ -1086,7 +1086,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
 
   if (!isSolidWorks) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-pdm-fg-muted py-8">
+      <div className="flex flex-col items-center justify-center h-full text-plm-fg-muted py-8">
         <FileBox size={32} className="mb-3 opacity-30" />
         <div className="text-xs">Select a SolidWorks file</div>
       </div>
@@ -1131,17 +1131,17 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
         <div className="flex items-center gap-2 mb-2 flex-shrink-0">
           <SWFileIcon fileType={fileType} size={20} />
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-pdm-fg truncate">{file.name}</div>
+            <div className="text-sm font-medium text-plm-fg truncate">{file.name}</div>
           </div>
           {hasData ? (
-            <span className="w-2 h-2 rounded-full bg-pdm-success flex-shrink-0" title="Connected" />
+            <span className="w-2 h-2 rounded-full bg-plm-success flex-shrink-0" title="Connected" />
           ) : (
             <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Preview mode" />
           )}
         </div>
 
         {/* Key Properties Grid - Always visible */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 p-2 rounded bg-pdm-bg/50 border border-pdm-border/50 mb-2 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 p-2 rounded bg-plm-bg/50 border border-plm-border/50 mb-2 flex-shrink-0">
           {keyProps.map(prop => (
             <CompactProp 
               key={prop.key}
@@ -1154,11 +1154,11 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
         {/* Configuration selector - compact */}
         {isPartOrAsm && (
           <div className="flex items-center gap-2 mb-2 flex-shrink-0">
-            <span className="text-[10px] text-pdm-fg-muted uppercase tracking-wide">Config</span>
+            <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide">Config</span>
             <select
               value={selectedConfig || displayConfigs[0]?.name || ''}
               onChange={(e) => setSelectedConfig(e.target.value)}
-              className="flex-1 bg-pdm-bg border border-pdm-border rounded px-1.5 py-1 text-xs text-pdm-fg"
+              className="flex-1 bg-plm-bg border border-plm-border rounded px-1.5 py-1 text-xs text-plm-fg"
             >
               {displayConfigs.map(config => (
                 <option key={typeof config === 'string' ? config : config.name} value={typeof config === 'string' ? config : config.name}>
@@ -1170,10 +1170,10 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               <button
                 onClick={() => {}}
                 disabled={isLoading}
-                className="p-1 rounded hover:bg-pdm-bg-light"
+                className="p-1 rounded hover:bg-plm-bg-light"
                 title="Refresh"
               >
-                <RefreshCw size={12} className={isLoading ? 'animate-spin text-pdm-accent' : 'text-pdm-fg-muted'} />
+                <RefreshCw size={12} className={isLoading ? 'animate-spin text-plm-accent' : 'text-plm-fg-muted'} />
               </button>
             )}
           </div>
@@ -1192,9 +1192,9 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
         )}
 
         {isLoading && (
-          <div className="flex items-center gap-2 p-2 mb-2 rounded bg-pdm-bg border border-pdm-border flex-shrink-0">
-            <Loader2 size={12} className="animate-spin text-pdm-accent" />
-            <span className="text-xs text-pdm-fg-muted">Loading...</span>
+          <div className="flex items-center gap-2 p-2 mb-2 rounded bg-plm-bg border border-plm-border flex-shrink-0">
+            <Loader2 size={12} className="animate-spin text-plm-accent" />
+            <span className="text-xs text-plm-fg-muted">Loading...</span>
           </div>
         )}
 
@@ -1202,23 +1202,23 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
         <div className="flex-1 overflow-auto min-h-0">
           <button
             onClick={() => setShowAllProps(!showAllProps)}
-            className="flex items-center gap-1 text-[10px] text-pdm-fg-muted uppercase tracking-wide mb-1 hover:text-pdm-fg-dim"
+            className="flex items-center gap-1 text-[10px] text-plm-fg-muted uppercase tracking-wide mb-1 hover:text-plm-fg-dim"
           >
             {showAllProps ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
             All Properties ({allPropEntries.length || '—'})
           </button>
           
           {showAllProps && (
-            <div className="space-y-0.5 pl-2 border-l border-pdm-border/30">
+            <div className="space-y-0.5 pl-2 border-l border-plm-border/30">
               {allPropEntries.length > 0 ? (
                 allPropEntries.map(([key, value]) => (
                   <div key={key} className="flex items-baseline gap-1.5 text-xs py-0.5">
-                    <span className="text-pdm-fg-muted truncate w-24 flex-shrink-0">{key}</span>
-                    <span className="text-pdm-fg truncate">{value || '—'}</span>
+                    <span className="text-plm-fg-muted truncate w-24 flex-shrink-0">{key}</span>
+                    <span className="text-plm-fg truncate">{value || '—'}</span>
                   </div>
                 ))
               ) : (
-                <div className="text-xs text-pdm-fg-dim italic py-1">No properties loaded</div>
+                <div className="text-xs text-plm-fg-dim italic py-1">No properties loaded</div>
               )}
             </div>
           )}
@@ -1226,8 +1226,8 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
       </div>
 
       {/* Right Column - Export */}
-      <div className="w-24 flex flex-col flex-shrink-0 border-l border-pdm-border/30 pl-3">
-        <span className="text-[10px] text-pdm-fg-muted uppercase tracking-wide mb-2">Export</span>
+      <div className="w-24 flex flex-col flex-shrink-0 border-l border-plm-border/30 pl-3">
+        <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide mb-2">Export</span>
         
         {/* Export buttons - vertical stack */}
         <div className="flex flex-col gap-1.5">
@@ -1236,7 +1236,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               <button
                 onClick={() => handleExport('step')}
                 disabled={!!isExporting || !status.running}
-                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-pdm-bg border border-pdm-border hover:bg-pdm-bg-light hover:border-pdm-border-light disabled:opacity-40 transition-colors"
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
                 {isExporting === 'step' ? <Loader2 size={10} className="animate-spin" /> : <Package size={10} />}
                 STEP
@@ -1244,7 +1244,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               <button
                 onClick={() => handleExport('iges')}
                 disabled={!!isExporting || !status.running}
-                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-pdm-bg border border-pdm-border hover:bg-pdm-bg-light hover:border-pdm-border-light disabled:opacity-40 transition-colors"
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
                 {isExporting === 'iges' ? <Loader2 size={10} className="animate-spin" /> : <Package size={10} />}
                 IGES
@@ -1252,7 +1252,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               <button
                 onClick={() => handleExport('stl')}
                 disabled={!!isExporting || !status.running}
-                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-pdm-bg border border-pdm-border hover:bg-pdm-bg-light hover:border-pdm-border-light disabled:opacity-40 transition-colors"
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
                 {isExporting === 'stl' ? <Loader2 size={10} className="animate-spin" /> : <Package size={10} />}
                 STL
@@ -1264,7 +1264,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               <button
                 onClick={() => handleExport('pdf')}
                 disabled={!!isExporting || !status.running}
-                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-pdm-bg border border-pdm-border hover:bg-pdm-bg-light hover:border-pdm-border-light disabled:opacity-40 transition-colors"
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
                 {isExporting === 'pdf' ? <Loader2 size={10} className="animate-spin" /> : <FileOutput size={10} />}
                 PDF
@@ -1272,7 +1272,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               <button
                 onClick={() => handleExport('dxf')}
                 disabled={!!isExporting || !status.running}
-                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-pdm-bg border border-pdm-border hover:bg-pdm-bg-light hover:border-pdm-border-light disabled:opacity-40 transition-colors"
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
                 {isExporting === 'dxf' ? <Loader2 size={10} className="animate-spin" /> : <Download size={10} />}
                 DXF
@@ -1283,10 +1283,10 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
 
         {/* Config mode selector - compact */}
         {isPartOrAsm && displayConfigs.length > 1 && (
-          <div className="mt-3 pt-2 border-t border-pdm-border/30">
+          <div className="mt-3 pt-2 border-t border-plm-border/30">
             <button
               onClick={() => setShowExportOptions(!showExportOptions)}
-              className="text-[10px] text-pdm-fg-muted flex items-center gap-0.5 hover:text-pdm-fg-dim"
+              className="text-[10px] text-plm-fg-muted flex items-center gap-0.5 hover:text-plm-fg-dim"
             >
               {showExportOptions ? <ChevronDown size={8} /> : <ChevronRight size={8} />}
               Configs
@@ -1300,8 +1300,8 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
                     onClick={() => setExportConfigMode(mode as ExportConfigMode)}
                     className={`w-full text-[10px] px-1.5 py-0.5 rounded transition-colors ${
                       exportConfigMode === mode 
-                        ? 'bg-pdm-accent/20 text-pdm-accent' 
-                        : 'text-pdm-fg-muted hover:bg-pdm-bg-light'
+                        ? 'bg-plm-accent/20 text-plm-accent' 
+                        : 'text-plm-fg-muted hover:bg-plm-bg-light'
                     }`}
                   >
                     {mode === 'current' ? 'Current' : mode === 'all' ? `All (${displayConfigs.length})` : `Pick...`}

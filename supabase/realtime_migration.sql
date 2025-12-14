@@ -1,4 +1,4 @@
--- Realtime Migration for BluePDM
+-- Realtime Migration for BluePLM
 -- Enables real-time subscriptions for file changes across all connected clients
 -- 
 -- This allows instant updates when:

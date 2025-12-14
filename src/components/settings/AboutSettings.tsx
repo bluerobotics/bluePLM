@@ -25,19 +25,19 @@ export function AboutSettings() {
         <div className="w-24 h-24 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
           <span className="text-4xl font-bold text-white">B</span>
         </div>
-        <h2 className="text-3xl font-bold text-pdm-fg">BluePDM</h2>
-        <p className="text-base text-pdm-fg-muted mt-1">
+        <h2 className="text-3xl font-bold text-plm-fg">BluePLM</h2>
+        <p className="text-base text-plm-fg-muted mt-1">
           Version {appVersion || '...'}
         </p>
-        <p className="text-sm text-pdm-fg-dim mt-1">
+        <p className="text-sm text-plm-fg-dim mt-1">
           Platform: {platformDisplay}
         </p>
       </div>
 
       {/* Description */}
-      <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
-        <p className="text-base text-pdm-fg leading-relaxed">
-          BluePDM is a modern Product Data Management system designed for engineering teams.
+      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+        <p className="text-base text-plm-fg leading-relaxed">
+          BluePLM is a modern Product Data Management system designed for engineering teams.
           Manage CAD files, track revisions, and collaborate with your team seamlessly.
         </p>
       </div>
@@ -45,45 +45,45 @@ export function AboutSettings() {
       {/* Links */}
       <div className="space-y-2">
         <a
-          href="https://github.com/bluerobotics/bluepdm"
+          href="https://github.com/bluerobotics/blueplm"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 p-4 bg-pdm-bg rounded-lg border border-pdm-border hover:border-pdm-fg-muted transition-colors"
+          className="flex items-center gap-3 p-4 bg-plm-bg rounded-lg border border-plm-border hover:border-plm-fg-muted transition-colors"
           onClick={(e) => {
             e.preventDefault()
-            window.electronAPI?.openFile('https://github.com/bluerobotics/bluepdm')
+            window.electronAPI?.openFile('https://github.com/bluerobotics/blueplm')
           }}
         >
-          <Github size={24} className="text-pdm-fg-muted" />
+          <Github size={24} className="text-plm-fg-muted" />
           <div className="flex-1">
-            <div className="text-base font-medium text-pdm-fg">GitHub Repository</div>
-            <div className="text-sm text-pdm-fg-muted">View source code and contribute</div>
+            <div className="text-base font-medium text-plm-fg">GitHub Repository</div>
+            <div className="text-sm text-plm-fg-muted">View source code and contribute</div>
           </div>
-          <ExternalLink size={18} className="text-pdm-fg-muted" />
+          <ExternalLink size={18} className="text-plm-fg-muted" />
         </a>
 
         <a
-          href="https://github.com/bluerobotics/bluepdm/issues"
+          href="https://github.com/bluerobotics/blueplm/issues"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 p-4 bg-pdm-bg rounded-lg border border-pdm-border hover:border-pdm-fg-muted transition-colors"
+          className="flex items-center gap-3 p-4 bg-plm-bg rounded-lg border border-plm-border hover:border-plm-fg-muted transition-colors"
           onClick={(e) => {
             e.preventDefault()
-            window.electronAPI?.openFile('https://github.com/bluerobotics/bluepdm/issues')
+            window.electronAPI?.openFile('https://github.com/bluerobotics/blueplm/issues')
           }}
         >
-          <Info size={24} className="text-pdm-fg-muted" />
+          <Info size={24} className="text-plm-fg-muted" />
           <div className="flex-1">
-            <div className="text-base font-medium text-pdm-fg">Report Issues</div>
-            <div className="text-sm text-pdm-fg-muted">Found a bug? Let us know!</div>
+            <div className="text-base font-medium text-plm-fg">Report Issues</div>
+            <div className="text-sm text-plm-fg-muted">Found a bug? Let us know!</div>
           </div>
-          <ExternalLink size={18} className="text-pdm-fg-muted" />
+          <ExternalLink size={18} className="text-plm-fg-muted" />
         </a>
       </div>
 
       {/* Credits */}
-      <div className="pt-4 border-t border-pdm-border text-center">
-        <p className="text-base text-pdm-fg-muted flex items-center justify-center gap-1.5">
+      <div className="pt-4 border-t border-plm-border text-center">
+        <p className="text-base text-plm-fg-muted flex items-center justify-center gap-1.5">
           Made with <Heart size={16} className="text-red-400" /> by Blue Robotics
         </p>
       </div>

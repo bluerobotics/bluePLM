@@ -77,7 +77,7 @@ const en: TranslationDict = {
   
   // Welcome/Auth Screen
   welcome: {
-    title: 'BluePDM',
+    title: 'BluePLM',
     tagline: 'Open source Product Data Management for engineering teams',
     selectAccountType: 'Select your account type',
     teamMember: 'Team Member',
@@ -99,6 +99,8 @@ const en: TranslationDict = {
     signInToAccount: 'Sign in to your account',
     email: 'Email',
     password: 'Password',
+    confirmPassword: 'Confirm Password',
+    passwordMismatch: 'Passwords do not match',
     phone: 'Phone',
     phoneNumber: 'Phone Number',
     fullName: 'Full Name',
@@ -106,6 +108,8 @@ const en: TranslationDict = {
     signIn: 'Sign In',
     alreadyHaveAccount: 'Already have an account? Sign in',
     noAccount: "Don't have an account? Create one",
+    useEmailPassword: 'Use Email & Password',
+    useGoogleInstead: 'Or sign in with Google',
     sendVerificationCode: 'Send Verification Code',
     verificationCode: 'Verification Code',
     verifyAndSignIn: 'Verify & Sign In',
@@ -128,10 +132,10 @@ const en: TranslationDict = {
   
   // Setup Screen
   setup: {
-    welcome: 'Welcome to BluePDM',
+    welcome: 'Welcome to BluePLM',
     connectToBackend: 'Connect to your organization\'s Supabase backend to get started',
     imAdmin: "I'm an Organization Admin",
-    imAdminDesc: "Set up BluePDM with your organization's Supabase credentials. You'll get a code to share with your team.",
+    imAdminDesc: "Set up BluePLM with your organization's Supabase credentials. You'll get a code to share with your team.",
     haveCode: 'I have an Organization Code',
     haveCodeDesc: 'Enter the code provided by your organization admin to connect.',
     needHelp: 'Need help setting up Supabase?',
@@ -150,8 +154,8 @@ const en: TranslationDict = {
     connectedSuccess: 'Connected Successfully!',
     shareCode: 'Share this code with your team members so they can connect',
     organizationCode: 'Organization Code',
-    keepCodeSecure: 'Team members can paste this code when they first open BluePDM. Keep this code secure - it contains your Supabase credentials.',
-    continueToBluePDM: 'Continue to BluePDM',
+    keepCodeSecure: 'Team members can paste this code when they first open BluePLM. Keep this code secure - it contains your Supabase credentials.',
+    continueToBluePLM: 'Continue to BluePLM',
     
     // Member setup
     joinOrg: 'Join Your Organization',
@@ -238,6 +242,7 @@ const en: TranslationDict = {
     reviews: 'Reviews/Approvals',
     suppliers: 'Suppliers',
     supplierPortal: 'Supplier Portal',
+    googleDrive: 'Google Drive',
     settings: 'Settings',
     
     // Sidebar control
@@ -377,7 +382,7 @@ const fr: TranslationDict = {
   },
   
   welcome: {
-    title: 'BluePDM',
+    title: 'BluePLM',
     tagline: 'Gestion des données produit open source pour les équipes d\'ingénierie',
     selectAccountType: 'Sélectionnez votre type de compte',
     teamMember: 'Membre de l\'équipe',
@@ -397,6 +402,8 @@ const fr: TranslationDict = {
     signInToAccount: 'Connectez-vous à votre compte',
     email: 'E-mail',
     password: 'Mot de passe',
+    confirmPassword: 'Confirmer le mot de passe',
+    passwordMismatch: 'Les mots de passe ne correspondent pas',
     phone: 'Téléphone',
     phoneNumber: 'Numéro de téléphone',
     fullName: 'Nom complet',
@@ -404,6 +411,8 @@ const fr: TranslationDict = {
     signIn: 'Se connecter',
     alreadyHaveAccount: 'Vous avez déjà un compte ? Connectez-vous',
     noAccount: 'Pas de compte ? Créez-en un',
+    useEmailPassword: 'Utiliser e-mail et mot de passe',
+    useGoogleInstead: 'Ou se connecter avec Google',
     sendVerificationCode: 'Envoyer le code de vérification',
     verificationCode: 'Code de vérification',
     verifyAndSignIn: 'Vérifier et se connecter',
@@ -424,10 +433,10 @@ const fr: TranslationDict = {
   },
   
   setup: {
-    welcome: 'Bienvenue sur BluePDM',
+    welcome: 'Bienvenue sur BluePLM',
     connectToBackend: 'Connectez-vous au backend Supabase de votre organisation pour commencer',
     imAdmin: 'Je suis administrateur de l\'organisation',
-    imAdminDesc: 'Configurez BluePDM avec les identifiants Supabase de votre organisation. Vous obtiendrez un code à partager avec votre équipe.',
+    imAdminDesc: 'Configurez BluePLM avec les identifiants Supabase de votre organisation. Vous obtiendrez un code à partager avec votre équipe.',
     haveCode: 'J\'ai un code d\'organisation',
     haveCodeDesc: 'Entrez le code fourni par l\'administrateur de votre organisation pour vous connecter.',
     needHelp: 'Besoin d\'aide pour configurer Supabase ?',
@@ -444,8 +453,8 @@ const fr: TranslationDict = {
     connectedSuccess: 'Connecté avec succès !',
     shareCode: 'Partagez ce code avec les membres de votre équipe pour qu\'ils puissent se connecter',
     organizationCode: 'Code d\'organisation',
-    keepCodeSecure: 'Les membres de l\'équipe peuvent coller ce code lors de leur première ouverture de BluePDM. Gardez ce code en sécurité - il contient vos identifiants Supabase.',
-    continueToBluePDM: 'Continuer vers BluePDM',
+    keepCodeSecure: 'Les membres de l\'équipe peuvent coller ce code lors de leur première ouverture de BluePLM. Gardez ce code en sécurité - il contient vos identifiants Supabase.',
+    continueToBluePLM: 'Continuer vers BluePLM',
     
     joinOrg: 'Rejoindre votre organisation',
     enterCode: 'Entrez le code fourni par l\'administrateur de votre organisation',
@@ -527,6 +536,7 @@ const fr: TranslationDict = {
     reviews: 'Révisions/Approbations',
     suppliers: 'Fournisseurs',
     supplierPortal: 'Portail fournisseurs',
+    googleDrive: 'Google Drive',
     settings: 'Paramètres',
     
     sidebarControl: 'Contrôle de la barre latérale',
@@ -660,7 +670,7 @@ const de: TranslationDict = {
   },
   
   welcome: {
-    title: 'BluePDM',
+    title: 'BluePLM',
     tagline: 'Open-Source-Produktdatenmanagement für Ingenieurteams',
     selectAccountType: 'Wählen Sie Ihren Kontotyp',
     teamMember: 'Teammitglied',
@@ -680,6 +690,8 @@ const de: TranslationDict = {
     signInToAccount: 'Bei Ihrem Konto anmelden',
     email: 'E-Mail',
     password: 'Passwort',
+    confirmPassword: 'Passwort bestätigen',
+    passwordMismatch: 'Passwörter stimmen nicht überein',
     phone: 'Telefon',
     phoneNumber: 'Telefonnummer',
     fullName: 'Vollständiger Name',
@@ -687,6 +699,8 @@ const de: TranslationDict = {
     signIn: 'Anmelden',
     alreadyHaveAccount: 'Haben Sie bereits ein Konto? Anmelden',
     noAccount: 'Kein Konto? Erstellen Sie eins',
+    useEmailPassword: 'E-Mail und Passwort verwenden',
+    useGoogleInstead: 'Oder mit Google anmelden',
     sendVerificationCode: 'Bestätigungscode senden',
     verificationCode: 'Bestätigungscode',
     verifyAndSignIn: 'Bestätigen und anmelden',
@@ -707,10 +721,10 @@ const de: TranslationDict = {
   },
   
   setup: {
-    welcome: 'Willkommen bei BluePDM',
+    welcome: 'Willkommen bei BluePLM',
     connectToBackend: 'Verbinden Sie sich mit dem Supabase-Backend Ihrer Organisation, um zu beginnen',
     imAdmin: 'Ich bin Organisationsadministrator',
-    imAdminDesc: 'Richten Sie BluePDM mit den Supabase-Anmeldedaten Ihrer Organisation ein. Sie erhalten einen Code zum Teilen mit Ihrem Team.',
+    imAdminDesc: 'Richten Sie BluePLM mit den Supabase-Anmeldedaten Ihrer Organisation ein. Sie erhalten einen Code zum Teilen mit Ihrem Team.',
     haveCode: 'Ich habe einen Organisationscode',
     haveCodeDesc: 'Geben Sie den Code ein, den Sie von Ihrem Organisationsadministrator erhalten haben.',
     needHelp: 'Hilfe bei der Einrichtung von Supabase benötigt?',
@@ -727,8 +741,8 @@ const de: TranslationDict = {
     connectedSuccess: 'Erfolgreich verbunden!',
     shareCode: 'Teilen Sie diesen Code mit Ihren Teammitgliedern, damit sie sich verbinden können',
     organizationCode: 'Organisationscode',
-    keepCodeSecure: 'Teammitglieder können diesen Code einfügen, wenn sie BluePDM zum ersten Mal öffnen. Bewahren Sie diesen Code sicher auf - er enthält Ihre Supabase-Anmeldedaten.',
-    continueToBluePDM: 'Weiter zu BluePDM',
+    keepCodeSecure: 'Teammitglieder können diesen Code einfügen, wenn sie BluePLM zum ersten Mal öffnen. Bewahren Sie diesen Code sicher auf - er enthält Ihre Supabase-Anmeldedaten.',
+    continueToBluePLM: 'Weiter zu BluePLM',
     
     joinOrg: 'Ihrer Organisation beitreten',
     enterCode: 'Geben Sie den Code ein, den Sie von Ihrem Organisationsadministrator erhalten haben',
@@ -810,6 +824,7 @@ const de: TranslationDict = {
     reviews: 'Prüfungen/Genehmigungen',
     suppliers: 'Lieferanten',
     supplierPortal: 'Lieferantenportal',
+    googleDrive: 'Google Drive',
     settings: 'Einstellungen',
     
     sidebarControl: 'Seitenleistensteuerung',
@@ -943,7 +958,7 @@ const es: TranslationDict = {
   },
   
   welcome: {
-    title: 'BluePDM',
+    title: 'BluePLM',
     tagline: 'Gestión de datos de producto de código abierto para equipos de ingeniería',
     selectAccountType: 'Selecciona tu tipo de cuenta',
     teamMember: 'Miembro del equipo',
@@ -963,6 +978,8 @@ const es: TranslationDict = {
     signInToAccount: 'Inicia sesión en tu cuenta',
     email: 'Correo electrónico',
     password: 'Contraseña',
+    confirmPassword: 'Confirmar contraseña',
+    passwordMismatch: 'Las contraseñas no coinciden',
     phone: 'Teléfono',
     phoneNumber: 'Número de teléfono',
     fullName: 'Nombre completo',
@@ -970,6 +987,8 @@ const es: TranslationDict = {
     signIn: 'Iniciar sesión',
     alreadyHaveAccount: '¿Ya tienes una cuenta? Inicia sesión',
     noAccount: '¿No tienes cuenta? Crea una',
+    useEmailPassword: 'Usar correo y contraseña',
+    useGoogleInstead: 'O iniciar sesión con Google',
     sendVerificationCode: 'Enviar código de verificación',
     verificationCode: 'Código de verificación',
     verifyAndSignIn: 'Verificar e iniciar sesión',
@@ -990,10 +1009,10 @@ const es: TranslationDict = {
   },
   
   setup: {
-    welcome: 'Bienvenido a BluePDM',
+    welcome: 'Bienvenido a BluePLM',
     connectToBackend: 'Conecta al backend de Supabase de tu organización para comenzar',
     imAdmin: 'Soy administrador de la organización',
-    imAdminDesc: 'Configura BluePDM con las credenciales de Supabase de tu organización. Obtendrás un código para compartir con tu equipo.',
+    imAdminDesc: 'Configura BluePLM con las credenciales de Supabase de tu organización. Obtendrás un código para compartir con tu equipo.',
     haveCode: 'Tengo un código de organización',
     haveCodeDesc: 'Ingresa el código proporcionado por el administrador de tu organización.',
     needHelp: '¿Necesitas ayuda para configurar Supabase?',
@@ -1010,8 +1029,8 @@ const es: TranslationDict = {
     connectedSuccess: '¡Conectado exitosamente!',
     shareCode: 'Comparte este código con los miembros de tu equipo para que puedan conectarse',
     organizationCode: 'Código de organización',
-    keepCodeSecure: 'Los miembros del equipo pueden pegar este código cuando abran BluePDM por primera vez. Mantén este código seguro - contiene tus credenciales de Supabase.',
-    continueToBluePDM: 'Continuar a BluePDM',
+    keepCodeSecure: 'Los miembros del equipo pueden pegar este código cuando abran BluePLM por primera vez. Mantén este código seguro - contiene tus credenciales de Supabase.',
+    continueToBluePLM: 'Continuar a BluePLM',
     
     joinOrg: 'Únete a tu organización',
     enterCode: 'Ingresa el código proporcionado por el administrador de tu organización',
@@ -1093,6 +1112,7 @@ const es: TranslationDict = {
     reviews: 'Revisiones/Aprobaciones',
     suppliers: 'Proveedores',
     supplierPortal: 'Portal de proveedores',
+    googleDrive: 'Google Drive',
     settings: 'Configuración',
     
     sidebarControl: 'Control de barra lateral',
@@ -1226,7 +1246,7 @@ const zhCN: TranslationDict = {
   },
   
   welcome: {
-    title: 'BluePDM',
+    title: 'BluePLM',
     tagline: '面向工程团队的开源产品数据管理系统',
     selectAccountType: '选择您的账户类型',
     teamMember: '团队成员',
@@ -1246,6 +1266,8 @@ const zhCN: TranslationDict = {
     signInToAccount: '登录您的账户',
     email: '电子邮箱',
     password: '密码',
+    confirmPassword: '确认密码',
+    passwordMismatch: '密码不匹配',
     phone: '电话',
     phoneNumber: '电话号码',
     fullName: '姓名',
@@ -1253,6 +1275,8 @@ const zhCN: TranslationDict = {
     signIn: '登录',
     alreadyHaveAccount: '已有账户？点击登录',
     noAccount: '没有账户？创建一个',
+    useEmailPassword: '使用邮箱和密码',
+    useGoogleInstead: '或使用Google登录',
     sendVerificationCode: '发送验证码',
     verificationCode: '验证码',
     verifyAndSignIn: '验证并登录',
@@ -1273,10 +1297,10 @@ const zhCN: TranslationDict = {
   },
   
   setup: {
-    welcome: '欢迎使用 BluePDM',
+    welcome: '欢迎使用 BluePLM',
     connectToBackend: '连接到您组织的 Supabase 后端以开始使用',
     imAdmin: '我是组织管理员',
-    imAdminDesc: '使用您组织的 Supabase 凭据设置 BluePDM。您将获得一个代码与团队共享。',
+    imAdminDesc: '使用您组织的 Supabase 凭据设置 BluePLM。您将获得一个代码与团队共享。',
     haveCode: '我有组织代码',
     haveCodeDesc: '输入组织管理员提供的代码进行连接。',
     needHelp: '需要 Supabase 设置帮助？',
@@ -1293,8 +1317,8 @@ const zhCN: TranslationDict = {
     connectedSuccess: '连接成功！',
     shareCode: '将此代码分享给您的团队成员，以便他们进行连接',
     organizationCode: '组织代码',
-    keepCodeSecure: '团队成员在首次打开 BluePDM 时可以粘贴此代码。请妥善保管此代码 - 它包含您的 Supabase 凭据。',
-    continueToBluePDM: '继续使用 BluePDM',
+    keepCodeSecure: '团队成员在首次打开 BluePLM 时可以粘贴此代码。请妥善保管此代码 - 它包含您的 Supabase 凭据。',
+    continueToBluePLM: '继续使用 BluePLM',
     
     joinOrg: '加入您的组织',
     enterCode: '输入组织管理员提供的代码',
@@ -1376,6 +1400,7 @@ const zhCN: TranslationDict = {
     reviews: '审核/批准',
     suppliers: '供应商',
     supplierPortal: '供应商门户',
+    googleDrive: 'Google 云端硬盘',
     settings: '设置',
     
     sidebarControl: '侧边栏控制',
@@ -1509,7 +1534,7 @@ const zhTW: TranslationDict = {
   },
   
   welcome: {
-    title: 'BluePDM',
+    title: 'BluePLM',
     tagline: '面向工程團隊的開源產品資料管理系統',
     selectAccountType: '選擇您的帳戶類型',
     teamMember: '團隊成員',
@@ -1529,6 +1554,8 @@ const zhTW: TranslationDict = {
     signInToAccount: '登入您的帳戶',
     email: '電子郵件',
     password: '密碼',
+    confirmPassword: '確認密碼',
+    passwordMismatch: '密碼不符',
     phone: '電話',
     phoneNumber: '電話號碼',
     fullName: '姓名',
@@ -1536,6 +1563,8 @@ const zhTW: TranslationDict = {
     signIn: '登入',
     alreadyHaveAccount: '已有帳戶？點擊登入',
     noAccount: '沒有帳戶？建立一個',
+    useEmailPassword: '使用電子郵件和密碼',
+    useGoogleInstead: '或使用 Google 登入',
     sendVerificationCode: '傳送驗證碼',
     verificationCode: '驗證碼',
     verifyAndSignIn: '驗證並登入',
@@ -1556,10 +1585,10 @@ const zhTW: TranslationDict = {
   },
   
   setup: {
-    welcome: '歡迎使用 BluePDM',
+    welcome: '歡迎使用 BluePLM',
     connectToBackend: '連線到您組織的 Supabase 後端以開始使用',
     imAdmin: '我是組織管理員',
-    imAdminDesc: '使用您組織的 Supabase 憑證設定 BluePDM。您將獲得一個代碼與團隊分享。',
+    imAdminDesc: '使用您組織的 Supabase 憑證設定 BluePLM。您將獲得一個代碼與團隊分享。',
     haveCode: '我有組織代碼',
     haveCodeDesc: '輸入組織管理員提供的代碼進行連線。',
     needHelp: '需要 Supabase 設定說明？',
@@ -1576,8 +1605,8 @@ const zhTW: TranslationDict = {
     connectedSuccess: '連線成功！',
     shareCode: '將此代碼分享給您的團隊成員，以便他們進行連線',
     organizationCode: '組織代碼',
-    keepCodeSecure: '團隊成員在首次開啟 BluePDM 時可以貼上此代碼。請妥善保管此代碼 - 它包含您的 Supabase 憑證。',
-    continueToBluePDM: '繼續使用 BluePDM',
+    keepCodeSecure: '團隊成員在首次開啟 BluePLM 時可以貼上此代碼。請妥善保管此代碼 - 它包含您的 Supabase 憑證。',
+    continueToBluePLM: '繼續使用 BluePLM',
     
     joinOrg: '加入您的組織',
     enterCode: '輸入組織管理員提供的代碼',
@@ -1659,6 +1688,7 @@ const zhTW: TranslationDict = {
     reviews: '審核/核准',
     suppliers: '供應商',
     supplierPortal: '供應商入口',
+    googleDrive: 'Google 雲端硬碟',
     settings: '設定',
     
     sidebarControl: '側邊欄控制',
@@ -1792,7 +1822,7 @@ const pt: TranslationDict = {
   },
   
   welcome: {
-    title: 'BluePDM',
+    title: 'BluePLM',
     tagline: 'Gestão de dados de produto open source para equipas de engenharia',
     selectAccountType: 'Selecione o tipo de conta',
     teamMember: 'Membro da Equipa',
@@ -1812,6 +1842,8 @@ const pt: TranslationDict = {
     signInToAccount: 'Inicie sessão na sua conta',
     email: 'Email',
     password: 'Palavra-passe',
+    confirmPassword: 'Confirmar palavra-passe',
+    passwordMismatch: 'As palavras-passe não coincidem',
     phone: 'Telefone',
     phoneNumber: 'Número de telefone',
     fullName: 'Nome completo',
@@ -1819,6 +1851,8 @@ const pt: TranslationDict = {
     signIn: 'Iniciar Sessão',
     alreadyHaveAccount: 'Já tem uma conta? Inicie sessão',
     noAccount: 'Não tem conta? Crie uma',
+    useEmailPassword: 'Usar email e palavra-passe',
+    useGoogleInstead: 'Ou iniciar sessão com Google',
     sendVerificationCode: 'Enviar Código de Verificação',
     verificationCode: 'Código de Verificação',
     verifyAndSignIn: 'Verificar e Iniciar Sessão',
@@ -1839,10 +1873,10 @@ const pt: TranslationDict = {
   },
   
   setup: {
-    welcome: 'Bem-vindo ao BluePDM',
+    welcome: 'Bem-vindo ao BluePLM',
     connectToBackend: 'Ligue-se ao backend Supabase da sua organização para começar',
     imAdmin: 'Sou Administrador da Organização',
-    imAdminDesc: 'Configure o BluePDM com as credenciais Supabase da sua organização. Receberá um código para partilhar com a sua equipa.',
+    imAdminDesc: 'Configure o BluePLM com as credenciais Supabase da sua organização. Receberá um código para partilhar com a sua equipa.',
     haveCode: 'Tenho um Código de Organização',
     haveCodeDesc: 'Introduza o código fornecido pelo administrador da sua organização para ligar.',
     needHelp: 'Precisa de ajuda a configurar o Supabase?',
@@ -1859,8 +1893,8 @@ const pt: TranslationDict = {
     connectedSuccess: 'Ligado com Sucesso!',
     shareCode: 'Partilhe este código com os membros da sua equipa para que possam ligar',
     organizationCode: 'Código da Organização',
-    keepCodeSecure: 'Os membros da equipa podem colar este código quando abrirem o BluePDM pela primeira vez. Mantenha este código seguro - contém as suas credenciais Supabase.',
-    continueToBluePDM: 'Continuar para o BluePDM',
+    keepCodeSecure: 'Os membros da equipa podem colar este código quando abrirem o BluePLM pela primeira vez. Mantenha este código seguro - contém as suas credenciais Supabase.',
+    continueToBluePLM: 'Continuar para o BluePLM',
     
     joinOrg: 'Juntar-se à Sua Organização',
     enterCode: 'Introduza o código fornecido pelo administrador da sua organização',
@@ -1942,6 +1976,7 @@ const pt: TranslationDict = {
     reviews: 'Revisões/Aprovações',
     suppliers: 'Fornecedores',
     supplierPortal: 'Portal de Fornecedores',
+    googleDrive: 'Google Drive',
     settings: 'Definições',
     
     sidebarControl: 'Controlo da barra lateral',
@@ -2037,6 +2072,10 @@ const translations: Record<Language, Record<string, string>> = {
   'ru': flattenTranslations(en),
   'ja': flattenTranslations(en),
   'ko': flattenTranslations(en),
+  // 🧝 Easter Egg: Sindarin (Elvish) - Uses English text with Tengwar font
+  // The Tengwar font maps Latin letters to Elvish script characters,
+  // making the entire UI beautifully unreadable!
+  'sindarin': flattenTranslations(en),
 }
 
 /**

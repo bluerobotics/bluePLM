@@ -1,4 +1,4 @@
--- BluePDM Odoo Integration Migration
+-- BluePLM Odoo Integration Migration
 -- Adds organization integration settings for Odoo sync
 -- Run this in your Supabase SQL editor AFTER the main schema.sql
 

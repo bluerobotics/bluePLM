@@ -1,4 +1,4 @@
-# BluePDM REST API
+# BluePLM REST API
 
 Integration API for external systems (ERP, CI/CD, automation) built with [Fastify](https://fastify.dev/) and TypeScript.
 
@@ -19,7 +19,7 @@ Integration API for external systems (ERP, CI/CD, automation) built with [Fastif
 │  Step 2: Get API URL                                        │
 │  Railway gives you: https://your-app.railway.app            │
 ├─────────────────────────────────────────────────────────────┤
-│  Step 3: Configure in BluePDM                               │
+│  Step 3: Configure in BluePLM                               │
 │  Settings → REST API → Enter your API URL                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Step 4: Connect Odoo/ERP                                   │
@@ -111,20 +111,20 @@ The easiest way - no repo access needed:
 **Railway:**
 1. Go to [railway.app/new](https://railway.app/new)
 2. Select **"Deploy from Docker Image"**
-3. Enter: `ghcr.io/bluerobotics/bluepdm-api:latest`
+3. Enter: `ghcr.io/bluerobotics/blueplm-api:latest`
 4. Add variables: `SUPABASE_URL`, `SUPABASE_KEY`
 5. Deploy!
 
 **Render:**
 1. Go to [render.com](https://render.com) → New → Web Service
 2. Select **"Deploy an existing image from a registry"**
-3. Enter: `ghcr.io/bluerobotics/bluepdm-api:latest`
+3. Enter: `ghcr.io/bluerobotics/blueplm-api:latest`
 4. Add environment variables
 5. Deploy!
 
 **Fly.io:**
 ```bash
-fly launch --image ghcr.io/bluerobotics/bluepdm-api:latest
+fly launch --image ghcr.io/bluerobotics/blueplm-api:latest
 fly secrets set SUPABASE_URL=https://xxx.supabase.co SUPABASE_KEY=your-key
 fly deploy
 ```
@@ -134,7 +134,7 @@ fly deploy
 docker run -d -p 3001:3001 \
   -e SUPABASE_URL=https://xxx.supabase.co \
   -e SUPABASE_KEY=your-anon-key \
-  ghcr.io/bluerobotics/bluepdm-api:latest
+  ghcr.io/bluerobotics/blueplm-api:latest
 ```
 
 ### Railway (from source)
@@ -161,7 +161,7 @@ Your API will be live at `https://your-app.railway.app`
 ### Where to Find Your Supabase Credentials
 
 1. Go to your [Supabase Dashboard](https://supabase.com/dashboard)
-2. Select your BluePDM project
+2. Select your BluePLM project
 3. Go to **Settings → API**
 4. Copy:
    - **Project URL** → `SUPABASE_URL`
@@ -180,13 +180,13 @@ Your API will be live at `https://your-app.railway.app`
 
 ```bash
 # Build
-docker build -f api/Dockerfile -t bluepdm-api .
+docker build -f api/Dockerfile -t blueplm-api .
 
 # Run
 docker run -p 3001:3001 \
   -e SUPABASE_URL=https://xxx.supabase.co \
   -e SUPABASE_KEY=your-anon-key \
-  bluepdm-api
+  blueplm-api
 ```
 
 ### Fly.io
@@ -686,7 +686,7 @@ curl -X POST http://localhost:3001/files/file-uuid/obsolete \
 # Python example for Odoo integration
 import requests
 
-API_URL = "https://api.bluepdm.yourcompany.com"
+API_URL = "https://api.blueplm.yourcompany.com"
 TOKEN = "your-jwt-token"
 
 headers = {"Authorization": f"Bearer {TOKEN}"}
@@ -910,11 +910,11 @@ curl http://localhost:3001/suppliers/supplier-uuid/parts \
 ```python
 import requests
 
-API_URL = "https://api.bluepdm.yourcompany.com"
+API_URL = "https://api.blueplm.yourcompany.com"
 TOKEN = "your-jwt-token"
 headers = {"Authorization": f"Bearer {TOKEN}"}
 
-# Sync suppliers from BluePDM to Odoo
+# Sync suppliers from BluePLM to Odoo
 response = requests.get(f"{API_URL}/suppliers?active_only=true", headers=headers)
 for supplier in response.json()["suppliers"]:
     # Create/update vendor in Odoo
@@ -1135,7 +1135,7 @@ public class BluePdmClient
 
 ### Webhooks
 
-Webhooks allow external systems to receive real-time notifications when events occur in BluePDM.
+Webhooks allow external systems to receive real-time notifications when events occur in BluePLM.
 
 #### Webhook Events
 
@@ -1192,7 +1192,7 @@ Delete a webhook (admin only).
 
 #### Verifying Signatures
 
-Webhooks include `X-BluePDM-Signature` header (HMAC-SHA256):
+Webhooks include `X-BluePLM-Signature` header (HMAC-SHA256):
 
 ```python
 import hmac, hashlib
@@ -1255,7 +1255,7 @@ For JSON output (production), remove the `pino-pretty` transport in `server.js`.
 
 **"User profile not found" error**
 - User exists in Supabase Auth but not in the `users` table
-- Sign in via the BluePDM desktop app first to create the profile
+- Sign in via the BluePLM desktop app first to create the profile
 
 **"Validation Error" response**
 - Request body doesn't match the JSON Schema

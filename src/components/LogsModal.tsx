@@ -130,7 +130,7 @@ export function LogsModal({ onClose }: LogsModalProps) {
   }
 
   const parseSessionDate = (filename: string): string | null => {
-    const match = filename.match(/bluepdm-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.log/)
+    const match = filename.match(/blueplm-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.log/)
     if (match) {
       const [, year, month, day, hour, minute] = match
       const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`)
@@ -146,23 +146,23 @@ export function LogsModal({ onClose }: LogsModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-pdm-bg-light border border-pdm-border rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[80vh] flex flex-col overflow-hidden">
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[80vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-pdm-border bg-pdm-sidebar">
-          <FileText size={20} className="text-pdm-accent" />
-          <h2 className="text-lg font-semibold text-pdm-fg flex-1">Application Logs</h2>
+        <div className="flex items-center gap-3 p-4 border-b border-plm-border bg-plm-sidebar">
+          <FileText size={20} className="text-plm-accent" />
+          <h2 className="text-lg font-semibold text-plm-fg flex-1">Application Logs</h2>
           <button
             onClick={() => window.electronAPI?.openLogsDir()}
-            className="p-2 hover:bg-pdm-highlight rounded-lg transition-colors"
+            className="p-2 hover:bg-plm-highlight rounded-lg transition-colors"
             title="Open logs folder"
           >
-            <FolderOpen size={18} className="text-pdm-fg-muted" />
+            <FolderOpen size={18} className="text-plm-fg-muted" />
           </button>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-pdm-highlight rounded-lg transition-colors"
+            className="p-2 hover:bg-plm-highlight rounded-lg transition-colors"
           >
-            <X size={18} className="text-pdm-fg-muted" />
+            <X size={18} className="text-plm-fg-muted" />
           </button>
         </div>
 
@@ -171,20 +171,20 @@ export function LogsModal({ onClose }: LogsModalProps) {
           {/* Log Viewer (if viewing a file) */}
           {selectedLog && (
             <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-pdm-bg-light border border-pdm-border rounded-xl shadow-2xl w-[800px] max-w-[95vw] max-h-[85vh] flex flex-col overflow-hidden">
-                <div className="flex items-center gap-3 p-4 border-b border-pdm-border bg-pdm-sidebar">
+              <div className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl w-[800px] max-w-[95vw] max-h-[85vh] flex flex-col overflow-hidden">
+                <div className="flex items-center gap-3 p-4 border-b border-plm-border bg-plm-sidebar">
                   <button
                     onClick={() => {
                       setSelectedLog(null)
                       setLogCopied(false)
                     }}
-                    className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                    className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
                   >
-                    <ChevronLeft size={18} className="text-pdm-fg-muted" />
+                    <ChevronLeft size={18} className="text-plm-fg-muted" />
                   </button>
-                  <FileText size={18} className="text-pdm-fg-muted" />
+                  <FileText size={18} className="text-plm-fg-muted" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-pdm-fg truncate">{selectedLog.name}</div>
+                    <div className="text-sm font-medium text-plm-fg truncate">{selectedLog.name}</div>
                   </div>
                   <button
                     onClick={async () => {
@@ -192,29 +192,29 @@ export function LogsModal({ onClose }: LogsModalProps) {
                       setLogCopied(true)
                       setTimeout(() => setLogCopied(false), 2000)
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-accent transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg hover:border-plm-accent transition-colors"
                   >
                     {logCopied ? (
                       <>
-                        <Check size={14} className="text-pdm-success" />
-                        <span className="text-pdm-success">Copied</span>
+                        <Check size={14} className="text-plm-success" />
+                        <span className="text-plm-success">Copied</span>
                       </>
                     ) : (
                       <>
-                        <Copy size={14} className="text-pdm-fg-muted" />
-                        <span className="text-pdm-fg-muted">Copy All</span>
+                        <Copy size={14} className="text-plm-fg-muted" />
+                        <span className="text-plm-fg-muted">Copy All</span>
                       </>
                     )}
                   </button>
                   <button
                     onClick={() => setSelectedLog(null)}
-                    className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                    className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
                   >
-                    <X size={18} className="text-pdm-fg-muted" />
+                    <X size={18} className="text-plm-fg-muted" />
                   </button>
                 </div>
-                <div className="flex-1 overflow-auto p-4 bg-pdm-bg">
-                  <pre className="text-xs text-pdm-fg-muted font-mono whitespace-pre-wrap break-all leading-relaxed">
+                <div className="flex-1 overflow-auto p-4 bg-plm-bg">
+                  <pre className="text-xs text-plm-fg-muted font-mono whitespace-pre-wrap break-all leading-relaxed">
                     {selectedLog.content}
                   </pre>
                 </div>
@@ -225,10 +225,10 @@ export function LogsModal({ onClose }: LogsModalProps) {
           {/* Logs List */}
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="text-pdm-fg-muted animate-spin" />
+              <Loader2 size={24} className="text-plm-fg-muted animate-spin" />
             </div>
           ) : logFiles.length === 0 ? (
-            <div className="text-center py-12 text-pdm-fg-muted">
+            <div className="text-center py-12 text-plm-fg-muted">
               No log files found
             </div>
           ) : (
@@ -236,22 +236,22 @@ export function LogsModal({ onClose }: LogsModalProps) {
               {logFiles.map((file) => (
                 <div
                   key={file.path}
-                  className="group flex items-center gap-3 p-3 rounded-lg border border-pdm-border bg-pdm-bg hover:border-pdm-accent transition-colors"
+                  className="group flex items-center gap-3 p-3 rounded-lg border border-plm-border bg-plm-bg hover:border-plm-accent transition-colors"
                 >
                   <FileText 
                     size={18} 
-                    className={file.isCurrentSession ? 'text-pdm-accent' : 'text-pdm-fg-muted'} 
+                    className={file.isCurrentSession ? 'text-plm-accent' : 'text-plm-fg-muted'} 
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-pdm-fg truncate">{file.name}</span>
+                      <span className="text-sm font-medium text-plm-fg truncate">{file.name}</span>
                       {file.isCurrentSession && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-pdm-accent/20 text-pdm-accent rounded">
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-plm-accent/20 text-plm-accent rounded">
                           CURRENT
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-pdm-fg-dim mt-0.5">
+                    <div className="flex items-center gap-3 text-xs text-plm-fg-dim mt-0.5">
                       <span className="flex items-center gap-1">
                         <Clock size={12} />
                         {parseSessionDate(file.name) || new Date(file.modifiedTime).toLocaleString()}
@@ -262,37 +262,37 @@ export function LogsModal({ onClose }: LogsModalProps) {
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => copyLogFile(file)}
-                      className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                      className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
                       title="Copy log content"
                     >
                       {copiedPath === file.path ? (
-                        <Check size={14} className="text-pdm-success" />
+                        <Check size={14} className="text-plm-success" />
                       ) : (
-                        <Copy size={14} className="text-pdm-fg-muted" />
+                        <Copy size={14} className="text-plm-fg-muted" />
                       )}
                     </button>
                     <button
                       onClick={() => viewLogFile(file)}
                       disabled={isLoadingContent}
-                      className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                      className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
                       title="View log"
                     >
-                      <Eye size={14} className="text-pdm-fg-muted" />
+                      <Eye size={14} className="text-plm-fg-muted" />
                     </button>
                     <button
                       onClick={() => window.electronAPI?.openInExplorer(file.path)}
-                      className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                      className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
                       title="Show in Explorer"
                     >
-                      <ExternalLink size={14} className="text-pdm-fg-muted" />
+                      <ExternalLink size={14} className="text-plm-fg-muted" />
                     </button>
                     {!file.isCurrentSession && (
                       <button
                         onClick={() => deleteLogFile(file)}
-                        className="p-1.5 hover:bg-pdm-error/20 rounded transition-colors"
+                        className="p-1.5 hover:bg-plm-error/20 rounded transition-colors"
                         title="Delete log"
                       >
-                        <Trash2 size={14} className="text-pdm-fg-muted hover:text-pdm-error" />
+                        <Trash2 size={14} className="text-plm-fg-muted hover:text-plm-error" />
                       </button>
                     )}
                   </div>
@@ -305,24 +305,24 @@ export function LogsModal({ onClose }: LogsModalProps) {
           <button
             onClick={exportLogs}
             disabled={isExporting}
-            className="w-full flex items-center gap-3 p-4 rounded-lg border border-pdm-border bg-pdm-bg hover:border-pdm-accent transition-colors disabled:opacity-50"
+            className="w-full flex items-center gap-3 p-4 rounded-lg border border-plm-border bg-plm-bg hover:border-plm-accent transition-colors disabled:opacity-50"
           >
             {isExporting ? (
-              <Loader2 size={20} className="text-pdm-fg-muted animate-spin" />
+              <Loader2 size={20} className="text-plm-fg-muted animate-spin" />
             ) : (
-              <Download size={20} className="text-pdm-fg-muted" />
+              <Download size={20} className="text-plm-fg-muted" />
             )}
             <div className="flex-1 text-left">
-              <div className="text-sm font-medium text-pdm-fg">Export Current Session</div>
-              <div className="text-xs text-pdm-fg-dim">
+              <div className="text-sm font-medium text-plm-fg">Export Current Session</div>
+              <div className="text-xs text-plm-fg-dim">
                 Save logs to a file for sharing with support
               </div>
             </div>
           </button>
 
           {/* Tip */}
-          <div className="p-3 bg-pdm-highlight/50 rounded-lg border border-pdm-border text-xs text-pdm-fg-dim">
-            <strong>Tip:</strong> If BluePDM crashes, click the folder icon to access your logs directory.
+          <div className="p-3 bg-plm-highlight/50 rounded-lg border border-plm-border text-xs text-plm-fg-dim">
+            <strong>Tip:</strong> If BluePLM crashes, click the folder icon to access your logs directory.
           </div>
         </div>
       </div>

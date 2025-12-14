@@ -56,14 +56,14 @@ function RightPanelIcon({ file, size = 24 }: { file: LocalFile; size?: number })
   // Fallback to React icons
   const iconType = getFileIconType(file.extension)
   const iconClassMap: Record<string, string> = {
-    part: 'text-pdm-accent',
+    part: 'text-plm-accent',
     assembly: 'text-amber-400',
     drawing: 'text-sky-300',
     step: 'text-orange-400',
     pdf: 'text-red-400',
     image: 'text-purple-400',
   }
-  const iconClass = iconClassMap[iconType] || 'text-pdm-fg-muted'
+  const iconClass = iconClassMap[iconType] || 'text-plm-fg-muted'
   const iconMap: Record<string, typeof File> = {
     part: FileBox,
     assembly: Layers,
@@ -177,7 +177,7 @@ export function RightPanel() {
   }
 
   const getFileIcon = () => {
-    if (!file) return <File size={24} className="text-pdm-fg-muted" />
+    if (!file) return <File size={24} className="text-plm-fg-muted" />
     // Use OS icons for files
     return <RightPanelIcon file={file} size={24} />
   }
@@ -186,7 +186,7 @@ export function RightPanel() {
 
   return (
     <div 
-      className="bg-pdm-panel border-l border-pdm-border flex flex-col"
+      className="bg-plm-panel border-l border-plm-border flex flex-col"
       style={{ width: rightPanelWidth }}
     >
       {/* Tabs */}
@@ -206,7 +206,7 @@ export function RightPanel() {
         </div>
         <button
           onClick={() => rightPanelTab && moveTabToBottom(rightPanelTab)}
-          className="p-1 hover:bg-pdm-bg-light rounded text-pdm-fg-muted hover:text-pdm-fg"
+          className="p-1 hover:bg-plm-bg-light rounded text-plm-fg-muted hover:text-plm-fg"
           title="Move tab to bottom panel"
         >
           <ArrowLeft size={14} />
@@ -216,11 +216,11 @@ export function RightPanel() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
         {selectedFileObjects.length === 0 ? (
-          <div className="text-sm text-pdm-fg-muted text-center py-8">
+          <div className="text-sm text-plm-fg-muted text-center py-8">
             Select a file to view details
           </div>
         ) : selectedFileObjects.length > 1 ? (
-          <div className="text-sm text-pdm-fg-muted text-center py-8">
+          <div className="text-sm text-plm-fg-muted text-center py-8">
             {selectedFileObjects.length} files selected
           </div>
         ) : file && (
@@ -231,28 +231,28 @@ export function RightPanel() {
                   {getFileIcon()}
                   <div className="min-w-0">
                     <div className="font-medium truncate">{file.name}</div>
-                    <div className="text-xs text-pdm-fg-muted truncate">{file.relativePath}</div>
+                    <div className="text-xs text-plm-fg-muted truncate">{file.relativePath}</div>
                   </div>
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-pdm-fg-muted">Item Number</span>
+                    <span className="text-plm-fg-muted">Item Number</span>
                     <span>{file.pdmData?.part_number || '-'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-pdm-fg-muted">Revision</span>
+                    <span className="text-plm-fg-muted">Revision</span>
                     <span>{file.pdmData?.revision || 'A'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-pdm-fg-muted">Version</span>
+                    <span className="text-plm-fg-muted">Version</span>
                     <span>{file.pdmData?.version || 1}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-pdm-fg-muted">Size</span>
+                    <span className="text-plm-fg-muted">Size</span>
                     <span>{formatFileSize(file.size)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-pdm-fg-muted">Status</span>
+                    <span className="text-plm-fg-muted">Status</span>
                     <span>{file.pdmData ? 'Synced' : (file.diffStatus === 'ignored' ? 'Local only (ignored)' : 'Local only')}</span>
                   </div>
                 </div>
@@ -267,20 +267,20 @@ export function RightPanel() {
                   ) : pdfDataUrl ? (
                     <iframe src={pdfDataUrl} className="w-full h-full border-0 rounded bg-white" />
                   ) : (
-                    <div className="text-pdm-fg-muted">Failed to load PDF</div>
+                    <div className="text-plm-fg-muted">Failed to load PDF</div>
                   )
                 ) : isImageFile ? (
                   <img src={`file://${file.path}`} alt={file.name} className="max-w-full max-h-full object-contain" />
                 ) : isCADFile ? (
                   <div className="text-center">
-                    <FileBox size={48} className="mx-auto mb-4 text-pdm-accent" />
+                    <FileBox size={48} className="mx-auto mb-4 text-plm-accent" />
                     <button onClick={handleOpenInEDrawings} className="btn btn-primary gap-2">
                       <ExternalLink size={16} />
                       Open in eDrawings
                     </button>
                   </div>
                 ) : (
-                  <div className="text-pdm-fg-muted">No preview available</div>
+                  <div className="text-plm-fg-muted">No preview available</div>
                 )}
               </div>
             )}
@@ -288,22 +288,22 @@ export function RightPanel() {
             {rightPanelTab === 'history' && (
               <div>
                 {!file.pdmData ? (
-                  <div className="text-sm text-pdm-fg-muted text-center py-8">Not synced</div>
+                  <div className="text-sm text-plm-fg-muted text-center py-8">Not synced</div>
                 ) : isLoadingVersions ? (
                   <Loader2 className="animate-spin mx-auto" size={24} />
                 ) : versions.length === 0 ? (
-                  <div className="text-sm text-pdm-fg-muted text-center py-8">No history</div>
+                  <div className="text-sm text-plm-fg-muted text-center py-8">No history</div>
                 ) : (
                   <div className="space-y-2">
                     {versions.map((v) => (
-                      <div key={v.id} className="p-2 rounded bg-pdm-bg-light text-sm">
+                      <div key={v.id} className="p-2 rounded bg-plm-bg-light text-sm">
                         <div className="flex justify-between">
                           <span className="font-medium">v{v.version}</span>
-                          <span className="text-pdm-fg-muted text-xs">
+                          <span className="text-plm-fg-muted text-xs">
                             {formatDistanceToNow(new Date(v.created_at), { addSuffix: true })}
                           </span>
                         </div>
-                        {v.comment && <div className="text-pdm-fg-muted text-xs mt-1">{v.comment}</div>}
+                        {v.comment && <div className="text-plm-fg-muted text-xs mt-1">{v.comment}</div>}
                       </div>
                     ))}
                   </div>

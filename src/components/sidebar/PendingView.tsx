@@ -37,10 +37,10 @@ const FileRow = memo(function FileRow({
   if (isBeingProcessed) {
     return (
       <div className="flex items-center gap-2 px-2 py-1.5 rounded text-sm opacity-50 cursor-not-allowed">
-        <div className="w-4 h-4 border-2 border-pdm-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
-        <Lock size={14} className="flex-shrink-0 text-pdm-fg-muted" />
-        <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
-        <span className="truncate text-pdm-fg-muted flex-1" title={file.relativePath}>
+        <div className="w-4 h-4 border-2 border-plm-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
+        <Lock size={14} className="flex-shrink-0 text-plm-fg-muted" />
+        <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+        <span className="truncate text-plm-fg-muted flex-1" title={file.relativePath}>
           {file.name}
         </span>
       </div>
@@ -57,7 +57,7 @@ const FileRow = memo(function FileRow({
     <div
       className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${
         canSelect ? 'cursor-pointer' : ''
-      } ${isSelected ? 'bg-pdm-highlight' : canSelect ? 'hover:bg-pdm-highlight/50' : ''}`}
+      } ${isSelected ? 'bg-plm-highlight' : canSelect ? 'hover:bg-plm-highlight/50' : ''}`}
       onClick={handleClick}
     >
       {canSelect && (
@@ -69,14 +69,14 @@ const FileRow = memo(function FileRow({
           }}
         >
           {isSelected ? (
-            <CheckSquare size={16} className={showAdminSelect ? 'text-pdm-error' : 'text-pdm-accent'} />
+            <CheckSquare size={16} className={showAdminSelect ? 'text-plm-error' : 'text-plm-accent'} />
           ) : (
-            <Square size={16} className="text-pdm-fg-muted" />
+            <Square size={16} className="text-plm-fg-muted" />
           )}
         </button>
       )}
-      <Lock size={14} className={`flex-shrink-0 ${isOwn ? 'text-pdm-warning' : 'text-pdm-error'}`} />
-      <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
+      <Lock size={14} className={`flex-shrink-0 ${isOwn ? 'text-plm-warning' : 'text-plm-error'}`} />
+      <File size={14} className="text-plm-fg-muted flex-shrink-0" />
       <span className="truncate flex-1" title={file.relativePath}>
         {file.name}
       </span>
@@ -90,7 +90,7 @@ const FileRow = memo(function FileRow({
             <img 
               src={avatarUrl} 
               alt={userName}
-              className="w-5 h-5 rounded-full ring-1 ring-pdm-error/50 bg-pdm-bg object-cover"
+              className="w-5 h-5 rounded-full ring-1 ring-plm-error/50 bg-plm-bg object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none'
                 const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement
@@ -99,7 +99,7 @@ const FileRow = memo(function FileRow({
             />
           ) : null}
           <div 
-            className={`w-5 h-5 rounded-full ring-1 ring-pdm-error/50 bg-pdm-error/20 text-pdm-error flex items-center justify-center text-[9px] font-medium ${avatarUrl ? 'hidden' : ''}`}
+            className={`w-5 h-5 rounded-full ring-1 ring-plm-error/50 bg-plm-error/20 text-plm-error flex items-center justify-center text-[9px] font-medium ${avatarUrl ? 'hidden' : ''}`}
           >
             {getInitials(userName)}
           </div>
@@ -111,7 +111,7 @@ const FileRow = memo(function FileRow({
           e.stopPropagation()
           onNavigate(file)
         }}
-        className="flex-shrink-0 p-0.5 rounded hover:bg-pdm-highlight text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+        className="flex-shrink-0 p-0.5 rounded hover:bg-plm-highlight text-plm-fg-muted hover:text-plm-fg transition-colors"
         title="Show in Explorer"
       >
         <FolderOpen size={14} />
@@ -139,10 +139,10 @@ const AddedFileRow = memo(function AddedFileRow({
   if (isBeingProcessed) {
     return (
       <div className="flex items-center gap-2 px-2 py-1.5 rounded text-sm opacity-50 cursor-not-allowed">
-        <div className="w-4 h-4 border-2 border-pdm-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
-        <Plus size={14} className="flex-shrink-0 text-pdm-fg-muted" />
-        <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
-        <span className="truncate text-pdm-fg-muted flex-1" title={file.relativePath}>
+        <div className="w-4 h-4 border-2 border-plm-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
+        <Plus size={14} className="flex-shrink-0 text-plm-fg-muted" />
+        <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+        <span className="truncate text-plm-fg-muted flex-1" title={file.relativePath}>
           {file.name}
         </span>
       </div>
@@ -152,7 +152,7 @@ const AddedFileRow = memo(function AddedFileRow({
   return (
     <div
       className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer transition-colors ${
-        isSelected ? 'bg-pdm-highlight' : 'hover:bg-pdm-highlight/50'
+        isSelected ? 'bg-plm-highlight' : 'hover:bg-plm-highlight/50'
       }`}
       onClick={() => onToggleSelect(file.path)}
     >
@@ -164,13 +164,13 @@ const AddedFileRow = memo(function AddedFileRow({
         }}
       >
         {isSelected ? (
-          <CheckSquare size={16} className="text-pdm-accent" />
+          <CheckSquare size={16} className="text-plm-accent" />
         ) : (
-          <Square size={16} className="text-pdm-fg-muted" />
+          <Square size={16} className="text-plm-fg-muted" />
         )}
       </button>
-      <Plus size={14} className="flex-shrink-0 text-pdm-success" />
-      <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
+      <Plus size={14} className="flex-shrink-0 text-plm-success" />
+      <File size={14} className="text-plm-fg-muted flex-shrink-0" />
       <span className="truncate flex-1" title={file.relativePath}>
         {file.name}
       </span>
@@ -180,7 +180,7 @@ const AddedFileRow = memo(function AddedFileRow({
           e.stopPropagation()
           onNavigate(file)
         }}
-        className="flex-shrink-0 p-0.5 rounded hover:bg-pdm-highlight text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+        className="flex-shrink-0 p-0.5 rounded hover:bg-plm-highlight text-plm-fg-muted hover:text-plm-fg transition-colors"
         title="Show in Explorer"
       >
         <FolderOpen size={14} />
@@ -208,10 +208,10 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
   if (isBeingProcessed) {
     return (
       <div className="flex items-center gap-2 px-2 py-1.5 rounded text-sm opacity-50 cursor-not-allowed">
-        <div className="w-4 h-4 border-2 border-pdm-error border-t-transparent rounded-full animate-spin flex-shrink-0" />
-        <CloudOff size={14} className="flex-shrink-0 text-pdm-fg-muted" />
-        <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
-        <span className="truncate text-pdm-fg-muted flex-1" title={file.relativePath}>
+        <div className="w-4 h-4 border-2 border-plm-error border-t-transparent rounded-full animate-spin flex-shrink-0" />
+        <CloudOff size={14} className="flex-shrink-0 text-plm-fg-muted" />
+        <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+        <span className="truncate text-plm-fg-muted flex-1" title={file.relativePath}>
           {file.name}
         </span>
       </div>
@@ -221,7 +221,7 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
   return (
     <div
       className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer transition-colors ${
-        isSelected ? 'bg-pdm-error/20' : 'hover:bg-pdm-error/10'
+        isSelected ? 'bg-plm-error/20' : 'hover:bg-plm-error/10'
       }`}
       onClick={() => onToggleSelect(file.path)}
     >
@@ -233,13 +233,13 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
         }}
       >
         {isSelected ? (
-          <CheckSquare size={16} className="text-pdm-error" />
+          <CheckSquare size={16} className="text-plm-error" />
         ) : (
-          <Square size={16} className="text-pdm-fg-muted" />
+          <Square size={16} className="text-plm-fg-muted" />
         )}
       </button>
-      <CloudOff size={14} className="flex-shrink-0 text-pdm-error" />
-      <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
+      <CloudOff size={14} className="flex-shrink-0 text-plm-error" />
+      <File size={14} className="text-plm-fg-muted flex-shrink-0" />
       <span className="truncate flex-1" title={file.relativePath}>
         {file.name}
       </span>
@@ -249,7 +249,7 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
           e.stopPropagation()
           onNavigate(file)
         }}
-        className="flex-shrink-0 p-0.5 rounded hover:bg-pdm-highlight text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+        className="flex-shrink-0 p-0.5 rounded hover:bg-plm-highlight text-plm-fg-muted hover:text-plm-fg transition-colors"
         title="Show in Explorer"
       >
         <FolderOpen size={14} />
@@ -617,14 +617,14 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         {/* New files (not yet synced) - shown first */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-pdm-fg-muted uppercase tracking-wide flex items-center gap-2">
-              <Plus size={12} className="text-pdm-success" />
+            <div className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2">
+              <Plus size={12} className="text-plm-success" />
               New Files ({addedFiles.length})
             </div>
             {addedFiles.length > 0 && (
               <button
                 onClick={allAddedSelected ? selectNoneAdded : selectAllAdded}
-                className="text-xs text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors"
               >
                 {allAddedSelected ? 'Deselect All' : 'Select All'}
               </button>
@@ -632,8 +632,8 @@ export function PendingView({ onRefresh }: PendingViewProps) {
           </div>
           
           {selectedAddedCount > 0 && (
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-pdm-border">
-              <span className="text-xs text-pdm-fg-muted">{selectedAddedCount} selected</span>
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-plm-border">
+              <span className="text-xs text-plm-fg-muted">{selectedAddedCount} selected</span>
               <div className="flex-1" />
               <button
                 onClick={handleCheckinAddedFiles}
@@ -646,7 +646,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               <button
                 onClick={handleDeleteClick}
                 disabled={isProcessingAdded}
-                className="btn btn-sm text-xs flex items-center gap-1 bg-pdm-error hover:bg-pdm-error/80 text-white"
+                className="btn btn-sm text-xs flex items-center gap-1 bg-plm-error hover:bg-plm-error/80 text-white"
               >
                 <Trash2 size={12} />
                 Delete
@@ -655,7 +655,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
           )}
           
           {addedFiles.length === 0 ? (
-            <div className="text-sm text-pdm-fg-muted py-4 text-center">
+            <div className="text-sm text-plm-fg-muted py-4 text-center">
               No new files
             </div>
           ) : (
@@ -673,7 +673,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                 ))}
               </div>
               {selectedAddedCount === 0 && (
-                <div className="text-xs text-pdm-fg-muted mt-2 px-2">
+                <div className="text-xs text-plm-fg-muted mt-2 px-2">
                   These files exist locally but haven't been synced to the cloud yet.
                 </div>
               )}
@@ -684,14 +684,14 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         {/* Checked out files */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-pdm-fg-muted uppercase tracking-wide flex items-center gap-2">
-              <Lock size={12} className="text-pdm-warning" />
+            <div className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2">
+              <Lock size={12} className="text-plm-warning" />
               Checked Out Files ({myCheckedOutFiles.length})
             </div>
             {myCheckedOutFiles.length > 0 && (
               <button
                 onClick={allSelected ? selectNone : selectAll}
-                className="text-xs text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors"
               >
                 {allSelected ? 'Deselect All' : 'Select All'}
               </button>
@@ -699,8 +699,8 @@ export function PendingView({ onRefresh }: PendingViewProps) {
           </div>
           
           {selectedCount > 0 && (
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-pdm-border">
-              <span className="text-xs text-pdm-fg-muted">{selectedCount} selected</span>
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-plm-border">
+              <span className="text-xs text-plm-fg-muted">{selectedCount} selected</span>
               <div className="flex-1" />
               <button
                 onClick={handleCheckin}
@@ -713,7 +713,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               <button
                 onClick={handleDiscardChanges}
                 disabled={isProcessingCheckedOut}
-                className="btn btn-ghost btn-sm text-xs flex items-center gap-1 text-pdm-warning"
+                className="btn btn-ghost btn-sm text-xs flex items-center gap-1 text-plm-warning"
               >
                 <Undo2 size={12} />
                 Discard
@@ -722,7 +722,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
           )}
           
           {myCheckedOutFiles.length === 0 ? (
-            <div className="text-sm text-pdm-fg-muted py-4 text-center">
+            <div className="text-sm text-plm-fg-muted py-4 text-center">
               No files checked out
             </div>
           ) : (
@@ -746,14 +746,14 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         {othersCheckedOutFiles.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <div className="text-xs text-pdm-fg-muted uppercase tracking-wide flex items-center gap-2">
-                <Lock size={12} className="text-pdm-error" />
+              <div className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2">
+                <Lock size={12} className="text-plm-error" />
                 Checked Out by Others ({othersCheckedOutFiles.length})
               </div>
               {isAdmin && othersCheckedOutFiles.length > 0 && (
                 <button
                   onClick={allOthersSelected ? selectNoneOthers : selectAllOthers}
-                  className="text-xs text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                  className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors"
                 >
                   {allOthersSelected ? 'Deselect All' : 'Select All'}
                 </button>
@@ -761,16 +761,16 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             </div>
             
             {isAdmin && selectedOthersCount > 0 && (
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-pdm-border">
-                <span className="text-xs text-pdm-fg-muted flex items-center gap-1">
-                  <Shield size={10} className="text-pdm-error" />
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-plm-border">
+                <span className="text-xs text-plm-fg-muted flex items-center gap-1">
+                  <Shield size={10} className="text-plm-error" />
                   {selectedOthersCount} selected
                 </span>
                 <div className="flex-1" />
                 <button
                   onClick={handleAdminForceRelease}
                   disabled={isProcessingOthers}
-                  className="btn btn-sm text-xs flex items-center gap-1 bg-pdm-error hover:bg-pdm-error/80 text-white"
+                  className="btn btn-sm text-xs flex items-center gap-1 bg-plm-error hover:bg-plm-error/80 text-white"
                   title="Immediately release the checkout. User's unsaved changes will be orphaned."
                 >
                   <Unlock size={12} />
@@ -780,7 +780,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             )}
             
             {isAdmin && selectedOthersCount === 0 && (
-              <div className="text-xs text-pdm-fg-muted mb-2 px-2 py-1 bg-pdm-bg/50 rounded flex items-center gap-1">
+              <div className="text-xs text-plm-fg-muted mb-2 px-2 py-1 bg-plm-bg/50 rounded flex items-center gap-1">
                 <Shield size={10} />
                 Admin: Select files to force release checkout
               </div>
@@ -807,14 +807,14 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         {deletedRemoteFiles.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <div className="text-xs text-pdm-fg-muted uppercase tracking-wide flex items-center gap-2">
-                <CloudOff size={12} className="text-pdm-error" />
+              <div className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2">
+                <CloudOff size={12} className="text-plm-error" />
                 Deleted from Server ({deletedRemoteFiles.length})
               </div>
               {deletedRemoteFiles.length > 0 && (
                 <button
                   onClick={allDeletedRemoteSelected ? selectNoneDeletedRemote : selectAllDeletedRemote}
-                  className="text-xs text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                  className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors"
                 >
                   {allDeletedRemoteSelected ? 'Deselect All' : 'Select All'}
                 </button>
@@ -822,8 +822,8 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             </div>
             
             {selectedDeletedRemoteCount > 0 && (
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-pdm-border">
-                <span className="text-xs text-pdm-fg-muted">{selectedDeletedRemoteCount} selected</span>
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-plm-border">
+                <span className="text-xs text-plm-fg-muted">{selectedDeletedRemoteCount} selected</span>
                 <div className="flex-1" />
                 <button
                   onClick={handleReuploadOrphanedFiles}
@@ -837,7 +837,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                 <button
                   onClick={handleDeleteOrphanedFiles}
                   disabled={isProcessingDeletedRemote}
-                  className="btn btn-sm text-xs flex items-center gap-1 bg-pdm-error hover:bg-pdm-error/80 text-white"
+                  className="btn btn-sm text-xs flex items-center gap-1 bg-plm-error hover:bg-plm-error/80 text-white"
                   title="Delete these orphaned local files"
                 >
                   <Trash2 size={12} />
@@ -847,8 +847,8 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             )}
             
             {selectedDeletedRemoteCount === 0 && (
-              <div className="text-xs text-pdm-fg-muted mb-2 px-2 py-1 bg-pdm-error/10 border border-pdm-error/20 rounded flex items-center gap-1">
-                <AlertTriangle size={10} className="text-pdm-error" />
+              <div className="text-xs text-plm-fg-muted mb-2 px-2 py-1 bg-plm-error/10 border border-plm-error/20 rounded flex items-center gap-1">
+                <AlertTriangle size={10} className="text-plm-error" />
                 Another user deleted these files from the server. Your local copies are orphaned.
               </div>
             )}
@@ -869,7 +869,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         )}
 
         {/* Summary */}
-        <div className="text-xs text-pdm-fg-muted border-t border-pdm-border pt-4">
+        <div className="text-xs text-plm-fg-muted border-t border-plm-border pt-4">
           <div className="flex justify-between mb-1">
             <span>Total synced files:</span>
             <span>{syncedFilesCount}</span>
@@ -880,12 +880,12 @@ export function PendingView({ onRefresh }: PendingViewProps) {
           </div>
           <div className="flex justify-between mb-1">
             <span>New files to sync:</span>
-            <span className={addedFiles.length > 0 ? 'text-pdm-success' : ''}>{addedFiles.length}</span>
+            <span className={addedFiles.length > 0 ? 'text-plm-success' : ''}>{addedFiles.length}</span>
           </div>
           {deletedRemoteFiles.length > 0 && (
             <div className="flex justify-between">
               <span>Deleted from server:</span>
-              <span className="text-pdm-error">{deletedRemoteFiles.length}</span>
+              <span className="text-plm-error">{deletedRemoteFiles.length}</span>
             </div>
           )}
         </div>
@@ -894,30 +894,30 @@ export function PendingView({ onRefresh }: PendingViewProps) {
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-pdm-border">
-              <div className="flex items-center gap-2 text-pdm-error">
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-plm-border">
+              <div className="flex items-center gap-2 text-plm-error">
                 <AlertTriangle size={18} />
                 <span className="font-medium">Delete Files</span>
               </div>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="p-1 rounded hover:bg-pdm-bg transition-colors text-pdm-fg-muted hover:text-pdm-fg"
+                className="p-1 rounded hover:bg-plm-bg transition-colors text-plm-fg-muted hover:text-plm-fg"
               >
                 <X size={16} />
               </button>
             </div>
             
             <div className="p-4">
-              <p className="text-sm text-pdm-fg mb-3">
-                Are you sure you want to delete <span className="font-semibold text-pdm-error">{selectedAddedCount}</span> file{selectedAddedCount > 1 ? 's' : ''} from your local vault?
+              <p className="text-sm text-plm-fg mb-3">
+                Are you sure you want to delete <span className="font-semibold text-plm-error">{selectedAddedCount}</span> file{selectedAddedCount > 1 ? 's' : ''} from your local vault?
               </p>
-              <p className="text-xs text-pdm-fg-muted">
+              <p className="text-xs text-plm-fg-muted">
                 This will move the files to your Recycle Bin.
               </p>
             </div>
             
-            <div className="flex justify-end gap-2 px-4 py-3 bg-pdm-bg border-t border-pdm-border">
+            <div className="flex justify-end gap-2 px-4 py-3 bg-plm-bg border-t border-plm-border">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 className="btn btn-ghost btn-sm"
@@ -926,7 +926,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               </button>
               <button
                 onClick={handleDiscardAddedFiles}
-                className="btn btn-sm bg-pdm-error hover:bg-pdm-error/80 text-white flex items-center gap-1"
+                className="btn btn-sm bg-plm-error hover:bg-plm-error/80 text-white flex items-center gap-1"
               >
                 <Trash2 size={14} />
                 Delete Files
@@ -939,33 +939,33 @@ export function PendingView({ onRefresh }: PendingViewProps) {
       {/* Force Check-in Confirmation Dialog */}
       {forceCheckinConfirm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-pdm-border">
-              <div className="flex items-center gap-2 text-pdm-warning">
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-plm-border">
+              <div className="flex items-center gap-2 text-plm-warning">
                 <Monitor size={18} />
                 <span className="font-medium">Check In From Different Computer</span>
               </div>
               <button
                 onClick={() => setForceCheckinConfirm(null)}
-                className="p-1 rounded hover:bg-pdm-bg transition-colors text-pdm-fg-muted hover:text-pdm-fg"
+                className="p-1 rounded hover:bg-plm-bg transition-colors text-plm-fg-muted hover:text-plm-fg"
               >
                 <X size={16} />
               </button>
             </div>
             
             <div className="p-4">
-              <p className="text-sm text-pdm-fg mb-3">
-                <span className="font-semibold text-pdm-warning">{forceCheckinConfirm.filesOnDifferentMachine.length}</span> file{forceCheckinConfirm.filesOnDifferentMachine.length > 1 ? 's are' : ' is'} checked out on <span className="font-semibold">{forceCheckinConfirm.machineNames.join(', ')}</span>.
+              <p className="text-sm text-plm-fg mb-3">
+                <span className="font-semibold text-plm-warning">{forceCheckinConfirm.filesOnDifferentMachine.length}</span> file{forceCheckinConfirm.filesOnDifferentMachine.length > 1 ? 's are' : ' is'} checked out on <span className="font-semibold">{forceCheckinConfirm.machineNames.join(', ')}</span>.
               </p>
-              <p className="text-sm text-pdm-fg mb-3">
+              <p className="text-sm text-plm-fg mb-3">
                 Checking in from here will discard any unsaved changes on {forceCheckinConfirm.machineNames.length === 1 ? 'that' : 'those'} computer{forceCheckinConfirm.machineNames.length > 1 ? 's' : ''}.
               </p>
-              <div className="bg-pdm-warning/10 border border-pdm-warning/30 rounded-lg px-3 py-2 text-xs text-pdm-warning">
+              <div className="bg-plm-warning/10 border border-plm-warning/30 rounded-lg px-3 py-2 text-xs text-plm-warning">
                 The other computer{forceCheckinConfirm.machineNames.length > 1 ? 's' : ''} will be notified that {forceCheckinConfirm.filesOnDifferentMachine.length > 1 ? 'these files were' : 'this file was'} force checked in.
               </div>
             </div>
             
-            <div className="flex justify-end gap-2 px-4 py-3 bg-pdm-bg border-t border-pdm-border">
+            <div className="flex justify-end gap-2 px-4 py-3 bg-plm-bg border-t border-plm-border">
               <button
                 onClick={() => setForceCheckinConfirm(null)}
                 className="btn btn-ghost btn-sm"
@@ -974,7 +974,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               </button>
               <button
                 onClick={handleForceCheckin}
-                className="btn btn-sm bg-pdm-warning hover:bg-pdm-warning/80 text-pdm-bg flex items-center gap-1"
+                className="btn btn-sm bg-plm-warning hover:bg-plm-warning/80 text-plm-bg flex items-center gap-1"
               >
                 <ArrowUp size={14} />
                 Force Check In

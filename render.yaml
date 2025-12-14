@@ -1,9 +1,9 @@
-# Render Blueprint for BluePDM API
+# Render Blueprint for BluePLM API
 # https://render.com/docs/blueprint-spec
 
 services:
   - type: web
-    name: bluepdm-api
+    name: blueplm-api
     runtime: node
     buildCommand: npm install
     startCommand: npx tsx api/server.ts

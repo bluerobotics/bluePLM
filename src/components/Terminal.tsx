@@ -25,7 +25,7 @@ export function Terminal({ onRefresh }: TerminalProps) {
     {
       id: 'welcome',
       type: 'info',
-      content: '🔷 BluePDM Terminal v1.0\nType "help" for available commands.',
+      content: '🔷 BluePLM Terminal v1.0\nType "help" for available commands.',
       timestamp: new Date()
     }
   ])
@@ -264,10 +264,10 @@ export function Terminal({ onRefresh }: TerminalProps) {
     >
       {/* Resize handle */}
       <div 
-        className="h-1 cursor-ns-resize hover:bg-pdm-accent/50 transition-colors group"
+        className="h-1 cursor-ns-resize hover:bg-plm-accent/50 transition-colors group"
         onMouseDown={handleResizeStart}
       >
-        <div className="h-0.5 mx-auto w-16 mt-0.5 bg-[#30363d] group-hover:bg-pdm-accent rounded-full" />
+        <div className="h-0.5 mx-auto w-16 mt-0.5 bg-[#30363d] group-hover:bg-plm-accent rounded-full" />
       </div>
       
       {/* Header */}
@@ -338,7 +338,7 @@ export function Terminal({ onRefresh }: TerminalProps) {
                 key={suggestion}
                 className={`px-3 py-1 text-xs font-mono cursor-pointer ${
                   idx === suggestionIndex 
-                    ? 'bg-pdm-accent/30 text-slate-200' 
+                    ? 'bg-plm-accent/30 text-slate-200' 
                     : 'text-slate-400 hover:bg-[#30363d]'
                 }`}
                 onClick={() => {

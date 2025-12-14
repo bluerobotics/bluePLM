@@ -1,13 +1,13 @@
-# BluePDM
+# BluePLM
 
 Product Data Management for engineering teams. Built with Electron, React, and Supabase.
 
-![BluePDM Screenshot](assets/screenshot.png)
+![BluePLM Screenshot](assets/screenshot.png)
 
-[![Version](https://img.shields.io/github/v/release/bluerobotics/blue-pdm)](https://github.com/bluerobotics/blue-pdm/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/bluerobotics/blue-pdm/release.yml)](https://github.com/bluerobotics/blue-pdm/actions)
-[![Downloads](https://img.shields.io/github/downloads/bluerobotics/blue-pdm/total)](https://github.com/bluerobotics/blue-pdm/releases)
-[![License](https://img.shields.io/github/license/bluerobotics/blue-pdm)](LICENSE)
+[![Version](https://img.shields.io/github/v/release/bluerobotics/blue-plm)](https://github.com/bluerobotics/blue-plm/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/bluerobotics/blue-plm/release.yml)](https://github.com/bluerobotics/blue-plm/actions)
+[![Downloads](https://img.shields.io/github/downloads/bluerobotics/blue-plm/total)](https://github.com/bluerobotics/blue-plm/releases)
+[![License](https://img.shields.io/github/license/bluerobotics/blue-plm)](LICENSE)
 
 ## Features
 
@@ -21,8 +21,8 @@ Product Data Management for engineering teams. Built with Electron, React, and S
 
 ## Getting Started as a New User
 
-1. **Download** the latest release from the [releases page](https://github.com/bluerobotics/blue-pdm/releases)
-2. **Install** and launch BluePDM
+1. **Download** the latest release from the [releases page](https://github.com/bluerobotics/blue-plm/releases)
+2. **Install** and launch BluePLM
 3. **Enter your organization's Supabase credentials** (your admin will provide these)
 4. **Sign in with Google** using your work email
 5. **Connect to a vault** from the Organization tab
@@ -68,7 +68,7 @@ Give your team members:
 - Your Supabase **Project URL** 
 - Your Supabase **anon/public key**
 
-They'll enter these on first launch of BluePDM.
+They'll enter these on first launch of BluePLM.
 
 ### 7. Create Vaults
 
@@ -77,8 +77,8 @@ Once signed in as admin, go to **Settings → Organization** to create vaults fo
 ## Building from Source
 
 ```bash
-git clone https://github.com/bluerobotics/blue-pdm.git
-cd blue-pdm
+git clone https://github.com/bluerobotics/blue-plm.git
+cd blue-plm
 npm install
 npm run build
 ```
@@ -104,23 +104,23 @@ Local vaults are stored in platform-specific locations:
 
 | Platform | Path |
 |----------|------|
-| Windows | `C:\BluePDM\{vault-name}` |
-| macOS | `~/Documents/BluePDM/{vault-name}` |
-| Linux | `~/BluePDM/{vault-name}` |
+| Windows | `C:\BluePLM\{vault-name}` |
+| macOS | `~/Documents/BluePLM/{vault-name}` |
+| Linux | `~/BluePLM/{vault-name}` |
 
 ## SolidWorks Add-in
 
-BluePDM includes a native SolidWorks add-in for seamless integration. Check out, check in, and view file status directly within SolidWorks without switching applications.
+BluePLM includes a native SolidWorks add-in for seamless integration. Check out, check in, and view file status directly within SolidWorks without switching applications.
 
 **Features:**
 - Check out/in from the SolidWorks toolbar
 - Task pane showing file status, version, and state
 - Automatic read-only mode for non-checked-out files
-- Custom properties sync with BluePDM metadata
+- Custom properties sync with BluePLM metadata
 
 **Installation:**
-1. Download `BluePDM.SolidWorks.dll` from the [releases page](https://github.com/bluerobotics/blue-pdm/releases)
-2. Run as Administrator: `RegAsm.exe /codebase BluePDM.SolidWorks.dll`
+1. Download `BluePLM.SolidWorks.dll` from the [releases page](https://github.com/bluerobotics/blue-plm/releases)
+2. Run as Administrator: `RegAsm.exe /codebase BluePLM.SolidWorks.dll`
 3. Restart SolidWorks and enable the add-in from Tools → Add-ins
 
 See the [SolidWorks Add-in README](solidworks-addin/README.md) for detailed instructions.

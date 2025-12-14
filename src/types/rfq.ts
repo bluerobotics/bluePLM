@@ -230,26 +230,26 @@ export const RFQ_STATUS_INFO: Record<RFQStatus, {
 }> = {
   draft: {
     label: 'Draft',
-    color: 'text-pdm-fg-muted',
-    bgColor: 'bg-pdm-fg-muted/20',
+    color: 'text-plm-fg-muted',
+    bgColor: 'bg-plm-fg-muted/20',
     description: 'RFQ is being prepared'
   },
   pending_files: {
     label: 'Pending Files',
-    color: 'text-pdm-warning',
-    bgColor: 'bg-pdm-warning/20',
+    color: 'text-plm-warning',
+    bgColor: 'bg-plm-warning/20',
     description: 'Files need to be added'
   },
   generating: {
     label: 'Generating',
-    color: 'text-pdm-info',
-    bgColor: 'bg-pdm-info/20',
+    color: 'text-plm-info',
+    bgColor: 'bg-plm-info/20',
     description: 'Release files are being generated'
   },
   ready: {
     label: 'Ready',
-    color: 'text-pdm-success',
-    bgColor: 'bg-pdm-success/20',
+    color: 'text-plm-success',
+    bgColor: 'bg-plm-success/20',
     description: 'Ready to send to suppliers'
   },
   sent: {
@@ -260,26 +260,26 @@ export const RFQ_STATUS_INFO: Record<RFQStatus, {
   },
   awaiting_quote: {
     label: 'Awaiting',
-    color: 'text-pdm-warning',
-    bgColor: 'bg-pdm-warning/20',
+    color: 'text-plm-warning',
+    bgColor: 'bg-plm-warning/20',
     description: 'Waiting for supplier responses'
   },
   quoted: {
     label: 'Quoted',
-    color: 'text-pdm-info',
-    bgColor: 'bg-pdm-info/20',
+    color: 'text-plm-info',
+    bgColor: 'bg-plm-info/20',
     description: 'All quotes received'
   },
   awarded: {
     label: 'Awarded',
-    color: 'text-pdm-success',
-    bgColor: 'bg-pdm-success/20',
+    color: 'text-plm-success',
+    bgColor: 'bg-plm-success/20',
     description: 'Contract awarded'
   },
   cancelled: {
     label: 'Cancelled',
-    color: 'text-pdm-error',
-    bgColor: 'bg-pdm-error/20',
+    color: 'text-plm-error',
+    bgColor: 'bg-plm-error/20',
     description: 'RFQ was cancelled'
   },
   completed: {

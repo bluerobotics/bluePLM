@@ -74,7 +74,7 @@ export function LogsSettings() {
   
   // Parse date from filename for filtering
   const getLogFileDate = (filename: string): Date | null => {
-    const match = filename.match(/bluepdm-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.log/)
+    const match = filename.match(/blueplm-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.log/)
     if (match) {
       const [, year, month, day, hour, minute, second] = match
       return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`)
@@ -209,7 +209,7 @@ export function LogsSettings() {
   if (isLoadingLogs) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="animate-spin text-pdm-fg-muted" size={28} />
+        <Loader2 className="animate-spin text-plm-fg-muted" size={28} />
       </div>
     )
   }
@@ -221,21 +221,21 @@ export function LogsSettings() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setSelectedLogFile(null)}
-            className="flex items-center gap-1.5 text-base text-pdm-accent hover:underline"
+            className="flex items-center gap-1.5 text-base text-plm-accent hover:underline"
           >
             <ArrowLeft size={18} />
             Back to log files
           </button>
-          <span className="text-base text-pdm-fg-muted">|</span>
-          <span className="text-base text-pdm-fg">{selectedLogFile.name}</span>
+          <span className="text-base text-plm-fg-muted">|</span>
+          <span className="text-base text-plm-fg">{selectedLogFile.name}</span>
         </div>
         
         {isLoadingLogContent ? (
           <div className="flex items-center justify-center py-12 flex-1">
-            <Loader2 className="animate-spin text-pdm-fg-muted" size={24} />
+            <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
           </div>
         ) : (
-          <pre className="flex-1 p-4 bg-pdm-bg rounded-lg border border-pdm-border text-sm font-mono text-pdm-fg overflow-auto whitespace-pre-wrap">
+          <pre className="flex-1 p-4 bg-plm-bg rounded-lg border border-plm-border text-sm font-mono text-plm-fg overflow-auto whitespace-pre-wrap">
             {selectedLogFile.content}
           </pre>
         )}
@@ -251,7 +251,7 @@ export function LogsSettings() {
           {/* Select all */}
           <button
             onClick={toggleSelectAllLogs}
-            className="p-1 text-pdm-fg-muted hover:text-pdm-fg"
+            className="p-1 text-plm-fg-muted hover:text-plm-fg"
             title={allFilteredSelected ? 'Deselect all' : 'Select all'}
           >
             {allFilteredSelected ? <CheckSquare size={20} /> : <Square size={20} />}
@@ -263,7 +263,7 @@ export function LogsSettings() {
               <button
                 onClick={bulkCopyLogs}
                 disabled={isBulkCopying}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-fg-muted transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg hover:border-plm-fg-muted transition-colors"
               >
                 {isBulkCopying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
                 Copy ({selectedLogPaths.size})
@@ -272,7 +272,7 @@ export function LogsSettings() {
                 <button
                   onClick={bulkDeleteLogs}
                   disabled={isBulkDeleting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-pdm-error/10 text-pdm-error border border-pdm-error/20 rounded-lg hover:bg-pdm-error/20 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-plm-error/10 text-plm-error border border-plm-error/20 rounded-lg hover:bg-plm-error/20 transition-colors"
                 >
                   {isBulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   Delete ({deletableSelectedCount})
@@ -286,14 +286,14 @@ export function LogsSettings() {
         <div className="relative">
           <button
             onClick={() => setLogFilterDropdownOpen(!logFilterDropdownOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 text-base bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-fg-muted transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-base bg-plm-bg border border-plm-border rounded-lg hover:border-plm-fg-muted transition-colors"
           >
             <Filter size={16} />
             {logFilter === 'today' ? 'Today' : logFilter === 'week' ? 'This Week' : 'All Time'}
             <ChevronDown size={16} />
           </button>
           {logFilterDropdownOpen && (
-            <div className="absolute right-0 mt-1 w-36 bg-pdm-bg border border-pdm-border rounded-lg shadow-lg z-10">
+            <div className="absolute right-0 mt-1 w-36 bg-plm-bg border border-plm-border rounded-lg shadow-lg z-10">
               {(['all', 'week', 'today'] as const).map(filter => (
                 <button
                   key={filter}
@@ -301,8 +301,8 @@ export function LogsSettings() {
                     setLogFilter(filter)
                     setLogFilterDropdownOpen(false)
                   }}
-                  className={`w-full text-left px-3 py-2 text-base hover:bg-pdm-highlight transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                    logFilter === filter ? 'text-pdm-accent' : 'text-pdm-fg'
+                  className={`w-full text-left px-3 py-2 text-base hover:bg-plm-highlight transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                    logFilter === filter ? 'text-plm-accent' : 'text-plm-fg'
                   }`}
                 >
                   {filter === 'today' ? 'Today' : filter === 'week' ? 'This Week' : 'All Time'}
@@ -316,15 +316,15 @@ export function LogsSettings() {
       {/* Log files list */}
       {filteredLogFiles.length === 0 ? (
         <div className="text-center py-12">
-          <FileText size={40} className="mx-auto mb-4 text-pdm-fg-muted opacity-50" />
-          <p className="text-base text-pdm-fg-muted">No log files found</p>
+          <FileText size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
+          <p className="text-base text-plm-fg-muted">No log files found</p>
         </div>
       ) : (
         <div className="space-y-2">
           {filteredLogFiles.map(file => (
             <div
               key={file.path}
-              className="flex items-center gap-3 p-3 bg-pdm-bg rounded-lg border border-pdm-border hover:border-pdm-fg-muted transition-colors group"
+              className="flex items-center gap-3 p-3 bg-plm-bg rounded-lg border border-plm-border hover:border-plm-fg-muted transition-colors group"
             >
               {/* Checkbox */}
               <button
@@ -332,7 +332,7 @@ export function LogsSettings() {
                   e.stopPropagation()
                   toggleLogSelection(file.path)
                 }}
-                className="text-pdm-fg-muted hover:text-pdm-fg"
+                className="text-plm-fg-muted hover:text-plm-fg"
               >
                 {selectedLogPaths.has(file.path) ? <CheckSquare size={20} /> : <Square size={20} />}
               </button>
@@ -342,17 +342,17 @@ export function LogsSettings() {
                 onClick={() => viewLogFile(file)}
                 className="flex-1 flex items-center gap-3 text-left min-w-0"
               >
-                <FileText size={20} className={file.isCurrentSession ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                <FileText size={20} className={file.isCurrentSession ? 'text-plm-accent' : 'text-plm-fg-muted'} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-base text-pdm-fg truncate">{file.name}</span>
+                    <span className="text-base text-plm-fg truncate">{file.name}</span>
                     {file.isCurrentSession && (
-                      <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-sm rounded flex-shrink-0">
+                      <span className="px-1.5 py-0.5 bg-plm-accent/20 text-plm-accent text-sm rounded flex-shrink-0">
                         Current
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-pdm-fg-muted">
+                  <div className="flex items-center gap-3 text-sm text-plm-fg-muted">
                     <span className="flex items-center gap-1">
                       <Calendar size={12} />
                       {new Date(file.modifiedTime).toLocaleDateString()}
@@ -370,7 +370,7 @@ export function LogsSettings() {
                     copyLogFile(file)
                   }}
                   disabled={copyingLogPath === file.path}
-                  className="p-1.5 text-pdm-fg-muted hover:text-pdm-fg rounded transition-colors"
+                  className="p-1.5 text-plm-fg-muted hover:text-plm-fg rounded transition-colors"
                   title="Copy to clipboard"
                 >
                   {copyingLogPath === file.path ? (

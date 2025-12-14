@@ -20,13 +20,13 @@ const uiLog = (level: 'info' | 'warn' | 'error' | 'debug', message: string, data
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
   if (platform === 'darwin') {
-    // macOS: ~/Documents/BluePDM/vault-name
-    return `~/Documents/BluePDM/${vaultSlug}`
+    // macOS: ~/Documents/BluePLM/vault-name
+    return `~/Documents/BluePLM/${vaultSlug}`
   } else if (platform === 'linux') {
-    return `~/BluePDM/${vaultSlug}`
+    return `~/BluePLM/${vaultSlug}`
   } else {
-    // Windows: C:\BluePDM\vault-name
-    return `C:\\BluePDM\\${vaultSlug}`
+    // Windows: C:\BluePLM\vault-name
+    return `C:\\BluePLM\\${vaultSlug}`
   }
 }
 
@@ -82,16 +82,18 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   // Account type selection state
   const [accountType, setAccountType] = useState<AccountType | null>(null)
   
-  // Supplier auth state
-  const [supplierAuthMethod, setSupplierAuthMethod] = useState<'email' | 'phone'>('email')
-  const [supplierEmail, setSupplierEmail] = useState('')
-  const [supplierPassword, setSupplierPassword] = useState('')
-  const [supplierPhone, setSupplierPhone] = useState('')
+  // Auth state (shared between supplier and team member email/phone auth)
+  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('google')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authPasswordConfirm, setAuthPasswordConfirm] = useState('')
+  const [authPhone, setAuthPhone] = useState('')
   const [phoneOtp, setPhoneOtp] = useState('')
   const [isOtpSent, setIsOtpSent] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false)
   const [isNewAccount, setIsNewAccount] = useState(false)
-  const [supplierName, setSupplierName] = useState('')
+  const [authName, setAuthName] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [orgVaults, setOrgVaults] = useState<Vault[]>([])
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
@@ -320,10 +322,16 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     }
   }
 
-  // Supplier email/password sign-in
-  const handleSupplierEmailAuth = async () => {
-    if (!supplierEmail || !supplierPassword) {
+  // Email/password sign-in (for both suppliers and team members)
+  const handleEmailAuth = async () => {
+    if (!authEmail || !authPassword) {
       setAuthError('Please enter email and password')
+      return
+    }
+    
+    // Validate password confirmation for new accounts
+    if (isNewAccount && authPassword !== authPasswordConfirm) {
+      setAuthError(t('welcome.passwordMismatch'))
       return
     }
     
@@ -333,8 +341,8 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     try {
       if (isNewAccount) {
         // Sign up
-        uiLog('info', 'Starting supplier email sign-up')
-        const { data, error } = await signUpWithEmail(supplierEmail, supplierPassword, supplierName || undefined)
+        uiLog('info', 'Starting email sign-up', { accountType })
+        const { data, error } = await signUpWithEmail(authEmail, authPassword, authName || undefined)
         
         if (error) {
           setAuthError(error.message)
@@ -348,18 +356,18 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           return
         }
         
-        uiLog('info', 'Supplier sign-up successful')
+        uiLog('info', 'Email sign-up successful')
       } else {
         // Sign in
-        uiLog('info', 'Starting supplier email sign-in')
-        const { data, error } = await signInWithEmail(supplierEmail, supplierPassword)
+        uiLog('info', 'Starting email sign-in', { accountType })
+        const { data, error } = await signInWithEmail(authEmail, authPassword)
         
         if (error) {
           setAuthError(error.message)
           return
         }
         
-        uiLog('info', 'Supplier sign-in successful')
+        uiLog('info', 'Email sign-in successful')
       }
     } catch (err) {
       setAuthError('Authentication failed. Please try again.')
@@ -368,9 +376,9 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     }
   }
 
-  // Supplier phone OTP sign-in
+  // Phone OTP sign-in (for both suppliers and team members)
   const handleSendPhoneOTP = async () => {
-    if (!supplierPhone) {
+    if (!authPhone) {
       setAuthError('Please enter your phone number')
       return
     }
@@ -379,8 +387,8 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     setAuthError(null)
     
     try {
-      uiLog('info', 'Sending phone OTP')
-      const { error } = await signInWithPhone(supplierPhone)
+      uiLog('info', 'Sending phone OTP', { accountType })
+      const { error } = await signInWithPhone(authPhone)
       
       if (error) {
         setAuthError(error.message)
@@ -406,8 +414,8 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     setAuthError(null)
     
     try {
-      uiLog('info', 'Verifying phone OTP')
-      const { error } = await verifyPhoneOTP(supplierPhone, phoneOtp)
+      uiLog('info', 'Verifying phone OTP', { accountType })
+      const { error } = await verifyPhoneOTP(authPhone, phoneOtp)
       
       if (error) {
         setAuthError(error.message)
@@ -422,15 +430,17 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     }
   }
 
-  // Reset supplier auth state
-  const resetSupplierAuth = () => {
-    setSupplierEmail('')
-    setSupplierPassword('')
-    setSupplierPhone('')
+  // Reset auth state
+  const resetAuth = () => {
+    setAuthMethod('google')
+    setAuthEmail('')
+    setAuthPassword('')
+    setAuthPasswordConfirm('')
+    setAuthPhone('')
     setPhoneOtp('')
     setIsOtpSent(false)
     setIsNewAccount(false)
-    setSupplierName('')
+    setAuthName('')
     setAuthError(null)
   }
 
@@ -555,10 +565,10 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   // ============================================
   if (isAuthConnecting) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-pdm-bg overflow-auto">
+      <div className="flex-1 flex items-center justify-center bg-plm-bg overflow-auto">
         <div className="max-w-md w-full p-8 text-center">
           <div className="flex justify-center items-center gap-3 mb-8">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-pdm-accent">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
               <path 
                 d="M12 2L2 7L12 12L22 7L12 2Z" 
                 stroke="currentColor" 
@@ -581,11 +591,11 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 strokeLinejoin="round"
               />
             </svg>
-            <h1 className="text-3xl font-bold text-pdm-fg">{t('welcome.title')}</h1>
+            <h1 className="text-3xl font-bold text-plm-fg">{t('welcome.title')}</h1>
           </div>
           
-          <Loader2 size={40} className="animate-spin text-pdm-accent mx-auto mb-4" />
-          <p className="text-pdm-fg-muted">{t('welcome.connectingToOrg')}</p>
+          <Loader2 size={40} className="animate-spin text-plm-accent mx-auto mb-4" />
+          <p className="text-plm-fg-muted">{t('welcome.connectingToOrg')}</p>
         </div>
       </div>
     )
@@ -596,7 +606,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   // ============================================
   if (!user && !isOfflineMode) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-pdm-bg overflow-auto relative">
+      <div className="flex-1 flex items-center justify-center bg-plm-bg overflow-auto relative">
         {/* Language selector in corner */}
         <div className="absolute top-4 right-4">
           <LanguageSelector compact dropdownPosition="bottom-right" />
@@ -606,7 +616,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           {/* Logo and Title */}
           <div className="text-center mb-10">
             <div className="flex justify-center items-center gap-3 mb-4">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-pdm-accent">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
                 <path 
                   d="M12 2L2 7L12 12L22 7L12 2Z" 
                   stroke="currentColor" 
@@ -629,9 +639,9 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   strokeLinejoin="round"
                 />
               </svg>
-              <h1 className="text-3xl font-bold text-pdm-fg">{t('welcome.title')}</h1>
+              <h1 className="text-3xl font-bold text-plm-fg">{t('welcome.title')}</h1>
             </div>
-            <p className="text-pdm-fg-dim">
+            <p className="text-plm-fg-dim">
               {t('welcome.tagline')}
             </p>
           </div>
@@ -641,21 +651,21 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           {/* ============================================ */}
           {!accountType && (
             <div className="space-y-4">
-              <p className="text-center text-sm text-pdm-fg-muted mb-6">
+              <p className="text-center text-sm text-plm-fg-muted mb-6">
                 {t('welcome.selectAccountType')}
               </p>
               
               <button
-                onClick={() => setAccountType('user')}
-                className="w-full bg-pdm-bg-light border-2 border-pdm-border hover:border-pdm-accent rounded-xl p-6 transition-colors group"
+                onClick={() => { setAccountType('user'); setAuthMethod('google') }}
+                className="w-full bg-plm-bg-light border-2 border-plm-border hover:border-plm-accent rounded-xl p-6 transition-colors group"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-xl bg-pdm-accent/20 flex items-center justify-center group-hover:bg-pdm-accent/30 transition-colors">
-                    <User size={28} className="text-pdm-accent" />
+                  <div className="w-14 h-14 rounded-xl bg-plm-accent/20 flex items-center justify-center group-hover:bg-plm-accent/30 transition-colors">
+                    <User size={28} className="text-plm-accent" />
                   </div>
                   <div className="text-left flex-1">
-                    <h3 className="font-semibold text-pdm-fg text-lg">{t('welcome.teamMember')}</h3>
-                    <p className="text-sm text-pdm-fg-muted">
+                    <h3 className="font-semibold text-plm-fg text-lg">{t('welcome.teamMember')}</h3>
+                    <p className="text-sm text-plm-fg-muted">
                       {t('welcome.teamMemberDesc')}
                     </p>
                   </div>
@@ -663,16 +673,16 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               </button>
 
               <button
-                onClick={() => setAccountType('supplier')}
-                className="w-full bg-pdm-bg-light border-2 border-pdm-border hover:border-amber-500 rounded-xl p-6 transition-colors group"
+                onClick={() => { setAccountType('supplier'); setAuthMethod('email') }}
+                className="w-full bg-plm-bg-light border-2 border-plm-border hover:border-amber-500 rounded-xl p-6 transition-colors group"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-xl bg-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/30 transition-colors">
                     <Truck size={28} className="text-amber-500" />
                   </div>
                   <div className="text-left flex-1">
-                    <h3 className="font-semibold text-pdm-fg text-lg">{t('welcome.supplier')}</h3>
-                    <p className="text-sm text-pdm-fg-muted">
+                    <h3 className="font-semibold text-plm-fg text-lg">{t('welcome.supplier')}</h3>
+                    <p className="text-sm text-plm-fg-muted">
                       {t('welcome.supplierDesc')}
                     </p>
                   </div>
@@ -681,10 +691,10 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
 
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-pdm-border"></div>
+                  <div className="w-full border-t border-plm-border"></div>
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-2 bg-pdm-bg text-pdm-fg-muted">{t('common.or')}</span>
+                  <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
                 </div>
               </div>
 
@@ -699,47 +709,306 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           )}
 
           {/* ============================================ */}
-          {/* STEP 2a: User Sign In (Google OAuth) */}
+          {/* STEP 2a: User Sign In (Google OAuth or Email/Phone) */}
           {/* ============================================ */}
           {accountType === 'user' && (
             <div className="space-y-4">
               <button
-                onClick={() => { setAccountType(null); resetSupplierAuth() }}
-                className="flex items-center gap-2 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors mb-4"
+                onClick={() => { setAccountType(null); resetAuth() }}
+                className="flex items-center gap-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors mb-4"
               >
                 <ArrowLeft size={16} />
                 {t('common.back')}
               </button>
 
               <div className="text-center mb-6">
-                <div className="w-12 h-12 rounded-xl bg-pdm-accent/20 flex items-center justify-center mx-auto mb-3">
-                  <User size={24} className="text-pdm-accent" />
+                <div className="w-12 h-12 rounded-xl bg-plm-accent/20 flex items-center justify-center mx-auto mb-3">
+                  <User size={24} className="text-plm-accent" />
                 </div>
-                <h2 className="text-xl font-semibold text-pdm-fg">{t('welcome.teamSignIn')}</h2>
-                <p className="text-sm text-pdm-fg-muted mt-1">
-                  {t('welcome.signInWithOrg')}
+                <h2 className="text-xl font-semibold text-plm-fg">{t('welcome.teamSignIn')}</h2>
+                <p className="text-sm text-plm-fg-muted mt-1">
+                  {isNewAccount ? t('welcome.createAccount') : t('welcome.signInWithOrg')}
                 </p>
               </div>
-              
-              <button
-                onClick={handleSignIn}
-                disabled={isSigningIn || !isSupabaseConfigured()}
-                className="w-full btn btn-primary btn-lg gap-3 justify-center py-4"
-              >
-                {isSigningIn ? (
-                  <Loader2 size={20} className="animate-spin" />
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                )}
-                {t('welcome.signInWithGoogle')}
-              </button>
 
-              <div className="text-center text-xs text-pdm-fg-muted mt-4">
+              {/* Google OAuth (default) */}
+              {authMethod === 'google' && (
+                <>
+                  <button
+                    onClick={handleSignIn}
+                    disabled={isSigningIn || !isSupabaseConfigured()}
+                    className="w-full btn btn-primary btn-lg gap-3 justify-center py-4"
+                  >
+                    {isSigningIn ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
+                    )}
+                    {t('welcome.signInWithGoogle')}
+                  </button>
+
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-plm-border"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setAuthMethod('email')}
+                    className="w-full btn btn-secondary gap-3 justify-center py-3"
+                  >
+                    <Mail size={18} />
+                    {t('welcome.useEmailPassword')}
+                  </button>
+                </>
+              )}
+
+              {/* Email/Phone Auth */}
+              {authMethod !== 'google' && (
+                <>
+                  {/* Auth Method Tabs */}
+                  <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
+                    <button
+                      onClick={() => { setAuthMethod('email'); setIsOtpSent(false) }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                        authMethod === 'email' 
+                          ? 'bg-plm-bg text-plm-fg shadow-sm' 
+                          : 'text-plm-fg-muted hover:text-plm-fg'
+                      }`}
+                    >
+                      <Mail size={16} />
+                      {t('welcome.email')}
+                    </button>
+                    <button
+                      onClick={() => { setAuthMethod('phone'); setIsNewAccount(false) }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                        authMethod === 'phone' 
+                          ? 'bg-plm-bg text-plm-fg shadow-sm' 
+                          : 'text-plm-fg-muted hover:text-plm-fg'
+                      }`}
+                    >
+                      <Phone size={16} />
+                      {t('welcome.phone')}
+                    </button>
+                  </div>
+
+                  {/* Error Message */}
+                  {authError && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                      <p className="text-sm text-red-400">{authError}</p>
+                    </div>
+                  )}
+
+                  {/* Email Auth Form */}
+                  {authMethod === 'email' && (
+                    <div className="space-y-4">
+                      {isNewAccount && (
+                        <div>
+                          <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                            {t('welcome.fullName')}
+                          </label>
+                          <input
+                            type="text"
+                            value={authName}
+                            onChange={(e) => setAuthName(e.target.value)}
+                            placeholder="Your name"
+                            className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
+                          />
+                        </div>
+                      )}
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                          {t('welcome.email')}
+                        </label>
+                        <input
+                          type="email"
+                          value={authEmail}
+                          onChange={(e) => setAuthEmail(e.target.value)}
+                          placeholder="you@company.com"
+                          className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                          {t('welcome.password')}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            value={authPassword}
+                            onChange={(e) => setAuthPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className="w-full px-4 py-3 pr-12 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
+                          >
+                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Password Confirmation for new accounts */}
+                      {isNewAccount && (
+                        <div>
+                          <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                            {t('welcome.confirmPassword')}
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showPasswordConfirm ? 'text' : 'password'}
+                              value={authPasswordConfirm}
+                              onChange={(e) => setAuthPasswordConfirm(e.target.value)}
+                              placeholder="••••••••"
+                              className={`w-full px-4 py-3 pr-12 bg-plm-bg-light border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none transition-colors ${
+                                authPasswordConfirm && authPassword !== authPasswordConfirm 
+                                  ? 'border-red-500 focus:border-red-500' 
+                                  : 'border-plm-border focus:border-plm-accent'
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
+                            >
+                              {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+                          {authPasswordConfirm && authPassword !== authPasswordConfirm && (
+                            <p className="text-xs text-red-400 mt-1">{t('welcome.passwordMismatch')}</p>
+                          )}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleEmailAuth}
+                        disabled={isSigningIn || (isNewAccount && authPassword !== authPasswordConfirm)}
+                        className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isSigningIn ? (
+                          <Loader2 size={20} className="animate-spin" />
+                        ) : (
+                          <LogIn size={20} />
+                        )}
+                        {isNewAccount ? t('welcome.createAccountBtn') : t('welcome.signIn')}
+                      </button>
+
+                      <div className="text-center">
+                        <button
+                          onClick={() => { setIsNewAccount(!isNewAccount); setAuthError(null); setAuthPasswordConfirm('') }}
+                          className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+                        >
+                          {isNewAccount 
+                            ? t('welcome.alreadyHaveAccount') 
+                            : t('welcome.noAccount')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Phone Auth Form */}
+                  {authMethod === 'phone' && (
+                    <div className="space-y-4">
+                      {!isOtpSent ? (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                              {t('welcome.phoneNumber')}
+                            </label>
+                            <input
+                              type="tel"
+                              value={authPhone}
+                              onChange={(e) => setAuthPhone(e.target.value)}
+                              placeholder="+1 555 000 0000"
+                              className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
+                            />
+                            <p className="text-xs text-plm-fg-muted mt-1.5">
+                              {t('welcome.includeCountryCode')}
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={handleSendPhoneOTP}
+                            disabled={isSigningIn}
+                            className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            {isSigningIn ? (
+                              <Loader2 size={20} className="animate-spin" />
+                            ) : (
+                              <Phone size={20} />
+                            )}
+                            {t('welcome.sendVerificationCode')}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-center text-sm text-plm-fg-muted mb-4">
+                            {t('welcome.verificationSent')} <span className="text-plm-fg font-medium">{authPhone}</span>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                              {t('welcome.verificationCode')}
+                            </label>
+                            <input
+                              type="text"
+                              value={phoneOtp}
+                              onChange={(e) => setPhoneOtp(e.target.value)}
+                              placeholder="123456"
+                              maxLength={6}
+                              className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors text-center text-2xl tracking-widest"
+                            />
+                          </div>
+
+                          <button
+                            onClick={handleVerifyPhoneOTP}
+                            disabled={isSigningIn}
+                            className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            {isSigningIn ? (
+                              <Loader2 size={20} className="animate-spin" />
+                            ) : (
+                              <Check size={20} />
+                            )}
+                            {t('welcome.verifyAndSignIn')}
+                          </button>
+
+                          <button
+                            onClick={() => { setIsOtpSent(false); setPhoneOtp('') }}
+                            className="w-full text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+                          >
+                            {t('welcome.useDifferentNumber')}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Back to Google option */}
+                  <div className="text-center pt-2">
+                    <button
+                      onClick={() => { setAuthMethod('google'); setAuthError(null) }}
+                      className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+                    >
+                      {t('welcome.useGoogleInstead')}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <div className="text-center text-xs text-plm-fg-muted mt-4">
                 {t('welcome.roleSetByOrg')}
               </div>
             </div>
@@ -751,8 +1020,8 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           {accountType === 'supplier' && (
             <div className="space-y-4">
               <button
-                onClick={() => { setAccountType(null); resetSupplierAuth() }}
-                className="flex items-center gap-2 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors mb-4"
+                onClick={() => { setAccountType(null); resetAuth() }}
+                className="flex items-center gap-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors mb-4"
               >
                 <ArrowLeft size={16} />
                 {t('common.back')}
@@ -762,31 +1031,31 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center mx-auto mb-3">
                   <Truck size={24} className="text-amber-500" />
                 </div>
-                <h2 className="text-xl font-semibold text-pdm-fg">{t('welcome.supplierPortal')}</h2>
-                <p className="text-sm text-pdm-fg-muted mt-1">
+                <h2 className="text-xl font-semibold text-plm-fg">{t('welcome.supplierPortal')}</h2>
+                <p className="text-sm text-plm-fg-muted mt-1">
                   {isNewAccount ? t('welcome.createAccount') : t('welcome.signInToAccount')}
                 </p>
               </div>
 
               {/* Auth Method Tabs */}
-              <div className="flex rounded-lg bg-pdm-bg-light p-1 mb-4">
+              <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
                 <button
-                  onClick={() => { setSupplierAuthMethod('email'); setIsOtpSent(false) }}
+                  onClick={() => { setAuthMethod('email'); setIsOtpSent(false) }}
                   className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                    supplierAuthMethod === 'email' 
-                      ? 'bg-pdm-bg text-pdm-fg shadow-sm' 
-                      : 'text-pdm-fg-muted hover:text-pdm-fg'
+                    authMethod === 'email' 
+                      ? 'bg-plm-bg text-plm-fg shadow-sm' 
+                      : 'text-plm-fg-muted hover:text-plm-fg'
                   }`}
                 >
                   <Mail size={16} />
                   {t('welcome.email')}
                 </button>
                 <button
-                  onClick={() => { setSupplierAuthMethod('phone'); setIsNewAccount(false) }}
+                  onClick={() => { setAuthMethod('phone'); setIsNewAccount(false) }}
                   className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                    supplierAuthMethod === 'phone' 
-                      ? 'bg-pdm-bg text-pdm-fg shadow-sm' 
-                      : 'text-pdm-fg-muted hover:text-pdm-fg'
+                    authMethod === 'phone' 
+                      ? 'bg-plm-bg text-plm-fg shadow-sm' 
+                      : 'text-plm-fg-muted hover:text-plm-fg'
                   }`}
                 >
                   <Phone size={16} />
@@ -802,61 +1071,93 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               )}
 
               {/* Email Auth Form */}
-              {supplierAuthMethod === 'email' && (
+              {authMethod === 'email' && (
                 <div className="space-y-4">
                   {isNewAccount && (
                     <div>
-                      <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                      <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                         {t('welcome.fullName')}
                       </label>
                       <input
                         type="text"
-                        value={supplierName}
-                        onChange={(e) => setSupplierName(e.target.value)}
+                        value={authName}
+                        onChange={(e) => setAuthName(e.target.value)}
                         placeholder="Your name"
-                        className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
+                        className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
                       />
                     </div>
                   )}
                   
                   <div>
-                    <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                    <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                       {t('welcome.email')}
                     </label>
                     <input
                       type="email"
-                      value={supplierEmail}
-                      onChange={(e) => setSupplierEmail(e.target.value)}
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
                       placeholder="you@company.com"
-                      className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
+                      className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                    <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                       {t('welcome.password')}
                     </label>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        value={supplierPassword}
-                        onChange={(e) => setSupplierPassword(e.target.value)}
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full px-4 py-3 pr-12 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
+                        className="w-full px-4 py-3 pr-12 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
                   </div>
 
+                  {/* Password Confirmation for new accounts */}
+                  {isNewAccount && (
+                    <div>
+                      <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                        {t('welcome.confirmPassword')}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPasswordConfirm ? 'text' : 'password'}
+                          value={authPasswordConfirm}
+                          onChange={(e) => setAuthPasswordConfirm(e.target.value)}
+                          placeholder="••••••••"
+                          className={`w-full px-4 py-3 pr-12 bg-plm-bg-light border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none transition-colors ${
+                            authPasswordConfirm && authPassword !== authPasswordConfirm 
+                              ? 'border-red-500 focus:border-red-500' 
+                              : 'border-plm-border focus:border-amber-500'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
+                        >
+                          {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {authPasswordConfirm && authPassword !== authPasswordConfirm && (
+                        <p className="text-xs text-red-400 mt-1">{t('welcome.passwordMismatch')}</p>
+                      )}
+                    </div>
+                  )}
+
                   <button
-                    onClick={handleSupplierEmailAuth}
-                    disabled={isSigningIn}
+                    onClick={handleEmailAuth}
+                    disabled={isSigningIn || (isNewAccount && authPassword !== authPasswordConfirm)}
                     className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     {isSigningIn ? (
@@ -869,8 +1170,8 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
 
                   <div className="text-center">
                     <button
-                      onClick={() => { setIsNewAccount(!isNewAccount); setAuthError(null) }}
-                      className="text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                      onClick={() => { setIsNewAccount(!isNewAccount); setAuthError(null); setAuthPasswordConfirm('') }}
+                      className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
                     >
                       {isNewAccount 
                         ? t('welcome.alreadyHaveAccount') 
@@ -881,22 +1182,22 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               )}
 
               {/* Phone Auth Form */}
-              {supplierAuthMethod === 'phone' && (
+              {authMethod === 'phone' && (
                 <div className="space-y-4">
                   {!isOtpSent ? (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                        <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                           {t('welcome.phoneNumber')}
                         </label>
                         <input
                           type="tel"
-                          value={supplierPhone}
-                          onChange={(e) => setSupplierPhone(e.target.value)}
+                          value={authPhone}
+                          onChange={(e) => setAuthPhone(e.target.value)}
                           placeholder="+86 138 0000 0000"
-                          className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
+                          className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
                         />
-                        <p className="text-xs text-pdm-fg-muted mt-1.5">
+                        <p className="text-xs text-plm-fg-muted mt-1.5">
                           {t('welcome.includeCountryCode')}
                         </p>
                       </div>
@@ -916,12 +1217,12 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                     </>
                   ) : (
                     <>
-                      <div className="text-center text-sm text-pdm-fg-muted mb-4">
-                        {t('welcome.verificationSent')} <span className="text-pdm-fg font-medium">{supplierPhone}</span>
+                      <div className="text-center text-sm text-plm-fg-muted mb-4">
+                        {t('welcome.verificationSent')} <span className="text-plm-fg font-medium">{authPhone}</span>
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-pdm-fg-muted mb-1.5">
+                        <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                           {t('welcome.verificationCode')}
                         </label>
                         <input
@@ -930,7 +1231,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                           onChange={(e) => setPhoneOtp(e.target.value)}
                           placeholder="123456"
                           maxLength={6}
-                          className="w-full px-4 py-3 bg-pdm-bg-light border border-pdm-border rounded-lg text-pdm-fg placeholder-pdm-fg-muted focus:outline-none focus:border-amber-500 transition-colors text-center text-2xl tracking-widest"
+                          className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors text-center text-2xl tracking-widest"
                         />
                       </div>
 
@@ -949,7 +1250,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
 
                       <button
                         onClick={() => { setIsOtpSent(false); setPhoneOtp('') }}
-                        className="w-full text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                        className="w-full text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
                       >
                         {t('welcome.useDifferentNumber')}
                       </button>
@@ -958,14 +1259,14 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 </div>
               )}
 
-              <div className="text-center text-xs text-pdm-fg-muted mt-4 pt-4 border-t border-pdm-border">
+              <div className="text-center text-xs text-plm-fg-muted mt-4 pt-4 border-t border-plm-border">
                 {t('welcome.supplierInviteNote')}
               </div>
             </div>
           )}
 
           {/* Footer */}
-          <div className="text-center mt-12 text-xs text-pdm-fg-muted">
+          <div className="text-center mt-12 text-xs text-plm-fg-muted">
             {t('welcome.madeWith')}
           </div>
         </div>
@@ -977,12 +1278,12 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   // VAULT CONNECTION SCREEN (shown when authenticated or offline)
   // ============================================
   return (
-    <div className="flex-1 flex items-center justify-center bg-pdm-bg overflow-auto">
+    <div className="flex-1 flex items-center justify-center bg-plm-bg overflow-auto">
       <div className="max-w-lg w-full p-8">
         {/* Logo and Title */}
         <div className="text-center mb-8">
           <div className="flex justify-center items-center gap-3 mb-4">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-pdm-accent">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
               <path 
                 d="M12 2L2 7L12 12L22 7L12 2Z" 
                 stroke="currentColor" 
@@ -1005,17 +1306,17 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 strokeLinejoin="round"
               />
             </svg>
-            <h1 className="text-2xl font-bold text-pdm-fg">{t('welcome.title')}</h1>
+            <h1 className="text-2xl font-bold text-plm-fg">{t('welcome.title')}</h1>
           </div>
           
           {/* User & Org Info or Offline Badge */}
           {isOfflineMode ? (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-pdm-warning/10 border border-pdm-warning/30 rounded-full">
-              <WifiOff size={14} className="text-pdm-warning" />
-              <span className="text-sm text-pdm-warning font-medium">{t('welcome.offlineMode')}</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-warning/10 border border-plm-warning/30 rounded-full">
+              <WifiOff size={14} className="text-plm-warning" />
+              <span className="text-sm text-plm-warning font-medium">{t('welcome.offlineMode')}</span>
             </div>
           ) : user && (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-pdm-bg-light border border-pdm-border rounded-full">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-bg-light border border-plm-border rounded-full">
               {user.avatar_url ? (
                 <>
                   <img 
@@ -1028,22 +1329,22 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                       target.nextElementSibling?.classList.remove('hidden')
                     }}
                   />
-                  <div className="w-5 h-5 rounded-full bg-pdm-accent flex items-center justify-center text-[10px] text-white font-semibold hidden">
+                  <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold hidden">
                     {getInitials(user.full_name || user.email)}
                   </div>
                 </>
               ) : (
-                <div className="w-5 h-5 rounded-full bg-pdm-accent flex items-center justify-center text-[10px] text-white font-semibold">
+                <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold">
                   {getInitials(user.full_name || user.email)}
                 </div>
               )}
-              <span className="text-sm text-pdm-fg-dim">
+              <span className="text-sm text-plm-fg-dim">
                 {user.full_name || user.email}
               </span>
               {organization && (
                 <>
-                  <span className="text-pdm-fg-muted">•</span>
-                  <span className="text-sm text-pdm-accent font-medium">
+                  <span className="text-plm-fg-muted">•</span>
+                  <span className="text-sm text-plm-accent font-medium">
                     {organization.name}
                   </span>
                 </>
@@ -1055,7 +1356,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
         {/* Organization Vaults */}
         {!isOfflineMode && organization && orgVaults.length > 0 && (
           <div className="mb-6">
-            <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-3 flex items-center gap-2">
+            <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3 flex items-center gap-2">
               <Database size={14} />
               {t('welcome.organizationVaults')}
             </div>
@@ -1068,31 +1369,31 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                 return (
                   <div 
                     key={vault.id}
-                    className={`bg-pdm-bg-light border rounded-xl p-4 transition-colors ${
-                      connected ? 'border-pdm-accent' : 'border-pdm-border hover:border-pdm-border-light'
+                    className={`bg-plm-bg-light border rounded-xl p-4 transition-colors ${
+                      connected ? 'border-plm-accent' : 'border-plm-border hover:border-plm-border-light'
                     }`}
                   >
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        connected ? 'bg-pdm-accent/20' : 'bg-pdm-bg'
+                        connected ? 'bg-plm-accent/20' : 'bg-plm-bg'
                       }`}>
-                        <HardDrive size={20} className={connected ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                        <HardDrive size={20} className={connected ? 'text-plm-accent' : 'text-plm-fg-muted'} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-pdm-fg truncate">
+                          <h3 className="font-medium text-plm-fg truncate">
                             {vault.name}
                           </h3>
                           {vault.is_default && (
-                            <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-[10px] rounded">
+                            <span className="px-1.5 py-0.5 bg-plm-accent/20 text-plm-accent text-[10px] rounded">
                               {t('common.default')}
                             </span>
                           )}
                           {connected && (
-                            <Check size={14} className="text-pdm-success" />
+                            <Check size={14} className="text-plm-success" />
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-pdm-fg-muted">
+                        <div className="flex items-center gap-3 text-xs text-plm-fg-muted">
                           {vault.stats && (
                             <>
                               <span>{vault.stats.fileCount} file{vault.stats.fileCount !== 1 ? 's' : ''}</span>
@@ -1144,16 +1445,16 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
         
         {/* No vaults message */}
         {!isOfflineMode && organization && orgVaults.length === 0 && !isLoadingVaults && (
-          <div className="mb-6 p-6 bg-pdm-bg-light border border-pdm-border rounded-xl text-center">
-            <Database size={32} className="text-pdm-fg-muted mx-auto mb-3" />
-            <h3 className="font-medium text-pdm-fg mb-1">{t('welcome.noVaultsCreated')}</h3>
-            <p className="text-sm text-pdm-fg-muted mb-4">
+          <div className="mb-6 p-6 bg-plm-bg-light border border-plm-border rounded-xl text-center">
+            <Database size={32} className="text-plm-fg-muted mx-auto mb-3" />
+            <h3 className="font-medium text-plm-fg mb-1">{t('welcome.noVaultsCreated')}</h3>
+            <p className="text-sm text-plm-fg-muted mb-4">
               {user?.role === 'admin' 
                 ? t('welcome.noVaultsAdminMsg')
                 : t('welcome.noVaultsUserMsg')}
             </p>
             {user?.role === 'admin' && (
-              <p className="text-xs text-pdm-fg-dim">
+              <p className="text-xs text-plm-fg-dim">
                 {t('welcome.advancedOptions')}
               </p>
             )}
@@ -1162,23 +1463,23 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
         
         {/* Loading vaults */}
         {isLoadingVaults && (
-          <div className="mb-6 p-6 bg-pdm-bg-light border border-pdm-border rounded-xl flex items-center justify-center">
-            <Loader2 size={24} className="animate-spin text-pdm-fg-muted" />
+          <div className="mb-6 p-6 bg-plm-bg-light border border-plm-border rounded-xl flex items-center justify-center">
+            <Loader2 size={24} className="animate-spin text-plm-fg-muted" />
           </div>
         )}
 
         {/* Offline mode - legacy vault connection */}
         {isOfflineMode && (
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 mb-6">
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 mb-6">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-pdm-warning/20 flex items-center justify-center flex-shrink-0">
-                <HardDrive size={24} className="text-pdm-warning" />
+              <div className="w-12 h-12 rounded-xl bg-plm-warning/20 flex items-center justify-center flex-shrink-0">
+                <HardDrive size={24} className="text-plm-warning" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-semibold text-pdm-fg truncate">
+                <h2 className="text-lg font-semibold text-plm-fg truncate">
                   {t('welcome.localVault')}
                 </h2>
-                <p className="text-xs text-pdm-fg-muted truncate">
+                <p className="text-xs text-plm-fg-muted truncate">
                   {recentVaults[0] || buildVaultPath(platform, 'local-vault')}
                 </p>
               </div>
@@ -1203,14 +1504,14 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
         <div className="mb-6">
           <button
             onClick={() => setShowLogsModal(true)}
-            className="w-full btn btn-ghost gap-2 justify-center py-2 text-sm text-pdm-fg-muted hover:text-pdm-fg"
+            className="w-full btn btn-ghost gap-2 justify-center py-2 text-sm text-plm-fg-muted hover:text-plm-fg"
           >
             View Logs
           </button>
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-xs text-pdm-fg-muted">
+        <div className="text-center mt-6 text-xs text-plm-fg-muted">
           {t('welcome.madeWith')}
         </div>
       </div>

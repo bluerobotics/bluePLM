@@ -19,7 +19,7 @@ import {
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
 
-const API_URL_KEY = 'bluepdm_api_url'
+const API_URL_KEY = 'blueplm_api_url'
 const DEFAULT_API_URL = 'http://127.0.0.1:3001'
 
 function getApiUrl(organization: { settings?: { api_url?: string } } | null): string {
@@ -147,32 +147,32 @@ export function SuppliersView() {
     return (
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-pdm-border">
+        <div className="p-4 border-b border-plm-border">
           <button
             onClick={() => setSelectedSupplier(null)}
-            className="flex items-center gap-1 text-xs text-pdm-fg-muted hover:text-pdm-fg mb-3"
+            className="flex items-center gap-1 text-xs text-plm-fg-muted hover:text-plm-fg mb-3"
           >
             ← Back to list
           </button>
           <div className="flex items-start gap-3">
-            <div className="w-12 h-12 rounded-lg bg-pdm-highlight flex items-center justify-center">
-              <Building2 size={24} className="text-pdm-fg-muted" />
+            <div className="w-12 h-12 rounded-lg bg-plm-highlight flex items-center justify-center">
+              <Building2 size={24} className="text-plm-fg-muted" />
             </div>
             <div className="flex-1">
-              <h2 className="text-lg font-medium text-pdm-fg">{selectedSupplier.name}</h2>
+              <h2 className="text-lg font-medium text-plm-fg">{selectedSupplier.name}</h2>
               {selectedSupplier.code && (
-                <span className="text-xs font-mono text-pdm-fg-muted">{selectedSupplier.code}</span>
+                <span className="text-xs font-mono text-plm-fg-muted">{selectedSupplier.code}</span>
               )}
               <div className="flex gap-2 mt-2">
                 <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
                   selectedSupplier.is_approved 
-                    ? 'bg-pdm-success/20 text-pdm-success' 
-                    : 'bg-pdm-warning/20 text-pdm-warning'
+                    ? 'bg-plm-success/20 text-plm-success' 
+                    : 'bg-plm-warning/20 text-plm-warning'
                 }`}>
                   {selectedSupplier.is_approved ? 'APPROVED' : 'PENDING'}
                 </span>
                 {selectedSupplier.erp_id && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-pdm-info/20 text-pdm-info">
+                  <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-plm-info/20 text-plm-info">
                     ODOO #{selectedSupplier.erp_id}
                   </span>
                 )}
@@ -185,29 +185,29 @@ export function SuppliersView() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Contact */}
           <div className="space-y-2">
-            <h3 className="text-xs font-medium text-pdm-fg-muted uppercase tracking-wider">Contact</h3>
+            <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Contact</h3>
             {selectedSupplier.contact_email && (
               <div className="flex items-center gap-2 text-sm">
-                <Mail size={14} className="text-pdm-fg-muted" />
-                <a href={`mailto:${selectedSupplier.contact_email}`} className="text-pdm-accent hover:underline">
+                <Mail size={14} className="text-plm-fg-muted" />
+                <a href={`mailto:${selectedSupplier.contact_email}`} className="text-plm-accent hover:underline">
                   {selectedSupplier.contact_email}
                 </a>
               </div>
             )}
             {selectedSupplier.contact_phone && (
               <div className="flex items-center gap-2 text-sm">
-                <Phone size={14} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg">{selectedSupplier.contact_phone}</span>
+                <Phone size={14} className="text-plm-fg-muted" />
+                <span className="text-plm-fg">{selectedSupplier.contact_phone}</span>
               </div>
             )}
             {selectedSupplier.website && (
               <div className="flex items-center gap-2 text-sm">
-                <Globe size={14} className="text-pdm-fg-muted" />
+                <Globe size={14} className="text-plm-fg-muted" />
                 <a 
                   href={selectedSupplier.website.startsWith('http') ? selectedSupplier.website : `https://${selectedSupplier.website}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-pdm-accent hover:underline flex items-center gap-1"
+                  className="text-plm-accent hover:underline flex items-center gap-1"
                 >
                   {selectedSupplier.website}
                   <ExternalLink size={10} />
@@ -219,10 +219,10 @@ export function SuppliersView() {
           {/* Location */}
           {(selectedSupplier.city || selectedSupplier.state || selectedSupplier.country) && (
             <div className="space-y-2">
-              <h3 className="text-xs font-medium text-pdm-fg-muted uppercase tracking-wider">Location</h3>
+              <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Location</h3>
               <div className="flex items-center gap-2 text-sm">
-                <MapPin size={14} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg">
+                <MapPin size={14} className="text-plm-fg-muted" />
+                <span className="text-plm-fg">
                   {[selectedSupplier.city, selectedSupplier.state, selectedSupplier.country]
                     .filter(Boolean)
                     .join(', ')}
@@ -234,10 +234,10 @@ export function SuppliersView() {
           {/* Sync info */}
           {selectedSupplier.erp_synced_at && (
             <div className="space-y-2">
-              <h3 className="text-xs font-medium text-pdm-fg-muted uppercase tracking-wider">Sync</h3>
+              <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Sync</h3>
               <div className="flex items-center gap-2 text-sm">
-                <Clock size={14} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg-muted">
+                <Clock size={14} className="text-plm-fg-muted" />
+                <span className="text-plm-fg-muted">
                   Last synced: {new Date(selectedSupplier.erp_synced_at).toLocaleString()}
                 </span>
               </div>
@@ -251,16 +251,16 @@ export function SuppliersView() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-pdm-border space-y-3">
+      <div className="p-4 border-b border-plm-border space-y-3">
         <div className="flex gap-2">
-          <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-pdm-accent hover:bg-pdm-accent/90 text-white rounded text-sm font-medium transition-colors">
+          <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors">
             <Plus size={16} />
             Add Supplier
           </button>
           <button 
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center justify-center gap-2 px-3 py-2 bg-pdm-highlight hover:bg-pdm-highlight/80 rounded text-sm font-medium text-pdm-fg transition-colors disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-highlight/80 rounded text-sm font-medium text-plm-fg transition-colors disabled:opacity-50"
             title="Sync from Odoo"
           >
             {syncing ? (
@@ -273,26 +273,26 @@ export function SuppliersView() {
         
         {/* Search */}
         <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search suppliers..."
-            className="w-full pl-9 pr-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent"
+            className="w-full pl-9 pr-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
           />
         </div>
 
         {/* Filter tabs */}
-        <div className="flex rounded bg-pdm-input p-0.5">
+        <div className="flex rounded bg-plm-input p-0.5">
           {(['all', 'approved', 'pending'] as const).map((filter) => (
             <button
               key={filter}
               onClick={() => setStatusFilter(filter)}
               className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-colors ${
                 statusFilter === filter
-                  ? 'bg-pdm-bg text-pdm-fg shadow-sm'
-                  : 'text-pdm-fg-muted hover:text-pdm-fg'
+                  ? 'bg-plm-bg text-plm-fg shadow-sm'
+                  : 'text-plm-fg-muted hover:text-plm-fg'
               }`}
             >
               {filter === 'all' && `All (${suppliers.length})`}
@@ -307,30 +307,30 @@ export function SuppliersView() {
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <Loader2 size={24} className="animate-spin text-pdm-fg-muted" />
+            <Loader2 size={24} className="animate-spin text-plm-fg-muted" />
           </div>
         ) : filteredSuppliers.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 p-8 text-center">
-            <div className="w-12 h-12 rounded-full bg-pdm-highlight flex items-center justify-center mb-3">
-              <Building2 size={24} className="text-pdm-fg-muted" />
+            <div className="w-12 h-12 rounded-full bg-plm-highlight flex items-center justify-center mb-3">
+              <Building2 size={24} className="text-plm-fg-muted" />
             </div>
             {suppliers.length === 0 ? (
               <>
-                <p className="text-sm text-pdm-fg mb-1">No suppliers yet</p>
-                <p className="text-xs text-pdm-fg-muted mb-4">
+                <p className="text-sm text-plm-fg mb-1">No suppliers yet</p>
+                <p className="text-xs text-plm-fg-muted mb-4">
                   Sync from Odoo or add manually
                 </p>
                 <button
                   onClick={handleSync}
                   disabled={syncing}
-                  className="flex items-center gap-2 px-3 py-2 bg-pdm-accent hover:bg-pdm-accent/90 text-white rounded text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors"
                 >
                   <RefreshCw size={14} />
                   Sync from Odoo
                 </button>
               </>
             ) : (
-              <p className="text-sm text-pdm-fg-muted">No suppliers match your search</p>
+              <p className="text-sm text-plm-fg-muted">No suppliers match your search</p>
             )}
           </div>
         ) : (
@@ -338,34 +338,34 @@ export function SuppliersView() {
             <button
               key={supplier.id}
               onClick={() => setSelectedSupplier(supplier)}
-              className="w-full p-3 border-b border-pdm-border hover:bg-pdm-highlight/50 cursor-pointer transition-colors text-left group"
+              className="w-full p-3 border-b border-plm-border hover:bg-plm-highlight/50 cursor-pointer transition-colors text-left group"
             >
               <div className="flex items-start justify-between mb-1.5">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded bg-pdm-highlight flex items-center justify-center flex-shrink-0">
-                    <Building2 size={14} className="text-pdm-fg-muted" />
+                  <div className="w-8 h-8 rounded bg-plm-highlight flex items-center justify-center flex-shrink-0">
+                    <Building2 size={14} className="text-plm-fg-muted" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-pdm-fg truncate">{supplier.name}</div>
+                    <div className="text-sm font-medium text-plm-fg truncate">{supplier.name}</div>
                     {supplier.code && (
-                      <div className="text-[10px] font-mono text-pdm-fg-muted">{supplier.code}</div>
+                      <div className="text-[10px] font-mono text-plm-fg-muted">{supplier.code}</div>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-1.5 py-0.5 text-[9px] font-medium rounded ${
                     supplier.is_approved 
-                      ? 'bg-pdm-success/20 text-pdm-success' 
-                      : 'bg-pdm-warning/20 text-pdm-warning'
+                      ? 'bg-plm-success/20 text-plm-success' 
+                      : 'bg-plm-warning/20 text-plm-warning'
                   }`}>
                     {supplier.is_approved ? 'APPROVED' : 'PENDING'}
                   </span>
-                  <ChevronRight size={14} className="text-pdm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ChevronRight size={14} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
               
               {(supplier.city || supplier.website) && (
-                <div className="flex items-center gap-3 text-[11px] text-pdm-fg-muted mt-1 ml-10">
+                <div className="flex items-center gap-3 text-[11px] text-plm-fg-muted mt-1 ml-10">
                   {supplier.city && (
                     <span className="flex items-center gap-1">
                       <MapPin size={10} />
@@ -373,7 +373,7 @@ export function SuppliersView() {
                     </span>
                   )}
                   {supplier.erp_id && (
-                    <span className="flex items-center gap-1 text-pdm-info">
+                    <span className="flex items-center gap-1 text-plm-info">
                       <RefreshCw size={10} />
                       Odoo
                     </span>
@@ -387,8 +387,8 @@ export function SuppliersView() {
 
       {/* Footer stats */}
       {suppliers.length > 0 && (
-        <div className="p-3 border-t border-pdm-border bg-pdm-bg">
-          <div className="flex justify-between text-[11px] text-pdm-fg-muted">
+        <div className="p-3 border-t border-plm-border bg-plm-bg">
+          <div className="flex justify-between text-[11px] text-plm-fg-muted">
             <span>{suppliers.length} suppliers</span>
             <span>{approvedCount} approved • {pendingCount} pending</span>
           </div>

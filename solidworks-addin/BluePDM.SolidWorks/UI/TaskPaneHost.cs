@@ -6,10 +6,10 @@ using System.Windows.Forms;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 
-namespace BluePDM.SolidWorks
+namespace BluePLM.SolidWorks
 {
     /// <summary>
-    /// Windows Forms host for the BluePDM task pane
+    /// Windows Forms host for the BluePLM task pane
     /// </summary>
     public class TaskPaneHost : UserControl
     {
@@ -37,7 +37,7 @@ namespace BluePDM.SolidWorks
         private Label _connectionStatus = null!;
         private Button _settingsBtn = null!;
 
-        // Colors (matching BluePDM theme)
+        // Colors (matching BluePLM theme)
         private static readonly Color BgColor = Color.FromArgb(30, 30, 30);
         private static readonly Color BgSecondary = Color.FromArgb(37, 37, 38);
         private static readonly Color TextColor = Color.FromArgb(212, 212, 212);
@@ -83,7 +83,7 @@ namespace BluePDM.SolidWorks
 
             _headerLabel = new Label
             {
-                Text = "BluePDM",
+                Text = "BluePLM",
                 ForeColor = TextColor,
                 Font = new Font("Segoe UI Semibold", 11),
                 AutoSize = true,
@@ -518,7 +518,7 @@ namespace BluePDM.SolidWorks
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error executing command: {ex.Message}", "BluePDM Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Error executing command: {ex.Message}", "BluePLM Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

@@ -12,12 +12,11 @@ import {
   SlackSettings,
   WebhooksSettings,
   ApiSettings,
-  PreferencesSettings,
   LogsSettings,
   AboutSettings
 } from './settings'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'company-profile' | 'rfq' | 'metadata-columns' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'preferences' | 'logs' | 'about'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'company-profile' | 'rfq' | 'metadata-columns' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'logs' | 'about'
 
 interface SettingsContentProps {
   activeTab: SettingsTab
@@ -52,8 +51,6 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <WebhooksSettings />
       case 'api':
         return <ApiSettings />
-      case 'preferences':
-        return <PreferencesSettings />
       case 'logs':
         return <LogsSettings />
       case 'about':
@@ -64,7 +61,7 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-pdm-bg">
+    <div className="flex-1 overflow-y-auto bg-plm-bg">
       <div className="max-w-4xl mx-auto p-6">
         {renderContent()}
       </div>

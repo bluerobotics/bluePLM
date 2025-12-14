@@ -176,6 +176,9 @@ declare global {
       selectFolder: () => Promise<FolderSelectResult>
       showSaveDialog: (defaultName: string) => Promise<SaveDialogResult>
       
+      // PDF generation
+      generatePdfFromHtml: (htmlContent: string, outputPath: string) => Promise<{ success: boolean; path?: string; size?: number; error?: string }>
+      
       // eDrawings preview
       checkEDrawingsInstalled: () => Promise<{ installed: boolean; path: string | null }>
       openInEDrawings: (filePath: string) => Promise<{ success: boolean; error?: string }>

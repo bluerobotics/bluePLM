@@ -1,5 +1,5 @@
 /**
- * BluePDM Storage Service
+ * BluePLM Storage Service
  * 
  * Handles file storage using Supabase Storage with content-addressable storage.
  * Each file version is stored by its SHA-256 hash, enabling deduplication.

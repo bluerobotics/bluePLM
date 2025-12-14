@@ -54,26 +54,26 @@ const STATUS_CONFIG: Record<ECOStatus, { icon: React.ReactNode; label: string; c
   open: { 
     icon: <Clock size={12} />, 
     label: 'Open', 
-    color: 'text-pdm-accent',
-    bgColor: 'bg-pdm-accent/10'
+    color: 'text-plm-accent',
+    bgColor: 'bg-plm-accent/10'
   },
   in_progress: { 
     icon: <Loader2 size={12} className="animate-spin" />, 
     label: 'In Progress', 
-    color: 'text-pdm-warning',
-    bgColor: 'bg-pdm-warning/10'
+    color: 'text-plm-warning',
+    bgColor: 'bg-plm-warning/10'
   },
   completed: { 
     icon: <Check size={12} />, 
     label: 'Completed', 
-    color: 'text-pdm-success',
-    bgColor: 'bg-pdm-success/10'
+    color: 'text-plm-success',
+    bgColor: 'bg-plm-success/10'
   },
   cancelled: { 
     icon: <XCircle size={12} />, 
     label: 'Cancelled', 
-    color: 'text-pdm-fg-muted',
-    bgColor: 'bg-pdm-fg-muted/10'
+    color: 'text-plm-fg-muted',
+    bgColor: 'bg-plm-fg-muted/10'
   },
 }
 
@@ -451,7 +451,7 @@ export function ECOView() {
 
   if (!isVaultConnected) {
     return (
-      <div className="p-4 text-sm text-pdm-fg-muted text-center">
+      <div className="p-4 text-sm text-plm-fg-muted text-center">
         Open a vault to manage ECOs
       </div>
     )
@@ -459,7 +459,7 @@ export function ECOView() {
 
   if (!organization) {
     return (
-      <div className="p-4 text-sm text-pdm-fg-muted text-center">
+      <div className="p-4 text-sm text-plm-fg-muted text-center">
         Sign in to manage ECOs
       </div>
     )
@@ -468,10 +468,10 @@ export function ECOView() {
   return (
     <div className="flex flex-col h-full">
       {/* Header with search and create button */}
-      <div className="p-3 border-b border-pdm-border space-y-3">
+      <div className="p-3 border-b border-plm-border space-y-3">
         {/* Search bar */}
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-pdm-fg-muted" />
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
           <input
             type="text"
             value={searchQuery}
@@ -482,7 +482,7 @@ export function ECOView() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
             >
               <X size={14} />
             </button>
@@ -505,7 +505,7 @@ export function ECOView() {
           
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1 px-2 py-1 text-sm bg-pdm-accent text-white rounded hover:bg-pdm-accent-hover transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-sm bg-plm-accent text-white rounded hover:bg-plm-accent-hover transition-colors"
           >
             <Plus size={14} />
             New ECO
@@ -516,7 +516,7 @@ export function ECOView() {
         {selectedFiles.length > 0 && (
           <button
             onClick={() => setShowTagModal(true)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-sm bg-pdm-bg-light border border-pdm-border rounded hover:bg-pdm-highlight transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-sm bg-plm-bg-light border border-plm-border rounded hover:bg-plm-highlight transition-colors"
           >
             <Tag size={14} />
             Tag {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} with ECO
@@ -531,7 +531,7 @@ export function ECOView() {
             <div className="spinner" />
           </div>
         ) : filteredECOs.length === 0 ? (
-          <div className="p-4 text-sm text-pdm-fg-muted text-center">
+          <div className="p-4 text-sm text-plm-fg-muted text-center">
             {searchQuery || statusFilter !== 'all' 
               ? 'No ECOs match your filters'
               : 'No ECOs yet. Create one to get started.'}
@@ -547,20 +547,20 @@ export function ECOView() {
               return (
                 <div
                   key={eco.id}
-                  className="bg-pdm-bg-light rounded border border-pdm-border"
+                  className="bg-plm-bg-light rounded border border-plm-border"
                 >
                   {/* ECO Header */}
                   <div
                     onClick={() => toggleECO(eco.id)}
-                    className="flex items-start gap-2 p-2 cursor-pointer hover:bg-pdm-highlight transition-colors rounded"
+                    className="flex items-start gap-2 p-2 cursor-pointer hover:bg-plm-highlight transition-colors rounded"
                   >
-                    <span className="mt-1 text-pdm-fg-muted">
+                    <span className="mt-1 text-plm-fg-muted">
                       {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </span>
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-pdm-fg">
+                        <span className="font-medium text-sm text-plm-fg">
                           {eco.eco_number}
                         </span>
                         <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${statusConfig.color} ${statusConfig.bgColor}`}>
@@ -570,12 +570,12 @@ export function ECOView() {
                       </div>
                       
                       {eco.title && (
-                        <div className="text-sm text-pdm-fg-dim truncate mt-0.5">
+                        <div className="text-sm text-plm-fg-dim truncate mt-0.5">
                           {eco.title}
                         </div>
                       )}
                       
-                      <div className="flex items-center gap-3 text-xs text-pdm-fg-muted mt-1">
+                      <div className="flex items-center gap-3 text-xs text-plm-fg-muted mt-1">
                         <span className="flex items-center gap-1">
                           <File size={10} />
                           {eco.file_count || 0} files
@@ -590,17 +590,17 @@ export function ECOView() {
                   
                   {/* Expanded content */}
                   {isExpanded && (
-                    <div className="border-t border-pdm-border">
+                    <div className="border-t border-plm-border">
                       {/* Description */}
                       {eco.description && (
-                        <div className="p-2 text-xs text-pdm-fg-dim border-b border-pdm-border">
+                        <div className="p-2 text-xs text-plm-fg-dim border-b border-plm-border">
                           {eco.description}
                         </div>
                       )}
                       
                       {/* Status change buttons */}
-                      <div className="p-2 border-b border-pdm-border">
-                        <div className="text-xs text-pdm-fg-muted mb-1.5">Change Status:</div>
+                      <div className="p-2 border-b border-plm-border">
+                        <div className="text-xs text-plm-fg-muted mb-1.5">Change Status:</div>
                         <div className="flex flex-wrap gap-1">
                           {(['open', 'in_progress', 'completed', 'cancelled'] as ECOStatus[]).map(status => {
                             const config = STATUS_CONFIG[status]
@@ -616,7 +616,7 @@ export function ECOView() {
                                 className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
                                   isActive 
                                     ? `${config.color} ${config.bgColor} cursor-default`
-                                    : 'text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-highlight'
+                                    : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
                                 }`}
                               >
                                 {config.icon}
@@ -629,14 +629,14 @@ export function ECOView() {
                       
                       {/* Files list */}
                       <div className="p-2">
-                        <div className="text-xs text-pdm-fg-muted mb-1.5">Tagged Files:</div>
+                        <div className="text-xs text-plm-fg-muted mb-1.5">Tagged Files:</div>
                         
                         {isLoadingEcoFiles ? (
                           <div className="flex items-center justify-center py-2">
-                            <Loader2 size={14} className="animate-spin text-pdm-fg-muted" />
+                            <Loader2 size={14} className="animate-spin text-plm-fg-muted" />
                           </div>
                         ) : filesForEco.length === 0 ? (
-                          <div className="text-xs text-pdm-fg-muted py-2 text-center">
+                          <div className="text-xs text-plm-fg-muted py-2 text-center">
                             No files tagged with this ECO
                           </div>
                         ) : (
@@ -644,15 +644,15 @@ export function ECOView() {
                             {filesForEco.map(fileEco => (
                               <div
                                 key={fileEco.id}
-                                className="flex items-center gap-2 p-1.5 rounded bg-pdm-bg hover:bg-pdm-highlight group"
+                                className="flex items-center gap-2 p-1.5 rounded bg-plm-bg hover:bg-plm-highlight group"
                               >
-                                <File size={12} className="text-pdm-fg-muted flex-shrink-0" />
+                                <File size={12} className="text-plm-fg-muted flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <div className="text-xs truncate">
                                     {(fileEco.file as any)?.file_name || 'Unknown file'}
                                   </div>
                                   {(fileEco.file as any)?.part_number && (
-                                    <div className="text-xs text-pdm-fg-muted truncate">
+                                    <div className="text-xs text-plm-fg-muted truncate">
                                       {(fileEco.file as any).part_number}
                                     </div>
                                   )}
@@ -662,7 +662,7 @@ export function ECOView() {
                                     e.stopPropagation()
                                     handleRemoveFileFromECO(fileEco.id, eco.id)
                                   }}
-                                  className="p-1 opacity-0 group-hover:opacity-100 text-pdm-fg-muted hover:text-pdm-error transition-opacity"
+                                  className="p-1 opacity-0 group-hover:opacity-100 text-plm-fg-muted hover:text-plm-error transition-opacity"
                                   title="Remove from ECO"
                                 >
                                   <X size={12} />
@@ -684,12 +684,12 @@ export function ECOView() {
       {/* Create ECO Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-pdm-bg border border-pdm-border rounded-lg shadow-xl w-96 max-w-[90vw]">
-            <div className="flex items-center justify-between p-3 border-b border-pdm-border">
+          <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl w-96 max-w-[90vw]">
+            <div className="flex items-center justify-between p-3 border-b border-plm-border">
               <h3 className="font-medium">Create New ECO</h3>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-1 hover:bg-pdm-highlight rounded"
+                className="p-1 hover:bg-plm-highlight rounded"
               >
                 <X size={16} />
               </button>
@@ -697,7 +697,7 @@ export function ECOView() {
             
             <div className="p-4 space-y-3">
               <div>
-                <label className="block text-xs text-pdm-fg-muted mb-1">
+                <label className="block text-xs text-plm-fg-muted mb-1">
                   ECO Number *
                 </label>
                 <input
@@ -711,7 +711,7 @@ export function ECOView() {
               </div>
               
               <div>
-                <label className="block text-xs text-pdm-fg-muted mb-1">
+                <label className="block text-xs text-plm-fg-muted mb-1">
                   Title
                 </label>
                 <input
@@ -724,7 +724,7 @@ export function ECOView() {
               </div>
               
               <div>
-                <label className="block text-xs text-pdm-fg-muted mb-1">
+                <label className="block text-xs text-plm-fg-muted mb-1">
                   Description
                 </label>
                 <textarea
@@ -736,17 +736,17 @@ export function ECOView() {
               </div>
             </div>
             
-            <div className="flex justify-end gap-2 p-3 border-t border-pdm-border">
+            <div className="flex justify-end gap-2 p-3 border-t border-plm-border">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="px-3 py-1.5 text-sm hover:bg-pdm-highlight rounded"
+                className="px-3 py-1.5 text-sm hover:bg-plm-highlight rounded"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateECO}
                 disabled={!newEcoNumber.trim() || isCreating}
-                className="px-3 py-1.5 text-sm bg-pdm-accent text-white rounded hover:bg-pdm-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-3 py-1.5 text-sm bg-plm-accent text-white rounded hover:bg-plm-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isCreating && <Loader2 size={14} className="animate-spin" />}
                 Create ECO
@@ -759,22 +759,22 @@ export function ECOView() {
       {/* Tag Files Modal */}
       {showTagModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-pdm-bg border border-pdm-border rounded-lg shadow-xl w-96 max-w-[90vw]">
-            <div className="flex items-center justify-between p-3 border-b border-pdm-border">
+          <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl w-96 max-w-[90vw]">
+            <div className="flex items-center justify-between p-3 border-b border-plm-border">
               <h3 className="font-medium">Tag Files with ECO</h3>
               <button
                 onClick={() => {
                   setShowTagModal(false)
                   setTagEcoId(null)
                 }}
-                className="p-1 hover:bg-pdm-highlight rounded"
+                className="p-1 hover:bg-plm-highlight rounded"
               >
                 <X size={16} />
               </button>
             </div>
             
             <div className="p-4">
-              <div className="text-sm text-pdm-fg-dim mb-3">
+              <div className="text-sm text-plm-fg-dim mb-3">
                 Select an ECO to tag {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''}:
               </div>
               
@@ -785,45 +785,45 @@ export function ECOView() {
                     onClick={() => setTagEcoId(eco.id)}
                     className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
                       tagEcoId === eco.id 
-                        ? 'bg-pdm-accent/20 border border-pdm-accent'
-                        : 'bg-pdm-bg-light hover:bg-pdm-highlight border border-transparent'
+                        ? 'bg-plm-accent/20 border border-plm-accent'
+                        : 'bg-plm-bg-light hover:bg-plm-highlight border border-transparent'
                     }`}
                   >
-                    <ClipboardList size={14} className="text-pdm-accent flex-shrink-0" />
+                    <ClipboardList size={14} className="text-plm-accent flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium">{eco.eco_number}</div>
                       {eco.title && (
-                        <div className="text-xs text-pdm-fg-muted truncate">{eco.title}</div>
+                        <div className="text-xs text-plm-fg-muted truncate">{eco.title}</div>
                       )}
                     </div>
                     {tagEcoId === eco.id && (
-                      <Check size={14} className="text-pdm-accent flex-shrink-0" />
+                      <Check size={14} className="text-plm-accent flex-shrink-0" />
                     )}
                   </div>
                 ))}
                 
                 {ecos.filter(e => e.status !== 'completed' && e.status !== 'cancelled').length === 0 && (
-                  <div className="text-sm text-pdm-fg-muted text-center py-4">
+                  <div className="text-sm text-plm-fg-muted text-center py-4">
                     No active ECOs. Create one first.
                   </div>
                 )}
               </div>
             </div>
             
-            <div className="flex justify-end gap-2 p-3 border-t border-pdm-border">
+            <div className="flex justify-end gap-2 p-3 border-t border-plm-border">
               <button
                 onClick={() => {
                   setShowTagModal(false)
                   setTagEcoId(null)
                 }}
-                className="px-3 py-1.5 text-sm hover:bg-pdm-highlight rounded"
+                className="px-3 py-1.5 text-sm hover:bg-plm-highlight rounded"
               >
                 Cancel
               </button>
               <button
                 onClick={handleTagFiles}
                 disabled={!tagEcoId || isTagging}
-                className="px-3 py-1.5 text-sm bg-pdm-accent text-white rounded hover:bg-pdm-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-3 py-1.5 text-sm bg-plm-accent text-white rounded hover:bg-plm-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isTagging && <Loader2 size={14} className="animate-spin" />}
                 Tag Files

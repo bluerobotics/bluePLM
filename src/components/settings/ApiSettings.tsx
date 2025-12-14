@@ -12,12 +12,11 @@ import {
   Clock,
   Trash2,
   Activity,
-  ExternalLink
+  ExternalLink,
+  Edit2
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
-
-// Note: External API URL is saved org-wide when an admin sets it
 
 interface ApiCallRecord {
   id: string
@@ -30,7 +29,6 @@ interface ApiCallRecord {
 
 const API_URL_KEY = 'bluepdm_api_url'
 const API_HISTORY_KEY = 'bluepdm_api_history'
-const DEFAULT_API_URL = 'http://127.0.0.1:3001'
 
 export function ApiSettings() {
   const { user, organization, setOrganization, addToast } = usePDMStore()
@@ -39,7 +37,7 @@ export function ApiSettings() {
   const [showToken, setShowToken] = useState(false)
   const [tokenCopied, setTokenCopied] = useState(false)
   const [apiUrl, setApiUrl] = useState(() => {
-    return organization?.settings?.api_url || localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL
+    return organization?.settings?.api_url || localStorage.getItem(API_URL_KEY) || ''
   })
   const [editingApiUrl, setEditingApiUrl] = useState(false)
   const [apiUrlInput, setApiUrlInput] = useState('')
@@ -81,12 +79,19 @@ export function ApiSettings() {
     }
   }, [organization?.settings?.api_url])
   
-  // Check API status on mount
+  // Check API status on mount (only if we have a URL)
   useEffect(() => {
-    checkApiStatus()
+    if (apiUrl) {
+      checkApiStatus()
+    }
   }, [])
   
   const checkApiStatus = async () => {
+    if (!apiUrl) {
+      setApiStatus('unknown')
+      return
+    }
+    
     setApiStatus('checking')
     const start = Date.now()
     try {
@@ -137,37 +142,46 @@ export function ApiSettings() {
   const handleSaveApiUrl = async () => {
     let url = apiUrlInput.trim()
     if (url) {
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url
-      }
+      // Remove any existing protocol and normalize
+      url = url.replace(/^https?:\/\//, '')
+      // Remove trailing slashes
       url = url.replace(/\/+$/, '')
+      // Remove any leading/trailing whitespace that might have snuck in
+      url = url.trim()
+      // Add https:// (always use https for production)
+      url = 'https://' + url
+      
       setApiUrl(url)
       localStorage.setItem(API_URL_KEY, url)
       
-      if (url !== 'http://127.0.0.1:3001') {
-        localStorage.setItem('bluepdm_external_api_url', url)
-        // Save org-wide for all members when admin sets external URL
-        if (organization && user?.role === 'admin') {
-          try {
-            const newSettings = { ...organization.settings, api_url: url }
-            const { error } = await (supabase as any)
-              .from('organizations')
-              .update({ settings: newSettings })
-              .eq('id', organization.id)
-            if (!error) {
-              setOrganization({
-                ...organization,
-                settings: { ...organization.settings, api_url: url }
-              })
-              addToast('success', 'API URL saved for entire organization')
-            } else {
-              addToast('error', 'Saved locally, but failed to sync to organization')
-            }
-          } catch (err) {
-            console.error('Failed to save API URL to org:', err)
-            addToast('error', 'Saved locally, but failed to sync to organization')
+      // Save org-wide for all members when admin sets external URL
+      if (organization && user?.role === 'admin') {
+        try {
+          // Build new settings, preserving ALL existing properties from database
+          const newSettings = { ...organization.settings, api_url: url }
+          
+          const { error } = await supabase
+            .from('organizations')
+            .update({ settings: newSettings })
+            .eq('id', organization.id)
+          
+          if (error) {
+            console.error('[API] Failed to save API URL to org:', error)
+            addToast('error', `Saved locally, but failed to sync: ${error.message}`)
+          } else {
+            // Update local state
+            setOrganization({
+              ...organization,
+              settings: newSettings
+            })
+            addToast('success', 'API URL saved for organization')
           }
+        } catch (err) {
+          console.error('[API] Failed to save API URL to org (exception):', err)
+          addToast('error', 'Saved locally, but failed to sync to organization')
         }
+      } else {
+        addToast('success', 'API URL saved')
       }
     }
     setEditingApiUrl(false)
@@ -202,9 +216,9 @@ export function ApiSettings() {
   if (user?.role !== 'admin') {
     return (
       <div className="text-center py-12">
-        <Shield size={40} className="mx-auto text-pdm-fg-muted mb-4" />
-        <div className="text-base font-medium text-pdm-fg">Admin Only</div>
-        <p className="text-sm text-pdm-fg-muted mt-1">
+        <Shield size={40} className="mx-auto text-plm-fg-muted mb-4" />
+        <div className="text-base font-medium text-plm-fg">Admin Only</div>
+        <p className="text-sm text-plm-fg-muted mt-1">
           API settings require admin access.
         </p>
       </div>
@@ -213,181 +227,146 @@ export function ApiSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Environment Toggle */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => {
-            setApiUrl('http://127.0.0.1:3001')
-            localStorage.setItem(API_URL_KEY, 'http://127.0.0.1:3001')
-            setTimeout(checkApiStatus, 100)
-          }}
-          className={`flex-1 px-3 py-2 text-base rounded-lg border transition-colors ${
-            apiUrl === 'http://127.0.0.1:3001'
-              ? 'bg-pdm-accent/20 border-pdm-accent text-pdm-fg'
-              : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
-          }`}
-        >
-          🖥️ Local
-        </button>
-        <button
-          onClick={() => {
-            const externalUrl = organization?.settings?.api_url || localStorage.getItem('bluepdm_external_api_url') || ''
-            if (externalUrl) {
-              setApiUrl(externalUrl)
-              localStorage.setItem(API_URL_KEY, externalUrl)
-              setTimeout(checkApiStatus, 100)
-            } else {
-              setEditingApiUrl(true)
-              setApiUrlInput('')
-            }
-          }}
-          className={`flex-1 px-3 py-2 text-base rounded-lg border transition-colors ${
-            apiUrl !== 'http://127.0.0.1:3001'
-              ? 'bg-pdm-accent/20 border-pdm-accent text-pdm-fg'
-              : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
-          }`}
-        >
-          ☁️ External
-        </button>
-      </div>
-
-      {/* Server Status */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
-            Server Status
-          </label>
-          <button
-            onClick={checkApiStatus}
-            disabled={apiStatus === 'checking'}
-            className="text-sm text-pdm-fg-muted hover:text-pdm-fg flex items-center gap-1"
-          >
-            <RefreshCw size={14} className={apiStatus === 'checking' ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-        </div>
-        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-full ${
-              apiStatus === 'online' ? 'bg-green-500/20' :
-              apiStatus === 'offline' ? 'bg-red-500/20' :
-              apiStatus === 'checking' ? 'bg-yellow-500/20' :
-              'bg-pdm-fg-muted/20'
-            }`}>
-              {apiStatus === 'checking' ? (
-                <Loader2 size={18} className="animate-spin text-yellow-400" />
-              ) : (
-                <Circle size={18} className={`${
-                  apiStatus === 'online' ? 'text-green-400 fill-green-400' :
-                  apiStatus === 'offline' ? 'text-red-400' :
-                  'text-pdm-fg-muted'
-                }`} />
-              )}
-            </div>
-            <div className="flex-1">
-              <div className="text-base font-medium text-pdm-fg">
-                {apiStatus === 'online' && 'API Server Online'}
-                {apiStatus === 'offline' && 'API Server Offline'}
-                {apiStatus === 'checking' && 'Checking...'}
-                {apiStatus === 'unknown' && 'Status Unknown'}
-              </div>
-              <div className="text-sm text-pdm-fg-muted flex items-center gap-2 flex-wrap">
-                {apiVersion && <span>v{apiVersion}</span>}
-                {apiBuild && (
-                  <code className="px-1.5 py-0.5 bg-pdm-bg-secondary rounded text-xs font-mono text-pdm-accent">
-                    {apiBuild}
-                  </code>
-                )}
-                {lastChecked && <span>• Checked {lastChecked.toLocaleTimeString()}</span>}
-              </div>
-            </div>
-          </div>
-          
-          {(apiStatus === 'offline' || apiStatus === 'unknown') && (
-            <div className="mt-4 p-3 bg-pdm-bg-secondary rounded-lg text-sm space-y-2">
-              <div className="font-medium text-pdm-fg">🚀 Need to deploy?</div>
-              <p className="text-pdm-fg-muted">
-                Each org hosts their own API. Deploy to Railway or Render in 5 min.
-              </p>
-              <div className="flex gap-2">
-                <a href="https://railway.app/new" target="_blank" rel="noopener noreferrer" className="text-pdm-accent hover:underline">Railway</a>
-                <span className="text-pdm-fg-muted">•</span>
-                <a href="https://render.com/deploy" target="_blank" rel="noopener noreferrer" className="text-pdm-accent hover:underline">Render</a>
-                <span className="text-pdm-fg-muted">•</span>
-                <a href="https://github.com/bluerobotics/blue-pdm/blob/main/api/README.md#deployment" target="_blank" rel="noopener noreferrer" className="text-pdm-accent hover:underline">Guide</a>
-              </div>
-              <div className="pt-1 text-pdm-fg-dim">
-                Local: <code className="bg-pdm-bg px-1.5 py-0.5 rounded">npm run api</code>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* API URL */}
       <div className="space-y-2">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
-          API URL
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
+          API Server URL
         </label>
         {editingApiUrl ? (
-          <div className="space-y-1">
+          <div className="space-y-2">
             <div className="flex gap-2">
               <input
                 type="text"
                 value={apiUrlInput}
                 onChange={(e) => setApiUrlInput(e.target.value)}
-                onPaste={(e) => {
-                  e.preventDefault()
-                  const pasted = e.clipboardData.getData('text').trim()
-                  // Normalize pasted URL - handle both with and without protocol
-                  let normalized = pasted
-                  // Remove any existing protocol prefix
-                  normalized = normalized.replace(/^https?:\/\//, '')
-                  // Add https:// back
-                  normalized = 'https://' + normalized
-                  // Remove trailing slashes
-                  normalized = normalized.replace(/\/+$/, '')
-                  setApiUrlInput(normalized)
-                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveApiUrl()
                   if (e.key === 'Escape') setEditingApiUrl(false)
                 }}
-                placeholder="bluepdm-api.example.com"
-                className="flex-1 bg-pdm-bg border border-pdm-border rounded-lg px-3 py-2 text-base font-mono focus:border-pdm-accent focus:outline-none"
+                placeholder="bluepdm-api-production.up.railway.app"
+                className="flex-1 bg-plm-bg border border-plm-border rounded-lg px-3 py-2 text-base font-mono focus:border-plm-accent focus:outline-none"
                 autoFocus
               />
               <button onClick={handleSaveApiUrl} className="btn btn-primary btn-sm">
                 Save
               </button>
+              <button 
+                onClick={() => setEditingApiUrl(false)} 
+                className="btn btn-sm bg-plm-bg border border-plm-border hover:border-plm-fg-muted"
+              >
+                Cancel
+              </button>
             </div>
-            <p className="text-sm text-pdm-fg-dim">
-              Paste domain with or without https:// — we'll normalize it automatically
+            <p className="text-sm text-plm-fg-dim">
+              Paste your Railway/Render domain — https:// is added automatically
             </p>
           </div>
-        ) : (
+        ) : apiUrl ? (
           <div 
-            className="p-3 bg-pdm-bg rounded-lg border border-pdm-border cursor-pointer hover:border-pdm-accent transition-colors"
+            className="p-3 bg-plm-bg rounded-lg border border-plm-border cursor-pointer hover:border-plm-accent transition-colors flex items-center justify-between group"
             onClick={() => {
-              setApiUrlInput(apiUrl)
+              setApiUrlInput(apiUrl.replace(/^https?:\/\//, ''))
               setEditingApiUrl(true)
             }}
           >
-            <code className="text-base text-pdm-fg font-mono">{apiUrl}</code>
+            <code className="text-base text-plm-fg font-mono">{apiUrl}</code>
+            <Edit2 size={14} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
+        ) : (
+          <button
+            onClick={() => {
+              setApiUrlInput('')
+              setEditingApiUrl(true)
+            }}
+            className="w-full p-4 bg-plm-bg rounded-lg border border-dashed border-plm-border hover:border-plm-accent transition-colors text-plm-fg-muted"
+          >
+            + Set API Server URL
+          </button>
         )}
       </div>
 
+      {/* Server Status */}
+      {apiUrl && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
+              Server Status
+            </label>
+            <button
+              onClick={checkApiStatus}
+              disabled={apiStatus === 'checking'}
+              className="text-sm text-plm-fg-muted hover:text-plm-fg flex items-center gap-1"
+            >
+              <RefreshCw size={14} className={apiStatus === 'checking' ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-full ${
+                apiStatus === 'online' ? 'bg-green-500/20' :
+                apiStatus === 'offline' ? 'bg-red-500/20' :
+                apiStatus === 'checking' ? 'bg-yellow-500/20' :
+                'bg-plm-fg-muted/20'
+              }`}>
+                {apiStatus === 'checking' ? (
+                  <Loader2 size={18} className="animate-spin text-yellow-400" />
+                ) : (
+                  <Circle size={18} className={`${
+                    apiStatus === 'online' ? 'text-green-400 fill-green-400' :
+                    apiStatus === 'offline' ? 'text-red-400' :
+                    'text-plm-fg-muted'
+                  }`} />
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="text-base font-medium text-plm-fg">
+                  {apiStatus === 'online' && 'API Server Online'}
+                  {apiStatus === 'offline' && 'API Server Offline'}
+                  {apiStatus === 'checking' && 'Checking...'}
+                  {apiStatus === 'unknown' && 'Status Unknown'}
+                </div>
+                <div className="text-sm text-plm-fg-muted flex items-center gap-2 flex-wrap">
+                  {apiVersion && <span>v{apiVersion}</span>}
+                  {apiBuild && (
+                    <code className="px-1.5 py-0.5 bg-plm-bg-secondary rounded text-xs font-mono text-plm-accent">
+                      {apiBuild}
+                    </code>
+                  )}
+                  {lastChecked && <span>• Checked {lastChecked.toLocaleTimeString()}</span>}
+                </div>
+              </div>
+            </div>
+            
+            {apiStatus === 'offline' && (
+              <div className="mt-4 p-3 bg-plm-bg-secondary rounded-lg text-sm space-y-2">
+                <div className="font-medium text-plm-fg">🚀 Need to deploy?</div>
+                <p className="text-plm-fg-muted">
+                  Deploy to Railway or Render in 5 min.
+                </p>
+                <div className="flex gap-2">
+                  <a href="https://railway.app/new" target="_blank" rel="noopener noreferrer" className="text-plm-accent hover:underline">Railway</a>
+                  <span className="text-plm-fg-muted">•</span>
+                  <a href="https://render.com/deploy" target="_blank" rel="noopener noreferrer" className="text-plm-accent hover:underline">Render</a>
+                  <span className="text-plm-fg-muted">•</span>
+                  <a href="https://github.com/bluerobotics/blue-plm/blob/main/api/README.md#deployment" target="_blank" rel="noopener noreferrer" className="text-plm-accent hover:underline">Guide</a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* API Token */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <div className="flex items-center gap-2 text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           <Key size={14} />
           Access Token
         </div>
         {apiToken ? (
-          <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border space-y-3">
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-sm font-mono text-pdm-fg-muted overflow-hidden text-ellipsis">
+              <code className="flex-1 text-sm font-mono text-plm-fg-muted overflow-hidden text-ellipsis">
                 {showToken 
                   ? apiToken 
                   : `${apiToken.substring(0, 20)}${'•'.repeat(30)}`
@@ -395,7 +374,7 @@ export function ApiSettings() {
               </code>
               <button
                 onClick={() => setShowToken(!showToken)}
-                className="p-2 text-pdm-fg-muted hover:text-pdm-fg rounded transition-colors"
+                className="p-2 text-plm-fg-muted hover:text-plm-fg rounded transition-colors"
                 title={showToken ? 'Hide token' : 'Show token'}
               >
                 {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -405,30 +384,32 @@ export function ApiSettings() {
                 className={`p-2 rounded transition-colors ${
                   tokenCopied 
                     ? 'text-green-400 bg-green-400/10' 
-                    : 'text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-highlight'
+                    : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
                 }`}
                 title="Copy token"
               >
                 {tokenCopied ? <Check size={16} /> : <Copy size={16} />}
               </button>
             </div>
-            <div className="text-sm text-pdm-fg-muted">
-              <code className="block p-2 bg-pdm-bg-secondary rounded text-pdm-fg-dim">
-                curl -H "Authorization: Bearer $TOKEN" {apiUrl}/files
-              </code>
-            </div>
+            {apiUrl && (
+              <div className="text-sm text-plm-fg-muted">
+                <code className="block p-2 bg-plm-bg-secondary rounded text-plm-fg-dim">
+                  curl -H "Authorization: Bearer $TOKEN" {apiUrl}/files
+                </code>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border text-base text-pdm-fg-muted">
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border text-base text-plm-fg-muted">
             Sign in to get an API token
           </div>
         )}
       </div>
 
       {/* Quick Test */}
-      {apiToken && apiStatus === 'online' && (
+      {apiToken && apiStatus === 'online' && apiUrl && (
         <div className="space-y-2">
-          <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+          <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
             Quick Test
           </label>
           <div className="flex flex-wrap gap-2">
@@ -436,7 +417,7 @@ export function ApiSettings() {
               <button
                 key={endpoint}
                 onClick={() => testApiEndpoint(endpoint)}
-                className="px-3 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded-lg hover:border-pdm-accent transition-colors font-mono"
+                className="px-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg hover:border-plm-accent transition-colors font-mono"
               >
                 GET {endpoint}
               </button>
@@ -448,23 +429,23 @@ export function ApiSettings() {
       {/* API Call History */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+          <div className="flex items-center gap-2 text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
             <Activity size={14} />
             Recent API Calls
           </div>
           {apiHistory.length > 0 && (
             <button
               onClick={clearApiHistory}
-              className="text-sm text-pdm-fg-muted hover:text-pdm-error flex items-center gap-1"
+              className="text-sm text-plm-fg-muted hover:text-plm-error flex items-center gap-1"
             >
               <Trash2 size={14} />
               Clear
             </button>
           )}
         </div>
-        <div className="bg-pdm-bg rounded-lg border border-pdm-border overflow-hidden">
+        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
           {apiHistory.length === 0 ? (
-            <div className="p-4 text-base text-pdm-fg-muted text-center">
+            <div className="p-4 text-base text-plm-fg-muted text-center">
               No API calls recorded
             </div>
           ) : (
@@ -472,7 +453,7 @@ export function ApiSettings() {
               {apiHistory.slice(0, 20).map(call => (
                 <div 
                   key={call.id}
-                  className="flex items-center gap-2 px-4 py-2 border-b border-pdm-border last:border-0 text-sm"
+                  className="flex items-center gap-2 px-4 py-2 border-b border-plm-border last:border-0 text-sm"
                 >
                   <span className={`px-2 py-0.5 rounded font-medium ${
                     call.status >= 200 && call.status < 300 
@@ -483,9 +464,9 @@ export function ApiSettings() {
                   }`}>
                     {call.status || 'ERR'}
                   </span>
-                  <span className="text-pdm-fg-muted">{call.method}</span>
-                  <span className="text-pdm-fg font-mono flex-1 truncate">{call.endpoint}</span>
-                  <span className="text-pdm-fg-muted flex items-center gap-1">
+                  <span className="text-plm-fg-muted">{call.method}</span>
+                  <span className="text-plm-fg font-mono flex-1 truncate">{call.endpoint}</span>
+                  <span className="text-plm-fg-muted flex items-center gap-1">
                     <Clock size={10} />
                     {call.duration}ms
                   </span>
@@ -497,18 +478,19 @@ export function ApiSettings() {
       </div>
 
       {/* Documentation Link */}
-      <div className="pt-2">
-        <a
-          href={`${apiUrl}/docs`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 text-base text-pdm-accent hover:underline"
-        >
-          <ExternalLink size={18} />
-          Open API Documentation (Swagger)
-        </a>
-      </div>
+      {apiUrl && (
+        <div className="pt-2">
+          <a
+            href={`${apiUrl}/docs`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-base text-plm-accent hover:underline"
+          >
+            <ExternalLink size={18} />
+            Open API Documentation (Swagger)
+          </a>
+        </div>
+      )}
     </div>
   )
 }
-

@@ -1,4 +1,4 @@
--- BluePDM Supplier Database Migration
+-- BluePLM Supplier Database Migration
 -- Adds supplier management and part costing for ERP integration (Odoo, etc.)
 -- Run this in your Supabase SQL editor AFTER the main schema.sql
 

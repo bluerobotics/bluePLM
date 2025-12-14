@@ -524,7 +524,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           addToast('info', 'Database metadata found, importing...', 5000)
           // Note: Would need to read and parse the metadata file
           // For now, just notify the user
-          addToast('success', 'Restore complete! Metadata can be imported from .bluepdm/database-export.json')
+          addToast('success', 'Restore complete! Metadata can be imported from .blueplm/database-export.json')
         }
         
         setSelectedSnapshot(null)
@@ -542,7 +542,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
   // Export config
   const handleExportConfig = () => {
     const exportData = {
-      _type: 'bluepdm_backup_config',
+      _type: 'blueplm_backup_config',
       _version: 1,
       _exportedAt: new Date().toISOString(),
       _warning: 'This file contains sensitive credentials. Store securely!',
@@ -563,7 +563,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `bluepdm-backup-config-${new Date().toISOString().split('T')[0]}.json`
+    a.download = `blueplm-backup-config-${new Date().toISOString().split('T')[0]}.json`
     a.click()
     URL.revokeObjectURL(url)
     
@@ -583,7 +583,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         const text = await file.text()
         const data = JSON.parse(text)
         
-        if (data._type !== 'bluepdm_backup_config') {
+        if (data._type !== 'blueplm_backup_config') {
           addToast('error', 'Invalid backup configuration file')
           return
         }
@@ -611,7 +611,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
   if (isLoading) {
     return (
       <div className="p-4 flex items-center justify-center">
-        <Loader2 className="w-5 h-5 animate-spin text-pdm-fg-muted" />
+        <Loader2 className="w-5 h-5 animate-spin text-plm-fg-muted" />
       </div>
     )
   }
@@ -621,13 +621,13 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-pdm-accent" />
+          <Shield className="w-5 h-5 text-plm-accent" />
           <h3 className="font-semibold">Backup & Restore</h3>
         </div>
         <button
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className="p-1.5 rounded hover:bg-pdm-bg-secondary text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+          className="p-1.5 rounded hover:bg-plm-bg-secondary text-plm-fg-muted hover:text-plm-fg transition-colors"
           title="Refresh from backup server"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -652,7 +652,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               <div className="font-medium">
                 {status?.isConfigured ? 'Backup Configured' : 'Backup Not Configured'}
               </div>
-              <div className="text-sm text-pdm-fg-muted">
+              <div className="text-sm text-plm-fg-muted">
                 {status?.isConfigured 
                   ? `${status.totalSnapshots} snapshot${status.totalSnapshots !== 1 ? 's' : ''} available`
                   : 'Configure backup settings below to enable backups'
@@ -666,26 +666,26 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         {status?.isConfigured && (
           <div className="flex gap-3">
             {/* Last Backup */}
-            <div className="flex-1 p-3 rounded-lg bg-pdm-bg-secondary border border-pdm-border">
+            <div className="flex-1 p-3 rounded-lg bg-plm-bg-secondary border border-plm-border">
               <div className="flex items-center gap-2 mb-1">
-                <Clock className="w-4 h-4 text-pdm-fg-muted" />
-                <span className="text-xs text-pdm-fg-muted">Last Backup</span>
+                <Clock className="w-4 h-4 text-plm-fg-muted" />
+                <span className="text-xs text-plm-fg-muted">Last Backup</span>
               </div>
               {status.lastSnapshot ? (
                 <>
                   <div className="text-sm font-medium">{formatRelativeTime(status.lastSnapshot.time)}</div>
-                  <div className="text-xs text-pdm-fg-muted">{status.lastSnapshot.hostname}</div>
+                  <div className="text-xs text-plm-fg-muted">{status.lastSnapshot.hostname}</div>
                 </>
               ) : (
-                <div className="text-sm text-pdm-fg-muted">None yet</div>
+                <div className="text-sm text-plm-fg-muted">None yet</div>
               )}
             </div>
             
             {/* Next Scheduled */}
-            <div className="flex-1 p-3 rounded-lg bg-pdm-bg-secondary border border-pdm-border">
+            <div className="flex-1 p-3 rounded-lg bg-plm-bg-secondary border border-plm-border">
               <div className="flex items-center gap-2 mb-1">
-                <Calendar className="w-4 h-4 text-pdm-fg-muted" />
-                <span className="text-xs text-pdm-fg-muted">Next Backup</span>
+                <Calendar className="w-4 h-4 text-plm-fg-muted" />
+                <span className="text-xs text-plm-fg-muted">Next Backup</span>
               </div>
               {status.config?.schedule_enabled && status.config?.designated_machine_id ? (
                 <>
@@ -696,12 +696,12 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                       status.config.schedule_timezone
                     ))}
                   </div>
-                  <div className="text-xs text-pdm-fg-muted">
+                  <div className="text-xs text-plm-fg-muted">
                     {String(status.config.schedule_hour).padStart(2, '0')}:{String(status.config.schedule_minute).padStart(2, '0')} {status.config.schedule_timezone?.replace(/_/g, ' ').split('/').pop() || 'UTC'}
                   </div>
                 </>
               ) : (
-                <div className="text-sm text-pdm-fg-muted">
+                <div className="text-sm text-plm-fg-muted">
                   {!status.config?.designated_machine_id ? 'No machine set' : 'Not scheduled'}
                 </div>
               )}
@@ -711,10 +711,10 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         
         {/* Backup Source - Visible to ALL users */}
         {status?.isConfigured && (
-          <div className="p-4 rounded-lg bg-pdm-bg-secondary border border-pdm-border space-y-3">
+          <div className="p-4 rounded-lg bg-plm-bg-secondary border border-plm-border space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-medium flex items-center gap-2">
-                <Server className="w-4 h-4 text-pdm-fg-muted" />
+                <Server className="w-4 h-4 text-plm-fg-muted" />
                 Backup Source
               </h4>
               {status.config?.designated_machine_id ? (
@@ -724,8 +724,8 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                     Online
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5 text-xs text-pdm-fg-muted">
-                    <span className="w-2 h-2 rounded-full bg-pdm-fg-muted" />
+                  <span className="flex items-center gap-1.5 text-xs text-plm-fg-muted">
+                    <span className="w-2 h-2 rounded-full bg-plm-fg-muted" />
                     Offline
                   </span>
                 )
@@ -738,21 +738,21 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               // Show designated machine info
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <Monitor className="w-8 h-8 text-pdm-fg-muted" />
+                  <Monitor className="w-8 h-8 text-plm-fg-muted" />
                   <div className="flex-1">
                     <div className="font-medium flex items-center gap-2">
                       {status.config.designated_machine_name || 'Unknown'}
                       {isThisDesignated && (
-                        <span className="text-xs px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent rounded">
+                        <span className="text-xs px-1.5 py-0.5 bg-plm-accent/20 text-plm-accent rounded">
                           This machine
                         </span>
                       )}
                     </div>
-                  <div className="text-xs text-pdm-fg-muted">
+                  <div className="text-xs text-plm-fg-muted">
                     {status.config.designated_machine_platform} • {status.config.designated_machine_user_email}
                   </div>
                   {!isThisDesignated && status.config.designated_machine_last_seen && (
-                    <div className="text-xs text-pdm-fg-muted">
+                    <div className="text-xs text-plm-fg-muted">
                       Last seen: {formatRelativeTime(status.config.designated_machine_last_seen)}
                     </div>
                   )}
@@ -761,15 +761,15 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                 
                 {/* Vaults to backup */}
                 {isThisDesignated && (
-                  <div className="p-2 rounded bg-pdm-bg-tertiary space-y-2">
-                    <div className="text-xs text-pdm-fg-muted flex items-center gap-2">
+                  <div className="p-2 rounded bg-plm-bg-tertiary space-y-2">
+                    <div className="text-xs text-plm-fg-muted flex items-center gap-2">
                       <Folder className="w-4 h-4" />
                       Vaults to backup
                     </div>
                     {connectedVaults.length > 0 ? (
                       <div className="space-y-1">
                         {connectedVaults.map(vault => (
-                          <label key={vault.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-pdm-bg-secondary cursor-pointer">
+                          <label key={vault.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-plm-bg-secondary cursor-pointer">
                             <input
                               type="checkbox"
                               checked={selectedVaultIds.includes(vault.id)}
@@ -780,11 +780,11 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                                   setSelectedVaultIds(prev => prev.filter(id => id !== vault.id))
                                 }
                               }}
-                              className="w-4 h-4 rounded border-pdm-border bg-pdm-bg-primary"
+                              className="w-4 h-4 rounded border-plm-border bg-plm-bg-primary"
                             />
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium truncate">{vault.name}</div>
-                              <div className="text-xs text-pdm-fg-muted truncate">{vault.localPath}</div>
+                              <div className="text-xs text-plm-fg-muted truncate">{vault.localPath}</div>
                             </div>
                           </label>
                         ))}
@@ -798,8 +798,8 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
             ) : (
               // No machine designated
               <div className="flex items-center gap-3 py-2">
-                <Monitor className="w-8 h-8 text-pdm-fg-muted opacity-50" />
-                <div className="flex-1 text-sm text-pdm-fg-muted">
+                <Monitor className="w-8 h-8 text-plm-fg-muted opacity-50" />
+                <div className="flex-1 text-sm text-plm-fg-muted">
                   No backup machine designated
                 </div>
               </div>
@@ -819,19 +819,19 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
             
             {/* Admin controls */}
             {isAdmin && (
-              <div className="space-y-2 pt-2 border-t border-pdm-border">
+              <div className="space-y-2 pt-2 border-t border-plm-border">
                 {/* Designate/Clear machine button */}
                 {isThisDesignated ? (
                   <button
                     onClick={handleClearDesignatedMachine}
-                    className="w-full py-2 px-4 rounded text-sm bg-pdm-bg-tertiary hover:bg-pdm-bg-primary text-pdm-fg-muted hover:text-pdm-fg border border-pdm-border"
+                    className="w-full py-2 px-4 rounded text-sm bg-plm-bg-tertiary hover:bg-plm-bg-primary text-plm-fg-muted hover:text-plm-fg border border-plm-border"
                   >
                     Clear designation
                   </button>
                 ) : !status.config?.designated_machine_id ? (
                   <button
                     onClick={handleDesignateThisMachine}
-                    className="w-full py-2 px-4 rounded text-sm bg-pdm-accent text-white hover:bg-pdm-accent-hover font-medium"
+                    className="w-full py-2 px-4 rounded text-sm bg-plm-accent text-white hover:bg-plm-accent-hover font-medium"
                   >
                     Set this machine as backup source
                   </button>
@@ -852,7 +852,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                       disabled={isDisabled}
                       className={`w-full py-2.5 px-4 rounded font-medium flex items-center justify-center gap-2 ${
                         isDisabled
-                          ? 'bg-pdm-bg-tertiary text-pdm-fg-muted cursor-not-allowed'
+                          ? 'bg-plm-bg-tertiary text-plm-fg-muted cursor-not-allowed'
                           : 'bg-emerald-600 text-white hover:bg-emerald-500'
                       }`}
                       title={getTitle()}
@@ -891,7 +891,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                   <span>{backupProgress.phase}</span>
                   <span>{backupProgress.percent}%</span>
                 </div>
-                <div className="w-full bg-pdm-bg-tertiary rounded-full h-1.5">
+                <div className="w-full bg-plm-bg-tertiary rounded-full h-1.5">
                   <div 
                     className="bg-emerald-500 h-1.5 rounded-full transition-all"
                     style={{ width: `${backupProgress.percent}%` }}
@@ -908,10 +908,10 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-medium flex items-center gap-2">
-            <Clock className="w-4 h-4 text-pdm-fg-muted" />
+            <Clock className="w-4 h-4 text-plm-fg-muted" />
             Backup History
             {status?.totalSnapshots ? (
-              <span className="text-xs text-pdm-fg-muted">({status.totalSnapshots})</span>
+              <span className="text-xs text-plm-fg-muted">({status.totalSnapshots})</span>
             ) : null}
           </h4>
           
@@ -932,7 +932,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                 <select
                   value={historyVaultFilter}
                   onChange={e => setHistoryVaultFilter(e.target.value)}
-                  className="px-2 py-1 rounded text-xs bg-pdm-bg-primary border border-pdm-border"
+                  className="px-2 py-1 rounded text-xs bg-plm-bg-primary border border-plm-border"
                 >
                   <option value="all">All vaults</option>
                   {Array.from(vaultNames).map(name => (
@@ -947,7 +947,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         
         <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
           {!status?.isConfigured ? (
-            <div className="text-sm text-pdm-fg-muted py-8 text-center bg-pdm-bg-secondary rounded-lg border border-pdm-border">
+            <div className="text-sm text-plm-fg-muted py-8 text-center bg-plm-bg-secondary rounded-lg border border-plm-border">
               Configure backup settings to view history
             </div>
           ) : status.error ? (
@@ -955,7 +955,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               {status.error}
             </div>
           ) : status.snapshots.length === 0 ? (
-            <div className="text-sm text-pdm-fg-muted py-8 text-center bg-pdm-bg-secondary rounded-lg border border-pdm-border">
+            <div className="text-sm text-plm-fg-muted py-8 text-center bg-plm-bg-secondary rounded-lg border border-plm-border">
               No backups yet. Click "Sync & Backup Now" to create your first backup.
             </div>
           ) : (
@@ -966,7 +966,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               })
               .map(snapshot => {
               // Check tags to determine what's included
-              const hasFiles = snapshot.tags?.includes('files') || snapshot.tags?.includes('bluepdm')
+              const hasFiles = snapshot.tags?.includes('files') || snapshot.tags?.includes('blueplm')
               const hasMetadata = snapshot.tags?.includes('has-metadata')
               const vaultTag = snapshot.tags?.find(t => t.startsWith('vault:'))
               const vaultName = vaultTag ? vaultTag.substring(6) : null
@@ -981,7 +981,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                   className={`p-3 rounded border ${
                     selectedSnapshot === snapshot.id
                       ? 'bg-amber-500/10 border-amber-500/30'
-                      : 'bg-pdm-bg-secondary border-pdm-border'
+                      : 'bg-plm-bg-secondary border-plm-border'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -1007,12 +1007,12 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                         <div className="text-sm font-medium flex items-center gap-2">
                           {formatDate(snapshot.time)}
                           {vaultName && (
-                            <span className="text-xs px-1.5 py-0.5 bg-pdm-bg-tertiary rounded text-pdm-fg-muted">
+                            <span className="text-xs px-1.5 py-0.5 bg-plm-bg-tertiary rounded text-plm-fg-muted">
                               {vaultName}
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-pdm-fg-muted">
+                        <div className="text-xs text-plm-fg-muted">
                           from {snapshot.hostname} • {snapshot.id}
                         </div>
                       </div>
@@ -1026,7 +1026,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                             selectedSnapshot === snapshot.id
                               ? 'bg-amber-600 text-white'
-                              : 'bg-pdm-bg-tertiary hover:bg-amber-600/20 text-pdm-fg-muted hover:text-amber-500'
+                              : 'bg-plm-bg-tertiary hover:bg-amber-600/20 text-plm-fg-muted hover:text-amber-500'
                           }`}
                           title="Restore vault to this backup"
                         >
@@ -1039,7 +1039,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                         <button
                           onClick={() => setDeleteConfirmTarget({ id: snapshot.id, time: formatDate(snapshot.time) })}
                           disabled={deletingSnapshotId === snapshot.id}
-                          className="p-1 rounded text-pdm-fg-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          className="p-1 rounded text-plm-fg-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
                           title="Delete this snapshot"
                         >
                           {deletingSnapshotId === snapshot.id ? (
@@ -1053,7 +1053,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                   </div>
                   
                   {/* Files/Database check indicators */}
-                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-pdm-border">
+                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-plm-border">
                     <div className="flex items-center gap-1.5">
                       {hasFiles ? (
                         <>
@@ -1062,8 +1062,8 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-3.5 h-3.5 text-pdm-fg-muted" />
-                          <span className="text-xs text-pdm-fg-muted">Files</span>
+                          <XCircle className="w-3.5 h-3.5 text-plm-fg-muted" />
+                          <span className="text-xs text-plm-fg-muted">Files</span>
                         </>
                       )}
                     </div>
@@ -1127,7 +1127,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               <button
                 onClick={() => setSelectedSnapshot(null)}
                 disabled={isRestoring}
-                className="py-2 px-4 bg-pdm-bg-tertiary text-pdm-fg rounded font-medium hover:bg-pdm-bg-secondary disabled:opacity-50"
+                className="py-2 px-4 bg-plm-bg-tertiary text-plm-fg rounded font-medium hover:bg-plm-bg-secondary disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1137,8 +1137,8 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         
         {/* Non-admin notice */}
         {!isAdmin && (status?.snapshots?.length ?? 0) > 0 && (
-          <div className="p-2 rounded bg-pdm-bg-secondary border border-pdm-border">
-            <p className="text-xs text-pdm-fg-muted text-center">
+          <div className="p-2 rounded bg-plm-bg-secondary border border-plm-border">
+            <p className="text-xs text-plm-fg-muted text-center">
               Only admins can run backups and restore
             </p>
           </div>
@@ -1147,34 +1147,34 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
       
       {/* Admin Configuration Section */}
       {isAdmin && (
-        <div className="space-y-3 pt-4 border-t border-pdm-border">
+        <div className="space-y-3 pt-4 border-t border-plm-border">
           <button
             onClick={() => setShowConfig(!showConfig)}
             className="flex items-center justify-between w-full text-left"
           >
             <h4 className="text-sm font-medium flex items-center gap-2">
-              <Settings className="w-4 h-4 text-pdm-fg-muted" />
+              <Settings className="w-4 h-4 text-plm-fg-muted" />
               Backup Configuration
-              <span className="text-xs px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent rounded">
+              <span className="text-xs px-1.5 py-0.5 bg-plm-accent/20 text-plm-accent rounded">
                 Admin
               </span>
             </h4>
             {showConfig ? (
-              <ChevronUp className="w-4 h-4 text-pdm-fg-muted" />
+              <ChevronUp className="w-4 h-4 text-plm-fg-muted" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-pdm-fg-muted" />
+              <ChevronDown className="w-4 h-4 text-plm-fg-muted" />
             )}
           </button>
           
           {showConfig && (
-            <div className="space-y-4 p-4 rounded-lg bg-pdm-bg-secondary border border-pdm-border">
+            <div className="space-y-4 p-4 rounded-lg bg-plm-bg-secondary border border-plm-border">
               {/* Provider Selection */}
               <div>
                 <label className="block text-sm font-medium mb-1">Provider</label>
                 <select
                   value={provider}
                   onChange={e => setProvider(e.target.value as typeof provider)}
-                  className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                  className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                 >
                   <option value="backblaze_b2">Backblaze B2</option>
                   <option value="aws_s3">Amazon S3</option>
@@ -1190,7 +1190,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                   value={bucket}
                   onChange={e => setBucket(e.target.value)}
                   placeholder="my-backup-bucket"
-                  className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                  className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                 />
               </div>
               
@@ -1203,9 +1203,9 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                     value={endpoint}
                     onChange={e => setEndpoint(e.target.value)}
                     placeholder="s3.us-west-004.backblazeb2.com"
-                    className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                    className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   />
-                  <p className="text-xs text-pdm-fg-muted mt-1">
+                  <p className="text-xs text-plm-fg-muted mt-1">
                     Find this in your B2 bucket settings
                   </p>
                 </div>
@@ -1220,7 +1220,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                     value={region}
                     onChange={e => setRegion(e.target.value)}
                     placeholder="us-east-1"
-                    className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                    className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   />
                 </div>
               )}
@@ -1235,7 +1235,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                   value={accessKey}
                   onChange={e => setAccessKey(e.target.value)}
                   placeholder="004..."
-                  className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm font-mono"
+                  className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm font-mono"
                 />
               </div>
               
@@ -1250,12 +1250,12 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                     value={secretKey}
                     onChange={e => setSecretKey(e.target.value)}
                     placeholder="K004..."
-                    className="w-full px-3 py-2 pr-10 rounded bg-pdm-bg-primary border border-pdm-border text-sm font-mono"
+                    className="w-full px-3 py-2 pr-10 rounded bg-plm-bg-primary border border-plm-border text-sm font-mono"
                   />
                   <button
                     type="button"
                     onClick={() => setShowSecretKey(!showSecretKey)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
                   >
                     {showSecretKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -1274,17 +1274,17 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                     value={resticPassword}
                     onChange={e => setResticPassword(e.target.value)}
                     placeholder="Strong password for encrypting backups"
-                    className="w-full px-3 py-2 pr-10 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                    className="w-full px-3 py-2 pr-10 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   />
                   <button
                     type="button"
                     onClick={() => setShowResticPassword(!showResticPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
                   >
                     {showResticPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-pdm-fg-muted mt-1">
+                <p className="text-xs text-plm-fg-muted mt-1">
                   This password encrypts your backups. <strong>Store it safely!</strong>
                 </p>
               </div>
@@ -1292,10 +1292,10 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               {/* Retention Policy */}
               <div>
                 <label className="block text-sm font-medium mb-2">Retention Policy</label>
-                <p className="text-xs text-pdm-fg-muted mb-3">How long to keep backups on the server</p>
+                <p className="text-xs text-plm-fg-muted mb-3">How long to keep backups on the server</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-pdm-fg-muted mb-1">Keep daily for</label>
+                    <label className="block text-xs text-plm-fg-muted mb-1">Keep daily for</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -1303,13 +1303,13 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                         max="30"
                         value={retentionDaily}
                         onChange={e => setRetentionDaily(parseInt(e.target.value) || 14)}
-                        className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                        className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                       />
-                      <span className="text-xs text-pdm-fg-muted whitespace-nowrap">days</span>
+                      <span className="text-xs text-plm-fg-muted whitespace-nowrap">days</span>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-pdm-fg-muted mb-1">Keep weekly for</label>
+                    <label className="block text-xs text-plm-fg-muted mb-1">Keep weekly for</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -1317,13 +1317,13 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                         max="52"
                         value={retentionWeekly}
                         onChange={e => setRetentionWeekly(parseInt(e.target.value) || 10)}
-                        className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                        className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                       />
-                      <span className="text-xs text-pdm-fg-muted whitespace-nowrap">weeks</span>
+                      <span className="text-xs text-plm-fg-muted whitespace-nowrap">weeks</span>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-pdm-fg-muted mb-1">Keep monthly for</label>
+                    <label className="block text-xs text-plm-fg-muted mb-1">Keep monthly for</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -1331,13 +1331,13 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                         max="24"
                         value={retentionMonthly}
                         onChange={e => setRetentionMonthly(parseInt(e.target.value) || 12)}
-                        className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                        className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                       />
-                      <span className="text-xs text-pdm-fg-muted whitespace-nowrap">months</span>
+                      <span className="text-xs text-plm-fg-muted whitespace-nowrap">months</span>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-pdm-fg-muted mb-1">Keep yearly for</label>
+                    <label className="block text-xs text-plm-fg-muted mb-1">Keep yearly for</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -1345,13 +1345,13 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                         max="10"
                         value={retentionYearly}
                         onChange={e => setRetentionYearly(parseInt(e.target.value) || 5)}
-                        className="w-full px-3 py-2 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                        className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                       />
-                      <span className="text-xs text-pdm-fg-muted whitespace-nowrap">years</span>
+                      <span className="text-xs text-plm-fg-muted whitespace-nowrap">years</span>
                     </div>
                   </div>
                 </div>
-                <p className="text-xs text-pdm-fg-muted mt-2">
+                <p className="text-xs text-plm-fg-muted mt-2">
                   ≈ {totalRetentionPoints} restore points total
                 </p>
               </div>
@@ -1363,14 +1363,14 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                     type="checkbox"
                     checked={scheduleEnabled}
                     onChange={e => setScheduleEnabled(e.target.checked)}
-                    className="w-4 h-4 rounded border-pdm-border bg-pdm-bg-primary"
+                    className="w-4 h-4 rounded border-plm-border bg-plm-bg-primary"
                   />
                   <span className="text-sm font-medium">Enable scheduled backups</span>
                 </label>
                 
                 {scheduleEnabled && (
                   <div className="pl-6">
-                    <label className="block text-xs text-pdm-fg-muted mb-1">Backup time</label>
+                    <label className="block text-xs text-plm-fg-muted mb-1">Backup time</label>
                     <div className="flex items-center gap-2">
                       <select
                         value={`${scheduleHour}:${scheduleMinute}`}
@@ -1379,7 +1379,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                           setScheduleHour(h)
                           setScheduleMinute(m)
                         }}
-                        className="w-24 px-2 py-1.5 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                        className="w-24 px-2 py-1.5 rounded bg-plm-bg-primary border border-plm-border text-sm"
                       >
                         {Array.from({ length: 48 }, (_, i) => {
                           const hour = Math.floor(i / 2)
@@ -1392,7 +1392,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
                       <select
                         value={scheduleTimezone}
                         onChange={e => setScheduleTimezone(e.target.value)}
-                        className="flex-1 px-2 py-1.5 rounded bg-pdm-bg-primary border border-pdm-border text-sm"
+                        className="flex-1 px-2 py-1.5 rounded bg-plm-bg-primary border border-plm-border text-sm"
                       >
                         <optgroup label="Americas">
                           <option value="America/Los_Angeles">Pacific (LA)</option>
@@ -1447,7 +1447,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               <button
                 onClick={handleSaveConfig}
                 disabled={isSaving}
-                className="w-full py-2 px-4 bg-pdm-accent text-white rounded font-medium hover:bg-pdm-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-2 px-4 bg-plm-accent text-white rounded font-medium hover:bg-plm-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isSaving ? (
                   <>
@@ -1466,14 +1466,14 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               <div className="flex gap-2">
                 <button
                   onClick={handleExportConfig}
-                  className="flex-1 py-2 px-4 bg-pdm-bg-tertiary text-pdm-fg rounded font-medium hover:bg-pdm-bg-primary border border-pdm-border flex items-center justify-center gap-2"
+                  className="flex-1 py-2 px-4 bg-plm-bg-tertiary text-plm-fg rounded font-medium hover:bg-plm-bg-primary border border-plm-border flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Export Config
                 </button>
                 <button
                   onClick={handleImportConfig}
-                  className="flex-1 py-2 px-4 bg-pdm-bg-tertiary text-pdm-fg rounded font-medium hover:bg-pdm-bg-primary border border-pdm-border flex items-center justify-center gap-2"
+                  className="flex-1 py-2 px-4 bg-plm-bg-tertiary text-plm-fg rounded font-medium hover:bg-plm-bg-primary border border-plm-border flex items-center justify-center gap-2"
                 >
                   <Upload className="w-4 h-4" />
                   Import Config
@@ -1501,20 +1501,20 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
       {/* Delete Confirmation Modal */}
       {deleteConfirmTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-lg shadow-2xl max-w-md w-full mx-4 p-6 space-y-4">
+          <div className="bg-plm-bg-light border border-plm-border rounded-lg shadow-2xl max-w-md w-full mx-4 p-6 space-y-4">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-full bg-red-500/10">
                 <Trash2 className="w-5 h-5 text-red-400" />
               </div>
               <div>
                 <h3 className="font-semibold text-lg">Delete Snapshot?</h3>
-                <p className="text-sm text-pdm-fg-muted mt-1">
+                <p className="text-sm text-plm-fg-muted mt-1">
                   {deleteConfirmTarget.time}
                 </p>
               </div>
             </div>
             
-            <div className="space-y-2 text-sm text-pdm-fg-muted">
+            <div className="space-y-2 text-sm text-plm-fg-muted">
               <p>This will permanently delete the snapshot from the backup server.</p>
               <p className="text-red-400 font-medium">This action cannot be undone.</p>
             </div>
@@ -1522,7 +1522,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setDeleteConfirmTarget(null)}
-                className="flex-1 py-2 px-4 bg-pdm-bg-tertiary text-pdm-fg rounded font-medium hover:bg-pdm-bg-secondary border border-pdm-border transition-colors"
+                className="flex-1 py-2 px-4 bg-plm-bg-tertiary text-plm-fg rounded font-medium hover:bg-plm-bg-secondary border border-plm-border transition-colors"
               >
                 Cancel
               </button>

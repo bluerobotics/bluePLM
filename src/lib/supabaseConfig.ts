@@ -1,7 +1,7 @@
 // Supabase Configuration Management
 // Allows organizations to bring their own Supabase backend
 
-const STORAGE_KEY = 'bluepdm-supabase-config'
+const STORAGE_KEY = 'blueplm-supabase-config'
 const CONFIG_VERSION = 1
 
 export interface SupabaseConfig {

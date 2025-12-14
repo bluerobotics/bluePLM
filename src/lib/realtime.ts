@@ -1,5 +1,5 @@
 /**
- * BluePDM Realtime Subscriptions
+ * BluePLM Realtime Subscriptions
  * 
  * Provides instant updates across all connected clients for:
  * - Checkout locks (critical for conflict prevention)

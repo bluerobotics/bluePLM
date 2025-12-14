@@ -624,7 +624,12 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
       const orgData = await orgResponse.json()
       
       if (orgData && orgData.length > 0) {
-        authLog('info', 'Found existing org', { orgName: orgData[0].name })
+        authLog('info', 'Found existing org', { 
+          orgName: orgData[0].name,
+          hasSettings: !!orgData[0].settings,
+          settingsApiUrl: orgData[0].settings?.api_url,
+          settingsKeys: Object.keys(orgData[0].settings || {})
+        })
         return { org: orgData[0], error: null }
       }
       authLog('warn', 'Failed to fetch existing org, trying domain lookup')
@@ -651,7 +656,12 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
     )
     
     if (matchingOrg) {
-      authLog('info', 'Found matching org', { orgName: matchingOrg.name })
+      authLog('info', 'Found matching org', { 
+        orgName: matchingOrg.name,
+        hasSettings: !!matchingOrg.settings,
+        settingsApiUrl: matchingOrg.settings?.api_url,
+        settingsKeys: Object.keys(matchingOrg.settings || {})
+      })
       return { org: matchingOrg, error: null }
     }
     
@@ -1792,7 +1802,7 @@ export async function addUserToOrg(
     .single()
   
   if (fetchError || !existingUser) {
-    return { success: false, error: 'No user found with that email. They must sign in to BluePDM at least once first.' }
+    return { success: false, error: 'No user found with that email. They must sign in to BluePLM at least once first.' }
   }
   
   if (existingUser.org_id === orgId) {

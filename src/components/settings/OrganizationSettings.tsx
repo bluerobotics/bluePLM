@@ -34,11 +34,11 @@ import { getInitials } from '../../types/pdm'
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
   if (platform === 'darwin') {
-    return `~/Documents/BluePDM/${vaultSlug}`
+    return `~/Documents/BluePLM/${vaultSlug}`
   } else if (platform === 'linux') {
-    return `~/BluePDM/${vaultSlug}`
+    return `~/BluePLM/${vaultSlug}`
   } else {
-    return `C:\\BluePDM\\${vaultSlug}`
+    return `C:\\BluePLM\\${vaultSlug}`
   }
 }
 
@@ -447,12 +447,12 @@ export function OrganizationSettings() {
     if (!config || !organization) return ''
     
     const code = generateOrgCode(config)
-    return `You've been invited to join ${organization.name} on BluePDM!
+    return `You've been invited to join ${organization.name} on BluePLM!
 
-BluePDM is a Product Data Management tool for engineering teams.
+BluePLM is a Product Data Management tool for engineering teams.
 
 To get started:
-1. Download BluePDM from: https://github.com/bluerobotics/blue-pdm/releases
+1. Download BluePLM from: https://github.com/bluerobotics/blue-plm/releases
 2. Install and open the app
 3. When prompted, enter this organization code:
 
@@ -591,7 +591,7 @@ See you on the team!`
 
   if (!organization) {
     return (
-      <div className="text-center py-12 text-pdm-fg-muted text-base">
+      <div className="text-center py-12 text-plm-fg-muted text-base">
         No organization connected
       </div>
     )
@@ -600,31 +600,31 @@ See you on the team!`
   return (
     <div className="space-y-6">
       {/* Organization info */}
-      <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-3 mb-2">
-          <Building2 size={24} className="text-pdm-accent" />
-          <span className="text-xl font-medium text-pdm-fg">{organization.name}</span>
+          <Building2 size={24} className="text-plm-accent" />
+          <span className="text-xl font-medium text-plm-fg">{organization.name}</span>
         </div>
-        <div className="text-base text-pdm-fg-muted mb-4">
+        <div className="text-base text-plm-fg-muted mb-4">
           Email domains: {organization.email_domains?.join(', ')}
         </div>
         
         {/* Organization Code (Admin only) */}
         {user?.role === 'admin' && (
-          <div className="pt-3 border-t border-pdm-border">
+          <div className="pt-3 border-t border-plm-border">
             {showOrgCode && orgCode ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-pdm-fg-muted uppercase tracking-wide">Organization Code</span>
+                  <span className="text-sm text-plm-fg-muted uppercase tracking-wide">Organization Code</span>
                   <button
                     onClick={() => setShowOrgCode(false)}
-                    className="text-sm text-pdm-fg-muted hover:text-pdm-fg"
+                    className="text-sm text-plm-fg-muted hover:text-plm-fg"
                   >
                     Hide
                   </button>
                 </div>
                 <div className="relative">
-                  <div className="font-mono text-sm bg-pdm-bg-secondary border border-pdm-border rounded-lg p-3 pr-12 break-all text-pdm-fg max-h-24 overflow-y-auto">
+                  <div className="font-mono text-sm bg-plm-bg-secondary border border-plm-border rounded-lg p-3 pr-12 break-all text-plm-fg max-h-24 overflow-y-auto">
                     {orgCode}
                   </div>
                   <button
@@ -637,17 +637,17 @@ See you on the team!`
                         console.error('Failed to copy:', err)
                       }
                     }}
-                    className="absolute top-2 right-2 p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                    className="absolute top-2 right-2 p-1.5 hover:bg-plm-highlight rounded transition-colors"
                     title="Copy to clipboard"
                   >
                     {codeCopied ? (
                       <Check size={16} className="text-green-500" />
                     ) : (
-                      <Copy size={16} className="text-pdm-fg-muted" />
+                      <Copy size={16} className="text-plm-fg-muted" />
                     )}
                   </button>
                 </div>
-                <p className="text-sm text-pdm-fg-dim">
+                <p className="text-sm text-plm-fg-dim">
                   Share with team members to connect to your organization.
                 </p>
               </div>
@@ -661,7 +661,7 @@ See you on the team!`
                     setShowOrgCode(true)
                   }
                 }}
-                className="flex items-center gap-2 text-base text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                className="flex items-center gap-2 text-base text-plm-fg-muted hover:text-plm-fg transition-colors"
               >
                 <Key size={16} />
                 Show Organization Code
@@ -674,7 +674,7 @@ See you on the team!`
       {/* Vaults */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+          <div className="flex items-center gap-2 text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
             <Folder size={16} />
             Vaults ({orgVaults.length})
           </div>
@@ -691,26 +691,26 @@ See you on the team!`
         
         {/* Create vault form */}
         {isCreatingVault && (
-          <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-accent space-y-3">
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-accent space-y-3">
             <div className="space-y-2">
-              <label className="text-sm text-pdm-fg-muted">Vault Name</label>
+              <label className="text-sm text-plm-fg-muted">Vault Name</label>
               <input
                 type="text"
                 value={newVaultName}
                 onChange={(e) => setNewVaultName(e.target.value)}
                 placeholder="e.g., Main Vault, Archive, Projects"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
                 autoFocus
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-pdm-fg-muted">Description (optional)</label>
+              <label className="text-sm text-plm-fg-muted">Description (optional)</label>
               <input
                 type="text"
                 value={newVaultDescription}
                 onChange={(e) => setNewVaultDescription(e.target.value)}
                 placeholder="e.g., Main production files"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
               />
             </div>
             <div className="flex gap-2 justify-end">
@@ -738,10 +738,10 @@ See you on the team!`
         {/* Vaults list */}
         {isLoadingVaults ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="animate-spin text-pdm-fg-muted" size={24} />
+            <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
           </div>
         ) : orgVaults.length === 0 ? (
-          <div className="text-center py-8 text-pdm-fg-muted text-base">
+          <div className="text-center py-8 text-plm-fg-muted text-base">
             {user?.role === 'admin' 
               ? 'No vaults created yet. Add a vault to get started.'
               : 'No vaults created yet. Ask an organization admin to create one.'}
@@ -751,9 +751,9 @@ See you on the team!`
             {orgVaults.map(vault => (
               <div 
                 key={vault.id}
-                className="flex items-center gap-3 p-3 rounded-lg bg-pdm-bg border border-pdm-border hover:border-pdm-border-light transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg bg-plm-bg border border-plm-border hover:border-plm-border-light transition-colors"
               >
-                <Folder size={18} className={vault.is_default ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+                <Folder size={18} className={vault.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'} />
                 <div className="flex-1 min-w-0">
                   {renamingVaultId === vault.id ? (
                     <div className="flex items-center gap-2">
@@ -765,35 +765,35 @@ See you on the team!`
                           if (e.key === 'Enter') handleRenameVault(vault)
                           if (e.key === 'Escape') setRenamingVaultId(null)
                         }}
-                        className="flex-1 bg-pdm-bg-light border border-pdm-border rounded px-2 py-1 text-base focus:border-pdm-accent focus:outline-none"
+                        className="flex-1 bg-plm-bg-light border border-plm-border rounded px-2 py-1 text-base focus:border-plm-accent focus:outline-none"
                         autoFocus
                       />
-                      <button onClick={() => handleRenameVault(vault)} className="p-1 hover:bg-pdm-highlight rounded">
-                        <Check size={14} className="text-pdm-success" />
+                      <button onClick={() => handleRenameVault(vault)} className="p-1 hover:bg-plm-highlight rounded">
+                        <Check size={14} className="text-plm-success" />
                       </button>
-                      <button onClick={() => setRenamingVaultId(null)} className="p-1 hover:bg-pdm-highlight rounded">
-                        <X size={14} className="text-pdm-fg-muted" />
+                      <button onClick={() => setRenamingVaultId(null)} className="p-1 hover:bg-plm-highlight rounded">
+                        <X size={14} className="text-plm-fg-muted" />
                       </button>
                     </div>
                   ) : (
                     <>
                       <div className="flex items-center gap-2">
-                        <span className="text-base text-pdm-fg font-medium truncate">
+                        <span className="text-base text-plm-fg font-medium truncate">
                           {vault.name}
                         </span>
                         {vault.is_default && (
-                          <span className="px-1.5 py-0.5 bg-pdm-accent/20 text-pdm-accent text-sm rounded">
+                          <span className="px-1.5 py-0.5 bg-plm-accent/20 text-plm-accent text-sm rounded">
                             Default
                           </span>
                         )}
                         {isVaultConnected(vault.id) && (
-                          <span className="px-1.5 py-0.5 bg-pdm-success/20 text-pdm-success text-sm rounded">
+                          <span className="px-1.5 py-0.5 bg-plm-success/20 text-plm-success text-sm rounded">
                             Connected
                           </span>
                         )}
                       </div>
                       {vault.description && (
-                        <div className="text-sm text-pdm-fg-muted truncate">
+                        <div className="text-sm text-plm-fg-muted truncate">
                           {vault.description}
                         </div>
                       )}
@@ -806,7 +806,7 @@ See you on the team!`
                     {isVaultConnected(vault.id) ? (
                       <button
                         onClick={() => handleDisconnectVault(vault.id)}
-                        className="btn btn-ghost btn-sm flex items-center gap-1 text-pdm-warning"
+                        className="btn btn-ghost btn-sm flex items-center gap-1 text-plm-warning"
                         title="Disconnect vault"
                       >
                         <Unlink size={14} />
@@ -829,24 +829,24 @@ See you on the team!`
                     
                     {/* Admin actions */}
                     {user?.role === 'admin' && (
-                      <div className="flex items-center gap-1 border-l border-pdm-border pl-2">
+                      <div className="flex items-center gap-1 border-l border-plm-border pl-2">
                         <button
                           onClick={() => {
                             setRenameValue(vault.name)
                             setRenamingVaultId(vault.id)
                           }}
-                          className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                          className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
                           title="Rename vault"
                         >
-                          <Pencil size={14} className="text-pdm-fg-muted" />
+                          <Pencil size={14} className="text-plm-fg-muted" />
                         </button>
                         {!vault.is_default && (
                           <button
                             onClick={() => handleSetDefaultVault(vault.id)}
-                            className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                            className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
                             title="Set as default"
                           >
-                            <Star size={14} className="text-pdm-fg-muted" />
+                            <Star size={14} className="text-plm-fg-muted" />
                           </button>
                         )}
                         <button
@@ -854,10 +854,10 @@ See you on the team!`
                             setDeletingVault(vault)
                             setDeleteConfirmText('')
                           }}
-                          className="p-1.5 hover:bg-pdm-error/20 rounded transition-colors"
+                          className="p-1.5 hover:bg-plm-error/20 rounded transition-colors"
                           title="Delete vault"
                         >
-                          <Trash2 size={14} className="text-pdm-error" />
+                          <Trash2 size={14} className="text-plm-error" />
                         </button>
                       </div>
                     )}
@@ -872,13 +872,13 @@ See you on the team!`
       {/* Users */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+          <div className="flex items-center gap-2 text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
             <Users size={16} />
             Members ({orgUsers.length})
             <button
               onClick={loadOrgUsers}
               disabled={isLoadingUsers}
-              className="p-1 rounded hover:bg-pdm-highlight transition-colors text-pdm-fg-muted hover:text-pdm-fg disabled:opacity-50"
+              className="p-1 rounded hover:bg-plm-highlight transition-colors text-plm-fg-muted hover:text-plm-fg disabled:opacity-50"
               title="Refresh members"
             >
               <RefreshCw size={12} className={isLoadingUsers ? 'animate-spin' : ''} />
@@ -897,7 +897,7 @@ See you on the team!`
         
         {isLoadingUsers ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="animate-spin text-pdm-fg-muted" size={24} />
+            <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
           </div>
         ) : (
           <div className="space-y-1 max-h-[300px] overflow-y-auto">
@@ -909,7 +909,7 @@ See you on the team!`
               return (
                 <div 
                   key={orgUser.id}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-pdm-highlight transition-colors group"
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-plm-highlight transition-colors group"
                 >
                   {orgUser.avatar_url ? (
                     <img 
@@ -922,21 +922,21 @@ See you on the team!`
                       }}
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-pdm-fg-muted/20 flex items-center justify-center text-sm font-medium">
+                    <div className="w-10 h-10 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-sm font-medium">
                       {getInitials(orgUser.full_name || orgUser.email)}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-base text-pdm-fg truncate flex items-center gap-2">
+                    <div className="text-base text-plm-fg truncate flex items-center gap-2">
                       {orgUser.full_name || orgUser.email}
                       {isCurrentUser && (
-                        <span className="text-sm text-pdm-fg-dim">(you)</span>
+                        <span className="text-sm text-plm-fg-dim">(you)</span>
                       )}
                     </div>
-                    <div className="text-sm text-pdm-fg-muted truncate flex items-center gap-2">
+                    <div className="text-sm text-plm-fg-muted truncate flex items-center gap-2">
                       {orgUser.email}
                       {orgUser.role !== 'admin' && getUserVaultAccessCount(orgUser.id) > 0 && (
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-pdm-fg-muted/10 rounded text-pdm-fg-dim">
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-fg-muted/10 rounded text-plm-fg-dim">
                           <Lock size={12} />
                           {getUserVaultAccessCount(orgUser.id)} vault{getUserVaultAccessCount(orgUser.id) !== 1 ? 's' : ''}
                         </span>
@@ -952,9 +952,9 @@ See you on the team!`
                           onClick={() => setRoleDropdownOpen(roleDropdownOpen === orgUser.id ? null : orgUser.id)}
                           disabled={changingRoleUserId === orgUser.id}
                           className={`flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors ${
-                            orgUser.role === 'admin' ? 'bg-pdm-accent/20 text-pdm-accent' :
-                            orgUser.role === 'engineer' ? 'bg-pdm-success/20 text-pdm-success' :
-                            'bg-pdm-fg-muted/20 text-pdm-fg-muted'
+                            orgUser.role === 'admin' ? 'bg-plm-accent/20 text-plm-accent' :
+                            orgUser.role === 'engineer' ? 'bg-plm-success/20 text-plm-success' :
+                            'bg-plm-fg-muted/20 text-plm-fg-muted'
                           } hover:opacity-80`}
                         >
                           {changingRoleUserId === orgUser.id ? (
@@ -967,13 +967,13 @@ See you on the team!`
                         </button>
                         
                         {roleDropdownOpen === orgUser.id && (
-                          <div className="absolute right-0 top-full mt-1 z-50 bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl py-1 min-w-[140px]">
+                          <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[140px]">
                             {(['viewer', 'engineer', 'admin'] as const).map(role => (
                               <button
                                 key={role}
                                 onClick={() => handleChangeRole(orgUser, role)}
-                                className={`w-full flex items-center gap-2 px-3 py-2 text-base text-left transition-colors hover:bg-pdm-highlight ${
-                                  orgUser.role === role ? 'text-pdm-accent' : 'text-pdm-fg'
+                                className={`w-full flex items-center gap-2 px-3 py-2 text-base text-left transition-colors hover:bg-plm-highlight ${
+                                  orgUser.role === role ? 'text-plm-accent' : 'text-plm-fg'
                                 }`}
                               >
                                 {role === 'admin' && <Shield size={16} />}
@@ -988,9 +988,9 @@ See you on the team!`
                       </>
                     ) : (
                       <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-sm ${
-                        orgUser.role === 'admin' ? 'bg-pdm-accent/20 text-pdm-accent' :
-                        orgUser.role === 'engineer' ? 'bg-pdm-success/20 text-pdm-success' :
-                        'bg-pdm-fg-muted/20 text-pdm-fg-muted'
+                        orgUser.role === 'admin' ? 'bg-plm-accent/20 text-plm-accent' :
+                        orgUser.role === 'engineer' ? 'bg-plm-success/20 text-plm-success' :
+                        'bg-plm-fg-muted/20 text-plm-fg-muted'
                       }`}>
                         <RoleIcon size={12} />
                         {orgUser.role.charAt(0).toUpperCase() + orgUser.role.slice(1)}
@@ -1002,7 +1002,7 @@ See you on the team!`
                   {canManage && (
                     <button
                       onClick={() => openVaultAccessEditor(orgUser)}
-                      className="p-1.5 text-pdm-fg-muted hover:text-pdm-accent hover:bg-pdm-accent/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+                      className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded opacity-0 group-hover:opacity-100 transition-all"
                       title="Manage vault access"
                     >
                       <Lock size={16} />
@@ -1013,7 +1013,7 @@ See you on the team!`
                   {canManage && (
                     <button
                       onClick={() => setRemovingUser(orgUser)}
-                      className="p-1.5 text-pdm-fg-muted hover:text-pdm-error hover:bg-pdm-error/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+                      className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded opacity-0 group-hover:opacity-100 transition-all"
                       title="Remove from organization"
                     >
                       <UserMinus size={16} />
@@ -1027,19 +1027,19 @@ See you on the team!`
         
         {/* Role permissions info */}
         {user?.role === 'admin' && (
-          <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
-            <p className="text-sm text-pdm-fg-muted mb-2 font-medium">Role Permissions:</p>
-            <div className="space-y-1 text-sm text-pdm-fg-dim">
+          <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
+            <p className="text-sm text-plm-fg-muted mb-2 font-medium">Role Permissions:</p>
+            <div className="space-y-1 text-sm text-plm-fg-dim">
               <div className="flex items-center gap-2">
-                <Shield size={14} className="text-pdm-accent" />
+                <Shield size={14} className="text-plm-accent" />
                 <span><strong>Admin:</strong> Full access, manage users & vaults</span>
               </div>
               <div className="flex items-center gap-2">
-                <Wrench size={14} className="text-pdm-success" />
+                <Wrench size={14} className="text-plm-success" />
                 <span><strong>Engineer:</strong> Check out, check in, modify files</span>
               </div>
               <div className="flex items-center gap-2">
-                <Eye size={14} className="text-pdm-fg-muted" />
+                <Eye size={14} className="text-plm-fg-muted" />
                 <span><strong>Viewer:</strong> View and download files only</span>
               </div>
             </div>
@@ -1049,17 +1049,17 @@ See you on the team!`
 
       {/* SolidWorks DM License (Admin only) */}
       {user?.role === 'admin' && (
-        <div className="space-y-3 pt-4 border-t border-pdm-border">
-          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <div className="space-y-3 pt-4 border-t border-plm-border">
+          <div className="flex items-center gap-2 text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
             <FileBox size={16} />
             SolidWorks Integration
           </div>
-          <p className="text-base text-pdm-fg-muted">
+          <p className="text-base text-plm-fg-muted">
             Enter your organization's Document Manager API license key to enable direct file reading.
           </p>
           
           <div className="space-y-2">
-            <label className="text-sm text-pdm-fg-dim">Document Manager License Key</label>
+            <label className="text-sm text-plm-fg-dim">Document Manager License Key</label>
             <input
               type="password"
               value={organization?.settings?.solidworks_dm_license_key || ''}
@@ -1087,15 +1087,15 @@ See you on the team!`
                 }
               }}
               placeholder="Enter your organization's DM API license key"
-              className="w-full px-3 py-2 bg-pdm-bg border border-pdm-border rounded-lg text-base text-pdm-fg placeholder-pdm-fg-dim focus:outline-none focus:border-pdm-accent font-mono"
+              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-base text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent font-mono"
             />
-            <p className="text-sm text-pdm-fg-dim">
+            <p className="text-sm text-plm-fg-dim">
               Free with SolidWorks subscription.{' '}
               <a 
                 href="https://customerportal.solidworks.com/" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-pdm-accent hover:underline"
+                className="text-plm-accent hover:underline"
                 onClick={(e) => {
                   e.preventDefault()
                   window.electronAPI?.openFile('https://customerportal.solidworks.com/')
@@ -1117,25 +1117,25 @@ See you on the team!`
       {/* Delete Vault Dialog */}
       {deletingVault && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDeletingVault(null)}>
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-pdm-error/20 rounded-full">
-                <AlertTriangle size={20} className="text-pdm-error" />
+              <div className="p-2 bg-plm-error/20 rounded-full">
+                <AlertTriangle size={20} className="text-plm-error" />
               </div>
-              <h3 className="text-lg font-medium text-pdm-fg">Delete Vault</h3>
+              <h3 className="text-lg font-medium text-plm-fg">Delete Vault</h3>
             </div>
-            <p className="text-base text-pdm-fg-muted mb-4">
+            <p className="text-base text-plm-fg-muted mb-4">
               This will permanently delete the vault <strong>"{deletingVault.name}"</strong> and all its files from the cloud.
               This action cannot be undone.
             </p>
             <div className="space-y-2 mb-4">
-              <label className="text-sm text-pdm-fg-dim">Type vault name to confirm:</label>
+              <label className="text-sm text-plm-fg-dim">Type vault name to confirm:</label>
               <input
                 type="text"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder={deletingVault.name}
-                className="w-full px-3 py-2 bg-pdm-bg border border-pdm-border rounded-lg text-base focus:outline-none focus:border-pdm-error"
+                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-base focus:outline-none focus:border-plm-error"
               />
             </div>
             <div className="flex gap-2 justify-end">
@@ -1145,7 +1145,7 @@ See you on the team!`
               <button
                 onClick={handleDeleteVault}
                 disabled={deleteConfirmText !== deletingVault.name || isDeleting}
-                className="btn bg-pdm-error text-white hover:bg-pdm-error/90 disabled:opacity-50"
+                className="btn bg-plm-error text-white hover:bg-plm-error/90 disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Delete Vault'}
               </button>
@@ -1157,14 +1157,14 @@ See you on the team!`
       {/* Disconnect Vault Dialog */}
       {disconnectingVault && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDisconnectingVault(null)}>
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-pdm-warning/20 rounded-full">
-                <Unlink size={20} className="text-pdm-warning" />
+              <div className="p-2 bg-plm-warning/20 rounded-full">
+                <Unlink size={20} className="text-plm-warning" />
               </div>
-              <h3 className="text-lg font-medium text-pdm-fg">Disconnect Vault</h3>
+              <h3 className="text-lg font-medium text-plm-fg">Disconnect Vault</h3>
             </div>
-            <p className="text-base text-pdm-fg-muted mb-4">
+            <p className="text-base text-plm-fg-muted mb-4">
               This will disconnect <strong>"{disconnectingVault.name}"</strong> and delete the local folder.
               Cloud files will not be affected.
             </p>
@@ -1175,7 +1175,7 @@ See you on the team!`
               <button
                 onClick={confirmDisconnect}
                 disabled={isDisconnecting}
-                className="btn bg-pdm-warning text-white hover:bg-pdm-warning/90"
+                className="btn bg-plm-warning text-white hover:bg-plm-warning/90"
               >
                 {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
               </button>
@@ -1187,12 +1187,12 @@ See you on the team!`
       {/* Invite User Dialog */}
       {showInviteDialog && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowInviteDialog(false)}>
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-lg w-full mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-medium text-pdm-fg mb-4">Invite User</h3>
-            <p className="text-base text-pdm-fg-muted mb-4">
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Invite User</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
               Copy the invite message below and send it to your team member via email or chat.
             </p>
-            <div className="bg-pdm-bg border border-pdm-border rounded-lg p-4 text-base text-pdm-fg-muted font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-4">
+            <div className="bg-plm-bg border border-plm-border rounded-lg p-4 text-base text-plm-fg-muted font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-4">
               {generateInviteMessage()}
             </div>
             <div className="flex gap-2 justify-end">
@@ -1211,9 +1211,9 @@ See you on the team!`
       {/* Remove User Dialog */}
       {removingUser && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setRemovingUser(null)}>
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-medium text-pdm-fg mb-4">Remove User</h3>
-            <p className="text-base text-pdm-fg-muted mb-4">
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Remove User</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
               Are you sure you want to remove <strong>{removingUser.full_name || removingUser.email}</strong> from the organization?
             </p>
             <div className="flex gap-2 justify-end">
@@ -1223,7 +1223,7 @@ See you on the team!`
               <button
                 onClick={handleRemoveUser}
                 disabled={isRemoving}
-                className="btn bg-pdm-error text-white hover:bg-pdm-error/90"
+                className="btn bg-plm-error text-white hover:bg-plm-error/90"
               >
                 {isRemoving ? 'Removing...' : 'Remove User'}
               </button>
@@ -1235,25 +1235,25 @@ See you on the team!`
       {/* Vault Access Editor Dialog */}
       {editingVaultAccessUser && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setEditingVaultAccessUser(null)}>
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-medium text-pdm-fg mb-2">Vault Access</h3>
-            <p className="text-base text-pdm-fg-muted mb-4">
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-2">Vault Access</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
               Select which vaults <strong>{editingVaultAccessUser.full_name || editingVaultAccessUser.email}</strong> can access.
               Leave all unchecked for full access.
             </p>
             <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
               {orgVaults.map(vault => (
-                <label key={vault.id} className="flex items-center gap-3 p-2 hover:bg-pdm-highlight rounded cursor-pointer">
+                <label key={vault.id} className="flex items-center gap-3 p-2 hover:bg-plm-highlight rounded cursor-pointer">
                   <input
                     type="checkbox"
                     checked={pendingVaultAccess.includes(vault.id)}
                     onChange={() => toggleVaultAccess(vault.id)}
-                    className="w-4 h-4 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent"
+                    className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                   />
-                  <Folder size={18} className={vault.is_default ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
-                  <span className="text-base text-pdm-fg">{vault.name}</span>
+                  <Folder size={18} className={vault.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+                  <span className="text-base text-plm-fg">{vault.name}</span>
                   {vault.is_default && (
-                    <span className="text-sm text-pdm-accent">(default)</span>
+                    <span className="text-sm text-plm-accent">(default)</span>
                   )}
                 </label>
               ))}

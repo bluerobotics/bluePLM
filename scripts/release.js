@@ -44,7 +44,7 @@ try {
 
   console.log(`\n✅ Released ${version}`)
   console.log(`\nGitHub Actions will now build and create the release.`)
-  console.log(`Watch progress at: https://github.com/bluerobotics/bluePDM/actions\n`)
+  console.log(`Watch progress at: https://github.com/bluerobotics/bluePLM/actions\n`)
 
 } catch (error) {
   console.error('\n❌ Release failed:', error.message)

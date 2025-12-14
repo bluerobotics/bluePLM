@@ -2,108 +2,139 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tengwar Elvish Font - Easter Egg */
+@font-face {
+  font-family: 'Tengwar';
+  src: url('/fonts/TengwarAnnatar.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Elvish (Sindarin) Mode - Maximum Unusability! */
+[data-language="sindarin"] {
+  font-family: 'Tengwar', 'Plus Jakarta Sans', sans-serif !important;
+}
+
+[data-language="sindarin"] * {
+  font-family: 'Tengwar', 'Plus Jakarta Sans', sans-serif !important;
+}
+
+/* Keep monospace fonts for code/terminal even in Elvish mode */
+[data-language="sindarin"] .font-mono,
+[data-language="sindarin"] code,
+[data-language="sindarin"] pre {
+  font-family: 'Tengwar', 'JetBrains Mono', monospace !important;
+}
+
+/* Make Elvish text slightly larger for better readability of the glyphs */
+[data-language="sindarin"] {
+  font-size: 15px;
+  letter-spacing: 0.5px;
+}
+
 /* VS Code Dark Modern Theme (default) */
 :root,
 [data-theme="dark"] {
-  --pdm-bg: #181818;
-  --pdm-bg-light: #1f1f1f;
-  --pdm-bg-lighter: #252526;
-  --pdm-bg-secondary: #1f1f1f;
-  --pdm-sidebar: #181818;
-  --pdm-activitybar: #181818;
-  --pdm-panel: #181818;
-  --pdm-input: #313131;
-  --pdm-border: #2b2b2b;
-  --pdm-border-light: #3c3c3c;
-  --pdm-fg: #cccccc;
-  --pdm-fg-dim: #b4b4b4;
-  --pdm-fg-muted: #6e6e6e;
-  --pdm-accent: #0078d4;
-  --pdm-accent-hover: #1177bb;
-  --pdm-accent-dim: #005a9e;
-  --pdm-selection: #264f78;
-  --pdm-highlight: rgba(0, 120, 212, 0.15);
+  --plm-bg: #181818;
+  --plm-bg-light: #1f1f1f;
+  --plm-bg-lighter: #252526;
+  --plm-bg-secondary: #1f1f1f;
+  --plm-sidebar: #181818;
+  --plm-activitybar: #181818;
+  --plm-panel: #181818;
+  --plm-input: #313131;
+  --plm-border: #2b2b2b;
+  --plm-border-light: #3c3c3c;
+  --plm-fg: #cccccc;
+  --plm-fg-dim: #b4b4b4;
+  --plm-fg-muted: #6e6e6e;
+  --plm-accent: #0078d4;
+  --plm-accent-hover: #1177bb;
+  --plm-accent-dim: #005a9e;
+  --plm-selection: #264f78;
+  --plm-highlight: rgba(0, 120, 212, 0.15);
   /* Status colors */
-  --pdm-success: #4ade80;
-  --pdm-warning: #dcdcaa;
-  --pdm-error: #f14c4c;
-  --pdm-info: #3794ff;
+  --plm-success: #4ade80;
+  --plm-warning: #dcdcaa;
+  --plm-error: #f14c4c;
+  --plm-info: #3794ff;
   /* File state colors */
-  --pdm-wip: #dcdcaa;
-  --pdm-released: #4ade80;
-  --pdm-in-review: #3794ff;
-  --pdm-obsolete: #6b7280;
-  --pdm-locked: #f14c4c;
+  --plm-wip: #dcdcaa;
+  --plm-released: #4ade80;
+  --plm-in-review: #3794ff;
+  --plm-obsolete: #6b7280;
+  --plm-locked: #f14c4c;
   /* Titlebar height */
   --titlebar-height: 30px;
 }
 
 /* Deep Blue Theme - Ocean inspired */
 [data-theme="deep-blue"] {
-  --pdm-bg: #0a1929;
-  --pdm-bg-light: #0d2137;
-  --pdm-bg-lighter: #122a44;
-  --pdm-bg-secondary: #0d2137;
-  --pdm-sidebar: #0d2137;
-  --pdm-activitybar: #071320;
-  --pdm-panel: #0a1929;
-  --pdm-input: #122a44;
-  --pdm-border: #1e3a5f;
-  --pdm-border-light: #2d4a6f;
-  --pdm-fg: #e3f2fd;
-  --pdm-fg-dim: #90caf9;
-  --pdm-fg-muted: #5c8abd;
-  --pdm-accent: #00b4d8;
-  --pdm-accent-hover: #0096c7;
-  --pdm-accent-dim: #0077b6;
-  --pdm-selection: #1565c0;
-  --pdm-highlight: rgba(0, 180, 216, 0.15);
+  --plm-bg: #0a1929;
+  --plm-bg-light: #0d2137;
+  --plm-bg-lighter: #122a44;
+  --plm-bg-secondary: #0d2137;
+  --plm-sidebar: #0d2137;
+  --plm-activitybar: #071320;
+  --plm-panel: #0a1929;
+  --plm-input: #122a44;
+  --plm-border: #1e3a5f;
+  --plm-border-light: #2d4a6f;
+  --plm-fg: #e3f2fd;
+  --plm-fg-dim: #90caf9;
+  --plm-fg-muted: #5c8abd;
+  --plm-accent: #00b4d8;
+  --plm-accent-hover: #0096c7;
+  --plm-accent-dim: #0077b6;
+  --plm-selection: #1565c0;
+  --plm-highlight: rgba(0, 180, 216, 0.15);
   /* Status colors */
-  --pdm-success: #4ade80;
-  --pdm-warning: #fbbf24;
-  --pdm-error: #f87171;
-  --pdm-info: #60a5fa;
+  --plm-success: #4ade80;
+  --plm-warning: #fbbf24;
+  --plm-error: #f87171;
+  --plm-info: #60a5fa;
   /* File state colors */
-  --pdm-wip: #fbbf24;
-  --pdm-released: #4ade80;
-  --pdm-in-review: #60a5fa;
-  --pdm-obsolete: #6b7280;
-  --pdm-locked: #f87171;
+  --plm-wip: #fbbf24;
+  --plm-released: #4ade80;
+  --plm-in-review: #60a5fa;
+  --plm-obsolete: #6b7280;
+  --plm-locked: #f87171;
   /* Titlebar height */
   --titlebar-height: 30px;
 }
 
 /* VS Code Light+ Theme */
 [data-theme="light"] {
-  --pdm-bg: #ffffff;
-  --pdm-bg-light: #f3f3f3;
-  --pdm-bg-lighter: #e8e8e8;
-  --pdm-bg-secondary: #f3f3f3;
-  --pdm-sidebar: #f3f3f3;
-  --pdm-activitybar: #f0f0f0;
-  --pdm-panel: #ffffff;
-  --pdm-input: #ffffff;
-  --pdm-border: #e0e0e0;
-  --pdm-border-light: #c8c8c8;
-  --pdm-fg: #333333;
-  --pdm-fg-dim: #444444;
-  --pdm-fg-muted: #717171;
-  --pdm-accent: #0078d4;
-  --pdm-accent-hover: #005a9e;
-  --pdm-accent-dim: #004578;
-  --pdm-selection: rgba(0, 120, 212, 0.15);
-  --pdm-highlight: rgba(0, 120, 212, 0.08);
+  --plm-bg: #ffffff;
+  --plm-bg-light: #f3f3f3;
+  --plm-bg-lighter: #e8e8e8;
+  --plm-bg-secondary: #f3f3f3;
+  --plm-sidebar: #f3f3f3;
+  --plm-activitybar: #f0f0f0;
+  --plm-panel: #ffffff;
+  --plm-input: #ffffff;
+  --plm-border: #e0e0e0;
+  --plm-border-light: #c8c8c8;
+  --plm-fg: #333333;
+  --plm-fg-dim: #444444;
+  --plm-fg-muted: #717171;
+  --plm-accent: #0078d4;
+  --plm-accent-hover: #005a9e;
+  --plm-accent-dim: #004578;
+  --plm-selection: rgba(0, 120, 212, 0.15);
+  --plm-highlight: rgba(0, 120, 212, 0.08);
   /* Status colors */
-  --pdm-success: #388a34;
-  --pdm-warning: #bf8803;
-  --pdm-error: #e51400;
-  --pdm-info: #0066bf;
+  --plm-success: #388a34;
+  --plm-warning: #bf8803;
+  --plm-error: #e51400;
+  --plm-info: #0066bf;
   /* File state colors */
-  --pdm-wip: #bf8803;
-  --pdm-released: #388a34;
-  --pdm-in-review: #0066bf;
-  --pdm-obsolete: #6b7280;
-  --pdm-locked: #e51400;
+  --plm-wip: #bf8803;
+  --plm-released: #388a34;
+  --plm-in-review: #0066bf;
+  --plm-obsolete: #6b7280;
+  --plm-locked: #e51400;
   /* Titlebar height */
   --titlebar-height: 30px;
 }
@@ -119,8 +150,8 @@ html, body, #root {
   overflow: hidden;
   font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   font-size: 13px;
-  color: var(--pdm-fg);
-  background-color: var(--pdm-bg);
+  color: var(--plm-fg);
+  background-color: var(--plm-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -136,7 +167,7 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--pdm-accent);
+  background: var(--plm-accent);
   opacity: 0.3;
   border-radius: 5px;
 }
@@ -177,7 +208,7 @@ html, body, #root {
 }
 
 ::selection {
-  background-color: var(--pdm-selection);
+  background-color: var(--plm-selection);
 }
 
 :focus {
@@ -185,7 +216,7 @@ html, body, #root {
 }
 
 :focus-visible {
-  outline: 1px solid var(--pdm-accent);
+  outline: 1px solid var(--plm-accent);
   outline-offset: -1px;
 }
 
@@ -213,21 +244,21 @@ button:disabled {
 input, textarea, select {
   font-family: inherit;
   font-size: inherit;
-  color: var(--pdm-fg);
-  background: var(--pdm-input);
-  border: 1px solid var(--pdm-border);
+  color: var(--plm-fg);
+  background: var(--plm-input);
+  border: 1px solid var(--plm-border);
   border-radius: 4px;
   padding: 6px 10px;
   transition: border-color 0.15s ease;
 }
 
 input:focus, textarea:focus, select:focus {
-  border-color: var(--pdm-accent);
+  border-color: var(--plm-accent);
   outline: none;
 }
 
 input::placeholder {
-  color: var(--pdm-fg-muted);
+  color: var(--plm-fg-muted);
 }
 
 /* Titlebar drag regions */
@@ -247,15 +278,15 @@ input::placeholder {
 }
 
 .file-table th {
-  background: var(--pdm-bg-light);
+  background: var(--plm-bg-light);
   padding: 8px 12px;
   text-align: left;
   font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--pdm-fg-dim);
-  border-bottom: 1px solid var(--pdm-border);
+  color: var(--plm-fg-dim);
+  border-bottom: 1px solid var(--plm-border);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -266,7 +297,7 @@ input::placeholder {
 }
 
 .file-table th:hover {
-  background: var(--pdm-bg-lighter);
+  background: var(--plm-bg-lighter);
 }
 
 .file-table th.sortable {
@@ -275,7 +306,7 @@ input::placeholder {
 
 .file-table td {
   padding: 4px 12px;
-  border-bottom: 1px solid var(--pdm-border);
+  border-bottom: 1px solid var(--plm-border);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -293,7 +324,7 @@ input::placeholder {
 }
 
 .file-table tr:hover:not(.selected) {
-  background: var(--pdm-highlight);
+  background: var(--plm-highlight);
 }
 
 /* Disable row hover and native drag during box selection */
@@ -311,7 +342,7 @@ input::placeholder {
 }
 
 .file-table.selecting tr.selected {
-  background: var(--pdm-selection);
+  background: var(--plm-selection);
 }
 
 .file-table tr.selected,
@@ -321,12 +352,12 @@ input::placeholder {
 .file-table tr.selected.diff-moved,
 .file-table tr.selected.diff-deleted,
 .file-table tr.selected.diff-outdated {
-  background: var(--pdm-selection);
+  background: var(--plm-selection);
 }
 
 /* Processing state (downloading/deleting) - brighten the dimmed text */
 .file-table tr.processing {
-  color: var(--pdm-fg);
+  color: var(--plm-fg);
   opacity: 0.85;
 }
 
@@ -335,7 +366,7 @@ input::placeholder {
 }
 
 .file-table tr.processing td {
-  color: var(--pdm-fg-dim);
+  color: var(--plm-fg-dim);
   font-style: normal;
 }
 
@@ -346,13 +377,13 @@ input::placeholder {
 .file-table tr.selected.diff-moved:hover,
 .file-table tr.selected.diff-deleted:hover,
 .file-table tr.selected.diff-outdated:hover {
-  background: var(--pdm-selection);
+  background: var(--plm-selection);
 }
 
 /* Drag target styling for folder drop */
 .file-table tr.drag-target {
   background: rgba(59, 130, 246, 0.25) !important;
-  outline: 2px dashed var(--pdm-accent);
+  outline: 2px dashed var(--plm-accent);
   outline-offset: -2px;
 }
 
@@ -370,7 +401,7 @@ input::placeholder {
 
 .column-resize-handle:hover,
 .column-resize-handle.resizing {
-  background: var(--pdm-accent);
+  background: var(--plm-accent);
 }
 
 /* File state badges */
@@ -387,27 +418,27 @@ input::placeholder {
 
 .state-badge.not-tracked {
   background: rgba(107, 114, 128, 0.15);
-  color: var(--pdm-fg-muted);
+  color: var(--plm-fg-muted);
 }
 
 .state-badge.wip {
   background: rgba(251, 191, 36, 0.2);
-  color: var(--pdm-wip);
+  color: var(--plm-wip);
 }
 
 .state-badge.released {
   background: rgba(74, 222, 128, 0.2);
-  color: var(--pdm-released);
+  color: var(--plm-released);
 }
 
 .state-badge.in-review {
   background: rgba(96, 165, 250, 0.2);
-  color: var(--pdm-in-review);
+  color: var(--plm-in-review);
 }
 
 .state-badge.obsolete {
   background: rgba(107, 114, 128, 0.2);
-  color: var(--pdm-obsolete);
+  color: var(--plm-obsolete);
 }
 
 
@@ -420,12 +451,12 @@ input::placeholder {
   border-radius: 4px;
   font-size: 11px;
   background: rgba(248, 113, 113, 0.15);
-  color: var(--pdm-error);
+  color: var(--plm-error);
 }
 
 .checkout-indicator.mine {
   background: rgba(0, 180, 216, 0.15);
-  color: var(--pdm-accent);
+  color: var(--plm-accent);
 }
 
 /* Tree view styling */
@@ -440,16 +471,16 @@ input::placeholder {
 }
 
 .tree-item:hover {
-  background: var(--pdm-highlight);
+  background: var(--plm-highlight);
 }
 
 .tree-item.selected {
-  background: var(--pdm-selection);
+  background: var(--plm-selection);
 }
 
 .tree-item.current-folder {
-  background: var(--pdm-selection);
-  border-left: 2px solid var(--pdm-accent);
+  background: var(--plm-selection);
+  border-left: 2px solid var(--plm-accent);
 }
 
 .tree-item.current-folder:not(.selected) {
@@ -459,12 +490,12 @@ input::placeholder {
 /* Drag target styling for folder drop in explorer */
 .tree-item.drag-target {
   background: rgba(59, 130, 246, 0.25) !important;
-  outline: 2px dashed var(--pdm-accent);
+  outline: 2px dashed var(--plm-accent);
   outline-offset: -2px;
 }
 
 .tree-item.processing {
-  color: var(--pdm-fg-dim);
+  color: var(--plm-fg-dim);
   opacity: 0.85;
 }
 
@@ -473,7 +504,7 @@ input::placeholder {
 }
 
 .tree-item.processing span {
-  color: var(--pdm-fg-dim);
+  color: var(--plm-fg-dim);
   font-style: normal;
 }
 
@@ -509,8 +540,8 @@ input::placeholder {
 
 /* Panel styling */
 .panel {
-  background: var(--pdm-panel);
-  border: 1px solid var(--pdm-border);
+  background: var(--plm-panel);
+  border: 1px solid var(--plm-border);
   border-radius: 6px;
 }
 
@@ -519,10 +550,10 @@ input::placeholder {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--pdm-border);
+  border-bottom: 1px solid var(--plm-border);
   font-weight: 600;
   font-size: 12px;
-  color: var(--pdm-fg-dim);
+  color: var(--plm-fg-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -530,33 +561,33 @@ input::placeholder {
 /* Tab styling */
 .tabs {
   display: flex;
-  border-bottom: 1px solid var(--pdm-border);
+  border-bottom: 1px solid var(--plm-border);
 }
 
 .tab {
   padding: 8px 16px;
   font-size: 12px;
-  color: var(--pdm-fg-muted);
+  color: var(--plm-fg-muted);
   border-bottom: 2px solid transparent;
   transition: all 0.15s ease;
 }
 
 .tab:hover {
-  color: var(--pdm-fg);
-  background: var(--pdm-highlight);
+  color: var(--plm-fg);
+  background: var(--plm-highlight);
 }
 
 .tab.active {
-  color: var(--pdm-accent);
-  border-bottom-color: var(--pdm-accent);
+  color: var(--plm-accent);
+  border-bottom-color: var(--plm-accent);
 }
 
 /* Context menu */
 .context-menu {
   position: fixed;
   min-width: 180px;
-  background: var(--pdm-bg-lighter);
-  border: 1px solid var(--pdm-border);
+  background: var(--plm-bg-lighter);
+  border: 1px solid var(--plm-border);
   border-radius: 6px;
   padding: 4px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -571,17 +602,17 @@ input::placeholder {
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 12px;
-  color: var(--pdm-fg);
+  color: var(--plm-fg);
   cursor: pointer;
   transition: background-color 0.1s ease;
 }
 
 .context-menu-item:hover {
-  background: var(--pdm-selection);
+  background: var(--plm-selection);
 }
 
 .context-menu-item.danger {
-  color: var(--pdm-error);
+  color: var(--plm-error);
 }
 
 .context-menu-item.danger:hover {
@@ -589,7 +620,7 @@ input::placeholder {
 }
 
 .context-menu-item.disabled {
-  color: var(--pdm-fg-muted);
+  color: var(--plm-fg-muted);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -631,13 +662,13 @@ input::placeholder {
 
 .context-menu-separator {
   height: 1px;
-  background: var(--pdm-border);
+  background: var(--plm-border);
   margin: 4px 8px;
 }
 
 /* New folder row */
 .new-folder-row {
-  background: var(--pdm-highlight);
+  background: var(--plm-highlight);
 }
 
 .new-folder-row td {
@@ -649,7 +680,7 @@ input::placeholder {
 
 .diff-modified {
   background: rgba(251, 191, 36, 0.15) !important;
-  border-left: 3px solid var(--pdm-warning) !important;
+  border-left: 3px solid var(--plm-warning) !important;
 }
 
 .diff-modified:hover {
@@ -658,7 +689,7 @@ input::placeholder {
 
 .diff-moved {
   background: rgba(96, 165, 250, 0.15) !important;
-  border-left: 3px solid var(--pdm-accent) !important;
+  border-left: 3px solid var(--plm-accent) !important;
 }
 
 .diff-moved:hover {
@@ -667,7 +698,7 @@ input::placeholder {
 
 .diff-deleted {
   background: rgba(248, 113, 113, 0.15) !important;
-  border-left: 3px solid var(--pdm-error) !important;
+  border-left: 3px solid var(--plm-error) !important;
   opacity: 0.7;
 }
 
@@ -677,7 +708,7 @@ input::placeholder {
 
 .diff-deleted td {
   text-decoration: line-through;
-  color: var(--pdm-fg-muted);
+  color: var(--plm-fg-muted);
 }
 
 .diff-outdated {
@@ -692,7 +723,7 @@ input::placeholder {
 /* Deleted from server (local orphan - file exists locally but was deleted on server by another user) */
 .diff-deleted-remote {
   background: rgba(248, 113, 113, 0.15) !important;
-  border-left: 3px solid var(--pdm-error) !important;
+  border-left: 3px solid var(--plm-error) !important;
 }
 
 .diff-deleted-remote:hover {
@@ -715,7 +746,7 @@ tr.selected.diff-cloud {
 }
 
 .diff-cloud td {
-  color: var(--pdm-fg-muted);
+  color: var(--plm-fg-muted);
   font-style: italic;
 }
 
@@ -745,7 +776,7 @@ tr.selected.diff-cloud {
 
 .sidebar-diff-cloud span {
   font-style: italic;
-  color: var(--pdm-fg-muted);
+  color: var(--plm-fg-muted);
 }
 
 .sidebar-diff-outdated {
@@ -762,7 +793,7 @@ tr.selected.diff-cloud {
 }
 
 .file-table th.drag-over {
-  border-left: 2px solid var(--pdm-accent);
+  border-left: 2px solid var(--plm-accent);
 }
 
 .file-table th {
@@ -825,8 +856,8 @@ tr.selected.diff-cloud {
 .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid var(--pdm-border);
-  border-top-color: var(--pdm-accent);
+  border: 2px solid var(--plm-border);
+  border-top-color: var(--plm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -841,11 +872,11 @@ tr.selected.diff-cloud {
 .tooltip {
   position: absolute;
   padding: 6px 10px;
-  background: var(--pdm-bg-lighter);
-  border: 1px solid var(--pdm-border);
+  background: var(--plm-bg-lighter);
+  border: 1px solid var(--plm-border);
   border-radius: 4px;
   font-size: 11px;
-  color: var(--pdm-fg);
+  color: var(--plm-fg);
   white-space: nowrap;
   z-index: 1000;
   pointer-events: none;
@@ -860,7 +891,7 @@ tr.selected.diff-cloud {
   justify-content: center;
   padding: 48px;
   text-align: center;
-  color: var(--pdm-fg-muted);
+  color: var(--plm-fg-muted);
 }
 
 .empty-state-icon {
@@ -873,7 +904,7 @@ tr.selected.diff-cloud {
 .empty-state-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--pdm-fg-dim);
+  color: var(--plm-fg-dim);
   margin-bottom: 8px;
 }
 
@@ -896,37 +927,37 @@ tr.selected.diff-cloud {
 }
 
 .btn-primary {
-  background: var(--pdm-accent);
+  background: var(--plm-accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--pdm-accent-hover);
+  background: var(--plm-accent-hover);
 }
 
 .btn-secondary {
-  background: var(--pdm-bg-lighter);
-  color: var(--pdm-fg);
-  border: 1px solid var(--pdm-border);
+  background: var(--plm-bg-lighter);
+  color: var(--plm-fg);
+  border: 1px solid var(--plm-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--pdm-selection);
-  border-color: var(--pdm-border-light);
+  background: var(--plm-selection);
+  border-color: var(--plm-border-light);
 }
 
 .btn-ghost {
   background: transparent;
-  color: var(--pdm-fg-dim);
+  color: var(--plm-fg-dim);
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background: var(--pdm-highlight);
-  color: var(--pdm-fg);
+  background: var(--plm-highlight);
+  color: var(--plm-fg);
 }
 
 .btn-danger {
-  background: var(--pdm-error);
+  background: var(--plm-error);
   color: white;
 }
 

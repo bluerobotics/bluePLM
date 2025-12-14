@@ -17,6 +17,7 @@ import { ReviewsView } from './sidebar/ReviewsView'
 import { GSDView } from './sidebar/GSDView'
 import { SuppliersView } from './sidebar/SuppliersView'
 import { SupplierPortalView } from './sidebar/SupplierPortalView'
+import { GoogleDriveView } from './sidebar/GoogleDriveView'
 // System Views
 import { SettingsNavigation } from './sidebar/SettingsNavigation'
 
@@ -75,6 +76,8 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
         return <SuppliersView />
       case 'supplier-portal':
         return <SupplierPortalView />
+      case 'google-drive':
+        return <GoogleDriveView />
       // System Views
       case 'settings':
         return <SettingsNavigation activeTab={settingsTab} onTabChange={onSettingsTabChange || (() => {})} />
@@ -119,6 +122,8 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
         return 'SUPPLIERS'
       case 'supplier-portal':
         return 'SUPPLIER PORTAL'
+      case 'google-drive':
+        return 'GOOGLE DRIVE'
       // System Views
       case 'settings':
         return 'SETTINGS'
@@ -132,20 +137,20 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
 
   return (
     <div
-      className="bg-pdm-sidebar flex flex-col overflow-hidden"
+      className="bg-plm-sidebar flex flex-col overflow-hidden"
       style={{ width: effectiveWidth }}
     >
       {isSettings ? (
         /* Settings header - bigger, more padding, like Supabase */
-        <div className="h-12 flex items-center px-6 border-b border-pdm-border">
-          <h4 className="text-xl font-medium text-pdm-fg">Settings</h4>
+        <div className="h-12 flex items-center px-6 border-b border-plm-border">
+          <h4 className="text-xl font-medium text-plm-fg">Settings</h4>
         </div>
       ) : (
         /* Default header - compact uppercase */
-        <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold text-pdm-fg-dim tracking-wide border-b border-pdm-border">
+        <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold text-plm-fg-dim tracking-wide border-b border-plm-border">
           <span>{getTitle()}</span>
           {activeView === 'explorer' && connectedVaults.length > 0 && (
-            <span className="text-pdm-fg-muted font-normal">
+            <span className="text-plm-fg-muted font-normal">
               {connectedVaults.length} vault{connectedVaults.length > 1 ? 's' : ''}
             </span>
           )}

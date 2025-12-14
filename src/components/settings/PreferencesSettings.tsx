@@ -19,21 +19,16 @@ import {
 import { usePDMStore, ThemeMode, Language } from '../../stores/pdmStore'
 import { useTranslation } from '../../lib/i18n'
 
+// Only show languages that have actual translations (not English fallback)
 const languageOptions: { value: Language; label: string; nativeLabel: string }[] = [
   { value: 'en', label: 'English', nativeLabel: 'English' },
   { value: 'fr', label: 'French', nativeLabel: 'Français' },
   { value: 'de', label: 'German', nativeLabel: 'Deutsch' },
   { value: 'es', label: 'Spanish', nativeLabel: 'Español' },
-  { value: 'it', label: 'Italian', nativeLabel: 'Italiano' },
   { value: 'pt', label: 'Portuguese', nativeLabel: 'Português' },
-  { value: 'nl', label: 'Dutch', nativeLabel: 'Nederlands' },
-  { value: 'sv', label: 'Swedish', nativeLabel: 'Svenska' },
-  { value: 'pl', label: 'Polish', nativeLabel: 'Polski' },
-  { value: 'ru', label: 'Russian', nativeLabel: 'Русский' },
-  { value: 'ja', label: 'Japanese', nativeLabel: '日本語' },
   { value: 'zh-CN', label: 'Chinese (Simplified)', nativeLabel: '简体中文' },
   { value: 'zh-TW', label: 'Chinese (Traditional)', nativeLabel: '繁體中文' },
-  { value: 'ko', label: 'Korean', nativeLabel: '한국어' },
+  { value: 'sindarin', label: 'Sindarin (Elvish)', nativeLabel: '🧝 Tengwar' },
 ]
 
 export function PreferencesSettings() {
@@ -110,16 +105,16 @@ export function PreferencesSettings() {
     <div className="space-y-6">
       {/* Application Updates */}
       <div className="space-y-3">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           {t('preferences.applicationUpdates')}
         </label>
-        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-base font-medium text-pdm-fg">
-                BluePDM {appVersion || '...'}
+              <div className="text-base font-medium text-plm-fg">
+                BluePLM {appVersion || '...'}
               </div>
-              <div className="text-sm text-pdm-fg-muted mt-0.5">
+              <div className="text-sm text-plm-fg-muted mt-0.5">
                 {updateCheckResult === 'none' && t('preferences.youHaveLatest')}
                 {updateCheckResult === 'available' && t('preferences.updateAvailable')}
                 {updateCheckResult === 'error' && t('preferences.couldNotCheck')}
@@ -133,8 +128,8 @@ export function PreferencesSettings() {
                 updateCheckResult === 'none'
                   ? 'bg-green-600/20 text-green-400 border border-green-600/30'
                   : updateCheckResult === 'available'
-                  ? 'bg-pdm-accent/20 text-pdm-accent border border-pdm-accent/30'
-                  : 'bg-pdm-highlight text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-highlight/80'
+                  ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
+                  : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
               }`}
             >
               {isCheckingUpdate ? (
@@ -165,7 +160,7 @@ export function PreferencesSettings() {
 
       {/* Theme Selection */}
       <div className="space-y-3">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           {t('preferences.appearance')}
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -177,25 +172,25 @@ export function PreferencesSettings() {
                 onClick={() => !isSelected && setTheme(option.value)}
                 className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all text-left ${
                   isSelected
-                    ? 'bg-pdm-accent/15 border-pdm-accent cursor-default'
-                    : 'bg-pdm-bg border-pdm-border hover:border-pdm-accent/50 hover:bg-pdm-highlight cursor-pointer'
+                    ? 'bg-plm-accent/15 border-plm-accent cursor-default'
+                    : 'bg-plm-bg border-plm-border hover:border-plm-accent/50 hover:bg-plm-highlight cursor-pointer'
                 }`}
               >
                 <div className={`p-2.5 rounded-lg ${
                   isSelected 
-                    ? 'bg-pdm-accent text-white' 
-                    : 'bg-pdm-bg-lighter text-pdm-fg-muted'
+                    ? 'bg-plm-accent text-white' 
+                    : 'bg-plm-bg-lighter text-plm-fg-muted'
                 }`}>
                   {option.icon}
                 </div>
                 <div className="flex-1">
-                  <div className={`text-base font-medium ${isSelected ? 'text-pdm-fg' : 'text-pdm-fg-dim'}`}>
+                  <div className={`text-base font-medium ${isSelected ? 'text-plm-fg' : 'text-plm-fg-dim'}`}>
                     {option.label}
                   </div>
-                  <div className="text-sm text-pdm-fg-muted">{option.description}</div>
+                  <div className="text-sm text-plm-fg-muted">{option.description}</div>
                 </div>
                 {isSelected && (
-                  <CheckCircle size={18} className="text-pdm-accent flex-shrink-0" />
+                  <CheckCircle size={18} className="text-plm-accent flex-shrink-0" />
                 )}
               </button>
             )
@@ -205,20 +200,20 @@ export function PreferencesSettings() {
 
       {/* Language Selection */}
       <div className="space-y-3">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           {t('preferences.language')}
         </label>
-        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-pdm-accent text-white">
+              <div className="p-2.5 rounded-lg bg-plm-accent text-white">
                 <Globe size={18} />
               </div>
               <div>
-                <div className="text-base font-medium text-pdm-fg">
+                <div className="text-base font-medium text-plm-fg">
                   {t('preferences.displayLanguage')}
                 </div>
-                <div className="text-sm text-pdm-fg-muted mt-0.5">
+                <div className="text-sm text-plm-fg-muted mt-0.5">
                   {t('preferences.chooseLanguage')}
                 </div>
               </div>
@@ -226,17 +221,17 @@ export function PreferencesSettings() {
             <div className="relative">
               <button
                 onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-pdm-bg-secondary border border-pdm-border rounded-lg hover:border-pdm-accent/50 transition-colors min-w-[180px]"
+                className="flex items-center gap-2 px-4 py-2.5 bg-plm-bg-secondary border border-plm-border rounded-lg hover:border-plm-accent/50 transition-colors min-w-[180px]"
               >
                 <span className="flex-1 text-left">
-                  <span className="text-pdm-fg font-medium">
+                  <span className="text-plm-fg font-medium">
                     {languageOptions.find(l => l.value === language)?.nativeLabel || 'English'}
                   </span>
-                  <span className="text-pdm-fg-muted text-sm ml-2">
+                  <span className="text-plm-fg-muted text-sm ml-2">
                     ({languageOptions.find(l => l.value === language)?.label || 'English'})
                   </span>
                 </span>
-                <ChevronDown size={16} className={`text-pdm-fg-muted transition-transform ${isLanguageDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown size={16} className={`text-plm-fg-muted transition-transform ${isLanguageDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               
               {isLanguageDropdownOpen && (
@@ -247,7 +242,7 @@ export function PreferencesSettings() {
                     onClick={() => setIsLanguageDropdownOpen(false)} 
                   />
                   {/* Dropdown */}
-                  <div className="absolute right-0 top-full mt-1 z-50 bg-pdm-bg-secondary border border-pdm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[240px]">
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-secondary border border-plm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[240px]">
                     {languageOptions.map((option) => {
                       const isSelected = language === option.value
                       return (
@@ -259,13 +254,13 @@ export function PreferencesSettings() {
                           }}
                           className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors ${
                             isSelected
-                              ? 'bg-pdm-accent/15 text-pdm-accent'
-                              : 'text-pdm-fg hover:bg-pdm-highlight'
+                              ? 'bg-plm-accent/15 text-plm-accent'
+                              : 'text-plm-fg hover:bg-plm-highlight'
                           }`}
                         >
                           <div>
                             <span className="font-medium">{option.nativeLabel}</span>
-                            <span className="text-pdm-fg-muted text-sm ml-2">({option.label})</span>
+                            <span className="text-plm-fg-muted text-sm ml-2">({option.label})</span>
                           </div>
                           {isSelected && <CheckCircle size={16} className="flex-shrink-0" />}
                         </button>
@@ -276,7 +271,7 @@ export function PreferencesSettings() {
               )}
             </div>
           </div>
-          <p className="text-xs text-pdm-fg-dim mt-3">
+          <p className="text-xs text-plm-fg-dim mt-3">
             {t('preferences.translationsNote')}
           </p>
         </div>
@@ -284,25 +279,25 @@ export function PreferencesSettings() {
 
       {/* File Extensions */}
       <div className="space-y-3">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           {t('preferences.fileExtensions')}
         </label>
-        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-base text-pdm-fg">{t('preferences.lowercaseExtensions')}</div>
-              <div className="text-sm text-pdm-fg-muted mt-0.5">
+              <div className="text-base text-plm-fg">{t('preferences.lowercaseExtensions')}</div>
+              <div className="text-sm text-plm-fg-muted mt-0.5">
                 {t('preferences.lowercaseExtensionsDesc')}
               </div>
             </div>
             <button
               onClick={() => setLowercaseExtensions(!lowercaseExtensions)}
-              className="text-pdm-accent"
+              className="text-plm-accent"
             >
               {lowercaseExtensions ? (
                 <ToggleRight size={28} />
               ) : (
-                <ToggleLeft size={28} className="text-pdm-fg-muted" />
+                <ToggleLeft size={28} className="text-plm-fg-muted" />
               )}
             </button>
           </div>
@@ -311,11 +306,11 @@ export function PreferencesSettings() {
 
       {/* Ignore Patterns */}
       <div className="space-y-3">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           {t('preferences.ignorePatterns')}
         </label>
-        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border space-y-3">
-          <p className="text-sm text-pdm-fg-muted">
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
+          <p className="text-sm text-plm-fg-muted">
             {t('preferences.ignorePatternsDesc')}
           </p>
           
@@ -329,7 +324,7 @@ export function PreferencesSettings() {
                 if (e.key === 'Enter') handleAddIgnorePattern()
               }}
               placeholder={t('preferences.ignorePlaceholder')}
-              className="flex-1 bg-pdm-bg-secondary border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none font-mono"
+              className="flex-1 bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
               disabled={!activeVaultId}
             />
             <button
@@ -343,7 +338,7 @@ export function PreferencesSettings() {
           </div>
           
           {!activeVaultId && (
-            <p className="text-sm text-pdm-warning">
+            <p className="text-sm text-plm-warning">
               {t('preferences.connectVaultForPatterns')}
             </p>
           )}
@@ -354,13 +349,13 @@ export function PreferencesSettings() {
               {currentVaultPatterns.map((pattern, index) => (
                 <div 
                   key={index}
-                  className="flex items-center gap-2 px-3 py-2 bg-pdm-bg-secondary rounded-lg group"
+                  className="flex items-center gap-2 px-3 py-2 bg-plm-bg-secondary rounded-lg group"
                 >
-                  <FileText size={16} className="text-pdm-fg-muted flex-shrink-0" />
-                  <code className="flex-1 text-base font-mono text-pdm-fg">{pattern}</code>
+                  <FileText size={16} className="text-plm-fg-muted flex-shrink-0" />
+                  <code className="flex-1 text-base font-mono text-plm-fg">{pattern}</code>
                   <button
                     onClick={() => activeVaultId && removeIgnorePattern(activeVaultId, pattern)}
-                    className="p-1 text-pdm-fg-muted hover:text-pdm-error rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-1 text-plm-fg-muted hover:text-plm-error rounded opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X size={14} />
                   </button>
@@ -368,7 +363,7 @@ export function PreferencesSettings() {
               ))}
             </div>
           ) : activeVaultId ? (
-            <p className="text-sm text-pdm-fg-dim text-center py-2">
+            <p className="text-sm text-plm-fg-dim text-center py-2">
               {t('preferences.noIgnorePatterns')}
             </p>
           ) : null}

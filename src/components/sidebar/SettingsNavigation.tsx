@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
 
-type SettingsTab = 'account' | 'vault' | 'organization' | 'metadata-columns' | 'company-profile' | 'rfq' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'preferences' | 'logs' | 'about'
+type SettingsTab = 'account' | 'vault' | 'organization' | 'metadata-columns' | 'company-profile' | 'rfq' | 'backup' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api' | 'logs' | 'about'
 
 type IntegrationStatus = 'online' | 'offline' | 'not-configured' | 'coming-soon'
 
@@ -20,8 +20,7 @@ const settingsSections: SettingsSection[] = [
   {
     category: 'Account',
     items: [
-      { id: 'account', label: 'Profile' },
-      { id: 'preferences', label: 'Preferences' },
+      { id: 'account', label: 'Profile & Preferences' },
     ]
   },
   {
@@ -57,7 +56,7 @@ const settingsSections: SettingsSection[] = [
 
 const integrationIds = ['solidworks', 'google-drive', 'odoo', 'slack', 'webhooks', 'api'] as const
 
-const API_URL_KEY = 'bluepdm_api_url'
+const API_URL_KEY = 'blueplm_api_url'
 const DEFAULT_API_URL = 'http://localhost:3001'
 
 function getApiUrl(organization: { settings?: { api_url?: string } } | null): string {
@@ -69,10 +68,10 @@ function getApiUrl(organization: { settings?: { api_url?: string } } | null): st
 
 function StatusDot({ status }: { status: IntegrationStatus }) {
   const colors: Record<IntegrationStatus, string> = {
-    'online': 'bg-pdm-success',
-    'offline': 'bg-pdm-error',
-    'not-configured': 'bg-pdm-warning',
-    'coming-soon': 'bg-pdm-fg-muted/40',
+    'online': 'bg-plm-success',
+    'offline': 'bg-plm-error',
+    'not-configured': 'bg-plm-warning',
+    'coming-soon': 'bg-plm-fg-muted/40',
   }
   
   const titles: Record<IntegrationStatus, string> = {
@@ -188,7 +187,7 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
   }
   
   return (
-    <div className="flex flex-col h-full bg-pdm-sidebar">
+    <div className="flex flex-col h-full bg-plm-sidebar">
       {/* Scrollable navigation */}
       <nav className="flex-1 overflow-y-auto hide-scrollbar" role="menu" aria-label="Settings navigation">
         <div className="flex flex-col py-1">
@@ -198,7 +197,7 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
               <div className="mt-4 mb-1 mx-3">
                 {/* Category header - uppercase mono, faded */}
                 <div className="px-3 mb-1">
-                  <span className="text-[13px] font-mono uppercase text-pdm-fg-muted/45">
+                  <span className="text-[13px] font-mono uppercase text-plm-fg-muted/45">
                     {section.category}
                   </span>
                 </div>
@@ -210,10 +209,10 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
                       key={item.id}
                       role="menuitem"
                       onClick={() => onTabChange(item.id)}
-                      className={`w-full flex items-center justify-between px-3 py-1 rounded-lg text-[13px] font-sans transition-colors outline-none focus-visible:ring-1 focus-visible:ring-pdm-accent ${
+                      className={`w-full flex items-center justify-between px-3 py-1 rounded-lg text-[13px] font-sans transition-colors outline-none focus-visible:ring-1 focus-visible:ring-plm-accent ${
                         activeTab === item.id
-                          ? 'bg-pdm-highlight text-pdm-fg font-semibold'
-                          : 'text-pdm-fg-dim hover:text-pdm-fg'
+                          ? 'bg-plm-highlight text-plm-fg font-semibold'
+                          : 'text-plm-fg-dim hover:text-plm-fg'
                       }`}
                     >
                       <span>{item.label}</span>
@@ -227,7 +226,7 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
               
               {/* Divider between sections (except after last) */}
               {sectionIndex < settingsSections.length - 1 && (
-                <div className="h-px w-full bg-pdm-border/50 mt-3" />
+                <div className="h-px w-full bg-plm-border/50 mt-3" />
               )}
             </div>
           ))}

@@ -1727,7 +1727,7 @@ export function WorkflowsView() {
   
   if (!organization) {
     return (
-      <div className="p-4 text-sm text-pdm-fg-muted text-center">
+      <div className="p-4 text-sm text-plm-fg-muted text-center">
         Sign in to manage workflows
       </div>
     )
@@ -1744,7 +1744,7 @@ export function WorkflowsView() {
   return (
     <div className="flex flex-col h-full">
       {/* Workflow selector header */}
-      <div className="p-3 border-b border-pdm-border">
+      <div className="p-3 border-b border-plm-border">
         <div className="flex items-center gap-2 mb-2">
           <select
             value={selectedWorkflow?.id || ''}
@@ -1752,7 +1752,7 @@ export function WorkflowsView() {
               const workflow = workflows.find(w => w.id === e.target.value)
               if (workflow) selectWorkflow(workflow)
             }}
-            className="flex-1 bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm"
+            className="flex-1 bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm"
           >
             <option value="">Select workflow...</option>
             {workflows.map(w => (
@@ -1765,7 +1765,7 @@ export function WorkflowsView() {
           {isAdmin && (
             <button
               onClick={() => setShowCreateWorkflow(true)}
-              className="p-1.5 bg-pdm-accent hover:bg-pdm-accent-hover rounded text-white"
+              className="p-1.5 bg-plm-accent hover:bg-plm-accent-hover rounded text-white"
               title="Create workflow"
             >
               <Plus size={16} />
@@ -1774,19 +1774,19 @@ export function WorkflowsView() {
         </div>
         
         {selectedWorkflow?.description && (
-          <p className="text-xs text-pdm-fg-muted">{selectedWorkflow.description}</p>
+          <p className="text-xs text-plm-fg-muted">{selectedWorkflow.description}</p>
         )}
       </div>
       
       {/* Canvas toolbar */}
       {selectedWorkflow && (
-        <div className="flex items-center gap-1 p-2 border-b border-pdm-border bg-pdm-bg-light">
+        <div className="flex items-center gap-1 p-2 border-b border-plm-border bg-plm-bg-light">
           <button
             onClick={() => {
               setCanvasMode('select')
               cancelConnectMode()
             }}
-            className={`p-1.5 rounded ${canvasMode === 'select' && !isCreatingTransition ? 'bg-pdm-accent text-white' : 'hover:bg-pdm-bg'}`}
+            className={`p-1.5 rounded ${canvasMode === 'select' && !isCreatingTransition ? 'bg-plm-accent text-white' : 'hover:bg-plm-bg'}`}
             title="Select mode (Esc)"
           >
             <MousePointer size={14} />
@@ -1796,7 +1796,7 @@ export function WorkflowsView() {
               setCanvasMode('pan')
               cancelConnectMode()
             }}
-            className={`p-1.5 rounded ${canvasMode === 'pan' ? 'bg-pdm-accent text-white' : 'hover:bg-pdm-bg'}`}
+            className={`p-1.5 rounded ${canvasMode === 'pan' ? 'bg-plm-accent text-white' : 'hover:bg-plm-bg'}`}
             title="Pan mode"
           >
             <Move size={14} />
@@ -1804,7 +1804,7 @@ export function WorkflowsView() {
           {isAdmin && (
             <button
               onClick={() => setCanvasMode('connect')}
-              className={`p-1.5 rounded ${canvasMode === 'connect' || isCreatingTransition ? 'bg-green-600 text-white' : 'hover:bg-pdm-bg'}`}
+              className={`p-1.5 rounded ${canvasMode === 'connect' || isCreatingTransition ? 'bg-green-600 text-white' : 'hover:bg-plm-bg'}`}
               title="Connect mode - draw transitions"
             >
               <ArrowRight size={14} />
@@ -1822,21 +1822,21 @@ export function WorkflowsView() {
             </button>
           )}
           
-          <div className="w-px h-4 bg-pdm-border mx-1" />
+          <div className="w-px h-4 bg-plm-border mx-1" />
           
           <button
             onClick={() => setZoom(Math.min(2, zoom * 1.2))}
-            className="p-1.5 hover:bg-pdm-bg rounded"
+            className="p-1.5 hover:bg-plm-bg rounded"
             title="Zoom in"
           >
             <ZoomIn size={14} />
           </button>
-          <span className="text-xs text-pdm-fg-muted min-w-[40px] text-center">
+          <span className="text-xs text-plm-fg-muted min-w-[40px] text-center">
             {Math.round(zoom * 100)}%
           </span>
           <button
             onClick={() => setZoom(Math.max(0.25, zoom * 0.8))}
-            className="p-1.5 hover:bg-pdm-bg rounded"
+            className="p-1.5 hover:bg-plm-bg rounded"
             title="Zoom out"
           >
             <ZoomOut size={14} />
@@ -1846,7 +1846,7 @@ export function WorkflowsView() {
               setZoom(1)
               setPan({ x: 0, y: 0 })
             }}
-            className="p-1.5 hover:bg-pdm-bg rounded text-xs"
+            className="p-1.5 hover:bg-plm-bg rounded text-xs"
             title="Reset view"
           >
             1:1
@@ -1857,7 +1857,7 @@ export function WorkflowsView() {
           {isAdmin && (
             <button
               onClick={addState}
-              className="flex items-center gap-1 px-2 py-1 bg-pdm-accent hover:bg-pdm-accent-hover rounded text-white text-xs"
+              className="flex items-center gap-1 px-2 py-1 bg-plm-accent hover:bg-plm-accent-hover rounded text-white text-xs"
             >
               <Plus size={12} />
               Add State
@@ -1870,7 +1870,7 @@ export function WorkflowsView() {
       {selectedWorkflow && (
         <div 
           ref={canvasRef}
-          className="flex-1 overflow-hidden bg-pdm-bg relative"
+          className="flex-1 overflow-hidden bg-plm-bg relative"
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
@@ -1899,7 +1899,7 @@ export function WorkflowsView() {
         >
           {/* Mode indicator */}
           {(isCreatingTransition || canvasMode === 'connect' || draggingTransitionEndpoint || (isAdmin && canvasMode === 'select' && states.length > 0)) && (
-            <div className="absolute top-2 left-2 z-10 bg-pdm-bg-light/95 border border-pdm-border rounded px-2 py-1 text-xs text-pdm-fg-muted flex items-center gap-2 backdrop-blur-sm">
+            <div className="absolute top-2 left-2 z-10 bg-plm-bg-light/95 border border-plm-border rounded px-2 py-1 text-xs text-plm-fg-muted flex items-center gap-2 backdrop-blur-sm">
               {draggingTransitionEndpoint ? (
                 <>
                   <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
@@ -2005,13 +2005,13 @@ export function WorkflowsView() {
           {/* Empty state */}
           {states.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center text-pdm-fg-muted">
+              <div className="text-center text-plm-fg-muted">
                 <GitBranch size={48} className="mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No states defined</p>
                 {isAdmin && (
                   <button
                     onClick={addState}
-                    className="mt-2 text-pdm-accent hover:underline text-sm"
+                    className="mt-2 text-plm-accent hover:underline text-sm"
                   >
                     Add your first state
                   </button>
@@ -2024,7 +2024,7 @@ export function WorkflowsView() {
       
       {/* Selected item properties panel */}
       {selectedWorkflow && (selectedStateId || selectedTransitionId) && (
-        <div className="border-t border-pdm-border bg-pdm-sidebar p-3">
+        <div className="border-t border-plm-border bg-plm-sidebar p-3">
           {selectedStateId && (
             <SelectedStatePanel
               state={states.find(s => s.id === selectedStateId)!}
@@ -2057,13 +2057,13 @@ export function WorkflowsView() {
       {/* No workflow selected */}
       {!selectedWorkflow && workflows.length === 0 && (
         <div className="flex-1 flex items-center justify-center p-4">
-          <div className="text-center text-pdm-fg-muted">
+          <div className="text-center text-plm-fg-muted">
             <GitBranch size={48} className="mx-auto mb-3 opacity-50" />
             <p className="text-sm mb-2">No workflows defined</p>
             {isAdmin && (
               <button
                 onClick={() => setShowCreateWorkflow(true)}
-                className="text-pdm-accent hover:underline text-sm"
+                className="text-plm-accent hover:underline text-sm"
               >
                 Create your first workflow
               </button>
@@ -2165,16 +2165,16 @@ function SelectedStatePanel({ state, isAdmin, onEdit, onDelete }: SelectedStateP
           <IconComponent size={14} style={{ color: getContrastColor(state.color) }} />
         </div>
         <span className="font-medium text-sm">{state.label || state.name}</span>
-        <span className="text-xs text-pdm-fg-muted px-1.5 py-0.5 bg-pdm-bg rounded">
+        <span className="text-xs text-plm-fg-muted px-1.5 py-0.5 bg-plm-bg rounded">
           {state.state_type}
         </span>
       </div>
       
       {state.description && (
-        <p className="text-xs text-pdm-fg-muted mb-2">{state.description}</p>
+        <p className="text-xs text-plm-fg-muted mb-2">{state.description}</p>
       )}
       
-      <div className="flex gap-2 text-xs text-pdm-fg-muted mb-2">
+      <div className="flex gap-2 text-xs text-plm-fg-muted mb-2">
         <span>Maps to: {state.maps_to_file_state}</span>
         {state.is_editable && <span>• Editable</span>}
         {state.requires_checkout && <span>• Requires checkout</span>}
@@ -2185,14 +2185,14 @@ function SelectedStatePanel({ state, isAdmin, onEdit, onDelete }: SelectedStateP
         <div className="flex gap-2">
           <button
             onClick={onEdit}
-            className="flex items-center gap-1 px-2 py-1 bg-pdm-bg hover:bg-pdm-highlight rounded text-xs"
+            className="flex items-center gap-1 px-2 py-1 bg-plm-bg hover:bg-plm-highlight rounded text-xs"
           >
             <Edit3 size={12} />
             Edit
           </button>
           <button
             onClick={onDelete}
-            className="flex items-center gap-1 px-2 py-1 bg-pdm-error/20 hover:bg-pdm-error/30 text-pdm-error rounded text-xs"
+            className="flex items-center gap-1 px-2 py-1 bg-plm-error/20 hover:bg-plm-error/30 text-plm-error rounded text-xs"
           >
             <Trash2 size={12} />
             Delete
@@ -2228,11 +2228,11 @@ function SelectedTransitionPanel({
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <ArrowRight size={14} className="text-pdm-fg-muted" />
+        <ArrowRight size={14} className="text-plm-fg-muted" />
         <span className="font-medium text-sm">{transition.name || 'Unnamed transition'}</span>
       </div>
       
-      <div className="flex items-center gap-2 text-xs text-pdm-fg-muted mb-2">
+      <div className="flex items-center gap-2 text-xs text-plm-fg-muted mb-2">
         <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: fromState?.color + '40' }}>
           {fromState?.name}
         </span>
@@ -2245,14 +2245,14 @@ function SelectedTransitionPanel({
       {/* Gates */}
       {gates.length > 0 && (
         <div className="mb-2">
-          <div className="text-xs text-pdm-fg-muted mb-1">Gates ({gates.length}):</div>
+          <div className="text-xs text-plm-fg-muted mb-1">Gates ({gates.length}):</div>
           {gates.map(gate => (
-            <div key={gate.id} className="flex items-center gap-2 text-xs bg-pdm-bg rounded px-2 py-1 mb-1">
+            <div key={gate.id} className="flex items-center gap-2 text-xs bg-plm-bg rounded px-2 py-1 mb-1">
               {gate.gate_type === 'approval' && <UserCheck size={12} className="text-amber-500" />}
               {gate.gate_type === 'checklist' && <ListChecks size={12} className="text-blue-500" />}
               {gate.gate_type === 'condition' && <Zap size={12} className="text-purple-500" />}
               <span>{gate.name}</span>
-              {gate.is_blocking && <span className="text-pdm-fg-muted">(blocking)</span>}
+              {gate.is_blocking && <span className="text-plm-fg-muted">(blocking)</span>}
             </div>
           ))}
         </div>
@@ -2262,7 +2262,7 @@ function SelectedTransitionPanel({
         <div className="flex gap-2">
           <button
             onClick={onEdit}
-            className="flex items-center gap-1 px-2 py-1 bg-pdm-bg hover:bg-pdm-highlight rounded text-xs"
+            className="flex items-center gap-1 px-2 py-1 bg-plm-bg hover:bg-plm-highlight rounded text-xs"
           >
             <Edit3 size={12} />
             Edit
@@ -2276,7 +2276,7 @@ function SelectedTransitionPanel({
           </button>
           <button
             onClick={onDelete}
-            className="flex items-center gap-1 px-2 py-1 bg-pdm-error/20 hover:bg-pdm-error/30 text-pdm-error rounded text-xs"
+            className="flex items-center gap-1 px-2 py-1 bg-plm-error/20 hover:bg-plm-error/30 text-plm-error rounded text-xs"
           >
             <Trash2 size={12} />
             Delete
@@ -2302,27 +2302,27 @@ function CreateWorkflowDialog({ onClose, onCreate }: CreateWorkflowDialogProps) 
   
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-pdm-sidebar rounded-lg shadow-xl w-96 p-4">
+      <div className="bg-plm-sidebar rounded-lg shadow-xl w-96 p-4">
         <h3 className="font-semibold mb-4">Create Workflow</h3>
         
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Name</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm"
+              className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm"
               autoFocus
             />
           </div>
           
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Description</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm h-20 resize-none"
+              className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm h-20 resize-none"
               placeholder="Optional description..."
             />
           </div>
@@ -2331,13 +2331,13 @@ function CreateWorkflowDialog({ onClose, onCreate }: CreateWorkflowDialogProps) 
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm hover:bg-pdm-bg rounded"
+            className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded"
           >
             Cancel
           </button>
           <button
             onClick={() => onCreate(name, description)}
-            className="px-3 py-1.5 text-sm bg-pdm-accent hover:bg-pdm-accent-hover text-white rounded"
+            className="px-3 py-1.5 text-sm bg-plm-accent hover:bg-plm-accent-hover text-white rounded"
             disabled={!name.trim()}
           >
             Create
@@ -2368,49 +2368,49 @@ function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps) {
   
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-pdm-sidebar rounded-lg shadow-xl w-[480px] max-h-[80vh] overflow-auto p-4">
+      <div className="bg-plm-sidebar rounded-lg shadow-xl w-[480px] max-h-[80vh] overflow-auto p-4">
         <h3 className="font-semibold mb-4">Edit State</h3>
         
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-pdm-fg-muted mb-1">Name</label>
+              <label className="block text-xs text-plm-fg-muted mb-1">Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm"
+                className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs text-pdm-fg-muted mb-1">Label</label>
+              <label className="block text-xs text-plm-fg-muted mb-1">Label</label>
               <input
                 type="text"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm"
+                className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm"
                 placeholder={name}
               />
             </div>
           </div>
           
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Description</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm h-16 resize-none"
+              className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm h-16 resize-none"
             />
           </div>
           
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Color</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Color</label>
             <div className="flex flex-wrap gap-1">
               {STATE_COLORS.map(c => (
                 <button
                   key={c.value}
                   onClick={() => setColor(c.value)}
-                  className={`w-6 h-6 rounded ${color === c.value ? 'ring-2 ring-white ring-offset-1 ring-offset-pdm-sidebar' : ''}`}
+                  className={`w-6 h-6 rounded ${color === c.value ? 'ring-2 ring-white ring-offset-1 ring-offset-plm-sidebar' : ''}`}
                   style={{ backgroundColor: c.value }}
                   title={c.name}
                 />
@@ -2419,14 +2419,14 @@ function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps) {
           </div>
           
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Icon</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Icon</label>
             <div className="flex flex-wrap gap-1">
               {Object.entries(ICON_MAP).slice(0, 16).map(([key, IconComp]) => (
                 <button
                   key={key}
                   onClick={() => setIcon(key)}
                   className={`w-8 h-8 rounded flex items-center justify-center ${
-                    icon === key ? 'bg-pdm-accent text-white' : 'bg-pdm-bg hover:bg-pdm-highlight'
+                    icon === key ? 'bg-plm-accent text-white' : 'bg-plm-bg hover:bg-plm-highlight'
                   }`}
                 >
                   <IconComp size={16} />
@@ -2437,11 +2437,11 @@ function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps) {
           
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-pdm-fg-muted mb-1">State Type</label>
+              <label className="block text-xs text-plm-fg-muted mb-1">State Type</label>
               <select
                 value={stateType}
                 onChange={(e) => setStateType(e.target.value as WorkflowStateType)}
-                className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm"
+                className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm"
               >
                 <option value="initial">Initial</option>
                 <option value="intermediate">Intermediate</option>
@@ -2450,11 +2450,11 @@ function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps) {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-pdm-fg-muted mb-1">Maps to File State</label>
+              <label className="block text-xs text-plm-fg-muted mb-1">Maps to File State</label>
               <select
                 value={mapsTo}
                 onChange={(e) => setMapsTo(e.target.value as FileStateMapping)}
-                className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm"
+                className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm"
               >
                 <option value="not_tracked">Not Tracked</option>
                 <option value="wip">WIP</option>
@@ -2499,7 +2499,7 @@ function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps) {
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm hover:bg-pdm-bg rounded"
+            className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded"
           >
             Cancel
           </button>
@@ -2516,7 +2516,7 @@ function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps) {
               requires_checkout: requiresCheckout,
               auto_increment_revision: autoRev,
             })}
-            className="px-3 py-1.5 text-sm bg-pdm-accent hover:bg-pdm-accent-hover text-white rounded"
+            className="px-3 py-1.5 text-sm bg-plm-accent hover:bg-plm-accent-hover text-white rounded"
             disabled={!name.trim()}
           >
             Save
@@ -2549,39 +2549,39 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
   
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-pdm-sidebar rounded-lg shadow-xl w-96 p-4">
+      <div className="bg-plm-sidebar rounded-lg shadow-xl w-96 p-4">
         <h3 className="font-semibold mb-4">Edit Transition</h3>
         
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Name</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm"
+              className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm"
               placeholder="e.g., Submit for Review"
             />
           </div>
           
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Description</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-pdm-input border border-pdm-border rounded px-2 py-1.5 text-sm h-16 resize-none"
+              className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm h-16 resize-none"
             />
           </div>
           
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Line Style</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Line Style</label>
             <div className="flex gap-2">
               {(['solid', 'dashed', 'dotted'] as TransitionLineStyle[]).map(style => (
                 <button
                   key={style}
                   onClick={() => setLineStyle(style)}
                   className={`px-3 py-1.5 rounded text-sm ${
-                    lineStyle === style ? 'bg-pdm-accent text-white' : 'bg-pdm-bg hover:bg-pdm-highlight'
+                    lineStyle === style ? 'bg-plm-accent text-white' : 'bg-plm-bg hover:bg-plm-highlight'
                   }`}
                 >
                   {style}
@@ -2591,7 +2591,7 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
           </div>
           
           <div>
-            <label className="block text-xs text-pdm-fg-muted mb-1">Allowed Roles</label>
+            <label className="block text-xs text-plm-fg-muted mb-1">Allowed Roles</label>
             <div className="flex gap-2">
               {(['admin', 'engineer', 'viewer'] as UserRole[]).map(role => (
                 <label key={role} className="flex items-center gap-1.5 cursor-pointer">
@@ -2611,7 +2611,7 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm hover:bg-pdm-bg rounded"
+            className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded"
           >
             Cancel
           </button>
@@ -2622,7 +2622,7 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
               line_style: lineStyle,
               allowed_roles: allowedRoles,
             })}
-            className="px-3 py-1.5 text-sm bg-pdm-accent hover:bg-pdm-accent-hover text-white rounded"
+            className="px-3 py-1.5 text-sm bg-plm-accent hover:bg-plm-accent-hover text-white rounded"
           >
             Save
           </button>

@@ -5,12 +5,12 @@
  * Sends commands to the running BluePLM Electron app via HTTP.
  * 
  * Usage:
- *   node bluepdm.js <command>
- *   node bluepdm.js "mkdir test"
- *   node bluepdm.js "cd test && mkdir subfolder"
+ *   node blueplm.js <command>
+ *   node blueplm.js "mkdir test"
+ *   node blueplm.js "cd test && mkdir subfolder"
  * 
  * Interactive mode:
- *   node bluepdm.js
+ *   node blueplm.js
  */
 
 const http = require('http')
@@ -121,7 +121,7 @@ async function interactiveMode() {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: `${colors.blue}bluepdm>${colors.reset} `
+    prompt: `${colors.blue}blueplm>${colors.reset} `
   })
   
   rl.prompt()

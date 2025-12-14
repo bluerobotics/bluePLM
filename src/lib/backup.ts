@@ -47,7 +47,7 @@ export interface BackupSnapshot {
   time: string         // ISO timestamp
   hostname: string     // Machine that created backup
   paths: string[]      // Backed up paths
-  tags: string[]       // Tags (e.g., 'bluepdm')
+  tags: string[]       // Tags (e.g., 'blueplm')
   // Parsed from restic
   tree?: string
   parent?: string
@@ -87,10 +87,10 @@ export async function getMachineId(): Promise<string> {
     if (id) return id
   }
   
-  let machineId = localStorage.getItem('bluepdm_machine_id')
+  let machineId = localStorage.getItem('blueplm_machine_id')
   if (!machineId) {
     machineId = `machine_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
-    localStorage.setItem('bluepdm_machine_id', machineId)
+    localStorage.setItem('blueplm_machine_id', machineId)
   }
   return machineId
 }
@@ -675,7 +675,7 @@ export async function getBackupStatus(orgId: string): Promise<BackupStatus> {
 // ============================================
 
 export interface DatabaseExport {
-  _type: 'bluepdm_database_export'
+  _type: 'blueplm_database_export'
   _version: 3  // Updated to v3 for new schema
   _exportedAt: string
   _orgId: string
@@ -781,7 +781,7 @@ export async function exportDatabaseMetadata(
       .eq('org_id', orgId)
     
     const exportData: DatabaseExport = {
-      _type: 'bluepdm_database_export',
+      _type: 'blueplm_database_export',
       _version: 3,
       _exportedAt: new Date().toISOString(),
       _orgId: orgId,
@@ -815,7 +815,7 @@ export async function importDatabaseMetadata(
   const { overwriteExisting = false, restoreDeleted = true } = options
   
   try {
-    if (exportData._type !== 'bluepdm_database_export') {
+    if (exportData._type !== 'blueplm_database_export') {
       throw new Error('Invalid database export file')
     }
     

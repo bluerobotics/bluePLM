@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * BluePDM API Test Suite
+ * BluePLM API Test Suite
  * 
  * Tests all API endpoints to verify they're working correctly.
  * 
@@ -124,7 +124,7 @@ async function test(
 
 async function runTests() {
   console.log('\n' + '═'.repeat(60))
-  console.log('  BluePDM API Test Suite')
+  console.log('  BluePLM API Test Suite')
   console.log('═'.repeat(60))
   console.log(`  Target: ${API_URL}`)
   console.log('═'.repeat(60) + '\n')

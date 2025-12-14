@@ -144,8 +144,8 @@ export function DevicePresenceIndicator() {
           flex items-center gap-1 px-2 py-1 rounded-md
           transition-colors text-xs
           ${deviceCount > 1 
-            ? 'bg-pdm-accent/20 text-pdm-accent hover:bg-pdm-accent/30' 
-            : 'bg-pdm-bg-lighter text-pdm-fg-muted hover:bg-pdm-bg-light hover:text-pdm-fg'
+            ? 'bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30' 
+            : 'bg-plm-bg-lighter text-plm-fg-muted hover:bg-plm-bg-light hover:text-plm-fg'
           }
         `}
         title={`${deviceCount} device${deviceCount !== 1 ? 's' : ''} online`}
@@ -159,12 +159,12 @@ export function DevicePresenceIndicator() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-72 bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 w-72 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl z-50 overflow-hidden">
           {/* Header */}
-          <div className="px-3 py-2 border-b border-pdm-border bg-pdm-bg">
+          <div className="px-3 py-2 border-b border-plm-border bg-plm-bg">
             <div className="flex items-center gap-2">
-              <Wifi size={14} className="text-pdm-success" />
-              <span className="text-sm font-medium text-pdm-fg">
+              <Wifi size={14} className="text-plm-success" />
+              <span className="text-sm font-medium text-plm-fg">
                 {deviceCount} Device{deviceCount !== 1 ? 's' : ''} Online
               </span>
             </div>
@@ -174,57 +174,57 @@ export function DevicePresenceIndicator() {
           <div className="max-h-64 overflow-y-auto">
             {/* Current device first */}
             {currentDevice && (
-              <div className="px-3 py-2 border-b border-pdm-border bg-pdm-accent/5">
+              <div className="px-3 py-2 border-b border-plm-border bg-plm-accent/5">
                 <div className="flex items-center gap-2">
-                  <div className="text-pdm-accent">
+                  <div className="text-plm-accent">
                     {getPlatformIcon(currentDevice.platform, 16)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-pdm-fg truncate">
+                      <span className="text-sm font-medium text-plm-fg truncate">
                         {currentDevice.machine_name}
                       </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-pdm-accent/20 text-pdm-accent font-medium">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-accent/20 text-plm-accent font-medium">
                         This device
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-pdm-fg-muted">
+                    <div className="flex items-center gap-2 text-xs text-plm-fg-muted">
                       <span>{currentDevice.platform}</span>
                       <span>•</span>
                       <span>v{currentDevice.app_version}</span>
                     </div>
                   </div>
-                  <div className="w-2 h-2 rounded-full bg-pdm-success animate-pulse" title="Active" />
+                  <div className="w-2 h-2 rounded-full bg-plm-success animate-pulse" title="Active" />
                 </div>
               </div>
             )}
 
             {/* Other devices */}
             {otherDevices.map((session) => (
-              <div key={session.id} className="px-3 py-2 border-b border-pdm-border last:border-b-0 hover:bg-pdm-bg-lighter transition-colors">
+              <div key={session.id} className="px-3 py-2 border-b border-plm-border last:border-b-0 hover:bg-plm-bg-lighter transition-colors">
                 <div className="flex items-center gap-2">
-                  <div className="text-pdm-fg-muted">
+                  <div className="text-plm-fg-muted">
                     {getPlatformIcon(session.platform, 16)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-pdm-fg truncate">
+                    <div className="text-sm font-medium text-plm-fg truncate">
                       {session.machine_name}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-pdm-fg-muted">
+                    <div className="flex items-center gap-2 text-xs text-plm-fg-muted">
                       <Clock size={10} />
                       <span>{formatLastSeen(session.last_seen)}</span>
                       <span>•</span>
                       <span>{session.platform}</span>
                     </div>
                   </div>
-                  <div className="w-2 h-2 rounded-full bg-pdm-success" title="Online" />
+                  <div className="w-2 h-2 rounded-full bg-plm-success" title="Online" />
                 </div>
               </div>
             ))}
 
             {/* Empty state */}
             {sessions.length === 0 && (
-              <div className="px-3 py-4 text-center text-sm text-pdm-fg-muted">
+              <div className="px-3 py-4 text-center text-sm text-plm-fg-muted">
                 <WifiOff size={20} className="mx-auto mb-2 opacity-50" />
                 No active sessions
               </div>
@@ -232,8 +232,8 @@ export function DevicePresenceIndicator() {
           </div>
 
           {/* Footer */}
-          <div className="px-3 py-2 bg-pdm-bg border-t border-pdm-border">
-            <p className="text-xs text-pdm-fg-muted text-center">
+          <div className="px-3 py-2 bg-plm-bg border-t border-plm-border">
+            <p className="text-xs text-plm-fg-muted text-center">
               Devices are shown if active in the last 2 minutes
             </p>
           </div>

@@ -1,4 +1,4 @@
--- BluePDM Supplier Authentication Migration
+-- BluePLM Supplier Authentication Migration
 -- Adds supplier portal access for external vendors
 -- Run this in your Supabase SQL editor AFTER the suppliers_migration.sql
 

@@ -1,4 +1,4 @@
-// Workflow Types for BluePDM
+// Workflow Types for BluePLM
 // Visual workflow builder for managing file states, gates, and reviews
 
 // ===========================================

@@ -31,13 +31,14 @@ export type SidebarView =
   | 'gsd'        // ECO summary (Getting Stuff Done)
   | 'suppliers'  // Supplier database
   | 'supplier-portal'  // Supplier portal
+  | 'google-drive'  // Google Drive integration
   // System
   | 'settings'
 export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history'
 export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress' | 'update'
 export type ThemeMode = 'dark' | 'deep-blue' | 'light' | 'system'
-export type Language = 'en' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ja' | 'zh-CN' | 'zh-TW' | 'ko' | 'nl' | 'sv' | 'pl' | 'ru'
+export type Language = 'en' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ja' | 'zh-CN' | 'zh-TW' | 'ko' | 'nl' | 'sv' | 'pl' | 'ru' | 'sindarin'
 export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud' | 'cloud_new' | 'moved' | 'ignored' | 'deleted_remote'
 
 // Connected vault - an org vault that's connected locally
@@ -239,6 +240,7 @@ interface PDMState {
   // SolidWorks settings
   solidworksPath: string | null  // Custom SolidWorks installation path (null = default)
   solidworksDmLicenseKey: string | null  // Document Manager API license key for fast mode
+  autoStartSolidworksService: boolean  // Auto-start SolidWorks service on app bootup
   
   // Display settings
   lowercaseExtensions: boolean  // Display file extensions in lowercase
@@ -324,6 +326,7 @@ interface PDMState {
   // Actions - SolidWorks settings
   setSolidworksPath: (path: string | null) => void
   setSolidworksDmLicenseKey: (key: string | null) => void
+  setAutoStartSolidworksService: (enabled: boolean) => void
   
   // Actions - Display settings
   setLowercaseExtensions: (enabled: boolean) => void
@@ -583,6 +586,7 @@ export const usePDMStore = create<PDMState>()(
       cadPreviewMode: 'thumbnail',
       solidworksPath: null,  // null = use default installation path
       solidworksDmLicenseKey: null,  // null = fast mode disabled
+      autoStartSolidworksService: false,  // Don't auto-start by default
       lowercaseExtensions: true,
       viewMode: 'list',
       iconSize: 96,  // Default icon size (medium)
@@ -692,6 +696,7 @@ export const usePDMStore = create<PDMState>()(
       setCadPreviewMode: (cadPreviewMode) => set({ cadPreviewMode }),
       setSolidworksPath: (solidworksPath) => set({ solidworksPath }),
       setSolidworksDmLicenseKey: (solidworksDmLicenseKey) => set({ solidworksDmLicenseKey }),
+      setAutoStartSolidworksService: (autoStartSolidworksService) => set({ autoStartSolidworksService }),
       setLowercaseExtensions: (lowercaseExtensions) => set({ lowercaseExtensions }),
       setViewMode: (viewMode) => set({ viewMode }),
       setIconSize: (iconSize) => set({ iconSize: Math.max(48, Math.min(256, iconSize)) }),
@@ -1540,7 +1545,7 @@ export const usePDMStore = create<PDMState>()(
       }
     }),
     {
-      name: 'blue-pdm-storage',
+      name: 'blue-plm-storage',
       partialize: (state) => ({
         vaultPath: state.vaultPath,
         vaultName: state.vaultName,
@@ -1551,6 +1556,7 @@ export const usePDMStore = create<PDMState>()(
         cadPreviewMode: state.cadPreviewMode,
         solidworksPath: state.solidworksPath,
         solidworksDmLicenseKey: state.solidworksDmLicenseKey,
+        autoStartSolidworksService: state.autoStartSolidworksService,
         lowercaseExtensions: state.lowercaseExtensions,
         viewMode: state.viewMode,
         iconSize: state.iconSize,
@@ -1626,6 +1632,7 @@ export const usePDMStore = create<PDMState>()(
           // Restore SolidWorks settings
           solidworksPath: (persisted.solidworksPath as string | null) || null,
           solidworksDmLicenseKey: (persisted.solidworksDmLicenseKey as string | null) || null,
+          autoStartSolidworksService: (persisted.autoStartSolidworksService as boolean) || false,
           // Ensure lowercaseExtensions has a default (true)
           lowercaseExtensions: persisted.lowercaseExtensions !== undefined ? persisted.lowercaseExtensions as boolean : true,
           // Ensure viewMode has a default

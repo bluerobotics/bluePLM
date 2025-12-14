@@ -206,7 +206,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
     if (file.diffStatus === 'moved') return 'ring-1 ring-blue-500/50 bg-blue-500/5'
     if (file.diffStatus === 'deleted') return 'ring-1 ring-red-500/50 bg-red-500/5'
     if (file.diffStatus === 'outdated') return 'ring-1 ring-purple-500/50 bg-purple-500/5'
-    if (file.diffStatus === 'cloud') return 'ring-1 ring-pdm-fg-muted/30 bg-pdm-fg-muted/5'
+    if (file.diffStatus === 'cloud') return 'ring-1 ring-plm-fg-muted/30 bg-plm-fg-muted/5'
     if (file.diffStatus === 'cloud_new') return 'ring-1 ring-green-500/50 bg-green-500/10'  // Green for new files from server
     return ''
   }
@@ -326,7 +326,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
     if (!file.isDirectory) return ''
     
     // Cloud-only folders (exist on server but not locally) - grey and faded
-    if (file.diffStatus === 'cloud') return 'text-pdm-fg-muted opacity-50'
+    if (file.diffStatus === 'cloud') return 'text-plm-fg-muted opacity-50'
     
     // Check folder contents
     const folderPath = file.relativePath.replace(/\\/g, '/')
@@ -344,17 +344,17 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
     const checkedOutByOthers = folderFiles.some(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id)
     
     // Red for folders with files checked out by others
-    if (checkedOutByOthers) return 'text-pdm-error'
+    if (checkedOutByOthers) return 'text-plm-error'
     
     // Orange for folders with only my checkouts
-    if (checkedOutByMe) return 'text-pdm-warning'
+    if (checkedOutByMe) return 'text-plm-warning'
     
     // Check if all files are truly synced (not just content-matched)
-    if (folderFiles.length === 0) return 'text-pdm-fg-muted' // Empty folder
+    if (folderFiles.length === 0) return 'text-plm-fg-muted' // Empty folder
     const hasUnsyncedFiles = folderFiles.some(f => !f.pdmData || f.diffStatus === 'added')
     
     // Grey for folders with any unsynced files, green only if ALL are synced
-    return hasUnsyncedFiles ? 'text-pdm-fg-muted' : 'text-pdm-success'
+    return hasUnsyncedFiles ? 'text-plm-fg-muted' : 'text-plm-success'
   }
   
   const cloudFilesCount = getCloudFilesCount()
@@ -367,7 +367,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
   const getIcon = () => {
     if (file.isDirectory) {
       const folderColor = getFolderIconColor()
-      return <FolderOpen size={iconSizeScaled} className={folderColor || 'text-pdm-accent'} />
+      return <FolderOpen size={iconSizeScaled} className={folderColor || 'text-plm-accent'} />
     }
     
     // If we have a thumbnail and it hasn't errored, show it
@@ -388,13 +388,13 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
     
     // Show loading state
     if (loadingThumbnail) {
-      return <Loader2 size={iconSize * 0.4} className="text-pdm-fg-muted animate-spin" />
+      return <Loader2 size={iconSize * 0.4} className="text-plm-fg-muted animate-spin" />
     }
     
     // Default icons based on type (matches getFileIcon in table view)
     switch (iconType) {
       case 'part':
-        return <FileBox size={iconSizeScaled} className="text-pdm-accent" />
+        return <FileBox size={iconSizeScaled} className="text-plm-accent" />
       case 'assembly':
         return <Layers size={iconSizeScaled} className="text-amber-400" />
       case 'drawing':
@@ -418,9 +418,9 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
       case 'code':
         return <FileCode size={iconSizeScaled} className="text-sky-400" />
       case 'text':
-        return <FileText size={iconSizeScaled} className="text-pdm-fg-muted" />
+        return <FileText size={iconSizeScaled} className="text-plm-fg-muted" />
       default:
-        return <File size={iconSizeScaled} className="text-pdm-fg-muted" />
+        return <File size={iconSizeScaled} className="text-plm-fg-muted" />
     }
   }
   
@@ -430,8 +430,8 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
         relative flex flex-col items-center p-2 rounded-lg cursor-pointer group/card
         transition-colors duration-100
         ${isSelected 
-          ? 'bg-pdm-accent/20 ring-2 ring-pdm-accent' 
-          : `hover:bg-pdm-bg-lighter ${getDiffClass()}`
+          ? 'bg-plm-accent/20 ring-2 ring-plm-accent' 
+          : `hover:bg-plm-bg-lighter ${getDiffClass()}`
         }
       `}
       onClick={onClick}
@@ -472,7 +472,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                         <img 
                           src={u.avatar_url} 
                           alt={u.name}
-                          className={`rounded-full ring-2 ${u.isMe ? (u.isDifferentMachine ? 'ring-pdm-warning' : 'ring-pdm-accent') : 'ring-pdm-bg-light'} bg-pdm-bg object-cover`}
+                          className={`rounded-full ring-2 ${u.isMe ? (u.isDifferentMachine ? 'ring-plm-warning' : 'ring-plm-accent') : 'ring-plm-bg-light'} bg-plm-bg object-cover`}
                           style={{ width: avatarSize, height: avatarSize }}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement
@@ -482,7 +482,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                         />
                       ) : null}
                       <div 
-                        className={`rounded-full ring-2 ${u.isMe ? (u.isDifferentMachine ? 'ring-pdm-warning bg-pdm-warning/30 text-pdm-warning' : 'ring-pdm-accent bg-pdm-accent/30 text-pdm-accent') : 'ring-pdm-bg-light bg-pdm-fg-muted/30 text-pdm-fg'} flex items-center justify-center font-medium ${u.avatar_url ? 'hidden' : ''}`}
+                        className={`rounded-full ring-2 ${u.isMe ? (u.isDifferentMachine ? 'ring-plm-warning bg-plm-warning/30 text-plm-warning' : 'ring-plm-accent bg-plm-accent/30 text-plm-accent') : 'ring-plm-bg-light bg-plm-fg-muted/30 text-plm-fg'} flex items-center justify-center font-medium ${u.avatar_url ? 'hidden' : ''}`}
                         style={{ width: avatarSize, height: avatarSize, fontSize: avatarFontSize }}
                       >
                         {getInitials(u.name)}
@@ -490,13 +490,13 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                       {/* Indicator for different machine */}
                       {u.isDifferentMachine && (
                         <div 
-                          className="absolute -bottom-0.5 -right-0.5 bg-pdm-warning rounded-full p-0.5"
+                          className="absolute -bottom-0.5 -right-0.5 bg-plm-warning rounded-full p-0.5"
                           style={{ width: avatarSize * 0.4, height: avatarSize * 0.4 }}
                           title={`Checked out on ${u.machineName || 'another computer'}`}
                         >
                           <Monitor 
                             size={avatarSize * 0.3} 
-                            className="text-pdm-bg w-full h-full" 
+                            className="text-plm-bg w-full h-full" 
                           />
                         </div>
                       )}
@@ -504,7 +504,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   ))}
                   {checkoutUsers.length > 3 && (
                     <div 
-                      className="rounded-full ring-2 ring-pdm-fg-muted bg-pdm-bg flex items-center justify-center text-pdm-fg-muted font-medium"
+                      className="rounded-full ring-2 ring-plm-fg-muted bg-plm-bg flex items-center justify-center text-plm-fg-muted font-medium"
                       style={{ 
                         width: avatarSize, 
                         height: avatarSize, 
@@ -537,7 +537,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                     {/* Existing cloud files count for folders (not recently added) */}
                     {cloudFilesCount > cloudNewFilesCount && (
                       <span 
-                        className="flex items-center text-pdm-info" 
+                        className="flex items-center text-plm-info" 
                         style={{ gap: spacing * 0.5, fontSize: Math.max(10, statusIconSize * 0.8) }}
                         title={`${cloudFilesCount - cloudNewFilesCount} cloud file${cloudFilesCount - cloudNewFilesCount > 1 ? 's' : ''} to download`}
                       >
@@ -548,7 +548,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                     {/* Local-only files count for folders - next to check-in */}
                     {localOnlyFilesCount > 0 && (
                       <span 
-                        className="flex items-center text-pdm-fg-muted" 
+                        className="flex items-center text-plm-fg-muted" 
                         style={{ gap: spacing * 0.5, fontSize: Math.max(10, statusIconSize * 0.8) }}
                         title={`${localOnlyFilesCount} local files not yet synced`}
                       >
@@ -560,16 +560,16 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                 ) : checkoutUsers.length === 0 && (
                   <>
                     {file.diffStatus === 'cloud' && (
-                      <span title="Cloud only"><Cloud size={statusIconSize} className="text-pdm-info" /></span>
+                      <span title="Cloud only"><Cloud size={statusIconSize} className="text-plm-info" /></span>
                     )}
                     {file.diffStatus === 'cloud_new' && (
                       <span title="New file added by another user"><Plus size={statusIconSize} className="text-green-400" /></span>
                     )}
                     {(file.diffStatus === 'added' || file.diffStatus === 'ignored') && (
-                      <span title="Local only"><HardDrive size={statusIconSize} className="text-pdm-fg-muted" /></span>
+                      <span title="Local only"><HardDrive size={statusIconSize} className="text-plm-fg-muted" /></span>
                     )}
                     {file.diffStatus === 'deleted_remote' && (
-                      <span title="Deleted from server - your local copy is orphaned"><Trash2 size={statusIconSize} className="text-pdm-error" /></span>
+                      <span title="Deleted from server - your local copy is orphaned"><Trash2 size={statusIconSize} className="text-plm-error" /></span>
                     )}
                     {file.diffStatus === 'modified' && (
                       <span title="Modified"><ArrowUp size={statusIconSize} className="text-yellow-400" /></span>
@@ -578,7 +578,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                       <span title="Outdated"><AlertTriangle size={statusIconSize} className="text-purple-400" /></span>
                     )}
                     {file.pdmData && !file.diffStatus && (
-                      <span title="Synced"><Cloud size={statusIconSize} className="text-pdm-success" /></span>
+                      <span title="Synced"><Cloud size={statusIconSize} className="text-plm-success" /></span>
                     )}
                   </>
                 )}
@@ -613,10 +613,10 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                 return (
                   <div className="absolute top-1 left-1 flex items-center z-10">
                     <div
-                      className="rounded-full bg-pdm-accent/30 flex items-center justify-center"
+                      className="rounded-full bg-plm-accent/30 flex items-center justify-center"
                       style={{ width: buttonSize, height: buttonSize }}
                     >
-                      <Loader2 size={buttonIconSize} className="text-pdm-accent animate-spin" />
+                      <Loader2 size={buttonIconSize} className="text-plm-accent animate-spin" />
                     </div>
                   </div>
                 )
@@ -628,7 +628,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   {/* Show for: cloud-only files (including cloud_new), folders with cloud files, OR empty cloud-only folders */}
                   {(((file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && !file.isDirectory) || (file.isDirectory && (cloudFilesCount > 0 || file.diffStatus === 'cloud'))) && onDownload && (
                     <button
-                      className="p-0.5 rounded hover:bg-pdm-info/20 text-pdm-info transition-colors cursor-pointer"
+                      className="p-0.5 rounded hover:bg-plm-info/20 text-plm-info transition-colors cursor-pointer"
                       onClick={(e) => onDownload(e, file)}
                       title={file.isDirectory ? (cloudFilesCount > 0 ? `Download ${cloudFilesCount} files` : 'Create folder locally') : 'Download'}
                     >
@@ -639,7 +639,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   {/* FILE: Checked out by me - green up arrow to check in */}
                   {!file.isDirectory && file.pdmData?.checked_out_by === user?.id && onCheckin && (
                     <button
-                      className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success transition-colors cursor-pointer"
+                      className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success transition-colors cursor-pointer"
                       title="Click to check in"
                       onClick={(e) => onCheckin(e, file)}
                     >
@@ -650,7 +650,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   {/* FOLDER: Has files checked out by me - green up arrow to check in all */}
                   {file.isDirectory && folderInfo && folderInfo.checkedOutByMe > 0 && onCheckin && (
                     <button
-                      className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success transition-colors cursor-pointer"
+                      className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success transition-colors cursor-pointer"
                       title={`Click to check in ${folderInfo.checkedOutByMe} file${folderInfo.checkedOutByMe > 1 ? 's' : ''}`}
                       onClick={(e) => onCheckin(e, file)}
                     >
@@ -661,7 +661,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   {/* FILE: Checked out by others - red down arrow (not clickable) */}
                   {!file.isDirectory && file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id && (
                     <div
-                      className="p-0.5 text-pdm-error cursor-not-allowed"
+                      className="p-0.5 text-plm-error cursor-not-allowed"
                       title="Checked out by someone else"
                     >
                       <ArrowDown size={buttonIconSize} />
@@ -673,7 +673,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   {/* FILE: Synced not checked out - orange down arrow to checkout */}
                   {!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && onCheckout && (
                     <button
-                      className="p-0.5 rounded hover:bg-pdm-warning/20 text-pdm-warning transition-colors cursor-pointer"
+                      className="p-0.5 rounded hover:bg-plm-warning/20 text-plm-warning transition-colors cursor-pointer"
                       title="Click to check out"
                       onClick={(e) => onCheckout(e, file)}
                     >
@@ -684,7 +684,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   {/* FOLDER: Has synced files ready to checkout - orange down arrow to checkout all */}
                   {file.isDirectory && folderInfo && folderInfo.syncedNotCheckedOut > 0 && folderInfo.checkedOutByMe === 0 && folderInfo.checkedOutByOthers === 0 && onCheckout && (
                     <button
-                      className="p-0.5 rounded hover:bg-pdm-warning/20 text-pdm-warning transition-colors cursor-pointer"
+                      className="p-0.5 rounded hover:bg-plm-warning/20 text-plm-warning transition-colors cursor-pointer"
                       title={`Click to check out ${folderInfo.syncedNotCheckedOut} file${folderInfo.syncedNotCheckedOut > 1 ? 's' : ''}`}
                       onClick={(e) => onCheckout(e, file)}
                     >
@@ -695,7 +695,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   {/* FILE: Local only - green up arrow for first check in */}
                   {!file.isDirectory && (!file.pdmData || file.diffStatus === 'added' || file.diffStatus === 'deleted_remote') && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && onUpload && (
                     <button
-                      className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success transition-colors cursor-pointer"
+                      className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success transition-colors cursor-pointer"
                       title="First Check In"
                       onClick={(e) => onUpload(e, file)}
                     >
@@ -706,7 +706,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
                   {/* FOLDER: Has local only files - green up arrow for first check in all */}
                   {file.isDirectory && folderInfo && folderInfo.localOnly > 0 && folderInfo.syncedNotCheckedOut === 0 && folderInfo.checkedOutByMe === 0 && folderInfo.checkedOutByOthers === 0 && cloudFilesCount === 0 && onUpload && (
                     <button
-                      className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success transition-colors cursor-pointer"
+                      className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success transition-colors cursor-pointer"
                       title={`First Check In ${folderInfo.localOnly} file${folderInfo.localOnly > 1 ? 's' : ''}`}
                       onClick={(e) => onUpload(e, file)}
                     >
@@ -734,13 +734,13 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
         style={{ fontSize: Math.max(10, Math.min(12, iconSize / 8)) }}
       >
         <div 
-          className={`truncate ${file.diffStatus === 'cloud' ? 'italic text-pdm-fg-muted' : 'text-pdm-fg'}`} 
+          className={`truncate ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : 'text-plm-fg'}`} 
           title={file.name}
         >
           {file.name}
         </div>
         {!file.isDirectory && displayExt && iconSize >= 80 && (
-          <div className="text-pdm-fg-muted text-xs truncate">
+          <div className="text-plm-fg-muted text-xs truncate">
             {displayExt.replace('.', '')}
           </div>
         )}
@@ -750,7 +750,7 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
       {file.pdmData?.state && iconSize >= 80 && (
         <div className="relative mt-1" ref={stateDropdownRef}>
           <div 
-            className={`state-badge ${file.pdmData.state.replace('_', '-')} ${file.pdmData?.id ? 'cursor-pointer hover:ring-1 hover:ring-pdm-accent' : ''}`}
+            className={`state-badge ${file.pdmData.state.replace('_', '-')} ${file.pdmData?.id ? 'cursor-pointer hover:ring-1 hover:ring-plm-accent' : ''}`}
             style={{ fontSize: Math.max(8, Math.min(10, iconSize / 10)) }}
             onClick={(e) => {
               if (file.pdmData?.id && onStateChange) {
@@ -772,14 +772,14 @@ function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, c
           {/* State dropdown */}
           {showStateDropdown && file.pdmData?.id && onStateChange && (
             <div 
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-pdm-bg border border-pdm-border rounded shadow-lg py-1 min-w-[120px]"
+              className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-plm-bg border border-plm-border rounded shadow-lg py-1 min-w-[120px]"
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
               {(['not_tracked', 'wip', 'in_review', 'released', 'obsolete'] as const).map((stateOption) => (
                 <div
                   key={stateOption}
-                  className={`px-3 py-1 text-xs cursor-pointer hover:bg-pdm-bg-light flex items-center gap-2 ${file.pdmData?.state === stateOption ? 'bg-pdm-accent/20' : ''}`}
+                  className={`px-3 py-1 text-xs cursor-pointer hover:bg-plm-bg-light flex items-center gap-2 ${file.pdmData?.state === stateOption ? 'bg-plm-accent/20' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     onStateChange(file, stateOption)
@@ -870,17 +870,17 @@ function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderS
   if (file.isDirectory) {
     // Cloud-only folders
     if (file.diffStatus === 'cloud') {
-      return <FolderOpen size={size} className="text-pdm-fg-muted opacity-50 flex-shrink-0" />
+      return <FolderOpen size={size} className="text-plm-fg-muted opacity-50 flex-shrink-0" />
     }
     // Folder checkout status colors
     if (folderCheckoutStatus === 'others' || folderCheckoutStatus === 'both') {
-      return <FolderOpen size={size} className="text-pdm-error flex-shrink-0" />
+      return <FolderOpen size={size} className="text-plm-error flex-shrink-0" />
     }
     if (folderCheckoutStatus === 'mine') {
-      return <FolderOpen size={size} className="text-pdm-warning flex-shrink-0" />
+      return <FolderOpen size={size} className="text-plm-warning flex-shrink-0" />
     }
     // Synced status
-    return <FolderOpen size={size} className={`${isFolderSynced ? 'text-pdm-success' : 'text-pdm-fg-muted'} flex-shrink-0`} />
+    return <FolderOpen size={size} className={`${isFolderSynced ? 'text-plm-success' : 'text-plm-fg-muted'} flex-shrink-0`} />
   }
   
   // For files, show thumbnail if available
@@ -900,7 +900,7 @@ function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderS
   const iconType = getFileIconType(file.extension)
   switch (iconType) {
     case 'part':
-      return <FileBox size={size} className="text-pdm-accent flex-shrink-0" />
+      return <FileBox size={size} className="text-plm-accent flex-shrink-0" />
     case 'assembly':
       return <Layers size={size} className="text-amber-400 flex-shrink-0" />
     case 'drawing':
@@ -924,9 +924,9 @@ function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderS
     case 'code':
       return <FileCode size={size} className="text-sky-400 flex-shrink-0" />
     case 'text':
-      return <FileText size={size} className="text-pdm-fg-muted flex-shrink-0" />
+      return <FileText size={size} className="text-plm-fg-muted flex-shrink-0" />
     default:
-      return <File size={size} className="text-pdm-fg-muted flex-shrink-0" />
+      return <File size={size} className="text-plm-fg-muted flex-shrink-0" />
   }
 }
 
@@ -2415,7 +2415,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     // Set up HTML5 drag data
     e.dataTransfer.effectAllowed = 'copyMove'
     e.dataTransfer.setData('text/plain', filePaths.join('\n'))
-    e.dataTransfer.setData('application/x-pdm-files', JSON.stringify(filesToDrag.map(f => f.relativePath)))
+    e.dataTransfer.setData('application/x-plm-files', JSON.stringify(filesToDrag.map(f => f.relativePath)))
     
     // Use DownloadURL format for single file (non-folder) - this enables actual file copy to external apps
     if (filesToDrag.length === 1 && !filesToDrag[0].isDirectory) {
@@ -2491,7 +2491,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     e.stopPropagation()
     
     // Accept if we have local dragged files OR cross-view drag from Explorer OR external files
-    const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+    const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
     const hasExternalFiles = e.dataTransfer.types.includes('Files') && !hasPdmFiles
     
     if (draggedFiles.length === 0 && !hasPdmFiles && !hasExternalFiles) return
@@ -2557,7 +2557,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     }
     
     // Check for external files first (from outside the app)
-    const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+    const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
     const droppedExternalFiles = Array.from(e.dataTransfer.files)
     
     if (droppedExternalFiles.length > 0 && !hasPdmFiles) {
@@ -2635,7 +2635,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       setDraggedFiles([])
     } else {
       // Try to get from data transfer (drag from Explorer View)
-      const pdmFilesData = e.dataTransfer.getData('application/x-pdm-files')
+      const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
       if (pdmFilesData) {
         try {
           const relativePaths: string[] = JSON.parse(pdmFilesData)
@@ -3020,7 +3020,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     e.stopPropagation()
     
     // Check for external files (from outside the app)
-    if (e.dataTransfer.types.includes('Files') && !e.dataTransfer.types.includes('application/x-pdm-files')) {
+    if (e.dataTransfer.types.includes('Files') && !e.dataTransfer.types.includes('application/x-plm-files')) {
       setIsDraggingOver(true)
       setIsExternalDrag(true)
       e.dataTransfer.dropEffect = 'copy'
@@ -3028,7 +3028,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     }
     
     // Check for cross-view drag from Explorer (internal move)
-    if (e.dataTransfer.types.includes('application/x-pdm-files')) {
+    if (e.dataTransfer.types.includes('application/x-plm-files')) {
       // Don't show big overlay for internal moves - folder row highlighting is sufficient
       // Only set isDraggingOver if we're not over a specific folder (to enable drop on current folder)
       if (!dragOverFolder) {
@@ -3062,7 +3062,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     }
 
     // First check for cross-view drag from Explorer (move files to current folder)
-    const pdmFilesData = e.dataTransfer.getData('application/x-pdm-files')
+    const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
     if (pdmFilesData) {
       try {
         const relativePaths: string[] = JSON.parse(pdmFilesData)
@@ -3275,7 +3275,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 }}
                 onBlur={handleRename}
                 onClick={(e) => e.stopPropagation()}
-                className="flex-1 bg-pdm-bg border border-pdm-accent rounded px-2 py-0.5 text-sm text-pdm-fg focus:outline-none focus:ring-1 focus:ring-pdm-accent"
+                className="flex-1 bg-plm-bg border border-plm-accent rounded px-2 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
               />
             </div>
           )
@@ -3402,7 +3402,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               folderCheckoutStatus={file.isDirectory ? getFolderCheckoutStatus(file.relativePath) : undefined}
               isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
             />
-            <span className={`truncate flex-1 ${file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new' ? 'italic text-pdm-fg-muted' : ''} ${file.diffStatus === 'cloud_new' ? 'text-green-400' : ''}`}>{displayFilename}</span>
+            <span className={`truncate flex-1 ${file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new' ? 'italic text-plm-fg-muted' : ''} ${file.diffStatus === 'cloud_new' ? 'text-green-400' : ''}`}>{displayFilename}</span>
             
             {/* NEW cloud files count for folders - green positive indicator */}
             {file.isDirectory && cloudNewFilesCount > 0 && (
@@ -3415,7 +3415,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             {/* Existing cloud files count for folders - files already on server that you haven't downloaded */}
             {/* Also show download button for empty cloud-only folders */}
             {file.isDirectory && ((cloudFilesCount - cloudNewFilesCount > 0) || (file.diffStatus === 'cloud' && cloudFilesCount === 0)) && (
-              <span className="flex items-center gap-0.5 text-xs text-pdm-info flex-shrink-0" title={cloudFilesCount - cloudNewFilesCount > 0 ? `${cloudFilesCount - cloudNewFilesCount} cloud file${cloudFilesCount - cloudNewFilesCount > 1 ? 's' : ''} to download` : 'Create folder locally'}>
+              <span className="flex items-center gap-0.5 text-xs text-plm-info flex-shrink-0" title={cloudFilesCount - cloudNewFilesCount > 0 ? `${cloudFilesCount - cloudNewFilesCount} cloud file${cloudFilesCount - cloudNewFilesCount > 1 ? 's' : ''} to download` : 'Create folder locally'}>
                 {cloudFilesCount - cloudNewFilesCount > 0 && (
                   <>
                     <Cloud size={10} />
@@ -3438,7 +3438,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             
             {/* Local-only files count for folders - next to check-in button */}
             {file.isDirectory && localOnlyFilesCount > 0 && (
-              <span className="flex items-center gap-0.5 text-xs text-pdm-fg-muted flex-shrink-0" title={`${localOnlyFilesCount} local files not yet synced`}>
+              <span className="flex items-center gap-0.5 text-xs text-plm-fg-muted flex-shrink-0" title={`${localOnlyFilesCount} local files not yet synced`}>
                 <HardDrive size={10} />
                 <span>{localOnlyFilesCount}</span>
               </span>
@@ -3456,7 +3456,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                           <img 
                             src={u.avatar_url} 
                             alt={u.name}
-                            className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-pdm-accent' : 'ring-pdm-bg-light'} bg-pdm-bg object-cover`}
+                            className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-plm-accent' : 'ring-plm-bg-light'} bg-plm-bg object-cover`}
                             onError={(e) => {
                               // On error, replace with initial fallback
                               const target = e.target as HTMLImageElement
@@ -3466,7 +3466,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                           />
                         ) : null}
                         <div 
-                          className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-pdm-accent bg-pdm-accent/30 text-pdm-accent' : 'ring-pdm-bg-light bg-pdm-fg-muted/30 text-pdm-fg'} flex items-center justify-center text-[9px] font-medium ${u.avatar_url ? 'hidden' : ''}`}
+                          className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-plm-accent bg-plm-accent/30 text-plm-accent' : 'ring-plm-bg-light bg-plm-fg-muted/30 text-plm-fg'} flex items-center justify-center text-[9px] font-medium ${u.avatar_url ? 'hidden' : ''}`}
                         >
                           {getInitials(u.name)}
                         </div>
@@ -3474,7 +3474,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     ))}
                     {extraUsers > 0 && (
                       <div 
-                        className="w-5 h-5 rounded-full ring-1 ring-pdm-fg-muted bg-pdm-bg flex items-center justify-center text-[9px] font-medium text-pdm-fg-muted"
+                        className="w-5 h-5 rounded-full ring-1 ring-plm-fg-muted bg-plm-bg flex items-center justify-center text-[9px] font-medium text-plm-fg-muted"
                         style={{ zIndex: 0 }}
                       >
                         +{extraUsers}
@@ -3502,7 +3502,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     const allSyncedHere = hasAnyFiles && folderFiles.every(f => !!f.pdmData && f.diffStatus !== 'added')
                     
                     if (allSyncedHere) {
-                      return <span title="Synced with cloud"><Cloud size={12} className="text-pdm-success flex-shrink-0" /></span>
+                      return <span title="Synced with cloud"><Cloud size={12} className="text-plm-success flex-shrink-0" /></span>
                     }
                   }
                   // Don't show HardDrive here - we already show localOnlyFilesCount badge above
@@ -3511,18 +3511,18 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 
                 // For files
                 if (file.diffStatus === 'cloud') {
-                  return <span title="Cloud only - not downloaded"><Cloud size={12} className="text-pdm-fg-muted flex-shrink-0" /></span>
+                  return <span title="Cloud only - not downloaded"><Cloud size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
                 }
                 if (file.diffStatus === 'cloud_new') {
                   return <span title="New file added by another user - download to sync"><Plus size={12} className="text-green-400 flex-shrink-0" /></span>
                 }
                 if (isSynced) {
-                  return <span title="Synced with cloud"><Cloud size={12} className="text-pdm-success flex-shrink-0" /></span>
+                  return <span title="Synced with cloud"><Cloud size={12} className="text-plm-success flex-shrink-0" /></span>
                 }
                 if (file.diffStatus === 'ignored') {
-                  return <span title="Local only (ignored from sync)"><HardDrive size={12} className="text-pdm-fg-muted flex-shrink-0" /></span>
+                  return <span title="Local only (ignored from sync)"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
                 }
-                return <span title="Local only - not synced"><HardDrive size={12} className="text-pdm-fg-muted flex-shrink-0" /></span>
+                return <span title="Local only - not synced"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
               }
               
               return null
@@ -3545,7 +3545,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 {/* First Check In - for local only files/folders */}
                 {((!file.isDirectory && (!file.pdmData || file.diffStatus === 'added' || file.diffStatus === 'deleted_remote') && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored') || hasUnsyncedFiles) && (
                   <button
-                    className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success"
+                    className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success"
                     onClick={(e) => handleInlineUpload(e, file)}
                     title="First Check In"
                   >
@@ -3555,7 +3555,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 {/* Check Out - for synced files/folders not checked out */}
                 {((!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new') || hasCheckoutableFiles) && (
                   <button
-                    className="p-0.5 rounded hover:bg-pdm-warning/20 text-pdm-warning"
+                    className="p-0.5 rounded hover:bg-plm-warning/20 text-plm-warning"
                     onClick={(e) => handleInlineCheckout(e, file)}
                     title="Check Out"
                   >
@@ -3565,7 +3565,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 {/* Check In - for files/folders checked out by me */}
                 {((!file.isDirectory && file.pdmData?.checked_out_by === user?.id) || hasMyCheckedOutFiles) && (
                   <button
-                    className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success"
+                    className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success"
                     onClick={(e) => handleInlineCheckin(e, file)}
                     title="Check In"
                   >
@@ -3615,7 +3615,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               }}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className="bg-pdm-bg border border-pdm-accent rounded px-1 py-0 text-sm text-pdm-fg focus:outline-none focus:ring-1 focus:ring-pdm-accent"
+              className="bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
             >
               <option value="not_tracked">Not Tracked</option>
               <option value="wip">Work in Progress</option>
@@ -3628,7 +3628,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         
         return (
           <span 
-            className={`state-badge ${state.replace('_', '-')} ${canEditState ? 'cursor-pointer hover:ring-1 hover:ring-pdm-accent' : 'opacity-60'}`}
+            className={`state-badge ${state.replace('_', '-')} ${canEditState ? 'cursor-pointer hover:ring-1 hover:ring-plm-accent' : 'opacity-60'}`}
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
@@ -3671,13 +3671,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               onMouseDown={(e) => e.stopPropagation()}
               onDragStart={(e) => e.preventDefault()}
               draggable={false}
-              className="w-full bg-pdm-bg border border-pdm-accent rounded px-1 py-0 text-sm text-pdm-fg focus:outline-none focus:ring-1 focus:ring-pdm-accent"
+              className="w-full bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
             />
           )
         }
         return (
           <span
-            className={`px-1 rounded ${canEditRevision ? 'cursor-text hover:bg-pdm-bg-light' : 'text-pdm-fg-muted'}`}
+            className={`px-1 rounded ${canEditRevision ? 'cursor-text hover:bg-plm-bg-light' : 'text-plm-fg-muted'}`}
             onClick={(e) => {
               if (canEditRevision) {
                 e.stopPropagation()
@@ -3694,14 +3694,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         const cloudVersion = file.pdmData?.version || null
         if (!cloudVersion) {
           // Not synced yet
-          return <span className="text-pdm-fg-muted">-/-</span>
+          return <span className="text-plm-fg-muted">-/-</span>
         }
         
         // Check if we have a local active version (after rollback)
         if (file.localActiveVersion !== undefined && file.localActiveVersion !== cloudVersion) {
           // We've rolled back/forward to a different version locally
           return (
-            <span className="text-pdm-info" title={`Viewing version ${file.localActiveVersion} (latest is ${cloudVersion}). Check in to save.`}>
+            <span className="text-plm-info" title={`Viewing version ${file.localActiveVersion} (latest is ${cloudVersion}). Check in to save.`}>
               {file.localActiveVersion}/{cloudVersion}
             </span>
           )
@@ -3710,14 +3710,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         if (file.diffStatus === 'modified') {
           // Local content changes - local version is effectively cloud+1
           return (
-            <span className="text-pdm-warning" title={`Local changes (will be version ${cloudVersion + 1})`}>
+            <span className="text-plm-warning" title={`Local changes (will be version ${cloudVersion + 1})`}>
               {cloudVersion + 1}/{cloudVersion}
             </span>
           )
         } else if (file.diffStatus === 'moved') {
           // File was moved but content unchanged - version stays the same
           return (
-            <span className="text-pdm-accent" title="File moved (version unchanged)">
+            <span className="text-plm-accent" title="File moved (version unchanged)">
               {cloudVersion}/{cloudVersion}
             </span>
           )
@@ -3756,13 +3756,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               onMouseDown={(e) => e.stopPropagation()}
               onDragStart={(e) => e.preventDefault()}
               draggable={false}
-              className="w-full bg-pdm-bg border border-pdm-accent rounded px-1 py-0 text-sm text-pdm-fg focus:outline-none focus:ring-1 focus:ring-pdm-accent"
+              className="w-full bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
             />
           )
         }
         return (
           <span
-            className={`px-1 rounded ${canEditItemNumber ? 'cursor-text hover:bg-pdm-bg-light' : ''} ${!file.pdmData?.part_number || !canEditItemNumber ? 'text-pdm-fg-muted' : ''}`}
+            className={`px-1 rounded ${canEditItemNumber ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!file.pdmData?.part_number || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}
             onClick={(e) => {
               if (canEditItemNumber) {
                 e.stopPropagation()
@@ -3798,13 +3798,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               onMouseDown={(e) => e.stopPropagation()}
               onDragStart={(e) => e.preventDefault()}
               draggable={false}
-              className="w-full bg-pdm-bg border border-pdm-accent rounded px-1 py-0 text-sm text-pdm-fg focus:outline-none focus:ring-1 focus:ring-pdm-accent"
+              className="w-full bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
             />
           )
         }
         return (
           <span
-            className={`px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-pdm-bg-light' : ''} ${!file.pdmData?.description || !canEditDescription ? 'text-pdm-fg-muted' : ''}`}
+            className={`px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!file.pdmData?.description || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
             onClick={(e) => {
               if (canEditDescription) {
                 e.stopPropagation()
@@ -3822,7 +3822,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         if (file.diffStatus === 'cloud') {
           // Cloud only (not downloaded)
           return (
-            <span className="flex items-center gap-1 text-pdm-fg-muted">
+            <span className="flex items-center gap-1 text-plm-fg-muted">
               <Cloud size={12} />
               Cloud
             </span>
@@ -3832,7 +3832,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         if (!file.pdmData) {
           // Not synced
           return (
-            <span className="flex items-center gap-1 text-pdm-fg-muted">
+            <span className="flex items-center gap-1 text-plm-fg-muted">
               <HardDrive size={12} />
               Local
             </span>
@@ -3853,7 +3853,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           
           return (
             <span 
-              className={`flex items-center gap-1 ${isMe ? 'text-pdm-warning' : 'text-pdm-error'}`} 
+              className={`flex items-center gap-1 ${isMe ? 'text-plm-warning' : 'text-plm-error'}`} 
               title={isDifferentMachine ? `Checked out by ${checkoutName} on ${checkoutMachineName || 'another computer'} (different computer)` : `Checked out by ${checkoutName}`}
             >
               <div className="relative w-5 h-5 flex-shrink-0">
@@ -3861,7 +3861,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   <img 
                     src={checkoutAvatarUrl} 
                     alt={checkoutName}
-                    className={`w-5 h-5 rounded-full ring-1 ${isMe ? (isDifferentMachine ? 'ring-pdm-warning' : 'ring-pdm-warning') : 'ring-pdm-error'} object-cover`}
+                    className={`w-5 h-5 rounded-full ring-1 ${isMe ? (isDifferentMachine ? 'ring-plm-warning' : 'ring-plm-warning') : 'ring-plm-error'} object-cover`}
                     onError={(e) => {
                       // Hide broken image and show fallback
                       const target = e.target as HTMLImageElement
@@ -3870,18 +3870,18 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     }}
                   />
                 ) : null}
-                <div className={`w-5 h-5 rounded-full ring-1 ${isMe ? 'ring-pdm-warning bg-pdm-warning/30' : 'ring-pdm-error bg-pdm-error/30'} flex items-center justify-center text-[9px] font-medium absolute inset-0 ${checkoutAvatarUrl ? 'hidden' : ''}`}>
+                <div className={`w-5 h-5 rounded-full ring-1 ${isMe ? 'ring-plm-warning bg-plm-warning/30' : 'ring-plm-error bg-plm-error/30'} flex items-center justify-center text-[9px] font-medium absolute inset-0 ${checkoutAvatarUrl ? 'hidden' : ''}`}>
                   {getInitials(checkoutName)}
                 </div>
                 {isDifferentMachine && (
                   <div 
-                    className="absolute -bottom-0.5 -right-0.5 bg-pdm-warning rounded-full p-0.5"
+                    className="absolute -bottom-0.5 -right-0.5 bg-plm-warning rounded-full p-0.5"
                     style={{ width: 8, height: 8 }}
                     title={`Checked out on ${checkoutMachineName || 'another computer'}`}
                   >
                     <Monitor 
                       size={6} 
-                      className="text-pdm-bg w-full h-full" 
+                      className="text-plm-bg w-full h-full" 
                     />
                   </div>
                 )}
@@ -3893,7 +3893,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         
         // Synced but not checked out
         return (
-          <span className="flex items-center gap-1 text-pdm-success">
+          <span className="flex items-center gap-1 text-plm-success">
             <Cloud size={12} />
             Checked In
           </span>
@@ -3910,7 +3910,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         const isMe = user?.id === file.pdmData.checked_out_by
         
         return (
-          <span className={`flex items-center gap-2 ${isMe ? 'text-pdm-warning' : 'text-pdm-fg'}`} title={tooltipName}>
+          <span className={`flex items-center gap-2 ${isMe ? 'text-plm-warning' : 'text-plm-fg'}`} title={tooltipName}>
             <div className="relative w-5 h-5 flex-shrink-0">
               {avatarUrl ? (
                 <img 
@@ -3926,7 +3926,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 />
               ) : null}
               <div 
-                className={`w-5 h-5 rounded-full bg-pdm-accent/30 flex items-center justify-center text-xs absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
+                className={`w-5 h-5 rounded-full bg-plm-accent/30 flex items-center justify-center text-xs absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
                 title={tooltipName}
               >
                 {getInitials(displayName)}
@@ -3938,7 +3938,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       case 'ecoTags':
         if (file.isDirectory) return null
         const ecoTags = file.pdmData?.eco_tags || []
-        if (ecoTags.length === 0) return <span className="text-pdm-text/40">-</span>
+        if (ecoTags.length === 0) return <span className="text-plm-text/40">-</span>
         return (
           <div className="flex flex-wrap gap-1 overflow-hidden">
             {ecoTags.map((tag: string, i: number) => (
@@ -3975,7 +3975,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           const customValue = file.pdmData?.custom_properties?.[customColumnName]
           
           if (customValue === null || customValue === undefined) {
-            return <span className="text-pdm-fg-muted/50">—</span>
+            return <span className="text-plm-fg-muted/50">—</span>
           }
           
           // Find the column definition for type-specific formatting
@@ -3983,9 +3983,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           
           if (columnDef?.data_type === 'boolean') {
             return customValue === 'true' || customValue === true ? (
-              <span className="text-pdm-success">Yes</span>
+              <span className="text-plm-success">Yes</span>
             ) : (
-              <span className="text-pdm-fg-muted">No</span>
+              <span className="text-plm-fg-muted">No</span>
             )
           }
           
@@ -4031,13 +4031,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     >
       {/* Drag overlay - only show for external file drops (from outside the app) */}
       {isDraggingOver && isExternalDrag && !dragOverFolder && (
-        <div className="absolute inset-0 z-40 bg-pdm-accent/10 border-2 border-dashed border-pdm-accent rounded-lg flex items-center justify-center pointer-events-none">
-          <div className="bg-pdm-bg-light border border-pdm-accent rounded-xl p-6 flex flex-col items-center gap-3 shadow-xl">
-            <div className="w-16 h-16 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-              <Upload size={32} className="text-pdm-accent" />
+        <div className="absolute inset-0 z-40 bg-plm-accent/10 border-2 border-dashed border-plm-accent rounded-lg flex items-center justify-center pointer-events-none">
+          <div className="bg-plm-bg-light border border-plm-accent rounded-xl p-6 flex flex-col items-center gap-3 shadow-xl">
+            <div className="w-16 h-16 rounded-full bg-plm-accent/20 flex items-center justify-center">
+              <Upload size={32} className="text-plm-accent" />
             </div>
-            <div className="text-lg font-semibold text-pdm-fg">Drop to add files</div>
-            <div className="text-sm text-pdm-fg-muted">
+            <div className="text-lg font-semibold text-plm-fg">Drop to add files</div>
+            <div className="text-sm text-plm-fg-muted">
               {currentFolder 
                 ? `Files will be added to "${currentFolder.split('/').pop()}"` 
                 : 'Files will be added to vault root'}
@@ -4047,7 +4047,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       )}
 
       {/* Toolbar with breadcrumb */}
-      <div className="h-10 bg-pdm-bg-light border-b border-pdm-border flex items-center px-2 flex-shrink-0 gap-2">
+      <div className="h-10 bg-plm-bg-light border-b border-plm-border flex items-center px-2 flex-shrink-0 gap-2">
         {/* Navigation buttons */}
         <button
           onClick={navigateUp}
@@ -4061,18 +4061,18 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         {/* Breadcrumb / Search indicator */}
         <div className="flex items-center gap-1 flex-1 min-w-0 text-sm">
           {isSearching ? (
-            <div className="flex items-center gap-2 text-pdm-fg-dim">
-              <Search size={14} className="text-pdm-accent" />
+            <div className="flex items-center gap-2 text-plm-fg-dim">
+              <Search size={14} className="text-plm-accent" />
               <span>
-                {searchType === 'files' ? 'Files' : searchType === 'folders' ? 'Folders' : 'Results'} for "<span className="text-pdm-fg font-medium">{searchQuery}</span>"
+                {searchType === 'files' ? 'Files' : searchType === 'folders' ? 'Folders' : 'Results'} for "<span className="text-plm-fg font-medium">{searchQuery}</span>"
               </span>
-              <span className="text-pdm-fg-muted">({sortedFiles.length} matches)</span>
+              <span className="text-plm-fg-muted">({sortedFiles.length} matches)</span>
             </div>
           ) : (
             <>
               <button
                 onClick={navigateToRoot}
-                className="flex items-center gap-1.5 text-pdm-fg-dim hover:text-pdm-fg transition-colors px-1"
+                className="flex items-center gap-1.5 text-plm-fg-dim hover:text-plm-fg transition-colors px-1"
                 title="Go to vault root"
               >
                 <Home size={14} />
@@ -4082,13 +4082,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 const pathUpToHere = arr.slice(0, i + 1).join('/')
                 return (
                   <div key={pathUpToHere} className="flex items-center gap-1">
-                    <ChevronRight size={14} className="text-pdm-fg-muted" />
+                    <ChevronRight size={14} className="text-plm-fg-muted" />
                     <button
                       onClick={() => navigateToFolder(pathUpToHere)}
                       className={`px-1 truncate ${
                         i === arr.length - 1 
-                          ? 'text-pdm-fg font-medium' 
-                          : 'text-pdm-fg-dim hover:text-pdm-fg'
+                          ? 'text-plm-fg font-medium' 
+                          : 'text-plm-fg-dim hover:text-plm-fg'
                       } transition-colors`}
                     >
                       {part}
@@ -4101,7 +4101,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         </div>
         
         {/* Path actions */}
-        <div className="flex items-center gap-1 border-l border-pdm-border pl-2">
+        <div className="flex items-center gap-1 border-l border-plm-border pl-2">
           <button
             onClick={() => {
               const fullPath = currentPath 
@@ -4132,7 +4132,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         </div>
 
         {/* File count */}
-        <span className="text-xs text-pdm-fg-muted px-2">
+        <span className="text-xs text-plm-fg-muted px-2">
           {selectedFiles.length > 0 
             ? `${selectedFiles.length} selected`
             : `${sortedFiles.length} items`
@@ -4187,20 +4187,20 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           </button>
           
           {/* Separator */}
-          <div className="w-px h-5 bg-pdm-border mx-1" />
+          <div className="w-px h-5 bg-plm-border mx-1" />
           
           {/* View mode toggle */}
           <div className="flex items-center gap-1">
             <button
               onClick={() => setViewMode('list')}
-              className={`btn btn-ghost btn-sm p-1 ${viewMode === 'list' ? 'bg-pdm-accent/20 text-pdm-accent' : ''}`}
+              className={`btn btn-ghost btn-sm p-1 ${viewMode === 'list' ? 'bg-plm-accent/20 text-plm-accent' : ''}`}
               title="List view"
             >
               <List size={14} />
             </button>
             <button
               onClick={() => setViewMode('icons')}
-              className={`btn btn-ghost btn-sm p-1 ${viewMode === 'icons' ? 'bg-pdm-accent/20 text-pdm-accent' : ''}`}
+              className={`btn btn-ghost btn-sm p-1 ${viewMode === 'icons' ? 'bg-plm-accent/20 text-plm-accent' : ''}`}
               title="Icon view"
             >
               <LayoutGrid size={14} />
@@ -4210,31 +4210,31 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           {/* Size slider - different for each view mode */}
           {viewMode === 'icons' ? (
             <div className="flex items-center gap-2 ml-2">
-              <Grid size={12} className="text-pdm-fg-muted" />
+              <Grid size={12} className="text-plm-fg-muted" />
               <input
                 type="range"
                 min="48"
                 max="256"
                 value={iconSize}
                 onChange={(e) => setIconSize(Number(e.target.value))}
-                className="w-20 h-1 accent-pdm-accent cursor-pointer"
+                className="w-20 h-1 accent-plm-accent cursor-pointer"
                 title={`Icon size: ${iconSize}px`}
               />
-              <LayoutGrid size={16} className="text-pdm-fg-muted" />
+              <LayoutGrid size={16} className="text-plm-fg-muted" />
             </div>
           ) : (
             <div className="flex items-center gap-2 ml-2">
-              <List size={12} className="text-pdm-fg-muted" />
+              <List size={12} className="text-plm-fg-muted" />
               <input
                 type="range"
                 min="16"
                 max="64"
                 value={listRowSize}
                 onChange={(e) => setListRowSize(Number(e.target.value))}
-                className="w-20 h-1 accent-pdm-accent cursor-pointer"
+                className="w-20 h-1 accent-plm-accent cursor-pointer"
                 title={`Row height: ${listRowSize}px`}
               />
-              <List size={16} className="text-pdm-fg-muted" />
+              <List size={16} className="text-plm-fg-muted" />
             </div>
           )}
         </div>
@@ -4313,7 +4313,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         {/* Selection box overlay */}
         {selectionBox && (
           <div
-            className="absolute border border-pdm-accent bg-pdm-accent/10 pointer-events-none z-10"
+            className="absolute border border-plm-accent bg-plm-accent/10 pointer-events-none z-10"
             style={{
               left: Math.min(selectionBox.startX, selectionBox.currentX),
               top: Math.min(selectionBox.startY, selectionBox.currentY),
@@ -4377,7 +4377,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                       className="cursor-grab active:cursor-grabbing"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <GripVertical size={12} className="text-pdm-fg-muted opacity-50" />
+                      <GripVertical size={12} className="text-plm-fg-muted opacity-50" />
                     </span>
                     <span>{getColumnLabel(column.id)}</span>
                     {sortColumn === column.id && (
@@ -4400,7 +4400,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               <tr className="new-folder-row">
                 <td colSpan={visibleColumns.length}>
                   <div className="flex items-center gap-2 py-1">
-                    <FolderOpen size={16} className="text-pdm-accent" />
+                    <FolderOpen size={16} className="text-plm-accent" />
                     <input
                       ref={newFolderInputRef}
                       type="text"
@@ -4415,7 +4415,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         }
                       }}
                       onBlur={handleCreateFolder}
-                      className="bg-pdm-bg border border-pdm-accent rounded px-2 py-1 text-sm text-pdm-fg focus:outline-none focus:ring-1 focus:ring-pdm-accent"
+                      className="bg-plm-bg border border-plm-accent rounded px-2 py-1 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
                       placeholder="Folder name"
                     />
                   </div>
@@ -4486,10 +4486,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         )}
 
         {(isLoading || !filesLoaded) && (
-          <div className="absolute inset-0 z-30 bg-pdm-bg/80 flex items-center justify-center">
+          <div className="absolute inset-0 z-30 bg-plm-bg/80 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-pdm-accent/30 border-t-pdm-accent rounded-full animate-spin" />
-              <span className="text-sm text-pdm-fg-muted">Loading vault...</span>
+              <div className="w-12 h-12 border-4 border-plm-accent/30 border-t-plm-accent rounded-full animate-spin" />
+              <span className="text-sm text-plm-fg-muted">Loading vault...</span>
             </div>
           </div>
         )}
@@ -4716,7 +4716,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 <>
                   <div className="context-menu-separator" />
                   <div 
-                    className="context-menu-item text-pdm-success"
+                    className="context-menu-item text-plm-success"
                     onClick={async () => {
                       setContextMenu(null)
                       
@@ -4924,7 +4924,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                       executeDownload()
                     }}
                   >
-                    <ArrowDown size={14} className="text-pdm-success" />
+                    <ArrowDown size={14} className="text-plm-success" />
                     Download {cloudOnlyCount > 0 ? `${cloudOnlyCount} files` : (multiSelect ? countLabel : '')}
                   </div>
                 </>
@@ -4978,7 +4978,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         setContextMenu(null)
                       }}
                     >
-                      <Star size={14} className={isPinned ? 'fill-pdm-warning text-pdm-warning' : ''} />
+                      <Star size={14} className={isPinned ? 'fill-plm-warning text-plm-warning' : ''} />
                       {isPinned ? 'Unpin' : `Pin ${isFolder ? 'Folder' : 'File'}`}
                     </div>
                   )
@@ -5004,7 +5004,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     >
                       <Pencil size={14} />
                       Rename
-                      {!canRename && <span className="text-xs text-pdm-fg-muted ml-auto">(checkout required)</span>}
+                      {!canRename && <span className="text-xs text-plm-fg-muted ml-auto">(checkout required)</span>}
                     </div>
                   )
                 })()
@@ -5021,7 +5021,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               >
                 <Copy size={14} />
                 Copy
-                <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+C</span>
+                <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+C</span>
               </div>
               <div 
                 className={`context-menu-item ${!canCut ? 'disabled' : ''}`}
@@ -5035,7 +5035,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               >
                 <Scissors size={14} />
                 Cut
-                <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+X</span>
+                <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+X</span>
               </div>
               <div 
                 className={`context-menu-item ${!clipboard ? 'disabled' : ''}`}
@@ -5048,7 +5048,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               >
                 <ClipboardPaste size={14} />
                 Paste
-                <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+V</span>
+                <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+V</span>
               </div>
               
               <div className="context-menu-separator" />
@@ -5075,12 +5075,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 >
                   <EyeOff size={14} />
                   Keep Local Only
-                  <span className="text-xs text-pdm-fg-muted ml-auto">▶</span>
+                  <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
                   
                   {/* Submenu */}
                   {showIgnoreSubmenu && (
                     <div 
-                      className="absolute left-full top-0 ml-1 min-w-[200px] bg-pdm-bg-lighter border border-pdm-border rounded-md py-1 shadow-lg z-[100]"
+                      className="absolute left-full top-0 ml-1 min-w-[200px] bg-plm-bg-lighter border border-plm-border rounded-md py-1 shadow-lg z-[100]"
                       style={{ marginTop: '-4px' }}
                       onMouseEnter={() => {
                         if (ignoreSubmenuTimeoutRef.current) {
@@ -5140,7 +5140,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                           return (
                             <>
                               <div className="context-menu-separator" />
-                              <div className="px-3 py-1.5 text-xs text-pdm-fg-muted">
+                              <div className="px-3 py-1.5 text-xs text-plm-fg-muted">
                                 {currentPatterns.length} pattern{currentPatterns.length > 1 ? 's' : ''} configured
                               </div>
                             </>
@@ -5178,10 +5178,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   }}
                   title={!anySynced ? 'Download files first to enable checkout' : checkoutableCount === 0 ? 'All files already checked out' : ''}
                 >
-                  <ArrowDown size={14} className={!anySynced || checkoutableCount === 0 ? 'text-pdm-fg-muted' : 'text-pdm-warning'} />
+                  <ArrowDown size={14} className={!anySynced || checkoutableCount === 0 ? 'text-plm-fg-muted' : 'text-plm-warning'} />
                   Check Out {checkoutableCount > 0 ? `${checkoutableCount} files` : ''}
-                  {!anySynced && <span className="text-xs text-pdm-fg-muted ml-auto">(download first)</span>}
-                  {anySynced && checkoutableCount === 0 && <span className="text-xs text-pdm-fg-muted ml-auto">(already out)</span>}
+                  {!anySynced && <span className="text-xs text-plm-fg-muted ml-auto">(download first)</span>}
+                  {anySynced && checkoutableCount === 0 && <span className="text-xs text-plm-fg-muted ml-auto">(already out)</span>}
                 </div>
               ) : (
                 <div 
@@ -5193,10 +5193,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   }}
                   title={!anySynced ? 'Download files first to enable checkout' : allCheckedOut ? 'Already checked out' : ''}
                 >
-                  <ArrowDown size={14} className={!anySynced ? 'text-pdm-fg-muted' : 'text-pdm-warning'} />
+                  <ArrowDown size={14} className={!anySynced ? 'text-plm-fg-muted' : 'text-plm-warning'} />
                   Check Out {multiSelect ? countLabel : ''}
-                  {!anySynced && <span className="text-xs text-pdm-fg-muted ml-auto">(download first)</span>}
-                  {anySynced && allCheckedOut && <span className="text-xs text-pdm-fg-muted ml-auto">(already out)</span>}
+                  {!anySynced && <span className="text-xs text-plm-fg-muted ml-auto">(download first)</span>}
+                  {anySynced && allCheckedOut && <span className="text-xs text-plm-fg-muted ml-auto">(already out)</span>}
                 </div>
               )}
               
@@ -5212,9 +5212,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     }}
                     title={checkinableCount === 0 ? 'No files checked out by you' : ''}
                   >
-                    <ArrowUp size={14} className={checkinableCount === 0 ? 'text-pdm-fg-muted' : 'text-pdm-success'} />
+                    <ArrowUp size={14} className={checkinableCount === 0 ? 'text-plm-fg-muted' : 'text-plm-success'} />
                     Check In {checkinableCount > 0 ? `${checkinableCount} files` : ''}
-                    {checkinableCount === 0 && <span className="text-xs text-pdm-fg-muted ml-auto">(none checked out)</span>}
+                    {checkinableCount === 0 && <span className="text-xs text-plm-fg-muted ml-auto">(none checked out)</span>}
                   </div>
                 ) : (
                   <div 
@@ -5226,10 +5226,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     }}
                     title={allCheckedIn ? 'Already checked in' : (allCheckedOutByOthers ? 'Checked out by someone else' : (checkinableCount === 0 ? 'No files checked out by you' : ''))}
                   >
-                    <ArrowUp size={14} className={allCheckedIn || checkinableCount === 0 ? 'text-pdm-fg-muted' : 'text-pdm-success'} />
+                    <ArrowUp size={14} className={allCheckedIn || checkinableCount === 0 ? 'text-plm-fg-muted' : 'text-plm-success'} />
                     Check In {multiSelect ? countLabel : ''}
-                    {allCheckedIn && <span className="text-xs text-pdm-fg-muted ml-auto">(already in)</span>}
-                    {!allCheckedIn && allCheckedOutByOthers && <span className="text-xs text-pdm-fg-muted ml-auto">(by others)</span>}
+                    {allCheckedIn && <span className="text-xs text-plm-fg-muted ml-auto">(already in)</span>}
+                    {!allCheckedIn && allCheckedOutByOthers && <span className="text-xs text-plm-fg-muted ml-auto">(by others)</span>}
                   </div>
                 )
               )}
@@ -5237,7 +5237,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               {/* Admin: Force Release - for files checked out by others */}
               {isAdmin && checkedOutByOthersCount > 0 && (
                 <div 
-                  className="context-menu-item text-pdm-error"
+                  className="context-menu-item text-plm-error"
                   onClick={() => {
                     setContextMenu(null)
                     executeCommand('force-release', { files: contextFiles }, { onRefresh })
@@ -5271,12 +5271,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 >
                   <RefreshCw size={14} />
                   Change State
-                  <span className="text-xs text-pdm-fg-muted ml-auto">▶</span>
+                  <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
                   
                   {/* State Submenu */}
                   {showStateSubmenu && (
                     <div 
-                      className="absolute left-full top-0 ml-1 min-w-[160px] bg-pdm-bg-lighter border border-pdm-border rounded-md py-1 shadow-lg z-[100]"
+                      className="absolute left-full top-0 ml-1 min-w-[160px] bg-plm-bg-lighter border border-plm-border rounded-md py-1 shadow-lg z-[100]"
                       style={{ marginTop: '-4px' }}
                       onMouseEnter={() => {
                         if (stateSubmenuTimeoutRef.current) {
@@ -5292,10 +5292,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     >
                       {(['wip', 'in_review', 'released', 'obsolete'] as const).map((stateOption) => {
                         const stateColors: Record<string, string> = {
-                          wip: 'var(--pdm-wip)',
-                          in_review: 'var(--pdm-in-review)',
-                          released: 'var(--pdm-released)',
-                          obsolete: 'var(--pdm-obsolete)'
+                          wip: 'var(--plm-wip)',
+                          in_review: 'var(--plm-in-review)',
+                          released: 'var(--plm-released)',
+                          obsolete: 'var(--plm-obsolete)'
                         }
                         return (
                           <div 
@@ -5385,7 +5385,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   className="context-menu-item"
                   onClick={() => handleOpenReviewModal(firstFile)}
                 >
-                  <Send size={14} className="text-pdm-accent" />
+                  <Send size={14} className="text-plm-accent" />
                   Request Review
                 </div>
               )}
@@ -5396,7 +5396,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   className="context-menu-item"
                   onClick={() => handleOpenCheckoutRequestModal(firstFile)}
                 >
-                  <ArrowDown size={14} className="text-pdm-warning" />
+                  <ArrowDown size={14} className="text-plm-warning" />
                   Request Checkout
                 </div>
               )}
@@ -5407,7 +5407,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   className="context-menu-item"
                   onClick={() => handleOpenMentionModal(firstFile)}
                 >
-                  <Users size={14} className="text-pdm-fg-dim" />
+                  <Users size={14} className="text-plm-fg-dim" />
                   Notify Someone
                 </div>
               )}
@@ -5421,9 +5421,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   {isTogglingWatch ? (
                     <Loader2 size={14} className="animate-spin" />
                   ) : watchingFiles.has(firstFile.pdmData.id) ? (
-                    <EyeOff size={14} className="text-pdm-fg-muted" />
+                    <EyeOff size={14} className="text-plm-fg-muted" />
                   ) : (
-                    <Eye size={14} className="text-pdm-accent" />
+                    <Eye size={14} className="text-plm-accent" />
                   )}
                   {watchingFiles.has(firstFile.pdmData!.id) ? 'Stop Watching' : 'Watch File'}
                 </div>
@@ -5445,7 +5445,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   {isCreatingShareLink ? (
                     <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <Link size={14} className="text-pdm-accent" />
+                    <Link size={14} className="text-plm-accent" />
                   )}
                   Copy Share Link
                 </div>
@@ -5457,7 +5457,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   className="context-menu-item"
                   onClick={() => handleOpenECOModal(firstFile)}
                 >
-                  <ClipboardList size={14} className="text-pdm-fg-dim" />
+                  <ClipboardList size={14} className="text-plm-fg-dim" />
                   Add to ECO
                 </div>
               )}
@@ -5692,7 +5692,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               >
                 <Undo2 size={14} />
                 Undo
-                <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+Z</span>
+                <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+Z</span>
               </div>
             </div>
           </>
@@ -5714,7 +5714,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             className="context-menu max-h-96 overflow-y-auto"
             style={{ left: columnContextMenu.x, top: columnContextMenu.y }}
           >
-            <div className="px-3 py-1.5 text-xs text-pdm-fg-muted uppercase tracking-wide border-b border-pdm-border mb-1">
+            <div className="px-3 py-1.5 text-xs text-plm-fg-muted uppercase tracking-wide border-b border-plm-border mb-1">
               Show/Hide Columns
             </div>
             {columns.map(column => (
@@ -5726,11 +5726,11 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 }}
               >
                 {column.visible ? (
-                  <Eye size={14} className="text-pdm-success" />
+                  <Eye size={14} className="text-plm-success" />
                 ) : (
-                  <EyeOff size={14} className="text-pdm-fg-muted" />
+                  <EyeOff size={14} className="text-plm-fg-muted" />
                 )}
-                <span className={column.visible ? '' : 'text-pdm-fg-muted'}>{getColumnLabel(column.id)}</span>
+                <span className={column.visible ? '' : 'text-plm-fg-muted'}>{getColumnLabel(column.id)}</span>
               </div>
             ))}
           </div>
@@ -5791,7 +5791,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             >
               <ClipboardPaste size={14} />
               Paste
-              <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+V</span>
+              <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+V</span>
             </div>
             <div className="context-menu-separator" />
             <div 
@@ -5816,7 +5816,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             >
               <Undo2 size={14} />
               Undo
-              <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+Z</span>
+              <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+Z</span>
             </div>
           </div>
         </>
@@ -5829,37 +5829,37 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           onClick={() => setConflictDialog(null)}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-warning/20 flex items-center justify-center">
-                <AlertTriangle size={20} className="text-pdm-warning" />
+              <div className="w-10 h-10 rounded-full bg-plm-warning/20 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-plm-warning" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">File Conflicts</h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <h3 className="text-lg font-semibold text-plm-fg">File Conflicts</h3>
+                <p className="text-sm text-plm-fg-muted">
                   {conflictDialog.conflicts.length} file{conflictDialog.conflicts.length > 1 ? 's' : ''} already exist{conflictDialog.conflicts.length === 1 ? 's' : ''}
                 </p>
               </div>
             </div>
             
             {/* List of conflicting files */}
-            <div className="bg-pdm-bg rounded border border-pdm-border mb-4 max-h-40 overflow-y-auto">
+            <div className="bg-plm-bg rounded border border-plm-border mb-4 max-h-40 overflow-y-auto">
               {conflictDialog.conflicts.slice(0, 10).map((conflict, i) => (
-                <div key={i} className="px-3 py-2 text-sm text-pdm-fg-dim border-b border-pdm-border last:border-b-0 flex items-center gap-2">
-                  <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
+                <div key={i} className="px-3 py-2 text-sm text-plm-fg-dim border-b border-plm-border last:border-b-0 flex items-center gap-2">
+                  <File size={14} className="text-plm-fg-muted flex-shrink-0" />
                   <span className="truncate">{conflict.relativePath}</span>
                 </div>
               ))}
               {conflictDialog.conflicts.length > 10 && (
-                <div className="px-3 py-2 text-sm text-pdm-fg-muted italic">
+                <div className="px-3 py-2 text-sm text-plm-fg-muted italic">
                   ...and {conflictDialog.conflicts.length - 10} more
                 </div>
               )}
             </div>
             
-            <p className="text-sm text-pdm-fg-dim mb-4">
+            <p className="text-sm text-plm-fg-dim mb-4">
               What would you like to do with the conflicting files?
             </p>
             
@@ -5890,7 +5890,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               </button>
               <button
                 onClick={() => setConflictDialog(null)}
-                className="btn btn-ghost w-full text-pdm-fg-muted"
+                className="btn btn-ghost w-full text-plm-fg-muted"
               >
                 Cancel
               </button>
@@ -5906,23 +5906,23 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           onClick={() => setCustomConfirm(null)}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className={`w-10 h-10 rounded-full ${customConfirm.confirmDanger ? 'bg-pdm-error/20' : 'bg-pdm-warning/20'} flex items-center justify-center`}>
-                <AlertTriangle size={20} className={customConfirm.confirmDanger ? 'text-pdm-error' : 'text-pdm-warning'} />
+              <div className={`w-10 h-10 rounded-full ${customConfirm.confirmDanger ? 'bg-plm-error/20' : 'bg-plm-warning/20'} flex items-center justify-center`}>
+                <AlertTriangle size={20} className={customConfirm.confirmDanger ? 'text-plm-error' : 'text-plm-warning'} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">{customConfirm.title}</h3>
+                <h3 className="text-lg font-semibold text-plm-fg">{customConfirm.title}</h3>
               </div>
             </div>
             
-            <p className="text-sm text-pdm-fg-dim mb-4">{customConfirm.message}</p>
+            <p className="text-sm text-plm-fg-dim mb-4">{customConfirm.message}</p>
             
             {customConfirm.warning && (
-              <div className="bg-pdm-warning/10 border border-pdm-warning/30 rounded p-3 mb-4">
-                <div className="flex items-start gap-2 text-sm text-pdm-warning">
+              <div className="bg-plm-warning/10 border border-plm-warning/30 rounded p-3 mb-4">
+                <div className="flex items-start gap-2 text-sm text-plm-warning">
                   <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
                   <span>{customConfirm.warning}</span>
                 </div>
@@ -5957,33 +5957,33 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           onClick={() => setDeleteLocalCheckoutConfirm(null)}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-warning/20 flex items-center justify-center">
-                <AlertTriangle size={20} className="text-pdm-warning" />
+              <div className="w-10 h-10 rounded-full bg-plm-warning/20 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-plm-warning" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">
+                <h3 className="text-lg font-semibold text-plm-fg">
                   Files Are Checked Out
                 </h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <p className="text-sm text-plm-fg-muted">
                   {deleteLocalCheckoutConfirm.checkedOutFiles.length} file{deleteLocalCheckoutConfirm.checkedOutFiles.length > 1 ? 's are' : ' is'} currently checked out by you.
                 </p>
               </div>
             </div>
             
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4 max-h-40 overflow-y-auto">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4 max-h-40 overflow-y-auto">
               <div className="space-y-1">
                 {deleteLocalCheckoutConfirm.checkedOutFiles.slice(0, 5).map((f, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
-                    <File size={14} className="text-pdm-warning" />
-                    <span className="text-pdm-fg truncate">{f.name}</span>
+                    <File size={14} className="text-plm-warning" />
+                    <span className="text-plm-fg truncate">{f.name}</span>
                   </div>
                 ))}
                 {deleteLocalCheckoutConfirm.checkedOutFiles.length > 5 && (
-                  <div className="text-xs text-pdm-fg-muted">
+                  <div className="text-xs text-plm-fg-muted">
                     ...and {deleteLocalCheckoutConfirm.checkedOutFiles.length - 5} more
                   </div>
                 )}
@@ -5991,8 +5991,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             </div>
             
             {/* Info */}
-            <div className="bg-pdm-accent/10 border border-pdm-accent/30 rounded p-3 mb-4">
-              <p className="text-sm text-pdm-fg">
+            <div className="bg-plm-accent/10 border border-plm-accent/30 rounded p-3 mb-4">
+              <p className="text-sm text-plm-fg">
                 What would you like to do with your changes?
               </p>
             </div>
@@ -6007,7 +6007,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   // Then delete local copies
                   executeCommand('delete-local', { files: contextFilesToUse }, { onRefresh })
                 }}
-                className="btn bg-pdm-success hover:bg-pdm-success/80 text-white w-full justify-center"
+                className="btn bg-plm-success hover:bg-plm-success/80 text-white w-full justify-center"
               >
                 <ArrowUp size={14} />
                 Check In First, Then Remove Local
@@ -6019,7 +6019,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   // The delete-local command will release checkouts automatically
                   executeCommand('delete-local', { files: contextFilesToUse }, { onRefresh })
                 }}
-                className="btn bg-pdm-warning hover:bg-pdm-warning/80 text-white w-full justify-center"
+                className="btn bg-plm-warning hover:bg-plm-warning/80 text-white w-full justify-center"
               >
                 <Trash2 size={14} />
                 Discard Changes & Remove Local
@@ -6076,18 +6076,18 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               onClick={() => { setDeleteConfirm(null); setDeleteEverywhere(false) }}
             >
               <div 
-                className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md shadow-2xl"
+                className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-pdm-error/20 flex items-center justify-center">
-                    <AlertTriangle size={20} className="text-pdm-error" />
+                  <div className="w-10 h-10 rounded-full bg-plm-error/20 flex items-center justify-center">
+                    <AlertTriangle size={20} className="text-plm-error" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-pdm-fg">
+                    <h3 className="text-lg font-semibold text-plm-fg">
                       {deleteEverywhere ? 'Delete Local & Server' : 'Delete'} {deleteCount > 1 ? `${deleteCount} Items` : deleteConfirm.isDirectory ? 'Folder' : 'File'}?
                     </h3>
-                    <p className="text-sm text-pdm-fg-muted">
+                    <p className="text-sm text-plm-fg-muted">
                         {deleteEverywhere 
                         ? 'Items will be deleted locally AND from the server.'
                         : 'Local copies will be removed. Synced files remain on the server.'}
@@ -6095,19 +6095,19 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   </div>
                 </div>
                 
-                <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4 max-h-40 overflow-y-auto">
+                <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4 max-h-40 overflow-y-auto">
                   {deleteCount === 1 ? (
                     <div className="flex items-center gap-2">
                       {deleteConfirm.isDirectory ? (
-                        <FolderOpen size={16} className="text-pdm-fg-muted" />
+                        <FolderOpen size={16} className="text-plm-fg-muted" />
                       ) : (
-                        <File size={16} className="text-pdm-fg-muted" />
+                        <File size={16} className="text-plm-fg-muted" />
                       )}
-                      <span className="text-pdm-fg font-medium truncate">{deleteConfirm.name}</span>
+                      <span className="text-plm-fg font-medium truncate">{deleteConfirm.name}</span>
                     </div>
                   ) : (
                     <>
-                      <div className="text-sm text-pdm-fg mb-2">
+                      <div className="text-sm text-plm-fg mb-2">
                         {fileCount > 0 && <span>{fileCount} file{fileCount > 1 ? 's' : ''}</span>}
                         {fileCount > 0 && folderCount > 0 && <span>, </span>}
                         {folderCount > 0 && <span>{folderCount} folder{folderCount > 1 ? 's' : ''}</span>}
@@ -6116,15 +6116,15 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         {filesToDelete.slice(0, 5).map(f => (
                           <div key={f.path} className="flex items-center gap-2 text-sm">
                             {f.isDirectory ? (
-                              <FolderOpen size={14} className="text-pdm-fg-muted" />
+                              <FolderOpen size={14} className="text-plm-fg-muted" />
                             ) : (
-                              <File size={14} className="text-pdm-fg-muted" />
+                              <File size={14} className="text-plm-fg-muted" />
                             )}
-                            <span className="text-pdm-fg-dim truncate">{f.name}</span>
+                            <span className="text-plm-fg-dim truncate">{f.name}</span>
                           </div>
                         ))}
                         {filesToDelete.length > 5 && (
-                          <div className="text-xs text-pdm-fg-muted">
+                          <div className="text-xs text-plm-fg-muted">
                             ...and {filesToDelete.length - 5} more
                           </div>
                         )}
@@ -6132,7 +6132,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     </>
                   )}
                   {folderCount > 0 && (
-                    <p className="text-xs text-pdm-fg-muted mt-2">
+                    <p className="text-xs text-plm-fg-muted mt-2">
                       All contents inside folders will also be deleted.
                     </p>
                   )}
@@ -6140,11 +6140,11 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 
                 {/* Warning for delete everywhere */}
                 {deleteEverywhere && syncedFilesCount > 0 && (
-                  <div className="bg-pdm-warning/10 border border-pdm-warning/30 rounded p-3 mb-4">
-                    <p className="text-sm text-pdm-warning font-medium">
+                  <div className="bg-plm-warning/10 border border-plm-warning/30 rounded p-3 mb-4">
+                    <p className="text-sm text-plm-warning font-medium">
                       ⚠️ {syncedFilesCount} synced file{syncedFilesCount > 1 ? 's' : ''} will be deleted from the server.
                     </p>
-                    <p className="text-xs text-pdm-fg-muted mt-1">Files can be recovered from trash within 30 days.</p>
+                    <p className="text-xs text-plm-fg-muted mt-1">Files can be recovered from trash within 30 days.</p>
                   </div>
                 )}
                 
@@ -6273,7 +6273,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         onRefresh()
                       }
                     }}
-                    className="btn bg-pdm-error hover:bg-pdm-error/80 text-white"
+                    className="btn bg-plm-error hover:bg-plm-error/80 text-white"
                   >
                     <Trash2 size={14} />
                     {deleteEverywhere ? 'Delete Local & Server' : 'Delete'} {deleteCount > 1 ? `(${deleteCount})` : ''}
@@ -6292,55 +6292,55 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           onClick={() => { setShowReviewModal(false); setSelectedReviewers([]); setReviewMessage(''); setReviewDueDate(''); setReviewPriority('normal'); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                <Send size={20} className="text-pdm-accent" />
+              <div className="w-10 h-10 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                <Send size={20} className="text-plm-accent" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">Request Review</h3>
-                <p className="text-sm text-pdm-fg-muted">{reviewModalFile.name}</p>
+                <h3 className="text-lg font-semibold text-plm-fg">Request Review</h3>
+                <p className="text-sm text-plm-fg-muted">{reviewModalFile.name}</p>
               </div>
             </div>
             
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
               <div className="flex items-center gap-2">
-                <File size={16} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg font-medium truncate">{reviewModalFile.name}</span>
+                <File size={16} className="text-plm-fg-muted" />
+                <span className="text-plm-fg font-medium truncate">{reviewModalFile.name}</span>
                 {reviewModalFile.pdmData?.version && (
-                  <span className="text-xs text-pdm-fg-muted">v{reviewModalFile.pdmData.version}</span>
+                  <span className="text-xs text-plm-fg-muted">v{reviewModalFile.pdmData.version}</span>
                 )}
               </div>
             </div>
             
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">Select Reviewers</label>
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Select Reviewers</label>
               {loadingUsers ? (
                 <div className="flex items-center justify-center p-4">
-                  <Loader2 size={20} className="animate-spin text-pdm-accent" />
+                  <Loader2 size={20} className="animate-spin text-plm-accent" />
                 </div>
               ) : orgUsers.length === 0 ? (
-                <p className="text-sm text-pdm-fg-muted p-2">No other users in your organization</p>
+                <p className="text-sm text-plm-fg-muted p-2">No other users in your organization</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto border border-pdm-border rounded bg-pdm-bg">
+                <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
                   {orgUsers.map(orgUser => (
-                    <label key={orgUser.id} className="flex items-center gap-3 p-2 hover:bg-pdm-highlight cursor-pointer">
+                    <label key={orgUser.id} className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedReviewers.includes(orgUser.id)}
                         onChange={() => handleToggleReviewer(orgUser.id)}
-                        className="w-4 h-4 rounded border-pdm-border text-pdm-accent"
+                        className="w-4 h-4 rounded border-plm-border text-plm-accent"
                       />
-                      <div className="w-6 h-6 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                        <Users size={12} className="text-pdm-accent" />
+                      <div className="w-6 h-6 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                        <Users size={12} className="text-plm-accent" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-pdm-fg truncate">{orgUser.full_name || orgUser.email}</div>
-                        {orgUser.full_name && <div className="text-xs text-pdm-fg-muted truncate">{orgUser.email}</div>}
+                        <div className="text-sm text-plm-fg truncate">{orgUser.full_name || orgUser.email}</div>
+                        {orgUser.full_name && <div className="text-xs text-plm-fg-muted truncate">{orgUser.email}</div>}
                       </div>
-                      {selectedReviewers.includes(orgUser.id) && <Check size={16} className="text-pdm-accent flex-shrink-0" />}
+                      {selectedReviewers.includes(orgUser.id) && <Check size={16} className="text-plm-accent flex-shrink-0" />}
                     </label>
                   ))}
                 </div>
@@ -6349,7 +6349,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
-                <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+                <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                   <Calendar size={12} className="inline mr-1" />Due Date (optional)
                 </label>
                 <input
@@ -6357,15 +6357,15 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   value={reviewDueDate}
                   onChange={(e) => setReviewDueDate(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+                  className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
                 />
               </div>
               <div>
-                <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">Priority</label>
+                <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Priority</label>
                 <select
                   value={reviewPriority}
                   onChange={(e) => setReviewPriority(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+                  className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
                 >
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>
@@ -6376,12 +6376,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             </div>
             
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">Message (optional)</label>
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Message (optional)</label>
               <textarea
                 value={reviewMessage}
                 onChange={(e) => setReviewMessage(e.target.value)}
                 placeholder="Add a message for the reviewers..."
-                className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded resize-none focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
                 rows={2}
               />
             </div>
@@ -6391,7 +6391,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               <button
                 onClick={handleSubmitReviewRequest}
                 disabled={selectedReviewers.length === 0 || isSubmittingReview}
-                className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white disabled:opacity-50"
+                className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
               >
                 {isSubmittingReview ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 Send Request {selectedReviewers.length > 0 && `(${selectedReviewers.length})`}
@@ -6408,36 +6408,36 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           onClick={() => { setShowCheckoutRequestModal(false); setCheckoutRequestMessage(''); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-warning/20 flex items-center justify-center">
-                <ArrowDown size={20} className="text-pdm-warning" />
+              <div className="w-10 h-10 rounded-full bg-plm-warning/20 flex items-center justify-center">
+                <ArrowDown size={20} className="text-plm-warning" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">Request Checkout</h3>
-                <p className="text-sm text-pdm-fg-muted">Ask to check out this file</p>
+                <h3 className="text-lg font-semibold text-plm-fg">Request Checkout</h3>
+                <p className="text-sm text-plm-fg-muted">Ask to check out this file</p>
               </div>
             </div>
             
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
               <div className="flex items-center gap-2">
-                <File size={16} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg font-medium truncate">{checkoutRequestFile.name}</span>
+                <File size={16} className="text-plm-fg-muted" />
+                <span className="text-plm-fg font-medium truncate">{checkoutRequestFile.name}</span>
               </div>
-              <div className="mt-2 text-xs text-pdm-fg-muted">
+              <div className="mt-2 text-xs text-plm-fg-muted">
                 Currently checked out - a notification will be sent to the user who has this file.
               </div>
             </div>
             
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">Message (optional)</label>
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Message (optional)</label>
               <textarea
                 value={checkoutRequestMessage}
                 onChange={(e) => setCheckoutRequestMessage(e.target.value)}
                 placeholder="Why do you need this file? Any deadline?"
-                className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded resize-none focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
                 rows={3}
               />
             </div>
@@ -6447,7 +6447,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               <button
                 onClick={handleSubmitCheckoutRequest}
                 disabled={isSubmittingCheckoutRequest}
-                className="btn bg-pdm-warning hover:bg-pdm-warning/90 text-white disabled:opacity-50"
+                className="btn bg-plm-warning hover:bg-plm-warning/90 text-white disabled:opacity-50"
               >
                 {isSubmittingCheckoutRequest ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 Send Request
@@ -6464,52 +6464,52 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           onClick={() => { setShowMentionModal(false); setSelectedMentionUsers([]); setMentionMessage(''); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                <Users size={20} className="text-pdm-accent" />
+              <div className="w-10 h-10 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                <Users size={20} className="text-plm-accent" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">Notify Someone</h3>
-                <p className="text-sm text-pdm-fg-muted">Send a notification about this file</p>
+                <h3 className="text-lg font-semibold text-plm-fg">Notify Someone</h3>
+                <p className="text-sm text-plm-fg-muted">Send a notification about this file</p>
               </div>
             </div>
             
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
               <div className="flex items-center gap-2">
-                <File size={16} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg font-medium truncate">{mentionFile.name}</span>
+                <File size={16} className="text-plm-fg-muted" />
+                <span className="text-plm-fg font-medium truncate">{mentionFile.name}</span>
               </div>
             </div>
             
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">Select People to Notify</label>
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Select People to Notify</label>
               {loadingUsers ? (
                 <div className="flex items-center justify-center p-4">
-                  <Loader2 size={20} className="animate-spin text-pdm-accent" />
+                  <Loader2 size={20} className="animate-spin text-plm-accent" />
                 </div>
               ) : orgUsers.length === 0 ? (
-                <p className="text-sm text-pdm-fg-muted p-2">No other users in your organization</p>
+                <p className="text-sm text-plm-fg-muted p-2">No other users in your organization</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto border border-pdm-border rounded bg-pdm-bg">
+                <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
                   {orgUsers.map(orgUser => (
-                    <label key={orgUser.id} className="flex items-center gap-3 p-2 hover:bg-pdm-highlight cursor-pointer">
+                    <label key={orgUser.id} className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedMentionUsers.includes(orgUser.id)}
                         onChange={() => handleToggleMentionUser(orgUser.id)}
-                        className="w-4 h-4 rounded border-pdm-border text-pdm-accent"
+                        className="w-4 h-4 rounded border-plm-border text-plm-accent"
                       />
-                      <div className="w-6 h-6 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                        <Users size={12} className="text-pdm-accent" />
+                      <div className="w-6 h-6 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                        <Users size={12} className="text-plm-accent" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-pdm-fg truncate">{orgUser.full_name || orgUser.email}</div>
-                        {orgUser.full_name && <div className="text-xs text-pdm-fg-muted truncate">{orgUser.email}</div>}
+                        <div className="text-sm text-plm-fg truncate">{orgUser.full_name || orgUser.email}</div>
+                        {orgUser.full_name && <div className="text-xs text-plm-fg-muted truncate">{orgUser.email}</div>}
                       </div>
-                      {selectedMentionUsers.includes(orgUser.id) && <Check size={16} className="text-pdm-accent flex-shrink-0" />}
+                      {selectedMentionUsers.includes(orgUser.id) && <Check size={16} className="text-plm-accent flex-shrink-0" />}
                     </label>
                   ))}
                 </div>
@@ -6517,12 +6517,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             </div>
             
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">Message</label>
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Message</label>
               <textarea
                 value={mentionMessage}
                 onChange={(e) => setMentionMessage(e.target.value)}
                 placeholder="What do you want to tell them about this file?"
-                className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded resize-none focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
                 rows={3}
               />
             </div>
@@ -6532,7 +6532,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               <button
                 onClick={handleSubmitMention}
                 disabled={selectedMentionUsers.length === 0 || isSubmittingMention}
-                className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white disabled:opacity-50"
+                className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
               >
                 {isSubmittingMention ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 Send {selectedMentionUsers.length > 0 && `(${selectedMentionUsers.length})`}
@@ -6549,30 +6549,30 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           onClick={() => { setShowShareModal(false); setGeneratedShareLink(null); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                <Link size={20} className="text-pdm-accent" />
+              <div className="w-10 h-10 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                <Link size={20} className="text-plm-accent" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">Share Link Created</h3>
-                <p className="text-sm text-pdm-fg-muted">Copy the link below</p>
+                <h3 className="text-lg font-semibold text-plm-fg">Share Link Created</h3>
+                <p className="text-sm text-plm-fg-muted">Copy the link below</p>
               </div>
             </div>
             
             <div className="space-y-4">
               <div className="flex gap-2">
-                <input type="text" value={generatedShareLink} readOnly className="flex-1 px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none" />
-                <button onClick={handleCopyShareLink} className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white">
+                <input type="text" value={generatedShareLink} readOnly className="flex-1 px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none" />
+                <button onClick={handleCopyShareLink} className="btn bg-plm-accent hover:bg-plm-accent/90 text-white">
                   {copiedLink ? <Check size={14} /> : <Copy size={14} />}
                 </button>
               </div>
-              <p className="text-xs text-pdm-fg-muted">Expires in 7 days • Anyone with link can download</p>
+              <p className="text-xs text-plm-fg-muted">Expires in 7 days • Anyone with link can download</p>
               
               <div className="flex justify-end">
-                <button onClick={() => { setShowShareModal(false); setGeneratedShareLink(null); }} className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white">Done</button>
+                <button onClick={() => { setShowShareModal(false); setGeneratedShareLink(null); }} className="btn bg-plm-accent hover:bg-plm-accent/90 text-white">Done</button>
               </div>
             </div>
           </div>
@@ -6586,49 +6586,49 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           onClick={() => { setShowECOModal(false); setSelectedECO(null); setEcoNotes(''); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                <ClipboardList size={20} className="text-pdm-accent" />
+              <div className="w-10 h-10 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                <ClipboardList size={20} className="text-plm-accent" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">Add to ECO</h3>
-                <p className="text-sm text-pdm-fg-muted">Add file to Engineering Change Order</p>
+                <h3 className="text-lg font-semibold text-plm-fg">Add to ECO</h3>
+                <p className="text-sm text-plm-fg-muted">Add file to Engineering Change Order</p>
               </div>
             </div>
             
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
               <div className="flex items-center gap-2">
-                <File size={16} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg font-medium truncate">{ecoFile.name}</span>
+                <File size={16} className="text-plm-fg-muted" />
+                <span className="text-plm-fg font-medium truncate">{ecoFile.name}</span>
               </div>
             </div>
             
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">Select ECO</label>
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Select ECO</label>
               {loadingECOs ? (
                 <div className="flex items-center justify-center p-4">
-                  <Loader2 size={20} className="animate-spin text-pdm-accent" />
+                  <Loader2 size={20} className="animate-spin text-plm-accent" />
                 </div>
               ) : activeECOs.length === 0 ? (
-                <p className="text-sm text-pdm-fg-muted p-2">No active ECOs found. Create one in the ECO Manager first.</p>
+                <p className="text-sm text-plm-fg-muted p-2">No active ECOs found. Create one in the ECO Manager first.</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto border border-pdm-border rounded bg-pdm-bg">
+                <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
                   {activeECOs.map(eco => (
-                    <label key={eco.id} className="flex items-center gap-3 p-2 hover:bg-pdm-highlight cursor-pointer">
+                    <label key={eco.id} className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer">
                       <input
                         type="radio"
                         name="eco"
                         value={eco.id}
                         checked={selectedECO === eco.id}
                         onChange={() => setSelectedECO(eco.id)}
-                        className="w-4 h-4 border-pdm-border text-pdm-accent"
+                        className="w-4 h-4 border-plm-border text-plm-accent"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-pdm-fg font-medium">{eco.eco_number}</div>
-                        {eco.title && <div className="text-xs text-pdm-fg-muted truncate">{eco.title}</div>}
+                        <div className="text-sm text-plm-fg font-medium">{eco.eco_number}</div>
+                        {eco.title && <div className="text-xs text-plm-fg-muted truncate">{eco.title}</div>}
                       </div>
                     </label>
                   ))}
@@ -6637,12 +6637,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             </div>
             
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">Notes (optional)</label>
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Notes (optional)</label>
               <textarea
                 value={ecoNotes}
                 onChange={(e) => setEcoNotes(e.target.value)}
                 placeholder="Why is this file part of this ECO?"
-                className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded resize-none focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
                 rows={2}
               />
             </div>
@@ -6652,7 +6652,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               <button
                 onClick={handleAddToECO}
                 disabled={!selectedECO || isAddingToECO}
-                className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white disabled:opacity-50"
+                className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
               >
                 {isAddingToECO ? <Loader2 size={14} className="animate-spin" /> : <ClipboardList size={14} />}
                 Add to ECO

@@ -1,5 +1,5 @@
 /**
- * BluePDM File Service
+ * BluePLM File Service
  * 
  * High-level file operations combining Supabase database + storage.
  * Handles versioning, check-in/check-out, conflict detection.

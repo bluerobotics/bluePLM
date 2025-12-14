@@ -37,7 +37,7 @@ function SetupTitleBar() {
 
   return (
     <div 
-      className="h-[38px] bg-pdm-activitybar border-b border-pdm-border select-none flex-shrink-0 titlebar-drag-region relative"
+      className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region relative"
     >
       {/* Left side - App name (add padding on macOS for window buttons) */}
       <div 
@@ -45,7 +45,7 @@ function SetupTitleBar() {
         style={{ paddingLeft: platform === 'darwin' ? 72 : 16 }}
       >
         <div className="flex items-center gap-2 titlebar-no-drag">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-pdm-accent">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
             <path 
               d="M12 2L2 7L12 12L22 7L12 2Z" 
               stroke="currentColor" 
@@ -68,9 +68,9 @@ function SetupTitleBar() {
               strokeLinejoin="round"
             />
           </svg>
-          <span className="text-sm font-semibold text-pdm-fg">BluePDM</span>
+          <span className="text-sm font-semibold text-plm-fg">BluePLM</span>
           {appVersion && (
-            <span className="text-xs text-pdm-fg-muted">v{appVersion}</span>
+            <span className="text-xs text-plm-fg-muted">v{appVersion}</span>
           )}
         </div>
       </div>
@@ -195,7 +195,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
   // Selection mode - choose admin or member
   if (mode === 'select') {
     return (
-      <div className="h-full flex flex-col bg-pdm-bg">
+      <div className="h-full flex flex-col bg-plm-bg">
         <SetupTitleBar />
         <div className="flex-1 flex items-center justify-center p-8 relative">
           {/* Language selector in corner */}
@@ -209,8 +209,8 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
               <Database size={40} className="text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-pdm-fg mb-2">{t('setup.welcome')}</h1>
-            <p className="text-pdm-fg-muted">
+            <h1 className="text-3xl font-bold text-plm-fg mb-2">{t('setup.welcome')}</h1>
+            <p className="text-plm-fg-muted">
               {t('setup.connectToBackend')}
             </p>
           </div>
@@ -219,18 +219,18 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           <div className="space-y-4">
             <button
               onClick={() => setMode('admin')}
-              className="w-full p-6 bg-pdm-bg-light border border-pdm-border rounded-xl hover:border-pdm-accent transition-colors text-left group"
+              className="w-full p-6 bg-plm-bg-light border border-plm-border rounded-xl hover:border-plm-accent transition-colors text-left group"
             >
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-lg bg-pdm-accent/20 flex items-center justify-center flex-shrink-0">
-                  <Key size={24} className="text-pdm-accent" />
+                <div className="w-12 h-12 rounded-lg bg-plm-accent/20 flex items-center justify-center flex-shrink-0">
+                  <Key size={24} className="text-plm-accent" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-pdm-fg text-lg">{t('setup.imAdmin')}</h3>
-                    <ChevronRight size={20} className="text-pdm-fg-muted group-hover:text-pdm-accent transition-colors" />
+                    <h3 className="font-semibold text-plm-fg text-lg">{t('setup.imAdmin')}</h3>
+                    <ChevronRight size={20} className="text-plm-fg-muted group-hover:text-plm-accent transition-colors" />
                   </div>
-                  <p className="text-sm text-pdm-fg-muted mt-1">
+                  <p className="text-sm text-plm-fg-muted mt-1">
                     {t('setup.imAdminDesc')}
                   </p>
                 </div>
@@ -239,7 +239,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             
             <button
               onClick={() => setMode('member')}
-              className="w-full p-6 bg-pdm-bg-light border border-pdm-border rounded-xl hover:border-pdm-accent transition-colors text-left group"
+              className="w-full p-6 bg-plm-bg-light border border-plm-border rounded-xl hover:border-plm-accent transition-colors text-left group"
             >
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
@@ -247,10 +247,10 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-pdm-fg text-lg">{t('setup.haveCode')}</h3>
-                    <ChevronRight size={20} className="text-pdm-fg-muted group-hover:text-pdm-accent transition-colors" />
+                    <h3 className="font-semibold text-plm-fg text-lg">{t('setup.haveCode')}</h3>
+                    <ChevronRight size={20} className="text-plm-fg-muted group-hover:text-plm-accent transition-colors" />
                   </div>
-                  <p className="text-sm text-pdm-fg-muted mt-1">
+                  <p className="text-sm text-plm-fg-muted mt-1">
                     {t('setup.haveCodeDesc')}
                   </p>
                 </div>
@@ -261,10 +261,10 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           {/* Help Link */}
           <div className="mt-8 text-center">
             <a 
-              href="https://github.com/BlueRobotics/blue-pdm#setup" 
+              href="https://github.com/BlueRobotics/blue-plm#setup" 
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sm text-pdm-fg-muted hover:text-pdm-accent transition-colors"
+              className="inline-flex items-center gap-1 text-sm text-plm-fg-muted hover:text-plm-accent transition-colors"
             >
               {t('setup.needHelp')}
               <ExternalLink size={14} />
@@ -281,7 +281,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
     // Show success screen with code
     if (generatedCode) {
       return (
-        <div className="h-full flex flex-col bg-pdm-bg">
+        <div className="h-full flex flex-col bg-plm-bg">
           <SetupTitleBar />
           <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-xl w-full">
@@ -289,34 +289,34 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
                 <Check size={32} className="text-green-500" />
               </div>
-              <h1 className="text-2xl font-bold text-pdm-fg mb-2">{t('setup.connectedSuccess')}</h1>
-              <p className="text-pdm-fg-muted">
+              <h1 className="text-2xl font-bold text-plm-fg mb-2">{t('setup.connectedSuccess')}</h1>
+              <p className="text-plm-fg-muted">
                 {t('setup.shareCode')}
               </p>
             </div>
             
             {/* Organization Code */}
-            <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 mb-6">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+            <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 mb-6">
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                 {t('setup.organizationCode')}
               </label>
               <div className="relative">
-                <div className="font-mono text-sm bg-pdm-bg border border-pdm-border rounded-lg p-4 pr-12 break-all text-pdm-fg">
+                <div className="font-mono text-sm bg-plm-bg border border-plm-border rounded-lg p-4 pr-12 break-all text-plm-fg">
                   {generatedCode}
                 </div>
                 <button
                   onClick={handleCopyCode}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 p-2 hover:bg-pdm-highlight rounded transition-colors"
+                  className="absolute top-1/2 right-3 -translate-y-1/2 p-2 hover:bg-plm-highlight rounded transition-colors"
                   title="Copy to clipboard"
                 >
                   {codeCopied ? (
                     <Check size={18} className="text-green-500" />
                   ) : (
-                    <Copy size={18} className="text-pdm-fg-muted" />
+                    <Copy size={18} className="text-plm-fg-muted" />
                   )}
                 </button>
               </div>
-              <p className="text-xs text-pdm-fg-muted mt-3">
+              <p className="text-xs text-plm-fg-muted mt-3">
                 {t('setup.keepCodeSecure')}
               </p>
             </div>
@@ -325,7 +325,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
               onClick={handleFinishAdminSetup}
               className="w-full btn btn-primary btn-lg justify-center"
             >
-              {t('setup.continueToBluePDM')}
+              {t('setup.continueToBluePLM')}
             </button>
           </div>
           </div>
@@ -335,23 +335,23 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
     
     // Admin credential entry form
     return (
-      <div className="h-full flex flex-col bg-pdm-bg">
+      <div className="h-full flex flex-col bg-plm-bg">
         <SetupTitleBar />
         <div className="flex-1 flex items-center justify-center p-8">
         <div className="max-w-xl w-full">
           <button
             onClick={() => setMode('select')}
-            className="mb-6 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+            className="mb-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
           >
             ← {t('common.back')}
           </button>
           
           <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-pdm-accent/20 flex items-center justify-center">
-              <Key size={32} className="text-pdm-accent" />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-plm-accent/20 flex items-center justify-center">
+              <Key size={32} className="text-plm-accent" />
             </div>
-            <h1 className="text-2xl font-bold text-pdm-fg mb-2">{t('setup.adminSetup')}</h1>
-            <p className="text-pdm-fg-muted">
+            <h1 className="text-2xl font-bold text-plm-fg mb-2">{t('setup.adminSetup')}</h1>
+            <p className="text-plm-fg-muted">
               {t('setup.enterCredentials')}
             </p>
           </div>
@@ -359,7 +359,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           <div className="space-y-4">
             {/* Supabase URL */}
             <div>
-              <label className="block text-sm text-pdm-fg-muted mb-1.5">
+              <label className="block text-sm text-plm-fg-muted mb-1.5">
                 {t('setup.supabaseUrl')}
               </label>
               <input
@@ -367,13 +367,13 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                 value={supabaseUrl}
                 onChange={(e) => setSupabaseUrl(e.target.value)}
                 placeholder="https://xxxxx.supabase.co"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-4 py-3 text-pdm-fg placeholder-pdm-fg-dim focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none"
               />
             </div>
             
             {/* Anon Key */}
             <div>
-              <label className="block text-sm text-pdm-fg-muted mb-1.5">
+              <label className="block text-sm text-plm-fg-muted mb-1.5">
                 {t('setup.anonKey')}
               </label>
               <div className="relative">
@@ -382,12 +382,12 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                   value={anonKey}
                   onChange={(e) => setAnonKey(e.target.value)}
                   placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-4 py-3 pr-12 text-pdm-fg placeholder-pdm-fg-dim focus:border-pdm-accent focus:outline-none font-mono text-sm"
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 pr-12 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
                 >
                   {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -396,17 +396,17 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             
             {/* Organization Slug (optional) */}
             <div>
-              <label className="block text-sm text-pdm-fg-muted mb-1.5">
-                {t('setup.orgSlug')} <span className="text-pdm-fg-dim">({t('common.optional')})</span>
+              <label className="block text-sm text-plm-fg-muted mb-1.5">
+                {t('setup.orgSlug')} <span className="text-plm-fg-dim">({t('common.optional')})</span>
               </label>
               <input
                 type="text"
                 value={orgSlug}
                 onChange={(e) => setOrgSlug(e.target.value)}
                 placeholder="e.g., bluerobotics"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-4 py-3 text-pdm-fg placeholder-pdm-fg-dim focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none"
               />
-              <p className="text-xs text-pdm-fg-dim mt-1">
+              <p className="text-xs text-plm-fg-dim mt-1">
                 {t('setup.orgSlugHelp')}
               </p>
             </div>
@@ -439,7 +439,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           </div>
           
           {/* Help Text */}
-          <p className="text-xs text-pdm-fg-dim text-center mt-6">
+          <p className="text-xs text-plm-fg-dim text-center mt-6">
             {t('setup.findInDashboard')}
           </p>
         </div>
@@ -451,13 +451,13 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
   // Member setup mode
   if (mode === 'member') {
     return (
-      <div className="h-full flex flex-col bg-pdm-bg">
+      <div className="h-full flex flex-col bg-plm-bg">
         <SetupTitleBar />
         <div className="flex-1 flex items-center justify-center p-8">
         <div className="max-w-xl w-full">
           <button
             onClick={() => setMode('select')}
-            className="mb-6 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+            className="mb-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
           >
             ← {t('common.back')}
           </button>
@@ -466,8 +466,8 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-green-500/20 flex items-center justify-center">
               <Users size={32} className="text-green-500" />
             </div>
-            <h1 className="text-2xl font-bold text-pdm-fg mb-2">{t('setup.joinOrg')}</h1>
-            <p className="text-pdm-fg-muted">
+            <h1 className="text-2xl font-bold text-plm-fg mb-2">{t('setup.joinOrg')}</h1>
+            <p className="text-plm-fg-muted">
               {t('setup.enterCode')}
             </p>
           </div>
@@ -475,7 +475,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           <div className="space-y-4">
             {/* Organization Code Input */}
             <div>
-              <label className="block text-sm text-pdm-fg-muted mb-1.5">
+              <label className="block text-sm text-plm-fg-muted mb-1.5">
                 {t('setup.organizationCode')}
               </label>
               <textarea
@@ -483,7 +483,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                 onChange={(e) => setOrgCode(e.target.value)}
                 placeholder="PDM-XXXX-XXXX-XXXX..."
                 rows={4}
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-4 py-3 text-pdm-fg placeholder-pdm-fg-dim focus:border-pdm-accent focus:outline-none font-mono text-sm resize-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono text-sm resize-none"
               />
             </div>
             

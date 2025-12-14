@@ -17,15 +17,15 @@ interface ActivityEntry {
 }
 
 const ACTION_INFO: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-  checkout: { icon: <ArrowDown size={14} />, label: 'Checked out', color: 'text-pdm-error' },
-  checkin: { icon: <ArrowUp size={14} />, label: 'Checked in', color: 'text-pdm-success' },
-  create: { icon: <FolderPlus size={14} />, label: 'Created', color: 'text-pdm-accent' },
-  delete: { icon: <Trash2 size={14} />, label: 'Moved to trash', color: 'text-pdm-warning' },
-  restore: { icon: <RotateCcw size={14} />, label: 'Restored', color: 'text-pdm-success' },
-  state_change: { icon: <RefreshCw size={14} />, label: 'State changed', color: 'text-pdm-warning' },
-  revision_change: { icon: <Edit size={14} />, label: 'Revision changed', color: 'text-pdm-info' },
-  rename: { icon: <Edit size={14} />, label: 'Renamed', color: 'text-pdm-fg-dim' },
-  move: { icon: <MoveRight size={14} />, label: 'Moved', color: 'text-pdm-fg-dim' },
+  checkout: { icon: <ArrowDown size={14} />, label: 'Checked out', color: 'text-plm-error' },
+  checkin: { icon: <ArrowUp size={14} />, label: 'Checked in', color: 'text-plm-success' },
+  create: { icon: <FolderPlus size={14} />, label: 'Created', color: 'text-plm-accent' },
+  delete: { icon: <Trash2 size={14} />, label: 'Moved to trash', color: 'text-plm-warning' },
+  restore: { icon: <RotateCcw size={14} />, label: 'Restored', color: 'text-plm-success' },
+  state_change: { icon: <RefreshCw size={14} />, label: 'State changed', color: 'text-plm-warning' },
+  revision_change: { icon: <Edit size={14} />, label: 'Revision changed', color: 'text-plm-info' },
+  rename: { icon: <Edit size={14} />, label: 'Renamed', color: 'text-plm-fg-dim' },
+  move: { icon: <MoveRight size={14} />, label: 'Moved', color: 'text-plm-fg-dim' },
 }
 
 export function HistoryView() {
@@ -74,7 +74,7 @@ export function HistoryView() {
 
   if (!isVaultConnected) {
     return (
-      <div className="p-4 text-sm text-pdm-fg-muted text-center">
+      <div className="p-4 text-sm text-plm-fg-muted text-center">
         Open a vault to view activity
       </div>
     )
@@ -82,7 +82,7 @@ export function HistoryView() {
 
   if (!organization) {
     return (
-      <div className="p-4 text-sm text-pdm-fg-muted text-center">
+      <div className="p-4 text-sm text-plm-fg-muted text-center">
         Sign in to view vault activity
       </div>
     )
@@ -90,20 +90,20 @@ export function HistoryView() {
 
   return (
     <div className="p-4">
-      <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-3">
+      <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
         {historyFolderFilter ? 'Folder History' : 'Vault Activity'}
       </div>
       
       {/* Folder filter indicator */}
       {historyFolderFilter && (
-        <div className="flex items-center gap-2 mb-3 p-2 bg-pdm-bg-light rounded border border-pdm-border">
-          <FolderOpen size={14} className="text-pdm-accent flex-shrink-0" />
+        <div className="flex items-center gap-2 mb-3 p-2 bg-plm-bg-light rounded border border-plm-border">
+          <FolderOpen size={14} className="text-plm-accent flex-shrink-0" />
           <span className="text-sm truncate flex-1" title={historyFolderFilter}>
             {historyFolderFilter.split('/').pop() || historyFolderFilter}
           </span>
           <button
             onClick={() => setHistoryFolderFilter(null)}
-            className="p-0.5 hover:bg-pdm-bg rounded text-pdm-fg-muted hover:text-pdm-fg"
+            className="p-0.5 hover:bg-plm-bg rounded text-plm-fg-muted hover:text-plm-fg"
             title="Clear filter"
           >
             <X size={14} />
@@ -116,7 +116,7 @@ export function HistoryView() {
           <div className="spinner" />
         </div>
       ) : filteredActivity.length === 0 ? (
-        <div className="text-sm text-pdm-fg-muted py-4 text-center">
+        <div className="text-sm text-plm-fg-muted py-4 text-center">
           {historyFolderFilter ? 'No activity in this folder' : 'No recent activity'}
         </div>
       ) : (
@@ -125,13 +125,13 @@ export function HistoryView() {
             const actionInfo = ACTION_INFO[entry.action] || { 
               icon: <FileText size={14} />, 
               label: entry.action, 
-              color: 'text-pdm-fg-muted' 
+              color: 'text-plm-fg-muted' 
             }
             
             return (
               <div
                 key={entry.id}
-                className="p-2 bg-pdm-bg-light rounded border border-pdm-border hover:border-pdm-border-light transition-colors"
+                className="p-2 bg-plm-bg-light rounded border border-plm-border hover:border-plm-border-light transition-colors"
               >
                 <div className="flex items-start gap-2">
                   <span className={`mt-0.5 ${actionInfo.color}`}>
@@ -141,16 +141,16 @@ export function HistoryView() {
                     <div className="text-sm flex items-center gap-1">
                       <span className={`${actionInfo.color} whitespace-nowrap flex-shrink-0`}>{actionInfo.label}</span>
                       {entry.file ? (
-                        <span className="text-pdm-fg truncate">
+                        <span className="text-plm-fg truncate">
                           {entry.file.file_name}
                         </span>
                       ) : (entry.details as any)?.file_name ? (
-                        <span className="text-pdm-fg truncate">
+                        <span className="text-plm-fg truncate">
                           {(entry.details as any).file_name}
                         </span>
                       ) : null}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-pdm-fg-muted mt-1">
+                    <div className="flex items-center gap-2 text-xs text-plm-fg-muted mt-1">
                       <span className="flex items-center gap-1">
                         <User size={10} />
                         {entry.user_email.split('@')[0]}

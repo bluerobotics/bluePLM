@@ -88,7 +88,7 @@ function ExplorerFileIcon({ file, size = 16 }: ExplorerFileIconProps) {
   const iconType = getFileIconType(file.extension)
   switch (iconType) {
     case 'part':
-      return <FileBox size={size} className="text-pdm-accent flex-shrink-0" />
+      return <FileBox size={size} className="text-plm-accent flex-shrink-0" />
     case 'assembly':
       return <Layers size={size} className="text-amber-400 flex-shrink-0" />
     case 'drawing':
@@ -112,9 +112,9 @@ function ExplorerFileIcon({ file, size = 16 }: ExplorerFileIconProps) {
     case 'code':
       return <FileCode size={size} className="text-sky-400 flex-shrink-0" />
     case 'text':
-      return <FileText size={size} className="text-pdm-fg-muted flex-shrink-0" />
+      return <FileText size={size} className="text-plm-fg-muted flex-shrink-0" />
     default:
-      return <File size={size} className="text-pdm-fg-muted flex-shrink-0" />
+      return <File size={size} className="text-plm-fg-muted flex-shrink-0" />
   }
 }
 
@@ -570,19 +570,19 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
       }
       // Cloud-only folders (exist on server but not locally)
       if (file.diffStatus === 'cloud') {
-        return <FolderOpen size={16} className="text-pdm-fg-muted opacity-50" />
+        return <FolderOpen size={16} className="text-plm-fg-muted opacity-50" />
       }
       const checkoutStatus = getFolderCheckoutStatus(file.relativePath)
       if (checkoutStatus === 'others' || checkoutStatus === 'both') {
         // Red for folders with files checked out by others
-        return <FolderOpen size={16} className="text-pdm-error" />
+        return <FolderOpen size={16} className="text-plm-error" />
       }
       if (checkoutStatus === 'mine') {
         // Orange for folders with only my checkouts
-        return <FolderOpen size={16} className="text-pdm-warning" />
+        return <FolderOpen size={16} className="text-plm-warning" />
       }
       const synced = isFolderSynced(file.relativePath)
-      return <FolderOpen size={16} className={synced ? 'text-pdm-success' : 'text-pdm-fg-muted'} />
+      return <FolderOpen size={16} className={synced ? 'text-plm-success' : 'text-plm-fg-muted'} />
     }
     
     // Check if file is inside a processing folder
@@ -659,7 +659,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                   <img 
                     src={u.avatar_url} 
                     alt={u.name}
-                    className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-pdm-accent' : 'ring-pdm-bg-light'} bg-pdm-bg object-cover`}
+                    className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-plm-accent' : 'ring-plm-bg-light'} bg-plm-bg object-cover`}
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       target.style.display = 'none'
@@ -668,7 +668,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                   />
                 ) : null}
                 <div 
-                  className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-pdm-accent bg-pdm-accent/30 text-pdm-accent' : 'ring-pdm-bg-light bg-pdm-fg-muted/30 text-pdm-fg'} flex items-center justify-center text-[9px] font-medium ${u.avatar_url ? 'hidden' : ''}`}
+                  className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-plm-accent bg-plm-accent/30 text-plm-accent' : 'ring-plm-bg-light bg-plm-fg-muted/30 text-plm-fg'} flex items-center justify-center text-[9px] font-medium ${u.avatar_url ? 'hidden' : ''}`}
                 >
                   {getInitials(u.name)}
                 </div>
@@ -676,7 +676,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             ))}
             {extra > 0 && (
               <div 
-                className="w-5 h-5 rounded-full ring-1 ring-pdm-fg-muted bg-pdm-bg flex items-center justify-center text-[9px] font-medium text-pdm-fg-muted"
+                className="w-5 h-5 rounded-full ring-1 ring-plm-fg-muted bg-plm-bg flex items-center justify-center text-[9px] font-medium text-plm-fg-muted"
                 style={{ zIndex: 0 }}
               >
                 +{extra}
@@ -710,12 +710,12 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
       // Green cloud: folder exists on server (either has content or exists in serverFolderPaths)
       if (hasServerContent || folderExistsOnServer) {
         // Bright green if all local files are synced, muted green if some pending or empty
-        const colorClass = allSynced ? 'text-pdm-success' : 'text-pdm-success/60'
+        const colorClass = allSynced ? 'text-plm-success' : 'text-plm-success/60'
         return <Cloud size={12} className={`${colorClass} flex-shrink-0`} />
       }
       
       // Local-only folder (not on server) - show drive icon
-      return <HardDrive size={12} className="text-pdm-fg-muted flex-shrink-0" />
+      return <HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" />
     }
     
     // For files:
@@ -728,7 +728,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             <img 
               src={user.avatar_url} 
               alt="You"
-              className="w-5 h-5 rounded-full ring-1 ring-pdm-accent object-cover"
+              className="w-5 h-5 rounded-full ring-1 ring-plm-accent object-cover"
               onError={(e) => {
                 const target = e.target as HTMLImageElement
                 target.style.display = 'none'
@@ -737,7 +737,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             />
           ) : null}
           <div 
-            className={`w-5 h-5 rounded-full ring-1 ring-pdm-accent bg-pdm-accent/30 text-pdm-accent flex items-center justify-center text-[9px] font-medium absolute inset-0 ${user?.avatar_url ? 'hidden' : ''}`}
+            className={`w-5 h-5 rounded-full ring-1 ring-plm-accent bg-plm-accent/30 text-plm-accent flex items-center justify-center text-[9px] font-medium absolute inset-0 ${user?.avatar_url ? 'hidden' : ''}`}
           >
             {myInitial}
           </div>
@@ -757,7 +757,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             <img 
               src={avatarUrl} 
               alt={displayName}
-              className="w-5 h-5 rounded-full ring-1 ring-pdm-bg-light object-cover"
+              className="w-5 h-5 rounded-full ring-1 ring-plm-bg-light object-cover"
               onError={(e) => {
                 const target = e.target as HTMLImageElement
                 target.style.display = 'none'
@@ -766,7 +766,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             />
           ) : null}
           <div 
-            className={`w-5 h-5 rounded-full ring-1 ring-pdm-bg-light bg-pdm-fg-muted/30 text-pdm-fg flex items-center justify-center text-[9px] font-medium absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
+            className={`w-5 h-5 rounded-full ring-1 ring-plm-bg-light bg-plm-fg-muted/30 text-plm-fg flex items-center justify-center text-[9px] font-medium absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
           >
             {getInitials(displayName)}
           </div>
@@ -776,17 +776,17 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     
     // Cloud-only (not downloaded) - grey cloud
     if (file.diffStatus === 'cloud') {
-      return <Cloud size={12} className="text-pdm-fg-muted flex-shrink-0" />
+      return <Cloud size={12} className="text-plm-fg-muted flex-shrink-0" />
     }
     
     // Added (local only, ready to check in) - hard drive icon
     if (file.diffStatus === 'added') {
-      return <span title="Local only"><HardDrive size={12} className="text-pdm-fg-muted flex-shrink-0" /></span>
+      return <span title="Local only"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
     }
     
     // Synced (has pdmData and downloaded locally) - green cloud
     if (file.pdmData) {
-      return <Cloud size={12} className="text-pdm-success flex-shrink-0" />
+      return <Cloud size={12} className="text-plm-success flex-shrink-0" />
     }
     
     // Not synced - no icon
@@ -832,7 +832,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     if (!window.electronAPI || !vaultPath) return
     
     // Check for external files first (from outside the app)
-    const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+    const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
     const droppedExternalFiles = Array.from(e.dataTransfer.files)
     
     if (droppedExternalFiles.length > 0 && !hasPdmFiles) {
@@ -911,7 +911,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
       setDraggedFiles([])
     } else {
       // Try to get from data transfer (cross-view drag)
-      const pdmFilesData = e.dataTransfer.getData('application/x-pdm-files')
+      const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
       if (pdmFilesData) {
         try {
           const relativePaths: string[] = JSON.parse(pdmFilesData)
@@ -1001,7 +1001,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
   const handleVaultRootDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     // Check if we have pdm files being dragged (use ref for synchronous access)
-    const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+    const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
     const hasExternalFiles = e.dataTransfer.types.includes('Files') && !hasPdmFiles
     const currentDraggedFiles = draggedFilesRef.current
     
@@ -1038,7 +1038,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     if (!window.electronAPI || !vaultPath) return
     
     // Check for external files first (from outside the app)
-    const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+    const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
     const droppedExternalFiles = Array.from(e.dataTransfer.files)
     
     if (droppedExternalFiles.length > 0 && !hasPdmFiles) {
@@ -1116,7 +1116,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
       draggedFilesRef.current = []
       setDraggedFiles([])
     } else {
-      const pdmFilesData = e.dataTransfer.getData('application/x-pdm-files')
+      const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
       if (pdmFilesData) {
         try {
           const relativePaths: string[] = JSON.parse(pdmFilesData)
@@ -1354,7 +1354,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             e.dataTransfer.effectAllowed = 'copyMove'
             e.dataTransfer.setData('text/plain', filePaths.join('\n'))
             // Set PDM-specific data for cross-view drag
-            e.dataTransfer.setData('application/x-pdm-files', JSON.stringify(filesToDrag.map(f => f.relativePath)))
+            e.dataTransfer.setData('application/x-plm-files', JSON.stringify(filesToDrag.map(f => f.relativePath)))
             
             // Use DownloadURL format for single non-folder file - enables actual file copy
             if (filesToDrag.length === 1 && !filesToDrag[0].isDirectory) {
@@ -1398,7 +1398,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             e.stopPropagation()
             
             // Check if this is a pdm drag (internal or cross-view) or external files
-            const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+            const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
             const hasExternalFiles = e.dataTransfer.types.includes('Files') && !hasPdmFiles
             const currentDraggedFiles = draggedFilesRef.current
             
@@ -1453,8 +1453,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               }}
             >
               {isExpanded 
-                ? <ChevronDown size={14} className="text-pdm-fg-muted" /> 
-                : <ChevronRight size={14} className="text-pdm-fg-muted" />
+                ? <ChevronDown size={14} className="text-plm-fg-muted" /> 
+                : <ChevronRight size={14} className="text-plm-fg-muted" />
               }
             </span>
           )}
@@ -1465,7 +1465,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           {isRenaming ? (
             <input
               type="text"
-              className="flex-1 text-sm bg-pdm-bg border border-pdm-accent rounded px-1 py-0.5 outline-none"
+              className="flex-1 text-sm bg-plm-bg border border-plm-accent rounded px-1 py-0.5 outline-none"
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               onBlur={handleRenameSubmit}
@@ -1477,7 +1477,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className={`truncate text-sm flex-1 ${file.diffStatus === 'cloud' ? 'italic text-pdm-fg-muted' : ''}`}>
+            <span className={`truncate text-sm flex-1 ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}>
               {file.isDirectory || !file.extension 
                 ? file.name 
                 : file.name.slice(0, -file.extension.length) + (lowercaseExtensions !== false ? file.extension.toLowerCase() : file.extension)}
@@ -1491,7 +1491,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               {/* Cloud files first (download from others) */}
               {/* Also show download button for empty cloud-only folders */}
               {(diffCounts && diffCounts.cloud > 0) || file.diffStatus === 'cloud' ? (
-                <span className="text-pdm-info font-medium flex items-center gap-0.5">
+                <span className="text-plm-info font-medium flex items-center gap-0.5">
                   {diffCounts && diffCounts.cloud > 0 && (
                     <>
                       <Cloud size={10} />
@@ -1511,20 +1511,20 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 </span>
               ) : null}
               {diffCounts && diffCounts.modified > 0 && (
-                <span className="text-pdm-warning font-medium flex items-center gap-0.5"><ArrowUp size={10} />{diffCounts.modified}</span>
+                <span className="text-plm-warning font-medium flex items-center gap-0.5"><ArrowUp size={10} />{diffCounts.modified}</span>
               )}
               {diffCounts && diffCounts.moved > 0 && (
-                <span className="text-pdm-accent font-medium">→{diffCounts.moved}</span>
+                <span className="text-plm-accent font-medium">→{diffCounts.moved}</span>
               )}
               {diffCounts && diffCounts.deleted > 0 && (
-                <span className="text-pdm-error font-medium">-{diffCounts.deleted}</span>
+                <span className="text-plm-error font-medium">-{diffCounts.deleted}</span>
               )}
               {diffCounts && diffCounts.outdated > 0 && (
                 <span className="text-purple-400 font-medium">↓{diffCounts.outdated}</span>
               )}
               {/* Local-only files last (next to check-in button) */}
               {localOnlyCount > 0 && (
-                <span className="text-pdm-fg-muted font-medium flex items-center gap-0.5" title={`${localOnlyCount} local files not yet synced`}>
+                <span className="text-plm-fg-muted font-medium flex items-center gap-0.5" title={`${localOnlyCount} local files not yet synced`}>
                   <HardDrive size={10} />
                   {localOnlyCount}
                 </span>
@@ -1578,7 +1578,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 {/* First Check In - for unsynced files/folders */}
                 {showFirstCheckin && (
                   <button
-                    className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success"
+                    className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success"
                     onClick={(e) => handleInlineFirstCheckin(e, file)}
                     title="First Check In"
                   >
@@ -1588,7 +1588,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 {/* Check Out - for synced files/folders not checked out */}
                 {showCheckout && (
                   <button
-                    className="p-0.5 rounded hover:bg-pdm-warning/20 text-pdm-warning"
+                    className="p-0.5 rounded hover:bg-plm-warning/20 text-plm-warning"
                     onClick={(e) => handleInlineCheckout(e, file)}
                     title={file.isDirectory && checkoutableFilesCount > 0 ? `Check out ${checkoutableFilesCount} file${checkoutableFilesCount > 1 ? 's' : ''}` : "Check Out"}
                   >
@@ -1598,7 +1598,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 {/* Check In - for files/folders checked out by me */}
                 {showCheckin && (
                   <button
-                    className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success"
+                    className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success"
                     onClick={(e) => handleInlineCheckin(e, file)}
                     title="Check In"
                   >
@@ -1615,7 +1615,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             onDragOver={(e) => {
               // When dragging over expanded folder area, highlight the parent folder
               e.preventDefault()
-              const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+              const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
               if (hasPdmFiles || draggedFilesRef.current.length > 0) {
                 e.dataTransfer.dropEffect = 'move'
                 // Only set if not already over a more specific folder
@@ -1702,12 +1702,12 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     const totalCheckouts = checkedOutByMeCount + checkedOutByOthersCount
     
     return (
-      <div key={vault.id} className="border-b border-pdm-border last:border-b-0">
+      <div key={vault.id} className="border-b border-plm-border last:border-b-0">
         {/* Vault header - click to select vault (expands automatically), also accepts drops to root */}
         <div 
           className={`group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
-            isActive ? 'bg-pdm-highlight text-pdm-fg' : 'text-pdm-fg-dim hover:bg-pdm-highlight/50'
-          } ${isActive && dragOverFolder === '' ? 'bg-pdm-accent/20 outline outline-2 outline-dashed outline-pdm-accent/50' : ''}`}
+            isActive ? 'bg-plm-highlight text-plm-fg' : 'text-plm-fg-dim hover:bg-plm-highlight/50'
+          } ${isActive && dragOverFolder === '' ? 'bg-plm-accent/20 outline outline-2 outline-dashed outline-plm-accent/50' : ''}`}
           onClick={() => {
             if (isActive) {
               // Already active - just toggle expand/collapse
@@ -1726,7 +1726,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             if (!isActive) return
             e.preventDefault()
             e.stopPropagation()
-            const hasPdmFiles = e.dataTransfer.types.includes('application/x-pdm-files')
+            const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
             const hasExternalFiles = e.dataTransfer.types.includes('Files') && !hasPdmFiles
             if (hasPdmFiles || draggedFilesRef.current.length > 0) {
               e.dataTransfer.dropEffect = 'move'
@@ -1753,11 +1753,11 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
         >
           <span className="flex-shrink-0">
             {isExpanded && isActive
-              ? <ChevronDown size={14} className="text-pdm-fg-muted" />
-              : <ChevronRight size={14} className="text-pdm-fg-muted" />
+              ? <ChevronDown size={14} className="text-plm-fg-muted" />
+              : <ChevronRight size={14} className="text-plm-fg-muted" />
             }
           </span>
-          <Database size={16} className={isActive ? 'text-pdm-accent' : 'text-pdm-fg-muted'} />
+          <Database size={16} className={isActive ? 'text-plm-accent' : 'text-plm-fg-muted'} />
           <span className="flex-1 truncate text-sm font-medium">
             {vault.name}
           </span>
@@ -1766,8 +1766,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           <button
             className={`p-1 rounded transition-all ${
               isActive 
-                ? 'text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-bg-light' 
-                : 'opacity-0 group-hover:opacity-100 text-pdm-fg-muted hover:text-pdm-fg hover:bg-pdm-bg-light'
+                ? 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light' 
+                : 'opacity-0 group-hover:opacity-100 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light'
             }`}
             title="Refresh vault (F5)"
             onClick={(e) => {
@@ -1793,7 +1793,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                       <div 
                         key={u.id} 
                         className={`w-5 h-5 rounded-full ring-1 overflow-hidden flex-shrink-0 relative ${
-                          u.isMe ? 'ring-pdm-accent' : 'ring-pdm-bg-light'
+                          u.isMe ? 'ring-plm-accent' : 'ring-plm-bg-light'
                         }`}
                       >
                         {u.avatar_url ? (
@@ -1808,18 +1808,18 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                             }}
                           />
                         ) : null}
-                        <div className={`w-full h-full ${u.isMe ? 'bg-pdm-accent/30' : 'bg-pdm-fg-muted/30'} flex items-center justify-center text-[10px] font-medium ${u.isMe ? 'text-pdm-accent' : 'text-pdm-fg'} absolute inset-0 ${u.avatar_url ? 'hidden' : ''}`}>
+                        <div className={`w-full h-full ${u.isMe ? 'bg-plm-accent/30' : 'bg-plm-fg-muted/30'} flex items-center justify-center text-[10px] font-medium ${u.isMe ? 'text-plm-accent' : 'text-plm-fg'} absolute inset-0 ${u.avatar_url ? 'hidden' : ''}`}>
                           {getInitials(u.name)}
                         </div>
                       </div>
                     ))}
                     {allCheckoutUsers.length > 3 && (
-                      <div className="w-5 h-5 rounded-full ring-1 ring-pdm-bg-light bg-pdm-bg-light flex items-center justify-center text-[9px] text-pdm-fg-muted flex-shrink-0">
+                      <div className="w-5 h-5 rounded-full ring-1 ring-plm-bg-light bg-plm-bg-light flex items-center justify-center text-[9px] text-plm-fg-muted flex-shrink-0">
                         +{allCheckoutUsers.length - 3}
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-0.5 text-[10px] text-pdm-fg-muted">
+                  <div className="flex items-center gap-0.5 text-[10px] text-plm-fg-muted">
                     <Lock size={10} />
                     <span>{totalCheckouts}</span>
                   </div>
@@ -1829,7 +1829,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               {/* Cloud files indicator - files others added that you haven't downloaded */}
               {cloudFilesCount > 0 && (
                 <div 
-                  className="flex items-center gap-0.5 text-[10px] text-pdm-info bg-pdm-bg/50 px-1.5 py-0.5 rounded"
+                  className="flex items-center gap-0.5 text-[10px] text-plm-info bg-plm-bg/50 px-1.5 py-0.5 rounded"
                   title={`${cloudFilesCount} cloud files available to download`}
                 >
                   <Cloud size={10} />
@@ -1842,8 +1842,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 <button
                   className={`p-1 rounded transition-colors ${
                     isDownloadingAll 
-                      ? 'text-pdm-info cursor-not-allowed' 
-                      : 'hover:bg-pdm-bg/50 text-pdm-fg-muted/50 hover:text-pdm-info'
+                      ? 'text-plm-info cursor-not-allowed' 
+                      : 'hover:bg-plm-bg/50 text-plm-fg-muted/50 hover:text-plm-info'
                   }`}
                   title={isDownloadingAll ? 'Downloading...' : `Download ${cloudFilesCount} cloud files`}
                   onClick={handleDownloadAllCloudFiles}
@@ -1860,7 +1860,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               {/* Local-only files indicator - files not yet synced to cloud */}
               {localOnlyFilesCount > 0 && (
                 <div 
-                  className="flex items-center gap-0.5 text-[10px] text-pdm-fg-muted bg-pdm-bg/50 px-1.5 py-0.5 rounded"
+                  className="flex items-center gap-0.5 text-[10px] text-plm-fg-muted bg-plm-bg/50 px-1.5 py-0.5 rounded"
                   title={`${localOnlyFilesCount} local files not yet synced`}
                 >
                   <HardDrive size={10} />
@@ -1873,8 +1873,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 <button
                   className={`p-1 rounded transition-colors ${
                     isCheckingInAll 
-                      ? 'text-pdm-success cursor-not-allowed' 
-                      : 'hover:bg-pdm-success/20 text-pdm-fg-muted/50 hover:text-pdm-success'
+                      ? 'text-plm-success cursor-not-allowed' 
+                      : 'hover:bg-plm-success/20 text-plm-fg-muted/50 hover:text-plm-success'
                   }`}
                   title={isCheckingInAll ? 'Uploading...' : `First Check In ${localOnlyFilesCount} local files`}
                   onClick={handleFirstCheckinAllLocal}
@@ -1894,7 +1894,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
         {/* Vault contents - only show when active and expanded */}
         {isExpanded && isActive && (
           <div 
-            className={`pb-2 min-h-[40px] ${dragOverFolder === '' ? 'bg-pdm-accent/10 outline outline-2 outline-dashed outline-pdm-accent/50 rounded' : ''}`}
+            className={`pb-2 min-h-[40px] ${dragOverFolder === '' ? 'bg-plm-accent/10 outline outline-2 outline-dashed outline-plm-accent/50 rounded' : ''}`}
             onDragOver={handleVaultRootDragOver}
             onDragLeave={handleVaultRootDragLeave}
             onDrop={handleVaultRootDrop}
@@ -1912,12 +1912,12 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             
             {(isLoading || !filesLoaded) && tree[''].length === 0 && (
               <div className="flex items-center justify-center py-6">
-                <Loader2 size={20} className="text-pdm-fg-muted animate-spin" />
+                <Loader2 size={20} className="text-plm-fg-muted animate-spin" />
               </div>
             )}
             
             {tree[''].length === 0 && !isLoading && filesLoaded && (
-              <div className="px-4 py-4 text-center text-pdm-fg-muted text-xs">
+              <div className="px-4 py-4 text-center text-plm-fg-muted text-xs">
                 {dragOverFolder === '' ? 'Drop here to move to root' : 'No files in vault'}
               </div>
             )}
@@ -1938,8 +1938,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
         <div className="py-2 relative">
           {/* Vault header */}
           <div 
-            className={`px-3 py-2 border-b border-pdm-border flex items-center gap-2 cursor-pointer transition-colors ${
-              currentFolder === '' ? 'text-pdm-accent font-medium' : 'text-pdm-fg-muted hover:text-pdm-fg'
+            className={`px-3 py-2 border-b border-plm-border flex items-center gap-2 cursor-pointer transition-colors ${
+              currentFolder === '' ? 'text-plm-accent font-medium' : 'text-plm-fg-muted hover:text-plm-fg'
             }`}
             onClick={() => setCurrentFolder('')}
             title="Go to vault root"
@@ -1961,12 +1961,12 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           
           {(isLoading || !filesLoaded) && rootItems.length === 0 && (
             <div className="flex items-center justify-center py-8">
-              <Loader2 size={20} className="text-pdm-fg-muted animate-spin" />
+              <Loader2 size={20} className="text-plm-fg-muted animate-spin" />
             </div>
           )}
           
           {rootItems.length === 0 && !isLoading && filesLoaded && (
-            <div className="px-4 py-8 text-center text-pdm-fg-muted text-sm">
+            <div className="px-4 py-8 text-center text-plm-fg-muted text-sm">
               No files in vault
             </div>
           )}
@@ -2009,14 +2009,14 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
         
         {recentVaults.length > 0 && (
           <div>
-            <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+            <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
               Recent Vaults
             </div>
             {recentVaults.map(vault => (
               <button
                 key={vault}
                 onClick={() => onOpenRecentVault(vault)}
-                className="w-full text-left px-2 py-1.5 text-sm text-pdm-fg-dim hover:bg-pdm-highlight rounded truncate"
+                className="w-full text-left px-2 py-1.5 text-sm text-plm-fg-dim hover:bg-plm-highlight rounded truncate"
                 title={vault}
               >
                 {vault.split(/[/\\]/).pop()}
@@ -2033,21 +2033,21 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     <div className="flex flex-col h-full">
       {/* Pinned section - only show if there are pinned items */}
       {pinnedFolders.length > 0 && (
-        <div className="border-b border-pdm-border">
+        <div className="border-b border-plm-border">
           {/* Pinned header - collapsible */}
           <div 
-            className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-pdm-highlight/30"
+            className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-plm-highlight/30"
             onClick={() => togglePinnedSection()}
           >
             <span className="cursor-pointer">
               {pinnedSectionExpanded 
-                ? <ChevronDown size={14} className="text-pdm-fg-muted" /> 
-                : <ChevronRight size={14} className="text-pdm-fg-muted" />
+                ? <ChevronDown size={14} className="text-plm-fg-muted" /> 
+                : <ChevronRight size={14} className="text-plm-fg-muted" />
               }
             </span>
-            <Pin size={14} className="text-pdm-accent fill-pdm-accent" />
+            <Pin size={14} className="text-plm-accent fill-plm-accent" />
             <span className="text-sm font-medium flex-1">Pinned</span>
-            <span className="text-xs text-pdm-fg-muted">{pinnedFolders.length}</span>
+            <span className="text-xs text-plm-fg-muted">{pinnedFolders.length}</span>
           </div>
           
           {/* Pinned items */}
@@ -2096,7 +2096,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                           <img 
                             src={user.avatar_url} 
                             alt="You"
-                            className="w-5 h-5 rounded-full ring-1 ring-pdm-accent object-cover"
+                            className="w-5 h-5 rounded-full ring-1 ring-plm-accent object-cover"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement
                               target.style.display = 'none'
@@ -2105,7 +2105,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                           />
                         ) : null}
                         <div 
-                          className={`w-5 h-5 rounded-full ring-1 ring-pdm-accent bg-pdm-accent/30 text-pdm-accent flex items-center justify-center text-[9px] font-medium absolute inset-0 ${user?.avatar_url ? 'hidden' : ''}`}
+                          className={`w-5 h-5 rounded-full ring-1 ring-plm-accent bg-plm-accent/30 text-plm-accent flex items-center justify-center text-[9px] font-medium absolute inset-0 ${user?.avatar_url ? 'hidden' : ''}`}
                         >
                           {myInitial}
                         </div>
@@ -2123,7 +2123,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                           <img 
                             src={avatarUrl} 
                             alt={displayName}
-                            className="w-5 h-5 rounded-full ring-1 ring-pdm-bg-light object-cover"
+                            className="w-5 h-5 rounded-full ring-1 ring-plm-bg-light object-cover"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement
                               target.style.display = 'none'
@@ -2132,7 +2132,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                           />
                         ) : null}
                         <div 
-                          className={`w-5 h-5 rounded-full ring-1 ring-pdm-bg-light bg-pdm-fg-muted/30 text-pdm-fg flex items-center justify-center text-[9px] font-medium absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
+                          className={`w-5 h-5 rounded-full ring-1 ring-plm-bg-light bg-plm-fg-muted/30 text-plm-fg flex items-center justify-center text-[9px] font-medium absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
                         >
                           {getInitials(displayName)}
                         </div>
@@ -2140,10 +2140,10 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                     )
                   }
                   if (actualFile.diffStatus === 'cloud') {
-                    return <Cloud size={12} className="text-pdm-fg-muted flex-shrink-0" />
+                    return <Cloud size={12} className="text-plm-fg-muted flex-shrink-0" />
                   }
                   if (actualFile.pdmData) {
-                    return <Cloud size={12} className="text-pdm-success flex-shrink-0" />
+                    return <Cloud size={12} className="text-plm-success flex-shrink-0" />
                   }
                   return null
                 }
@@ -2155,23 +2155,23 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                     if (pinned.vaultId === activeVaultId) {
                       // Cloud-only folder
                       if (actualFile?.diffStatus === 'cloud') {
-                        return <FolderOpen size={16} className="text-pdm-fg-muted opacity-50" />
+                        return <FolderOpen size={16} className="text-plm-fg-muted opacity-50" />
                       }
                       // Check checkout status - red for others, orange for mine
                       const checkoutStatus = getFolderCheckoutStatus(pinned.path)
                       if (checkoutStatus === 'others' || checkoutStatus === 'both') {
-                        return <FolderOpen size={16} className="text-pdm-error" />
+                        return <FolderOpen size={16} className="text-plm-error" />
                       }
                       if (checkoutStatus === 'mine') {
-                        return <FolderOpen size={16} className="text-pdm-warning" />
+                        return <FolderOpen size={16} className="text-plm-warning" />
                       }
                       // All synced - green
                       if (isFolderSynced(pinned.path)) {
-                        return <FolderOpen size={16} className="text-pdm-success" />
+                        return <FolderOpen size={16} className="text-plm-success" />
                       }
                     }
                     // Default - grey
-                    return <FolderOpen size={16} className="text-pdm-fg-muted" />
+                    return <FolderOpen size={16} className="text-plm-fg-muted" />
                   }
                   // For files, use OS icon if we have the actual file
                   if (actualFile) {
@@ -2182,7 +2182,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                   const iconType = getFileIconType(ext)
                   switch (iconType) {
                     case 'part':
-                      return <FileBox size={16} className="text-pdm-accent" />
+                      return <FileBox size={16} className="text-plm-accent" />
                     case 'assembly':
                       return <Layers size={16} className="text-amber-400" />
                     case 'drawing':
@@ -2206,9 +2206,9 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                     case 'code':
                       return <FileCode size={16} className="text-sky-400" />
                     case 'text':
-                      return <FileText size={16} className="text-pdm-fg-muted" />
+                      return <FileText size={16} className="text-plm-fg-muted" />
                     default:
-                      return <File size={16} className="text-pdm-fg-muted" />
+                      return <File size={16} className="text-plm-fg-muted" />
                   }
                 }
                 
@@ -2255,7 +2255,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                           setDragOverPinIndex(null)
                         }
                       }}
-                      className={`tree-item group ${diffClass} ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-t-2 border-pdm-accent' : ''}`}
+                      className={`tree-item group ${diffClass} ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-t-2 border-plm-accent' : ''}`}
                       style={{ paddingLeft: pinned.isDirectory ? 8 : 24, cursor: 'grab' }}
                       onClick={async () => {
                         // Switch to the vault if different
@@ -2344,8 +2344,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                           }}
                         >
                           {isPinnedFolderExpanded 
-                            ? <ChevronDown size={14} className="text-pdm-fg-muted" /> 
-                            : <ChevronRight size={14} className="text-pdm-fg-muted" />
+                            ? <ChevronDown size={14} className="text-plm-fg-muted" /> 
+                            : <ChevronRight size={14} className="text-plm-fg-muted" />
                           }
                         </span>
                       )}
@@ -2357,7 +2357,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                       
                       {/* Vault label if from different vault */}
                       {pinned.vaultId !== activeVaultId && (
-                        <span className="text-[10px] text-pdm-fg-muted truncate max-w-[60px]" title={pinned.vaultName}>
+                        <span className="text-[10px] text-plm-fg-muted truncate max-w-[60px]" title={pinned.vaultName}>
                           {pinned.vaultName}
                         </span>
                       )}
@@ -2369,25 +2369,25 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                       {pinned.isDirectory && (hasDiffs || localOnlyCount > 0) && (
                         <span className="flex items-center gap-1 ml-1 text-xs">
                           {localOnlyCount > 0 && (
-                            <span className="text-pdm-fg-muted font-medium flex items-center gap-0.5" title={`${localOnlyCount} local files not yet synced`}>
+                            <span className="text-plm-fg-muted font-medium flex items-center gap-0.5" title={`${localOnlyCount} local files not yet synced`}>
                               <HardDrive size={10} />
                               {localOnlyCount}
                             </span>
                           )}
                           {diffCounts && diffCounts.modified > 0 && (
-                            <span className="text-pdm-warning font-medium flex items-center gap-0.5"><ArrowUp size={10} />{diffCounts.modified}</span>
+                            <span className="text-plm-warning font-medium flex items-center gap-0.5"><ArrowUp size={10} />{diffCounts.modified}</span>
                           )}
                           {diffCounts && diffCounts.moved > 0 && (
-                            <span className="text-pdm-accent font-medium">→{diffCounts.moved}</span>
+                            <span className="text-plm-accent font-medium">→{diffCounts.moved}</span>
                           )}
                           {diffCounts && diffCounts.deleted > 0 && (
-                            <span className="text-pdm-error font-medium">-{diffCounts.deleted}</span>
+                            <span className="text-plm-error font-medium">-{diffCounts.deleted}</span>
                           )}
                           {diffCounts && diffCounts.outdated > 0 && (
                             <span className="text-purple-400 font-medium">↓{diffCounts.outdated}</span>
                           )}
                           {diffCounts && diffCounts.cloud > 0 && (
-                            <span className="text-pdm-fg-muted font-medium flex items-center gap-0.5">
+                            <span className="text-plm-fg-muted font-medium flex items-center gap-0.5">
                               <Cloud size={10} />
                               {diffCounts.cloud}
                             </span>
@@ -2429,7 +2429,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                             )}
                             {showCheckout && (
                               <button
-                                className="p-0.5 rounded hover:bg-pdm-warning/20 text-pdm-warning"
+                                className="p-0.5 rounded hover:bg-plm-warning/20 text-plm-warning"
                                 onClick={(e) => handleInlineCheckout(e, actualFile)}
                                 title={actualFile.isDirectory && checkoutableFilesCount > 0 ? `Check out ${checkoutableFilesCount} file${checkoutableFilesCount > 1 ? 's' : ''}` : "Check Out"}
                               >
@@ -2438,7 +2438,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                             )}
                             {showCheckin && (
                               <button
-                                className="p-0.5 rounded hover:bg-pdm-success/20 text-pdm-success"
+                                className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success"
                                 onClick={(e) => handleInlineCheckin(e, actualFile)}
                                 title="Check In"
                               >
@@ -2451,7 +2451,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                       
                       {/* Unpin button - slightly visible, full on hover */}
                       <button
-                        className="opacity-30 group-hover:opacity-100 p-0.5 hover:bg-pdm-fg-muted/20 rounded transition-opacity ml-1"
+                        className="opacity-30 group-hover:opacity-100 p-0.5 hover:bg-plm-fg-muted/20 rounded transition-opacity ml-1"
                         onClick={(e) => {
                           e.stopPropagation()
                           unpinFolder(pinned.path)
@@ -2459,7 +2459,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                         }}
                         title="Unpin"
                       >
-                        <PinOff size={12} className="text-pdm-fg-muted" />
+                        <PinOff size={12} className="text-plm-fg-muted" />
                       </button>
                     </div>
                     
@@ -2507,12 +2507,12 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           onClick={() => setVaultContextMenu(null)}
         >
           <div
-            className="fixed bg-pdm-bg-light border border-pdm-border rounded-lg shadow-xl py-1 min-w-[160px]"
+            className="fixed bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[160px]"
             style={{ left: vaultContextMenu.x, top: vaultContextMenu.y }}
             onClick={e => e.stopPropagation()}
           >
             <button
-              className="w-full px-3 py-2 text-left text-sm hover:bg-pdm-highlight flex items-center gap-2 text-pdm-fg"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
               onClick={() => {
                 if (vaultContextMenu.vault.localPath) {
                   window.electronAPI?.openInExplorer(vaultContextMenu.vault.localPath)
@@ -2524,7 +2524,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               {platform === 'darwin' ? 'Reveal in Finder' : 'Open in Explorer'}
             </button>
             <button
-              className="w-full px-3 py-2 text-left text-sm hover:bg-pdm-highlight flex items-center gap-2 text-pdm-fg"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
               onClick={() => {
                 setShowVaultProperties(vaultContextMenu.vault)
                 setVaultContextMenu(null)
@@ -2533,9 +2533,9 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               <Info size={14} />
               Properties
             </button>
-            <div className="border-t border-pdm-border my-1" />
+            <div className="border-t border-plm-border my-1" />
             <button
-              className="w-full px-3 py-2 text-left text-sm hover:bg-pdm-highlight flex items-center gap-2 text-pdm-warning"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-warning"
               onClick={() => {
                 setDisconnectingVault(vaultContextMenu.vault)
                 setVaultContextMenu(null)
@@ -2555,18 +2555,18 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           onClick={() => setDisconnectingVault(null)}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-warning/50 rounded-xl shadow-2xl w-[480px] overflow-hidden"
+            className="bg-plm-bg-light border border-plm-warning/50 rounded-xl shadow-2xl w-[480px] overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-4 border-b border-pdm-border bg-pdm-warning/10">
+            <div className="p-4 border-b border-plm-border bg-plm-warning/10">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-pdm-warning/20 rounded-full">
-                  <AlertTriangle size={24} className="text-pdm-warning" />
+                <div className="p-2 bg-plm-warning/20 rounded-full">
+                  <AlertTriangle size={24} className="text-plm-warning" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-pdm-fg">Disconnect Vault</h3>
-                  <p className="text-sm text-pdm-fg-muted">"{disconnectingVault.name}"</p>
+                  <h3 className="text-lg font-semibold text-plm-fg">Disconnect Vault</h3>
+                  <p className="text-sm text-plm-fg-muted">"{disconnectingVault.name}"</p>
                 </div>
               </div>
             </div>
@@ -2580,51 +2580,51 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                 return (
                   <>
                     {hasBlockingIssues ? (
-                      <div className="p-4 bg-pdm-error/10 border border-pdm-error/30 rounded-lg space-y-3">
-                        <p className="text-sm font-medium text-pdm-error">
+                      <div className="p-4 bg-plm-error/10 border border-plm-error/30 rounded-lg space-y-3">
+                        <p className="text-sm font-medium text-plm-error">
                           You must resolve these issues before disconnecting:
                         </p>
                         
                         {checkedOutFiles.length > 0 && (
-                          <div className="bg-pdm-bg/50 p-2 rounded">
-                            <p className="text-sm text-pdm-fg flex items-center gap-2">
-                              <span className="w-2 h-2 bg-pdm-accent rounded-full"></span>
+                          <div className="bg-plm-bg/50 p-2 rounded">
+                            <p className="text-sm text-plm-fg flex items-center gap-2">
+                              <span className="w-2 h-2 bg-plm-accent rounded-full"></span>
                               <strong>{checkedOutFiles.length}</strong> file{checkedOutFiles.length !== 1 ? 's' : ''} checked out
                             </p>
-                            <p className="text-xs text-pdm-fg-muted ml-4">Check in or undo checkout</p>
+                            <p className="text-xs text-plm-fg-muted ml-4">Check in or undo checkout</p>
                           </div>
                         )}
                         
                         {newFiles.length > 0 && (
-                          <div className="bg-pdm-bg/50 p-2 rounded">
-                            <p className="text-sm text-pdm-fg flex items-center gap-2">
-                              <span className="w-2 h-2 bg-pdm-success rounded-full"></span>
+                          <div className="bg-plm-bg/50 p-2 rounded">
+                            <p className="text-sm text-plm-fg flex items-center gap-2">
+                              <span className="w-2 h-2 bg-plm-success rounded-full"></span>
                               <strong>{newFiles.length}</strong> new file{newFiles.length !== 1 ? 's' : ''} not synced
                             </p>
-                            <p className="text-xs text-pdm-fg-muted ml-4">Sync or delete locally</p>
+                            <p className="text-xs text-plm-fg-muted ml-4">Sync or delete locally</p>
                           </div>
                         )}
                         
                         {modifiedFiles.length > 0 && (
-                          <div className="bg-pdm-bg/50 p-2 rounded">
-                            <p className="text-sm text-pdm-fg flex items-center gap-2">
-                              <span className="w-2 h-2 bg-pdm-warning rounded-full"></span>
+                          <div className="bg-plm-bg/50 p-2 rounded">
+                            <p className="text-sm text-plm-fg flex items-center gap-2">
+                              <span className="w-2 h-2 bg-plm-warning rounded-full"></span>
                               <strong>{modifiedFiles.length}</strong> modified file{modifiedFiles.length !== 1 ? 's' : ''}
                             </p>
-                            <p className="text-xs text-pdm-fg-muted ml-4">Check out & check in, or revert</p>
+                            <p className="text-xs text-plm-fg-muted ml-4">Check out & check in, or revert</p>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="p-4 bg-pdm-success/10 border border-pdm-success/30 rounded-lg">
-                        <p className="text-sm text-pdm-fg flex items-center gap-2">
-                          <Check size={16} className="text-pdm-success" />
+                      <div className="p-4 bg-plm-success/10 border border-plm-success/30 rounded-lg">
+                        <p className="text-sm text-plm-fg flex items-center gap-2">
+                          <Check size={16} className="text-plm-success" />
                           All files are synced. Safe to disconnect.
                         </p>
                       </div>
                     )}
                     
-                    <p className="text-sm text-pdm-fg-muted">
+                    <p className="text-sm text-plm-fg-muted">
                       {hasBlockingIssues 
                         ? "Close this dialog and resolve the issues above."
                         : "Local files will be deleted. You can reconnect anytime."}
@@ -2635,7 +2635,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             </div>
             
             {/* Actions */}
-            <div className="p-4 border-t border-pdm-border bg-pdm-bg flex justify-end gap-3">
+            <div className="p-4 border-t border-plm-border bg-plm-bg flex justify-end gap-3">
               <button
                 onClick={() => setDisconnectingVault(null)}
                 className="btn btn-ghost"
@@ -2654,7 +2654,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                   <button
                     onClick={confirmDisconnect}
                     disabled={isDisconnecting}
-                    className="btn bg-pdm-warning hover:bg-pdm-warning/80 text-black disabled:opacity-50 flex items-center gap-2"
+                    className="btn bg-plm-warning hover:bg-plm-warning/80 text-black disabled:opacity-50 flex items-center gap-2"
                   >
                     {isDisconnecting ? (
                       <>
@@ -2682,23 +2682,23 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           onClick={() => setShowVaultProperties(null)}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-xl shadow-2xl w-[500px] max-h-[80vh] overflow-hidden"
+            className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl w-[500px] max-h-[80vh] overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-4 border-b border-pdm-border bg-pdm-bg flex items-center justify-between">
+            <div className="p-4 border-b border-plm-border bg-plm-bg flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-pdm-accent/20 rounded-lg">
-                  <Database size={20} className="text-pdm-accent" />
+                <div className="p-2 bg-plm-accent/20 rounded-lg">
+                  <Database size={20} className="text-plm-accent" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-pdm-fg">{showVaultProperties.name}</h3>
-                  <p className="text-xs text-pdm-fg-muted">Vault Properties</p>
+                  <h3 className="text-lg font-semibold text-plm-fg">{showVaultProperties.name}</h3>
+                  <p className="text-xs text-plm-fg-muted">Vault Properties</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowVaultProperties(null)}
-                className="p-1 hover:bg-pdm-bg-light rounded text-pdm-fg-muted hover:text-pdm-fg"
+                className="p-1 hover:bg-plm-bg-light rounded text-plm-fg-muted hover:text-plm-fg"
               >
                 <X size={18} />
               </button>
@@ -2707,9 +2707,9 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             {/* Content */}
             <div className="p-4 space-y-4 overflow-auto max-h-[60vh]">
               {/* Location */}
-              <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
-                <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-1">Local Path</div>
-                <div className="text-sm text-pdm-fg break-all font-mono">
+              <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
+                <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Local Path</div>
+                <div className="text-sm text-plm-fg break-all font-mono">
                   {showVaultProperties.localPath || 'Not connected locally'}
                 </div>
               </div>
@@ -2748,81 +2748,81 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                   <>
                     {/* Overview */}
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border text-center">
-                        <div className="text-2xl font-bold text-pdm-fg">{vaultFiles.length}</div>
-                        <div className="text-xs text-pdm-fg-muted">Files</div>
+                      <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-center">
+                        <div className="text-2xl font-bold text-plm-fg">{vaultFiles.length}</div>
+                        <div className="text-xs text-plm-fg-muted">Files</div>
                       </div>
-                      <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border text-center">
-                        <div className="text-2xl font-bold text-pdm-fg">{vaultFolders.length}</div>
-                        <div className="text-xs text-pdm-fg-muted">Folders</div>
+                      <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-center">
+                        <div className="text-2xl font-bold text-plm-fg">{vaultFolders.length}</div>
+                        <div className="text-xs text-plm-fg-muted">Folders</div>
                       </div>
-                      <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border text-center">
-                        <div className="text-2xl font-bold text-pdm-fg">{formatSize(totalLocalSize)}</div>
-                        <div className="text-xs text-pdm-fg-muted">Local Size</div>
+                      <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-center">
+                        <div className="text-2xl font-bold text-plm-fg">{formatSize(totalLocalSize)}</div>
+                        <div className="text-xs text-plm-fg-muted">Local Size</div>
                       </div>
                     </div>
                     
                     {/* Sync Status */}
-                    <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
-                      <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-3">Sync Status</div>
+                    <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
+                      <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">Sync Status</div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Check size={14} className="text-pdm-success" />
-                            <span className="text-sm text-pdm-fg">Synced</span>
+                            <Check size={14} className="text-plm-success" />
+                            <span className="text-sm text-plm-fg">Synced</span>
                           </div>
-                          <span className="text-sm font-medium text-pdm-fg">{syncedFiles.length}</span>
+                          <span className="text-sm font-medium text-plm-fg">{syncedFiles.length}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <RefreshCw size={14} className="text-pdm-warning" />
-                            <span className="text-sm text-pdm-fg">Modified</span>
+                            <RefreshCw size={14} className="text-plm-warning" />
+                            <span className="text-sm text-plm-fg">Modified</span>
                           </div>
-                          <span className="text-sm font-medium text-pdm-fg">{modifiedFiles.length}</span>
+                          <span className="text-sm font-medium text-plm-fg">{modifiedFiles.length}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Plus size={14} className="text-pdm-accent" />
-                            <span className="text-sm text-pdm-fg">Local Only (Unsynced)</span>
+                            <Plus size={14} className="text-plm-accent" />
+                            <span className="text-sm text-plm-fg">Local Only (Unsynced)</span>
                           </div>
-                          <span className="text-sm font-medium text-pdm-fg">{addedFiles.length}</span>
+                          <span className="text-sm font-medium text-plm-fg">{addedFiles.length}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Cloud size={14} className="text-pdm-fg-muted" />
-                            <span className="text-sm text-pdm-fg">Cloud Only</span>
+                            <Cloud size={14} className="text-plm-fg-muted" />
+                            <span className="text-sm text-plm-fg">Cloud Only</span>
                           </div>
-                          <span className="text-sm font-medium text-pdm-fg">{cloudFiles.length}</span>
+                          <span className="text-sm font-medium text-plm-fg">{cloudFiles.length}</span>
                         </div>
                         {conflictFiles.length > 0 && (
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <AlertTriangle size={14} className="text-pdm-error" />
-                              <span className="text-sm text-pdm-fg">Conflicts</span>
+                              <AlertTriangle size={14} className="text-plm-error" />
+                              <span className="text-sm text-plm-fg">Conflicts</span>
                             </div>
-                            <span className="text-sm font-medium text-pdm-error">{conflictFiles.length}</span>
+                            <span className="text-sm font-medium text-plm-error">{conflictFiles.length}</span>
                           </div>
                         )}
                       </div>
                     </div>
                     
                     {/* Checkout Status */}
-                    <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
-                      <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-3">Checkout Status</div>
+                    <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
+                      <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">Checkout Status</div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Lock size={14} className="text-pdm-accent" />
-                            <span className="text-sm text-pdm-fg">Checked out by you</span>
+                            <Lock size={14} className="text-plm-accent" />
+                            <span className="text-sm text-plm-fg">Checked out by you</span>
                           </div>
-                          <span className="text-sm font-medium text-pdm-fg">{checkedOutByMe.length}</span>
+                          <span className="text-sm font-medium text-plm-fg">{checkedOutByMe.length}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Lock size={14} className="text-pdm-warning" />
-                            <span className="text-sm text-pdm-fg">Checked out by others</span>
+                            <Lock size={14} className="text-plm-warning" />
+                            <span className="text-sm text-plm-fg">Checked out by others</span>
                           </div>
-                          <span className="text-sm font-medium text-pdm-fg">{checkedOutByOthers.length}</span>
+                          <span className="text-sm font-medium text-plm-fg">{checkedOutByOthers.length}</span>
                         </div>
                       </div>
                     </div>
@@ -2843,13 +2843,13 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                       if (sortedTypes.length === 0) return null
                       
                       return (
-                        <div className="p-3 bg-pdm-bg rounded-lg border border-pdm-border">
-                          <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-3">File Types</div>
+                        <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
+                          <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">File Types</div>
                           <div className="space-y-1.5">
                             {sortedTypes.map(([ext, count]) => (
                               <div key={ext} className="flex items-center justify-between">
-                                <span className="text-sm text-pdm-fg">.{ext}</span>
-                                <span className="text-sm text-pdm-fg-muted">{count}</span>
+                                <span className="text-sm text-plm-fg">.{ext}</span>
+                                <span className="text-sm text-plm-fg-muted">{count}</span>
                               </div>
                             ))}
                           </div>
@@ -2862,7 +2862,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
             </div>
             
             {/* Footer */}
-            <div className="p-4 border-t border-pdm-border bg-pdm-bg flex justify-end">
+            <div className="p-4 border-t border-plm-border bg-plm-bg flex justify-end">
               <button
                 onClick={() => setShowVaultProperties(null)}
                 className="btn btn-ghost"

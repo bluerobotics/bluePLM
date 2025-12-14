@@ -94,7 +94,7 @@ function RFQListView({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
-        <Loader2 className="animate-spin text-pdm-accent" size={24} />
+        <Loader2 className="animate-spin text-plm-accent" size={24} />
       </div>
     )
   }
@@ -102,10 +102,10 @@ function RFQListView({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-pdm-border space-y-3">
+      <div className="p-4 border-b border-plm-border space-y-3">
         <button 
           onClick={onNewRFQ}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-pdm-accent hover:bg-pdm-accent/90 text-white rounded text-sm font-medium transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors"
         >
           <Plus size={16} />
           New RFQ
@@ -113,13 +113,13 @@ function RFQListView({
         
         {/* Search */}
         <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
           <input
             type="text"
             placeholder="Search RFQs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent"
+            className="w-full pl-9 pr-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
           />
         </div>
 
@@ -129,8 +129,8 @@ function RFQListView({
             onClick={() => setStatusFilter('all')}
             className={`px-2 py-1 text-[10px] rounded transition-colors ${
               statusFilter === 'all' 
-                ? 'bg-pdm-accent text-white' 
-                : 'bg-pdm-highlight text-pdm-fg-muted hover:text-pdm-fg'
+                ? 'bg-plm-accent text-white' 
+                : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg'
             }`}
           >
             All ({rfqs.length})
@@ -145,8 +145,8 @@ function RFQListView({
                 onClick={() => setStatusFilter(status)}
                 className={`px-2 py-1 text-[10px] rounded transition-colors ${
                   statusFilter === status 
-                    ? 'bg-pdm-accent text-white' 
-                    : 'bg-pdm-highlight text-pdm-fg-muted hover:text-pdm-fg'
+                    ? 'bg-plm-accent text-white' 
+                    : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg'
                 }`}
               >
                 {info.label} ({count})
@@ -157,29 +157,29 @@ function RFQListView({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 border-b border-pdm-border">
-        <div className="p-3 text-center border-r border-pdm-border">
-          <div className="text-lg font-semibold text-pdm-fg">{rfqs.length}</div>
-          <div className="text-[10px] text-pdm-fg-muted">Total</div>
+      <div className="grid grid-cols-3 border-b border-plm-border">
+        <div className="p-3 text-center border-r border-plm-border">
+          <div className="text-lg font-semibold text-plm-fg">{rfqs.length}</div>
+          <div className="text-[10px] text-plm-fg-muted">Total</div>
         </div>
-        <div className="p-3 text-center border-r border-pdm-border">
-          <div className="text-lg font-semibold text-pdm-warning">
+        <div className="p-3 text-center border-r border-plm-border">
+          <div className="text-lg font-semibold text-plm-warning">
             {statusCounts.awaiting_quote || 0}
           </div>
-          <div className="text-[10px] text-pdm-fg-muted">Pending</div>
+          <div className="text-[10px] text-plm-fg-muted">Pending</div>
         </div>
         <div className="p-3 text-center">
-          <div className="text-lg font-semibold text-pdm-success">
+          <div className="text-lg font-semibold text-plm-success">
             {(statusCounts.quoted || 0) + (statusCounts.awarded || 0)}
           </div>
-          <div className="text-[10px] text-pdm-fg-muted">Quoted</div>
+          <div className="text-[10px] text-plm-fg-muted">Quoted</div>
         </div>
       </div>
 
       {/* RFQ List */}
       <div className="flex-1 overflow-y-auto">
         {filteredRFQs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-pdm-fg-muted">
+          <div className="flex flex-col items-center justify-center h-32 text-plm-fg-muted">
             <FileText size={32} className="mb-2 opacity-50" />
             <p className="text-sm">No RFQs found</p>
           </div>
@@ -190,15 +190,15 @@ function RFQListView({
               <div
                 key={rfq.id}
                 onClick={() => onSelectRFQ(rfq)}
-                className="p-3 border-b border-pdm-border hover:bg-pdm-highlight/50 cursor-pointer transition-colors group"
+                className="p-3 border-b border-plm-border hover:bg-plm-highlight/50 cursor-pointer transition-colors group"
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-pdm-accent">{rfq.rfq_number}</span>
-                      <ChevronRight size={12} className="text-pdm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <span className="text-xs font-mono text-plm-accent">{rfq.rfq_number}</span>
+                      <ChevronRight size={12} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    <div className="text-sm font-medium text-pdm-fg mt-0.5">{rfq.title}</div>
+                    <div className="text-sm font-medium text-plm-fg mt-0.5">{rfq.title}</div>
                   </div>
                   <span className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded ${statusInfo.color} ${statusInfo.bgColor}`}>
                     {rfq.status === 'generating' && <Loader2 size={10} className="animate-spin" />}
@@ -208,7 +208,7 @@ function RFQListView({
                   </span>
                 </div>
                 
-                <div className="flex items-center gap-4 text-[11px] text-pdm-fg-muted">
+                <div className="flex items-center gap-4 text-[11px] text-plm-fg-muted">
                   {rfq.due_date && (
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
@@ -410,8 +410,15 @@ function RFQDetailView({
         rfq_settings: (orgData as Record<string, unknown>)?.rfq_settings as OrgBranding['rfq_settings']
       }
 
-      await generateRFQPdf({ rfq, items, org: orgBranding })
-      addToast('success', 'RFQ document saved and opened')
+      const result = await generateRFQPdf({ rfq, items, org: orgBranding })
+      
+      if (result.success && result.path) {
+        addToast('success', `RFQ saved to ${result.path}`)
+      } else if (result.error === 'Cancelled') {
+        // User cancelled, no toast needed
+      } else if (result.error) {
+        addToast('error', result.error)
+      }
     } catch (err) {
       console.error('Failed to generate PDF:', err)
       addToast('error', err instanceof Error ? err.message : 'Failed to generate PDF')
@@ -529,7 +536,7 @@ function RFQDetailView({
     e.stopPropagation()
     
     // Check if we have PDM files being dragged
-    if (e.dataTransfer.types.includes('application/x-pdm-files')) {
+    if (e.dataTransfer.types.includes('application/x-plm-files')) {
       e.dataTransfer.dropEffect = 'copy'
       setIsDraggingOver(true)
     }
@@ -547,7 +554,7 @@ function RFQDetailView({
     e.stopPropagation()
     setIsDraggingOver(false)
 
-    const pdmFilesData = e.dataTransfer.getData('application/x-pdm-files')
+    const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
     if (!pdmFilesData) return
 
     try {
@@ -584,7 +591,7 @@ function RFQDetailView({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
-        <Loader2 className="animate-spin text-pdm-accent" size={24} />
+        <Loader2 className="animate-spin text-plm-accent" size={24} />
       </div>
     )
   }
@@ -592,10 +599,10 @@ function RFQDetailView({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-3 border-b border-pdm-border">
+      <div className="p-3 border-b border-plm-border">
         <button 
           onClick={onBack}
-          className="flex items-center gap-1 text-xs text-pdm-fg-muted hover:text-pdm-fg mb-2"
+          className="flex items-center gap-1 text-xs text-plm-fg-muted hover:text-plm-fg mb-2"
         >
           <ArrowLeft size={14} />
           Back to RFQs
@@ -604,24 +611,24 @@ function RFQDetailView({
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-mono text-pdm-accent">{rfq.rfq_number}</span>
+              <span className="text-sm font-mono text-plm-accent">{rfq.rfq_number}</span>
               <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${statusInfo.color} ${statusInfo.bgColor}`}>
                 {statusInfo.label}
               </span>
             </div>
-            <h3 className="text-sm font-medium text-pdm-fg mt-1">{rfq.title}</h3>
+            <h3 className="text-sm font-medium text-plm-fg mt-1">{rfq.title}</h3>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-pdm-border">
+      <div className="flex border-b border-plm-border">
         <button
           onClick={() => setActiveTab('items')}
           className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
             activeTab === 'items' 
-              ? 'text-pdm-accent border-b-2 border-pdm-accent' 
-              : 'text-pdm-fg-muted hover:text-pdm-fg'
+              ? 'text-plm-accent border-b-2 border-plm-accent' 
+              : 'text-plm-fg-muted hover:text-plm-fg'
           }`}
         >
           <Package size={14} className="inline mr-1" />
@@ -631,8 +638,8 @@ function RFQDetailView({
           onClick={() => setActiveTab('suppliers')}
           className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
             activeTab === 'suppliers' 
-              ? 'text-pdm-accent border-b-2 border-pdm-accent' 
-              : 'text-pdm-fg-muted hover:text-pdm-fg'
+              ? 'text-plm-accent border-b-2 border-plm-accent' 
+              : 'text-plm-fg-muted hover:text-plm-fg'
           }`}
         >
           <Building2 size={14} className="inline mr-1" />
@@ -642,8 +649,8 @@ function RFQDetailView({
           onClick={() => setActiveTab('settings')}
           className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
             activeTab === 'settings' 
-              ? 'text-pdm-accent border-b-2 border-pdm-accent' 
-              : 'text-pdm-fg-muted hover:text-pdm-fg'
+              ? 'text-plm-accent border-b-2 border-plm-accent' 
+              : 'text-plm-fg-muted hover:text-plm-fg'
           }`}
         >
           <Settings2 size={14} className="inline mr-1" />
@@ -664,8 +671,8 @@ function RFQDetailView({
             <div
               className={`w-full flex flex-col items-center justify-center gap-2 px-3 py-4 border-2 border-dashed rounded text-sm transition-all ${
                 isDraggingOver 
-                  ? 'border-pdm-accent bg-pdm-accent/10 text-pdm-accent' 
-                  : 'border-pdm-border hover:border-pdm-accent text-pdm-fg-muted hover:text-pdm-fg'
+                  ? 'border-plm-accent bg-plm-accent/10 text-plm-accent' 
+                  : 'border-plm-border hover:border-plm-accent text-plm-fg-muted hover:text-plm-fg'
               }`}
             >
               {isDraggingOver ? (
@@ -680,15 +687,15 @@ function RFQDetailView({
                       <Package size={16} />
                       <span>Drag files here</span>
                     </div>
-                    <span className="text-pdm-fg-muted">or</span>
+                    <span className="text-plm-fg-muted">or</span>
                     <button
                       onClick={() => setShowAddFiles(!showAddFiles)}
-                      className="text-pdm-accent hover:underline"
+                      className="text-plm-accent hover:underline"
                     >
                       browse files
                     </button>
                   </div>
-                  <span className="text-[10px] text-pdm-fg-muted">
+                  <span className="text-[10px] text-plm-fg-muted">
                     Drag from the file browser to add parts
                   </span>
                 </>
@@ -697,8 +704,8 @@ function RFQDetailView({
 
             {/* File picker */}
             {showAddFiles && (
-              <div className="border border-pdm-border rounded p-2 bg-pdm-bg max-h-48 overflow-y-auto">
-                <p className="text-[10px] text-pdm-fg-muted mb-2">Select files to add:</p>
+              <div className="border border-plm-border rounded p-2 bg-plm-bg max-h-48 overflow-y-auto">
+                <p className="text-[10px] text-plm-fg-muted mb-2">Select files to add:</p>
                 {files
                   .filter(f => !f.isDirectory && f.pdmData?.id && !items.some(i => i.file_id === f.pdmData?.id))
                   .slice(0, 20)
@@ -709,11 +716,11 @@ function RFQDetailView({
                         handleAddFile(file.pdmData!.id)
                         setShowAddFiles(false)
                       }}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-pdm-highlight rounded text-left"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-plm-highlight rounded text-left"
                     >
-                      <File size={14} className="text-pdm-fg-muted" />
-                      <span className="text-xs text-pdm-fg truncate flex-1">{file.name}</span>
-                      <span className="text-[10px] text-pdm-fg-muted">{file.pdmData?.part_number}</span>
+                      <File size={14} className="text-plm-fg-muted" />
+                      <span className="text-xs text-plm-fg truncate flex-1">{file.name}</span>
+                      <span className="text-[10px] text-plm-fg-muted">{file.pdmData?.part_number}</span>
                     </button>
                   ))}
               </div>
@@ -721,7 +728,7 @@ function RFQDetailView({
 
             {/* Items list */}
             {items.length === 0 ? (
-              <div className="text-center py-8 text-pdm-fg-muted">
+              <div className="text-center py-8 text-plm-fg-muted">
                 <Package size={32} className="mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No items yet</p>
                 <p className="text-xs">Add files from your vault to get started</p>
@@ -731,22 +738,22 @@ function RFQDetailView({
                 {items.map((item) => {
                   const isExpanded = expandedItemId === item.id
                   return (
-                    <div key={item.id} className="border border-pdm-border rounded bg-pdm-bg/50 overflow-hidden">
+                    <div key={item.id} className="border border-plm-border rounded bg-plm-bg/50 overflow-hidden">
                       {/* Item header */}
                       <div className="p-2">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-pdm-fg-muted">#{item.line_number}</span>
-                              <span className="text-xs font-medium text-pdm-fg truncate">
+                              <span className="text-[10px] text-plm-fg-muted">#{item.line_number}</span>
+                              <span className="text-xs font-medium text-plm-fg truncate">
                                 {item.part_number}
                               </span>
                               {item.revision && (
-                                <span className="text-[10px] text-pdm-fg-muted">Rev {item.revision}</span>
+                                <span className="text-[10px] text-plm-fg-muted">Rev {item.revision}</span>
                               )}
                             </div>
                             {item.description && (
-                              <p className="text-[11px] text-pdm-fg-muted truncate mt-0.5">
+                              <p className="text-[11px] text-plm-fg-muted truncate mt-0.5">
                                 {item.description}
                               </p>
                             )}
@@ -754,14 +761,14 @@ function RFQDetailView({
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                              className="p-1 text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+                              className="p-1 text-plm-fg-muted hover:text-plm-fg transition-colors"
                               title="Edit details"
                             >
                               {isExpanded ? <ChevronUp size={14} /> : <Pencil size={14} />}
                             </button>
                             <button
                               onClick={() => handleRemoveItem(item.id)}
-                              className="p-1 text-pdm-fg-muted hover:text-pdm-error transition-colors"
+                              className="p-1 text-plm-fg-muted hover:text-plm-error transition-colors"
                               title="Remove"
                             >
                               <Trash2 size={14} />
@@ -772,20 +779,20 @@ function RFQDetailView({
                         <div className="flex items-center gap-3 mt-2">
                           {/* Quantity */}
                           <div className="flex items-center gap-1">
-                            <Hash size={12} className="text-pdm-fg-muted" />
+                            <Hash size={12} className="text-plm-fg-muted" />
                             <input
                               type="number"
                               min="1"
                               value={item.quantity}
                               onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)}
-                              className="w-16 px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg focus:outline-none focus:border-pdm-accent"
+                              className="w-16 px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg focus:outline-none focus:border-plm-accent"
                             />
-                            <span className="text-[10px] text-pdm-fg-muted">{item.unit}</span>
+                            <span className="text-[10px] text-plm-fg-muted">{item.unit}</span>
                           </div>
 
                           {/* Quick metadata preview */}
                           {(item.material || item.finish) && (
-                            <div className="flex items-center gap-2 text-[10px] text-pdm-fg-muted">
+                            <div className="flex items-center gap-2 text-[10px] text-plm-fg-muted">
                               {item.material && <span>{item.material}</span>}
                               {item.material && item.finish && <span>•</span>}
                               {item.finish && <span>{item.finish}</span>}
@@ -795,19 +802,19 @@ function RFQDetailView({
                           {/* File status indicators */}
                           <div className="flex items-center gap-2 ml-auto">
                             {item.step_file_generated && (
-                              <span className="flex items-center gap-1 text-[10px] text-pdm-success">
+                              <span className="flex items-center gap-1 text-[10px] text-plm-success">
                                 <Layers size={10} />
                                 STEP
                               </span>
                             )}
                             {item.pdf_file_generated && (
-                              <span className="flex items-center gap-1 text-[10px] text-pdm-success">
+                              <span className="flex items-center gap-1 text-[10px] text-plm-success">
                                 <FileText size={10} />
                                 PDF
                               </span>
                             )}
                             {!item.step_file_generated && !item.pdf_file_generated && item.file && (
-                              <span className="flex items-center gap-1 text-[10px] text-pdm-warning">
+                              <span className="flex items-center gap-1 text-[10px] text-plm-warning">
                                 <AlertCircle size={10} />
                                 Needs export
                               </span>
@@ -818,47 +825,47 @@ function RFQDetailView({
 
                       {/* Expandable details panel */}
                       {isExpanded && (
-                        <div className="px-2 pb-2 pt-1 border-t border-pdm-border bg-pdm-highlight/30 space-y-2">
+                        <div className="px-2 pb-2 pt-1 border-t border-plm-border bg-plm-highlight/30 space-y-2">
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="text-[10px] text-pdm-fg-muted block mb-1">Material</label>
+                              <label className="text-[10px] text-plm-fg-muted block mb-1">Material</label>
                               <input
                                 type="text"
                                 value={item.material || ''}
                                 onChange={(e) => handleUpdateItemMeta(item.id, 'material', e.target.value)}
                                 placeholder="e.g., 6061-T6 Aluminum"
-                                className="w-full px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                                className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] text-pdm-fg-muted block mb-1">Finish</label>
+                              <label className="text-[10px] text-plm-fg-muted block mb-1">Finish</label>
                               <input
                                 type="text"
                                 value={item.finish || ''}
                                 onChange={(e) => handleUpdateItemMeta(item.id, 'finish', e.target.value)}
                                 placeholder="e.g., Anodized Black"
-                                className="w-full px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                                className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                               />
                             </div>
                           </div>
                           <div>
-                            <label className="text-[10px] text-pdm-fg-muted block mb-1">Tolerance Class</label>
+                            <label className="text-[10px] text-plm-fg-muted block mb-1">Tolerance Class</label>
                             <input
                               type="text"
                               value={item.tolerance_class || ''}
                               onChange={(e) => handleUpdateItemMeta(item.id, 'tolerance_class', e.target.value)}
                               placeholder="e.g., ISO 2768-mK"
-                              className="w-full px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                              className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] text-pdm-fg-muted block mb-1">Notes</label>
+                            <label className="text-[10px] text-plm-fg-muted block mb-1">Notes</label>
                             <textarea
                               value={item.notes || ''}
                               onChange={(e) => handleUpdateItemMeta(item.id, 'notes', e.target.value)}
                               placeholder="Special requirements, instructions..."
                               rows={2}
-                              className="w-full px-2 py-1 bg-pdm-input border border-pdm-border rounded text-xs text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent resize-none"
+                              className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent resize-none"
                             />
                           </div>
                         </div>
@@ -874,7 +881,7 @@ function RFQDetailView({
               <button
                 onClick={handleGenerateReleaseFiles}
                 disabled={generating}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-pdm-accent hover:bg-pdm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {generating ? (
                   <>
@@ -895,7 +902,7 @@ function RFQDetailView({
         {activeTab === 'suppliers' && (
           <div className="p-3">
             {suppliers.length === 0 ? (
-              <div className="text-center py-8 text-pdm-fg-muted">
+              <div className="text-center py-8 text-plm-fg-muted">
                 <Building2 size={32} className="mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No suppliers assigned</p>
                 <p className="text-xs">Add suppliers to send this RFQ</p>
@@ -903,29 +910,29 @@ function RFQDetailView({
             ) : (
               <div className="space-y-2">
                 {suppliers.map((rs) => (
-                  <div key={rs.id} className="border border-pdm-border rounded p-2 bg-pdm-bg/50">
+                  <div key={rs.id} className="border border-plm-border rounded p-2 bg-plm-bg/50">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-xs font-medium text-pdm-fg">
+                        <div className="text-xs font-medium text-plm-fg">
                           {rs.supplier?.name}
                         </div>
                         {rs.supplier?.code && (
-                          <div className="text-[10px] text-pdm-fg-muted">{rs.supplier.code}</div>
+                          <div className="text-[10px] text-plm-fg-muted">{rs.supplier.code}</div>
                         )}
                       </div>
                       {rs.quoted_at ? (
                         <div className="text-right">
-                          <div className="text-xs text-pdm-success font-medium">
+                          <div className="text-xs text-plm-success font-medium">
                             {formatCurrency(rs.total_quoted_amount, rs.currency)}
                           </div>
-                          <div className="text-[10px] text-pdm-fg-muted">
+                          <div className="text-[10px] text-plm-fg-muted">
                             {rs.lead_time_days} days
                           </div>
                         </div>
                       ) : rs.sent_at ? (
-                        <span className="text-[10px] text-pdm-warning">Awaiting quote</span>
+                        <span className="text-[10px] text-plm-warning">Awaiting quote</span>
                       ) : (
-                        <span className="text-[10px] text-pdm-fg-muted">Not sent</span>
+                        <span className="text-[10px] text-plm-fg-muted">Not sent</span>
                       )}
                     </div>
                   </div>
@@ -938,37 +945,37 @@ function RFQDetailView({
         {activeTab === 'settings' && (
           <div className="p-3 space-y-4">
             <div>
-              <label className="text-[10px] text-pdm-fg-muted uppercase tracking-wider">Due Date</label>
+              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">Due Date</label>
               <input
                 type="date"
                 value={rfq.due_date || ''}
-                className="w-full mt-1 px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg focus:outline-none focus:border-pdm-accent"
+                className="w-full mt-1 px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
               />
             </div>
             <div>
-              <label className="text-[10px] text-pdm-fg-muted uppercase tracking-wider">Required Date</label>
+              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">Required Date</label>
               <input
                 type="date"
                 value={rfq.required_date || ''}
-                className="w-full mt-1 px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg focus:outline-none focus:border-pdm-accent"
+                className="w-full mt-1 px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
               />
             </div>
             <div>
-              <label className="text-[10px] text-pdm-fg-muted uppercase tracking-wider">Notes to Suppliers</label>
+              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">Notes to Suppliers</label>
               <textarea
                 value={rfq.supplier_notes || ''}
                 rows={3}
-                className="w-full mt-1 px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg focus:outline-none focus:border-pdm-accent resize-none"
+                className="w-full mt-1 px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent resize-none"
                 placeholder="Special instructions, requirements, etc."
               />
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="samples" checked={rfq.requires_samples} className="rounded" />
-              <label htmlFor="samples" className="text-xs text-pdm-fg">Requires samples</label>
+              <label htmlFor="samples" className="text-xs text-plm-fg">Requires samples</label>
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="fai" checked={rfq.requires_first_article} className="rounded" />
-              <label htmlFor="fai" className="text-xs text-pdm-fg">Requires first article inspection</label>
+              <label htmlFor="fai" className="text-xs text-plm-fg">Requires first article inspection</label>
             </div>
           </div>
         )}
@@ -976,12 +983,12 @@ function RFQDetailView({
 
       {/* Footer actions */}
       {items.length > 0 && (
-        <div className="p-3 border-t border-pdm-border space-y-2">
+        <div className="p-3 border-t border-plm-border space-y-2">
           {/* PDF Generation */}
           <button 
             onClick={handleGeneratePdf}
             disabled={generatingPdf}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
           >
             {generatingPdf ? (
               <>
@@ -998,7 +1005,7 @@ function RFQDetailView({
 
           {/* Send to suppliers (only when ready) */}
           {rfq.status === 'ready' && (
-            <button className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-pdm-success hover:bg-pdm-success/90 text-white rounded text-sm font-medium transition-colors">
+            <button className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-success hover:bg-plm-success/90 text-white rounded text-sm font-medium transition-colors">
               <Send size={16} />
               Send to Suppliers
             </button>
@@ -1064,49 +1071,49 @@ function NewRFQDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-pdm-bg border border-pdm-border rounded-lg w-full max-w-md mx-4 shadow-xl">
-        <div className="flex items-center justify-between p-4 border-b border-pdm-border">
-          <h3 className="text-sm font-medium text-pdm-fg">New RFQ</h3>
-          <button onClick={onClose} className="text-pdm-fg-muted hover:text-pdm-fg">
+      <div className="bg-plm-bg border border-plm-border rounded-lg w-full max-w-md mx-4 shadow-xl">
+        <div className="flex items-center justify-between p-4 border-b border-plm-border">
+          <h3 className="text-sm font-medium text-plm-fg">New RFQ</h3>
+          <button onClick={onClose} className="text-plm-fg-muted hover:text-plm-fg">
             <X size={16} />
           </button>
         </div>
         
         <div className="p-4 space-y-4">
           <div>
-            <label className="text-xs text-pdm-fg-muted block mb-1">Title *</label>
+            <label className="text-xs text-plm-fg-muted block mb-1">Title *</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., CNC Parts for Assembly XYZ"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
               autoFocus
             />
           </div>
           <div>
-            <label className="text-xs text-pdm-fg-muted block mb-1">Description</label>
+            <label className="text-xs text-plm-fg-muted block mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional details about this RFQ..."
               rows={3}
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent resize-none"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent resize-none"
             />
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 p-4 border-t border-pdm-border">
+        <div className="flex justify-end gap-2 p-4 border-t border-plm-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+            className="px-4 py-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={loading || !title.trim()}
-            className="px-4 py-2 bg-pdm-accent hover:bg-pdm-accent/90 text-white text-sm font-medium rounded disabled:opacity-50 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white text-sm font-medium rounded disabled:opacity-50 transition-colors flex items-center gap-2"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             Create RFQ

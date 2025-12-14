@@ -74,8 +74,8 @@ export function GoogleDriveSettings() {
   if (user?.role !== 'admin') {
     return (
       <div className="text-center py-12">
-        <Puzzle size={40} className="mx-auto mb-4 text-pdm-fg-muted opacity-50" />
-        <p className="text-base text-pdm-fg-muted">
+        <Puzzle size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
+        <p className="text-base text-plm-fg-muted">
           Only administrators can manage Google Drive integration.
         </p>
       </div>
@@ -86,26 +86,26 @@ export function GoogleDriveSettings() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-lg bg-pdm-sidebar flex items-center justify-center">
-          <HardDrive size={24} className="text-pdm-accent" />
+        <div className="w-12 h-12 rounded-lg bg-plm-sidebar flex items-center justify-center">
+          <HardDrive size={24} className="text-plm-accent" />
         </div>
         <div className="flex-1">
-          <h3 className="text-base font-medium text-pdm-fg">Google Drive</h3>
-          <p className="text-sm text-pdm-fg-muted">
+          <h3 className="text-base font-medium text-plm-fg">Google Drive</h3>
+          <p className="text-sm text-plm-fg-muted">
             Allow org members to connect their Google Drive
           </p>
         </div>
-        {isLoading && <Loader2 size={16} className="animate-spin text-pdm-fg-muted" />}
+        {isLoading && <Loader2 size={16} className="animate-spin text-plm-fg-muted" />}
       </div>
       
-      <div className="space-y-4 p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+      <div className="space-y-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
         {/* Enable toggle */}
         <div className="flex items-center justify-between">
-          <span className="text-base text-pdm-fg">Enable Google Drive</span>
+          <span className="text-base text-plm-fg">Enable Google Drive</span>
           <button
             onClick={() => setEnabled(!enabled)}
             className={`w-11 h-6 rounded-full transition-colors relative ${
-              enabled ? 'bg-pdm-accent' : 'bg-pdm-border'
+              enabled ? 'bg-plm-accent' : 'bg-plm-border'
             }`}
           >
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
@@ -118,31 +118,31 @@ export function GoogleDriveSettings() {
           <>
             {/* Client ID */}
             <div className="space-y-2">
-              <label className="text-sm text-pdm-fg-muted">Client ID</label>
+              <label className="text-sm text-plm-fg-muted">Client ID</label>
               <input
                 type="text"
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
                 placeholder="xxxxxxx.apps.googleusercontent.com"
-                className="w-full px-3 py-2 text-base bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
+                className="w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
               />
             </div>
             
             {/* Client Secret */}
             <div className="space-y-2">
-              <label className="text-sm text-pdm-fg-muted">Client Secret</label>
+              <label className="text-sm text-plm-fg-muted">Client Secret</label>
               <div className="relative">
                 <input
                   type={showSecret ? 'text' : 'password'}
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
                   placeholder="GOCSPX-xxxxxxxxxxxx"
-                  className="w-full px-3 py-2 pr-10 text-base bg-pdm-sidebar border border-pdm-border rounded-lg focus:outline-none focus:border-pdm-accent font-mono"
+                  className="w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
                 />
                 <button
                   type="button"
                   onClick={() => setShowSecret(!showSecret)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
                 >
                   {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -150,16 +150,16 @@ export function GoogleDriveSettings() {
             </div>
             
             {/* Help text */}
-            <div className="p-4 bg-pdm-sidebar rounded-lg">
-              <p className="text-sm text-pdm-fg-muted font-medium mb-2">Setup instructions:</p>
-              <ol className="text-sm text-pdm-fg-muted space-y-1 list-decimal list-inside">
+            <div className="p-4 bg-plm-sidebar rounded-lg">
+              <p className="text-sm text-plm-fg-muted font-medium mb-2">Setup instructions:</p>
+              <ol className="text-sm text-plm-fg-muted space-y-1 list-decimal list-inside">
                 <li>
                   Go to{' '}
                   <a 
                     href="https://console.cloud.google.com/apis/credentials" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="text-pdm-accent hover:underline"
+                    className="text-plm-accent hover:underline"
                   >
                     Google Cloud Console
                   </a>
@@ -175,7 +175,7 @@ export function GoogleDriveSettings() {
             <button
               onClick={saveSettings}
               disabled={isSaving}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-pdm-accent text-white rounded-lg hover:bg-pdm-accent/90 transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
             >
               {isSaving ? (
                 <Loader2 size={16} className="animate-spin" />

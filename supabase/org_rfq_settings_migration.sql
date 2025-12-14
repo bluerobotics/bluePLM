@@ -1,4 +1,4 @@
--- BluePDM Organization RFQ Settings Migration
+-- BluePLM Organization RFQ Settings Migration
 -- Adds organization branding and RFQ template settings
 -- Run this in your Supabase SQL editor
 

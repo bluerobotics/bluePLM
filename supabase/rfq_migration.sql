@@ -1,4 +1,4 @@
--- BluePDM RFQ (Request for Quote) Database Migration
+-- BluePLM RFQ (Request for Quote) Database Migration
 -- Adds RFQ management for the supplier portal
 -- Run this in your Supabase SQL editor AFTER suppliers_migration.sql
 

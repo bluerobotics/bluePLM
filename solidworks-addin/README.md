@@ -1,8 +1,8 @@
-# BluePDM SolidWorks Add-in
+# BluePLM SolidWorks Add-in
 
-Native SolidWorks integration for BluePDM - check in/out files, view status, and manage versions directly within SolidWorks.
+Native SolidWorks integration for BluePLM - check in/out files, view status, and manage versions directly within SolidWorks.
 
-![BluePDM Add-in](../assets/screenshot.png)
+![BluePLM Add-in](../assets/screenshot.png)
 
 ## Features
 
@@ -10,7 +10,7 @@ Native SolidWorks integration for BluePDM - check in/out files, view status, and
 - **Task Pane** - View file status, version, and state without leaving SolidWorks
 - **Toolbar Integration** - Quick access buttons in the SolidWorks toolbar
 - **Version History** - View and compare previous versions
-- **Custom Properties Sync** - Automatically sync SolidWorks custom properties with BluePDM metadata
+- **Custom Properties Sync** - Automatically sync SolidWorks custom properties with BluePLM metadata
 - **Read-Only Protection** - Non-checked-out files open as read-only
 
 ## Requirements
@@ -18,14 +18,14 @@ Native SolidWorks integration for BluePDM - check in/out files, view status, and
 - SolidWorks 2021 or later (x64)
 - Windows 10/11
 - .NET Framework 4.8
-- BluePDM desktop app configured with your organization's vault
+- BluePLM desktop app configured with your organization's vault
 
 ## Installation
 
 ### Option 1: Pre-built Installer (Recommended)
 
-1. Download the latest installer from [Releases](https://github.com/bluerobotics/blue-pdm/releases)
-2. Run `BluePDM.SolidWorks.Installer.exe`
+1. Download the latest installer from [Releases](https://github.com/bluerobotics/blue-plm/releases)
+2. Run `BluePLM.SolidWorks.Installer.exe`
 3. Restart SolidWorks
 
 ### Option 2: Manual Installation
@@ -34,30 +34,30 @@ Native SolidWorks integration for BluePDM - check in/out files, view status, and
 2. Open an elevated (Administrator) command prompt
 3. Navigate to the output directory:
    ```
-   cd solidworks-addin\BluePDM.SolidWorks\bin\Release\net48
+   cd solidworks-addin\BluePLM.SolidWorks\bin\Release\net48
    ```
 4. Register the COM assembly:
    ```
-   %windir%\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe /codebase BluePDM.SolidWorks.dll
+   %windir%\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe /codebase BluePLM.SolidWorks.dll
    ```
 5. Restart SolidWorks
 
 ## Configuration
 
 1. Open SolidWorks
-2. Go to **Tools → Add-ins** and enable **BluePDM**
-3. Click the **Settings** button in the BluePDM toolbar (or Task Pane)
+2. Go to **Tools → Add-ins** and enable **BluePLM**
+3. Click the **Settings** button in the BluePLM toolbar (or Task Pane)
 4. Enter your Supabase connection details:
    - **Project URL**: Your Supabase project URL (e.g., `https://xxx.supabase.co`)
    - **Anon Key**: Your project's anon/public key
-5. Sign in with your BluePDM account credentials
-6. Set your vault path to match the BluePDM desktop app
+5. Sign in with your BluePLM account credentials
+6. Set your vault path to match the BluePLM desktop app
 
 ## Usage
 
 ### Task Pane
 
-The BluePDM task pane shows the status of your currently active document:
+The BluePLM task pane shows the status of your currently active document:
 
 - **File name** and path
 - **Version** and **revision**
@@ -85,7 +85,7 @@ The BluePDM task pane shows the status of your currently active document:
 
 ### Custom Properties
 
-When checking in, BluePDM automatically reads these SolidWorks custom properties and syncs them:
+When checking in, BluePLM automatically reads these SolidWorks custom properties and syncs them:
 
 - Part Number
 - Description
@@ -105,11 +105,11 @@ When checking in, BluePDM automatically reads these SolidWorks custom properties
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/bluerobotics/blue-pdm.git
-   cd blue-pdm/solidworks-addin
+   git clone https://github.com/bluerobotics/blue-plm.git
+   cd blue-plm/solidworks-addin
    ```
 
-2. Open `BluePDM.SolidWorks.sln` in Visual Studio
+2. Open `BluePLM.SolidWorks.sln` in Visual Studio
 
 3. Restore NuGet packages
 
@@ -130,20 +130,20 @@ C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swpubl
 
 ### Debugging
 
-1. Set BluePDM.SolidWorks as the startup project
+1. Set BluePLM.SolidWorks as the startup project
 2. In project properties → Debug, set:
    - Start external program: `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\SLDWORKS.exe`
 3. Register the debug build:
    ```
-   RegAsm.exe /codebase bin\Debug\net48\BluePDM.SolidWorks.dll
+   RegAsm.exe /codebase bin\Debug\net48\BluePLM.SolidWorks.dll
    ```
 4. Press F5 to start debugging
 
 ### Project Structure
 
 ```
-BluePDM.SolidWorks/
-├── BluePDMAddin.cs         # Main add-in entry point, COM registration
+BluePLM.SolidWorks/
+├── BluePLMAddin.cs         # Main add-in entry point, COM registration
 ├── Services/
 │   ├── SupabaseService.cs  # API client for Supabase backend
 │   └── FileStatusCache.cs  # Caching layer for file status
@@ -162,7 +162,7 @@ BluePDM.SolidWorks/
 2. Open an elevated command prompt
 3. Unregister the assembly:
    ```
-   RegAsm.exe /unregister BluePDM.SolidWorks.dll
+   RegAsm.exe /unregister BluePLM.SolidWorks.dll
    ```
 4. Delete the add-in files
 
@@ -180,7 +180,7 @@ Or use the installer's uninstall option.
 
 - Verify your Supabase URL and API key
 - Check that your firewall allows HTTPS connections
-- Try signing in through the BluePDM desktop app first
+- Try signing in through the BluePLM desktop app first
 
 ### Files won't open as writable
 
@@ -199,5 +199,5 @@ MIT License - see [LICENSE](../LICENSE) for details.
 
 ---
 
-[Blue Robotics](https://bluerobotics.com) | [BluePDM](https://github.com/bluerobotics/blue-pdm)
+[Blue Robotics](https://bluerobotics.com) | [BluePLM](https://github.com/bluerobotics/blue-plm)
 

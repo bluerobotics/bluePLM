@@ -775,7 +775,7 @@ export function FileContextMenu({
         {/* Download - for cloud-only files - show at TOP for cloud folders */}
         {anyCloudOnly && (
           <div className="context-menu-item" onClick={handleDownload}>
-            <ArrowDown size={14} className="text-pdm-success" />
+            <ArrowDown size={14} className="text-plm-success" />
             Download {cloudOnlyCount > 0 ? `${cloudOnlyCount} files` : countLabel}
           </div>
         )}
@@ -814,7 +814,7 @@ export function FileContextMenu({
                   onClose()
                 }}
               >
-                <Pin size={14} className={isPinned ? 'fill-pdm-accent text-pdm-accent' : ''} />
+                <Pin size={14} className={isPinned ? 'fill-plm-accent text-plm-accent' : ''} />
                 {isPinned ? 'Unpin' : `Pin ${isFolder ? 'Folder' : 'File'}`}
               </div>
             )
@@ -841,7 +841,7 @@ export function FileContextMenu({
               >
                 <Edit size={14} />
                 Rename
-                <span className="text-xs text-pdm-fg-muted ml-auto">
+                <span className="text-xs text-plm-fg-muted ml-auto">
                   {!canRename ? '(checkout required)' : 'F2'}
                 </span>
               </div>
@@ -857,7 +857,7 @@ export function FileContextMenu({
               <div className="context-menu-item" onClick={() => { onCopy(); onClose(); }}>
                 <Copy size={14} />
                 Copy
-                <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+C</span>
+                <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+C</span>
               </div>
             )}
             {onCut && (() => {
@@ -874,7 +874,7 @@ export function FileContextMenu({
                 >
                   <Scissors size={14} />
                   Cut
-                  <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+X</span>
+                  <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+X</span>
                 </div>
               )
             })()}
@@ -885,7 +885,7 @@ export function FileContextMenu({
               >
                 <ClipboardPaste size={14} />
                 Paste
-                <span className="text-xs text-pdm-fg-muted ml-auto">Ctrl+V</span>
+                <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+V</span>
               </div>
             )}
           </>
@@ -907,7 +907,7 @@ export function FileContextMenu({
         {/* First Check In - for unsynced files */}
         {anyUnsynced && !allCloudOnly && (
           <div className="context-menu-item" onClick={handleFirstCheckin}>
-            <ArrowUp size={14} className="text-pdm-success" />
+            <ArrowUp size={14} className="text-plm-success" />
             First Check In {unsyncedFilesInSelection.length > 0 ? `${unsyncedFilesInSelection.length} file${unsyncedFilesInSelection.length !== 1 ? 's' : ''}` : countLabel}
           </div>
         )}
@@ -921,10 +921,10 @@ export function FileContextMenu({
           }}
           title={!anySynced ? 'Download files first to enable checkout' : allCheckedOut ? 'Already checked out' : ''}
         >
-          <ArrowDown size={14} className={!anySynced ? 'text-pdm-fg-muted' : 'text-pdm-warning'} />
+          <ArrowDown size={14} className={!anySynced ? 'text-plm-fg-muted' : 'text-plm-warning'} />
           Check Out {allFolders && !multiSelect && checkoutableCount > 0 ? `${checkoutableCount} files` : countLabel}
-          {!anySynced && <span className="text-xs text-pdm-fg-muted ml-auto">(download first)</span>}
-          {anySynced && allCheckedOut && <span className="text-xs text-pdm-fg-muted ml-auto">(already out)</span>}
+          {!anySynced && <span className="text-xs text-plm-fg-muted ml-auto">(download first)</span>}
+          {anySynced && allCheckedOut && <span className="text-xs text-plm-fg-muted ml-auto">(already out)</span>}
         </div>
         
         {/* Check In */}
@@ -937,16 +937,16 @@ export function FileContextMenu({
             }}
             title={allCheckedIn ? 'Already checked in' : checkinableCount === 0 ? 'No files checked out by you' : ''}
           >
-            <ArrowUp size={14} className={allCheckedIn || checkinableCount === 0 ? 'text-pdm-fg-muted' : 'text-pdm-success'} />
+            <ArrowUp size={14} className={allCheckedIn || checkinableCount === 0 ? 'text-plm-fg-muted' : 'text-plm-success'} />
             Check In {allFolders && !multiSelect && checkinableCount > 0 ? `${checkinableCount} files` : countLabel}
-            {allCheckedIn && <span className="text-xs text-pdm-fg-muted ml-auto">(already in)</span>}
+            {allCheckedIn && <span className="text-xs text-plm-fg-muted ml-auto">(already in)</span>}
           </div>
         )}
         
         {/* Admin: Force Release */}
         {isAdmin && checkedOutByOthersCount > 0 && (
           <div 
-            className="context-menu-item text-pdm-error"
+            className="context-menu-item text-plm-error"
             onClick={handleForceRelease}
             title="Admin: Immediately release checkout. User's unsaved changes will be orphaned."
           >
@@ -1027,7 +1027,7 @@ export function FileContextMenu({
             className="context-menu-item"
             onClick={handleOpenReviewModal}
           >
-            <Send size={14} className="text-pdm-accent" />
+            <Send size={14} className="text-plm-accent" />
             Request Review
           </div>
         )}
@@ -1038,7 +1038,7 @@ export function FileContextMenu({
             className="context-menu-item"
             onClick={() => setShowCheckoutRequestModal(true)}
           >
-            <ArrowDown size={14} className="text-pdm-warning" />
+            <ArrowDown size={14} className="text-plm-warning" />
             Request Checkout
           </div>
         )}
@@ -1049,7 +1049,7 @@ export function FileContextMenu({
             className="context-menu-item"
             onClick={handleOpenMentionModal}
           >
-            <Users size={14} className="text-pdm-fg-dim" />
+            <Users size={14} className="text-plm-fg-dim" />
             Notify Someone
           </div>
         )}
@@ -1063,9 +1063,9 @@ export function FileContextMenu({
             {isTogglingWatch ? (
               <Loader2 size={14} className="animate-spin" />
             ) : isWatching ? (
-              <EyeOffIcon size={14} className="text-pdm-fg-muted" />
+              <EyeOffIcon size={14} className="text-plm-fg-muted" />
             ) : (
-              <Eye size={14} className="text-pdm-accent" />
+              <Eye size={14} className="text-plm-accent" />
             )}
             {isWatching ? 'Stop Watching' : 'Watch File'}
           </div>
@@ -1087,7 +1087,7 @@ export function FileContextMenu({
             {isCreatingShareLink ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
-              <Link size={14} className="text-pdm-accent" />
+              <Link size={14} className="text-plm-accent" />
             )}
             Copy Share Link
           </div>
@@ -1099,7 +1099,7 @@ export function FileContextMenu({
             className="context-menu-item"
             onClick={handleOpenECOModal}
           >
-            <ClipboardList size={14} className="text-pdm-fg-dim" />
+            <ClipboardList size={14} className="text-plm-fg-dim" />
             Add to ECO
           </div>
         )}
@@ -1116,12 +1116,12 @@ export function FileContextMenu({
           >
             <EyeOff size={14} />
             Keep Local Only
-            <span className="text-xs text-pdm-fg-muted ml-auto">{submenuPosition === 'right' ? '▶' : '◀'}</span>
+            <span className="text-xs text-plm-fg-muted ml-auto">{submenuPosition === 'right' ? '▶' : '◀'}</span>
             
             {/* Submenu */}
             {showIgnoreSubmenu && (
               <div 
-                className={`absolute top-0 min-w-[200px] bg-pdm-bg-lighter border border-pdm-border rounded-md py-1 shadow-lg z-[100] ${
+                className={`absolute top-0 min-w-[200px] bg-plm-bg-lighter border border-plm-border rounded-md py-1 shadow-lg z-[100] ${
                   submenuPosition === 'right' ? 'left-full ml-1' : 'right-full mr-1'
                 }`}
                 style={{ marginTop: '-4px' }}
@@ -1174,7 +1174,7 @@ export function FileContextMenu({
                     return (
                       <>
                         <div className="context-menu-separator" />
-                        <div className="px-3 py-1.5 text-xs text-pdm-fg-muted">
+                        <div className="px-3 py-1.5 text-xs text-plm-fg-muted">
                           {currentPatterns.length} pattern{currentPatterns.length > 1 ? 's' : ''} configured
                         </div>
                       </>
@@ -1216,21 +1216,21 @@ export function FileContextMenu({
       {showProperties && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowProperties(false); onClose(); }} />
-          <div className="relative bg-pdm-bg-light border border-pdm-border rounded-lg shadow-2xl w-[400px] max-h-[80vh] overflow-auto">
-            <div className="p-4 border-b border-pdm-border flex items-center gap-3">
-              <Info size={20} className="text-pdm-accent" />
+          <div className="relative bg-plm-bg-light border border-plm-border rounded-lg shadow-2xl w-[400px] max-h-[80vh] overflow-auto">
+            <div className="p-4 border-b border-plm-border flex items-center gap-3">
+              <Info size={20} className="text-plm-accent" />
               <h3 className="font-semibold">Properties</h3>
             </div>
             <div className="p-4 space-y-3">
               {/* Name */}
               <div>
-                <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-1">Name</div>
+                <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Name</div>
                 <div className="text-sm">{firstFile.name}</div>
               </div>
               
               {/* Type */}
               <div>
-                <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-1">Type</div>
+                <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Type</div>
                 <div className="text-sm">
                   {isFolder ? 'Folder' : (firstFile.extension ? firstFile.extension.toUpperCase() + ' File' : 'File')}
                 </div>
@@ -1238,8 +1238,8 @@ export function FileContextMenu({
               
               {/* Location */}
               <div>
-                <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-1">Location</div>
-                <div className="text-sm break-all text-pdm-fg-dim">
+                <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Location</div>
+                <div className="text-sm break-all text-plm-fg-dim">
                   {firstFile.relativePath.includes('/') 
                     ? firstFile.relativePath.substring(0, firstFile.relativePath.lastIndexOf('/'))
                     : '/'}
@@ -1248,15 +1248,15 @@ export function FileContextMenu({
               
               {/* Size */}
               <div>
-                <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-1">Size</div>
+                <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Size</div>
                 <div className="text-sm">
                   {isFolder && !multiSelect ? (
                     isCalculatingSize ? (
-                      <span className="text-pdm-fg-muted">Calculating...</span>
+                      <span className="text-plm-fg-muted">Calculating...</span>
                     ) : folderSize ? (
                       <span>
                         {formatSize(folderSize.size)}
-                        <span className="text-pdm-fg-muted ml-2">
+                        <span className="text-plm-fg-muted ml-2">
                           ({folderSize.fileCount} file{folderSize.fileCount !== 1 ? 's' : ''}, {folderSize.folderCount} folder{folderSize.folderCount !== 1 ? 's' : ''})
                         </span>
                       </span>
@@ -1272,7 +1272,7 @@ export function FileContextMenu({
               {/* Status */}
               {firstFile.pdmData && (
                 <div>
-                  <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-1">Status</div>
+                  <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Status</div>
                   <div className="text-sm">
                     {firstFile.pdmData.checked_out_by 
                       ? firstFile.pdmData.checked_out_by === user?.id 
@@ -1285,8 +1285,8 @@ export function FileContextMenu({
               
               {/* Sync Status */}
               <div>
-                <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-1">Sync Status</div>
-                <div className={`text-sm ${firstFile.diffStatus === 'deleted_remote' ? 'text-pdm-error' : ''}`}>
+                <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Sync Status</div>
+                <div className={`text-sm ${firstFile.diffStatus === 'deleted_remote' ? 'text-plm-error' : ''}`}>
                   {firstFile.diffStatus === 'cloud' ? 'Cloud only (not downloaded)' 
                     : firstFile.diffStatus === 'added' ? 'Local only (not synced)'
                     : firstFile.diffStatus === 'ignored' ? 'Local only (ignored from sync)'
@@ -1301,12 +1301,12 @@ export function FileContextMenu({
               {/* Modified Date */}
               {firstFile.modifiedTime && (
                 <div>
-                  <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-1">Modified</div>
+                  <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Modified</div>
                   <div className="text-sm">{new Date(firstFile.modifiedTime).toLocaleString()}</div>
                 </div>
               )}
             </div>
-            <div className="p-4 border-t border-pdm-border flex justify-end">
+            <div className="p-4 border-t border-plm-border flex justify-end">
               <button
                 onClick={() => { setShowProperties(false); onClose(); }}
                 className="btn btn-ghost"
@@ -1325,43 +1325,43 @@ export function FileContextMenu({
           onClick={() => { setShowDeleteConfirm(false); onClose(); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-error/20 flex items-center justify-center">
-                <AlertTriangle size={20} className="text-pdm-error" />
+              <div className="w-10 h-10 rounded-full bg-plm-error/20 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-plm-error" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">
+                <h3 className="text-lg font-semibold text-plm-fg">
                   Delete Local & Server {deleteConfirmFiles.length > 1 ? `${deleteConfirmFiles.length} Items` : 'Item'}?
                 </h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <p className="text-sm text-plm-fg-muted">
                   Items will be deleted locally AND from the server.
                 </p>
               </div>
             </div>
             
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4 max-h-40 overflow-y-auto">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4 max-h-40 overflow-y-auto">
               {deleteConfirmFiles.length === 1 ? (
                 <div className="flex items-center gap-2">
-                  <File size={16} className="text-pdm-fg-muted" />
-                  <span className="text-pdm-fg font-medium truncate">{deleteConfirmFiles[0]?.name}</span>
+                  <File size={16} className="text-plm-fg-muted" />
+                  <span className="text-plm-fg font-medium truncate">{deleteConfirmFiles[0]?.name}</span>
                 </div>
               ) : (
                 <>
-                  <div className="text-sm text-pdm-fg mb-2">
+                  <div className="text-sm text-plm-fg mb-2">
                     {deleteConfirmFiles.length} file{deleteConfirmFiles.length > 1 ? 's' : ''}
                   </div>
                   <div className="space-y-1">
                     {deleteConfirmFiles.slice(0, 5).map((f, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm">
-                        <File size={14} className="text-pdm-fg-muted" />
-                        <span className="text-pdm-fg-dim truncate">{f.name}</span>
+                        <File size={14} className="text-plm-fg-muted" />
+                        <span className="text-plm-fg-dim truncate">{f.name}</span>
                       </div>
                     ))}
                     {deleteConfirmFiles.length > 5 && (
-                      <div className="text-xs text-pdm-fg-muted">
+                      <div className="text-xs text-plm-fg-muted">
                         ...and {deleteConfirmFiles.length - 5} more
                       </div>
                     )}
@@ -1371,11 +1371,11 @@ export function FileContextMenu({
             </div>
             
             {/* Warning */}
-            <div className="bg-pdm-warning/10 border border-pdm-warning/30 rounded p-3 mb-4">
-              <p className="text-sm text-pdm-warning font-medium">
+            <div className="bg-plm-warning/10 border border-plm-warning/30 rounded p-3 mb-4">
+              <p className="text-sm text-plm-warning font-medium">
                 ⚠️ {deleteConfirmFiles.length} synced file{deleteConfirmFiles.length > 1 ? 's' : ''} will be deleted from the server.
               </p>
-              <p className="text-xs text-pdm-fg-muted mt-1">Files can be recovered from trash within 30 days.</p>
+              <p className="text-xs text-plm-fg-muted mt-1">Files can be recovered from trash within 30 days.</p>
             </div>
             
             <div className="flex justify-end gap-2">
@@ -1387,7 +1387,7 @@ export function FileContextMenu({
               </button>
               <button
                 onClick={executeDeleteFromServer}
-                className="btn bg-pdm-error hover:bg-pdm-error/80 text-white"
+                className="btn bg-plm-error hover:bg-plm-error/80 text-white"
               >
                 <Trash2 size={14} />
                 Delete Local & Server {deleteConfirmFiles.length > 1 ? `(${deleteConfirmFiles.length})` : ''}
@@ -1404,33 +1404,33 @@ export function FileContextMenu({
           onClick={() => { setShowDeleteLocalConfirm(false); onClose(); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-warning/20 flex items-center justify-center">
-                <AlertTriangle size={20} className="text-pdm-warning" />
+              <div className="w-10 h-10 rounded-full bg-plm-warning/20 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-plm-warning" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">
+                <h3 className="text-lg font-semibold text-plm-fg">
                   Files Are Checked Out
                 </h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <p className="text-sm text-plm-fg-muted">
                   {deleteLocalCheckedOutFiles.length} file{deleteLocalCheckedOutFiles.length > 1 ? 's are' : ' is'} currently checked out by you.
                 </p>
               </div>
             </div>
             
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4 max-h-40 overflow-y-auto">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4 max-h-40 overflow-y-auto">
               <div className="space-y-1">
                 {deleteLocalCheckedOutFiles.slice(0, 5).map((f, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
-                    <File size={14} className="text-pdm-warning" />
-                    <span className="text-pdm-fg truncate">{f.name}</span>
+                    <File size={14} className="text-plm-warning" />
+                    <span className="text-plm-fg truncate">{f.name}</span>
                   </div>
                 ))}
                 {deleteLocalCheckedOutFiles.length > 5 && (
-                  <div className="text-xs text-pdm-fg-muted">
+                  <div className="text-xs text-plm-fg-muted">
                     ...and {deleteLocalCheckedOutFiles.length - 5} more
                   </div>
                 )}
@@ -1438,8 +1438,8 @@ export function FileContextMenu({
             </div>
             
             {/* Info */}
-            <div className="bg-pdm-accent/10 border border-pdm-accent/30 rounded p-3 mb-4">
-              <p className="text-sm text-pdm-fg">
+            <div className="bg-plm-accent/10 border border-plm-accent/30 rounded p-3 mb-4">
+              <p className="text-sm text-plm-fg">
                 What would you like to do with your changes?
               </p>
             </div>
@@ -1447,14 +1447,14 @@ export function FileContextMenu({
             <div className="flex flex-col gap-2">
               <button
                 onClick={handleCheckinThenDeleteLocal}
-                className="btn bg-pdm-success hover:bg-pdm-success/80 text-white w-full justify-center"
+                className="btn bg-plm-success hover:bg-plm-success/80 text-white w-full justify-center"
               >
                 <ArrowUp size={14} />
                 Check In First, Then Remove Local
               </button>
               <button
                 onClick={handleDiscardAndDeleteLocal}
-                className="btn bg-pdm-warning hover:bg-pdm-warning/80 text-white w-full justify-center"
+                className="btn bg-plm-warning hover:bg-plm-warning/80 text-white w-full justify-center"
               >
                 <Trash2 size={14} />
                 Discard Changes & Remove Local
@@ -1477,33 +1477,33 @@ export function FileContextMenu({
           onClick={() => { setShowForceCheckinConfirm(false); setForceCheckinFiles(null); onClose(); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-warning/20 flex items-center justify-center">
-                <Monitor size={20} className="text-pdm-warning" />
+              <div className="w-10 h-10 rounded-full bg-plm-warning/20 flex items-center justify-center">
+                <Monitor size={20} className="text-plm-warning" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">
+                <h3 className="text-lg font-semibold text-plm-fg">
                   Check In From Different Computer
                 </h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <p className="text-sm text-plm-fg-muted">
                   {forceCheckinFiles.filesOnDifferentMachine.length} file{forceCheckinFiles.filesOnDifferentMachine.length > 1 ? 's are' : ' is'} checked out on {forceCheckinFiles.machineNames.join(', ')}.
                 </p>
               </div>
             </div>
             
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4 max-h-40 overflow-y-auto">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4 max-h-40 overflow-y-auto">
               <div className="space-y-1">
                 {forceCheckinFiles.filesOnDifferentMachine.slice(0, 5).map((f, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
-                    <File size={14} className="text-pdm-warning" />
-                    <span className="text-pdm-fg truncate">{f.name}</span>
+                    <File size={14} className="text-plm-warning" />
+                    <span className="text-plm-fg truncate">{f.name}</span>
                   </div>
                 ))}
                 {forceCheckinFiles.filesOnDifferentMachine.length > 5 && (
-                  <div className="text-xs text-pdm-fg-muted">
+                  <div className="text-xs text-plm-fg-muted">
                     ...and {forceCheckinFiles.filesOnDifferentMachine.length - 5} more
                   </div>
                 )}
@@ -1511,11 +1511,11 @@ export function FileContextMenu({
             </div>
             
             {/* Warning */}
-            <div className="bg-pdm-warning/10 border border-pdm-warning/30 rounded p-3 mb-4">
-              <p className="text-sm text-pdm-fg">
+            <div className="bg-plm-warning/10 border border-plm-warning/30 rounded p-3 mb-4">
+              <p className="text-sm text-plm-fg">
                 Checking in from here will <strong>discard any unsaved changes</strong> on {forceCheckinFiles.machineNames.length === 1 ? 'that' : 'those'} computer{forceCheckinFiles.machineNames.length > 1 ? 's' : ''}.
               </p>
-              <p className="text-xs text-pdm-fg-muted mt-2">
+              <p className="text-xs text-plm-fg-muted mt-2">
                 The other computer{forceCheckinFiles.machineNames.length > 1 ? 's' : ''} will be notified.
               </p>
             </div>
@@ -1523,7 +1523,7 @@ export function FileContextMenu({
             <div className="flex flex-col gap-2">
               <button
                 onClick={handleForceCheckin}
-                className="btn bg-pdm-warning hover:bg-pdm-warning/80 text-white w-full justify-center"
+                className="btn bg-plm-warning hover:bg-plm-warning/80 text-white w-full justify-center"
               >
                 <ArrowUp size={14} />
                 Force Check In
@@ -1546,57 +1546,57 @@ export function FileContextMenu({
           onClick={() => { setShowReviewModal(false); setSelectedReviewers([]); setReviewMessage(''); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                <Send size={20} className="text-pdm-accent" />
+              <div className="w-10 h-10 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                <Send size={20} className="text-plm-accent" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">
+                <h3 className="text-lg font-semibold text-plm-fg">
                   Request Review
                 </h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <p className="text-sm text-plm-fg-muted">
                   {firstFile.name}
                 </p>
               </div>
             </div>
             
             {/* File info */}
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
               <div className="flex items-center gap-2">
-                <File size={16} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg font-medium truncate">{firstFile.name}</span>
+                <File size={16} className="text-plm-fg-muted" />
+                <span className="text-plm-fg font-medium truncate">{firstFile.name}</span>
                 {firstFile.pdmData?.version && (
-                  <span className="text-xs text-pdm-fg-muted">v{firstFile.pdmData.version}</span>
+                  <span className="text-xs text-plm-fg-muted">v{firstFile.pdmData.version}</span>
                 )}
               </div>
             </div>
             
             {/* Reviewers selection */}
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                 Select Reviewers
               </label>
               {loadingUsers ? (
                 <div className="flex items-center justify-center p-4">
-                  <Loader2 size={20} className="animate-spin text-pdm-accent" />
+                  <Loader2 size={20} className="animate-spin text-plm-accent" />
                 </div>
               ) : orgUsers.length === 0 ? (
-                <p className="text-sm text-pdm-fg-muted p-2">No other users in your organization</p>
+                <p className="text-sm text-plm-fg-muted p-2">No other users in your organization</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto border border-pdm-border rounded bg-pdm-bg">
+                <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
                   {orgUsers.map(orgUser => (
                     <label 
                       key={orgUser.id}
-                      className="flex items-center gap-3 p-2 hover:bg-pdm-highlight cursor-pointer"
+                      className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={selectedReviewers.includes(orgUser.id)}
                         onChange={() => handleToggleReviewer(orgUser.id)}
-                        className="w-4 h-4 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent"
+                        className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                       />
                       {orgUser.avatar_url ? (
                         <img 
@@ -1605,22 +1605,22 @@ export function FileContextMenu({
                           className="w-6 h-6 rounded-full"
                         />
                       ) : (
-                        <div className="w-6 h-6 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                          <Users size={12} className="text-pdm-accent" />
+                        <div className="w-6 h-6 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                          <Users size={12} className="text-plm-accent" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-pdm-fg truncate">
+                        <div className="text-sm text-plm-fg truncate">
                           {orgUser.full_name || orgUser.email}
                         </div>
                         {orgUser.full_name && (
-                          <div className="text-xs text-pdm-fg-muted truncate">
+                          <div className="text-xs text-plm-fg-muted truncate">
                             {orgUser.email}
                           </div>
                         )}
                       </div>
                       {selectedReviewers.includes(orgUser.id) && (
-                        <Check size={16} className="text-pdm-accent flex-shrink-0" />
+                        <Check size={16} className="text-plm-accent flex-shrink-0" />
                       )}
                     </label>
                   ))}
@@ -1631,7 +1631,7 @@ export function FileContextMenu({
             {/* Due Date and Priority */}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
-                <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+                <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                   <Calendar size={12} className="inline mr-1" />
                   Due Date (optional)
                 </label>
@@ -1640,17 +1640,17 @@ export function FileContextMenu({
                   value={reviewDueDate}
                   onChange={(e) => setReviewDueDate(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+                  className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
                 />
               </div>
               <div>
-                <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+                <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                   Priority
                 </label>
                 <select
                   value={reviewPriority}
                   onChange={(e) => setReviewPriority(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+                  className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
                 >
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>
@@ -1662,14 +1662,14 @@ export function FileContextMenu({
             
             {/* Message */}
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                 Message (optional)
               </label>
               <textarea
                 value={reviewMessage}
                 onChange={(e) => setReviewMessage(e.target.value)}
                 placeholder="Add a message for the reviewers..."
-                className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded resize-none focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
                 rows={2}
               />
             </div>
@@ -1685,7 +1685,7 @@ export function FileContextMenu({
               <button
                 onClick={handleSubmitReviewRequest}
                 disabled={selectedReviewers.length === 0 || isSubmittingReview}
-                className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white disabled:opacity-50"
+                className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
               >
                 {isSubmittingReview ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -1706,44 +1706,44 @@ export function FileContextMenu({
           onClick={() => { setShowCheckoutRequestModal(false); setCheckoutRequestMessage(''); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-warning/20 flex items-center justify-center">
-                <ArrowDown size={20} className="text-pdm-warning" />
+              <div className="w-10 h-10 rounded-full bg-plm-warning/20 flex items-center justify-center">
+                <ArrowDown size={20} className="text-plm-warning" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">
+                <h3 className="text-lg font-semibold text-plm-fg">
                   Request Checkout
                 </h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <p className="text-sm text-plm-fg-muted">
                   Ask to check out this file
                 </p>
               </div>
             </div>
             
             {/* File info */}
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
               <div className="flex items-center gap-2">
-                <File size={16} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg font-medium truncate">{firstFile.name}</span>
+                <File size={16} className="text-plm-fg-muted" />
+                <span className="text-plm-fg font-medium truncate">{firstFile.name}</span>
               </div>
-              <div className="mt-2 text-xs text-pdm-fg-muted">
+              <div className="mt-2 text-xs text-plm-fg-muted">
                 Currently checked out - a notification will be sent to the user who has this file.
               </div>
             </div>
             
             {/* Message */}
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                 Message (optional)
               </label>
               <textarea
                 value={checkoutRequestMessage}
                 onChange={(e) => setCheckoutRequestMessage(e.target.value)}
                 placeholder="Why do you need this file? Any deadline?"
-                className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded resize-none focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
                 rows={3}
               />
             </div>
@@ -1759,7 +1759,7 @@ export function FileContextMenu({
               <button
                 onClick={handleSubmitCheckoutRequest}
                 disabled={isSubmittingCheckoutRequest}
-                className="btn bg-pdm-warning hover:bg-pdm-warning/90 text-white disabled:opacity-50"
+                className="btn bg-plm-warning hover:bg-plm-warning/90 text-white disabled:opacity-50"
               >
                 {isSubmittingCheckoutRequest ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -1780,57 +1780,57 @@ export function FileContextMenu({
           onClick={() => { setShowMentionModal(false); setSelectedMentionUsers([]); setMentionMessage(''); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                <Users size={20} className="text-pdm-accent" />
+              <div className="w-10 h-10 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                <Users size={20} className="text-plm-accent" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">
+                <h3 className="text-lg font-semibold text-plm-fg">
                   Notify Someone
                 </h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <p className="text-sm text-plm-fg-muted">
                   Send a notification about this file
                 </p>
               </div>
             </div>
             
             {/* File info */}
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
               <div className="flex items-center gap-2">
-                <File size={16} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg font-medium truncate">{firstFile.name}</span>
+                <File size={16} className="text-plm-fg-muted" />
+                <span className="text-plm-fg font-medium truncate">{firstFile.name}</span>
                 {firstFile.pdmData?.version && (
-                  <span className="text-xs text-pdm-fg-muted">v{firstFile.pdmData.version}</span>
+                  <span className="text-xs text-plm-fg-muted">v{firstFile.pdmData.version}</span>
                 )}
               </div>
             </div>
             
             {/* User selection */}
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                 Select People to Notify
               </label>
               {loadingUsers ? (
                 <div className="flex items-center justify-center p-4">
-                  <Loader2 size={20} className="animate-spin text-pdm-accent" />
+                  <Loader2 size={20} className="animate-spin text-plm-accent" />
                 </div>
               ) : orgUsers.length === 0 ? (
-                <p className="text-sm text-pdm-fg-muted p-2">No other users in your organization</p>
+                <p className="text-sm text-plm-fg-muted p-2">No other users in your organization</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto border border-pdm-border rounded bg-pdm-bg">
+                <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
                   {orgUsers.map(orgUser => (
                     <label 
                       key={orgUser.id}
-                      className="flex items-center gap-3 p-2 hover:bg-pdm-highlight cursor-pointer"
+                      className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={selectedMentionUsers.includes(orgUser.id)}
                         onChange={() => handleToggleMentionUser(orgUser.id)}
-                        className="w-4 h-4 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent"
+                        className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                       />
                       {orgUser.avatar_url ? (
                         <img 
@@ -1839,22 +1839,22 @@ export function FileContextMenu({
                           className="w-6 h-6 rounded-full"
                         />
                       ) : (
-                        <div className="w-6 h-6 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                          <Users size={12} className="text-pdm-accent" />
+                        <div className="w-6 h-6 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                          <Users size={12} className="text-plm-accent" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-pdm-fg truncate">
+                        <div className="text-sm text-plm-fg truncate">
                           {orgUser.full_name || orgUser.email}
                         </div>
                         {orgUser.full_name && (
-                          <div className="text-xs text-pdm-fg-muted truncate">
+                          <div className="text-xs text-plm-fg-muted truncate">
                             {orgUser.email}
                           </div>
                         )}
                       </div>
                       {selectedMentionUsers.includes(orgUser.id) && (
-                        <Check size={16} className="text-pdm-accent flex-shrink-0" />
+                        <Check size={16} className="text-plm-accent flex-shrink-0" />
                       )}
                     </label>
                   ))}
@@ -1864,14 +1864,14 @@ export function FileContextMenu({
             
             {/* Message */}
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                 Message
               </label>
               <textarea
                 value={mentionMessage}
                 onChange={(e) => setMentionMessage(e.target.value)}
                 placeholder="What do you want to tell them about this file?"
-                className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded resize-none focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
                 rows={3}
               />
             </div>
@@ -1887,7 +1887,7 @@ export function FileContextMenu({
               <button
                 onClick={handleSubmitMention}
                 disabled={selectedMentionUsers.length === 0 || isSubmittingMention}
-                className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white disabled:opacity-50"
+                className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
               >
                 {isSubmittingMention ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -1908,16 +1908,16 @@ export function FileContextMenu({
           onClick={() => { setShowShareModal(false); setGeneratedShareLink(null); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                <Link size={20} className="text-pdm-accent" />
+              <div className="w-10 h-10 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                <Link size={20} className="text-plm-accent" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">Share Link Created</h3>
-                <p className="text-sm text-pdm-fg-muted">Copy the link below</p>
+                <h3 className="text-lg font-semibold text-plm-fg">Share Link Created</h3>
+                <p className="text-sm text-plm-fg-muted">Copy the link below</p>
               </div>
             </div>
             
@@ -1927,21 +1927,21 @@ export function FileContextMenu({
                   type="text"
                   value={generatedShareLink}
                   readOnly
-                  className="flex-1 px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none"
+                  className="flex-1 px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none"
                 />
                 <button
                   onClick={handleCopyShareLink}
-                  className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white"
+                  className="btn bg-plm-accent hover:bg-plm-accent/90 text-white"
                 >
                   {copiedLink ? <Check size={14} /> : <Copy size={14} />}
                 </button>
               </div>
-              <p className="text-xs text-pdm-fg-muted">Expires in 7 days • Anyone with link can download</p>
+              <p className="text-xs text-plm-fg-muted">Expires in 7 days • Anyone with link can download</p>
               
               <div className="flex justify-end">
                 <button
                   onClick={() => { setShowShareModal(false); setGeneratedShareLink(null); onClose(); }}
-                  className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white"
+                  className="btn bg-plm-accent hover:bg-plm-accent/90 text-white"
                 >
                   Done
                 </button>
@@ -1958,48 +1958,48 @@ export function FileContextMenu({
           onClick={() => { setShowECOModal(false); setSelectedECO(null); setEcoNotes(''); }}
         >
           <div 
-            className="bg-pdm-bg-light border border-pdm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
+            className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-pdm-accent/20 flex items-center justify-center">
-                <ClipboardList size={20} className="text-pdm-accent" />
+              <div className="w-10 h-10 rounded-full bg-plm-accent/20 flex items-center justify-center">
+                <ClipboardList size={20} className="text-plm-accent" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-pdm-fg">
+                <h3 className="text-lg font-semibold text-plm-fg">
                   Add to ECO
                 </h3>
-                <p className="text-sm text-pdm-fg-muted">
+                <p className="text-sm text-plm-fg-muted">
                   Add file to Engineering Change Order
                 </p>
               </div>
             </div>
             
             {/* File info */}
-            <div className="bg-pdm-bg rounded border border-pdm-border p-3 mb-4">
+            <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
               <div className="flex items-center gap-2">
-                <File size={16} className="text-pdm-fg-muted" />
-                <span className="text-pdm-fg font-medium truncate">{firstFile.name}</span>
+                <File size={16} className="text-plm-fg-muted" />
+                <span className="text-plm-fg font-medium truncate">{firstFile.name}</span>
               </div>
             </div>
             
             {/* ECO selection */}
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                 Select ECO
               </label>
               {loadingECOs ? (
                 <div className="flex items-center justify-center p-4">
-                  <Loader2 size={20} className="animate-spin text-pdm-accent" />
+                  <Loader2 size={20} className="animate-spin text-plm-accent" />
                 </div>
               ) : activeECOs.length === 0 ? (
-                <p className="text-sm text-pdm-fg-muted p-2">No active ECOs found. Create one in the ECO Manager first.</p>
+                <p className="text-sm text-plm-fg-muted p-2">No active ECOs found. Create one in the ECO Manager first.</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto border border-pdm-border rounded bg-pdm-bg">
+                <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
                   {activeECOs.map(eco => (
                     <label 
                       key={eco.id}
-                      className="flex items-center gap-3 p-2 hover:bg-pdm-highlight cursor-pointer"
+                      className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer"
                     >
                       <input
                         type="radio"
@@ -2007,14 +2007,14 @@ export function FileContextMenu({
                         value={eco.id}
                         checked={selectedECO === eco.id}
                         onChange={() => setSelectedECO(eco.id)}
-                        className="w-4 h-4 border-pdm-border text-pdm-accent focus:ring-pdm-accent"
+                        className="w-4 h-4 border-plm-border text-plm-accent focus:ring-plm-accent"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-pdm-fg font-medium">
+                        <div className="text-sm text-plm-fg font-medium">
                           {eco.eco_number}
                         </div>
                         {eco.title && (
-                          <div className="text-xs text-pdm-fg-muted truncate">
+                          <div className="text-xs text-plm-fg-muted truncate">
                             {eco.title}
                           </div>
                         )}
@@ -2027,14 +2027,14 @@ export function FileContextMenu({
             
             {/* Notes */}
             <div className="mb-4">
-              <label className="block text-xs text-pdm-fg-muted uppercase tracking-wide mb-2">
+              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
                 Notes (optional)
               </label>
               <textarea
                 value={ecoNotes}
                 onChange={(e) => setEcoNotes(e.target.value)}
                 placeholder="Why is this file part of this ECO?"
-                className="w-full px-3 py-2 text-sm bg-pdm-bg border border-pdm-border rounded resize-none focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
                 rows={2}
               />
             </div>
@@ -2050,7 +2050,7 @@ export function FileContextMenu({
               <button
                 onClick={handleAddToECO}
                 disabled={!selectedECO || isAddingToECO}
-                className="btn bg-pdm-accent hover:bg-pdm-accent/90 text-white disabled:opacity-50"
+                className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
               >
                 {isAddingToECO ? (
                   <Loader2 size={14} className="animate-spin" />

@@ -188,7 +188,7 @@ export function SearchView() {
   return (
     <div className="p-4">
       <form onSubmit={handleSearch} className="relative mb-2">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
         <input
           type="text"
           value={localQuery}
@@ -200,7 +200,7 @@ export function SearchView() {
           <button
             type="button"
             onClick={clearSearch}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
           >
             <X size={14} />
           </button>
@@ -210,11 +210,11 @@ export function SearchView() {
       {/* Search mode indicator */}
       {localQuery.trim() && (
         <div className="flex items-center gap-2 mb-3 text-xs">
-          <span className="text-pdm-fg-muted">Searching:</span>
+          <span className="text-plm-fg-muted">Searching:</span>
           <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${
             searchMode === 'eco' 
-              ? 'bg-pdm-accent/20 text-pdm-accent' 
-              : 'bg-pdm-bg-light text-pdm-fg-dim'
+              ? 'bg-plm-accent/20 text-plm-accent' 
+              : 'bg-plm-bg-light text-plm-fg-dim'
           }`}>
             {searchMode === 'eco' ? (
               <>
@@ -228,7 +228,7 @@ export function SearchView() {
               </>
             )}
           </span>
-          {isSearchingECO && <Loader2 size={12} className="animate-spin text-pdm-fg-muted" />}
+          {isSearchingECO && <Loader2 size={12} className="animate-spin text-plm-fg-muted" />}
         </div>
       )}
 
@@ -236,7 +236,7 @@ export function SearchView() {
         searchMode === 'eco' ? (
           // ECO Search Results
           <>
-            <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-3">
+            <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
               ECO Results ({ecoResults.length} files)
             </div>
             
@@ -245,21 +245,21 @@ export function SearchView() {
                 <div className="spinner" />
               </div>
             ) : ecoResults.length === 0 ? (
-              <div className="text-sm text-pdm-fg-muted py-4 text-center">
+              <div className="text-sm text-plm-fg-muted py-4 text-center">
                 No files found for ECO "{ecoSearchTerm}"
               </div>
             ) : (
               <div className="space-y-3">
                 {Object.entries(groupedECOResults).map(([ecoNumber, results]) => (
-                  <div key={ecoNumber} className="bg-pdm-bg-light rounded border border-pdm-border overflow-hidden">
-                    <div className="flex items-center gap-2 p-2 bg-pdm-bg border-b border-pdm-border">
-                      <Tag size={12} className="text-pdm-accent" />
+                  <div key={ecoNumber} className="bg-plm-bg-light rounded border border-plm-border overflow-hidden">
+                    <div className="flex items-center gap-2 p-2 bg-plm-bg border-b border-plm-border">
+                      <Tag size={12} className="text-plm-accent" />
                       <span className="font-medium text-sm">{ecoNumber}</span>
-                      <span className="text-xs text-pdm-fg-muted">
+                      <span className="text-xs text-plm-fg-muted">
                         ({results.length} file{results.length > 1 ? 's' : ''})
                       </span>
                     </div>
-                    <div className="divide-y divide-pdm-border">
+                    <div className="divide-y divide-plm-border">
                       {results.map((result) => {
                         const normalizedPath = result.file_path.replace(/\//g, '\\')
                         const localFile = files.find(f => 
@@ -274,22 +274,22 @@ export function SearchView() {
                             onClick={(e) => handleECOResultClick(result, e.ctrlKey || e.metaKey)}
                             className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer transition-colors ${
                               isSelected 
-                                ? 'bg-pdm-selection' 
-                                : 'hover:bg-pdm-highlight'
+                                ? 'bg-plm-selection' 
+                                : 'hover:bg-plm-highlight'
                             }`}
                           >
-                            <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
+                            <File size={14} className="text-plm-fg-muted flex-shrink-0" />
                             <div className="min-w-0 flex-1">
                               <div className="text-sm truncate">{result.file_name}</div>
-                              <div className="text-xs text-pdm-fg-muted truncate flex items-center gap-2">
+                              <div className="text-xs text-plm-fg-muted truncate flex items-center gap-2">
                                 <span>{result.file_path}</span>
                                 {result.part_number && (
-                                  <span className="text-pdm-accent">{result.part_number}</span>
+                                  <span className="text-plm-accent">{result.part_number}</span>
                                 )}
                               </div>
                             </div>
                             {!localFile && (
-                              <span className="text-xs text-pdm-warning" title="File not in local vault">
+                              <span className="text-xs text-plm-warning" title="File not in local vault">
                                 cloud
                               </span>
                             )}
@@ -305,12 +305,12 @@ export function SearchView() {
         ) : (
           // Regular File Search Results
           <>
-            <div className="text-xs text-pdm-fg-muted uppercase tracking-wide mb-3">
+            <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
               Results ({fileSearchResults.length})
             </div>
             
             {fileSearchResults.length === 0 ? (
-              <div className="text-sm text-pdm-fg-muted py-4 text-center">
+              <div className="text-sm text-plm-fg-muted py-4 text-center">
                 No files found
               </div>
             ) : (
@@ -321,24 +321,24 @@ export function SearchView() {
                     onClick={(e) => toggleFileSelection(file.path, e.ctrlKey || e.metaKey)}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer ${
                       selectedFiles.includes(file.path) 
-                        ? 'bg-pdm-selection' 
-                        : 'hover:bg-pdm-highlight'
+                        ? 'bg-plm-selection' 
+                        : 'hover:bg-plm-highlight'
                     }`}
                   >
                     {file.isDirectory 
-                      ? <FolderOpen size={14} className="text-pdm-warning flex-shrink-0" />
-                      : <File size={14} className="text-pdm-fg-muted flex-shrink-0" />
+                      ? <FolderOpen size={14} className="text-plm-warning flex-shrink-0" />
+                      : <File size={14} className="text-plm-fg-muted flex-shrink-0" />
                     }
                     <div className="min-w-0 flex-1">
                       <div className="text-sm truncate">{file.name}</div>
-                      <div className="text-xs text-pdm-fg-muted truncate">
+                      <div className="text-xs text-plm-fg-muted truncate">
                         {file.relativePath}
                       </div>
                     </div>
                   </div>
                 ))}
                 {fileSearchResults.length > 50 && (
-                  <div className="text-xs text-pdm-fg-muted text-center py-2">
+                  <div className="text-xs text-plm-fg-muted text-center py-2">
                     Showing 50 of {fileSearchResults.length} results
                   </div>
                 )}
@@ -347,7 +347,7 @@ export function SearchView() {
           </>
         )
       ) : (
-        <div className="text-sm text-pdm-fg-muted py-4 text-center space-y-2">
+        <div className="text-sm text-plm-fg-muted py-4 text-center space-y-2">
           <p>Enter a search term to find files</p>
           <p className="text-xs">
             Tip: Search "eco:ECO-001" to find files tagged with an ECO

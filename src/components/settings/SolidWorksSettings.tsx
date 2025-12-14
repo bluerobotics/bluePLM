@@ -1,5 +1,79 @@
-import { Image, ExternalLink, FolderOpen, Info, Key, Download } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Image, ExternalLink, FolderOpen, Info, Key, Download, Play, Square, Loader2, Zap } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
+
+// Hook to manage SolidWorks service connection (minimal version for settings)
+function useSolidWorksServiceStatus() {
+  const [status, setStatus] = useState<{ running: boolean; version?: string; directAccessEnabled?: boolean }>({ running: false })
+  const [isStarting, setIsStarting] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
+  const { addToast, organization } = usePDMStore()
+  
+  // Get DM license key from organization settings
+  const dmLicenseKey = organization?.settings?.solidworks_dm_license_key
+
+  const checkStatus = useCallback(async () => {
+    try {
+      const result = await window.electronAPI?.solidworks?.getServiceStatus()
+      if (result?.success && result.data) {
+        setStatus(result.data)
+      }
+    } catch {
+      setStatus({ running: false })
+    }
+  }, [])
+
+  const startService = useCallback(async () => {
+    setIsStarting(true)
+    try {
+      const result = await window.electronAPI?.solidworks?.startService(dmLicenseKey || undefined)
+      if (result?.success) {
+        const directAccessEnabled = (result.data as any)?.fastModeEnabled
+        setStatus({ 
+          running: true, 
+          version: (result.data as any)?.version,
+          directAccessEnabled
+        })
+        const modeMsg = directAccessEnabled 
+          ? ' (direct file access)' 
+          : ' (using SolidWorks API)'
+        addToast('success', `SolidWorks service started${modeMsg}`)
+      } else {
+        addToast('error', result?.error || 'Failed to start SolidWorks service')
+      }
+    } catch (err) {
+      addToast('error', `Failed to start service: ${err}`)
+    } finally {
+      setIsStarting(false)
+    }
+  }, [addToast, dmLicenseKey])
+
+  const stopService = useCallback(async () => {
+    setIsStopping(true)
+    try {
+      const result = await window.electronAPI?.solidworks?.stopService()
+      if (result?.success) {
+        setStatus({ running: false })
+        addToast('info', 'SolidWorks service stopped')
+      } else {
+        addToast('error', 'Failed to stop SolidWorks service')
+      }
+    } catch (err) {
+      addToast('error', `Failed to stop service: ${err}`)
+    } finally {
+      setIsStopping(false)
+    }
+  }, [addToast])
+
+  useEffect(() => {
+    checkStatus()
+    // Poll status every 5 seconds
+    const interval = setInterval(checkStatus, 5000)
+    return () => clearInterval(interval)
+  }, [checkStatus])
+
+  return { status, isStarting, isStopping, startService, stopService, checkStatus }
+}
 
 export function SolidWorksSettings() {
   const { 
@@ -7,14 +81,110 @@ export function SolidWorksSettings() {
     cadPreviewMode, 
     setCadPreviewMode,
     solidworksPath,
-    setSolidworksPath
+    setSolidworksPath,
+    autoStartSolidworksService,
+    setAutoStartSolidworksService
   } = usePDMStore()
+  
+  const { status, isStarting, isStopping, startService, stopService } = useSolidWorksServiceStatus()
 
   return (
     <div className="space-y-6">
+      {/* Service Control */}
+      <div className="space-y-3">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
+          SolidWorks Service
+        </label>
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
+          {/* Status indicator */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${status.running ? 'bg-green-500 animate-pulse' : 'bg-plm-fg-dim'}`} />
+              <div>
+                <div className="text-base text-plm-fg font-medium">
+                  {status.running ? 'Running' : 'Stopped'}
+                </div>
+                {status.running && status.version && (
+                  <div className="text-sm text-plm-fg-muted">
+                    {status.directAccessEnabled ? (
+                      <span className="flex items-center gap-1">
+                        <Zap size={12} className="text-yellow-400" />
+                        Fast mode (Document Manager API)
+                      </span>
+                    ) : (
+                      'Using SolidWorks API'
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Start/Stop button */}
+            {status.running ? (
+              <button
+                onClick={stopService}
+                disabled={isStopping}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
+              >
+                {isStopping ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Square size={16} />
+                )}
+                {isStopping ? 'Stopping...' : 'Stop Service'}
+              </button>
+            ) : (
+              <button
+                onClick={startService}
+                disabled={isStarting}
+                className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
+              >
+                {isStarting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Play size={16} />
+                )}
+                {isStarting ? 'Starting...' : 'Start Service'}
+              </button>
+            )}
+          </div>
+          
+          {/* Auto-start toggle */}
+          <div className="flex items-center justify-between pt-2 border-t border-plm-border">
+            <div>
+              <div className="text-sm text-plm-fg">Auto-start on app launch</div>
+              <div className="text-xs text-plm-fg-muted">
+                Automatically start the service when BluePLM opens
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoStartSolidworksService(!autoStartSolidworksService)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                autoStartSolidworksService ? 'bg-plm-accent' : 'bg-plm-bg-secondary'
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  autoStartSolidworksService ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          
+          {/* Help text */}
+          <div className="flex items-start gap-2 text-sm text-plm-fg-muted pt-2">
+            <Info size={16} className="mt-0.5 flex-shrink-0" />
+            <span>
+              The SolidWorks service enables BOM extraction, property reading, and file export features.
+              It requires SolidWorks to be installed on this computer.
+            </span>
+          </div>
+        </div>
+      </div>
+      
       {/* Preview Mode */}
       <div className="space-y-3">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           Preview Mode
         </label>
         <div className="space-y-2">
@@ -22,11 +192,11 @@ export function SolidWorksSettings() {
             onClick={() => setCadPreviewMode('thumbnail')}
             className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-colors ${
               cadPreviewMode === 'thumbnail'
-                ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-fg'
-                : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                ? 'bg-plm-accent/10 border-plm-accent text-plm-fg'
+                : 'bg-plm-bg border-plm-border text-plm-fg-muted hover:border-plm-fg-muted'
             }`}
           >
-            <Image size={24} className={cadPreviewMode === 'thumbnail' ? 'text-pdm-accent' : ''} />
+            <Image size={24} className={cadPreviewMode === 'thumbnail' ? 'text-plm-accent' : ''} />
             <div className="text-left">
               <div className="text-base font-medium">Embedded Thumbnail</div>
               <div className="text-sm opacity-70">
@@ -39,11 +209,11 @@ export function SolidWorksSettings() {
             onClick={() => setCadPreviewMode('edrawings')}
             className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-colors ${
               cadPreviewMode === 'edrawings'
-                ? 'bg-pdm-accent/10 border-pdm-accent text-pdm-fg'
-                : 'bg-pdm-bg border-pdm-border text-pdm-fg-muted hover:border-pdm-fg-muted'
+                ? 'bg-plm-accent/10 border-plm-accent text-plm-fg'
+                : 'bg-plm-bg border-plm-border text-plm-fg-muted hover:border-plm-fg-muted'
             }`}
           >
-            <ExternalLink size={24} className={cadPreviewMode === 'edrawings' ? 'text-pdm-accent' : ''} />
+            <ExternalLink size={24} className={cadPreviewMode === 'edrawings' ? 'text-plm-accent' : ''} />
             <div className="text-left">
               <div className="text-base font-medium">eDrawings (External)</div>
               <div className="text-sm opacity-70">
@@ -56,23 +226,23 @@ export function SolidWorksSettings() {
 
       {/* Installation Path */}
       <div className="space-y-3">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           SolidWorks Installation Path
         </label>
-        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border space-y-3">
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
           <div className="flex items-start gap-3">
-            <FolderOpen size={20} className="text-pdm-fg-muted mt-0.5 flex-shrink-0" />
+            <FolderOpen size={20} className="text-plm-fg-muted mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <input
                 type="text"
                 value={solidworksPath || ''}
                 onChange={(e) => setSolidworksPath(e.target.value || null)}
                 placeholder="C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS"
-                className="w-full bg-pdm-bg-secondary border border-pdm-border rounded-lg px-3 py-2 text-base font-mono text-pdm-fg placeholder:text-pdm-fg-dim focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2 text-base font-mono text-plm-fg placeholder:text-plm-fg-dim focus:border-plm-accent focus:outline-none"
               />
             </div>
           </div>
-          <div className="flex items-start gap-2 text-sm text-pdm-fg-muted">
+          <div className="flex items-start gap-2 text-sm text-plm-fg-muted">
             <Info size={16} className="mt-0.5 flex-shrink-0" />
             <span>Only needed if SolidWorks is installed in a non-default location.</span>
           </div>
@@ -81,24 +251,24 @@ export function SolidWorksSettings() {
 
       {/* Document Manager License */}
       <div className="space-y-3">
-        <label className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
           Document Manager License
         </label>
-        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
           <div className="flex items-center gap-3 mb-3">
             <Key 
               size={22} 
-              className={organization?.settings?.solidworks_dm_license_key ? 'text-green-400' : 'text-pdm-fg-muted'} 
+              className={organization?.settings?.solidworks_dm_license_key ? 'text-green-400' : 'text-plm-fg-muted'} 
             />
-            <span className="text-base text-pdm-fg">
+            <span className="text-base text-plm-fg">
               {organization?.settings?.solidworks_dm_license_key ? (
                 <span className="text-green-400 font-medium">Configured</span>
               ) : (
-                <span className="text-pdm-fg-muted">Not configured</span>
+                <span className="text-plm-fg-muted">Not configured</span>
               )}
             </span>
           </div>
-          <div className="text-sm text-pdm-fg-muted space-y-2">
+          <div className="text-sm text-plm-fg-muted space-y-2">
             {organization?.settings?.solidworks_dm_license_key ? (
               <p>Using fast Document Manager API for file reading.</p>
             ) : (
@@ -110,7 +280,7 @@ export function SolidWorksSettings() {
                 href="https://customerportal.solidworks.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-pdm-accent hover:underline"
+                className="text-plm-accent hover:underline"
                 onClick={(e) => {
                   e.preventDefault()
                   window.electronAPI?.openFile('https://customerportal.solidworks.com/')
@@ -129,7 +299,7 @@ export function SolidWorksSettings() {
           href="https://www.solidworks.com/support/free-downloads"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-base text-pdm-accent hover:underline"
+          className="flex items-center gap-2 text-base text-plm-accent hover:underline"
           onClick={(e) => {
             e.preventDefault()
             window.electronAPI?.openFile('https://www.solidworks.com/support/free-downloads')

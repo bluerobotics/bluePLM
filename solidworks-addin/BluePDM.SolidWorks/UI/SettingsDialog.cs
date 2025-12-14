@@ -3,10 +3,10 @@ using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace BluePDM.SolidWorks
+namespace BluePLM.SolidWorks
 {
     /// <summary>
-    /// Settings dialog for configuring BluePDM connection
+    /// Settings dialog for configuring BluePLM connection
     /// </summary>
     public class SettingsDialog : Form
     {
@@ -46,7 +46,7 @@ namespace BluePDM.SolidWorks
 
         private void InitializeUI()
         {
-            this.Text = "BluePDM Settings";
+            this.Text = "BluePLM Settings";
             this.Size = new Size(500, 450);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -138,7 +138,7 @@ namespace BluePDM.SolidWorks
             y += 30;
 
             _vaultPathBox = CreateTextBox(20, y, 370);
-            SetPlaceholder(_vaultPathBox, @"C:\BluePDM\vault-name");
+            SetPlaceholder(_vaultPathBox, @"C:\BluePLM\vault-name");
             this.Controls.Add(_vaultPathBox);
 
             _browseBtn = CreateButton("...", 400, y - 2, 60);

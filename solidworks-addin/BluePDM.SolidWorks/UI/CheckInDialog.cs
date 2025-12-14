@@ -3,7 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 
-namespace BluePDM.SolidWorks
+namespace BluePLM.SolidWorks
 {
     /// <summary>
     /// Dialog for checking in a file with options
@@ -41,7 +41,7 @@ namespace BluePDM.SolidWorks
 
         private void InitializeUI()
         {
-            this.Text = "Check In - BluePDM";
+            this.Text = "Check In - BluePLM";
             this.Size = new Size(450, 350);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;

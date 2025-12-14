@@ -8,10 +8,10 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace BluePDM.SolidWorks
+namespace BluePLM.SolidWorks
 {
     /// <summary>
-    /// Service for communicating with BluePDM's Supabase backend
+    /// Service for communicating with BluePLM's Supabase backend
     /// </summary>
     public class SupabaseService : IDisposable
     {
@@ -24,7 +24,7 @@ namespace BluePDM.SolidWorks
         private string? _vaultId;
         private string? _vaultPath;
 
-        private const string SettingsPath = "BluePDM\\settings.json";
+        private const string SettingsPath = "BluePLM\\settings.json";
 
         public bool IsConnected => !string.IsNullOrEmpty(_accessToken);
         public string? UserId => _userId;
@@ -97,7 +97,7 @@ namespace BluePDM.SolidWorks
             {
                 var settingsDir = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "BluePDM"
+                    "BluePLM"
                 );
                 Directory.CreateDirectory(settingsDir);
 

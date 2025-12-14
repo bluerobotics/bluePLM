@@ -18,6 +18,7 @@ import { OnboardingScreen } from './components/OnboardingScreen'
 import { Toast } from './components/Toast'
 import { RightPanel } from './components/RightPanel'
 import { OrphanedCheckoutsContainer } from './components/OrphanedCheckoutDialog'
+import { GoogleDrivePanel } from './components/GoogleDrivePanel'
 import { executeTerminalCommand } from './lib/commands/parser'
 
 // Build full path using the correct separator for the platform
@@ -73,9 +74,19 @@ function useTheme() {
   }, [theme])
 }
 
+// Apply language to document (for Elvish Easter egg font)
+function useLanguage() {
+  const language = usePDMStore(s => s.language)
+  
+  useEffect(() => {
+    document.documentElement.setAttribute('data-language', language)
+  }, [language])
+}
+
 function App() {
-  // Apply theme
+  // Apply theme and language
   useTheme()
+  useLanguage()
   
   const {
     user,
@@ -1251,6 +1262,35 @@ function App() {
   // Backup services removed - all backup operations are now handled directly via restic
   // when the user clicks "Backup Now" or "Restore" in the BackupPanel
 
+  // Auto-start SolidWorks service if enabled
+  useEffect(() => {
+    const autoStart = usePDMStore.getState().autoStartSolidworksService
+    const dmLicenseKey = organization?.settings?.solidworks_dm_license_key
+    
+    if (autoStart && window.electronAPI?.solidworks) {
+      // Check if service is already running before starting
+      window.electronAPI.solidworks.getServiceStatus().then(result => {
+        if (result?.success && !result.data?.running) {
+          console.log('[SolidWorks] Auto-starting service...')
+          window.electronAPI?.solidworks?.startService(dmLicenseKey || undefined).then(startResult => {
+            if (startResult?.success) {
+              const modeMsg = (startResult.data as any)?.fastModeEnabled 
+                ? ' (fast mode)' 
+                : ''
+              console.log(`[SolidWorks] Service auto-started${modeMsg}`)
+            } else {
+              console.warn('[SolidWorks] Auto-start failed:', startResult?.error)
+            }
+          }).catch(err => {
+            console.warn('[SolidWorks] Auto-start error:', err)
+          })
+        }
+      }).catch(() => {
+        // Service check failed, don't try to start
+      })
+    }
+  }, [organization]) // Re-check when organization loads (for DM license key)
+
   // Auto-updater event listeners
   useEffect(() => {
     if (!window.electronAPI) return
@@ -1368,14 +1408,14 @@ function App() {
   // Show setup screen if Supabase is not configured
   if (!supabaseReady) {
     return (
-      <div className="h-screen flex flex-col bg-pdm-bg overflow-hidden">
+      <div className="h-screen flex flex-col bg-plm-bg overflow-hidden">
         <SetupScreen onConfigured={handleSupabaseConfigured} />
       </div>
     )
   }
 
   return (
-    <div className="h-screen flex flex-col bg-pdm-bg overflow-hidden">
+    <div className="h-screen flex flex-col bg-plm-bg overflow-hidden">
       <MenuBar
         onOpenVault={handleOpenVault}
         onRefresh={loadFiles}
@@ -1398,7 +1438,7 @@ function App() {
             {/* Hide resize handle for settings view (fixed width) */}
             {activeView !== 'settings' && (
               <div
-                className="w-1.5 bg-pdm-border hover:bg-pdm-accent cursor-col-resize transition-colors flex-shrink-0 relative group"
+                className="w-1.5 bg-plm-border hover:bg-plm-accent cursor-col-resize transition-colors flex-shrink-0 relative group"
                 onMouseDown={() => setIsResizingSidebar(true)}
               >
                 {/* Wider invisible hit area for easier grabbing */}
@@ -1417,6 +1457,9 @@ function App() {
           ) : activeView === 'settings' ? (
             /* Settings View - replaces entire main content area */
             <SettingsContent activeTab={settingsTab} />
+          ) : activeView === 'google-drive' ? (
+            /* Google Drive View - replaces entire main content area */
+            <GoogleDrivePanel />
           ) : (
             <>
               {/* File Browser */}
@@ -1428,7 +1471,7 @@ function App() {
               {detailsPanelVisible && (
                 <>
                   <div
-                    className="h-1 bg-pdm-border hover:bg-pdm-accent cursor-row-resize transition-colors flex-shrink-0"
+                    className="h-1 bg-plm-border hover:bg-plm-accent cursor-row-resize transition-colors flex-shrink-0"
                     onMouseDown={() => setIsResizingDetails(true)}
                   />
           <DetailsPanel />
@@ -1442,7 +1485,7 @@ function App() {
         {rightPanelVisible && rightPanelTabs.length > 0 && !showWelcome && (
           <>
             <div
-              className="w-1.5 bg-pdm-border hover:bg-pdm-accent cursor-col-resize transition-colors flex-shrink-0 relative"
+              className="w-1.5 bg-plm-border hover:bg-plm-accent cursor-col-resize transition-colors flex-shrink-0 relative"
               onMouseDown={() => setIsResizingRightPanel(true)}
             >
               {/* Wider invisible hit area for easier grabbing */}

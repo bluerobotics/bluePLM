@@ -325,16 +325,16 @@ export function MetadataColumnsSettings() {
       {/* Built-in Columns Section */}
       <div className="space-y-3">
         <div>
-          <h3 className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+          <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
             Built-in Columns
           </h3>
-          <p className="text-sm text-pdm-fg-dim mt-1">
+          <p className="text-sm text-plm-fg-dim mt-1">
             Standard columns. {isAdmin ? 'Set default width and visibility for your organization.' : 'Toggle visibility to show/hide.'}
           </p>
         </div>
 
         {/* Table header */}
-        <div className="grid grid-cols-[1fr_80px_60px] gap-2 px-3 py-1.5 text-xs text-pdm-fg-muted uppercase tracking-wide border-b border-pdm-border">
+        <div className="grid grid-cols-[1fr_80px_60px] gap-2 px-3 py-1.5 text-xs text-plm-fg-muted uppercase tracking-wide border-b border-plm-border">
           <span>Column</span>
           <span className="text-center">Width</span>
           <span className="text-center">Visible</span>
@@ -345,9 +345,9 @@ export function MetadataColumnsSettings() {
           {builtinColumns.map((column) => (
             <div 
               key={column.id}
-              className={`grid grid-cols-[1fr_80px_60px] gap-2 px-3 py-2 rounded hover:bg-pdm-highlight/50 transition-colors items-center ${!column.visible ? 'opacity-50' : ''}`}
+              className={`grid grid-cols-[1fr_80px_60px] gap-2 px-3 py-2 rounded hover:bg-plm-highlight/50 transition-colors items-center ${!column.visible ? 'opacity-50' : ''}`}
             >
-              <span className="text-sm text-pdm-fg">{column.label}</span>
+              <span className="text-sm text-plm-fg">{column.label}</span>
               
               {/* Width input (admin only) */}
               {isAdmin ? (
@@ -355,25 +355,25 @@ export function MetadataColumnsSettings() {
                   type="number"
                   value={column.width}
                   onChange={(e) => setColumnWidth(column.id, Math.max(40, parseInt(e.target.value) || 40))}
-                  className="w-full bg-pdm-bg border border-pdm-border rounded px-2 py-1 text-xs text-center focus:border-pdm-accent focus:outline-none"
+                  className="w-full bg-plm-bg border border-plm-border rounded px-2 py-1 text-xs text-center focus:border-plm-accent focus:outline-none"
                   min={40}
                   max={500}
                 />
               ) : (
-                <span className="text-xs text-pdm-fg-muted text-center">{column.width}px</span>
+                <span className="text-xs text-plm-fg-muted text-center">{column.width}px</span>
               )}
               
               {/* Visibility toggle */}
               <div className="flex justify-center">
                 <button
                   onClick={() => toggleColumnVisibility(column.id)}
-                  className="p-1 hover:bg-pdm-highlight rounded transition-colors"
+                  className="p-1 hover:bg-plm-highlight rounded transition-colors"
                   title={column.visible ? 'Hide column' : 'Show column'}
                 >
                   {column.visible ? (
-                    <Eye size={14} className="text-pdm-accent" />
+                    <Eye size={14} className="text-plm-accent" />
                   ) : (
-                    <EyeOff size={14} className="text-pdm-fg-muted" />
+                    <EyeOff size={14} className="text-plm-fg-muted" />
                   )}
                 </button>
               </div>
@@ -383,16 +383,16 @@ export function MetadataColumnsSettings() {
       </div>
 
       {/* Divider */}
-      <div className="border-t border-pdm-border" />
+      <div className="border-t border-plm-border" />
 
       {/* Custom Columns Section */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm text-pdm-fg-muted uppercase tracking-wide font-medium">
+            <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
               Custom Columns
             </h3>
-            <p className="text-sm text-pdm-fg-dim mt-1">
+            <p className="text-sm text-plm-fg-dim mt-1">
               {isAdmin 
                 ? 'Define custom properties that appear in the file browser.'
                 : 'Custom properties defined by your organization admin.'
@@ -415,15 +415,15 @@ export function MetadataColumnsSettings() {
 
         {/* Create/Edit Form (admin only) */}
         {isAdmin && editingColumn && (
-        <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-accent space-y-4">
-          <h3 className="font-medium text-pdm-fg">
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-accent space-y-4">
+          <h3 className="font-medium text-plm-fg">
             {isCreating ? 'New Column' : 'Edit Column'}
           </h3>
           
           <div className="grid grid-cols-2 gap-4">
             {/* Name */}
             <div className="space-y-1">
-              <label className="text-sm text-pdm-fg-muted">Internal Name</label>
+              <label className="text-sm text-plm-fg-muted">Internal Name</label>
               <input
                 type="text"
                 value={editingColumn.name}
@@ -432,17 +432,17 @@ export function MetadataColumnsSettings() {
                   name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')
                 })}
                 placeholder="e.g., material, weight"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none font-mono"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
                 disabled={!isCreating}
               />
-              <p className="text-xs text-pdm-fg-dim">
+              <p className="text-xs text-plm-fg-dim">
                 Used in data storage. Lowercase letters, numbers, underscores only.
               </p>
             </div>
             
             {/* Label */}
             <div className="space-y-1">
-              <label className="text-sm text-pdm-fg-muted">Display Label</label>
+              <label className="text-sm text-plm-fg-muted">Display Label</label>
               <input
                 type="text"
                 value={editingColumn.label}
@@ -451,7 +451,7 @@ export function MetadataColumnsSettings() {
                   label: e.target.value
                 })}
                 placeholder="e.g., Material, Weight (kg)"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
               />
             </div>
           </div>
@@ -459,7 +459,7 @@ export function MetadataColumnsSettings() {
           <div className="grid grid-cols-3 gap-4">
             {/* Data Type */}
             <div className="space-y-1">
-              <label className="text-sm text-pdm-fg-muted">Data Type</label>
+              <label className="text-sm text-plm-fg-muted">Data Type</label>
               <select
                 value={editingColumn.data_type}
                 onChange={(e) => setEditingColumn({
@@ -467,7 +467,7 @@ export function MetadataColumnsSettings() {
                   data_type: e.target.value as MetadataColumnType,
                   select_options: e.target.value === 'select' ? editingColumn.select_options : []
                 })}
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
               >
                 {Object.entries(TYPE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
@@ -477,7 +477,7 @@ export function MetadataColumnsSettings() {
             
             {/* Width */}
             <div className="space-y-1">
-              <label className="text-sm text-pdm-fg-muted">Column Width (px)</label>
+              <label className="text-sm text-plm-fg-muted">Column Width (px)</label>
               <input
                 type="number"
                 value={editingColumn.width}
@@ -487,13 +487,13 @@ export function MetadataColumnsSettings() {
                 })}
                 min={50}
                 max={500}
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
               />
             </div>
             
             {/* Default Value */}
             <div className="space-y-1">
-              <label className="text-sm text-pdm-fg-muted">Default Value</label>
+              <label className="text-sm text-plm-fg-muted">Default Value</label>
               <input
                 type="text"
                 value={editingColumn.default_value}
@@ -502,7 +502,7 @@ export function MetadataColumnsSettings() {
                   default_value: e.target.value
                 })}
                 placeholder="Optional"
-                className="w-full bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
               />
             </div>
           </div>
@@ -510,7 +510,7 @@ export function MetadataColumnsSettings() {
           {/* Select Options (only for select type) */}
           {editingColumn.data_type === 'select' && (
             <div className="space-y-2">
-              <label className="text-sm text-pdm-fg-muted">Dropdown Options</label>
+              <label className="text-sm text-plm-fg-muted">Dropdown Options</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -523,7 +523,7 @@ export function MetadataColumnsSettings() {
                     }
                   }}
                   placeholder="Add an option..."
-                  className="flex-1 bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 text-base focus:border-pdm-accent focus:outline-none"
+                  className="flex-1 bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
                 />
                 <button
                   onClick={addSelectOption}
@@ -538,12 +538,12 @@ export function MetadataColumnsSettings() {
                   {editingColumn.select_options.map((option) => (
                     <span
                       key={option}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-pdm-bg-light border border-pdm-border rounded text-sm"
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-plm-bg-light border border-plm-border rounded text-sm"
                     >
                       {option}
                       <button
                         onClick={() => removeSelectOption(option)}
-                        className="p-0.5 hover:text-pdm-error"
+                        className="p-0.5 hover:text-plm-error"
                       >
                         <X size={12} />
                       </button>
@@ -564,9 +564,9 @@ export function MetadataColumnsSettings() {
                   ...editingColumn,
                   visible: e.target.checked
                 })}
-                className="w-4 h-4 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent"
+                className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
               />
-              <span className="text-base text-pdm-fg">Visible by default</span>
+              <span className="text-base text-plm-fg">Visible by default</span>
             </label>
             
             <label className="flex items-center gap-2 cursor-pointer">
@@ -577,9 +577,9 @@ export function MetadataColumnsSettings() {
                   ...editingColumn,
                   sortable: e.target.checked
                 })}
-                className="w-4 h-4 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent"
+                className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
               />
-              <span className="text-base text-pdm-fg">Sortable</span>
+              <span className="text-base text-plm-fg">Sortable</span>
             </label>
             
             <label className="flex items-center gap-2 cursor-pointer">
@@ -590,14 +590,14 @@ export function MetadataColumnsSettings() {
                   ...editingColumn,
                   required: e.target.checked
                 })}
-                className="w-4 h-4 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent"
+                className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
               />
-              <span className="text-base text-pdm-fg">Required</span>
+              <span className="text-base text-plm-fg">Required</span>
             </label>
           </div>
           
           {/* Actions */}
-          <div className="flex gap-2 justify-end pt-2 border-t border-pdm-border">
+          <div className="flex gap-2 justify-end pt-2 border-t border-plm-border">
             <button
               onClick={() => {
                 setEditingColumn(null)
@@ -629,24 +629,24 @@ export function MetadataColumnsSettings() {
 
         {/* Custom Columns List */}
         {!organization ? (
-          <div className="text-center py-6 text-pdm-fg-muted text-sm border border-dashed border-pdm-border rounded-lg">
+          <div className="text-center py-6 text-plm-fg-muted text-sm border border-dashed border-plm-border rounded-lg">
             Connect to an organization to view custom columns
           </div>
         ) : isLoading ? (
           <div className="flex items-center justify-center py-6">
-            <Loader2 className="animate-spin text-pdm-fg-muted" size={20} />
+            <Loader2 className="animate-spin text-plm-fg-muted" size={20} />
           </div>
         ) : columns.length === 0 && !isCreating ? (
-          <div className="text-center py-6 text-pdm-fg-muted text-sm border border-dashed border-pdm-border rounded-lg">
+          <div className="text-center py-6 text-plm-fg-muted text-sm border border-dashed border-plm-border rounded-lg">
             <p>No custom columns defined</p>
             {isAdmin && (
-              <p className="text-xs mt-1 text-pdm-fg-dim">Click "Add Column" to create custom properties like Material, Weight, etc.</p>
+              <p className="text-xs mt-1 text-plm-fg-dim">Click "Add Column" to create custom properties like Material, Weight, etc.</p>
             )}
           </div>
         ) : (
           <>
             {/* Table header */}
-            <div className="grid grid-cols-[1fr_80px_80px_60px_auto] gap-2 px-3 py-1.5 text-xs text-pdm-fg-muted uppercase tracking-wide border-b border-pdm-border">
+            <div className="grid grid-cols-[1fr_80px_80px_60px_auto] gap-2 px-3 py-1.5 text-xs text-plm-fg-muted uppercase tracking-wide border-b border-plm-border">
               <span>Column</span>
               <span className="text-center">Type</span>
               <span className="text-center">Width</span>
@@ -659,7 +659,7 @@ export function MetadataColumnsSettings() {
               {columns.map((column, index) => (
                 <div 
                   key={column.id}
-                  className={`grid grid-cols-[1fr_80px_80px_60px_auto] gap-2 px-3 py-2 rounded hover:bg-pdm-highlight/50 transition-colors items-center group ${!column.visible ? 'opacity-50' : ''}`}
+                  className={`grid grid-cols-[1fr_80px_80px_60px_auto] gap-2 px-3 py-2 rounded hover:bg-plm-highlight/50 transition-colors items-center group ${!column.visible ? 'opacity-50' : ''}`}
                 >
                   {/* Name with reorder buttons (admin) */}
                   <div className="flex items-center gap-2">
@@ -668,42 +668,42 @@ export function MetadataColumnsSettings() {
                         <button
                           onClick={() => handleMoveColumn(column, 'up')}
                           disabled={index === 0}
-                          className="p-0 text-pdm-fg-muted hover:text-pdm-fg disabled:opacity-30"
+                          className="p-0 text-plm-fg-muted hover:text-plm-fg disabled:opacity-30"
                         >
                           <ChevronUp size={12} />
                         </button>
                         <button
                           onClick={() => handleMoveColumn(column, 'down')}
                           disabled={index === columns.length - 1}
-                          className="p-0 text-pdm-fg-muted hover:text-pdm-fg disabled:opacity-30"
+                          className="p-0 text-plm-fg-muted hover:text-plm-fg disabled:opacity-30"
                         >
                           <ChevronDown size={12} />
                         </button>
                       </div>
                     )}
-                    <span className="text-sm text-pdm-fg">{column.label}</span>
+                    <span className="text-sm text-plm-fg">{column.label}</span>
                     {column.required && (
-                      <span className="text-[10px] px-1 py-0.5 bg-pdm-warning/20 text-pdm-warning rounded">req</span>
+                      <span className="text-[10px] px-1 py-0.5 bg-plm-warning/20 text-plm-warning rounded">req</span>
                     )}
                   </div>
                   
                   {/* Type */}
-                  <span className="text-xs text-pdm-fg-muted text-center">{TYPE_LABELS[column.data_type]}</span>
+                  <span className="text-xs text-plm-fg-muted text-center">{TYPE_LABELS[column.data_type]}</span>
                   
                   {/* Width */}
-                  <span className="text-xs text-pdm-fg-muted text-center">{column.width}px</span>
+                  <span className="text-xs text-plm-fg-muted text-center">{column.width}px</span>
                   
                   {/* Visibility toggle */}
                   <div className="flex justify-center">
                     <button
                       onClick={() => handleToggleVisibility(column)}
-                      className="p-1 hover:bg-pdm-highlight rounded transition-colors"
+                      className="p-1 hover:bg-plm-highlight rounded transition-colors"
                       title={column.visible ? 'Hide column' : 'Show column'}
                     >
                       {column.visible ? (
-                        <Eye size={14} className="text-pdm-accent" />
+                        <Eye size={14} className="text-plm-accent" />
                       ) : (
-                        <EyeOff size={14} className="text-pdm-fg-muted" />
+                        <EyeOff size={14} className="text-plm-fg-muted" />
                       )}
                     </button>
                   </div>
@@ -727,17 +727,17 @@ export function MetadataColumnsSettings() {
                           })
                           setIsCreating(false)
                         }}
-                        className="p-1 hover:bg-pdm-highlight rounded transition-colors"
+                        className="p-1 hover:bg-plm-highlight rounded transition-colors"
                         title="Edit column"
                       >
-                        <Pencil size={12} className="text-pdm-fg-muted" />
+                        <Pencil size={12} className="text-plm-fg-muted" />
                       </button>
                       <button
                         onClick={() => setDeletingColumn(column)}
-                        className="p-1 hover:bg-pdm-error/20 rounded transition-colors"
+                        className="p-1 hover:bg-plm-error/20 rounded transition-colors"
                         title="Delete column"
                       >
-                        <Trash2 size={12} className="text-pdm-error" />
+                        <Trash2 size={12} className="text-plm-error" />
                       </button>
                     </div>
                   )}
@@ -749,7 +749,7 @@ export function MetadataColumnsSettings() {
       </div>
 
       {/* Actions & Info */}
-      <div className="p-4 bg-pdm-bg rounded border border-pdm-border space-y-3">
+      <div className="p-4 bg-plm-bg rounded border border-plm-border space-y-3">
         <div className="flex flex-wrap gap-2">
           {isAdmin && organization && (
             <button
@@ -771,12 +771,12 @@ export function MetadataColumnsSettings() {
           )}
           <button
             onClick={handleResetToDefaults}
-            className="btn btn-ghost btn-sm text-pdm-fg-muted"
+            className="btn btn-ghost btn-sm text-plm-fg-muted"
           >
             Reset to App Defaults
           </button>
         </div>
-        <p className="text-xs text-pdm-fg-dim">
+        <p className="text-xs text-plm-fg-dim">
           Column settings are saved locally per user. {isAdmin && 'Use "Save as Org Defaults" to set the starting configuration for new team members.'}
         </p>
       </div>
@@ -784,17 +784,17 @@ export function MetadataColumnsSettings() {
       {/* Delete Confirmation Dialog */}
       {deletingColumn && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDeletingColumn(null)}>
-          <div className="bg-pdm-bg-light border border-pdm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-pdm-error/20 rounded-full">
-                <AlertTriangle size={20} className="text-pdm-error" />
+              <div className="p-2 bg-plm-error/20 rounded-full">
+                <AlertTriangle size={20} className="text-plm-error" />
               </div>
-              <h3 className="text-lg font-medium text-pdm-fg">Delete Column</h3>
+              <h3 className="text-lg font-medium text-plm-fg">Delete Column</h3>
             </div>
-            <p className="text-base text-pdm-fg-muted mb-4">
+            <p className="text-base text-plm-fg-muted mb-4">
               Are you sure you want to delete the column <strong>"{deletingColumn.label}"</strong>?
             </p>
-            <p className="text-sm text-pdm-fg-dim mb-4">
+            <p className="text-sm text-plm-fg-dim mb-4">
               This will remove the column from the file browser. Existing file metadata using this column 
               will remain in storage but won't be displayed.
             </p>
@@ -805,7 +805,7 @@ export function MetadataColumnsSettings() {
               <button
                 onClick={handleDeleteColumn}
                 disabled={isDeleting}
-                className="btn bg-pdm-error text-white hover:bg-pdm-error/90 disabled:opacity-50"
+                className="btn bg-plm-error text-white hover:bg-plm-error/90 disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Delete Column'}
               </button>

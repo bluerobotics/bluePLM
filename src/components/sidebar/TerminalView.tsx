@@ -19,7 +19,7 @@ export function TerminalView({ onRefresh }: TerminalViewProps) {
     {
       id: 'welcome',
       type: 'info',
-      content: '🔷 BluePDM Terminal v1.0\nType "help" for available commands.',
+      content: '🔷 BluePLM Terminal v1.0\nType "help" for available commands.',
       timestamp: new Date()
     }
   ])
@@ -249,7 +249,7 @@ export function TerminalView({ onRefresh }: TerminalViewProps) {
                 key={suggestion}
                 className={`px-3 py-1 text-xs font-mono cursor-pointer ${
                   idx === suggestionIndex 
-                    ? 'bg-pdm-accent/30 text-slate-200' 
+                    ? 'bg-plm-accent/30 text-slate-200' 
                     : 'text-slate-400 hover:bg-[#30363d]'
                 }`}
                 onClick={() => {

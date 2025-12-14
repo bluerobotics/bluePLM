@@ -16,7 +16,7 @@ import {
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
 
-const API_URL_KEY = 'bluepdm_api_url'
+const API_URL_KEY = 'blueplm_api_url'
 const DEFAULT_API_URL = 'http://127.0.0.1:3001'
 
 // Helper to get API URL from org settings or localStorage
@@ -56,21 +56,21 @@ function IntegrationCard({ icon, name, description, connected, onClick }: Integr
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-start gap-3 p-3 bg-pdm-highlight rounded hover:bg-pdm-highlight/80 transition-colors text-left"
+      className="w-full flex items-start gap-3 p-3 bg-plm-highlight rounded hover:bg-plm-highlight/80 transition-colors text-left"
     >
-      <div className="w-10 h-10 rounded-lg bg-pdm-bg flex items-center justify-center flex-shrink-0">
+      <div className="w-10 h-10 rounded-lg bg-plm-bg flex items-center justify-center flex-shrink-0">
         {icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-pdm-fg">{name}</span>
+          <span className="text-sm font-medium text-plm-fg">{name}</span>
           {connected && (
-            <span className="px-1.5 py-0.5 text-[9px] font-medium bg-pdm-success/20 text-pdm-success rounded">
+            <span className="px-1.5 py-0.5 text-[9px] font-medium bg-plm-success/20 text-plm-success rounded">
               CONNECTED
             </span>
           )}
         </div>
-        <p className="text-xs text-pdm-fg-muted mt-0.5 line-clamp-2">{description}</p>
+        <p className="text-xs text-plm-fg-muted mt-0.5 line-clamp-2">{description}</p>
       </div>
     </button>
   )
@@ -248,13 +248,13 @@ function OdooConfigPanel({
             <ShoppingCart size={16} className="text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-medium text-pdm-fg">Odoo Integration</h3>
-            <p className="text-[10px] text-pdm-fg-muted">Sync suppliers from your Odoo ERP</p>
+            <h3 className="text-sm font-medium text-plm-fg">Odoo Integration</h3>
+            <p className="text-[10px] text-plm-fg-muted">Sync suppliers from your Odoo ERP</p>
           </div>
         </div>
         <button 
           onClick={onClose}
-          className="p-1 text-pdm-fg-muted hover:text-pdm-fg transition-colors"
+          className="p-1 text-plm-fg-muted hover:text-plm-fg transition-colors"
         >
           <X size={16} />
         </button>
@@ -262,13 +262,13 @@ function OdooConfigPanel({
 
       {/* Status banner if connected */}
       {settings?.is_connected && (
-        <div className="flex items-center justify-between p-2 bg-pdm-success/10 border border-pdm-success/30 rounded text-xs">
-          <div className="flex items-center gap-2 text-pdm-success">
+        <div className="flex items-center justify-between p-2 bg-plm-success/10 border border-plm-success/30 rounded text-xs">
+          <div className="flex items-center gap-2 text-plm-success">
             <Check size={14} />
             <span>Connected to {settings.settings?.url}</span>
           </div>
           {settings.last_sync_at && (
-            <span className="text-pdm-fg-muted">
+            <span className="text-plm-fg-muted">
               Last sync: {new Date(settings.last_sync_at).toLocaleDateString()}
             </span>
           )}
@@ -278,56 +278,56 @@ function OdooConfigPanel({
       {/* Configuration form */}
       <div className="space-y-3">
         <div>
-          <label className="text-xs text-pdm-fg-muted block mb-1">Odoo URL</label>
+          <label className="text-xs text-plm-fg-muted block mb-1">Odoo URL</label>
           <input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://mycompany.odoo.com"
-            className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent"
+            className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
           />
         </div>
 
         <div>
-          <label className="text-xs text-pdm-fg-muted block mb-1">Database</label>
+          <label className="text-xs text-plm-fg-muted block mb-1">Database</label>
           <input
             type="text"
             value={database}
             onChange={(e) => setDatabase(e.target.value)}
             placeholder="mycompany-main"
-            className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent"
+            className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
           />
         </div>
 
         <div>
-          <label className="text-xs text-pdm-fg-muted block mb-1">Username (Email)</label>
+          <label className="text-xs text-plm-fg-muted block mb-1">Username (Email)</label>
           <input
             type="email"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="admin@mycompany.com"
-            className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent"
+            className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
           />
         </div>
 
         <div>
-          <label className="text-xs text-pdm-fg-muted block mb-1">API Key</label>
+          <label className="text-xs text-plm-fg-muted block mb-1">API Key</label>
           <div className="relative">
             <input
               type={showApiKey ? 'text' : 'password'}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder={settings?.is_connected ? '••••••••••••' : 'Enter API key'}
-              className="w-full px-3 py-2 pr-10 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 pr-10 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
             />
             <button
               onClick={() => setShowApiKey(!showApiKey)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
             >
               {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
-          <p className="text-[10px] text-pdm-fg-muted mt-1">
+          <p className="text-[10px] text-plm-fg-muted mt-1">
             Generate at: Odoo → Settings → Users → API Keys
           </p>
         </div>
@@ -336,8 +336,8 @@ function OdooConfigPanel({
         {testResult && (
           <div className={`flex items-center gap-2 p-2 rounded text-xs ${
             testResult.success 
-              ? 'bg-pdm-success/10 text-pdm-success' 
-              : 'bg-pdm-error/10 text-pdm-error'
+              ? 'bg-plm-success/10 text-plm-success' 
+              : 'bg-plm-error/10 text-plm-error'
           }`}>
             {testResult.success ? <Check size={14} /> : <AlertCircle size={14} />}
             {testResult.message}
@@ -350,7 +350,7 @@ function OdooConfigPanel({
         <button
           onClick={handleTest}
           disabled={testing || !url || !database || !username || !apiKey}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
         >
           {testing ? <Loader2 size={14} className="animate-spin" /> : <Plug size={14} />}
           Test
@@ -358,7 +358,7 @@ function OdooConfigPanel({
         <button
           onClick={handleSave}
           disabled={saving || !url || !database || !username || !apiKey}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-pdm-accent hover:bg-pdm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
           Save
@@ -367,18 +367,18 @@ function OdooConfigPanel({
 
       {/* Sync and disconnect when connected */}
       {settings?.is_connected && (
-        <div className="flex gap-2 pt-2 border-t border-pdm-border">
+        <div className="flex gap-2 pt-2 border-t border-plm-border">
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-pdm-success/20 hover:bg-pdm-success/30 text-pdm-success rounded text-sm font-medium transition-colors disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-success/20 hover:bg-plm-success/30 text-plm-success rounded text-sm font-medium transition-colors disabled:opacity-50"
           >
             {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
             Sync Suppliers Now
           </button>
           <button
             onClick={handleDisconnect}
-            className="px-3 py-2 text-pdm-error hover:bg-pdm-error/10 rounded text-sm transition-colors"
+            className="px-3 py-2 text-plm-error hover:bg-plm-error/10 rounded text-sm transition-colors"
           >
             Disconnect
           </button>
@@ -386,12 +386,12 @@ function OdooConfigPanel({
       )}
 
       {/* Help link */}
-      <div className="pt-2 border-t border-pdm-border">
+      <div className="pt-2 border-t border-plm-border">
         <a
           href="https://www.odoo.com/documentation/17.0/developer/reference/external_api.html"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs text-pdm-accent hover:underline"
+          className="flex items-center gap-1 text-xs text-plm-accent hover:underline"
         >
           <ExternalLink size={12} />
           Odoo API Documentation
@@ -468,22 +468,22 @@ export function IntegrationsView() {
           description="Approval reminders, review notifications, ECO channels"
         />
         <IntegrationCard
-          icon={<Settings size={20} className="text-pdm-fg-muted" />}
+          icon={<Settings size={20} className="text-plm-fg-muted" />}
           name="Webhooks"
           description="Custom integrations via HTTP webhooks"
         />
       </div>
       
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-16 h-16 rounded-full bg-pdm-highlight flex items-center justify-center mb-4">
-          <Plug size={32} className="text-pdm-fg-muted" />
+        <div className="w-16 h-16 rounded-full bg-plm-highlight flex items-center justify-center mb-4">
+          <Plug size={32} className="text-plm-fg-muted" />
         </div>
-        <h3 className="text-sm font-medium text-pdm-fg mb-2">Integrations Hub</h3>
-        <p className="text-xs text-pdm-fg-muted max-w-[200px]">
+        <h3 className="text-sm font-medium text-plm-fg mb-2">Integrations Hub</h3>
+        <p className="text-xs text-plm-fg-muted max-w-[200px]">
           Connect external services for automations, notifications, and data sync.
         </p>
         {!odooSettings?.is_connected && (
-          <div className="mt-6 px-3 py-1.5 bg-pdm-info/20 text-pdm-info text-[10px] font-medium rounded">
+          <div className="mt-6 px-3 py-1.5 bg-plm-info/20 text-plm-info text-[10px] font-medium rounded">
             Click Odoo above to set up your first integration
           </div>
         )}

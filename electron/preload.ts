@@ -224,6 +224,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFiles: () => ipcRenderer.invoke('dialog:select-files'),
   selectFolder: () => ipcRenderer.invoke('dialog:select-folder'),
   showSaveDialog: (defaultName: string) => ipcRenderer.invoke('dialog:save-file', defaultName),
+  
+  // PDF generation
+  generatePdfFromHtml: (htmlContent: string, outputPath: string) => 
+    ipcRenderer.invoke('pdf:generate-from-html', htmlContent, outputPath),
 
   // eDrawings preview
   checkEDrawingsInstalled: () => ipcRenderer.invoke('edrawings:check-installed'),

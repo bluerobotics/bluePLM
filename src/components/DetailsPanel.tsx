@@ -88,7 +88,7 @@ function DetailsPanelIcon({ file, size = 32 }: { file: LocalFile; size?: number 
   const iconType = getFileIconType(file.extension)
   switch (iconType) {
     case 'part':
-      return <FileBox size={size} className="text-pdm-accent" />
+      return <FileBox size={size} className="text-plm-accent" />
     case 'assembly':
       return <Layers size={size} className="text-amber-400" />
     case 'drawing':
@@ -112,9 +112,9 @@ function DetailsPanelIcon({ file, size = 32 }: { file: LocalFile; size?: number 
     case 'code':
       return <FileCode size={size} className="text-sky-400" />
     case 'text':
-      return <FileText size={size} className="text-pdm-fg-muted" />
+      return <FileText size={size} className="text-plm-fg-muted" />
     default:
-      return <File size={size} className="text-pdm-fg-muted" />
+      return <File size={size} className="text-plm-fg-muted" />
   }
 }
 
@@ -131,16 +131,16 @@ interface ActivityEntry {
 }
 
 const ACTION_INFO: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-  checkout: { icon: <ArrowDown size={14} />, label: 'Checked out', color: 'text-pdm-error' },
-  checkin: { icon: <ArrowUp size={14} />, label: 'Checked in', color: 'text-pdm-success' },
-  create: { icon: <FolderPlus size={14} />, label: 'Created', color: 'text-pdm-accent' },
-  delete: { icon: <Trash2 size={14} />, label: 'Deleted', color: 'text-pdm-error' },
-  state_change: { icon: <RefreshCw size={14} />, label: 'State changed', color: 'text-pdm-warning' },
-  revision_change: { icon: <Edit size={14} />, label: 'Revision changed', color: 'text-pdm-info' },
-  rename: { icon: <Edit size={14} />, label: 'Renamed', color: 'text-pdm-fg-dim' },
-  move: { icon: <MoveRight size={14} />, label: 'Moved', color: 'text-pdm-fg-dim' },
-  rollback: { icon: <RotateCcw size={14} />, label: 'Rolled back', color: 'text-pdm-warning' },
-  roll_forward: { icon: <ArrowUp size={14} />, label: 'Rolled forward', color: 'text-pdm-info' },
+  checkout: { icon: <ArrowDown size={14} />, label: 'Checked out', color: 'text-plm-error' },
+  checkin: { icon: <ArrowUp size={14} />, label: 'Checked in', color: 'text-plm-success' },
+  create: { icon: <FolderPlus size={14} />, label: 'Created', color: 'text-plm-accent' },
+  delete: { icon: <Trash2 size={14} />, label: 'Deleted', color: 'text-plm-error' },
+  state_change: { icon: <RefreshCw size={14} />, label: 'State changed', color: 'text-plm-warning' },
+  revision_change: { icon: <Edit size={14} />, label: 'Revision changed', color: 'text-plm-info' },
+  rename: { icon: <Edit size={14} />, label: 'Renamed', color: 'text-plm-fg-dim' },
+  move: { icon: <MoveRight size={14} />, label: 'Moved', color: 'text-plm-fg-dim' },
+  rollback: { icon: <RotateCcw size={14} />, label: 'Rolled back', color: 'text-plm-warning' },
+  roll_forward: { icon: <ArrowUp size={14} />, label: 'Rolled forward', color: 'text-plm-info' },
 }
 
 interface VersionEntry {
@@ -628,11 +628,11 @@ export function DetailsPanel() {
   }
 
   const getFileIcon = () => {
-    if (!file) return <File size={32} className="text-pdm-fg-muted" />
+    if (!file) return <File size={32} className="text-plm-fg-muted" />
     
     // Keep React icons for folders
     if (file.isDirectory) {
-      return <FolderOpen size={32} className="text-pdm-warning" />
+      return <FolderOpen size={32} className="text-plm-warning" />
     }
     
     // Use OS icons for files
@@ -673,7 +673,7 @@ export function DetailsPanel() {
 
   return (
     <div 
-      className="bg-pdm-panel border-t border-pdm-border flex flex-col"
+      className="bg-plm-panel border-t border-plm-border flex flex-col"
       style={{ height: detailsPanelHeight }}
     >
       {/* Tabs */}
@@ -694,11 +694,11 @@ export function DetailsPanel() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
         {selectedFiles.length === 0 ? (
-          <div className="text-sm text-pdm-fg-muted text-center py-8">
+          <div className="text-sm text-plm-fg-muted text-center py-8">
             Select a file to view details
           </div>
         ) : selectedFiles.length > 1 ? (
-          <div className="text-sm text-pdm-fg-muted text-center py-8">
+          <div className="text-sm text-plm-fg-muted text-center py-8">
             {selectedFiles.length} files selected
           </div>
         ) : file && (
@@ -715,7 +715,7 @@ export function DetailsPanel() {
                     {getFileIcon()}
                     <div>
                       <div className="font-semibold text-lg">{file.name}</div>
-                      <div className="text-sm text-pdm-fg-muted">{file.relativePath}</div>
+                      <div className="text-sm text-plm-fg-muted">{file.relativePath}</div>
                       {!isFolder && file.pdmData?.state && (
                         <span className={`state-badge ${file.pdmData.state.replace('_', '-')} mt-2`}>
                           {STATE_INFO[file.pdmData.state]?.label}
@@ -877,12 +877,12 @@ export function DetailsPanel() {
             {detailsPanelTab === 'preview' && (
               <div className="flex flex-col items-center justify-center h-full py-4">
                 {!file ? (
-                  <div className="text-sm text-pdm-fg-muted">Select a file to preview</div>
+                  <div className="text-sm text-plm-fg-muted">Select a file to preview</div>
                 ) : isPDFFile ? (
                   // PDF preview using Chromium's built-in viewer
                   <div className="w-full h-full flex items-center justify-center">
                     {pdfLoading ? (
-                      <div className="flex items-center gap-2 text-pdm-fg-muted">
+                      <div className="flex items-center gap-2 text-plm-fg-muted">
                         <Loader2 className="animate-spin" size={20} />
                         <span>Loading PDF...</span>
                       </div>
@@ -893,7 +893,7 @@ export function DetailsPanel() {
                         title={file.name}
                       />
                     ) : (
-                      <div className="text-sm text-pdm-fg-muted text-center">
+                      <div className="text-sm text-plm-fg-muted text-center">
                         <Eye size={48} className="mx-auto mb-4 opacity-30" />
                         <div>Failed to load PDF</div>
                         <button
@@ -925,7 +925,7 @@ export function DetailsPanel() {
                       // eDrawings mode - just show button to open externally
                       eDrawingsStatus.installed ? (
                         <div className="flex-1 flex flex-col items-center justify-center">
-                          <FileBox size={48} className="mb-4 text-pdm-accent" />
+                          <FileBox size={48} className="mb-4 text-plm-accent" />
                           <div className="text-sm font-medium mb-2">{file.name}</div>
                           <button
                             onClick={handleOpenInEDrawings}
@@ -934,15 +934,15 @@ export function DetailsPanel() {
                             <ExternalLink size={16} />
                             Open in eDrawings
                           </button>
-                          <div className="text-xs text-pdm-fg-muted mt-4">
+                          <div className="text-xs text-plm-fg-muted mt-4">
                             Using external viewer (change in Settings → Preferences)
                           </div>
                         </div>
                       ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-center">
-                          <Eye size={48} className="mb-4 text-pdm-fg-muted opacity-50" />
+                          <Eye size={48} className="mb-4 text-plm-fg-muted opacity-50" />
                           <div className="text-lg font-medium mb-2">eDrawings Not Found</div>
-                          <div className="text-sm text-pdm-fg-muted mb-4 max-w-xs">
+                          <div className="text-sm text-plm-fg-muted mb-4 max-w-xs">
                             Install the free eDrawings viewer to preview SolidWorks files.
                           </div>
                           <a
@@ -962,7 +962,7 @@ export function DetailsPanel() {
                       )
                     ) : cadThumbnailLoading ? (
                       <div className="flex-1 flex items-center justify-center">
-                        <Loader2 className="animate-spin text-pdm-accent" size={32} />
+                        <Loader2 className="animate-spin text-plm-accent" size={32} />
                       </div>
                     ) : cadThumbnail ? (
                       // Show extracted thumbnail with zoom controls
@@ -993,7 +993,7 @@ export function DetailsPanel() {
                           />
                         </div>
                         {/* Zoom controls */}
-                        <div className="flex items-center justify-center gap-2 py-2 border-t border-pdm-border">
+                        <div className="flex items-center justify-center gap-2 py-2 border-t border-plm-border">
                           <button
                             onClick={() => setCadZoom(prev => Math.max(25, prev - 25))}
                             className="btn btn-sm btn-ghost p-1"
@@ -1002,7 +1002,7 @@ export function DetailsPanel() {
                           >
                             <ZoomOut size={16} />
                           </button>
-                          <span className="text-xs text-pdm-fg-muted w-12 text-center">{cadZoom}%</span>
+                          <span className="text-xs text-plm-fg-muted w-12 text-center">{cadZoom}%</span>
                           <button
                             onClick={() => setCadZoom(prev => Math.min(400, prev + 25))}
                             className="btn btn-sm btn-ghost p-1"
@@ -1034,9 +1034,9 @@ export function DetailsPanel() {
                     ) : eDrawingsStatus.installed ? (
                       // No thumbnail but eDrawings available
                       <div className="flex-1 flex flex-col items-center justify-center">
-                        <FileBox size={48} className="mb-4 text-pdm-accent" />
+                        <FileBox size={48} className="mb-4 text-plm-accent" />
                         <div className="text-sm font-medium mb-2">{file.name}</div>
-                        <div className="text-xs text-pdm-fg-muted mb-4">No embedded preview available</div>
+                        <div className="text-xs text-plm-fg-muted mb-4">No embedded preview available</div>
                         <button
                           onClick={handleOpenInEDrawings}
                           className="btn btn-primary gap-2"
@@ -1048,9 +1048,9 @@ export function DetailsPanel() {
                     ) : (
                       // No thumbnail, no eDrawings
                       <div className="flex-1 flex flex-col items-center justify-center text-center">
-                        <Eye size={48} className="mb-4 text-pdm-fg-muted opacity-50" />
+                        <Eye size={48} className="mb-4 text-plm-fg-muted opacity-50" />
                         <div className="text-lg font-medium mb-2">No Preview Available</div>
-                        <div className="text-sm text-pdm-fg-muted mb-4 max-w-xs">
+                        <div className="text-sm text-plm-fg-muted mb-4 max-w-xs">
                           Install the free eDrawings viewer to preview SolidWorks files.
                         </div>
                         <a
@@ -1071,7 +1071,7 @@ export function DetailsPanel() {
                   </div>
                 ) : (
                   // Other files - no preview
-                  <div className="text-sm text-pdm-fg-muted text-center">
+                  <div className="text-sm text-plm-fg-muted text-center">
                     <Eye size={48} className="mx-auto mb-4 opacity-30" />
                     <div>No preview available</div>
                     <div className="text-xs mt-2 opacity-70">
@@ -1107,10 +1107,10 @@ export function DetailsPanel() {
                   // Folder activity history
                   isLoadingFolderActivity ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="animate-spin text-pdm-fg-muted" size={24} />
+                      <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
                     </div>
                   ) : folderActivity.length === 0 ? (
-                    <div className="text-sm text-pdm-fg-muted text-center py-8">
+                    <div className="text-sm text-plm-fg-muted text-center py-8">
                       No activity in this folder
                     </div>
                   ) : (
@@ -1119,13 +1119,13 @@ export function DetailsPanel() {
                         const actionInfo = ACTION_INFO[entry.action] || { 
                           icon: <FileText size={14} />, 
                           label: entry.action, 
-                          color: 'text-pdm-fg-muted' 
+                          color: 'text-plm-fg-muted' 
                         }
                         
                         return (
                           <div
                             key={entry.id}
-                            className="p-2 bg-pdm-bg-light rounded border border-pdm-border hover:border-pdm-border-light transition-colors"
+                            className="p-2 bg-plm-bg-light rounded border border-plm-border hover:border-plm-border-light transition-colors"
                           >
                             <div className="flex items-start gap-2">
                               <span className={`mt-0.5 ${actionInfo.color}`}>
@@ -1135,16 +1135,16 @@ export function DetailsPanel() {
                                 <div className="text-sm">
                                   <span className={actionInfo.color}>{actionInfo.label}</span>
                                   {entry.file ? (
-                                    <span className="text-pdm-fg ml-1 truncate">
+                                    <span className="text-plm-fg ml-1 truncate">
                                       {entry.file.file_name}
                                     </span>
                                   ) : (entry.details as any)?.file_name ? (
-                                    <span className="text-pdm-fg ml-1 truncate">
+                                    <span className="text-plm-fg ml-1 truncate">
                                       {(entry.details as any).file_name}
                                     </span>
                                   ) : null}
                                 </div>
-                                <div className="flex items-center gap-2 text-xs text-pdm-fg-muted mt-1">
+                                <div className="flex items-center gap-2 text-xs text-plm-fg-muted mt-1">
                                   <span className="flex items-center gap-1">
                                     <User size={10} />
                                     {entry.user_email.split('@')[0]}
@@ -1164,15 +1164,15 @@ export function DetailsPanel() {
                 ) : (
                   // File version history
                   !file.pdmData ? (
-                    <div className="text-sm text-pdm-fg-muted text-center py-8">
+                    <div className="text-sm text-plm-fg-muted text-center py-8">
                       File not synced - no version history available
                     </div>
                   ) : isLoadingVersions ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="animate-spin text-pdm-fg-muted" size={24} />
+                      <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
                     </div>
                   ) : versions.length === 0 ? (
-                    <div className="text-sm text-pdm-fg-muted text-center py-8">
+                    <div className="text-sm text-plm-fg-muted text-center py-8">
                       No version history
                     </div>
                   ) : (
@@ -1190,27 +1190,27 @@ export function DetailsPanel() {
                             key={version.id}
                             className={`p-3 rounded-lg border transition-colors ${
                               isLocalVersion 
-                                ? 'bg-pdm-accent/10 border-pdm-accent' 
-                                : 'bg-pdm-bg-light border-pdm-border hover:border-pdm-border-light'
+                                ? 'bg-plm-accent/10 border-plm-accent' 
+                                : 'bg-plm-bg-light border-plm-border hover:border-plm-border-light'
                             }`}
                           >
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <FileText size={14} className="text-pdm-accent" />
+                                <FileText size={14} className="text-plm-accent" />
                                 <span className="text-sm font-medium">
                                   Version {version.version}
                                 </span>
                                 {isServerVersion && (
-                                  <span className="px-1.5 py-0.5 text-xs bg-pdm-success/20 text-pdm-success rounded">
+                                  <span className="px-1.5 py-0.5 text-xs bg-plm-success/20 text-plm-success rounded">
                                     Server
                                   </span>
                                 )}
                                 {isLocalVersion && (
-                                  <span className="px-1.5 py-0.5 text-xs bg-pdm-accent/20 text-pdm-accent rounded">
+                                  <span className="px-1.5 py-0.5 text-xs bg-plm-accent/20 text-plm-accent rounded">
                                     Local
                                   </span>
                                 )}
-                                <span className="text-xs text-pdm-fg-muted">
+                                <span className="text-xs text-plm-fg-muted">
                                   Rev {version.revision}
                                 </span>
                               </div>
@@ -1221,8 +1221,8 @@ export function DetailsPanel() {
                                   disabled={rollingBack !== null}
                                   className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors disabled:opacity-50 ${
                                     isRollForward 
-                                      ? 'bg-pdm-info/20 text-pdm-info hover:bg-pdm-info/30' 
-                                      : 'bg-pdm-warning/20 text-pdm-warning hover:bg-pdm-warning/30'
+                                      ? 'bg-plm-info/20 text-plm-info hover:bg-plm-info/30' 
+                                      : 'bg-plm-warning/20 text-plm-warning hover:bg-plm-warning/30'
                                   }`}
                                   title={isRollForward ? 'Roll forward to this version' : 'Rollback to this version'}
                                 >
@@ -1239,12 +1239,12 @@ export function DetailsPanel() {
                             </div>
                             
                             {version.comment && (
-                              <div className="text-sm text-pdm-fg-dim mb-2 pl-6">
+                              <div className="text-sm text-plm-fg-dim mb-2 pl-6">
                                 "{version.comment}"
                               </div>
                             )}
                             
-                            <div className="flex flex-wrap items-center gap-4 text-xs text-pdm-fg-muted pl-6">
+                            <div className="flex flex-wrap items-center gap-4 text-xs text-plm-fg-muted pl-6">
                               <div className="flex items-center gap-1">
                                 <User size={12} />
                                 <span>{version.created_by_user?.full_name || version.created_by_user?.email || 'Unknown'}</span>
@@ -1265,8 +1265,8 @@ export function DetailsPanel() {
                       })}
                       
                       {file.pdmData?.checked_out_by !== user?.id && versions.length > 1 && (
-                        <div className="text-xs text-pdm-fg-muted text-center py-2 border-t border-pdm-border mt-4">
-                          <span className="text-pdm-warning">Check out the file to enable rollback</span>
+                        <div className="text-xs text-plm-fg-muted text-center py-2 border-t border-plm-border mt-4">
+                          <span className="text-plm-warning">Check out the file to enable rollback</span>
                         </div>
                       )}
                     </div>
@@ -1290,9 +1290,9 @@ interface PropertyItemProps {
 function PropertyItem({ icon, label, value }: PropertyItemProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-pdm-fg-muted">{icon}</span>
-      <span className="text-pdm-fg-muted">{label}:</span>
-      <span className="text-pdm-fg">{value}</span>
+      <span className="text-plm-fg-muted">{icon}</span>
+      <span className="text-plm-fg-muted">{label}:</span>
+      <span className="text-plm-fg">{value}</span>
     </div>
   )
 }
@@ -1329,8 +1329,8 @@ function EditablePropertyItem({
   if (isEditing && editable) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-pdm-fg-muted">{icon}</span>
-        <span className="text-pdm-fg-muted">{label}:</span>
+        <span className="text-plm-fg-muted">{icon}</span>
+        <span className="text-plm-fg-muted">{label}:</span>
         <div className="flex items-center gap-1 flex-1">
           <input
             type="text"
@@ -1345,12 +1345,12 @@ function EditablePropertyItem({
             }}
             autoFocus
             disabled={isSaving}
-            className="flex-1 bg-pdm-bg border border-pdm-accent rounded px-2 py-0.5 text-sm text-pdm-fg focus:outline-none focus:ring-1 focus:ring-pdm-accent disabled:opacity-50"
+            className="flex-1 bg-plm-bg border border-plm-accent rounded px-2 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent disabled:opacity-50"
           />
           <button
             onClick={onSave}
             disabled={isSaving}
-            className="p-1 rounded hover:bg-pdm-success/20 text-pdm-success disabled:opacity-50"
+            className="p-1 rounded hover:bg-plm-success/20 text-plm-success disabled:opacity-50"
             title="Save"
           >
             {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
@@ -1358,7 +1358,7 @@ function EditablePropertyItem({
           <button
             onClick={onCancel}
             disabled={isSaving}
-            className="p-1 rounded hover:bg-pdm-error/20 text-pdm-error disabled:opacity-50"
+            className="p-1 rounded hover:bg-plm-error/20 text-plm-error disabled:opacity-50"
             title="Cancel"
           >
             <X size={14} />
@@ -1370,10 +1370,10 @@ function EditablePropertyItem({
   
   return (
     <div className="flex items-center gap-2 group">
-      <span className={editable ? "text-pdm-fg-muted" : "text-pdm-fg-muted/50"}>{icon}</span>
-      <span className={editable ? "text-pdm-fg-muted" : "text-pdm-fg-muted/50"}>{label}:</span>
+      <span className={editable ? "text-plm-fg-muted" : "text-plm-fg-muted/50"}>{icon}</span>
+      <span className={editable ? "text-plm-fg-muted" : "text-plm-fg-muted/50"}>{label}:</span>
       <span 
-        className={`px-1 rounded ${editable ? 'cursor-text hover:bg-pdm-bg-light' : ''} ${!value || value === '-' || !editable ? 'text-pdm-fg-muted' : 'text-pdm-fg'}`}
+        className={`px-1 rounded ${editable ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!value || value === '-' || !editable ? 'text-plm-fg-muted' : 'text-plm-fg'}`}
         onClick={editable ? onStartEdit : undefined}
         title={editable ? 'Click to edit' : 'Check out file to edit'}
       >
@@ -1382,7 +1382,7 @@ function EditablePropertyItem({
       {editable && (
         <button
           onClick={onStartEdit}
-          className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-pdm-accent/20 text-pdm-fg-muted hover:text-pdm-accent transition-opacity"
+          className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-plm-accent/20 text-plm-fg-muted hover:text-plm-accent transition-opacity"
           title="Edit"
         >
           <Pencil size={12} />
@@ -1422,8 +1422,8 @@ function StatePropertyItem({
   if (isEditing && editable) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-pdm-fg-muted">{icon}</span>
-        <span className="text-pdm-fg-muted">{label}:</span>
+        <span className="text-plm-fg-muted">{icon}</span>
+        <span className="text-plm-fg-muted">{label}:</span>
         <div className="flex items-center gap-1 flex-1">
           <select
             ref={(el: HTMLSelectElement | null) => {
@@ -1445,7 +1445,7 @@ function StatePropertyItem({
             onChange={(e) => onStateChange(e.target.value)}
             onBlur={() => setTimeout(onCancel, 100)}
             disabled={isSaving}
-            className="bg-pdm-bg border border-pdm-accent rounded px-2 py-0.5 text-sm text-pdm-fg focus:outline-none focus:ring-1 focus:ring-pdm-accent disabled:opacity-50"
+            className="bg-plm-bg border border-plm-accent rounded px-2 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent disabled:opacity-50"
           >
             <option value="not_tracked">Not Tracked</option>
             <option value="wip">Work in Progress</option>
@@ -1453,7 +1453,7 @@ function StatePropertyItem({
             <option value="released">Released</option>
             <option value="obsolete">Obsolete</option>
           </select>
-          {isSaving && <Loader2 size={14} className="animate-spin text-pdm-accent" />}
+          {isSaving && <Loader2 size={14} className="animate-spin text-plm-accent" />}
         </div>
       </div>
     )
@@ -1461,10 +1461,10 @@ function StatePropertyItem({
   
   return (
     <div className="flex items-center gap-2 group">
-      <span className={editable ? "text-pdm-fg-muted" : "text-pdm-fg-muted/50"}>{icon}</span>
-      <span className={editable ? "text-pdm-fg-muted" : "text-pdm-fg-muted/50"}>{label}:</span>
+      <span className={editable ? "text-plm-fg-muted" : "text-plm-fg-muted/50"}>{icon}</span>
+      <span className={editable ? "text-plm-fg-muted" : "text-plm-fg-muted/50"}>{label}:</span>
       <span 
-        className={`state-badge ${state.replace('_', '-')} ${editable ? 'cursor-pointer hover:ring-1 hover:ring-pdm-accent' : 'opacity-60'}`}
+        className={`state-badge ${state.replace('_', '-')} ${editable ? 'cursor-pointer hover:ring-1 hover:ring-plm-accent' : 'opacity-60'}`}
         onClick={editable ? onStartEdit : undefined}
         title={editable ? 'Click to change state' : 'Check out file to edit'}
       >

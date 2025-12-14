@@ -1,5 +1,5 @@
 /**
- * Icon Generator Script for BluePDM
+ * Icon Generator Script for BluePLM
  * Generates .ico (Windows), .icns (Mac), and .png (Linux) icons from SVG
  * 
  * Prerequisites:

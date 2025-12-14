@@ -778,7 +778,7 @@ export function GoogleDrivePanel() {
     if (mimeType === 'application/pdf') {
       return <FileText size={size} className={`${iconClass} text-red-600`} />
     }
-    return <File size={size} className={`${iconClass} text-pdm-fg-muted`} />
+    return <File size={size} className={`${iconClass} text-plm-fg-muted`} />
   }
   
   const formatFileSize = (bytes: string | undefined) => {
@@ -824,9 +824,9 @@ export function GoogleDrivePanel() {
   // Loading credentials
   if (isLoadingCredentials) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-pdm-bg p-8">
-        <Loader2 size={32} className="animate-spin text-pdm-accent mb-4" />
-        <p className="text-sm text-pdm-fg-muted">Loading Google Drive settings...</p>
+      <div className="flex-1 flex flex-col items-center justify-center bg-plm-bg p-8">
+        <Loader2 size={32} className="animate-spin text-plm-accent mb-4" />
+        <p className="text-sm text-plm-fg-muted">Loading Google Drive settings...</p>
       </div>
     )
   }
@@ -836,35 +836,35 @@ export function GoogleDrivePanel() {
     const isAdmin = user?.role === 'admin'
     
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-pdm-bg p-8">
+      <div className="flex-1 flex flex-col items-center justify-center bg-plm-bg p-8">
         <div className="max-w-lg text-center">
           <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-gray-600 to-gray-700 rounded-2xl flex items-center justify-center shadow-xl">
             <Settings size={48} className="text-gray-400" />
           </div>
-          <h2 className="text-2xl font-bold text-pdm-fg mb-3">Google Drive Not Configured</h2>
+          <h2 className="text-2xl font-bold text-plm-fg mb-3">Google Drive Not Configured</h2>
           
           {isAdmin ? (
             <>
-              <p className="text-pdm-fg-muted mb-6">
+              <p className="text-plm-fg-muted mb-6">
                 To enable Google Drive for your organization, configure the OAuth credentials in Settings.
               </p>
               <button
                 onClick={() => usePDMStore.getState().setActiveView('settings')}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-pdm-accent text-white rounded-lg hover:bg-pdm-accent/90 transition-colors font-medium"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors font-medium"
               >
                 <Settings size={20} />
                 Open Settings
               </button>
-              <p className="text-xs text-pdm-fg-muted mt-4">
+              <p className="text-xs text-plm-fg-muted mt-4">
                 Go to <strong>Settings → Integrations</strong> to configure.
               </p>
             </>
           ) : (
             <>
-              <p className="text-pdm-fg-muted mb-4">
+              <p className="text-plm-fg-muted mb-4">
                 Google Drive integration hasn't been set up for your organization yet.
               </p>
-              <p className="text-sm text-pdm-fg-muted">
+              <p className="text-sm text-plm-fg-muted">
                 Ask your administrator to enable Google Drive in the organization settings.
               </p>
             </>
@@ -877,21 +877,21 @@ export function GoogleDrivePanel() {
   // Not authenticated - show sign in screen
   if (!isAuthenticated) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-pdm-bg p-8">
+      <div className="flex-1 flex flex-col items-center justify-center bg-plm-bg p-8">
         <div className="max-w-lg text-center">
           <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-500 via-green-500 to-yellow-500 rounded-2xl flex items-center justify-center shadow-xl">
             <HardDrive size={48} className="text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-pdm-fg mb-3">Connect to Google Drive</h2>
-          <p className="text-pdm-fg-muted mb-6">
-            Access and manage your Google Drive files, spreadsheets, and documents directly from BluePDM.
+          <h2 className="text-2xl font-bold text-plm-fg mb-3">Connect to Google Drive</h2>
+          <p className="text-plm-fg-muted mb-6">
+            Access and manage your Google Drive files, spreadsheets, and documents directly from BluePLM.
             Edit Google Sheets, organize folders, and keep everything in sync.
           </p>
           
           {authError && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-left">
               <p className="text-sm text-red-400 font-medium mb-2">Connection Error</p>
-              <p className="text-xs text-pdm-fg-muted">{authError}</p>
+              <p className="text-xs text-plm-fg-muted">{authError}</p>
             </div>
           )}
           
@@ -913,7 +913,7 @@ export function GoogleDrivePanel() {
             {isAuthenticating ? 'Connecting...' : 'Sign in with Google'}
           </button>
           
-          <p className="text-xs text-pdm-fg-muted mt-4">
+          <p className="text-xs text-plm-fg-muted mt-4">
             Sign in with your Blue Robotics Google account to access shared files.
           </p>
         </div>
@@ -924,12 +924,12 @@ export function GoogleDrivePanel() {
   // If a document is open, show the document viewer instead of file browser
   if (gdriveOpenDocument) {
     return (
-      <div className="flex-1 flex flex-col bg-pdm-bg overflow-hidden">
+      <div className="flex-1 flex flex-col bg-plm-bg overflow-hidden">
         {/* Document header */}
-        <div className="flex items-center gap-3 px-4 py-2 border-b border-pdm-border bg-pdm-sidebar">
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-plm-border bg-plm-sidebar">
           <button
             onClick={() => setGdriveOpenDocument(null)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-pdm-highlight hover:bg-pdm-highlight/80 rounded transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-plm-highlight hover:bg-plm-highlight/80 rounded transition-colors"
           >
             <ArrowLeft size={16} />
             Back
@@ -941,14 +941,14 @@ export function GoogleDrivePanel() {
           </div>
           
           <div className="flex items-center gap-2">
-            <span className="text-xs text-pdm-fg-muted hidden sm:block">Full editing:</span>
+            <span className="text-xs text-plm-fg-muted hidden sm:block">Full editing:</span>
             <button
               onClick={() => {
                 if (gdriveOpenDocument.webViewLink) {
                   window.open(gdriveOpenDocument.webViewLink, '_blank')
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-pdm-accent text-white hover:bg-pdm-accent/90 rounded transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-plm-accent text-white hover:bg-plm-accent/90 rounded transition-colors"
             >
               <ExternalLink size={14} />
               Open in Browser
@@ -962,7 +962,7 @@ export function GoogleDrivePanel() {
           {!localStorage.getItem('gdrive_iframe_info_dismissed') && (
             <div className="absolute top-0 left-0 right-0 z-10 bg-amber-600 text-white px-4 py-2 text-sm flex items-center justify-between">
               <span>
-                <strong>Note:</strong> If Google asks you to sign in below, that's normal — the embedded view uses a separate session from BluePDM.
+                <strong>Note:</strong> If Google asks you to sign in below, that's normal — the embedded view uses a separate session from BluePLM.
                 You only need to do this once.
               </span>
               <button
@@ -990,9 +990,9 @@ export function GoogleDrivePanel() {
   }
   
   return (
-    <div className="flex-1 flex flex-col bg-pdm-bg overflow-hidden">
+    <div className="flex-1 flex flex-col bg-plm-bg overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-pdm-border bg-pdm-sidebar">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-plm-border bg-plm-sidebar">
         {/* Back button */}
         <button
           onClick={() => {
@@ -1003,7 +1003,7 @@ export function GoogleDrivePanel() {
             }
           }}
           disabled={breadcrumbs.length <= 1 || isLoading}
-          className="p-1.5 hover:bg-pdm-highlight rounded transition-colors disabled:opacity-30"
+          className="p-1.5 hover:bg-plm-highlight rounded transition-colors disabled:opacity-30"
           title="Go back"
         >
           <ArrowLeft size={18} />
@@ -1013,7 +1013,7 @@ export function GoogleDrivePanel() {
         <div className="flex items-center gap-1 flex-1 min-w-0 text-sm">
           {breadcrumbs.map((crumb, idx) => (
             <div key={crumb.id} className="flex items-center">
-              {idx > 0 && <ChevronRight size={14} className="text-pdm-fg-muted mx-1" />}
+              {idx > 0 && <ChevronRight size={14} className="text-plm-fg-muted mx-1" />}
               <button
                 onClick={() => {
                   if (idx < breadcrumbs.length - 1) {
@@ -1021,8 +1021,8 @@ export function GoogleDrivePanel() {
                     loadFiles(crumb.id)
                   }
                 }}
-                className={`hover:bg-pdm-highlight px-1.5 py-0.5 rounded truncate max-w-[150px] ${
-                  idx === breadcrumbs.length - 1 ? 'text-pdm-fg font-medium' : 'text-pdm-fg-muted'
+                className={`hover:bg-plm-highlight px-1.5 py-0.5 rounded truncate max-w-[150px] ${
+                  idx === breadcrumbs.length - 1 ? 'text-plm-fg font-medium' : 'text-plm-fg-muted'
                 }`}
               >
                 {crumb.name}
@@ -1033,18 +1033,18 @@ export function GoogleDrivePanel() {
         
         {/* Search */}
         <div className="relative">
-          <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-pdm-fg-muted" />
+          <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search files..."
-            className="w-48 pl-8 pr-8 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+            className="w-48 pl-8 pr-8 py-1.5 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
             >
               <X size={14} />
             </button>
@@ -1052,17 +1052,17 @@ export function GoogleDrivePanel() {
         </div>
         
         {/* View toggle */}
-        <div className="flex items-center border border-pdm-border rounded">
+        <div className="flex items-center border border-plm-border rounded">
           <button
             onClick={() => setViewMode('grid')}
-            className={`p-1.5 ${viewMode === 'grid' ? 'bg-pdm-highlight text-pdm-accent' : 'text-pdm-fg-muted hover:text-pdm-fg'}`}
+            className={`p-1.5 ${viewMode === 'grid' ? 'bg-plm-highlight text-plm-accent' : 'text-plm-fg-muted hover:text-plm-fg'}`}
             title="Grid view"
           >
             <Grid size={16} />
           </button>
           <button
             onClick={() => setViewMode('list')}
-            className={`p-1.5 ${viewMode === 'list' ? 'bg-pdm-highlight text-pdm-accent' : 'text-pdm-fg-muted hover:text-pdm-fg'}`}
+            className={`p-1.5 ${viewMode === 'list' ? 'bg-plm-highlight text-plm-accent' : 'text-plm-fg-muted hover:text-plm-fg'}`}
             title="List view"
           >
             <List size={16} />
@@ -1072,7 +1072,7 @@ export function GoogleDrivePanel() {
         {/* Actions */}
         <button
           onClick={createFolder}
-          className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+          className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
           title="New folder"
         >
           <FolderPlus size={18} />
@@ -1081,24 +1081,24 @@ export function GoogleDrivePanel() {
         <button
           onClick={() => loadFiles(currentFolderId, specialView || undefined)}
           disabled={isLoading}
-          className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+          className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
           title="Refresh"
         >
           <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
         </button>
         
         {/* User info */}
-        <div className="flex items-center gap-2 pl-2 border-l border-pdm-border">
+        <div className="flex items-center gap-2 pl-2 border-l border-plm-border">
           {userInfo?.picture ? (
             <img src={userInfo.picture} alt="" className="w-7 h-7 rounded-full" />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-pdm-accent flex items-center justify-center text-white text-xs">
+            <div className="w-7 h-7 rounded-full bg-plm-accent flex items-center justify-center text-white text-xs">
               {userInfo?.name?.[0] || 'U'}
             </div>
           )}
           <button
             onClick={handleSignOut}
-            className="p-1.5 hover:bg-pdm-highlight rounded transition-colors text-pdm-fg-muted"
+            className="p-1.5 hover:bg-plm-highlight rounded transition-colors text-plm-fg-muted"
             title="Sign out"
           >
             <LogOut size={16} />
@@ -1107,11 +1107,11 @@ export function GoogleDrivePanel() {
       </div>
       
       {/* Quick access bar */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-pdm-border bg-pdm-sidebar/50 overflow-x-auto">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-plm-border bg-plm-sidebar/50 overflow-x-auto">
         <button
           onClick={() => { setSpecialView(null); setDriveSource('my-drive'); setCurrentSharedDriveId(null); loadFiles('root') }}
           className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-full transition-colors whitespace-nowrap ${
-            driveSource === 'my-drive' && !specialView && currentFolderId === 'root' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            driveSource === 'my-drive' && !specialView && currentFolderId === 'root' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
         >
           <Home size={14} />
@@ -1123,20 +1123,20 @@ export function GoogleDrivePanel() {
           <div className="relative group">
             <button
               className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-full transition-colors whitespace-nowrap ${
-                driveSource === 'shared-drives' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+                driveSource === 'shared-drives' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
               }`}
             >
               <HardDrive size={14} />
               Shared Drives
               <ChevronDown size={12} />
             </button>
-            <div className="absolute top-full left-0 mt-1 bg-pdm-sidebar border border-pdm-border rounded-lg shadow-xl py-1 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+            <div className="absolute top-full left-0 mt-1 bg-plm-sidebar border border-plm-border rounded-lg shadow-xl py-1 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
               {sharedDrives.map(drive => (
                 <button
                   key={drive.id}
                   onClick={() => loadSharedDriveFiles(drive.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-pdm-highlight transition-colors text-left ${
-                    currentSharedDriveId === drive.id ? 'bg-pdm-highlight text-pdm-accent' : 'text-pdm-fg'
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-plm-highlight transition-colors text-left ${
+                    currentSharedDriveId === drive.id ? 'bg-plm-highlight text-plm-accent' : 'text-plm-fg'
                   }`}
                 >
                   <HardDrive size={16} className="text-yellow-600" />
@@ -1147,12 +1147,12 @@ export function GoogleDrivePanel() {
           </div>
         )}
         
-        <div className="w-px h-5 bg-pdm-border mx-1" />
+        <div className="w-px h-5 bg-plm-border mx-1" />
         
         <button
           onClick={() => loadFiles('root', 'starred')}
           className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-full transition-colors whitespace-nowrap ${
-            specialView === 'starred' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            specialView === 'starred' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
         >
           <Star size={14} />
@@ -1161,7 +1161,7 @@ export function GoogleDrivePanel() {
         <button
           onClick={() => loadFiles('root', 'recent')}
           className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-full transition-colors whitespace-nowrap ${
-            specialView === 'recent' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            specialView === 'recent' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
         >
           <Clock size={14} />
@@ -1170,7 +1170,7 @@ export function GoogleDrivePanel() {
         <button
           onClick={() => loadFiles('root', 'shared')}
           className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-full transition-colors whitespace-nowrap ${
-            specialView === 'shared' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            specialView === 'shared' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
         >
           <Users size={14} />
@@ -1179,7 +1179,7 @@ export function GoogleDrivePanel() {
         <button
           onClick={() => loadFiles('root', 'trash')}
           className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-full transition-colors whitespace-nowrap ${
-            specialView === 'trash' ? 'bg-pdm-accent text-white' : 'bg-pdm-highlight hover:bg-pdm-highlight/80 text-pdm-fg'
+            specialView === 'trash' ? 'bg-plm-accent text-white' : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
           }`}
         >
           <Trash2 size={14} />
@@ -1191,16 +1191,16 @@ export function GoogleDrivePanel() {
       <div className="flex-1 overflow-auto p-4">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 size={32} className="animate-spin text-pdm-accent" />
+            <Loader2 size={32} className="animate-spin text-plm-accent" />
           </div>
         ) : filteredFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-pdm-fg-muted">
+          <div className="flex flex-col items-center justify-center h-full text-plm-fg-muted">
             <Folder size={64} className="mb-4 opacity-30" />
             <p className="text-lg">{searchQuery ? 'No files match your search' : 'This folder is empty'}</p>
             {!searchQuery && !specialView && (
               <button
                 onClick={createFolder}
-                className="mt-4 flex items-center gap-2 px-4 py-2 bg-pdm-highlight hover:bg-pdm-highlight/80 rounded transition-colors"
+                className="mt-4 flex items-center gap-2 px-4 py-2 bg-plm-highlight hover:bg-plm-highlight/80 rounded transition-colors"
               >
                 <FolderPlus size={18} />
                 Create a folder
@@ -1218,8 +1218,8 @@ export function GoogleDrivePanel() {
                 onContextMenu={(e) => handleContextMenu(e, file)}
                 className={`group relative flex flex-col items-center p-4 rounded-lg border transition-all cursor-pointer ${
                   selectedFiles.has(file.id)
-                    ? 'border-pdm-accent bg-pdm-accent/10'
-                    : 'border-transparent hover:border-pdm-border hover:bg-pdm-highlight'
+                    ? 'border-plm-accent bg-plm-accent/10'
+                    : 'border-transparent hover:border-plm-border hover:bg-plm-highlight'
                 }`}
               >
                 {/* Star indicator */}
@@ -1253,7 +1253,7 @@ export function GoogleDrivePanel() {
                       if (e.key === 'Enter') handleRename()
                       if (e.key === 'Escape') { setRenamingFile(null); setRenameValue('') }
                     }}
-                    className="w-full text-center text-sm bg-pdm-bg border border-pdm-accent rounded px-1 py-0.5 focus:outline-none"
+                    className="w-full text-center text-sm bg-plm-bg border border-plm-accent rounded px-1 py-0.5 focus:outline-none"
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
@@ -1264,16 +1264,16 @@ export function GoogleDrivePanel() {
                 
                 {/* Shared indicator */}
                 {file.shared && (
-                  <Users size={12} className="absolute bottom-2 right-2 text-pdm-fg-muted" />
+                  <Users size={12} className="absolute bottom-2 right-2 text-plm-fg-muted" />
                 )}
               </div>
             ))}
           </div>
         ) : (
           /* List View */
-          <div className="border border-pdm-border rounded-lg overflow-hidden">
+          <div className="border border-plm-border rounded-lg overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-4 px-4 py-2 bg-pdm-sidebar border-b border-pdm-border text-xs font-medium text-pdm-fg-muted">
+            <div className="flex items-center gap-4 px-4 py-2 bg-plm-sidebar border-b border-plm-border text-xs font-medium text-plm-fg-muted">
               <div className="flex-1 min-w-0">Name</div>
               <div className="w-24">Owner</div>
               <div className="w-28">Modified</div>
@@ -1288,10 +1288,10 @@ export function GoogleDrivePanel() {
                 onClick={(e) => handleFileClick(file, e)}
                 onDoubleClick={() => handleFileDoubleClick(file)}
                 onContextMenu={(e) => handleContextMenu(e, file)}
-                className={`flex items-center gap-4 px-4 py-2 border-b border-pdm-border last:border-b-0 transition-colors cursor-pointer ${
+                className={`flex items-center gap-4 px-4 py-2 border-b border-plm-border last:border-b-0 transition-colors cursor-pointer ${
                   selectedFiles.has(file.id)
-                    ? 'bg-pdm-accent/10'
-                    : 'hover:bg-pdm-highlight'
+                    ? 'bg-plm-accent/10'
+                    : 'hover:bg-plm-highlight'
                 }`}
               >
                 {/* Name */}
@@ -1308,37 +1308,37 @@ export function GoogleDrivePanel() {
                         if (e.key === 'Enter') handleRename()
                         if (e.key === 'Escape') { setRenamingFile(null); setRenameValue('') }
                       }}
-                      className="flex-1 text-sm bg-pdm-bg border border-pdm-accent rounded px-1 py-0.5 focus:outline-none"
+                      className="flex-1 text-sm bg-plm-bg border border-plm-accent rounded px-1 py-0.5 focus:outline-none"
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
                     <span className="text-sm truncate" title={file.name}>{file.name}</span>
                   )}
                   {file.starred && <Star size={12} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
-                  {file.shared && <Users size={12} className="text-pdm-fg-muted flex-shrink-0" />}
+                  {file.shared && <Users size={12} className="text-plm-fg-muted flex-shrink-0" />}
                 </div>
                 
                 {/* Owner */}
-                <div className="w-24 text-xs text-pdm-fg-muted truncate">
+                <div className="w-24 text-xs text-plm-fg-muted truncate">
                   {file.owners?.[0]?.displayName || '-'}
                 </div>
                 
                 {/* Modified */}
-                <div className="w-28 text-xs text-pdm-fg-muted">
+                <div className="w-28 text-xs text-plm-fg-muted">
                   {formatDate(file.modifiedTime)}
                 </div>
                 
                 {/* Size */}
-                <div className="w-20 text-xs text-pdm-fg-muted text-right">
+                <div className="w-20 text-xs text-plm-fg-muted text-right">
                   {file.mimeType === 'application/vnd.google-apps.folder' ? '-' : formatFileSize(file.size)}
                 </div>
                 
                 {/* Actions */}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleContextMenu(e, file) }}
-                  className="w-8 flex items-center justify-center p-1 hover:bg-pdm-highlight rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="w-8 flex items-center justify-center p-1 hover:bg-plm-highlight rounded opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <MoreVertical size={16} className="text-pdm-fg-muted" />
+                  <MoreVertical size={16} className="text-plm-fg-muted" />
                 </button>
               </div>
             ))}
@@ -1349,24 +1349,24 @@ export function GoogleDrivePanel() {
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed bg-pdm-sidebar border border-pdm-border rounded-lg shadow-xl py-1 z-50 min-w-[180px]"
+          className="fixed bg-plm-sidebar border border-plm-border rounded-lg shadow-xl py-1 z-50 min-w-[180px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={() => openInDrive(contextMenu.file)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-pdm-highlight transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-plm-highlight transition-colors"
           >
             <ExternalLink size={16} />
             Open in Google Drive
           </button>
           
-          <div className="h-px bg-pdm-border my-1" />
+          <div className="h-px bg-plm-border my-1" />
           
           {contextMenu.file.capabilities?.canRename !== false && (
             <button
               onClick={() => startRename(contextMenu.file)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-pdm-highlight transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-plm-highlight transition-colors"
             >
               <Edit2 size={16} />
               Rename
@@ -1375,7 +1375,7 @@ export function GoogleDrivePanel() {
           
           <button
             onClick={() => toggleStar(contextMenu.file)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-pdm-highlight transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-plm-highlight transition-colors"
           >
             {contextMenu.file.starred ? <StarOff size={16} /> : <Star size={16} />}
             {contextMenu.file.starred ? 'Remove from starred' : 'Add to starred'}
@@ -1386,27 +1386,27 @@ export function GoogleDrivePanel() {
               href={contextMenu.file.webContentLink}
               download
               onClick={() => setContextMenu(null)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-pdm-highlight transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-plm-highlight transition-colors"
             >
               <Download size={16} />
               Download
             </a>
           )}
           
-          <div className="h-px bg-pdm-border my-1" />
+          <div className="h-px bg-plm-border my-1" />
           
           {specialView === 'trash' ? (
             <>
               <button
                 onClick={() => restoreFile(contextMenu.file)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-pdm-highlight transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-plm-highlight transition-colors"
               >
                 <RefreshCw size={16} />
                 Restore
               </button>
               <button
                 onClick={() => deleteFile(contextMenu.file)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-500 hover:bg-pdm-highlight transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-500 hover:bg-plm-highlight transition-colors"
               >
                 <Trash2 size={16} />
                 Delete forever
@@ -1415,7 +1415,7 @@ export function GoogleDrivePanel() {
           ) : (
             <button
               onClick={() => deleteFile(contextMenu.file)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-500 hover:bg-pdm-highlight transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-500 hover:bg-plm-highlight transition-colors"
             >
               <Trash2 size={16} />
               Move to trash
@@ -1431,11 +1431,11 @@ export function GoogleDrivePanel() {
           onClick={() => setPreviewFile(null)}
         >
           <div 
-            className="bg-pdm-bg rounded-lg shadow-2xl w-[90vw] h-[90vh] flex flex-col overflow-hidden"
+            className="bg-plm-bg rounded-lg shadow-2xl w-[90vw] h-[90vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Preview header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-pdm-border">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-plm-border">
               <div className="flex items-center gap-2">
                 {getFileIcon(previewFile.mimeType, 20)}
                 <span className="font-medium">{previewFile.name}</span>
@@ -1443,14 +1443,14 @@ export function GoogleDrivePanel() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => openInDrive(previewFile)}
-                  className="flex items-center gap-1 px-3 py-1 text-sm bg-pdm-accent text-white rounded hover:bg-pdm-accent/90 transition-colors"
+                  className="flex items-center gap-1 px-3 py-1 text-sm bg-plm-accent text-white rounded hover:bg-plm-accent/90 transition-colors"
                 >
                   <ExternalLink size={14} />
                   Open in Drive
                 </button>
                 <button
                   onClick={() => setPreviewFile(null)}
-                  className="p-1.5 hover:bg-pdm-highlight rounded transition-colors"
+                  className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
                 >
                   <X size={20} />
                 </button>
@@ -1474,12 +1474,12 @@ export function GoogleDrivePanel() {
                   />
                 </div>
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-pdm-fg-muted">
+                <div className="w-full h-full flex flex-col items-center justify-center text-plm-fg-muted">
                   {getFileIcon(previewFile.mimeType, 64)}
                   <p className="mt-4">Preview not available for this file type</p>
                   <button
                     onClick={() => openInDrive(previewFile)}
-                    className="mt-4 flex items-center gap-2 px-4 py-2 bg-pdm-accent text-white rounded hover:bg-pdm-accent/90 transition-colors"
+                    className="mt-4 flex items-center gap-2 px-4 py-2 bg-plm-accent text-white rounded hover:bg-plm-accent/90 transition-colors"
                   >
                     <ExternalLink size={16} />
                     Open in Google Drive

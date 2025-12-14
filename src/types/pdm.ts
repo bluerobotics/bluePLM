@@ -403,27 +403,27 @@ export function formatFileSize(bytes: number): string {
 export const STATE_INFO: Record<FileState, { label: string; color: string; description: string }> = {
   not_tracked: {
     label: 'Not Tracked',
-    color: 'pdm-fg-muted',
+    color: 'plm-fg-muted',
     description: 'File is not being tracked in the PDM system'
   },
   wip: {
     label: 'Work in Progress',
-    color: 'pdm-wip',
+    color: 'plm-wip',
     description: 'File is being actively worked on'
   },
   in_review: {
     label: 'In Review',
-    color: 'pdm-info',
+    color: 'plm-info',
     description: 'File is pending approval for release'
   },
   released: {
     label: 'Released',
-    color: 'pdm-released',
+    color: 'plm-released',
     description: 'File is approved for production use'
   },
   obsolete: {
     label: 'Obsolete',
-    color: 'pdm-inactive',
+    color: 'plm-inactive',
     description: 'File is no longer active'
   }
 }

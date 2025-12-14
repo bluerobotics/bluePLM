@@ -237,16 +237,16 @@ export function OrphanedCheckoutDialog({ checkout, onClose, onRefresh }: Orphane
   }) => {
     const isThisAction = processingAction === actionKey
     const variantClasses = {
-      default: 'hover:bg-pdm-bg-lighter border-pdm-border',
-      warning: 'hover:bg-pdm-warning/10 border-pdm-warning/30',
-      success: 'hover:bg-pdm-success/10 border-pdm-success/30',
-      danger: 'hover:bg-pdm-error/10 border-pdm-error/30'
+      default: 'hover:bg-plm-bg-lighter border-plm-border',
+      warning: 'hover:bg-plm-warning/10 border-plm-warning/30',
+      success: 'hover:bg-plm-success/10 border-plm-success/30',
+      danger: 'hover:bg-plm-error/10 border-plm-error/30'
     }
     const iconClasses = {
-      default: 'text-pdm-fg',
-      warning: 'text-pdm-warning',
-      success: 'text-pdm-success',
-      danger: 'text-pdm-error'
+      default: 'text-plm-fg',
+      warning: 'text-plm-warning',
+      success: 'text-plm-success',
+      danger: 'text-plm-error'
     }
     
     return (
@@ -257,7 +257,7 @@ export function OrphanedCheckoutDialog({ checkout, onClose, onRefresh }: Orphane
           w-full p-3 rounded-lg border transition-colors text-left
           ${variantClasses[variant]}
           ${isProcessing && !isThisAction ? 'opacity-50 cursor-not-allowed' : ''}
-          ${isThisAction ? 'ring-2 ring-pdm-accent' : ''}
+          ${isThisAction ? 'ring-2 ring-plm-accent' : ''}
         `}
       >
         <div className="flex items-start gap-3">
@@ -269,11 +269,11 @@ export function OrphanedCheckoutDialog({ checkout, onClose, onRefresh }: Orphane
             )}
           </div>
           <div className="flex-1">
-            <div className="font-medium text-pdm-fg">{label}</div>
-            <div className="text-sm text-pdm-fg-muted">{description}</div>
+            <div className="font-medium text-plm-fg">{label}</div>
+            <div className="text-sm text-plm-fg-muted">{description}</div>
           </div>
           {isThisAction && (
-            <Check size={16} className="text-pdm-accent mt-1" />
+            <Check size={16} className="text-plm-accent mt-1" />
           )}
         </div>
       </button>
@@ -282,17 +282,17 @@ export function OrphanedCheckoutDialog({ checkout, onClose, onRefresh }: Orphane
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-pdm-bg-light border border-pdm-border rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-pdm-border bg-pdm-warning/5">
-          <div className="flex items-center gap-2 text-pdm-warning">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-plm-border bg-plm-warning/5">
+          <div className="flex items-center gap-2 text-plm-warning">
             <Monitor size={20} />
             <span className="font-semibold">Orphaned Checkout</span>
           </div>
           <button
             onClick={onClose}
             disabled={isProcessing}
-            className="p-1 rounded hover:bg-pdm-bg transition-colors text-pdm-fg-muted hover:text-pdm-fg disabled:opacity-50"
+            className="p-1 rounded hover:bg-plm-bg transition-colors text-plm-fg-muted hover:text-plm-fg disabled:opacity-50"
           >
             <X size={18} />
           </button>
@@ -301,20 +301,20 @@ export function OrphanedCheckoutDialog({ checkout, onClose, onRefresh }: Orphane
         {/* Content */}
         <div className="p-4">
           {/* File info */}
-          <div className="flex items-center gap-3 p-3 bg-pdm-bg rounded-lg border border-pdm-border mb-4">
-            <File size={24} className="text-pdm-warning flex-shrink-0" />
+          <div className="flex items-center gap-3 p-3 bg-plm-bg rounded-lg border border-plm-border mb-4">
+            <File size={24} className="text-plm-warning flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-pdm-fg truncate">{checkout.fileName}</div>
-              <div className="text-xs text-pdm-fg-muted truncate">{checkout.filePath}</div>
+              <div className="font-medium text-plm-fg truncate">{checkout.fileName}</div>
+              <div className="text-xs text-plm-fg-muted truncate">{checkout.filePath}</div>
             </div>
           </div>
 
           {/* Explanation */}
-          <div className="bg-pdm-warning/10 border border-pdm-warning/30 rounded-lg p-3 mb-4">
+          <div className="bg-plm-warning/10 border border-plm-warning/30 rounded-lg p-3 mb-4">
             <div className="flex items-start gap-2">
-              <AlertTriangle size={16} className="text-pdm-warning flex-shrink-0 mt-0.5" />
+              <AlertTriangle size={16} className="text-plm-warning flex-shrink-0 mt-0.5" />
               <div className="text-sm">
-                <p className="text-pdm-fg">
+                <p className="text-plm-fg">
                   This file was <strong>checked in from {checkout.checkedInBy}</strong>. 
                   You have local changes that may not match the server version.
                 </p>
@@ -363,8 +363,8 @@ export function OrphanedCheckoutDialog({ checkout, onClose, onRefresh }: Orphane
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 bg-pdm-bg border-t border-pdm-border">
-          <p className="text-xs text-pdm-fg-muted text-center">
+        <div className="px-4 py-3 bg-plm-bg border-t border-plm-border">
+          <p className="text-xs text-plm-fg-muted text-center">
             Server version: v{checkout.newVersion} • Checked in at {new Date(checkout.checkedInAt).toLocaleString()}
           </p>
         </div>
@@ -405,8 +405,8 @@ export function OrphanedCheckoutsContainer({ onRefresh }: { onRefresh?: (silent?
       
       {/* Counter if multiple */}
       {orphanedCheckouts.length > 1 && (
-        <div className="fixed bottom-4 right-4 z-[60] bg-pdm-bg-light border border-pdm-border rounded-lg px-3 py-2 shadow-lg">
-          <span className="text-sm text-pdm-fg">
+        <div className="fixed bottom-4 right-4 z-[60] bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 shadow-lg">
+          <span className="text-sm text-plm-fg">
             {currentIndex + 1} of {orphanedCheckouts.length} orphaned files
           </span>
         </div>

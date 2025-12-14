@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to BluePDM will be documented in this file.
+All notable changes to BluePLM will be documented in this file.
 
 ## [2.1.1] - 2025-12-12
 
@@ -27,7 +27,7 @@ All notable changes to BluePDM will be documented in this file.
 ## [2.0.0] - 2025-12-12
 
 ### Added
-- **Command Line Interface (CLI)**: Built-in terminal with file operations, navigation, queries, and batch commands. Also available externally via `node cli/bluepdm.js`
+- **Command Line Interface (CLI)**: Built-in terminal with file operations, navigation, queries, and batch commands. Also available externally via `node cli/blueplm.js`
 - **REST API for ERP/Integrations**: Fastify + TypeScript API with Swagger docs, webhooks, signed URLs for file transfers. Docker image auto-published; one-click deploy to Railway/Render
 - **REST API Settings** (admin-only): Local/External toggle, org-wide API URL sync, server status, deployment credentials, quick tests
 - **Vault Backup System**: Automated Restic backups (encrypted, deduplicated) with configurable schedule. Supports local disk, S3, Backblaze B2, SFTP
@@ -91,7 +91,7 @@ All notable changes to BluePDM will be documented in this file.
   - Shows who deleted each file and when
   - Filter by vault when multiple vaults connected
 - **New logging system**: Comprehensive session logs with timestamps, log levels, and structured data for easier debugging
-- **Drag & drop from external apps**: Drag files/folders from Windows Explorer directly into BluePDM to import them
+- **Drag & drop from external apps**: Drag files/folders from Windows Explorer directly into BluePLM to import them
 
 ### Improved
 - **Major performance improvements** for all file operations (check-in, check-out, download, upload)
@@ -361,7 +361,7 @@ All notable changes to BluePDM will be documented in this file.
 
 ### Fixed
 - Title bar padding now correctly positions for macOS window buttons
-- Vault folders now created in `~/Documents/BluePDM/` on macOS
+- Vault folders now created in `~/Documents/BluePLM/` on macOS
 - File downloads create proper folder hierarchy on macOS
 - Path separators use `/` on macOS and `\` on Windows throughout
 - About page version now dynamically reads from package.json

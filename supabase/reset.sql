@@ -1,5 +1,5 @@
--- BluePDM Database Reset Script
--- WARNING: This will DELETE ALL DATA from your BluePDM database!
+-- BluePLM Database Reset Script
+-- WARNING: This will DELETE ALL DATA from your BluePLM database!
 -- Run this in Supabase SQL Editor to wipe everything before re-running schema.sql
 
 -- ===========================================

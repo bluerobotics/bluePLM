@@ -53,7 +53,7 @@ function initializeLogging() {
     
     // Create a new log file for this session with timestamp
     const sessionTimestamp = formatDateForFilename(new Date())
-    logFilePath = path.join(logsDir, `bluepdm-${sessionTimestamp}.log`)
+    logFilePath = path.join(logsDir, `blueplm-${sessionTimestamp}.log`)
     
     // Clean up old log files if we have too many
     cleanupOldLogFiles(logsDir)
@@ -63,7 +63,7 @@ function initializeLogging() {
     currentLogSize = 0
     
     // Write startup header
-    const startupHeader = `${'='.repeat(60)}\nBluePDM Session Log\nStarted: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\nPlatform: ${process.platform} ${process.arch}\nElectron: ${process.versions.electron}\nNode: ${process.versions.node}\n${'='.repeat(60)}\n\n`
+    const startupHeader = `${'='.repeat(60)}\nBluePLM Session Log\nStarted: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\nPlatform: ${process.platform} ${process.arch}\nElectron: ${process.versions.electron}\nNode: ${process.versions.node}\n${'='.repeat(60)}\n\n`
     logStream.write(startupHeader)
     currentLogSize += Buffer.byteLength(startupHeader, 'utf8')
   } catch (err) {
@@ -78,7 +78,7 @@ function cleanupOldLogFiles(logsDir: string) {
     
     // Get all log files sorted by modified time (newest first)
     const logFiles = fs.readdirSync(logsDir)
-      .filter(f => f.startsWith('bluepdm-') && f.endsWith('.log'))
+      .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
       .map(filename => ({
         name: filename,
         path: path.join(logsDir, filename),
@@ -101,7 +101,7 @@ function cleanupOldLogFiles(logsDir: string) {
     
     // Re-read remaining files after age-based cleanup
     const remainingFiles = fs.readdirSync(logsDir)
-      .filter(f => f.startsWith('bluepdm-') && f.endsWith('.log'))
+      .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
       .map(filename => ({
         name: filename,
         path: path.join(logsDir, filename),
@@ -141,12 +141,12 @@ function rotateLogFile() {
     
     // Create new log file with current timestamp
     const newTimestamp = formatDateForFilename(new Date())
-    logFilePath = path.join(logsDir, `bluepdm-${newTimestamp}.log`)
+    logFilePath = path.join(logsDir, `blueplm-${newTimestamp}.log`)
     logStream = fs.createWriteStream(logFilePath, { flags: 'w' })
     currentLogSize = 0
     
     // Write continuation header
-    const header = `${'='.repeat(60)}\nBluePDM Log (continued)\nRotated: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\n${'='.repeat(60)}\n\n`
+    const header = `${'='.repeat(60)}\nBluePLM Log (continued)\nRotated: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\n${'='.repeat(60)}\n\n`
     logStream.write(header)
     currentLogSize += Buffer.byteLength(header, 'utf8')
   } catch (err) {
@@ -273,7 +273,7 @@ const logWarn = (message: string, data?: unknown) => {
   writeLog('warn', `[Main] ${message}`, data)
 }
 
-log('BluePDM starting...', { isDev, dirname: __dirname })
+log('BluePLM starting...', { isDev, dirname: __dirname })
 
 // Follow system dark/light mode for web content (like Google sign-in)
 nativeTheme.themeSource = 'system'
@@ -514,7 +514,7 @@ function createAppMenu() {
       label: 'Help',
       submenu: [
         {
-          label: 'About BluePDM',
+          label: 'About BluePLM',
           click: () => mainWindow?.webContents.send('menu:about')
         }
       ]
@@ -525,7 +525,7 @@ function createAppMenu() {
     template.unshift({
       label: app.getName(),
       submenu: [
-        { label: 'About BluePDM', role: 'about' },
+        { label: 'About BluePLM', role: 'about' },
         { type: 'separator' },
         { label: 'Services', role: 'services' },
         { type: 'separator' },
@@ -700,7 +700,7 @@ ipcMain.handle('auth:open-oauth-window', async (_, url: string) => {
       <path d="M8 12l3 3 5-6"/>
     </svg>
     <h1>Sign In Successful!</h1>
-    <p>You can close this window and return to BluePDM.</p>
+    <p>You can close this window and return to BluePLM.</p>
   </div>
   <script>setTimeout(() => window.close(), 2000);</script>
 </body>
@@ -796,7 +796,7 @@ ipcMain.handle('auth:open-oauth-window', async (_, url: string) => {
         <path d="M8 12l3 3 5-6"/>
       </svg>
       <h1>Sign In Successful!</h1>
-      <p>You can close this window and return to BluePDM.</p>
+      <p>You can close this window and return to BluePLM.</p>
     </div>
     <div id="error" class="status hidden">
       <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="#f44336" stroke-width="2" style="display:block;margin:0 auto 20px;">
@@ -1135,7 +1135,7 @@ ipcMain.handle('auth:google-drive', async (_, credentials?: { clientId?: string;
                 <div style="text-align: center; padding: 40px; background: #313244; border-radius: 16px;">
                   <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #4285f4, #34a853, #fbbc05, #ea4335); border-radius: 50%; margin: 0 auto 20px;"></div>
                   <h1 style="color: #a6e3a1; margin: 0 0 10px;">Connected to Google Drive!</h1>
-                  <p style="opacity: 0.7;">You can close this window and return to BluePDM.</p>
+                  <p style="opacity: 0.7;">You can close this window and return to BluePLM.</p>
                 </div>
                 <script>setTimeout(() => window.close(), 3000);</script>
               </body>
@@ -1342,7 +1342,7 @@ ipcMain.handle('logs:get-path', () => {
 ipcMain.handle('logs:export', async () => {
   try {
     // Export current session logs from memory buffer
-    let sessionLogs = `BluePDM Session Logs\nExported: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\nPlatform: ${process.platform} ${process.arch}\nEntries: ${logBuffer.length}\n${'='.repeat(60)}\n\n`
+    let sessionLogs = `BluePLM Session Logs\nExported: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\nPlatform: ${process.platform} ${process.arch}\nEntries: ${logBuffer.length}\n${'='.repeat(60)}\n\n`
     
     // Format each log entry
     for (const entry of logBuffer) {
@@ -1353,7 +1353,7 @@ ipcMain.handle('logs:export', async () => {
     // Show save dialog
     const result = await dialog.showSaveDialog(mainWindow!, {
       title: 'Export Session Logs',
-      defaultPath: `bluepdm-session-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`,
+      defaultPath: `blueplm-session-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`,
       filters: [
         { name: 'Text Files', extensions: ['txt'] },
         { name: 'Log Files', extensions: ['log'] }
@@ -1482,7 +1482,7 @@ ipcMain.handle('logs:cleanup-old', async () => {
     let deletedCount = 0
     
     const logFiles = fs.readdirSync(logsDir)
-      .filter(f => f.startsWith('bluepdm-') && f.endsWith('.log'))
+      .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
       .map(filename => ({
         name: filename,
         path: path.join(logsDir, filename),
@@ -2451,13 +2451,88 @@ ipcMain.handle('dialog:select-folder', async () => {
 ipcMain.handle('dialog:save-file', async (_, defaultName: string) => {
   const result = await dialog.showSaveDialog(mainWindow!, {
     title: 'Save File',
-    defaultPath: defaultName
+    defaultPath: defaultName,
+    filters: [
+      { name: 'PDF Documents', extensions: ['pdf'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
   })
   
   if (!result.canceled && result.filePath) {
-    return { success: true, filePath: result.filePath }
+    return { success: true, path: result.filePath }
   }
   return { success: false, canceled: true }
+})
+
+// Generate PDF from HTML content using Electron's printToPDF
+ipcMain.handle('pdf:generate-from-html', async (_, htmlContent: string, outputPath: string) => {
+  log('[PDF] Starting PDF generation to: ' + outputPath)
+  
+  let pdfWindow: BrowserWindow | null = null
+  
+  try {
+    // Create an off-screen browser window
+    pdfWindow = new BrowserWindow({
+      width: 800,
+      height: 600,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        offscreen: true
+      }
+    })
+
+    // Load the HTML content
+    log('[PDF] Loading HTML content...')
+    await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
+
+    // Wait for content to fully render (including fonts/images)
+    log('[PDF] Waiting for content to render...')
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Generate PDF
+    log('[PDF] Generating PDF...')
+    const pdfBuffer = await pdfWindow.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      margins: {
+        top: 0.5,
+        bottom: 0.5,
+        left: 0.5,
+        right: 0.5
+      }
+    })
+
+    // Ensure output directory exists
+    const outputDir = path.dirname(outputPath)
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true })
+    }
+
+    // Write to file
+    log('[PDF] Writing PDF to disk: ' + outputPath)
+    fs.writeFileSync(outputPath, pdfBuffer)
+    
+    log('[PDF] PDF generated successfully, size: ' + pdfBuffer.length + ' bytes')
+
+    return { 
+      success: true, 
+      path: outputPath,
+      size: pdfBuffer.length 
+    }
+  } catch (err) {
+    logError('Failed to generate PDF', { error: String(err), outputPath })
+    return { 
+      success: false, 
+      error: err instanceof Error ? err.message : String(err) 
+    }
+  } finally {
+    // Clean up
+    if (pdfWindow && !pdfWindow.isDestroyed()) {
+      pdfWindow.destroy()
+    }
+  }
 })
 
 // ============================================
@@ -2544,11 +2619,11 @@ let swRequestId = 0
 function getSWServicePath(): string {
   const possiblePaths = [
     // Production - bundled with app
-    path.join(process.resourcesPath || '', 'bin', 'BluePDM.SolidWorksService.exe'),
+    path.join(process.resourcesPath || '', 'bin', 'BluePLM.SolidWorksService.exe'),
     // Development - Release build
-    path.join(__dirname, '..', 'solidworks-addin', 'BluePDM.SolidWorksService', 'bin', 'Release', 'BluePDM.SolidWorksService.exe'),
+    path.join(__dirname, '..', 'solidworks-addin', 'BluePLM.SolidWorksService', 'bin', 'Release', 'BluePLM.SolidWorksService.exe'),
     // Development - Debug build
-    path.join(__dirname, '..', 'solidworks-addin', 'BluePDM.SolidWorksService', 'bin', 'Debug', 'BluePDM.SolidWorksService.exe'),
+    path.join(__dirname, '..', 'solidworks-addin', 'BluePLM.SolidWorksService', 'bin', 'Debug', 'BluePLM.SolidWorksService.exe'),
   ]
   
   for (const p of possiblePaths) {
@@ -2576,7 +2651,7 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
   
   const servicePath = getSWServicePath()
   if (!fs.existsSync(servicePath)) {
-    return { success: false, error: `SolidWorks service not found at: ${servicePath}. Build it first with: dotnet build solidworks-addin/BluePDM.SolidWorksService -c Release` }
+    return { success: false, error: `SolidWorks service not found at: ${servicePath}. Build it first with: dotnet build solidworks-addin/BluePLM.SolidWorksService -c Release` }
   }
   
   // Build args - include DM license key if provided
@@ -3021,18 +3096,18 @@ function buildResticRepo(config: {
     // Backblaze B2 via S3-compatible API
     // Endpoint should be like: s3.us-west-004.backblazeb2.com
     const endpoint = config.endpoint || 's3.us-west-004.backblazeb2.com'
-    return `s3:${endpoint}/${config.bucket}/bluepdm-backup`
+    return `s3:${endpoint}/${config.bucket}/blueplm-backup`
   } else if (config.provider === 'aws_s3') {
     // S3 backend: s3:s3.amazonaws.com/bucket/path
     const region = config.region || 'us-east-1'
-    return `s3:s3.${region}.amazonaws.com/${config.bucket}/bluepdm-backup`
+    return `s3:s3.${region}.amazonaws.com/${config.bucket}/blueplm-backup`
   } else if (config.provider === 'google_cloud') {
     // GCS backend: gs:bucket:/path
-    return `gs:${config.bucket}:/bluepdm-backup`
+    return `gs:${config.bucket}:/blueplm-backup`
   }
   // Default to S3-compatible
   const endpoint = config.endpoint || 's3.amazonaws.com'
-  return `s3:${endpoint}/${config.bucket}/bluepdm-backup`
+  return `s3:${endpoint}/${config.bucket}/blueplm-backup`
 }
 
 // Run backup
@@ -3133,16 +3208,16 @@ ipcMain.handle('backup:run', async (event, config: {
       throw new Error('No vault connected - nothing to backup')
     }
     
-    // Save database metadata to .bluepdm folder if provided
+    // Save database metadata to .blueplm folder if provided
     if (config.metadataJson) {
       event.sender.send('backup:progress', { phase: 'Metadata', percent: 15, message: 'Saving database metadata...' })
       
-      const bluepdmDir = path.join(backupPath, '.bluepdm')
-      if (!fs.existsSync(bluepdmDir)) {
-        fs.mkdirSync(bluepdmDir, { recursive: true })
+      const blueplmDir = path.join(backupPath, '.blueplm')
+      if (!fs.existsSync(blueplmDir)) {
+        fs.mkdirSync(blueplmDir, { recursive: true })
       }
       
-      const metadataPath = path.join(bluepdmDir, 'database-export.json')
+      const metadataPath = path.join(blueplmDir, 'database-export.json')
       fs.writeFileSync(metadataPath, config.metadataJson, 'utf-8')
       log('Saved database metadata to: ' + metadataPath)
     }
@@ -3156,7 +3231,7 @@ ipcMain.handle('backup:run', async (event, config: {
       'backup',
       backupPath,
       '--json',
-      '--tag', 'bluepdm',
+      '--tag', 'blueplm',
       '--tag', 'files'  // Always includes files
     ]
     
@@ -3490,7 +3565,7 @@ ipcMain.handle('backup:restore', async (event, config: {
     log('Restore completed successfully')
     
     // Check if metadata file exists in restored data
-    const metadataPath = path.join(config.targetPath, '.bluepdm', 'database-export.json')
+    const metadataPath = path.join(config.targetPath, '.blueplm', 'database-export.json')
     let hasMetadata = false
     if (fs.existsSync(metadataPath)) {
       hasMetadata = true
@@ -3506,7 +3581,7 @@ ipcMain.handle('backup:restore', async (event, config: {
 
 // Read database metadata from a vault directory
 ipcMain.handle('backup:read-metadata', async (_, vaultPath: string) => {
-  const metadataPath = path.join(vaultPath, '.bluepdm', 'database-export.json')
+  const metadataPath = path.join(vaultPath, '.blueplm', 'database-export.json')
   
   if (!fs.existsSync(metadataPath)) {
     return { success: false, error: 'No metadata file found' }
@@ -3516,7 +3591,7 @@ ipcMain.handle('backup:read-metadata', async (_, vaultPath: string) => {
     const content = fs.readFileSync(metadataPath, 'utf-8')
     const data = JSON.parse(content)
     
-    if (data._type !== 'bluepdm_database_export') {
+    if (data._type !== 'blueplm_database_export') {
       return { success: false, error: 'Invalid metadata file format' }
     }
     
@@ -3899,8 +3974,8 @@ function startCliServer() {
   
   cliServer.listen(CLI_PORT, '127.0.0.1', () => {
     log(`[CLI Server] Listening on http://127.0.0.1:${CLI_PORT}`)
-    console.log(`\n📟 BluePDM CLI Server running on port ${CLI_PORT}`)
-    console.log(`   Use: node cli/bluepdm.js <command>\n`)
+    console.log(`\n📟 BluePLM CLI Server running on port ${CLI_PORT}`)
+    console.log(`   Use: node cli/blueplm.js <command>\n`)
   })
   
   cliServer.on('error', (err: NodeJS.ErrnoException) => {

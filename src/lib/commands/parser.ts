@@ -1789,7 +1789,7 @@ export async function executeTerminalCommand(
       const activeVault = connectedVaults.find(v => v.id === activeVaultId)
       
       addOutput('info', [
-        '🔧 BluePDM Environment',
+        '🔧 BluePLM Environment',
         `   Version: ${window.electronAPI ? 'Desktop' : 'Web'}`,
         `   Organization: ${organization?.name || 'None'}`,
         `   Active Vault: ${activeVault?.name || 'None'}`,
@@ -2757,7 +2757,7 @@ function formatHelp(command?: string): string {
   }
   
   return `
-📖 BluePDM Terminal Commands
+📖 BluePLM Terminal Commands
 
 PDM Operations:
   checkout <path>      Check out files (alias: co)

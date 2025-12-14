@@ -216,7 +216,7 @@ export function CompanyProfileSettings() {
 
   if (!organization) {
     return (
-      <div className="text-center py-12 text-pdm-fg-muted">
+      <div className="text-center py-12 text-plm-fg-muted">
         No organization connected
       </div>
     )
@@ -224,7 +224,7 @@ export function CompanyProfileSettings() {
 
   if (user?.role !== 'admin') {
     return (
-      <div className="text-center py-12 text-pdm-fg-muted">
+      <div className="text-center py-12 text-plm-fg-muted">
         Only administrators can manage company profile
       </div>
     )
@@ -233,7 +233,7 @@ export function CompanyProfileSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="animate-spin text-pdm-accent" size={24} />
+        <Loader2 className="animate-spin text-plm-accent" size={24} />
       </div>
     )
   }
@@ -241,10 +241,10 @@ export function CompanyProfileSettings() {
   return (
     <div className="space-y-6">
       {/* Company Logo */}
-      <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
-          <ImageIcon size={20} className="text-pdm-accent" />
-          <h3 className="text-base font-medium text-pdm-fg">Company Logo</h3>
+          <ImageIcon size={20} className="text-plm-accent" />
+          <h3 className="text-base font-medium text-plm-fg">Company Logo</h3>
         </div>
 
         <div className="flex items-start gap-4">
@@ -253,18 +253,18 @@ export function CompanyProfileSettings() {
               <img 
                 src={profile.logo_url} 
                 alt="Company logo" 
-                className="h-16 max-w-48 object-contain rounded border border-pdm-border bg-white p-2"
+                className="h-16 max-w-48 object-contain rounded border border-plm-border bg-white p-2"
               />
               <button
                 onClick={handleRemoveLogo}
-                className="absolute -top-2 -right-2 p-1 bg-pdm-error rounded-full text-white hover:bg-pdm-error/80"
+                className="absolute -top-2 -right-2 p-1 bg-plm-error rounded-full text-white hover:bg-plm-error/80"
                 title="Remove logo"
               >
                 <X size={12} />
               </button>
             </div>
           ) : (
-            <div className="h-16 w-32 bg-pdm-highlight rounded border border-dashed border-pdm-border flex items-center justify-center text-pdm-fg-muted">
+            <div className="h-16 w-32 bg-plm-highlight rounded border border-dashed border-plm-border flex items-center justify-center text-plm-fg-muted">
               <ImageIcon size={24} />
             </div>
           )}
@@ -285,7 +285,7 @@ export function CompanyProfileSettings() {
                 className="hidden"
               />
             </label>
-            <p className="text-xs text-pdm-fg-muted mt-1">
+            <p className="text-xs text-plm-fg-muted mt-1">
               PNG, JPG, or SVG. Max 2MB. Appears on RFQ documents.
             </p>
           </div>
@@ -293,114 +293,114 @@ export function CompanyProfileSettings() {
       </div>
 
       {/* Company Address */}
-      <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
-          <MapPin size={20} className="text-pdm-accent" />
-          <h3 className="text-base font-medium text-pdm-fg">Company Address</h3>
+          <MapPin size={20} className="text-plm-accent" />
+          <h3 className="text-base font-medium text-plm-fg">Company Address</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="text-sm text-pdm-fg-muted block mb-1">Address Line 1</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Address Line 1</label>
             <input
               type="text"
               value={profile.address_line1 || ''}
               onChange={(e) => updateField('address_line1', e.target.value)}
               placeholder="123 Main Street"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
           <div className="col-span-2">
-            <label className="text-sm text-pdm-fg-muted block mb-1">Address Line 2</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Address Line 2</label>
             <input
               type="text"
               value={profile.address_line2 || ''}
               onChange={(e) => updateField('address_line2', e.target.value)}
               placeholder="Suite 100"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-1">City</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">City</label>
             <input
               type="text"
               value={profile.city || ''}
               onChange={(e) => updateField('city', e.target.value)}
               placeholder="San Francisco"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-1">State/Province</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">State/Province</label>
             <input
               type="text"
               value={profile.state || ''}
               onChange={(e) => updateField('state', e.target.value)}
               placeholder="CA"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-1">Postal Code</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Postal Code</label>
             <input
               type="text"
               value={profile.postal_code || ''}
               onChange={(e) => updateField('postal_code', e.target.value)}
               placeholder="94102"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-1">Country</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Country</label>
             <input
               type="text"
               value={profile.country || ''}
               onChange={(e) => updateField('country', e.target.value)}
               placeholder="USA"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
         </div>
       </div>
 
       {/* Contact Information */}
-      <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
-          <Phone size={20} className="text-pdm-accent" />
-          <h3 className="text-base font-medium text-pdm-fg">Contact Information</h3>
+          <Phone size={20} className="text-plm-accent" />
+          <h3 className="text-base font-medium text-plm-fg">Contact Information</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-1">Phone</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Phone</label>
             <input
               type="text"
               value={profile.phone || ''}
               onChange={(e) => updateField('phone', e.target.value)}
               placeholder="+1 (555) 123-4567"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-1">Email</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Email</label>
             <input
               type="email"
               value={profile.contact_email || ''}
               onChange={(e) => updateField('contact_email', e.target.value)}
               placeholder="purchasing@company.com"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
           <div className="col-span-2">
-            <label className="text-sm text-pdm-fg-muted block mb-1">Website</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Website</label>
             <div className="relative">
-              <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-pdm-fg-muted" />
+              <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
               <input
                 type="url"
                 value={profile.website || ''}
                 onChange={(e) => updateField('website', e.target.value)}
                 placeholder="https://www.company.com"
-                className="w-full pl-9 pr-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                className="w-full pl-9 pr-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
               />
             </div>
           </div>

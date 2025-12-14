@@ -94,7 +94,7 @@ export function RFQSettings() {
 
   if (!organization) {
     return (
-      <div className="text-center py-12 text-pdm-fg-muted">
+      <div className="text-center py-12 text-plm-fg-muted">
         No organization connected
       </div>
     )
@@ -102,7 +102,7 @@ export function RFQSettings() {
 
   if (user?.role !== 'admin') {
     return (
-      <div className="text-center py-12 text-pdm-fg-muted">
+      <div className="text-center py-12 text-plm-fg-muted">
         Only administrators can manage RFQ settings
       </div>
     )
@@ -111,7 +111,7 @@ export function RFQSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="animate-spin text-pdm-accent" size={24} />
+        <Loader2 className="animate-spin text-plm-accent" size={24} />
       </div>
     )
   }
@@ -119,50 +119,50 @@ export function RFQSettings() {
   return (
     <div className="space-y-6">
       {/* RFQ Template Settings */}
-      <div className="p-4 bg-pdm-bg rounded-lg border border-pdm-border">
+      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
-          <FileText size={20} className="text-pdm-accent" />
-          <h3 className="text-base font-medium text-pdm-fg">RFQ Template Defaults</h3>
+          <FileText size={20} className="text-plm-accent" />
+          <h3 className="text-base font-medium text-plm-fg">RFQ Template Defaults</h3>
         </div>
 
         <div className="space-y-4">
           {/* Default values */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-sm text-pdm-fg-muted block mb-1">Payment Terms</label>
+              <label className="text-sm text-plm-fg-muted block mb-1">Payment Terms</label>
               <input
                 type="text"
                 value={settings.default_payment_terms}
                 onChange={(e) => updateSetting('default_payment_terms', e.target.value)}
                 placeholder="Net 30"
-                className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
               />
             </div>
             <div>
-              <label className="text-sm text-pdm-fg-muted block mb-1">Incoterms</label>
+              <label className="text-sm text-plm-fg-muted block mb-1">Incoterms</label>
               <input
                 type="text"
                 value={settings.default_incoterms}
                 onChange={(e) => updateSetting('default_incoterms', e.target.value)}
                 placeholder="FOB"
-                className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
               />
             </div>
             <div>
-              <label className="text-sm text-pdm-fg-muted block mb-1">Quote Valid (days)</label>
+              <label className="text-sm text-plm-fg-muted block mb-1">Quote Valid (days)</label>
               <input
                 type="number"
                 value={settings.default_valid_days}
                 onChange={(e) => updateSetting('default_valid_days', parseInt(e.target.value) || 30)}
                 min="1"
-                className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg focus:outline-none focus:border-pdm-accent"
+                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
               />
             </div>
           </div>
 
           {/* Column visibility */}
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-2">RFQ Document Columns</label>
+            <label className="text-sm text-plm-fg-muted block mb-2">RFQ Document Columns</label>
             <div className="grid grid-cols-2 gap-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -171,7 +171,7 @@ export function RFQSettings() {
                   onChange={(e) => updateSetting('show_company_logo', e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm text-pdm-fg">Show company logo</span>
+                <span className="text-sm text-plm-fg">Show company logo</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -180,7 +180,7 @@ export function RFQSettings() {
                   onChange={(e) => updateSetting('show_revision_column', e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm text-pdm-fg">Show revision column</span>
+                <span className="text-sm text-plm-fg">Show revision column</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -189,7 +189,7 @@ export function RFQSettings() {
                   onChange={(e) => updateSetting('show_material_column', e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm text-pdm-fg">Show material column</span>
+                <span className="text-sm text-plm-fg">Show material column</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -198,7 +198,7 @@ export function RFQSettings() {
                   onChange={(e) => updateSetting('show_finish_column', e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm text-pdm-fg">Show finish column</span>
+                <span className="text-sm text-plm-fg">Show finish column</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -207,32 +207,32 @@ export function RFQSettings() {
                   onChange={(e) => updateSetting('show_notes_column', e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm text-pdm-fg">Show notes column</span>
+                <span className="text-sm text-plm-fg">Show notes column</span>
               </label>
             </div>
           </div>
 
           {/* Terms and conditions */}
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-1">Terms and Conditions</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Terms and Conditions</label>
             <textarea
               value={settings.terms_and_conditions}
               onChange={(e) => updateSetting('terms_and_conditions', e.target.value)}
               rows={4}
               placeholder="Enter standard terms and conditions for RFQ documents..."
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent resize-none"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent resize-none"
             />
           </div>
 
           {/* Footer text */}
           <div>
-            <label className="text-sm text-pdm-fg-muted block mb-1">Footer Text</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">Footer Text</label>
             <input
               type="text"
               value={settings.footer_text}
               onChange={(e) => updateSetting('footer_text', e.target.value)}
               placeholder="Custom footer text for RFQ documents"
-              className="w-full px-3 py-2 bg-pdm-input border border-pdm-border rounded text-sm text-pdm-fg placeholder:text-pdm-fg-muted/50 focus:outline-none focus:border-pdm-accent"
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
             />
           </div>
         </div>

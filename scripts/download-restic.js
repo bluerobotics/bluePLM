@@ -255,7 +255,7 @@ async function downloadPlatform(platform) {
 }
 
 async function main() {
-  log('\n🔧 Downloading restic binaries for BluePDM\n', 'blue')
+  log('\n🔧 Downloading restic binaries for BluePLM\n', 'blue')
   log(`   Version: ${RESTIC_VERSION}`, 'yellow')
   log('')
   

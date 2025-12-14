@@ -38,7 +38,7 @@ function FileIcon({ extension, size = 16 }: { extension: string; size?: number }
       case 'drawing': return 'text-purple-500'
       case 'step': return 'text-green-500'
       case 'pdf': return 'text-red-500'
-      default: return 'text-pdm-fg-muted'
+      default: return 'text-plm-fg-muted'
     }
   }
   
@@ -566,7 +566,7 @@ export function TrashView() {
 
   if (!isVaultConnected) {
     return (
-      <div className="p-4 text-sm text-pdm-fg-muted text-center">
+      <div className="p-4 text-sm text-plm-fg-muted text-center">
         Open a vault to view trash
       </div>
     )
@@ -574,7 +574,7 @@ export function TrashView() {
 
   if (!organization) {
     return (
-      <div className="p-4 text-sm text-pdm-fg-muted text-center">
+      <div className="p-4 text-sm text-plm-fg-muted text-center">
         Sign in to view trash
       </div>
     )
@@ -583,9 +583,9 @@ export function TrashView() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-3 border-b border-pdm-border space-y-2">
+      <div className="p-3 border-b border-plm-border space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-pdm-fg-muted">
+          <div className="flex items-center gap-2 text-sm text-plm-fg-muted">
             <Trash2 size={16} />
             <span>
               {viewMode === 'files' ? (
@@ -605,13 +605,13 @@ export function TrashView() {
           </div>
           <div className="flex items-center gap-1">
             {/* View mode toggle - three options */}
-            <div className="flex items-center bg-pdm-bg rounded border border-pdm-border">
+            <div className="flex items-center bg-plm-bg rounded border border-plm-border">
               <button
                 onClick={() => setViewMode('files')}
                 className={`p-1 rounded-l transition-colors ${
                   viewMode === 'files'
-                    ? 'bg-pdm-accent/20 text-pdm-accent'
-                    : 'hover:bg-pdm-bg-light text-pdm-fg-muted hover:text-pdm-fg'
+                    ? 'bg-plm-accent/20 text-plm-accent'
+                    : 'hover:bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg'
                 }`}
                 title="File view - show only deleted files"
               >
@@ -619,10 +619,10 @@ export function TrashView() {
               </button>
               <button
                 onClick={() => setViewMode('folders')}
-                className={`p-1 border-x border-pdm-border transition-colors ${
+                className={`p-1 border-x border-plm-border transition-colors ${
                   viewMode === 'folders'
-                    ? 'bg-pdm-accent/20 text-pdm-accent'
-                    : 'hover:bg-pdm-bg-light text-pdm-fg-muted hover:text-pdm-fg'
+                    ? 'bg-plm-accent/20 text-plm-accent'
+                    : 'hover:bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg'
                 }`}
                 title="Folder view - show only deleted folders"
               >
@@ -632,8 +632,8 @@ export function TrashView() {
                 onClick={() => setViewMode('nested')}
                 className={`p-1 rounded-r transition-colors ${
                   viewMode === 'nested'
-                    ? 'bg-pdm-accent/20 text-pdm-accent'
-                    : 'hover:bg-pdm-bg-light text-pdm-fg-muted hover:text-pdm-fg'
+                    ? 'bg-plm-accent/20 text-plm-accent'
+                    : 'hover:bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg'
                 }`}
                 title="Nested view - show files in folder hierarchy"
               >
@@ -644,8 +644,8 @@ export function TrashView() {
               onClick={() => setShowFilters(!showFilters)}
               className={`p-1 rounded transition-colors ${
                 showFilters || hasActiveFilters
-                  ? 'bg-pdm-accent/20 text-pdm-accent'
-                  : 'hover:bg-pdm-bg-light text-pdm-fg-muted hover:text-pdm-fg'
+                  ? 'bg-plm-accent/20 text-plm-accent'
+                  : 'hover:bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg'
               }`}
               title="Filters"
             >
@@ -653,7 +653,7 @@ export function TrashView() {
             </button>
             <button
               onClick={loadDeletedFiles}
-              className="p-1 hover:bg-pdm-bg-light rounded text-pdm-fg-muted hover:text-pdm-fg"
+              className="p-1 hover:bg-plm-bg-light rounded text-plm-fg-muted hover:text-plm-fg"
               title="Refresh"
             >
               <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
@@ -663,18 +663,18 @@ export function TrashView() {
         
         {/* Search input */}
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-pdm-fg-muted" />
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search deleted files..."
-            className="w-full pl-8 pr-8 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+            className="w-full pl-8 pr-8 py-1.5 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-pdm-fg-muted hover:text-pdm-fg"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
             >
               <X size={14} />
             </button>
@@ -687,11 +687,11 @@ export function TrashView() {
             {/* Deleted by filter */}
             {deletedByUsers.length > 0 && (
               <div>
-                <label className="text-xs text-pdm-fg-muted mb-1 block">Deleted by</label>
+                <label className="text-xs text-plm-fg-muted mb-1 block">Deleted by</label>
                 <select
                   value={deletedByFilter || ''}
                   onChange={(e) => setDeletedByFilter(e.target.value || null)}
-                  className="w-full px-2 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+                  className="w-full px-2 py-1.5 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
                 >
                   <option value="">All users</option>
                   {deletedByUsers.map(u => (
@@ -704,11 +704,11 @@ export function TrashView() {
             {/* Folder filter */}
             {folderPaths.length > 0 && (
               <div>
-                <label className="text-xs text-pdm-fg-muted mb-1 block">Folder</label>
+                <label className="text-xs text-plm-fg-muted mb-1 block">Folder</label>
                 <select
                   value={folderFilter || ''}
                   onChange={(e) => setFolderFilter(e.target.value || null)}
-                  className="w-full px-2 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+                  className="w-full px-2 py-1.5 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
                 >
                   <option value="">All folders</option>
                   {folderPaths.map(path => (
@@ -721,11 +721,11 @@ export function TrashView() {
             {/* Vault filter */}
             {connectedVaults.length > 1 && (
               <div>
-                <label className="text-xs text-pdm-fg-muted mb-1 block">Vault</label>
+                <label className="text-xs text-plm-fg-muted mb-1 block">Vault</label>
                 <select
                   value={vaultFilter || ''}
                   onChange={(e) => setVaultFilter(e.target.value || null)}
-                  className="w-full px-2 py-1.5 text-sm bg-pdm-bg border border-pdm-border rounded focus:outline-none focus:border-pdm-accent"
+                  className="w-full px-2 py-1.5 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
                 >
                   <option value="">Current vault ({currentVault?.name || 'None'})</option>
                   <option value="all">All vaults</option>
@@ -740,7 +740,7 @@ export function TrashView() {
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="text-xs text-pdm-accent hover:text-pdm-accent/80"
+                className="text-xs text-plm-accent hover:text-plm-accent/80"
               >
                 Clear all filters
               </button>
@@ -752,28 +752,28 @@ export function TrashView() {
         {hasActiveFilters && !showFilters && (
           <div className="flex flex-wrap gap-1.5">
             {deletedByFilter && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-pdm-accent/20 text-pdm-accent rounded">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-plm-accent/20 text-plm-accent rounded">
                 <User size={10} />
                 {deletedByUsers.find(u => u.id === deletedByFilter)?.name}
-                <button onClick={() => setDeletedByFilter(null)} className="hover:text-pdm-fg">
+                <button onClick={() => setDeletedByFilter(null)} className="hover:text-plm-fg">
                   <X size={10} />
                 </button>
               </span>
             )}
             {folderFilter && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-pdm-accent/20 text-pdm-accent rounded">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-plm-accent/20 text-plm-accent rounded">
                 <FolderOpen size={10} />
                 {folderFilter.split('/').pop()}
-                <button onClick={() => setFolderFilter(null)} className="hover:text-pdm-fg">
+                <button onClick={() => setFolderFilter(null)} className="hover:text-plm-fg">
                   <X size={10} />
                 </button>
               </span>
             )}
             {vaultFilter && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-pdm-accent/20 text-pdm-accent rounded">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-plm-accent/20 text-plm-accent rounded">
                 <Database size={10} />
                 {vaultFilter === 'all' ? 'All vaults' : connectedVaults.find(v => v.id === vaultFilter)?.name}
-                <button onClick={() => setVaultFilter(null)} className="hover:text-pdm-fg">
+                <button onClick={() => setVaultFilter(null)} className="hover:text-plm-fg">
                   <X size={10} />
                 </button>
               </span>
@@ -782,7 +782,7 @@ export function TrashView() {
         )}
         
         {currentVault && !trashFolderFilter && !hasActiveFilters && (
-          <div className="flex items-center gap-1.5 text-xs text-pdm-fg-muted">
+          <div className="flex items-center gap-1.5 text-xs text-plm-fg-muted">
             <FolderOpen size={12} />
             <span className="truncate">{currentVault.name}</span>
           </div>
@@ -790,14 +790,14 @@ export function TrashView() {
         
         {/* External folder filter indicator (from file browser) */}
         {trashFolderFilter && (
-          <div className="flex items-center gap-2 p-2 bg-pdm-bg-light rounded border border-pdm-border">
-            <FolderOpen size={14} className="text-pdm-accent flex-shrink-0" />
+          <div className="flex items-center gap-2 p-2 bg-plm-bg-light rounded border border-plm-border">
+            <FolderOpen size={14} className="text-plm-accent flex-shrink-0" />
             <span className="text-sm truncate flex-1" title={trashFolderFilter}>
               {trashFolderFilter.split('/').pop() || trashFolderFilter}
             </span>
             <button
               onClick={() => setTrashFolderFilter(null)}
-              className="p-0.5 hover:bg-pdm-bg rounded text-pdm-fg-muted hover:text-pdm-fg"
+              className="p-0.5 hover:bg-plm-bg rounded text-plm-fg-muted hover:text-plm-fg"
               title="Show all deleted files"
             >
               <X size={14} />
@@ -808,15 +808,15 @@ export function TrashView() {
       
       {/* Action buttons */}
       {currentViewItems.length > 0 && (
-        <div className="p-2 border-b border-pdm-border space-y-2">
+        <div className="p-2 border-b border-plm-border space-y-2">
           {/* Select All row */}
           <div className="flex items-center gap-2">
             <button
               onClick={selectAll}
               className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors ${
                 allSelected 
-                  ? 'bg-pdm-accent/20 text-pdm-accent' 
-                  : 'hover:bg-pdm-bg-light text-pdm-fg-muted hover:text-pdm-fg'
+                  ? 'bg-plm-accent/20 text-plm-accent' 
+                  : 'hover:bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg'
               }`}
             >
               <input
@@ -824,14 +824,14 @@ export function TrashView() {
                 checked={allSelected}
                 ref={(el) => { if (el) el.indeterminate = someSelected }}
                 onChange={selectAll}
-                className="w-3.5 h-3.5 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent focus:ring-offset-0 cursor-pointer"
+                className="w-3.5 h-3.5 rounded border-plm-border text-plm-accent focus:ring-plm-accent focus:ring-offset-0 cursor-pointer"
               />
               <span>Select All ({currentViewItems.length})</span>
             </button>
             {selectedFiles.size > 0 && (
               <button
                 onClick={() => setSelectedFiles(new Set())}
-                className="text-xs text-pdm-fg-muted hover:text-pdm-fg"
+                className="text-xs text-plm-fg-muted hover:text-plm-fg"
               >
                 Clear
               </button>
@@ -845,7 +845,7 @@ export function TrashView() {
               disabled={selectedFiles.size === 0 || isRestoring}
               className={`flex-1 text-xs py-2 px-3 rounded-md flex items-center justify-center gap-1.5 font-medium transition-colors ${
                 selectedFiles.size === 0
-                  ? 'bg-pdm-bg-light text-pdm-fg-muted cursor-not-allowed opacity-50'
+                  ? 'bg-plm-bg-light text-plm-fg-muted cursor-not-allowed opacity-50'
                   : 'bg-green-600 hover:bg-green-700 text-white'
               } disabled:opacity-50`}
             >
@@ -861,8 +861,8 @@ export function TrashView() {
               disabled={selectedFiles.size === 0 || isDeleting}
               className={`flex-1 text-xs py-2 px-3 rounded-md flex items-center justify-center gap-1.5 font-medium transition-colors ${
                 selectedFiles.size === 0
-                  ? 'bg-pdm-bg-light text-pdm-fg-muted cursor-not-allowed opacity-50'
-                  : 'bg-pdm-error hover:bg-pdm-error/80 text-white'
+                  ? 'bg-plm-bg-light text-plm-fg-muted cursor-not-allowed opacity-50'
+                  : 'bg-plm-error hover:bg-plm-error/80 text-white'
               } disabled:opacity-50`}
             >
               {isDeleting ? (
@@ -883,20 +883,20 @@ export function TrashView() {
             <div className="spinner" />
           </div>
         ) : deletedFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-pdm-fg-muted">
+          <div className="flex flex-col items-center justify-center py-12 text-plm-fg-muted">
             <FileBox size={48} className="opacity-30 mb-3" />
             <p className="text-sm">Trash is empty</p>
             <p className="text-xs mt-1 opacity-70">Deleted files appear here</p>
           </div>
         ) : filteredFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-pdm-fg-muted">
+          <div className="flex flex-col items-center justify-center py-12 text-plm-fg-muted">
             <Search size={48} className="opacity-30 mb-3" />
             <p className="text-sm">No matching files</p>
             <p className="text-xs mt-1 opacity-70">Try adjusting your search or filters</p>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="mt-2 text-xs text-pdm-accent hover:text-pdm-accent/80"
+                className="mt-2 text-xs text-plm-accent hover:text-plm-accent/80"
               >
                 Clear filters
               </button>
@@ -906,7 +906,7 @@ export function TrashView() {
           /* File view - only show deleted files (not folders) */
           <div className="py-1">
             {filesSortedByTime.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-pdm-fg-muted">
+              <div className="flex flex-col items-center justify-center py-12 text-plm-fg-muted">
                 <FileText size={48} className="opacity-30 mb-3" />
                 <p className="text-sm">No deleted files</p>
                 <p className="text-xs mt-1 opacity-70">Only folders are in the trash</p>
@@ -922,8 +922,8 @@ export function TrashView() {
                     onClick={(e) => toggleFileSelection(file.id, e.shiftKey, e.ctrlKey || e.metaKey)}
                     className={`px-3 py-2 cursor-pointer border-l-2 transition-colors ${
                       isSelected
-                        ? 'bg-pdm-accent/10 border-pdm-accent'
-                        : 'hover:bg-pdm-bg-light border-transparent'
+                        ? 'bg-plm-accent/10 border-plm-accent'
+                        : 'hover:bg-plm-bg-light border-transparent'
                     }`}
                   >
                     <div className="flex items-start gap-2">
@@ -932,17 +932,17 @@ export function TrashView() {
                         checked={isSelected}
                         onChange={() => toggleFileSelection(file.id, false, true)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-3.5 h-3.5 mt-0.5 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent focus:ring-offset-0 cursor-pointer flex-shrink-0"
+                        className="w-3.5 h-3.5 mt-0.5 rounded border-plm-border text-plm-accent focus:ring-plm-accent focus:ring-offset-0 cursor-pointer flex-shrink-0"
                       />
                       <FileIcon extension={file.extension} size={16} />
                       <div className="flex-1 min-w-0 overflow-hidden">
-                        <div className="text-sm text-pdm-fg truncate" title={file.file_name}>
+                        <div className="text-sm text-plm-fg truncate" title={file.file_name}>
                           {file.file_name}
                         </div>
-                        <div className="text-xs text-pdm-fg-muted truncate mt-0.5" title={file.file_path}>
+                        <div className="text-xs text-plm-fg-muted truncate mt-0.5" title={file.file_path}>
                           {file.file_path}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-pdm-fg-muted mt-1">
+                        <div className="flex items-center gap-3 text-xs text-plm-fg-muted mt-1">
                           <span className="flex items-center gap-1">
                             <Clock size={10} />
                             {formatDistanceToNow(new Date(file.deleted_at), { addSuffix: true })}
@@ -956,7 +956,7 @@ export function TrashView() {
                         </div>
                         {daysRemaining <= 7 && (
                           <div className={`flex items-center gap-1 text-xs mt-1 ${
-                            daysRemaining <= 3 ? 'text-pdm-error' : 'text-pdm-warning'
+                            daysRemaining <= 3 ? 'text-plm-error' : 'text-plm-warning'
                           }`}>
                             <AlertTriangle size={10} />
                             {daysRemaining === 0 
@@ -976,7 +976,7 @@ export function TrashView() {
           /* Folder view - show top-level folders extracted from deleted files */
           <div className="py-1">
             {topLevelFolders.length === 0 && deletedFoldersOnly.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-pdm-fg-muted">
+              <div className="flex flex-col items-center justify-center py-12 text-plm-fg-muted">
                 <Folder size={48} className="opacity-30 mb-3" />
                 <p className="text-sm">No deleted folders</p>
                 <p className="text-xs mt-1 opacity-70">Only root-level files are in the trash</p>
@@ -994,8 +994,8 @@ export function TrashView() {
                       onClick={(e) => toggleFileSelection(folder.id, e.shiftKey, e.ctrlKey || e.metaKey)}
                       className={`px-3 py-2 cursor-pointer border-l-2 transition-colors ${
                         isSelected
-                          ? 'bg-pdm-accent/10 border-pdm-accent'
-                          : 'hover:bg-pdm-bg-light border-transparent'
+                          ? 'bg-plm-accent/10 border-plm-accent'
+                          : 'hover:bg-plm-bg-light border-transparent'
                       }`}
                     >
                       <div className="flex items-start gap-2">
@@ -1004,17 +1004,17 @@ export function TrashView() {
                           checked={isSelected}
                           onChange={() => toggleFileSelection(folder.id, false, true)}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-3.5 h-3.5 mt-0.5 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent focus:ring-offset-0 cursor-pointer flex-shrink-0"
+                          className="w-3.5 h-3.5 mt-0.5 rounded border-plm-border text-plm-accent focus:ring-plm-accent focus:ring-offset-0 cursor-pointer flex-shrink-0"
                         />
                         <FolderOpen size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0 overflow-hidden">
-                          <div className="text-sm text-pdm-fg truncate" title={folder.file_name}>
+                          <div className="text-sm text-plm-fg truncate" title={folder.file_name}>
                             {folder.file_name}
                           </div>
-                          <div className="text-xs text-pdm-fg-muted truncate mt-0.5" title={folder.file_path}>
+                          <div className="text-xs text-plm-fg-muted truncate mt-0.5" title={folder.file_path}>
                             {folder.file_path}
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-pdm-fg-muted mt-1">
+                          <div className="flex items-center gap-3 text-xs text-plm-fg-muted mt-1">
                             <span className="flex items-center gap-1">
                               <Clock size={10} />
                               {formatDistanceToNow(new Date(folder.deleted_at), { addSuffix: true })}
@@ -1028,7 +1028,7 @@ export function TrashView() {
                           </div>
                           {daysRemaining <= 7 && (
                             <div className={`flex items-center gap-1 text-xs mt-1 ${
-                              daysRemaining <= 3 ? 'text-pdm-error' : 'text-pdm-warning'
+                              daysRemaining <= 3 ? 'text-plm-error' : 'text-plm-warning'
                             }`}>
                               <AlertTriangle size={10} />
                               {daysRemaining === 0 
@@ -1077,10 +1077,10 @@ export function TrashView() {
                       onClick={handleFolderClick}
                       className={`px-3 py-2 cursor-pointer border-l-2 transition-colors ${
                         allFilesSelected
-                          ? 'bg-pdm-accent/10 border-pdm-accent'
+                          ? 'bg-plm-accent/10 border-plm-accent'
                           : someFilesSelected
-                          ? 'bg-pdm-accent/5 border-pdm-accent/50'
-                          : 'hover:bg-pdm-bg-light border-transparent'
+                          ? 'bg-plm-accent/5 border-plm-accent/50'
+                          : 'hover:bg-plm-bg-light border-transparent'
                       }`}
                     >
                       <div className="flex items-start gap-2">
@@ -1090,17 +1090,17 @@ export function TrashView() {
                           ref={(el) => { if (el) el.indeterminate = someFilesSelected }}
                           onChange={handleFolderClick}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-3.5 h-3.5 mt-0.5 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent focus:ring-offset-0 cursor-pointer flex-shrink-0"
+                          className="w-3.5 h-3.5 mt-0.5 rounded border-plm-border text-plm-accent focus:ring-plm-accent focus:ring-offset-0 cursor-pointer flex-shrink-0"
                         />
                         <FolderOpen size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0 overflow-hidden">
-                          <div className="text-sm text-pdm-fg truncate flex items-center gap-2" title={folder.name}>
+                          <div className="text-sm text-plm-fg truncate flex items-center gap-2" title={folder.name}>
                             {folder.name}
-                            <span className="text-xs text-pdm-fg-muted">
+                            <span className="text-xs text-plm-fg-muted">
                               ({folder.count} file{folder.count !== 1 ? 's' : ''})
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-pdm-fg-muted mt-1">
+                          <div className="flex items-center gap-3 text-xs text-plm-fg-muted mt-1">
                             <span className="flex items-center gap-1">
                               <Clock size={10} />
                               {formatDistanceToNow(new Date(folder.latestDelete), { addSuffix: true })}
@@ -1114,7 +1114,7 @@ export function TrashView() {
                           </div>
                           {daysRemaining <= 7 && (
                             <div className={`flex items-center gap-1 text-xs mt-1 ${
-                              daysRemaining <= 3 ? 'text-pdm-error' : 'text-pdm-warning'
+                              daysRemaining <= 3 ? 'text-plm-error' : 'text-plm-warning'
                             }`}>
                               <AlertTriangle size={10} />
                               {daysRemaining === 0 
@@ -1135,7 +1135,7 @@ export function TrashView() {
           /* Nested view - show files grouped by folder hierarchy */
           <div className="py-1">
             {groupedByFolder.size === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-pdm-fg-muted">
+              <div className="flex flex-col items-center justify-center py-12 text-plm-fg-muted">
                 <Network size={48} className="opacity-30 mb-3" />
                 <p className="text-sm">No deleted files to organize</p>
                 <p className="text-xs mt-1 opacity-70">Files will appear in their folder hierarchy</p>
@@ -1157,15 +1157,15 @@ export function TrashView() {
                       style={{ paddingLeft: `${8 + indentPx}px` }}
                       className={`pr-2 py-1.5 flex items-center gap-1.5 cursor-pointer border-l-2 transition-colors ${
                         folderSelected
-                          ? 'bg-pdm-accent/10 border-pdm-accent'
+                          ? 'bg-plm-accent/10 border-plm-accent'
                           : folderPartial
-                          ? 'bg-pdm-accent/5 border-pdm-accent/50'
-                          : 'hover:bg-pdm-bg-light border-transparent'
+                          ? 'bg-plm-accent/5 border-plm-accent/50'
+                          : 'hover:bg-plm-bg-light border-transparent'
                       }`}
                     >
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleFolderExpand(folder) }}
-                        className="p-0.5 hover:bg-pdm-bg rounded text-pdm-fg-muted"
+                        className="p-0.5 hover:bg-plm-bg rounded text-plm-fg-muted"
                       >
                         {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       </button>
@@ -1174,17 +1174,17 @@ export function TrashView() {
                         checked={folderSelected}
                         ref={(el) => { if (el) el.indeterminate = folderPartial }}
                         onChange={() => selectFolder(folder)}
-                        className="w-3.5 h-3.5 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent focus:ring-offset-0 cursor-pointer"
+                        className="w-3.5 h-3.5 rounded border-plm-border text-plm-accent focus:ring-plm-accent focus:ring-offset-0 cursor-pointer"
                       />
                       <div
                         onClick={() => selectFolder(folder)}
                         className="flex-1 flex items-center gap-1.5 min-w-0"
                       >
-                        <FolderOpen size={14} className={`flex-shrink-0 ${recursiveCount === 0 ? 'text-pdm-fg-muted/50' : 'text-pdm-fg-muted'}`} />
-                        <span className={`text-sm truncate ${recursiveCount === 0 ? 'text-pdm-fg-muted' : 'text-pdm-fg'}`} title={folder}>
+                        <FolderOpen size={14} className={`flex-shrink-0 ${recursiveCount === 0 ? 'text-plm-fg-muted/50' : 'text-plm-fg-muted'}`} />
+                        <span className={`text-sm truncate ${recursiveCount === 0 ? 'text-plm-fg-muted' : 'text-plm-fg'}`} title={folder}>
                           {folderName}
                         </span>
-                        <span className="text-xs text-pdm-fg-muted">
+                        <span className="text-xs text-plm-fg-muted">
                           ({recursiveCount}{files.length > 0 ? ` here` : ''}{recursiveCount === 0 ? ' - empty' : ''})
                         </span>
                       </div>
@@ -1203,8 +1203,8 @@ export function TrashView() {
                           style={{ paddingLeft: `${fileIndentPx}px` }}
                           className={`pr-3 py-2 cursor-pointer border-l-2 transition-colors ${
                             isSelected
-                              ? 'bg-pdm-accent/10 border-pdm-accent'
-                              : 'hover:bg-pdm-bg-light border-transparent'
+                              ? 'bg-plm-accent/10 border-plm-accent'
+                              : 'hover:bg-plm-bg-light border-transparent'
                           }`}
                         >
                           <div className="flex items-start gap-2">
@@ -1213,14 +1213,14 @@ export function TrashView() {
                               checked={isSelected}
                               onChange={() => toggleFileSelection(file.id, false, true)}
                               onClick={(e) => e.stopPropagation()}
-                              className="w-3.5 h-3.5 mt-0.5 rounded border-pdm-border text-pdm-accent focus:ring-pdm-accent focus:ring-offset-0 cursor-pointer flex-shrink-0"
+                              className="w-3.5 h-3.5 mt-0.5 rounded border-plm-border text-plm-accent focus:ring-plm-accent focus:ring-offset-0 cursor-pointer flex-shrink-0"
                             />
                             <FileIcon extension={file.extension} size={16} />
                             <div className="flex-1 min-w-0 overflow-hidden">
-                              <div className="text-sm text-pdm-fg truncate" title={file.file_name}>
+                              <div className="text-sm text-plm-fg truncate" title={file.file_name}>
                                 {file.file_name}
                               </div>
-                              <div className="flex items-center gap-3 text-xs text-pdm-fg-muted mt-1">
+                              <div className="flex items-center gap-3 text-xs text-plm-fg-muted mt-1">
                                 <span className="flex items-center gap-1">
                                   <Clock size={10} />
                                   {formatDistanceToNow(new Date(file.deleted_at), { addSuffix: true })}
@@ -1234,7 +1234,7 @@ export function TrashView() {
                               </div>
                               {daysRemaining <= 7 && (
                                 <div className={`flex items-center gap-1 text-xs mt-1 ${
-                                  daysRemaining <= 3 ? 'text-pdm-error' : 'text-pdm-warning'
+                                  daysRemaining <= 3 ? 'text-plm-error' : 'text-plm-warning'
                                 }`}>
                                   <AlertTriangle size={10} />
                                   {daysRemaining === 0 
@@ -1258,15 +1258,15 @@ export function TrashView() {
       
       {/* Footer - Empty Trash */}
       {deletedFiles.length > 0 && (
-        <div className="p-2 border-t border-pdm-border">
+        <div className="p-2 border-t border-plm-border">
           <button
             onClick={() => setShowEmptyConfirm(true)}
-            className="w-full btn text-xs py-1.5 bg-pdm-error/10 text-pdm-error hover:bg-pdm-error/20 flex items-center justify-center gap-1.5"
+            className="w-full btn text-xs py-1.5 bg-plm-error/10 text-plm-error hover:bg-plm-error/20 flex items-center justify-center gap-1.5"
           >
             <Trash2 size={12} />
             Empty Trash
           </button>
-          <p className="text-[10px] text-pdm-fg-muted text-center mt-1.5">
+          <p className="text-[10px] text-plm-fg-muted text-center mt-1.5">
             Files are automatically deleted after 30 days
           </p>
         </div>
@@ -1276,16 +1276,16 @@ export function TrashView() {
       {showEmptyConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEmptyConfirm(false)} />
-          <div className="relative bg-pdm-bg-light border border-pdm-error/50 rounded-xl shadow-2xl w-[400px] overflow-hidden">
+          <div className="relative bg-plm-bg-light border border-plm-error/50 rounded-xl shadow-2xl w-[400px] overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-pdm-border bg-pdm-error/10">
+            <div className="p-4 border-b border-plm-border bg-plm-error/10">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-pdm-error/20 rounded-full">
-                  <AlertTriangle size={24} className="text-pdm-error" />
+                <div className="p-2 bg-plm-error/20 rounded-full">
+                  <AlertTriangle size={24} className="text-plm-error" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-pdm-fg">Empty Trash</h3>
-                  <p className="text-sm text-pdm-fg-muted">
+                  <h3 className="text-lg font-semibold text-plm-fg">Empty Trash</h3>
+                  <p className="text-sm text-plm-fg-muted">
                     {deletedFiles.length} file{deletedFiles.length !== 1 ? 's' : ''} will be permanently deleted
                   </p>
                 </div>
@@ -1294,15 +1294,15 @@ export function TrashView() {
             
             {/* Content */}
             <div className="p-6">
-              <div className="p-4 bg-pdm-error/10 border border-pdm-error/30 rounded-lg">
-                <p className="text-sm text-pdm-fg">
+              <div className="p-4 bg-plm-error/10 border border-plm-error/30 rounded-lg">
+                <p className="text-sm text-plm-fg">
                   <strong>Warning:</strong> This action cannot be undone. All files in the trash will be permanently deleted.
                 </p>
               </div>
             </div>
             
             {/* Actions */}
-            <div className="p-4 border-t border-pdm-border bg-pdm-bg flex justify-end gap-3">
+            <div className="p-4 border-t border-plm-border bg-plm-bg flex justify-end gap-3">
               <button
                 onClick={() => setShowEmptyConfirm(false)}
                 className="btn btn-ghost"
@@ -1313,7 +1313,7 @@ export function TrashView() {
               <button
                 onClick={handleEmptyTrash}
                 disabled={isEmptying}
-                className="btn bg-pdm-error hover:bg-pdm-error/80 text-white disabled:opacity-50 flex items-center gap-2"
+                className="btn bg-plm-error hover:bg-plm-error/80 text-white disabled:opacity-50 flex items-center gap-2"
               >
                 {isEmptying ? (
                   <>
