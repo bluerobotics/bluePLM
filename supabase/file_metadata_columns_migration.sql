@@ -63,3 +63,4 @@ CREATE POLICY "Admins can delete metadata columns"
   ON file_metadata_columns FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+

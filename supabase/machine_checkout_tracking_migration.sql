@@ -16,3 +16,4 @@ WHERE checked_out_by_machine_id IS NOT NULL;
 COMMENT ON COLUMN files.checked_out_by_machine_id IS 'Machine ID that checked out the file (for multi-device user scenarios)';
 COMMENT ON COLUMN files.checked_out_by_machine_name IS 'Machine name for display purposes';
 
+

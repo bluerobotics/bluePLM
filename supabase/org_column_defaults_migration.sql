@@ -58,3 +58,4 @@ $$;
 GRANT EXECUTE ON FUNCTION get_org_column_defaults(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION set_org_column_defaults(UUID, JSONB) TO authenticated;
 
+
