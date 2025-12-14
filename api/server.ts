@@ -498,9 +498,10 @@ function parseXmlRpcResponse(xml: string): unknown {
     throw new Error(`Odoo fault: ${faultMatch[1]}`)
   }
   
-  // Extract value from params
-  const valueMatch = xml.match(/<params>\s*<param>\s*<value>([\s\S]*?)<\/value>\s*<\/param>\s*<\/params>/)
-  if (!valueMatch) {
+  // Extract the content between <param><value> and </value></param>
+  // Use a more robust approach - find the param section first
+  const paramMatch = xml.match(/<params>\s*<param>\s*<value>([\s\S]+)<\/value>\s*<\/param>\s*<\/params>/)
+  if (!paramMatch) {
     // Check if it's a simple response
     const simpleMatch = xml.match(/<value>[\s\S]*?<(int|boolean|string)>([^<]*)</)
     if (simpleMatch) {
@@ -511,7 +512,35 @@ function parseXmlRpcResponse(xml: string): unknown {
     throw new Error('Invalid XML-RPC response')
   }
   
-  return parseXmlValue(valueMatch[1])
+  // Get the inner content - need to handle nested value tags properly
+  // The content is between the first <value> after <param> and the last </value> before </param>
+  let innerContent = paramMatch[1]
+  
+  // Remove trailing content after the matching </value> (greedy match may include too much)
+  // Count <value> and </value> tags to find the right closing tag
+  let depth = 1
+  let endIndex = 0
+  let i = 0
+  while (i < innerContent.length && depth > 0) {
+    if (innerContent.substring(i).startsWith('<value>')) {
+      depth++
+      i += 7
+    } else if (innerContent.substring(i).startsWith('</value>')) {
+      depth--
+      if (depth === 0) {
+        endIndex = i
+      }
+      i += 8
+    } else {
+      i++
+    }
+  }
+  
+  if (endIndex > 0) {
+    innerContent = innerContent.substring(0, endIndex)
+  }
+  
+  return parseXmlValue(innerContent)
 }
 
 function parseXmlValue(valueXml: string): unknown {

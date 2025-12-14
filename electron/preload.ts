@@ -285,6 +285,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:pack-and-go', filePath, outputFolder, options),
   },
   
+  // RFQ Release Files API
+  rfq: {
+    getOutputDir: (rfqId: string, rfqNumber?: string) => 
+      ipcRenderer.invoke('rfq:get-output-dir', rfqId, rfqNumber),
+    exportReleaseFile: (options: {
+      rfqId: string
+      rfqNumber?: string
+      sourceFilePath: string
+      exportType: 'step' | 'pdf' | 'dxf' | 'iges'
+      partNumber?: string
+      revision?: string
+    }) => ipcRenderer.invoke('rfq:export-release-file', options),
+    createZip: (options: {
+      rfqId: string
+      rfqNumber: string
+      files: Array<{ path: string; name: string }>
+      rfqPdfPath?: string
+    }) => ipcRenderer.invoke('rfq:create-zip', options),
+    openFolder: (rfqId: string, rfqNumber?: string) => 
+      ipcRenderer.invoke('rfq:open-folder', rfqId, rfqNumber),
+  },
+  
   // Embedded eDrawings preview
   isEDrawingsNativeAvailable: () => ipcRenderer.invoke('edrawings:native-available'),
   createEDrawingsPreview: () => ipcRenderer.invoke('edrawings:create-preview'),

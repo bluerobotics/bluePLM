@@ -2932,6 +2932,230 @@ ipcMain.handle('solidworks:pack-and-go', async (_, filePath: string, outputFolde
 // End SolidWorks Service Integration
 // ============================================
 
+// ============================================
+// RFQ Release Files Management
+// ============================================
+
+// Get RFQ output directory (creates if doesn't exist)
+ipcMain.handle('rfq:get-output-dir', async (_, rfqId: string, rfqNumber?: string) => {
+  try {
+    const baseDir = path.join(app.getPath('userData'), 'rfq-releases')
+    const rfqDir = path.join(baseDir, rfqNumber || rfqId)
+    
+    if (!fs.existsSync(rfqDir)) {
+      fs.mkdirSync(rfqDir, { recursive: true })
+    }
+    
+    return { success: true, path: rfqDir }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+// Export file to RFQ release folder with custom name
+ipcMain.handle('rfq:export-release-file', async (_, options: {
+  rfqId: string
+  rfqNumber?: string
+  sourceFilePath: string
+  exportType: 'step' | 'pdf' | 'dxf' | 'iges'
+  partNumber?: string
+  revision?: string
+}) => {
+  try {
+    const { rfqId, rfqNumber, sourceFilePath, exportType, partNumber, revision } = options
+    
+    // Create RFQ output directory
+    const baseDir = path.join(app.getPath('userData'), 'rfq-releases')
+    const rfqDir = path.join(baseDir, rfqNumber || rfqId)
+    if (!fs.existsSync(rfqDir)) {
+      fs.mkdirSync(rfqDir, { recursive: true })
+    }
+    
+    // Generate output filename based on part number and revision
+    const baseName = partNumber || path.basename(sourceFilePath, path.extname(sourceFilePath))
+    const revSuffix = revision ? `_REV${revision}` : ''
+    const outputName = `${baseName}${revSuffix}.${exportType}`
+    const outputPath = path.join(rfqDir, outputName)
+    
+    // Export using SolidWorks service
+    let result
+    switch (exportType) {
+      case 'step':
+        result = await sendSWCommand({ action: 'exportStep', filePath: sourceFilePath, outputPath, exportAllConfigs: false })
+        break
+      case 'pdf':
+        result = await sendSWCommand({ action: 'exportPdf', filePath: sourceFilePath, outputPath })
+        break
+      case 'dxf':
+        result = await sendSWCommand({ action: 'exportDxf', filePath: sourceFilePath, outputPath })
+        break
+      case 'iges':
+        result = await sendSWCommand({ action: 'exportIges', filePath: sourceFilePath, outputPath })
+        break
+      default:
+        return { success: false, error: 'Invalid export type' }
+    }
+    
+    if (result?.success) {
+      // Get file size
+      let fileSize = 0
+      if (fs.existsSync(outputPath)) {
+        fileSize = fs.statSync(outputPath).size
+      }
+      
+      return {
+        success: true,
+        outputPath,
+        fileName: outputName,
+        fileSize
+      }
+    } else {
+      return { success: false, error: result?.error || 'Export failed' }
+    }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+// Create ZIP package of RFQ release files
+ipcMain.handle('rfq:create-zip', async (_, options: {
+  rfqId: string
+  rfqNumber: string
+  files: Array<{ path: string; name: string }>
+  rfqPdfPath?: string
+}) => {
+  try {
+    const { rfqId, rfqNumber, files, rfqPdfPath } = options
+    
+    // Create RFQ output directory
+    const baseDir = path.join(app.getPath('userData'), 'rfq-releases')
+    const rfqDir = path.join(baseDir, rfqNumber || rfqId)
+    if (!fs.existsSync(rfqDir)) {
+      fs.mkdirSync(rfqDir, { recursive: true })
+    }
+    
+    const zipPath = path.join(rfqDir, `${rfqNumber}_ReleasePackage.zip`)
+    
+    // Use PowerShell on Windows, zip on other platforms
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process')
+      
+      // Create a temp directory with all files to zip
+      const tempDir = path.join(rfqDir, '_temp_zip')
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true })
+      }
+      fs.mkdirSync(tempDir, { recursive: true })
+      
+      // Copy files to temp directory
+      for (const file of files) {
+        if (fs.existsSync(file.path)) {
+          fs.copyFileSync(file.path, path.join(tempDir, file.name))
+        }
+      }
+      
+      // Copy RFQ PDF if provided
+      if (rfqPdfPath && fs.existsSync(rfqPdfPath)) {
+        fs.copyFileSync(rfqPdfPath, path.join(tempDir, `${rfqNumber}_RFQ.pdf`))
+      }
+      
+      // Delete existing zip if exists
+      if (fs.existsSync(zipPath)) {
+        fs.unlinkSync(zipPath)
+      }
+      
+      // Create zip using PowerShell
+      await new Promise<void>((resolve, reject) => {
+        const psCommand = `Compress-Archive -Path "${tempDir}\\*" -DestinationPath "${zipPath}" -Force`
+        exec(`powershell -Command "${psCommand}"`, (error: Error | null) => {
+          // Clean up temp directory
+          try {
+            fs.rmSync(tempDir, { recursive: true })
+          } catch {}
+          
+          if (error) {
+            reject(error)
+          } else {
+            resolve()
+          }
+        })
+      })
+    } else {
+      // macOS/Linux - use built-in zip command
+      const { exec } = require('child_process')
+      
+      const tempDir = path.join(rfqDir, '_temp_zip')
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true })
+      }
+      fs.mkdirSync(tempDir, { recursive: true })
+      
+      // Copy files
+      for (const file of files) {
+        if (fs.existsSync(file.path)) {
+          fs.copyFileSync(file.path, path.join(tempDir, file.name))
+        }
+      }
+      
+      if (rfqPdfPath && fs.existsSync(rfqPdfPath)) {
+        fs.copyFileSync(rfqPdfPath, path.join(tempDir, `${rfqNumber}_RFQ.pdf`))
+      }
+      
+      if (fs.existsSync(zipPath)) {
+        fs.unlinkSync(zipPath)
+      }
+      
+      await new Promise<void>((resolve, reject) => {
+        exec(`cd "${tempDir}" && zip -r "${zipPath}" .`, (error: Error | null) => {
+          try {
+            fs.rmSync(tempDir, { recursive: true })
+          } catch {}
+          
+          if (error) {
+            reject(error)
+          } else {
+            resolve()
+          }
+        })
+      })
+    }
+    
+    if (fs.existsSync(zipPath)) {
+      const stats = fs.statSync(zipPath)
+      return {
+        success: true,
+        zipPath,
+        fileSize: stats.size
+      }
+    } else {
+      return { success: false, error: 'ZIP file was not created' }
+    }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+// Open RFQ release folder
+ipcMain.handle('rfq:open-folder', async (_, rfqId: string, rfqNumber?: string) => {
+  try {
+    const baseDir = path.join(app.getPath('userData'), 'rfq-releases')
+    const rfqDir = path.join(baseDir, rfqNumber || rfqId)
+    
+    if (!fs.existsSync(rfqDir)) {
+      fs.mkdirSync(rfqDir, { recursive: true })
+    }
+    
+    shell.openPath(rfqDir)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+// ============================================
+// End RFQ Release Files Management
+// ============================================
+
 // Check if eDrawings is installed
 ipcMain.handle('edrawings:check-installed', async () => {
   // Try native module first
