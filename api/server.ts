@@ -648,26 +648,46 @@ async function fetchOdooSuppliers(
       return { success: false, suppliers: [], error: 'Odoo authentication failed - check credentials', debug }
     }
     
-    // Search for suppliers - try supplier_rank first (Odoo 13+), fall back to supplier field (older)
-    let supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+    // Search for suppliers using multiple strategies
+    let supplierIds: unknown = []
+    let queryUsed = 'none'
+    
+    // Strategy 1: supplier_rank > 0 (partners with purchase history in Odoo 13+)
+    supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
       database, uid, apiKey,
       'res.partner', 'search',
       [[['supplier_rank', '>', 0]]],
       { limit: 5000 }
     ])
+    queryUsed = 'supplier_rank'
     
-    // If no results with supplier_rank, try the older 'supplier' boolean field
+    // Strategy 2: If no results, try 'supplier' boolean (older Odoo)
+    if (!supplierIds || (Array.isArray(supplierIds) && supplierIds.length === 0)) {
+      try {
+        supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+          database, uid, apiKey,
+          'res.partner', 'search',
+          [[['supplier', '=', true]]],
+          { limit: 5000 }
+        ])
+        queryUsed = 'supplier_boolean'
+      } catch {
+        // Field might not exist, continue
+      }
+    }
+    
+    // Strategy 3: If still no results, get all companies (broad search)
     if (!supplierIds || (Array.isArray(supplierIds) && supplierIds.length === 0)) {
       supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
         database, uid, apiKey,
         'res.partner', 'search',
-        [[['supplier', '=', true]]],
+        [[['is_company', '=', true], ['active', '=', true]]],
         { limit: 5000 }
       ])
-      debug.supplier_ids_type = 'supplier_boolean'
+      queryUsed = 'is_company'
     }
     
-    debug.supplier_ids_type = (debug.supplier_ids_type || 'supplier_rank') + ':' + typeof supplierIds + (Array.isArray(supplierIds) ? '[]' : '')
+    debug.supplier_ids_type = queryUsed + ':' + typeof supplierIds + (Array.isArray(supplierIds) ? '[]' : '')
     
     // Ensure supplierIds is an array
     const ids = Array.isArray(supplierIds) ? supplierIds : []
