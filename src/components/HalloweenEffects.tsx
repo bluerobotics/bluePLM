@@ -38,21 +38,15 @@ interface Pumpkin {
 export function HalloweenEffects() {
   const theme = usePDMStore(s => s.theme)
   const ghostsOpacity = usePDMStore(s => s.halloweenGhostsOpacity)
-  const sparksEnabled = usePDMStore(s => s.halloweenSparksEnabled)
+  const sparksOpacity = usePDMStore(s => s.halloweenSparksOpacity)
   const setGhostsOpacity = usePDMStore(s => s.setHalloweenGhostsOpacity)
-  const setSparksEnabled = usePDMStore(s => s.setHalloweenSparksEnabled)
+  const setSparksOpacity = usePDMStore(s => s.setHalloweenSparksOpacity)
   
   const [sparks, setSparks] = useState<Spark[]>([])
   const [ghosts, setGhosts] = useState<Ghost[]>([])
   const [pumpkins, setPumpkins] = useState<Pumpkin[]>([])
   const [showControls, setShowControls] = useState(false)
   const animationRef = useRef<number>(0)
-  const sparksEnabledRef = useRef(sparksEnabled)
-  
-  // Keep ref in sync with state
-  useEffect(() => {
-    sparksEnabledRef.current = sparksEnabled
-  }, [sparksEnabled])
   
   // Only render if Halloween theme is active
   const isHalloween = theme === 'halloween'
@@ -126,11 +120,6 @@ export function HalloweenEffects() {
     
     // Animate sparks floating upward
     const animate = () => {
-      if (!sparksEnabledRef.current) {
-        animationRef.current = requestAnimationFrame(animate)
-        return
-      }
-      
       setSparks(prev => prev.map(spark => {
         let newY = spark.y - spark.speed * 0.15 // Float upward
         let newWobble = spark.wobble + spark.wobbleSpeed
@@ -292,7 +281,7 @@ export function HalloweenEffects() {
       </div>
       
       {/* Bonfire sparks floating upward - in front of everything! */}
-      {sparksEnabled && (
+      {sparksOpacity > 0 && (
         <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 9999 }}>
           {sparks.map(spark => (
             <div
@@ -305,7 +294,7 @@ export function HalloweenEffects() {
                 height: `${spark.size}px`,
                 borderRadius: '50%',
                 backgroundColor: spark.color,
-                opacity: spark.opacity,
+                opacity: spark.opacity * (sparksOpacity / 100),
                 boxShadow: `0 0 ${spark.size * 2}px ${spark.color}, 0 0 ${spark.size}px ${spark.color}`,
                 filter: 'blur(0.5px)',
               }}
@@ -374,21 +363,20 @@ export function HalloweenEffects() {
               />
             </div>
             
-            {/* Sparks toggle */}
-            <div className="flex items-center justify-between px-1">
-              <span className="text-plm-fg">🔥 Sparks</span>
-              <button
-                onClick={() => setSparksEnabled(!sparksEnabled)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${
-                  sparksEnabled ? 'bg-orange-600' : 'bg-plm-border'
-                }`}
-              >
-                <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                    sparksEnabled ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
+            {/* Sparks opacity slider */}
+            <div className="mb-2 px-1">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-plm-fg">🔥 Sparks</span>
+                <span className="text-plm-fg-muted">{sparksOpacity}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={sparksOpacity}
+                onChange={(e) => setSparksOpacity(Number(e.target.value))}
+                className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-orange-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
+              />
             </div>
           </div>
         )}

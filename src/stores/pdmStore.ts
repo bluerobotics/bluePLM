@@ -252,6 +252,7 @@ interface PDMState {
   christmasSnowOpacity: number  // Christmas theme snow opacity (0-100)
   christmasSleighEnabled: boolean // Christmas theme sleigh animation enabled
   halloweenSparksEnabled: boolean  // Halloween theme bonfire sparks enabled
+  halloweenSparksOpacity: number  // Halloween theme bonfire sparks opacity (0-100)
   halloweenGhostsOpacity: number // Halloween theme ghost opacity (0-100)
   
   // Pinned items (quick access)
@@ -342,6 +343,7 @@ interface PDMState {
   setChristmasSnowOpacity: (opacity: number) => void
   setChristmasSleighEnabled: (enabled: boolean) => void
   setHalloweenSparksEnabled: (enabled: boolean) => void
+  setHalloweenSparksOpacity: (opacity: number) => void
   setHalloweenGhostsOpacity: (opacity: number) => void
   
   // Actions - Pinned items
@@ -604,6 +606,7 @@ export const usePDMStore = create<PDMState>()(
       christmasSnowOpacity: 50,  // Default 50%
       christmasSleighEnabled: true,  // Default ON
       halloweenSparksEnabled: true,  // Default ON
+      halloweenSparksOpacity: 70,  // Default 70%
       halloweenGhostsOpacity: 50,  // Default 50%
       pinnedFolders: [],
       pinnedSectionExpanded: true,
@@ -718,6 +721,7 @@ export const usePDMStore = create<PDMState>()(
       setChristmasSnowOpacity: (christmasSnowOpacity) => set({ christmasSnowOpacity }),
       setChristmasSleighEnabled: (christmasSleighEnabled) => set({ christmasSleighEnabled }),
       setHalloweenSparksEnabled: (halloweenSparksEnabled) => set({ halloweenSparksEnabled }),
+      setHalloweenSparksOpacity: (halloweenSparksOpacity) => set({ halloweenSparksOpacity }),
       setHalloweenGhostsOpacity: (halloweenGhostsOpacity) => set({ halloweenGhostsOpacity }),
       
       // Actions - Pinned items
@@ -1582,6 +1586,7 @@ export const usePDMStore = create<PDMState>()(
         christmasSnowOpacity: state.christmasSnowOpacity,
         christmasSleighEnabled: state.christmasSleighEnabled,
         halloweenSparksEnabled: state.halloweenSparksEnabled,
+        halloweenSparksOpacity: state.halloweenSparksOpacity,
         halloweenGhostsOpacity: state.halloweenGhostsOpacity,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
