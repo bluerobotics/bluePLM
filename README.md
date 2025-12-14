@@ -12,31 +12,152 @@ Product Data Management for engineering teams. Built with Electron, React, and S
 ## Features
 
 ### Core PDM
-- **Check In / Check Out** — Exclusive file locking with multi-machine tracking
-- **Version Control** — Full history with rollback to any previous version
-- **File States** — WIP → In Review → Released → Obsolete with customizable workflows
-- **Real-time Sync** — Instant updates across all connected clients via Supabase
-- **Multi-vault Support** — Organize files into separate vaults with per-vault permissions
-- **Trash & Recovery** — Soft delete with restore or permanent delete options
+
+- **Check In / Check Out**
+  - Exclusive file locking prevents conflicts when multiple engineers work on the same files
+  - Multi-machine tracking shows which computer has a file checked out
+  - Force check-in option for admins to release abandoned locks
+  - Request checkout notifications to ask colleagues to release files
+
+- **Version Control**
+  - Full history of every file with timestamps and user attribution
+  - Rollback to any previous version with one click
+  - Side-by-side comparison of server vs. local versions
+  - Automatic version increment on check-in
+
+- **File State Management**
+  - Lifecycle states: WIP → In Review → Released → Obsolete
+  - Visual workflow builder to customize state transitions
+  - Approval gates requiring reviews before state changes
+  - ECO column shows which change orders affect each file
+
+- **Real-time Collaboration**
+  - Instant sync across all connected clients via Supabase Realtime
+  - Live notifications for check-ins, checkouts, state changes, and new versions
+  - Green `+` indicators for files added by other users
+  - User avatars showing who has files checked out
+
+- **Multi-vault Support**
+  - Organize files into separate vaults (e.g., by project or department)
+  - Per-vault user permissions (restrict access to specific vaults)
+  - Connect/disconnect vaults without losing data
+  - Vault-level ignore patterns (`.gitignore` style)
+
+- **Trash & Recovery**
+  - Soft delete moves files to trash instead of permanent deletion
+  - Restore deleted files back to active status
+  - Permanent delete option for cleanup
+  - Empty trash to remove all deleted files at once
 
 ### Engineering Change Management
-- **ECO Management** — Create and track Engineering Change Orders with file attachments
-- **Visual Workflow Builder** — Drag-and-drop canvas to design state transitions and approval gates
-- **Reviews & Notifications** — Request reviews, set due dates/priority, track approvals
+
+- **ECO Management**
+  - Create Engineering Change Orders with title, description, and priority
+  - Attach files to ECOs for full traceability
+  - Track ECO status through configurable workflow states
+  - ECO tags column in file browser shows all linked change orders
+
+- **Visual Workflow Builder**
+  - Drag-and-drop canvas for designing state machines
+  - Create custom states with names, colors, and types
+  - Connect states with transition arrows
+  - Add approval gates requiring reviews before transitions
+  - Pan, zoom, and reposition elements interactively
+
+- **Reviews & Notifications**
+  - Request reviews from teammates with due dates and priority levels
+  - Reviewers receive notifications and can approve/reject with comments
+  - Track all outgoing review requests and their status
+  - Notification badges show unread count
+  - Overdue reviews highlighted with visual indicators
+  - Watch files to get notified on any changes
 
 ### Integrations
-- **SolidWorks** — Thumbnail extraction, native add-in (check in/out from toolbar)
-- **Google Drive** — Browse, edit Docs/Sheets/Slides inline, connect Shared Drives
-- **REST API** — Fastify + Swagger for ERP/automation, signed URLs, webhooks
-- **Odoo** — Sync suppliers and products with your Odoo instance
-- **Backups** — Automated encrypted backups via Restic (local, S3, Backblaze, SFTP)
 
-### Desktop App
-- **Built-in Terminal** — CLI with file ops, queries, and batch commands
-- **Drag & Drop** — Import from Windows Explorer, drag files out to other apps
-- **Ignore Patterns** — Exclude files/folders from sync (`.gitignore` style)
-- **Icon & List Views** — Adjustable thumbnail sizes, Windows shell icons
-- **Offline Mode** — Work locally when disconnected
+- **SolidWorks**
+  - Thumbnail extraction for parts, assemblies, and drawings (.sldprt, .sldasm, .slddrw)
+  - Native add-in with toolbar buttons and task pane
+  - Document Manager API for BOM, properties, and configs without launching SolidWorks
+  - SolidWorks Service for headless exports and Pack and Go
+  - Auto read-only mode for non-checked-out files
+
+- **Google Drive**
+  - Browse personal Drive and Shared Drives in sidebar
+  - Edit Docs, Sheets, Slides, and Forms inline without leaving BluePLM
+  - Quick access to Starred, Recent, Shared with me, and Trash
+  - Context menu: rename, star, download, delete, open in browser
+  - Organization-level OAuth (admin configures once)
+
+- **REST API**
+  - Fastify server with OpenAPI/Swagger documentation at `/docs`
+  - JWT authentication via Supabase tokens
+  - Signed URLs for secure file downloads
+  - Webhooks for external system notifications
+  - Docker image with one-click deploy to Railway/Render
+  - Rate limiting and request validation
+
+- **Odoo ERP**
+  - Sync suppliers from Odoo to BluePLM
+  - Product catalog integration
+  - Automatic sync scheduling
+
+- **Vault Backups**
+  - Automated encrypted backups via Restic
+  - Supports local disk, S3, Backblaze B2, and SFTP
+  - Configurable schedule (hourly, daily, weekly)
+  - Deduplicated storage for efficiency
+
+### Desktop Experience
+
+- **Built-in Terminal**
+  - CLI with file operations: `checkout`, `checkin`, `sync`, `download`
+  - Navigation commands: `cd`, `ls`, `pwd`
+  - Query commands: `status`, `history`, `find`
+  - Batch operations on multiple files
+
+- **File Browser**
+  - Icon view with adjustable thumbnail sizes (48–256px)
+  - List view with adjustable row heights
+  - Windows shell thumbnails and icons
+  - SolidWorks preview thumbnails
+  - Sort by name, date, size, state, or version
+  - Multi-select with Ctrl/Shift click
+
+- **Drag & Drop**
+  - Import files/folders from Windows Explorer
+  - Drag files out to other applications
+  - Move files between folders within BluePLM
+  - Cross-view drag between sidebar and main panel
+
+- **Search & Filter**
+  - Full-text search across file names
+  - Filter by state, checkout status, or file type
+  - Pinned items for quick access
+  - Recent files list
+
+- **Offline Mode**
+  - Work locally when disconnected from the network
+  - Changes sync automatically when connection restored
+  - Local-only vault option for air-gapped environments
+
+### Administration
+
+- **User Management**
+  - Invite users with organization code
+  - Role-based access: Admin, Engineer, Viewer
+  - Change roles or remove users
+  - Auto-join via email domain matching
+
+- **Organization Settings**
+  - Company profile with logo and addresses
+  - Vault creation and management
+  - API configuration (local/external toggle)
+  - Integration credentials (Google Drive, Odoo)
+
+- **RFQ System**
+  - Request for Quote management
+  - Supplier database with contact info
+  - Supplier portal for external access
 
 ## Quick Start
 
@@ -93,12 +214,17 @@ Share your **Project URL** and **anon key** with team members. Users with matchi
 
 Native SolidWorks integration with toolbar buttons and task pane.
 
-**Features:** Check out/in from toolbar • File status in task pane • Auto read-only mode • Custom properties sync
+**Features:**
+- Check out/in directly from the SolidWorks toolbar
+- Task pane showing file status, version, and state
+- Automatic read-only mode for files not checked out by you
+- Custom properties sync with BluePLM metadata
+- Check-in dialog with version notes
 
 **Installation:**
 1. Download `BluePLM.SolidWorks.dll` from [releases](https://github.com/bluerobotics/blue-plm/releases)
 2. Run as admin: `RegAsm.exe /codebase BluePLM.SolidWorks.dll`
-3. Enable in SolidWorks: Tools → Add-ins
+3. Restart SolidWorks and enable from Tools → Add-ins
 
 See [SolidWorks Add-in README](solidworks-addin/README.md) for details.
 
@@ -118,29 +244,43 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
+### Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Electron app with hot reload |
+| `npm run build` | Build production app with electron-builder |
+| `npm run typecheck` | Run TypeScript type checking |
+| `npm run cli` | Run CLI commands (`node cli/blueplm.js`) |
+| `npm run api` | Start REST API server |
+| `npm run api:dev` | Start API server with hot reload |
+
 ## Roadmap
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| Engineering Change Requests (ECRs) | 🔜 Planned | Track issues and change requests linked to files/ECOs |
-| ECO Schedule | 🔜 Planned | Timeline view of milestones, deadlines, and release dates |
-| ECO Dashboard (GSD) | 🔜 Planned | Progress tracking, blockers, and attention items |
-| ECO Process Editor | 🔜 Planned | Define stages, gates, approvers, and automation rules |
-| Product Catalog | 🔜 Planned | Manage product info, lifecycle, and configurations |
-| Tab Navigation | 🔜 Planned | Multi-tab browsing with pinning and split views |
-| Item Number Database | 🔜 Planned | Serialization settings, revision tracking, navigation |
-| Offline Conflict Resolution | 🔜 Planned | Smart merge when coming back online |
-| Folder History | 🔜 Planned | Version history for entire folders |
-| Undo Check-in | 🔜 Planned | Restore previous version from history panel |
-| SolidWorks Configurations | 🔜 Planned | Configuration management and metadata sync |
+| Engineering Change Requests (ECRs) | 🔜 Planned | Track issues and change requests linked to files and ECOs with full traceability |
+| ECO Schedule | 🔜 Planned | Timeline/calendar view of ECO milestones, deadlines, and release dates |
+| ECO Dashboard (GSD) | 🔜 Planned | "Getting Stuff Done" dashboard with progress tracking, blockers, and attention items |
+| ECO Process Editor | 🔜 Planned | Define ECO stages, approval gates, assignees, and automation rules |
+| Product Catalog | 🔜 Planned | Manage product information, lifecycle stages, and BOM configurations |
+| Tab Navigation | 🔜 Planned | Multi-tab file browsing with pinning, split views, and drag between panes |
+| Item Number Database | 🔜 Planned | Part number serialization, revision tracking with badges, and cross-reference navigation |
+| Offline Conflict Resolution | 🔜 Planned | Smart merge UI when reconnecting after offline edits to the same file |
+| Folder History | 🔜 Planned | View version history for entire folders, not just individual files |
+| Undo Check-in | 🔜 Planned | Revert a check-in from history panel (restores previous version, keeps newer locally) |
+| SolidWorks Configurations | 🔜 Planned | Manage SolidWorks configurations as metadata, sync between files |
 
 ## Tech Stack
 
-**Desktop App:** Electron 34 • React 19 • TypeScript • Tailwind CSS • Zustand • Supabase
-
-**SolidWorks Add-in:** C# • .NET Framework 4.8 • SolidWorks API
-
-**API Server:** Fastify • TypeScript • Docker
+| Component | Technologies |
+|-----------|--------------|
+| Desktop App | Electron 34, React 19, TypeScript, Tailwind CSS, Zustand, Supabase |
+| SolidWorks Add-in | C#, .NET Framework 4.8, SolidWorks API, Windows Forms |
+| API Server | Fastify, TypeScript, Docker, Swagger/OpenAPI |
+| Database | PostgreSQL (via Supabase), Row Level Security |
+| Storage | Supabase Storage, Restic for backups |
+| Auth | Supabase Auth, Google OAuth 2.0 |
 
 ## License
 
