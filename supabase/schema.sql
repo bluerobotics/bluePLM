@@ -73,7 +73,11 @@ CREATE TABLE organizations (
     "show_notes_column": true,
     "terms_and_conditions": "",
     "footer_text": ""
-  }'::jsonb
+  }'::jsonb,
+  
+  -- Module configuration defaults for organization members
+  -- Structure: { enabled_modules: Record<string, boolean>, enabled_groups: Record<string, boolean>, module_order: string[], dividers: SectionDivider[] }
+  module_defaults JSONB DEFAULT NULL
 );
 
 -- Index for email domain lookup
@@ -298,6 +302,9 @@ CREATE TABLE files (
   -- Custom properties (from SolidWorks or user-defined)
   custom_properties JSONB DEFAULT '{}'::jsonb,
   
+  -- ECO tags (denormalized array of ECO numbers for quick display)
+  eco_tags TEXT[] DEFAULT '{}',
+  
   -- Soft delete (trash bin)
   deleted_at TIMESTAMPTZ,           -- When the file was moved to trash (NULL = not deleted)
   deleted_by UUID REFERENCES users(id),  -- Who deleted the file
@@ -320,12 +327,16 @@ CREATE INDEX idx_files_content_hash ON files(content_hash) WHERE content_hash IS
 CREATE INDEX idx_files_deleted_at ON files(deleted_at) WHERE deleted_at IS NOT NULL;
 CREATE INDEX idx_files_active ON files(vault_id, file_path) WHERE deleted_at IS NULL;
 
--- Full text search index
+-- ECO tags index
+CREATE INDEX idx_files_eco_tags ON files USING GIN (eco_tags);
+
+-- Full text search index (includes ECO tags)
 CREATE INDEX idx_files_search ON files USING GIN (
   to_tsvector('english', 
     coalesce(file_name, '') || ' ' || 
     coalesce(part_number, '') || ' ' || 
-    coalesce(description, '')
+    coalesce(description, '') || ' ' ||
+    coalesce(array_to_string(eco_tags, ' '), '')
   )
 );
 
@@ -1326,7 +1337,8 @@ CREATE TYPE notification_type AS ENUM (
   'review_rejected',
   'review_comment',
   'mention',
-  'file_updated'
+  'file_updated',
+  'checkout_request'
 );
 
 -- Reviews table (file review requests)
@@ -1588,7 +1600,7 @@ CREATE TABLE workflow_gates (
 CREATE INDEX idx_workflow_gates_transition_id ON workflow_gates(transition_id);
 
 -- Gate reviewers (who can approve a gate)
-CREATE TABLE gate_reviewers (
+CREATE TABLE workflow_gate_reviewers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   gate_id UUID NOT NULL REFERENCES workflow_gates(id) ON DELETE CASCADE,
   
@@ -1600,8 +1612,8 @@ CREATE TABLE gate_reviewers (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_gate_reviewers_gate_id ON gate_reviewers(gate_id);
-CREATE INDEX idx_gate_reviewers_user_id ON gate_reviewers(user_id);
+CREATE INDEX idx_workflow_gate_reviewers_gate_id ON workflow_gate_reviewers(gate_id);
+CREATE INDEX idx_workflow_gate_reviewers_user_id ON workflow_gate_reviewers(user_id);
 
 -- File workflow assignments (which workflow is assigned to a file)
 CREATE TABLE file_workflow_assignments (
@@ -1619,7 +1631,7 @@ CREATE INDEX idx_file_workflow_assignments_workflow_id ON file_workflow_assignme
 CREATE INDEX idx_file_workflow_assignments_current_state ON file_workflow_assignments(current_state_id);
 
 -- Pending workflow reviews (active gate reviews)
-CREATE TABLE pending_workflow_reviews (
+CREATE TABLE pending_reviews (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -1642,10 +1654,10 @@ CREATE TABLE pending_workflow_reviews (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_pending_workflow_reviews_org_id ON pending_workflow_reviews(org_id);
-CREATE INDEX idx_pending_workflow_reviews_file_id ON pending_workflow_reviews(file_id);
-CREATE INDEX idx_pending_workflow_reviews_status ON pending_workflow_reviews(status);
-CREATE INDEX idx_pending_workflow_reviews_assigned_to ON pending_workflow_reviews(assigned_to);
+CREATE INDEX idx_pending_reviews_org_id ON pending_reviews(org_id);
+CREATE INDEX idx_pending_reviews_file_id ON pending_reviews(file_id);
+CREATE INDEX idx_pending_reviews_status ON pending_reviews(status);
+CREATE INDEX idx_pending_reviews_assigned_to ON pending_reviews(assigned_to);
 
 -- Workflow review history (audit trail)
 CREATE TABLE workflow_review_history (
@@ -1687,9 +1699,9 @@ ALTER TABLE workflow_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workflow_states ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workflow_transitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workflow_gates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE gate_reviewers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_gate_reviewers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_workflow_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pending_workflow_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pending_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workflow_review_history ENABLE ROW LEVEL SECURITY;
 
 -- Workflow templates: org members can view, admins can modify
@@ -1738,11 +1750,11 @@ CREATE POLICY "Admins can manage workflow gates"
 
 -- Gate reviewers: linked to gates
 CREATE POLICY "Users can view gate reviewers"
-  ON gate_reviewers FOR SELECT
+  ON workflow_gate_reviewers FOR SELECT
   USING (gate_id IN (SELECT id FROM workflow_gates WHERE transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())))));
 
 CREATE POLICY "Admins can manage gate reviewers"
-  ON gate_reviewers FOR ALL
+  ON workflow_gate_reviewers FOR ALL
   USING (gate_id IN (SELECT id FROM workflow_gates WHERE transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')))));
 
 -- File workflow assignments
@@ -1754,17 +1766,17 @@ CREATE POLICY "Engineers can manage file workflow assignments"
   ON file_workflow_assignments FOR ALL
   USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
 
--- Pending workflow reviews
-CREATE POLICY "Users can view pending workflow reviews"
-  ON pending_workflow_reviews FOR SELECT
+-- Pending reviews
+CREATE POLICY "Users can view pending reviews"
+  ON pending_reviews FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
-CREATE POLICY "Engineers can create pending workflow reviews"
-  ON pending_workflow_reviews FOR INSERT
+CREATE POLICY "Engineers can create pending reviews"
+  ON pending_reviews FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
-CREATE POLICY "Users can update pending workflow reviews"
-  ON pending_workflow_reviews FOR UPDATE
+CREATE POLICY "Users can update pending reviews"
+  ON pending_reviews FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- Workflow review history
@@ -1883,6 +1895,156 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ===========================================
+-- FILE WATCHERS (Watch/Subscribe to files)
+-- ===========================================
+
+CREATE TABLE file_watchers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- What to notify about
+  notify_on_checkin BOOLEAN DEFAULT true,
+  notify_on_checkout BOOLEAN DEFAULT false,
+  notify_on_state_change BOOLEAN DEFAULT true,
+  notify_on_review BOOLEAN DEFAULT true,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- One watcher entry per user per file
+  UNIQUE(file_id, user_id)
+);
+
+CREATE INDEX idx_file_watchers_file_id ON file_watchers(file_id);
+CREATE INDEX idx_file_watchers_user_id ON file_watchers(user_id);
+CREATE INDEX idx_file_watchers_org_id ON file_watchers(org_id);
+
+-- ===========================================
+-- FILE SHARE LINKS
+-- ===========================================
+
+CREATE TABLE file_share_links (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  
+  -- Link token (short unique code for URL)
+  token TEXT NOT NULL UNIQUE,
+  
+  -- Access control
+  created_by UUID NOT NULL REFERENCES users(id),
+  expires_at TIMESTAMPTZ,                    -- NULL = never expires
+  max_downloads INTEGER,                      -- NULL = unlimited
+  download_count INTEGER DEFAULT 0,
+  password_hash TEXT,                         -- Optional password protection
+  
+  -- What version to share
+  file_version INTEGER,                       -- NULL = latest version
+  
+  -- Permissions
+  allow_download BOOLEAN DEFAULT true,
+  require_auth BOOLEAN DEFAULT false,         -- Require BluePLM login to access
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  last_accessed_at TIMESTAMPTZ,
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true
+);
+
+CREATE INDEX idx_file_share_links_token ON file_share_links(token);
+CREATE INDEX idx_file_share_links_file_id ON file_share_links(file_id);
+CREATE INDEX idx_file_share_links_org_id ON file_share_links(org_id);
+CREATE INDEX idx_file_share_links_created_by ON file_share_links(created_by);
+CREATE INDEX idx_file_share_links_expires_at ON file_share_links(expires_at) WHERE expires_at IS NOT NULL;
+
+-- ===========================================
+-- FILE COMMENTS
+-- ===========================================
+
+CREATE TABLE file_comments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  comment TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_file_comments_file_id ON file_comments(file_id);
+CREATE INDEX idx_file_comments_user_id ON file_comments(user_id);
+
+-- ===========================================
+-- FILE WATCHERS, SHARE LINKS, COMMENTS RLS
+-- ===========================================
+
+ALTER TABLE file_watchers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE file_share_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE file_comments ENABLE ROW LEVEL SECURITY;
+
+-- File Watchers: Users can view watchers for files in their org
+CREATE POLICY "Users can view file watchers in org"
+  ON file_watchers FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+-- File Watchers: Users can create watchers for themselves
+CREATE POLICY "Users can watch files"
+  ON file_watchers FOR INSERT
+  WITH CHECK (user_id = auth.uid() AND org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+-- File Watchers: Users can update their own watchers
+CREATE POLICY "Users can update own watchers"
+  ON file_watchers FOR UPDATE
+  USING (user_id = auth.uid());
+
+-- File Watchers: Users can delete their own watchers
+CREATE POLICY "Users can unwatch files"
+  ON file_watchers FOR DELETE
+  USING (user_id = auth.uid());
+
+-- File Share Links: Users can view share links they created or for files in their org
+CREATE POLICY "Users can view share links in org"
+  ON file_share_links FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+-- File Share Links: Engineers and admins can create share links
+CREATE POLICY "Engineers can create share links"
+  ON file_share_links FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+
+-- File Share Links: Users can update their own share links
+CREATE POLICY "Users can update own share links"
+  ON file_share_links FOR UPDATE
+  USING (created_by = auth.uid());
+
+-- File Share Links: Users can delete their own share links, admins can delete any
+CREATE POLICY "Users can delete share links"
+  ON file_share_links FOR DELETE
+  USING (created_by = auth.uid() OR auth.uid() IN (SELECT id FROM users WHERE org_id = file_share_links.org_id AND role = 'admin'));
+
+-- File Comments: Users can view comments in their org
+CREATE POLICY "Users can view file comments in org"
+  ON file_comments FOR SELECT
+  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+
+-- File Comments: Users can create comments
+CREATE POLICY "Users can create file comments"
+  ON file_comments FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+-- File Comments: Users can update their own comments
+CREATE POLICY "Users can update own comments"
+  ON file_comments FOR UPDATE
+  USING (user_id = auth.uid());
+
+-- File Comments: Users can delete their own comments
+CREATE POLICY "Users can delete own comments"
+  ON file_comments FOR DELETE
+  USING (user_id = auth.uid());
+
+-- ===========================================
 -- GOOGLE DRIVE INTEGRATION FUNCTIONS
 -- ===========================================
 
@@ -1957,6 +2119,335 @@ $$ LANGUAGE plpgsql;
 -- Grant execute permissions for Google Drive functions
 GRANT EXECUTE ON FUNCTION get_google_drive_settings(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION update_google_drive_settings(UUID, TEXT, TEXT, BOOLEAN) TO authenticated;
+
+-- ===========================================
+-- SUPPLIERS (Vendor/Supplier Companies)
+-- ===========================================
+
+CREATE TABLE suppliers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Basic info
+  name TEXT NOT NULL,                  -- Company name (e.g., "McMaster-Carr", "Misumi")
+  code TEXT,                           -- Short code for ERP (e.g., "MCMASTER", "MIS")
+  
+  -- Contact info
+  contact_name TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  website TEXT,
+  
+  -- Address
+  address_line1 TEXT,
+  address_line2 TEXT,
+  city TEXT,
+  state TEXT,
+  postal_code TEXT,
+  country TEXT DEFAULT 'USA',
+  
+  -- Business terms
+  payment_terms TEXT,                  -- e.g., "Net 30", "Net 60", "Due on Receipt"
+  default_lead_time_days INT,          -- Default lead time in days
+  min_order_value DECIMAL(12,2),       -- Minimum order value
+  currency TEXT DEFAULT 'USD',         -- Default currency for this supplier
+  shipping_account TEXT,               -- Your shipping account number with them
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  is_approved BOOLEAN DEFAULT false,   -- Approved vendor status
+  approved_at TIMESTAMPTZ,
+  approved_by UUID REFERENCES users(id),
+  
+  -- Notes
+  notes TEXT,
+  
+  -- ERP sync
+  erp_id TEXT,                         -- ID in Odoo/SAP (for sync)
+  erp_synced_at TIMESTAMPTZ,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  UNIQUE(org_id, code)
+);
+
+CREATE INDEX idx_suppliers_org_id ON suppliers(org_id);
+CREATE INDEX idx_suppliers_name ON suppliers(name);
+CREATE INDEX idx_suppliers_code ON suppliers(code);
+CREATE INDEX idx_suppliers_is_active ON suppliers(is_active);
+CREATE INDEX idx_suppliers_erp_id ON suppliers(erp_id) WHERE erp_id IS NOT NULL;
+
+-- Full text search on suppliers
+CREATE INDEX idx_suppliers_search ON suppliers USING GIN (
+  to_tsvector('english', 
+    coalesce(name, '') || ' ' || 
+    coalesce(code, '') || ' ' || 
+    coalesce(notes, '')
+  )
+);
+
+-- ===========================================
+-- PART_SUPPLIERS (Junction table with pricing)
+-- ===========================================
+
+CREATE TABLE part_suppliers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  
+  -- Supplier's part info
+  supplier_part_number TEXT,           -- Supplier's part number/SKU
+  supplier_description TEXT,           -- Supplier's description (may differ from ours)
+  supplier_url TEXT,                   -- Direct link to product page
+  
+  -- Pricing (base)
+  unit_price DECIMAL(12,4),            -- Price per unit
+  currency TEXT DEFAULT 'USD',
+  price_unit TEXT DEFAULT 'each',      -- 'each', 'per 100', 'per 1000', 'per ft', etc.
+  
+  -- Volume pricing (price breaks)
+  -- Format: [{"qty": 1, "price": 10.00}, {"qty": 100, "price": 8.50}, {"qty": 1000, "price": 7.00}]
+  price_breaks JSONB DEFAULT '[]'::jsonb,
+  
+  -- Ordering constraints
+  min_order_qty INT DEFAULT 1,
+  order_multiple INT DEFAULT 1,        -- Must order in multiples of this (e.g., 10)
+  
+  -- Lead time (overrides supplier default)
+  lead_time_days INT,
+  
+  -- Status
+  is_preferred BOOLEAN DEFAULT false,  -- Preferred supplier for this part
+  is_active BOOLEAN DEFAULT true,
+  
+  -- Quality/compliance
+  is_qualified BOOLEAN DEFAULT false,  -- Part has been qualified from this supplier
+  qualified_at TIMESTAMPTZ,
+  qualified_by UUID REFERENCES users(id),
+  
+  -- Notes
+  notes TEXT,
+  
+  -- ERP sync
+  erp_id TEXT,
+  erp_synced_at TIMESTAMPTZ,
+  
+  -- Metadata
+  last_price_update TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  UNIQUE(file_id, supplier_id)
+);
+
+CREATE INDEX idx_part_suppliers_org_id ON part_suppliers(org_id);
+CREATE INDEX idx_part_suppliers_file_id ON part_suppliers(file_id);
+CREATE INDEX idx_part_suppliers_supplier_id ON part_suppliers(supplier_id);
+CREATE INDEX idx_part_suppliers_is_preferred ON part_suppliers(is_preferred) WHERE is_preferred = true;
+CREATE INDEX idx_part_suppliers_supplier_part_number ON part_suppliers(supplier_part_number) WHERE supplier_part_number IS NOT NULL;
+
+-- Suppliers RLS
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE part_suppliers ENABLE ROW LEVEL SECURITY;
+
+-- Suppliers: All org members can read, engineers/admins can modify
+CREATE POLICY "Users can view org suppliers"
+  ON suppliers FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "Engineers can insert suppliers"
+  ON suppliers FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+
+CREATE POLICY "Engineers can update suppliers"
+  ON suppliers FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+
+CREATE POLICY "Admins can delete suppliers"
+  ON suppliers FOR DELETE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- Part-Suppliers: All org members can read, engineers/admins can modify
+CREATE POLICY "Users can view part suppliers"
+  ON part_suppliers FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "Engineers can manage part suppliers"
+  ON part_suppliers FOR ALL
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+
+-- Supplier helper functions
+
+-- Function to get the best price for a part at a given quantity
+CREATE OR REPLACE FUNCTION get_best_price(
+  p_file_id UUID,
+  p_quantity INT DEFAULT 1
+)
+RETURNS TABLE (
+  supplier_id UUID,
+  supplier_name TEXT,
+  supplier_code TEXT,
+  supplier_part_number TEXT,
+  unit_price DECIMAL(12,4),
+  total_price DECIMAL(12,2),
+  currency TEXT,
+  lead_time_days INT,
+  is_preferred BOOLEAN
+) AS $$
+BEGIN
+  RETURN QUERY
+  WITH pricing AS (
+    SELECT 
+      ps.supplier_id,
+      s.name as supplier_name,
+      s.code as supplier_code,
+      ps.supplier_part_number,
+      ps.currency,
+      ps.is_preferred,
+      COALESCE(ps.lead_time_days, s.default_lead_time_days) as lead_time_days,
+      -- Calculate price based on price breaks
+      CASE 
+        WHEN ps.price_breaks IS NOT NULL AND jsonb_array_length(ps.price_breaks) > 0 THEN
+          (
+            SELECT (pb->>'price')::DECIMAL(12,4)
+            FROM jsonb_array_elements(ps.price_breaks) pb
+            WHERE (pb->>'qty')::INT <= p_quantity
+            ORDER BY (pb->>'qty')::INT DESC
+            LIMIT 1
+          )
+        ELSE ps.unit_price
+      END as calculated_price
+    FROM part_suppliers ps
+    JOIN suppliers s ON ps.supplier_id = s.id
+    WHERE ps.file_id = p_file_id
+      AND ps.is_active = true
+      AND s.is_active = true
+  )
+  SELECT 
+    p.supplier_id,
+    p.supplier_name,
+    p.supplier_code,
+    p.supplier_part_number,
+    p.calculated_price as unit_price,
+    (p.calculated_price * p_quantity)::DECIMAL(12,2) as total_price,
+    p.currency,
+    p.lead_time_days,
+    p.is_preferred
+  FROM pricing p
+  WHERE p.calculated_price IS NOT NULL
+  ORDER BY p.is_preferred DESC, p.calculated_price ASC;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Function to calculate BOM cost
+CREATE OR REPLACE FUNCTION calculate_bom_cost(
+  p_assembly_id UUID,
+  p_quantity INT DEFAULT 1
+)
+RETURNS TABLE (
+  assembly_id UUID,
+  assembly_name TEXT,
+  assembly_part_number TEXT,
+  total_cost DECIMAL(12,2),
+  currency TEXT,
+  component_count INT,
+  missing_pricing_count INT
+) AS $$
+DECLARE
+  v_total DECIMAL(12,2) := 0;
+  v_missing INT := 0;
+  v_component_count INT := 0;
+  v_currency TEXT := 'USD';
+  v_assembly RECORD;
+  v_component RECORD;
+  v_best_price RECORD;
+BEGIN
+  -- Get assembly info
+  SELECT id, file_name, part_number INTO v_assembly
+  FROM files WHERE id = p_assembly_id;
+  
+  -- Calculate cost for each component
+  FOR v_component IN
+    SELECT fr.child_file_id, fr.quantity, f.file_name, f.part_number
+    FROM file_references fr
+    JOIN files f ON fr.child_file_id = f.id
+    WHERE fr.parent_file_id = p_assembly_id
+  LOOP
+    v_component_count := v_component_count + 1;
+    
+    -- Get best price for this component
+    SELECT * INTO v_best_price 
+    FROM get_best_price(v_component.child_file_id, v_component.quantity * p_quantity)
+    LIMIT 1;
+    
+    IF v_best_price IS NOT NULL AND v_best_price.unit_price IS NOT NULL THEN
+      v_total := v_total + (v_best_price.unit_price * v_component.quantity * p_quantity);
+    ELSE
+      v_missing := v_missing + 1;
+    END IF;
+  END LOOP;
+  
+  RETURN QUERY SELECT 
+    v_assembly.id,
+    v_assembly.file_name,
+    v_assembly.part_number,
+    v_total,
+    v_currency,
+    v_component_count,
+    v_missing;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- View: Parts with pricing summary (for Odoo sync)
+CREATE OR REPLACE VIEW parts_with_pricing AS
+SELECT 
+  f.id,
+  f.org_id,
+  f.vault_id,
+  f.file_path,
+  f.file_name,
+  f.part_number,
+  f.description,
+  f.revision,
+  f.version,
+  f.state,
+  f.file_type,
+  -- Preferred supplier info
+  (
+    SELECT jsonb_build_object(
+      'supplier_id', s.id,
+      'supplier_name', s.name,
+      'supplier_code', s.code,
+      'supplier_part_number', ps.supplier_part_number,
+      'unit_price', ps.unit_price,
+      'currency', ps.currency,
+      'lead_time_days', COALESCE(ps.lead_time_days, s.default_lead_time_days)
+    )
+    FROM part_suppliers ps
+    JOIN suppliers s ON ps.supplier_id = s.id
+    WHERE ps.file_id = f.id AND ps.is_preferred = true AND ps.is_active = true
+    LIMIT 1
+  ) as preferred_supplier,
+  -- Count of suppliers
+  (SELECT COUNT(*) FROM part_suppliers WHERE file_id = f.id AND is_active = true) as supplier_count,
+  -- Lowest price
+  (
+    SELECT MIN(unit_price) 
+    FROM part_suppliers 
+    WHERE file_id = f.id AND is_active = true AND unit_price IS NOT NULL
+  ) as lowest_price,
+  f.created_at,
+  f.updated_at
+FROM files f
+WHERE f.deleted_at IS NULL
+  AND f.part_number IS NOT NULL;
 
 -- ===========================================
 -- RFQ (REQUEST FOR QUOTE) SYSTEM
@@ -2386,6 +2877,58 @@ CREATE POLICY "System can insert sync logs"
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- ===========================================
+-- ODOO SAVED CONFIGURATIONS
+-- ===========================================
+-- Stores multiple named Odoo configurations per org
+-- Users can save, load, and switch between configurations
+
+CREATE TABLE odoo_saved_configs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Configuration identity
+  name TEXT NOT NULL,  -- User-friendly label (e.g., "Production", "Dev Server", "Staging")
+  description TEXT,    -- Optional description
+  
+  -- Connection settings
+  url TEXT NOT NULL,           -- Odoo instance URL
+  database TEXT NOT NULL,      -- Odoo database name
+  username TEXT NOT NULL,      -- Odoo username (email)
+  api_key_encrypted TEXT,      -- API key (should be encrypted in production)
+  
+  -- Status tracking
+  is_active BOOLEAN DEFAULT true,
+  last_tested_at TIMESTAMPTZ,
+  last_test_success BOOLEAN,
+  last_test_error TEXT,
+  
+  -- Color/icon for visual distinction (optional)
+  color TEXT,  -- Hex color for UI badge (e.g., "#22c55e" for green)
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  -- Unique name per org
+  UNIQUE(org_id, name)
+);
+
+CREATE INDEX idx_odoo_saved_configs_org_id ON odoo_saved_configs(org_id);
+CREATE INDEX idx_odoo_saved_configs_active ON odoo_saved_configs(is_active) WHERE is_active = true;
+
+ALTER TABLE odoo_saved_configs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can view odoo saved configs"
+  ON odoo_saved_configs FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Admins can manage odoo saved configs"
+  ON odoo_saved_configs FOR ALL
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- ===========================================
 -- FILE METADATA COLUMNS (Custom metadata fields per org)
 -- ===========================================
 -- Org admins can define custom metadata columns that appear in the file browser
@@ -2759,6 +3302,69 @@ END;
 $$ LANGUAGE plpgsql;
 
 GRANT EXECUTE ON FUNCTION update_org_branding(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+
+-- ===========================================
+-- ORG MODULE DEFAULTS
+-- ===========================================
+
+-- Function to get org module defaults
+CREATE OR REPLACE FUNCTION get_org_module_defaults(p_org_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  result JSONB;
+BEGIN
+  SELECT module_defaults INTO result
+  FROM organizations
+  WHERE id = p_org_id;
+  
+  RETURN result;
+END;
+$$;
+
+-- Function to set org module defaults (admin only)
+CREATE OR REPLACE FUNCTION set_org_module_defaults(
+  p_org_id UUID,
+  p_enabled_modules JSONB,
+  p_enabled_groups JSONB,
+  p_module_order JSONB,
+  p_dividers JSONB
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  user_role TEXT;
+BEGIN
+  -- Check if user is admin of the organization
+  SELECT role INTO user_role
+  FROM organization_members
+  WHERE organization_id = p_org_id
+    AND user_id = auth.uid();
+  
+  IF user_role != 'admin' THEN
+    RAISE EXCEPTION 'Only admins can set organization module defaults';
+  END IF;
+  
+  -- Update the module defaults
+  UPDATE organizations
+  SET module_defaults = jsonb_build_object(
+    'enabled_modules', p_enabled_modules,
+    'enabled_groups', p_enabled_groups,
+    'module_order', p_module_order,
+    'dividers', p_dividers
+  )
+  WHERE id = p_org_id;
+  
+  RETURN TRUE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_org_module_defaults(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION set_org_module_defaults(UUID, JSONB, JSONB, JSONB, JSONB) TO authenticated;
 
 -- ===========================================
 -- COMMON TRIGGER FUNCTIONS

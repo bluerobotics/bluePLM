@@ -185,7 +185,7 @@ export function ContributionHistory() {
         
         // Fetch reviews where user was a reviewer
         const { data: reviewsAsReviewer, error: reviewerError } = await client
-          .from('review_reviewers')
+          .from('review_responses')
           .select(`
             id,
             status,
@@ -196,7 +196,7 @@ export function ContributionHistory() {
               created_at
             )
           `)
-          .eq('user_id', user.id)
+          .eq('reviewer_id', user.id)
           .gte('responded_at', oneYearAgo.toISOString())
           .not('responded_at', 'is', null)
         

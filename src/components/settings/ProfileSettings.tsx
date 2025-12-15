@@ -44,7 +44,7 @@ export function ProfileSettings() {
       try {
         const client = getDb()
         
-        // Get ECOs where user is creator or involved (via eco_files)
+        // Get ECOs where user is creator or involved (via file_ecos)
         const { data: createdECOs, error: createdError } = await client
           .from('ecos')
           .select('id, eco_number, title, status, created_at, created_by')
@@ -59,7 +59,7 @@ export function ProfileSettings() {
         
         // Get ECOs where user has files attached
         const { data: involvedECOs, error: involvedError } = await client
-          .from('eco_files')
+          .from('file_ecos')
           .select(`
             eco_id,
             ecos!inner (
@@ -71,7 +71,7 @@ export function ProfileSettings() {
               created_by
             )
           `)
-          .eq('added_by', user.id)
+          .eq('created_by', user.id)
           .limit(20)
         
         if (involvedError) {

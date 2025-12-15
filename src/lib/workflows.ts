@@ -356,7 +356,7 @@ export async function getReviewHistory(
   }
 ) {
   let query = supabase
-    .from('review_history')
+    .from('workflow_review_history')
     .select('*')
     .eq('org_id', orgId)
     .order('reviewed_at', { ascending: false })
