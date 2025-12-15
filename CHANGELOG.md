@@ -2,6 +2,64 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.3.0] - 2025-12-15
+
+### Added
+- **Module System**: Customize which sidebar modules are visible
+  - Enable/disable modules in Settings → Modules
+  - Drag-and-drop reordering of sidebar modules
+  - Add section dividers between module groups
+  - Lazy loading for disabled modules (saves memory)
+  - Module dependencies (disabling a parent hides dependents)
+  - Organization-wide module defaults (admin can save defaults for new members)
+
+- **Responsive Menu Bar**: UI adapts gracefully when window is narrow
+  - CPU stats condenses to single colored dot
+  - Zoom control condenses to icon only (hides percentage)
+  - Search type toggle becomes dropdown menu
+  - User profile condenses to avatar only (hides name)
+  - Vault/Org names hide progressively, showing only icons
+
+- **Dev Tools Settings Page**: New settings section for development testing
+  - Window size presets dropdown (iPhone, Android, iPad, iPad Pro, Laptop, Desktop)
+  - Quickly resize app window to test responsive layouts
+  - Reset button to restore default window size
+
+- **Odoo Multiple Configurations**: Save and switch between multiple Odoo server configurations
+  - Name and manage multiple Odoo connections
+  - Quick-switch between saved configurations
+  - Delete unused configurations
+
+- **Activity Bar Scrolling**: Sidebar now scrolls when modules overflow
+  - Fade gradient indicators show more content above/below
+  - Minimum window height reduced to 300px
+
+### Changed
+- **Modules Settings Improvements**:
+  - Explorer module is now toggleable (was previously locked)
+  - Disabling a module now hides all dependent modules automatically
+  - Simplified divider controls - just X button to remove (no toggle)
+  - Removed redundant Module Groups section
+  - Flat list layout for cleaner organization
+- **Renamed "ECO History" to "ECOs"** in sidebar
+- **Terminal moved to bottom** of sidebar module order (just above Settings)
+
+### Fixed
+- **Schema sync**: Updated schema.sql to match all migrations and app code
+  - Added eco_tags column to files table
+  - Added checkout_request notification type
+  - Added file_comments, file_watchers, file_share_links tables
+  - Added suppliers and part_suppliers tables
+  - Fixed table/column name references in app code
+- **TypeScript build errors**: Resolved all CI build failures
+  - Created shared SettingsTab type
+  - Fixed duplicate type definitions
+  - Fixed null vs undefined type mismatches
+  - Added proper type casts for Supabase client
+- **Keyboard zoom shortcuts** (Ctrl+/-/0) now properly update zoom display
+
+---
+
 ## [2.2.1] - 2025-12-14
 
 ### Fixed

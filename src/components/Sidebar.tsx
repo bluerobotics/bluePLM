@@ -85,7 +85,7 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
       'history': 'History',
       'trash': 'Trash',
       'terminal': 'Terminal',
-      'eco': 'ECO History',
+      'eco': 'ECOs',
       'ecr': 'ECR / Issues',
       'products': 'Products',
       'process': 'Process Editor',

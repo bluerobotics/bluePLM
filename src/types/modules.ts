@@ -140,7 +140,6 @@ export const MODULES: ModuleDefinition[] = [
     group: 'file-vault',
     icon: 'FolderTree',
     defaultEnabled: true,
-    required: true,  // Can't disable explorer if file vault is enabled
   },
   {
     id: 'pending',
@@ -193,7 +192,7 @@ export const MODULES: ModuleDefinition[] = [
   // Change Management (PLM)
   {
     id: 'eco',
-    name: 'ECO History',
+    name: 'ECOs',
     group: 'change-management',
     icon: 'ClipboardList',
     defaultEnabled: true,
@@ -268,34 +267,34 @@ export const MODULES: ModuleDefinition[] = [
 
 // Default section dividers (matches current ActivityBar layout)
 // Position is the index after which the divider appears (0-indexed)
-// Default module order: explorer(0), pending(1), search(2), workflows(3), history(4), trash(5), terminal(6),
-//                       eco(7), gsd(8), ecr(9), products(10), process(11), schedule(12), reviews(13),
-//                       suppliers(14), supplier-portal(15), google-drive(16)
 export const DEFAULT_DIVIDERS: SectionDivider[] = [
-  { id: 'divider-1', enabled: true, position: 6 },  // After terminal (index 6) - between PDM and PLM
+  { id: 'divider-1', enabled: true, position: 5 },  // After trash (index 5) - between PDM and PLM
 ]
 
 // Default module order (matches current ActivityBar layout)
 export const DEFAULT_MODULE_ORDER: ModuleId[] = [
-  // File Vault
+  // File Vault (PDM core)
   'explorer',
   'pending',
   'search',
   'workflows',
   'history',
   'trash',
-  'terminal',
-  // PLM - Change Management
-  'eco',
-  'gsd',
-  'ecr',
-  'products',
-  'process',
-  'schedule',
-  'reviews',
-  'suppliers',
-  'supplier-portal',
+  // ECOs group (all indented)
+  'gsd',        // indented
+  'eco',        // indented (eco history)
+  'reviews',    // indented
+  'process',    // indented
+  'schedule',   // indented
+  // Standalone
   'google-drive',
+  'products',
+  'ecr',
+  // Suppliers
+  'suppliers',
+  'supplier-portal',  // indented
+  // Tools (above Settings)
+  'terminal',
 ]
 
 // Helper to get default enabled modules

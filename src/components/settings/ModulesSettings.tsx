@@ -3,8 +3,6 @@ import {
   ToggleLeft,
   ToggleRight,
   GripVertical,
-  ChevronDown,
-  ChevronRight,
   Lock,
   RotateCcw,
   Save,
@@ -38,8 +36,6 @@ import {
   isModuleVisible,
   buildCombinedOrderList,
   type ModuleId,
-  type ModuleGroupId,
-  type ModuleDefinition,
   type OrderListItem
 } from '../../types/modules'
 
@@ -75,56 +71,6 @@ const moduleIcons: Record<string, React.ReactNode> = {
   GoogleDrive: <GoogleDriveIcon size={16} />,
 }
 
-// Group header component (collapsible)
-function GroupHeader({
-  groupId,
-  expanded,
-  onToggleExpand
-}: {
-  groupId: ModuleGroupId
-  expanded: boolean
-  onToggleExpand: () => void
-}) {
-  const { moduleConfig, setGroupEnabled } = usePDMStore()
-  const group = MODULE_GROUPS.find(g => g.id === groupId)
-  
-  if (!group) return null
-  
-  const isEnabled = moduleConfig.enabledGroups[groupId]
-  
-  return (
-    <div 
-      className="flex items-center justify-between px-3 py-2 bg-plm-bg-secondary rounded-lg cursor-pointer hover:bg-plm-highlight/50 transition-colors"
-      onClick={onToggleExpand}
-    >
-      <div className="flex items-center gap-2">
-        {expanded ? <ChevronDown size={16} className="text-plm-fg-muted" /> : <ChevronRight size={16} className="text-plm-fg-muted" />}
-        <span className="text-sm font-semibold text-plm-fg">{group.name}</span>
-        {group.isMasterToggle && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-plm-accent/20 text-plm-accent font-medium">
-            MASTER
-          </span>
-        )}
-      </div>
-      {group.isMasterToggle && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setGroupEnabled(groupId, !isEnabled)
-          }}
-          className="transition-colors"
-        >
-          {isEnabled ? (
-            <ToggleRight size={22} className="text-plm-accent" />
-          ) : (
-            <ToggleLeft size={22} className="text-plm-fg-muted" />
-          )}
-        </button>
-      )}
-    </div>
-  )
-}
-
 // Combined order list item (module or divider)
 function OrderListItemComponent({
   item,
@@ -143,12 +89,9 @@ function OrderListItemComponent({
   isDragging: boolean
   isDropTarget: boolean
 }) {
-  const { moduleConfig, setModuleEnabled, setDividerEnabled, removeDivider } = usePDMStore()
+  const { moduleConfig, setModuleEnabled, removeDivider } = usePDMStore()
   
   if (item.type === 'divider') {
-    const divider = moduleConfig.dividers.find(d => d.id === item.id)
-    const isEnabled = divider?.enabled ?? true
-    
     return (
       <div
         draggable
@@ -170,20 +113,6 @@ function OrderListItemComponent({
             Divider
           </span>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setDividerEnabled(item.id, !isEnabled)
-          }}
-          className="transition-colors"
-          title={isEnabled ? 'Disable divider' : 'Enable divider'}
-        >
-          {isEnabled ? (
-            <ToggleRight size={20} className="text-plm-accent" />
-          ) : (
-            <ToggleLeft size={20} className="text-plm-fg-muted" />
-          )}
-        </button>
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -209,9 +138,6 @@ function OrderListItemComponent({
   const group = MODULE_GROUPS.find(g => g.id === module.group)
   const isDisabledByGroup = group?.isMasterToggle && !isGroupEnabled
   
-  // Check if this module has dependencies (for indentation)
-  const hasDependencies = module.dependencies && module.dependencies.length > 0
-  
   return (
     <div
       draggable
@@ -226,16 +152,9 @@ function OrderListItemComponent({
           : isVisible
           ? 'border-plm-border bg-plm-bg hover:bg-plm-highlight/50'
           : 'border-plm-border/50 bg-plm-bg-secondary'
-      } ${hasDependencies ? 'ml-6' : ''}`}
+      }`}
     >
       <GripVertical size={14} className="text-plm-fg-muted flex-shrink-0" />
-      
-      {/* Dependency indicator */}
-      {hasDependencies && (
-        <div className="w-4 h-4 flex items-center justify-center text-plm-fg-dim" title={`Depends on: ${module.dependencies?.join(', ')}`}>
-          <div className="w-2 h-2 border-l border-b border-plm-border" />
-        </div>
-      )}
       
       <div className={`p-1 rounded ${isVisible ? 'text-plm-accent' : 'text-plm-fg-muted'}`}>
         {moduleIcons[module.icon] || <Package size={16} />}
@@ -292,9 +211,6 @@ export function ModulesSettings() {
     saveOrgModuleDefaults
   } = usePDMStore()
   
-  const [expandedGroups, setExpandedGroups] = useState<Set<ModuleGroupId>>(
-    new Set(MODULE_GROUPS.map(g => g.id))
-  )
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -307,18 +223,6 @@ export function ModulesSettings() {
   const combinedList = useMemo(() => {
     return buildCombinedOrderList(moduleConfig.moduleOrder, moduleConfig.dividers)
   }, [moduleConfig.moduleOrder, moduleConfig.dividers])
-  
-  const toggleGroup = (groupId: ModuleGroupId) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(groupId)) {
-        next.delete(groupId)
-      } else {
-        next.add(groupId)
-      }
-      return next
-    })
-  }
   
   const handleDragStart = (index: number) => {
     setDragIndex(index)
@@ -427,26 +331,6 @@ export function ModulesSettings() {
         </div>
       </div>
       
-      {/* Group Master Toggles */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Module Groups
-        </h2>
-        <div className="space-y-2">
-          {MODULE_GROUPS.filter(g => g.isMasterToggle).map(group => (
-            <GroupHeader
-              key={group.id}
-              groupId={group.id}
-              expanded={expandedGroups.has(group.id)}
-              onToggleExpand={() => toggleGroup(group.id)}
-            />
-          ))}
-        </div>
-        <p className="text-xs text-plm-fg-dim mt-2">
-          Master toggles control entire feature sets. Disabling File Vault hides all file management features.
-        </p>
-      </section>
-      
       {/* Combined Order List */}
       <section>
         <div className="flex items-center justify-between mb-3">
@@ -465,7 +349,7 @@ export function ModulesSettings() {
         
         <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
           <p className="text-sm text-plm-fg-muted mb-4">
-            Drag to reorder. Toggle to enable/disable. Indented items depend on their parent.
+            Drag to reorder. Toggle to enable/disable. Disabling a module hides its dependents.
           </p>
           <div className="space-y-2" onDragEnd={handleDragEnd}>
             {combinedList.map((item, index) => (
@@ -489,11 +373,7 @@ export function ModulesSettings() {
         <div className="flex flex-wrap gap-4 text-xs text-plm-fg-dim">
           <div className="flex items-center gap-1.5">
             <Lock size={10} />
-            <span>Required module (cannot disable)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 border-l border-b border-plm-border" />
-            <span>Dependent module (indented)</span>
+            <span>Required module</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Minus size={10} />
