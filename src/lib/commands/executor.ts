@@ -11,6 +11,7 @@
 
 import { usePDMStore } from '../../stores/pdmStore'
 import type { Command, CommandContext, CommandResult, CommandId, CommandMap } from './types'
+import { logUserAction } from '../userActionLogger'
 
 // Registry of all commands
 const commandRegistry = new Map<CommandId, Command<any>>()
@@ -215,6 +216,12 @@ export async function executeCommand<K extends CommandId>(
   
   // Execute
   try {
+    // Log user action for command execution
+    const fileCount = (params as any)?.files?.length
+    logUserAction('file', `Command: ${commandId}`, { 
+      fileCount: fileCount || 0,
+      commandId
+    })
     console.log(`[Commands] Executing: ${commandId}`, params)
     const result = await command.execute(params, ctx)
     

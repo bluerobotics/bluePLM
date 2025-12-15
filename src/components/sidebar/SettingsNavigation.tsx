@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase, isSupabaseConfigured } from '../../lib/supabase'
 import type { SettingsTab } from '../../types/settings'
+import { logSettings } from '../../lib/userActionLogger'
 
 type IntegrationStatus = 'online' | 'offline' | 'not-configured' | 'coming-soon'
 
@@ -286,7 +287,10 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
                     <button
                       key={item.id}
                       role="menuitem"
-                      onClick={() => onTabChange(item.id)}
+                      onClick={() => {
+                        logSettings(`Changed settings tab to ${item.label}`, { tabId: item.id })
+                        onTabChange(item.id)
+                      }}
                       className={`w-full flex items-center justify-between px-3 py-1 rounded-lg text-[13px] font-sans transition-colors outline-none focus-visible:ring-1 focus-visible:ring-plm-accent ${
                         activeTab === item.id
                           ? 'bg-plm-highlight text-plm-fg font-semibold'

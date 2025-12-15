@@ -22,6 +22,7 @@ import { createContext, useContext, useEffect, useState, useMemo, useRef, useCal
 import { usePDMStore, SidebarView } from '../stores/pdmStore'
 import { getUnreadNotificationCount, getPendingReviewsForUser } from '../lib/supabase'
 import { useTranslation } from '../lib/i18n'
+import { logNavigation, logSettings } from '../lib/userActionLogger'
 import { 
   MODULES, 
   isModuleVisible,
@@ -80,7 +81,10 @@ function ActivityItem({ icon, view, title, badge }: ActivityItemProps) {
   return (
     <div className="py-1 px-[6px]">
       <button
-        onClick={() => setActiveView(view)}
+        onClick={() => {
+          logNavigation(view, { title })
+          setActiveView(view)
+        }}
         onMouseEnter={() => !isExpanded && setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
         className={`relative h-11 w-full flex items-center gap-3 px-[9px] rounded-lg transition-colors overflow-hidden ${
@@ -170,6 +174,7 @@ function SidebarControl() {
               <button
                 key={mode}
                 onClick={() => {
+                  logSettings(`Changed sidebar mode to ${mode}`)
                   setActivityBarMode(mode)
                   setShowMenu(false)
                 }}

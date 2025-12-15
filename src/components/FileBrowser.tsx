@@ -59,6 +59,7 @@ import {
 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { getFileIconType, formatFileSize, STATE_INFO, getInitials } from '../types/pdm'
+import { logFileAction, logContextMenu, logDragDrop } from '../lib/userActionLogger'
 import { 
   supabase,
   updateFileMetadata, 
@@ -1479,18 +1480,21 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   // Inline action: Download a single file or folder (uses command system)
   const handleInlineDownload = (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
+    logFileAction('Download file', file.relativePath)
     executeCommand('download', { files: [file] }, { onRefresh })
   }
 
   // Inline action: Check out a single file or folder (uses command system)
   const handleInlineCheckout = (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
+    logFileAction('Checkout file', file.relativePath)
     executeCommand('checkout', { files: [file] }, { onRefresh })
   }
 
   // Inline action: Check in a single file or folder (uses command system)
   const handleInlineCheckin = async (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
+    logFileAction('Checkin file', file.relativePath)
     
     // Get all files that would be checked in
     const filesToCheckin = getSyncedFilesFromSelection(files, [file])
@@ -1546,11 +1550,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   // Inline action: Upload/sync a single file or folder (uses command system)
   const handleInlineUpload = (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
+    logFileAction('Upload/sync file', file.relativePath)
     executeCommand('sync', { files: [file] }, { onRefresh })
   }
 
   // Navigate to a folder - also expand it and its parents in sidebar
   const navigateToFolder = (folderPath: string) => {
+    logFileAction('Navigate to folder', folderPath)
     setCurrentFolder(folderPath)
     
     if (folderPath === '') return // Root doesn't need expansion
@@ -1990,6 +1996,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const handleContextMenu = (e: React.MouseEvent, file: LocalFile) => {
     e.preventDefault()
     e.stopPropagation()
+    logContextMenu('Opened file context menu', file.relativePath)
     setEmptyContextMenu(null)
     
     // Only keep multi-selection if there are multiple files selected AND 
@@ -2569,6 +2576,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   // Track mouse state for native file drag
   // Handle drag start - HTML5 drag initiates, Electron adds native file data
   const handleDragStart = (e: React.DragEvent, file: LocalFile) => {
+    logDragDrop('Started dragging files', { fileName: file.name, isDirectory: file.isDirectory })
     // Get files to drag - now supports both files and folders
     let filesToDrag: LocalFile[]
     if (selectedFiles.includes(file.path) && selectedFiles.length > 1) {
@@ -3241,6 +3249,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       return
     }
 
+    logDragDrop('Dropped files', { targetFolder: currentFolder })
     // First check for cross-view drag from Explorer (move files to current folder)
     const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
     if (pdmFilesData) {

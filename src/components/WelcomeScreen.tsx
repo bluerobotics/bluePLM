@@ -3,6 +3,7 @@ import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Database, Link, 
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
+import { logClick, logAuth } from '../lib/userActionLogger'
 import { LogViewer } from './LogViewer'
 import { LanguageSelector } from './LanguageSelector'
 import { useTranslation } from '../lib/i18n'
@@ -306,6 +307,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   }, [organization?.id, vaultsRefreshKey, platform]) // Refresh when vaultsRefreshKey changes
 
   const handleSignIn = async () => {
+    logAuth('Sign in with Google clicked')
     uiLog('info', 'Sign in button clicked')
     
     if (!isSupabaseConfigured()) {
@@ -467,6 +469,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   }
 
   const handleConnectVault = async (vault: Vault) => {
+    logClick('Connect vault button', { vaultName: vault.name, vaultId: vault.id })
     uiLog('info', 'Connect vault clicked', { vaultName: vault.name, vaultId: vault.id })
     
     if (!window.electronAPI) {
@@ -544,6 +547,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   }
 
   const handleConnectLegacy = async () => {
+    logClick('Connect legacy vault button')
     if (!window.electronAPI) return
     
     setIsConnectingVault(true)
@@ -674,7 +678,11 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               </p>
               
               <button
-                onClick={() => { setAccountType('user'); setAuthMethod('google') }}
+                onClick={() => { 
+                  logClick('Account type: User selected')
+                  setAccountType('user')
+                  setAuthMethod('google') 
+                }}
                 className="w-full bg-plm-bg-light border-2 border-plm-border hover:border-plm-accent rounded-xl p-6 transition-colors group"
               >
                 <div className="flex items-center gap-4">
@@ -691,7 +699,11 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               </button>
 
               <button
-                onClick={() => { setAccountType('supplier'); setAuthMethod('email') }}
+                onClick={() => { 
+                  logClick('Account type: Supplier selected')
+                  setAccountType('supplier')
+                  setAuthMethod('email') 
+                }}
                 className="w-full bg-plm-bg-light border-2 border-plm-border hover:border-amber-500 rounded-xl p-6 transition-colors group"
               >
                 <div className="flex items-center gap-4">

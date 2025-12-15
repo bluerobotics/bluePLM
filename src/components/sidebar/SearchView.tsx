@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Search, File, FolderOpen, X, ClipboardList, Tag, Loader2 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { getSupabaseClient } from '../../lib/supabase'
+import { logSearch, logFilter } from '../../lib/userActionLogger'
 
 interface ECOSearchResult {
   eco_number: string
@@ -150,6 +151,9 @@ export function SearchView() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    if (localQuery.trim()) {
+      logSearch(localQuery, searchMode)
+    }
     setSearchQuery(localQuery)
   }
 

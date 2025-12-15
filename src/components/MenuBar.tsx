@@ -3,6 +3,7 @@ import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Datab
 import { usePDMStore } from '../stores/pdmStore'
 import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization, getActiveSessions, endRemoteSession, UserSession, supabase } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
+import { logAuth } from '../lib/userActionLogger'
 import { SystemStats } from './SystemStats'
 import { OnlineUsersIndicator } from './OnlineUsersIndicator'
 import { getMachineId } from '../lib/backup'
@@ -251,6 +252,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   }, [])
 
   const handleSignIn = async () => {
+    logAuth('Sign in button clicked')
     uiLog('info', 'Sign in button clicked from MenuBar')
     
     if (!isSupabaseConfigured()) {
@@ -286,11 +288,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   }
 
   const handleSignOut = async () => {
+    logAuth('Sign out clicked')
     uiLog('info', 'Sign out clicked')
     const { error } = await signOut()
     if (error) {
       uiLog('error', 'Sign out error', { error: error.message })
     } else {
+      logAuth('Sign out successful')
       uiLog('info', 'Sign out successful')
     }
     setUser(null)

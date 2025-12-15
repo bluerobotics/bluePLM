@@ -24,6 +24,7 @@ import { WeatherEffects } from './components/WeatherEffects'
 import { VaultNotFoundDialog } from './components/VaultNotFoundDialog'
 import { executeTerminalCommand } from './lib/commands/parser'
 import { executeCommand } from './lib/commands'
+import { logKeyboard, logUserAction } from './lib/userActionLogger'
 
 // Build full path using the correct separator for the platform
 function buildFullPath(vaultPath: string, relativePath: string): string {
@@ -159,6 +160,14 @@ function App() {
   // Apply theme and language
   useTheme()
   useLanguage()
+  
+  // Log app startup
+  useEffect(() => {
+    logUserAction('navigation', 'App started', {
+      platform: navigator.platform,
+      userAgent: navigator.userAgent.split(' ').slice(-1)[0] // Last part is Chrome version
+    })
+  }, [])
   
   const {
     user,
@@ -303,6 +312,7 @@ function App() {
             last_sign_in: userProfile?.last_sign_in || null
           }
           setUser(userData)
+          logUserAction('auth', 'User authenticated', { email: userData.email, role: userData.role })
           console.log('[Auth] User profile loaded:', { email: userData.email, role: userData.role })
           
           // Then load organization using the working linkUserToOrganization function
@@ -380,6 +390,7 @@ function App() {
             setIsConnecting(false)
           }
         } else if (event === 'SIGNED_OUT') {
+          logUserAction('auth', 'User signed out')
           console.log('[Auth] Signed out')
           setUser(null)
           setOrganization(null)
@@ -1118,10 +1129,10 @@ function App() {
     }
   }, [vaultNotFoundPath, connectedVaults, setVaultPath, setVaultConnected, setFiles, setServerFiles, setFilesLoaded, addToast])
 
-  // Handle vault not found - open settings to organization tab where vaults are managed
+  // Handle vault not found - open settings to vaults tab where vaults are managed
   const handleVaultNotFoundSettings = useCallback(() => {
     const { setActiveView } = usePDMStore.getState()
-    setSettingsTab('organization')
+    setSettingsTab('vaults')
     setActiveView('settings')
     setVaultNotFoundPath(null)
     setVaultNotFoundName(undefined)
@@ -1683,19 +1694,23 @@ function App() {
           case 'o':
             if (e.shiftKey) {
               e.preventDefault()
+              logKeyboard('Ctrl+Shift+O', 'Open vault')
               handleOpenVault()
             }
             break
           case 'b':
             e.preventDefault()
+            logKeyboard('Ctrl+B', 'Toggle sidebar')
             toggleSidebar()
             break
           case 'd':
             e.preventDefault()
+            logKeyboard('Ctrl+D', 'Toggle details panel')
             toggleDetailsPanel()
             break
           case '`':  // Ctrl+` or Cmd+` to switch to terminal view
             e.preventDefault()
+            logKeyboard('Ctrl+`', 'Switch to terminal')
             setActiveView('terminal')
             break
         }
@@ -1703,6 +1718,7 @@ function App() {
       
       if (e.key === 'F5') {
         e.preventDefault()
+        logKeyboard('F5', 'Refresh files')
         loadFiles()
       }
     }
