@@ -178,17 +178,35 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           return
         }
         
-        // Load stats for each vault
+        // Load stats for each vault (with pagination to handle >1000 files)
         const vaultsWithStats = await Promise.all(
           (vaultsData as any[]).map(async (vault: any) => {
-            const { data: statsData } = await supabase
-              .from('files')
-              .select('file_size')
-              .eq('vault_id', vault.id)
+            // Fetch file count and total size using pagination (Supabase default limit is 1000)
+            const PAGE_SIZE = 1000
+            let allFileSizes: number[] = []
+            let offset = 0
+            let hasMore = true
+            
+            while (hasMore) {
+              const { data: statsData } = await supabase
+                .from('files')
+                .select('file_size')
+                .eq('vault_id', vault.id)
+                .is('deleted_at', null)  // Exclude soft-deleted files
+                .range(offset, offset + PAGE_SIZE - 1)
+              
+              if (statsData && statsData.length > 0) {
+                allFileSizes.push(...statsData.map((f: any) => f.file_size || 0))
+                offset += statsData.length
+                hasMore = statsData.length === PAGE_SIZE
+              } else {
+                hasMore = false
+              }
+            }
             
             const stats: VaultStats = {
-              fileCount: statsData?.length || 0,
-              totalSize: statsData?.reduce((acc: number, f: any) => acc + (f.file_size || 0), 0) || 0
+              fileCount: allFileSizes.length,
+              totalSize: allFileSizes.reduce((acc, size) => acc + size, 0)
             }
             
             return { ...vault, stats } as Vault

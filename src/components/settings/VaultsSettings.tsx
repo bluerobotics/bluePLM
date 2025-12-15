@@ -13,7 +13,8 @@ import {
   Plus,
   Loader2,
   AlertTriangle,
-  FolderX
+  FolderX,
+  RefreshCw
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
