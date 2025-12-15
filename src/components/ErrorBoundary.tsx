@@ -177,7 +177,15 @@ ${errorInfo?.componentStack || 'No component stack available'}
 
                 {/* Help text */}
                 <p className="text-xs text-slate-500 text-center pt-2">
-                  If this keeps happening, please copy the crash report and share it with support.
+                  If this keeps happening, please copy the crash report and{' '}
+                  <a 
+                    href="https://github.com/bluerobotics/bluePLM/issues/new" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    create a GitHub issue
+                  </a>.
                 </p>
               </div>
             </div>
