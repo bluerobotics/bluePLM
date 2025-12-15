@@ -1,6 +1,6 @@
 # BluePLM
 
-Open source Product Lifecycle Management for everyone who builds. Built with Electron, React, and Supabase.
+Open source product lifecycle management for everyone who builds. Built with Electron, React, and Supabase.
 
 ![BluePLM Screenshot](assets/screenshot.png)
 
