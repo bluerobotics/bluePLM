@@ -354,7 +354,6 @@ export function OdooSettings() {
         setDatabase(data.database)
         setUsername(data.username)
         setApiKey(data.api_key || '')
-        setShowSavedConfigs(false)
         addToast('info', `Loaded "${config.name}" - click Save & Test to activate`)
       } else {
         addToast('error', 'Failed to load configuration')
@@ -383,7 +382,6 @@ export function OdooSettings() {
 
       if (response.ok) {
         addToast(data.connected ? 'success' : 'warning', data.message)
-        setShowSavedConfigs(false)
         loadSettings()
         loadSavedConfigs()
       } else {

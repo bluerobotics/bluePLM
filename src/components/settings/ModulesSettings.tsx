@@ -165,7 +165,9 @@ function OrderListItemComponent({
           {module.name}
         </span>
         {module.required && (
-          <Lock size={10} className="inline ml-1.5 text-plm-fg-dim" title="Required when group enabled" />
+          <span title="Required when group enabled">
+            <Lock size={10} className="inline ml-1.5 text-plm-fg-dim" />
+          </span>
         )}
       </div>
       

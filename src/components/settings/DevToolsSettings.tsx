@@ -41,7 +41,7 @@ export function DevToolsSettings() {
       setCurrentSize({ width: preset.width, height: preset.height })
       setSelectedPreset(presetId)
     } else {
-      addToast({ type: 'error', message: result.error || 'Failed to resize' })
+      addToast('error', result.error || 'Failed to resize')
     }
   }
 

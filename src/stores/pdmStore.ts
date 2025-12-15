@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { PDMFile, FileState, Organization, User } from '../types/pdm'
-import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider, OrgModuleDefaults, OrderListItem } from '../types/modules'
-import { getDefaultModuleConfig, MODULES, MODULE_GROUPS, isModuleVisible, buildCombinedOrderList, extractFromCombinedList, DEFAULT_DIVIDERS } from '../types/modules'
+import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider, OrderListItem } from '../types/modules'
+import { getDefaultModuleConfig, MODULES, MODULE_GROUPS, isModuleVisible, extractFromCombinedList } from '../types/modules'
 import { supabase } from '../lib/supabase'
 
 // Build full path using the correct separator for the platform

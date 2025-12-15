@@ -2,6 +2,15 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.3.1] - 2025-12-15
+
+### Fixed
+- Fixed TypeScript errors causing build failures
+  - Corrected `addToast` call signature in DevToolsSettings
+  - Fixed Lucide icon `title` prop usage in ModulesSettings
+  - Removed references to non-existent state setter in OdooSettings
+  - Cleaned up unused imports in pdmStore
+
 ## [2.3.0] - 2025-12-15
 
 ### Added
