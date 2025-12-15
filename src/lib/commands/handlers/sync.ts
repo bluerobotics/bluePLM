@@ -18,6 +18,10 @@ export const syncCommand: Command<SyncParams> = {
   usage: 'sync <path> [--recursive]',
   
   validate({ files }, ctx) {
+    if (ctx.isOfflineMode) {
+      return 'Cannot sync files while offline'
+    }
+    
     if (!ctx.user) {
       return 'Please sign in first'
     }

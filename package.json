@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "release": "node scripts/release.js",
     "download-restic": "node scripts/download-restic.js",
+    "build-sw-service": "node scripts/build-sw-service.js",
     "cli": "node cli/blueplm.js",
     "api": "npx tsx api/server.ts",
     "api:dev": "npx tsx --watch api/server.ts",
@@ -92,6 +93,15 @@
           "to": "bin",
           "filter": [
             "**/*"
+          ]
+        },
+        {
+          "from": "solidworks-addin/BluePLM.SolidWorksService/bin/Release",
+          "to": "bin",
+          "filter": [
+            "BluePLM.SolidWorksService.exe",
+            "BluePLM.SolidWorksService.exe.config",
+            "*.dll"
           ]
         }
       ]

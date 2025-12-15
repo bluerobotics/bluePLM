@@ -196,9 +196,10 @@ declare global {
       // SolidWorks Service API (requires SolidWorks installed)
       solidworks: {
         // Service management
+        isInstalled: () => Promise<{ success: boolean; data?: { installed: boolean } }>
         startService: (dmLicenseKey?: string) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
         stopService: () => Promise<{ success: boolean }>
-        getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; version?: string }; error?: string }>
+        getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; installed?: boolean; version?: string }; error?: string }>
         
         // Metadata operations
         getBom: (filePath: string, options?: { includeChildren?: boolean; configuration?: string }) => 

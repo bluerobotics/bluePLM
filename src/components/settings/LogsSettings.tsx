@@ -9,9 +9,12 @@ import {
   Calendar,
   CheckSquare,
   Square,
-  ArrowLeft
+  ArrowLeft,
+  BarChart3,
+  ExternalLink
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
+import { LogViewer } from '../LogViewer'
 
 interface LogFile {
   name: string
@@ -34,6 +37,7 @@ export function LogsSettings() {
   const [copyingLogPath, setCopyingLogPath] = useState<string | null>(null)
   const [isBulkCopying, setIsBulkCopying] = useState(false)
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [showAdvancedViewer, setShowAdvancedViewer] = useState(false)
   
   // Load log files on mount
   useEffect(() => {
@@ -245,6 +249,30 @@ export function LogsSettings() {
 
   return (
     <div className="space-y-4">
+      {/* Advanced Log Viewer Modal */}
+      {showAdvancedViewer && (
+        <LogViewer onClose={() => setShowAdvancedViewer(false)} />
+      )}
+      
+      {/* Advanced Viewer Button */}
+      <button
+        onClick={() => setShowAdvancedViewer(true)}
+        className="w-full flex items-center gap-4 p-4 rounded-xl border border-plm-accent/30 bg-gradient-to-r from-plm-accent/10 to-transparent hover:border-plm-accent/50 transition-all group"
+      >
+        <div className="p-3 rounded-lg bg-plm-accent/20 group-hover:bg-plm-accent/30 transition-colors">
+          <BarChart3 size={24} className="text-plm-accent" />
+        </div>
+        <div className="flex-1 text-left">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-medium text-plm-fg">Open Advanced Log Viewer</span>
+            <ExternalLink size={14} className="text-plm-fg-muted" />
+          </div>
+          <p className="text-sm text-plm-fg-muted mt-0.5">
+            Histogram, filtering, search, and real-time streaming
+          </p>
+        </div>
+      </button>
+      
       {/* Header with filter and bulk actions */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">

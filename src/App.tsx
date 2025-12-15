@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 import type { SettingsTab } from './types/settings'
-import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat } from './lib/supabase'
+import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut } from './lib/supabase'
 import { subscribeToFiles, subscribeToActivity, unsubscribeAll } from './lib/realtime'
 // Backup services removed - now handled directly via restic
 import { MenuBar } from './components/MenuBar'
@@ -20,7 +20,9 @@ import { OrphanedCheckoutsContainer } from './components/OrphanedCheckoutDialog'
 import { GoogleDrivePanel } from './components/GoogleDrivePanel'
 import { ChristmasEffects } from './components/ChristmasEffects'
 import { HalloweenEffects } from './components/HalloweenEffects'
+import { VaultNotFoundDialog } from './components/VaultNotFoundDialog'
 import { executeTerminalCommand } from './lib/commands/parser'
+import { executeCommand } from './lib/commands'
 
 // Build full path using the correct separator for the platform
 function buildFullPath(vaultPath: string, relativePath: string): string {
@@ -60,17 +62,29 @@ function getSeasonalThemeOverride(): 'halloween' | 'christmas' | null {
 }
 
 // Apply theme to document and update titlebar overlay
-// Auto-applies seasonal themes (Halloween on Oct 1, Christmas on Dec 1)
+// Sign-in screen: always use system theme
+// Logged in: auto-applies seasonal themes (Halloween in October, Christmas in December) if setting is enabled
 function useTheme() {
   const theme = usePDMStore(s => s.theme)
+  const autoApplySeasonalThemes = usePDMStore(s => s.autoApplySeasonalThemes)
   const setTheme = usePDMStore(s => s.setTheme)
+  const user = usePDMStore(s => s.user)
+  const isOfflineMode = usePDMStore(s => s.isOfflineMode)
   
-  // Auto-apply seasonal theme on mount (only once per session per month change)
+  // Determine if user is signed in
+  const isSignedIn = !!user || isOfflineMode
+  
+  // Auto-apply seasonal theme when user signs in (if setting is enabled)
   useEffect(() => {
+    // Only apply seasonal themes when signed in
+    if (!isSignedIn) return
+    
+    // Don't auto-apply if setting is disabled
+    if (!autoApplySeasonalThemes) return
+    
     const seasonalTheme = getSeasonalThemeOverride()
     
-    // If we're in a seasonal period and user's theme is NOT already the seasonal theme,
-    // auto-switch to the seasonal theme (only once per season)
+    // If we're in a seasonal period and user's theme is NOT already the seasonal theme
     if (seasonalTheme && theme !== seasonalTheme) {
       // Check if we've already auto-switched this season (stored in localStorage to persist across restarts)
       const storageKey = `seasonal-theme-applied-${seasonalTheme}`
@@ -83,16 +97,24 @@ function useTheme() {
         console.log(`🎃🎄 Auto-applying ${seasonalTheme} theme for the season!`)
       }
     }
-  }, []) // Only run on mount
+  }, [isSignedIn, autoApplySeasonalThemes]) // Re-run when sign-in status or setting changes
   
   useEffect(() => {
     // Determine the actual theme to apply
-    let effectiveTheme: string = theme
+    // On sign-in screen: always use system theme
+    // When signed in: use stored theme
+    let effectiveTheme: string
     
-    if (theme === 'system') {
-      // Check system preference
+    if (!isSignedIn) {
+      // Sign-in screen: always use system preference
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       effectiveTheme = prefersDark ? 'dark' : 'light'
+    } else if (theme === 'system') {
+      // Signed in with system theme: check system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      effectiveTheme = prefersDark ? 'dark' : 'light'
+    } else {
+      effectiveTheme = theme
     }
     
     // Apply theme to document
@@ -102,8 +124,8 @@ function useTheme() {
     const overlayColors = titleBarOverlayColors[effectiveTheme] || titleBarOverlayColors['dark']
     window.electronAPI?.setTitleBarOverlay?.(overlayColors)
     
-    // Listen for system preference changes when using system theme
-    if (theme === 'system') {
+    // Listen for system preference changes when using system theme (or on sign-in screen)
+    if (!isSignedIn || theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
       const handleChange = (e: MediaQueryListEvent) => {
         const newTheme = e.matches ? 'dark' : 'light'
@@ -115,7 +137,7 @@ function useTheme() {
       mediaQuery.addEventListener('change', handleChange)
       return () => mediaQuery.removeEventListener('change', handleChange)
     }
-  }, [theme])
+  }, [theme, isSignedIn])
 }
 
 // Apply language to document (for Elvish Easter egg font)
@@ -136,6 +158,7 @@ function App() {
     user,
     organization,
     isOfflineMode,
+    setOfflineMode,
     vaultPath,
     isVaultConnected,
     connectedVaults,
@@ -163,6 +186,7 @@ function App() {
     setUser,
     setOrganization,
     setIsConnecting,
+    addToast,
   } = usePDMStore()
   
   // Get current vault ID (from activeVaultId or first connected vault)
@@ -175,6 +199,10 @@ function App() {
   const [isResizingDetails, setIsResizingDetails] = useState(false)
   const [isResizingRightPanel, setIsResizingRightPanel] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('profile')
+  
+  // Vault not found dialog state
+  const [vaultNotFoundPath, setVaultNotFoundPath] = useState<string | null>(null)
+  const [vaultNotFoundName, setVaultNotFoundName] = useState<string | undefined>(undefined)
   
   // Listen for settings tab navigation from MenuBar buttons
   useEffect(() => {
@@ -195,6 +223,41 @@ function App() {
   const handleSupabaseConfigured = useCallback(() => {
     setSupabaseReady(true)
   }, [])
+
+  // Network detection - automatically detect when going offline/online
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[Network] Connection restored')
+      // Only show toast if we were in auto-detected offline mode, not manual
+      if (isOfflineMode) {
+        addToast('success', 'Connection restored - you can now sync with the cloud')
+      }
+      // Don't automatically disable offline mode - let user decide when to reconnect
+      // This prevents data loss from auto-sync before user is ready
+    }
+    
+    const handleOffline = () => {
+      console.log('[Network] Connection lost')
+      if (!isOfflineMode) {
+        addToast('warning', 'Network connection lost - switching to offline mode')
+        setOfflineMode(true)
+      }
+    }
+    
+    // Check initial state
+    if (!navigator.onLine && !isOfflineMode) {
+      console.log('[Network] Starting offline')
+      setOfflineMode(true)
+    }
+    
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [isOfflineMode, setOfflineMode, addToast])
 
   // Initialize auth state (runs in background, doesn't block UI)
   useEffect(() => {
@@ -326,6 +389,19 @@ function App() {
       subscription.unsubscribe()
     }
   }, [supabaseReady, setUser, setOrganization, setStatusMessage, setVaultConnected, setIsConnecting])
+
+  // Sync API URL from organization settings to localStorage
+  // This ensures the API URL is restored on app launch, not just when opening Settings → REST API
+  useEffect(() => {
+    if (organization?.settings?.api_url) {
+      const API_URL_KEY = 'blueplm_api_url'
+      const currentUrl = localStorage.getItem(API_URL_KEY)
+      if (currentUrl !== organization.settings.api_url) {
+        console.log('[App] Syncing API URL from org settings to localStorage')
+        localStorage.setItem(API_URL_KEY, organization.settings.api_url)
+      }
+    }
+  }, [organization?.settings?.api_url])
 
   // Validate connected vault IDs after organization loads
   // This cleans up stale vaults that no longer exist on the server
@@ -850,6 +926,16 @@ function App() {
                       const localModTime = new Date(f.modifiedTime).getTime()
                       const cloudUpdateTime = f.pdmData.updated_at ? new Date(f.pdmData.updated_at).getTime() : 0
                       newDiffStatus = localModTime > cloudUpdateTime ? 'modified' : 'outdated'
+                      // Debug: log hash mismatches to help identify stale data issues
+                      window.electronAPI?.log('warn', '[HashCompute] Hash mismatch detected', {
+                        file: f.name,
+                        localHash: computedHash.substring(0, 12),
+                        serverHash: f.pdmData.content_hash.substring(0, 12),
+                        localModTime: new Date(localModTime).toISOString(),
+                        serverUpdatedAt: f.pdmData.updated_at,
+                        result: newDiffStatus,
+                        checkedOut: !!f.pdmData.checked_out_by
+                      })
                     } else {
                       // Hashes match - no diff
                       newDiffStatus = undefined
@@ -872,6 +958,67 @@ function App() {
             
             // Clear the status message after hash computation
             setStatusMessage('')
+          }
+          
+          // 4. Auto-download cloud files and updates (if enabled)
+          // Run after hash computation so we have accurate diff statuses
+          // IMPORTANT: Skip on silent refreshes to prevent infinite loops
+          // (silent refreshes are triggered by download/update commands completing)
+          if (silent) {
+            window.electronAPI?.log('info', '[AutoDownload] Skipping - silent refresh')
+          }
+          
+          const { autoDownloadCloudFiles, autoDownloadUpdates, addToast } = usePDMStore.getState()
+          
+          if (!silent && (autoDownloadCloudFiles || autoDownloadUpdates) && organization && !isOfflineMode) {
+            const latestFiles = usePDMStore.getState().files
+            
+            // Auto-download cloud-only files
+            if (autoDownloadCloudFiles) {
+              const cloudOnlyFiles = latestFiles.filter(f => 
+                !f.isDirectory && f.diffStatus === 'cloud' && f.pdmData?.content_hash
+              )
+              
+              if (cloudOnlyFiles.length > 0) {
+                window.electronAPI?.log('info', '[AutoDownload] Downloading cloud files', { count: cloudOnlyFiles.length })
+                try {
+                  // Don't pass onRefresh - we already skipped auto-download on silent refreshes,
+                  // and the download command will update the store. User can manually refresh if needed.
+                  const result = await executeCommand('download', { files: cloudOnlyFiles })
+                  if (result.succeeded > 0) {
+                    addToast('success', `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''}`)
+                  }
+                  if (result.failed > 0) {
+                    window.electronAPI?.log('warn', '[AutoDownload] Some downloads failed', { failed: result.failed, errors: result.errors })
+                  }
+                } catch (err) {
+                  window.electronAPI?.log('error', '[AutoDownload] Failed to download cloud files', { error: String(err) })
+                }
+              }
+            }
+            
+            // Auto-download updates for outdated files
+            if (autoDownloadUpdates) {
+              const outdatedFiles = latestFiles.filter(f => 
+                !f.isDirectory && f.diffStatus === 'outdated' && f.pdmData?.content_hash
+              )
+              
+              if (outdatedFiles.length > 0) {
+                window.electronAPI?.log('info', '[AutoDownload] Updating outdated files', { count: outdatedFiles.length })
+                try {
+                  // Don't pass onRefresh - same reason as above
+                  const result = await executeCommand('get-latest', { files: outdatedFiles })
+                  if (result.succeeded > 0) {
+                    addToast('success', `Auto-updated ${result.succeeded} file${result.succeeded > 1 ? 's' : ''}`)
+                  }
+                  if (result.failed > 0) {
+                    window.electronAPI?.log('warn', '[AutoDownload] Some updates failed', { failed: result.failed, errors: result.errors })
+                  }
+                } catch (err) {
+                  window.electronAPI?.log('error', '[AutoDownload] Failed to update outdated files', { error: String(err) })
+                }
+              }
+            }
           }
         }, 50) // Small delay to let React render first
       }
@@ -936,6 +1083,43 @@ function App() {
       setTimeout(() => setStatusMessage(''), 3000)
     }
   }, [setVaultPath, setVaultConnected, addRecentVault, setStatusMessage, setFiles, setServerFiles, setFilesLoaded])
+
+  // Handle vault not found - browse for new path
+  const handleVaultNotFoundBrowse = useCallback(async () => {
+    if (!window.electronAPI || !vaultNotFoundPath) return
+    
+    const result = await window.electronAPI.selectWorkingDir()
+    if (result.success && result.path) {
+      // Find the vault that had the broken path and update it
+      const brokenVault = connectedVaults.find(v => v.localPath === vaultNotFoundPath)
+      if (brokenVault) {
+        // Update the vault's local path
+        const { updateConnectedVault } = usePDMStore.getState()
+        updateConnectedVault(brokenVault.id, { localPath: result.path })
+        addToast('success', `Vault "${brokenVault.name}" path updated to: ${result.path}`)
+      }
+      
+      // Clear existing file state
+      setFiles([])
+      setServerFiles([])
+      setFilesLoaded(false)
+      
+      // Set the new path
+      setVaultPath(result.path)
+      setVaultConnected(true)
+      setVaultNotFoundPath(null)
+      setVaultNotFoundName(undefined)
+    }
+  }, [vaultNotFoundPath, connectedVaults, setVaultPath, setVaultConnected, setFiles, setServerFiles, setFilesLoaded, addToast])
+
+  // Handle vault not found - open settings to organization tab where vaults are managed
+  const handleVaultNotFoundSettings = useCallback(() => {
+    const { setActiveView } = usePDMStore.getState()
+    setSettingsTab('organization')
+    setActiveView('settings')
+    setVaultNotFoundPath(null)
+    setVaultNotFoundName(undefined)
+  }, [])
 
   // Open recent vault
   const handleOpenRecentVault = useCallback(async (path: string) => {
@@ -1022,6 +1206,9 @@ function App() {
       
       if (result.success) {
         console.log('[Init] Working directory set successfully')
+        // Clear any vault not found state
+        setVaultNotFoundPath(null)
+        setVaultNotFoundName(undefined)
         // Only set vault connected if we have auth (user) or offline mode
         // This ensures loadFiles waits for org data when online
         if (user || isOfflineMode) {
@@ -1033,8 +1220,15 @@ function App() {
         }
       } else {
         console.error('[Init] Failed to set working directory:', result.error)
-        // Only clear state if user is authenticated (to avoid clearing on startup race)
+        // Only handle if user is authenticated (to avoid race on startup)
         if (user || isOfflineMode) {
+          // Check if the error is because the path doesn't exist
+          if (result.error?.includes('not exist') || result.error?.includes('Path does not exist')) {
+            // Show the vault not found dialog
+            const vaultName = connectedVaults.find(v => v.localPath === pathToUse)?.name
+            setVaultNotFoundPath(pathToUse)
+            setVaultNotFoundName(vaultName)
+          }
           setVaultPath(null)
           setVaultConnected(false)
         }
@@ -1219,8 +1413,14 @@ function App() {
         case 'UPDATE':
           // File updated - could be checkout, version change, state change, etc.
           if (newFile) {
-            console.log('[Realtime] File updated:', newFile.file_name)
-            updateFilePdmData(newFile.id, newFile)
+            console.log('[Realtime] File updated:', newFile.file_name, 'by:', newFile.updated_by === currentUserId ? 'me' : 'other')
+            
+            // Only process updates from OTHER users via realtime
+            // Updates from current user are handled by the command handlers directly
+            // This prevents race conditions where realtime might interfere with local store updates
+            if (newFile.updated_by !== currentUserId) {
+              updateFilePdmData(newFile.id, newFile)
+            }
             
             // Check for force check-in from different machine (your file was released)
             // This happens when: you had file checked out on this machine, but it was checked in from elsewhere
@@ -1344,7 +1544,15 @@ function App() {
         if (result.success) {
           console.log('[Session] Device session registered')
           // Start heartbeat to keep session alive
-          startSessionHeartbeat(user.id)
+          // Pass callback to handle remote sign out
+          startSessionHeartbeat(user.id, async () => {
+            console.log('[Session] Remote sign out triggered')
+            const { addToast: toast, setUser: clearUser, setOrganization: clearOrg } = usePDMStore.getState()
+            toast('info', 'You were signed out from another device')
+            await signOut()
+            clearUser(null)
+            clearOrg(null)
+          })
         } else {
           console.error('[Session] Failed to register session:', result.error)
         }
@@ -1358,14 +1566,21 @@ function App() {
     }
   }, [user?.id, user?.org_id])
 
-  // Auto-start SolidWorks service if enabled
+  // Auto-start SolidWorks service if enabled and SolidWorks is installed
   useEffect(() => {
     const autoStart = usePDMStore.getState().autoStartSolidworksService
     const dmLicenseKey = organization?.settings?.solidworks_dm_license_key
     
     if (autoStart && window.electronAPI?.solidworks) {
-      // Check if service is already running before starting
+      // First check if SolidWorks is installed on this machine
       window.electronAPI.solidworks.getServiceStatus().then(result => {
+        // Only proceed if SolidWorks is installed
+        if (!result?.data?.installed) {
+          // SolidWorks not installed - silently skip auto-start
+          return
+        }
+        
+        // SolidWorks is installed, check if service is already running
         if (result?.success && !result.data?.running) {
           console.log('[SolidWorks] Auto-starting service...')
           window.electronAPI?.solidworks?.startService(dmLicenseKey || undefined).then(startResult => {
@@ -1606,6 +1821,20 @@ function App() {
       
       {/* Orphaned Checkouts Dialog */}
       <OrphanedCheckoutsContainer onRefresh={loadFiles} />
+      
+      {/* Vault Not Found Dialog */}
+      {vaultNotFoundPath && (
+        <VaultNotFoundDialog
+          vaultPath={vaultNotFoundPath}
+          vaultName={vaultNotFoundName}
+          onClose={() => {
+            setVaultNotFoundPath(null)
+            setVaultNotFoundName(undefined)
+          }}
+          onOpenSettings={handleVaultNotFoundSettings}
+          onBrowseNewPath={handleVaultNotFoundBrowse}
+        />
+      )}
     </div>
   )
 }

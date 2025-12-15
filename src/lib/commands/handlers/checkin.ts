@@ -12,6 +12,45 @@ import type { Command, CheckinParams, CommandResult } from '../types'
 import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { checkinFile } from '../../supabase'
+import type { LocalFile } from '../../../stores/pdmStore'
+
+// Detailed logging for checkin operations
+function logCheckin(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
+  const timestamp = new Date().toISOString()
+  const logData = { timestamp, ...context }
+  
+  const prefix = '[Checkin]'
+  if (level === 'error') {
+    console.error(prefix, message, logData)
+  } else if (level === 'warn') {
+    console.warn(prefix, message, logData)
+  } else if (level === 'debug') {
+    console.debug(prefix, message, logData)
+  } else {
+    console.log(prefix, message, logData)
+  }
+  
+  try {
+    window.electronAPI?.log(level, `${prefix} ${message}`, logData)
+  } catch {
+    // Ignore if electronAPI not available
+  }
+}
+
+function getFileContext(file: LocalFile): Record<string, unknown> {
+  return {
+    fileName: file.name,
+    relativePath: file.relativePath,
+    fullPath: file.path,
+    fileId: file.pdmData?.id,
+    fileSize: file.size,
+    localHash: file.localHash?.substring(0, 12),
+    serverHash: file.pdmData?.content_hash?.substring(0, 12),
+    version: file.pdmData?.version,
+    state: file.pdmData?.state,
+    hasPendingMetadata: !!file.pendingMetadata
+  }
+}
 
 export const checkinCommand: Command<CheckinParams> = {
   id: 'checkin',
@@ -21,6 +60,10 @@ export const checkinCommand: Command<CheckinParams> = {
   usage: 'checkin <path> [--message "commit message"]',
   
   validate({ files }, ctx) {
+    if (ctx.isOfflineMode) {
+      return 'Cannot check in files while offline'
+    }
+    
     if (!ctx.user) {
       return 'Please sign in first'
     }
@@ -56,12 +99,27 @@ export const checkinCommand: Command<CheckinParams> = {
   
   async execute({ files }, ctx): Promise<CommandResult> {
     const user = ctx.user!
+    const operationId = `checkin-${Date.now()}`
+    
+    logCheckin('info', 'Starting checkin operation', {
+      operationId,
+      userId: user.id,
+      selectedFileCount: files.length
+    })
     
     // Get files checked out by current user
     const syncedFiles = getSyncedFilesFromSelection(ctx.files, files)
     const filesToCheckin = syncedFiles.filter(f => f.pdmData?.checked_out_by === user.id)
     
+    logCheckin('debug', 'Filtered files for checkin', {
+      operationId,
+      syncedCount: syncedFiles.length,
+      checkinableCount: filesToCheckin.length,
+      checkedOutByOthers: syncedFiles.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user.id).length
+    })
+    
     if (filesToCheckin.length === 0) {
+      logCheckin('info', 'No files to check in', { operationId })
       return {
         success: true,
         message: 'No files to check in',
@@ -99,15 +157,44 @@ export const checkinCommand: Command<CheckinParams> = {
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
     const results = await Promise.all(filesToCheckin.map(async (file) => {
+      const fileCtx = getFileContext(file)
+      
       try {
         const wasFileMoved = file.pdmData?.file_path && 
           file.relativePath !== file.pdmData.file_path
         const wasFileRenamed = file.pdmData?.file_name && 
           file.name !== file.pdmData.file_name
         
+        logCheckin('debug', 'Checking in file', {
+          operationId,
+          ...fileCtx,
+          wasFileMoved,
+          wasFileRenamed,
+          oldPath: wasFileMoved ? file.pdmData?.file_path : undefined,
+          oldName: wasFileRenamed ? file.pdmData?.file_name : undefined
+        })
+        
+        // Read file to get hash
         const readResult = await window.electronAPI?.readFile(file.path)
         
+        if (!readResult?.success) {
+          logCheckin('error', 'Failed to read local file', {
+            operationId,
+            ...fileCtx,
+            readError: readResult?.error
+          })
+          progress.update()
+          return { success: false, error: `${file.name}: Failed to read file - ${readResult?.error || 'Unknown error'}` }
+        }
+        
         if (readResult?.success && readResult.hash) {
+          logCheckin('debug', 'File read successful, uploading', {
+            operationId,
+            fileName: file.name,
+            localHash: readResult.hash.substring(0, 12),
+            size: readResult.size
+          })
+          
           const result = await checkinFile(file.pdmData!.id, user.id, {
             newContentHash: readResult.hash,
             newFileSize: file.size,
@@ -117,7 +204,16 @@ export const checkinCommand: Command<CheckinParams> = {
           })
           
           if (result.success && result.file) {
-            await window.electronAPI?.setReadonly(file.path, true)
+            // Make file read-only
+            const readonlyResult = await window.electronAPI?.setReadonly(file.path, true)
+            if (readonlyResult?.success === false) {
+              logCheckin('warn', 'Failed to set read-only flag', {
+                operationId,
+                fileName: file.name,
+                error: readonlyResult.error
+              })
+            }
+            
             // Queue update for batch processing
             pendingUpdates.push({
               path: file.path,
@@ -129,13 +225,30 @@ export const checkinCommand: Command<CheckinParams> = {
                 pendingMetadata: undefined
               }
             })
+            
+            logCheckin('debug', 'File checkin successful', {
+              operationId,
+              fileName: file.name,
+              newVersion: result.file.version
+            })
             progress.update()
             return { success: true }
           } else {
+            logCheckin('error', 'Checkin API call failed', {
+              operationId,
+              ...fileCtx,
+              error: result.error
+            })
             progress.update()
-            return { success: false, error: result.error || 'Check in failed' }
+            return { success: false, error: `${file.name}: ${result.error || 'Check in failed'}` }
           }
         } else {
+          // Metadata-only checkin (no content change)
+          logCheckin('debug', 'Metadata-only checkin', {
+            operationId,
+            fileName: file.name
+          })
+          
           const result = await checkinFile(file.pdmData!.id, user.id, {
             newFilePath: wasFileMoved ? file.relativePath : undefined,
             newFileName: wasFileRenamed ? file.name : undefined,
@@ -155,14 +268,30 @@ export const checkinCommand: Command<CheckinParams> = {
                 pendingMetadata: undefined
               }
             })
+            
+            logCheckin('debug', 'Metadata checkin successful', {
+              operationId,
+              fileName: file.name
+            })
             progress.update()
             return { success: true }
           } else {
+            logCheckin('error', 'Metadata checkin failed', {
+              operationId,
+              ...fileCtx,
+              error: result.error
+            })
             progress.update()
-            return { success: false, error: result.error || 'Check in failed' }
+            return { success: false, error: `${file.name}: ${result.error || 'Check in failed'}` }
           }
         }
       } catch (err) {
+        logCheckin('error', 'Checkin exception', {
+          operationId,
+          ...fileCtx,
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined
+        })
         progress.update()
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
@@ -186,9 +315,22 @@ export const checkinCommand: Command<CheckinParams> = {
     ctx.removeProcessingFolders(foldersBeingProcessed)
     const { duration } = progress.finish()
     
+    // Log final result
+    logCheckin(failed > 0 ? 'warn' : 'info', 'Checkin operation complete', {
+      operationId,
+      total,
+      succeeded,
+      failed,
+      duration,
+      errors: errors.length > 0 ? errors : undefined
+    })
+    
     // Show result
     if (failed > 0) {
-      ctx.addToast('warning', `Checked in ${succeeded}/${total} files`)
+      // Show first error in toast for visibility
+      const firstError = errors[0] || 'Unknown error'
+      const moreText = errors.length > 1 ? ` (+${errors.length - 1} more)` : ''
+      ctx.addToast('error', `Check-in failed: ${firstError}${moreText}`)
     } else {
       ctx.addToast('success', `Checked in ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }

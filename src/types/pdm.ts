@@ -147,6 +147,8 @@ export interface OrgSettings {
   require_description: boolean
   require_approval_for_release: boolean
   max_file_size_mb: number
+  // Email domain enforcement
+  enforce_email_domain?: boolean  // If true, only users with matching email domains can join
   // SolidWorks integration (org-wide)
   solidworks_dm_license_key?: string  // Document Manager API key for fast file reading
   // REST API (org-wide)

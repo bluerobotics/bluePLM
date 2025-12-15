@@ -9,6 +9,47 @@ import type { Command, DownloadParams, CommandResult } from '../types'
 import { getCloudOnlyFilesFromSelection, buildFullPath, getParentDir } from '../types'
 import { ProgressTracker } from '../executor'
 import { getDownloadUrl } from '../../storage'
+import type { LocalFile } from '../../../stores/pdmStore'
+
+// Detailed logging for download operations
+function logDownload(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
+  const timestamp = new Date().toISOString()
+  const logData = { timestamp, ...context }
+  
+  const prefix = '[Download]'
+  if (level === 'error') {
+    console.error(prefix, message, logData)
+  } else if (level === 'warn') {
+    console.warn(prefix, message, logData)
+  } else if (level === 'debug') {
+    console.debug(prefix, message, logData)
+  } else {
+    console.log(prefix, message, logData)
+  }
+  
+  // Also log to electron main process
+  try {
+    window.electronAPI?.log(level, `${prefix} ${message}`, logData)
+  } catch {
+    // Ignore if electronAPI not available
+  }
+}
+
+// Build file context for logging
+function getFileContext(file: LocalFile): Record<string, unknown> {
+  return {
+    fileName: file.name,
+    relativePath: file.relativePath,
+    fullPath: file.path,
+    isDirectory: file.isDirectory,
+    diffStatus: file.diffStatus,
+    fileSize: file.pdmData?.file_size,
+    contentHash: file.pdmData?.content_hash ? `${file.pdmData.content_hash.substring(0, 12)}...` : null,
+    fileId: file.pdmData?.id,
+    version: file.pdmData?.version,
+    state: file.pdmData?.state
+  }
+}
 
 export const downloadCommand: Command<DownloadParams> = {
   id: 'download',
@@ -18,6 +59,10 @@ export const downloadCommand: Command<DownloadParams> = {
   usage: 'download <path> [--recursive]',
   
   validate({ files }, ctx) {
+    if (ctx.isOfflineMode) {
+      return 'Cannot download files while offline'
+    }
+    
     if (!ctx.organization) {
       return 'No organization connected'
     }
@@ -46,24 +91,53 @@ export const downloadCommand: Command<DownloadParams> = {
   async execute({ files }, ctx): Promise<CommandResult> {
     const organization = ctx.organization!
     const vaultPath = ctx.vaultPath!
+    const operationId = `download-${Date.now()}`
+    
+    logDownload('info', 'Starting download operation', {
+      operationId,
+      orgId: organization.id,
+      vaultPath,
+      selectedFileCount: files.length,
+      selectedPaths: files.map(f => f.relativePath)
+    })
     
     // Get cloud-only files from selection
     const cloudFiles = getCloudOnlyFilesFromSelection(ctx.files, files)
     const cloudOnlyFolders = files.filter(f => f.isDirectory && (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new'))
     
+    logDownload('debug', 'Filtered cloud files', {
+      operationId,
+      cloudFileCount: cloudFiles.length,
+      cloudFolderCount: cloudOnlyFolders.length,
+      cloudFiles: cloudFiles.map(f => ({ name: f.name, path: f.relativePath, hash: f.pdmData?.content_hash?.substring(0, 12) }))
+    })
+    
     // Handle empty cloud-only folders - just create them locally
     if (cloudFiles.length === 0 && cloudOnlyFolders.length > 0) {
       let created = 0
       const createdPaths: string[] = []
+      const folderErrors: string[] = []
       
       for (const folder of cloudOnlyFolders) {
         try {
           const fullPath = buildFullPath(vaultPath, folder.relativePath)
-          await window.electronAPI?.createFolder(fullPath)
+          logDownload('debug', 'Creating folder', { operationId, folder: folder.relativePath, fullPath })
+          
+          const result = await window.electronAPI?.createFolder(fullPath)
+          if (result?.success === false) {
+            throw new Error(result.error || 'Unknown error creating folder')
+          }
           created++
           createdPaths.push(folder.path)
+          logDownload('debug', 'Folder created successfully', { operationId, folder: folder.relativePath })
         } catch (err) {
-          console.error('Failed to create folder:', folder.relativePath, err)
+          const errorMsg = err instanceof Error ? err.message : String(err)
+          logDownload('error', 'Failed to create folder', { 
+            operationId,
+            folder: folder.relativePath,
+            error: errorMsg
+          })
+          folderErrors.push(`${folder.name}: ${errorMsg}`)
         }
       }
       
@@ -80,16 +154,25 @@ export const downloadCommand: Command<DownloadParams> = {
         ctx.addToast('success', `Created ${created} folder${created > 1 ? 's' : ''} locally`)
       }
       
+      logDownload('info', 'Folder creation complete', {
+        operationId,
+        created,
+        failed: cloudOnlyFolders.length - created,
+        errors: folderErrors
+      })
+      
       return {
         success: true,
         message: `Created ${created} folder${created > 1 ? 's' : ''} locally`,
         total: cloudOnlyFolders.length,
         succeeded: created,
-        failed: cloudOnlyFolders.length - created
+        failed: cloudOnlyFolders.length - created,
+        errors: folderErrors.length > 0 ? folderErrors : undefined
       }
     }
     
     if (cloudFiles.length === 0) {
+      logDownload('info', 'No cloud files to download', { operationId })
       return {
         success: true,
         message: 'No files to download',
@@ -130,34 +213,122 @@ export const downloadCommand: Command<DownloadParams> = {
     
     // Process all files in parallel
     const results = await Promise.all(cloudFiles.map(async (file) => {
+      const fileCtx = getFileContext(file)
+      
       if (!file.pdmData?.content_hash) {
+        logDownload('error', 'File has no content hash', {
+          operationId,
+          ...fileCtx,
+          pdmData: file.pdmData ? {
+            id: file.pdmData.id,
+            version: file.pdmData.version,
+            state: file.pdmData.state,
+            hasHash: !!file.pdmData.content_hash
+          } : null
+        })
         progress.update()
-        return { success: false, error: `${file.name}: No content hash` }
+        return { success: false, error: `${file.name}: No content hash - file metadata may be corrupted or incomplete` }
       }
       
+      const fullPath = buildFullPath(vaultPath, file.relativePath)
+      const parentDir = getParentDir(fullPath)
+      
       try {
-        const fullPath = buildFullPath(vaultPath, file.relativePath)
-        await window.electronAPI?.createFolder(getParentDir(fullPath))
+        logDownload('debug', 'Downloading file', {
+          operationId,
+          ...fileCtx,
+          fullPath,
+          parentDir
+        })
+        
+        // Create parent directory
+        const mkdirResult = await window.electronAPI?.createFolder(parentDir)
+        if (mkdirResult?.success === false) {
+          logDownload('error', 'Failed to create parent directory', {
+            operationId,
+            ...fileCtx,
+            parentDir,
+            error: mkdirResult.error
+          })
+          progress.update()
+          return { success: false, error: `${file.name}: Failed to create directory - ${mkdirResult.error}` }
+        }
+        
+        // Get signed URL
+        logDownload('debug', 'Getting signed URL', {
+          operationId,
+          fileName: file.name,
+          orgId: organization.id,
+          hash: file.pdmData.content_hash?.substring(0, 12)
+        })
         
         const { url, error: urlError } = await getDownloadUrl(organization.id, file.pdmData.content_hash)
         if (urlError || !url) {
+          logDownload('error', 'Failed to get download URL', {
+            operationId,
+            ...fileCtx,
+            urlError,
+            orgId: organization.id,
+            hash: file.pdmData.content_hash?.substring(0, 16)
+          })
           progress.update()
-          return { success: false, error: `${file.name}: ${urlError || 'Failed to get URL'}` }
+          return { success: false, error: `${file.name}: ${urlError || 'Failed to get download URL - file may not exist in cloud storage'}` }
         }
+        
+        // Download file
+        logDownload('debug', 'Starting file download', {
+          operationId,
+          fileName: file.name,
+          destPath: fullPath
+        })
         
         const downloadResult = await window.electronAPI?.downloadUrl(url, fullPath)
         if (!downloadResult?.success) {
+          logDownload('error', 'File download failed', {
+            operationId,
+            ...fileCtx,
+            fullPath,
+            downloadError: downloadResult?.error,
+            downloadResult
+          })
           progress.update()
-          return { success: false, error: `${file.name}: Download failed` }
+          return { success: false, error: `${file.name}: Download failed - ${downloadResult?.error || 'Unknown error writing to disk'}` }
         }
         
-        await window.electronAPI?.setReadonly(fullPath, true)
+        // Set read-only
+        const readonlyResult = await window.electronAPI?.setReadonly(fullPath, true)
+        if (readonlyResult?.success === false) {
+          logDownload('warn', 'Failed to set read-only flag', {
+            operationId,
+            fileName: file.name,
+            fullPath,
+            error: readonlyResult.error
+          })
+          // Don't fail the download for this
+        }
+        
+        logDownload('debug', 'File download complete', {
+          operationId,
+          fileName: file.name,
+          fullPath,
+          downloadedSize: downloadResult.size,
+          hash: downloadResult.hash?.substring(0, 12)
+        })
+        
         progress.update()
         return { success: true }
         
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        logDownload('error', 'Download exception', {
+          operationId,
+          ...fileCtx,
+          fullPath,
+          error: errorMsg,
+          stack: err instanceof Error ? err.stack : undefined
+        })
         progress.update()
-        return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
+        return { success: false, error: `${file.name}: ${errorMsg}` }
       }
     }))
     
@@ -175,9 +346,28 @@ export const downloadCommand: Command<DownloadParams> = {
     const { duration } = progress.finish()
     ctx.onRefresh?.(true)
     
+    // Log final result
+    logDownload(failed > 0 ? 'warn' : 'info', 'Download operation complete', {
+      operationId,
+      total,
+      succeeded,
+      failed,
+      duration,
+      errors: errors.length > 0 ? errors : undefined
+    })
+    
     // Show result
     if (failed > 0) {
-      ctx.addToast('warning', `Downloaded ${succeeded}/${total} files`)
+      // Log errors more prominently
+      logDownload('error', 'Some files failed to download', {
+        operationId,
+        failedCount: failed,
+        errors
+      })
+      // Show first error in toast for visibility
+      const firstError = errors[0] || 'Unknown error'
+      const moreText = errors.length > 1 ? ` (+${errors.length - 1} more)` : ''
+      ctx.addToast('error', `Download failed: ${firstError}${moreText}`)
     } else {
       ctx.addToast('success', `Downloaded ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }

@@ -25,9 +25,10 @@ const settingsSections: SettingsSection[] = [
     ]
   },
   {
-    category: 'Workspace',
+    category: 'Organization',
     items: [
-      { id: 'organization', label: 'Organization' },
+      { id: 'vaults', label: 'Vaults' },
+      { id: 'members', label: 'Members' },
       { id: 'company-profile', label: 'Company Profile' },
       { id: 'metadata-columns', label: 'File Metadata' },
       { id: 'rfq', label: 'RFQ Settings' },

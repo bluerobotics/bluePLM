@@ -19,6 +19,10 @@ export const discardCommand: Command<DiscardParams> = {
   usage: 'discard <path>',
   
   validate({ files }, ctx) {
+    if (ctx.isOfflineMode) {
+      return 'Cannot discard changes while offline'
+    }
+    
     if (!ctx.user) {
       return 'Please sign in first'
     }

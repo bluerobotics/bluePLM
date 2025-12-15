@@ -3,7 +3,7 @@ import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Database, Link, 
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
-import { LogsModal } from './LogsModal'
+import { LogViewer } from './LogViewer'
 import { LanguageSelector } from './LanguageSelector'
 import { useTranslation } from '../lib/i18n'
 import type { AccountType } from '../types/database'
@@ -688,23 +688,6 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
                   </div>
                 </div>
               </button>
-
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-plm-border"></div>
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
-                </div>
-              </div>
-
-              <button
-                onClick={handleOfflineMode}
-                className="w-full btn btn-secondary gap-3 justify-center py-3"
-              >
-                <WifiOff size={18} />
-                {t('welcome.workOffline')}
-              </button>
             </div>
           )}
 
@@ -1011,6 +994,23 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
               <div className="text-center text-xs text-plm-fg-muted mt-4">
                 {t('welcome.roleSetByOrg')}
               </div>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-plm-border"></div>
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleOfflineMode}
+                className="w-full btn btn-secondary gap-3 justify-center py-3"
+              >
+                <WifiOff size={18} />
+                {t('welcome.workOffline')}
+              </button>
             </div>
           )}
 
@@ -1518,7 +1518,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
       
       {/* Logs Modal */}
       {showLogsModal && (
-        <LogsModal onClose={() => setShowLogsModal(false)} />
+        <LogViewer onClose={() => setShowLogsModal(false)} />
       )}
     </div>
   )

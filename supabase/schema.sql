@@ -34,7 +34,8 @@ CREATE TABLE organizations (
     "require_description": false,
     "require_approval_for_release": true,
     "max_file_size_mb": 500,
-    "column_defaults": []
+    "column_defaults": [],
+    "enforce_email_domain": false
   }'::jsonb,
   -- column_defaults format: [{ "id": "name", "width": 280, "visible": true }, ...]
   created_at TIMESTAMPTZ DEFAULT NOW(),

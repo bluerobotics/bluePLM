@@ -255,6 +255,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // SolidWorks Service API (requires SolidWorks installed)
   solidworks: {
     // Service management
+    isInstalled: () => ipcRenderer.invoke('solidworks:is-installed'),
     startService: (dmLicenseKey?: string) => ipcRenderer.invoke('solidworks:start-service', dmLicenseKey),
     stopService: () => ipcRenderer.invoke('solidworks:stop-service'),
     getServiceStatus: () => ipcRenderer.invoke('solidworks:service-status'),
@@ -533,9 +534,10 @@ declare global {
       // SolidWorks Service API (requires SolidWorks installed)
       solidworks: {
         // Service management
+        isInstalled: () => Promise<{ success: boolean; data?: { installed: boolean } }>
         startService: (dmLicenseKey?: string) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
         stopService: () => Promise<{ success: boolean }>
-        getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; version?: string } }>
+        getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; installed?: boolean; version?: string } }>
         
         // Metadata operations
         getBom: (filePath: string, options?: { includeChildren?: boolean; configuration?: string }) => 

@@ -514,10 +514,10 @@ namespace BluePLM.SolidWorksService
                             FileType = fileType,
                             Quantity = quantities[depPath],
                             Configuration = "",
-                            PartNumber = GetDictValue(props, "PartNumber") ?? GetDictValue(props, "Part Number") ?? "",
+                            PartNumber = GetPartNumber(props),
                             Description = GetDictValue(props, "Description") ?? "",
                             Material = GetDictValue(props, "Material") ?? "",
-                            Revision = GetDictValue(props, "Revision") ?? GetDictValue(props, "Rev") ?? "",
+                            Revision = GetRevision(props),
                             Properties = props
                         });
                     }
@@ -764,6 +764,73 @@ namespace BluePLM.SolidWorksService
             if (dict.TryGetValue(key, out var value))
                 return value;
             return null;
+        }
+
+        /// <summary>
+        /// Get part number from properties, checking common property name variations
+        /// </summary>
+        private static string GetPartNumber(Dictionary<string, string> props)
+        {
+            // Common part number property names used in SolidWorks
+            string[] partNumberKeys = {
+                "PartNumber", "Part Number", "Part No", "Part No.", "PartNo",
+                "ItemNumber", "Item Number", "Item No", "Item No.", "ItemNo",
+                "PN", "P/N", "Number", "No", "No."
+            };
+
+            foreach (var key in partNumberKeys)
+            {
+                var value = GetDictValue(props, key);
+                if (!string.IsNullOrEmpty(value))
+                    return value;
+            }
+
+            // Try case-insensitive search as fallback
+            foreach (var kvp in props)
+            {
+                var lowerKey = kvp.Key.ToLowerInvariant();
+                if (lowerKey.Contains("part") && (lowerKey.Contains("number") || lowerKey.Contains("no")) ||
+                    lowerKey.Contains("item") && (lowerKey.Contains("number") || lowerKey.Contains("no")) ||
+                    lowerKey == "pn" || lowerKey == "p/n")
+                {
+                    if (!string.IsNullOrEmpty(kvp.Value))
+                        return kvp.Value;
+                }
+            }
+
+            return "";
+        }
+
+        /// <summary>
+        /// Get revision from properties, checking common property name variations
+        /// </summary>
+        private static string GetRevision(Dictionary<string, string> props)
+        {
+            // Common revision property names used in SolidWorks
+            string[] revisionKeys = {
+                "Revision", "Rev", "Rev.", "REV", "RevLevel", "Rev Level",
+                "Revision Level", "RevisionLevel", "ECO", "ECN", "Change Level"
+            };
+
+            foreach (var key in revisionKeys)
+            {
+                var value = GetDictValue(props, key);
+                if (!string.IsNullOrEmpty(value))
+                    return value;
+            }
+
+            // Try case-insensitive search as fallback
+            foreach (var kvp in props)
+            {
+                var lowerKey = kvp.Key.ToLowerInvariant();
+                if (lowerKey.Contains("rev") || lowerKey.Contains("eco") || lowerKey.Contains("ecn"))
+                {
+                    if (!string.IsNullOrEmpty(kvp.Value))
+                        return kvp.Value;
+                }
+            }
+
+            return "";
         }
 
         #endregion

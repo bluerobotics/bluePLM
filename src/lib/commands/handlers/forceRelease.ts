@@ -17,6 +17,10 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
   usage: 'force-release <path>',
   
   validate({ files }, ctx) {
+    if (ctx.isOfflineMode) {
+      return 'Cannot force release checkouts while offline'
+    }
+    
     if (!ctx.user) {
       return 'Please sign in first'
     }

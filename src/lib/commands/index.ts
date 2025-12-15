@@ -40,6 +40,7 @@ import { checkoutCommand } from './handlers/checkout'
 import { checkinCommand } from './handlers/checkin'
 import { syncCommand } from './handlers/sync'
 import { downloadCommand } from './handlers/download'
+import { getLatestCommand } from './handlers/getLatest'
 import { deleteLocalCommand, deleteServerCommand } from './handlers/delete'
 import { discardCommand } from './handlers/discard'
 import { forceReleaseCommand } from './handlers/forceRelease'
@@ -64,6 +65,7 @@ function initializeCommands() {
   registerCommand('checkin', checkinCommand)
   registerCommand('sync', syncCommand)
   registerCommand('download', downloadCommand)
+  registerCommand('get-latest', getLatestCommand)
   registerCommand('delete-local', deleteLocalCommand)
   registerCommand('delete-server', deleteServerCommand)
   registerCommand('discard', discardCommand)
@@ -164,6 +166,16 @@ export async function discard(
   onRefresh?: (silent?: boolean) => void
 ) {
   return executeCommand('discard', { files }, { onRefresh })
+}
+
+/**
+ * Get latest version from server (for outdated files)
+ */
+export async function getLatest(
+  files: LocalFile[],
+  onRefresh?: (silent?: boolean) => void
+) {
+  return executeCommand('get-latest', { files }, { onRefresh })
 }
 
 /**

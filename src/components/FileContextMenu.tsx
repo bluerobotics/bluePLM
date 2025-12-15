@@ -27,7 +27,8 @@ import {
   Link,
   ClipboardList,
   Calendar,
-  Monitor
+  Monitor,
+  CloudOff
 } from 'lucide-react'
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
@@ -49,7 +50,8 @@ import {
   isWatchingFile,
   createShareLink,
   getActiveECOs,
-  addFileToECO
+  addFileToECO,
+  isMachineOnline
 } from '../lib/supabase'
 
 interface FileContextMenuProps {
@@ -89,10 +91,11 @@ export function FileContextMenu({
   const [isCalculatingSize, setIsCalculatingSize] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmFiles, setDeleteConfirmFiles] = useState<LocalFile[]>([])
+  const [deleteServerKeepLocal, setDeleteServerKeepLocal] = useState(false)
   const [showDeleteLocalConfirm, setShowDeleteLocalConfirm] = useState(false)
   const [deleteLocalCheckedOutFiles, setDeleteLocalCheckedOutFiles] = useState<LocalFile[]>([])
   const [showForceCheckinConfirm, setShowForceCheckinConfirm] = useState(false)
-  const [forceCheckinFiles, setForceCheckinFiles] = useState<{ filesOnDifferentMachine: LocalFile[], machineNames: string[] } | null>(null)
+  const [forceCheckinFiles, setForceCheckinFiles] = useState<{ filesOnDifferentMachine: LocalFile[], machineNames: string[], anyMachineOnline: boolean } | null>(null)
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
   const [platform, setPlatform] = useState<string>('win32')
   const [showIgnoreSubmenu, setShowIgnoreSubmenu] = useState(false)
@@ -308,7 +311,7 @@ export function FileContextMenu({
     executeCommand('checkout', { files: contextFiles }, { onRefresh })
   }
   
-  const handleCheckin = () => {
+  const handleCheckin = async () => {
     // Get files that would be checked in
     const syncedFiles = getSyncedFilesFromSelection(files, contextFiles)
     const filesToCheckin = syncedFiles.filter(f => f.pdmData?.checked_out_by === user?.id)
@@ -319,10 +322,16 @@ export function FileContextMenu({
       return checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
     })
     
-    if (filesOnDifferentMachine.length > 0) {
-      // Show confirmation dialog
+    if (filesOnDifferentMachine.length > 0 && user) {
+      // Get unique machine IDs and check if any are online
+      const machineIds = [...new Set(filesOnDifferentMachine.map(f => f.pdmData?.checked_out_by_machine_id).filter(Boolean))] as string[]
       const machineNames = [...new Set(filesOnDifferentMachine.map(f => f.pdmData?.checked_out_by_machine_name || 'another computer'))]
-      setForceCheckinFiles({ filesOnDifferentMachine, machineNames })
+      
+      // Check if any machines are online
+      const onlineStatuses = await Promise.all(machineIds.map(mid => isMachineOnline(user.id, mid)))
+      const anyMachineOnline = onlineStatuses.some(isOnline => isOnline)
+      
+      setForceCheckinFiles({ filesOnDifferentMachine, machineNames, anyMachineOnline })
       setShowForceCheckinConfirm(true)
       return
     }
@@ -391,7 +400,7 @@ export function FileContextMenu({
   }
   
   // Handle delete from server (shows confirmation dialog first)
-  const handleDeleteFromServer = () => {
+  const handleDeleteFromServer = (keepLocal: boolean = false) => {
     // Get all synced files to delete from server (including files inside folders)
     const allFilesToDelete: LocalFile[] = []
     
@@ -421,7 +430,7 @@ export function FileContextMenu({
       if (hasCloudOnlyFolders) {
         // Empty cloud-only folders - delete directly without confirmation
         onClose()
-        executeCommand('delete-server', { files: contextFiles, deleteLocal: true }, { onRefresh })
+        executeCommand('delete-server', { files: contextFiles, deleteLocal: !keepLocal }, { onRefresh })
       } else {
         addToast('warning', 'No files to delete from server')
         onClose()
@@ -432,21 +441,24 @@ export function FileContextMenu({
     // If only local folders with no server files, delete without confirmation
     if (uniqueFiles.length === 0 && hasLocalFolders) {
       onClose()
-      executeCommand('delete-server', { files: contextFiles, deleteLocal: true }, { onRefresh })
+      executeCommand('delete-server', { files: contextFiles, deleteLocal: !keepLocal }, { onRefresh })
       return
     }
     
     // Show confirmation dialog for server files
     setDeleteConfirmFiles(uniqueFiles)
+    setDeleteServerKeepLocal(keepLocal)
     setShowDeleteConfirm(true)
   }
   
   // Execute server delete after confirmation
   const executeDeleteFromServer = () => {
     setShowDeleteConfirm(false)
+    const keepLocal = deleteServerKeepLocal
+    setDeleteServerKeepLocal(false)
     setDeleteConfirmFiles([])
     onClose()
-    executeCommand('delete-server', { files: contextFiles, deleteLocal: true }, { onRefresh })
+    executeCommand('delete-server', { files: contextFiles, deleteLocal: !keepLocal }, { onRefresh })
   }
   
   // Request Review handlers
@@ -1191,23 +1203,31 @@ export function FileContextMenu({
         {anySynced && !allCloudOnly && (
           <div className="context-menu-item" onClick={handleDeleteLocal}>
             <Trash2 size={14} />
-            Remove Local Copy {countLabel}
+            Remove Local Copy ({syncedFilesInSelection.length} file{syncedFilesInSelection.length !== 1 ? 's' : ''})
           </div>
         )}
         
         {/* Delete Locally - for local files/folders (keeps server copy) */}
-        {(hasUnsyncedLocalFiles || hasLocalFolders) && !allCloudOnly && (
+        {(hasUnsyncedLocalFiles || hasLocalFolders) && !allCloudOnly && !anySynced && (
           <div className="context-menu-item danger" onClick={handleDeleteLocal}>
             <Trash2 size={14} />
-            Delete Locally {countLabel}
+            Delete Locally ({unsyncedFilesInSelection.length} file{unsyncedFilesInSelection.length !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
           </div>
         )}
         
-        {/* Delete from Server - show if any content exists on server (synced, cloud-only, or folder exists on server) */}
+        {/* Delete from Server (Keep Local) - for synced files that have local copies */}
+        {anySynced && !allCloudOnly && (
+          <div className="context-menu-item" onClick={() => handleDeleteFromServer(true)}>
+            <CloudOff size={14} />
+            Delete from Server ({syncedFilesInSelection.length} file{syncedFilesInSelection.length !== 1 ? 's' : ''})
+          </div>
+        )}
+        
+        {/* Delete Local & Server - show if any content exists on server (synced, cloud-only, or folder exists on server) */}
         {(anySynced || allCloudOnly || anyCloudOnly || hasFoldersOnServer) && (
-          <div className="context-menu-item danger" onClick={handleDeleteFromServer}>
+          <div className="context-menu-item danger" onClick={() => handleDeleteFromServer(false)}>
             <Trash2 size={14} />
-            {allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} {countLabel}
+            {allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} ({syncedFilesInSelection.length + cloudOnlyFilesInSelection.length} file{(syncedFilesInSelection.length + cloudOnlyFilesInSelection.length) !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
           </div>
         )}
       </div>
@@ -1322,22 +1342,28 @@ export function FileContextMenu({
       {showDeleteConfirm && (
         <div 
           className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => { setShowDeleteConfirm(false); onClose(); }}
+          onClick={() => { setShowDeleteConfirm(false); setDeleteServerKeepLocal(false); onClose(); }}
         >
           <div 
             className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-plm-error/20 flex items-center justify-center">
-                <AlertTriangle size={20} className="text-plm-error" />
+              <div className={`w-10 h-10 rounded-full ${deleteServerKeepLocal ? 'bg-plm-warning/20' : 'bg-plm-error/20'} flex items-center justify-center`}>
+                <AlertTriangle size={20} className={deleteServerKeepLocal ? 'text-plm-warning' : 'text-plm-error'} />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-plm-fg">
-                  Delete Local & Server {deleteConfirmFiles.length > 1 ? `${deleteConfirmFiles.length} Items` : 'Item'}?
+                  {deleteServerKeepLocal 
+                    ? `Delete from Server ${deleteConfirmFiles.length > 1 ? `${deleteConfirmFiles.length} Items` : 'Item'}?`
+                    : `Delete Local & Server ${deleteConfirmFiles.length > 1 ? `${deleteConfirmFiles.length} Items` : 'Item'}?`
+                  }
                 </h3>
                 <p className="text-sm text-plm-fg-muted">
-                  Items will be deleted locally AND from the server.
+                  {deleteServerKeepLocal 
+                    ? 'Items will be deleted from the server. Local copies will be kept.'
+                    : 'Items will be deleted locally AND from the server.'
+                  }
                 </p>
               </div>
             </div>
@@ -1371,26 +1397,32 @@ export function FileContextMenu({
             </div>
             
             {/* Warning */}
-            <div className="bg-plm-warning/10 border border-plm-warning/30 rounded p-3 mb-4">
-              <p className="text-sm text-plm-warning font-medium">
-                ⚠️ {deleteConfirmFiles.length} synced file{deleteConfirmFiles.length > 1 ? 's' : ''} will be deleted from the server.
+            <div className={`${deleteServerKeepLocal ? 'bg-plm-info/10 border-plm-info/30' : 'bg-plm-warning/10 border-plm-warning/30'} border rounded p-3 mb-4`}>
+              <p className={`text-sm ${deleteServerKeepLocal ? 'text-plm-info' : 'text-plm-warning'} font-medium`}>
+                {deleteServerKeepLocal 
+                  ? `ℹ️ ${deleteConfirmFiles.length} file${deleteConfirmFiles.length > 1 ? 's' : ''} will be removed from the server. Local copies will become unsynced.`
+                  : `⚠️ ${deleteConfirmFiles.length} synced file${deleteConfirmFiles.length > 1 ? 's' : ''} will be deleted from the server.`
+                }
               </p>
               <p className="text-xs text-plm-fg-muted mt-1">Files can be recovered from trash within 30 days.</p>
             </div>
             
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => { setShowDeleteConfirm(false); onClose(); }}
+                onClick={() => { setShowDeleteConfirm(false); setDeleteServerKeepLocal(false); onClose(); }}
                 className="btn btn-ghost"
               >
                 Cancel
               </button>
               <button
                 onClick={executeDeleteFromServer}
-                className="btn bg-plm-error hover:bg-plm-error/80 text-white"
+                className={`btn ${deleteServerKeepLocal ? 'bg-plm-warning hover:bg-plm-warning/80' : 'bg-plm-error hover:bg-plm-error/80'} text-white`}
               >
-                <Trash2 size={14} />
-                Delete Local & Server {deleteConfirmFiles.length > 1 ? `(${deleteConfirmFiles.length})` : ''}
+                {deleteServerKeepLocal ? <CloudOff size={14} /> : <Trash2 size={14} />}
+                {deleteServerKeepLocal 
+                  ? `Delete from Server ${deleteConfirmFiles.length > 1 ? `(${deleteConfirmFiles.length})` : ''}`
+                  : `Delete Local & Server ${deleteConfirmFiles.length > 1 ? `(${deleteConfirmFiles.length})` : ''}`
+                }
               </button>
             </div>
           </div>
@@ -1481,12 +1513,16 @@ export function FileContextMenu({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-plm-warning/20 flex items-center justify-center">
-                <Monitor size={20} className="text-plm-warning" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${forceCheckinFiles.anyMachineOnline ? 'bg-plm-warning/20' : 'bg-plm-error/20'}`}>
+                {forceCheckinFiles.anyMachineOnline ? (
+                  <Monitor size={20} className="text-plm-warning" />
+                ) : (
+                  <CloudOff size={20} className="text-plm-error" />
+                )}
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-plm-fg">
-                  Check In From Different Computer
+                  {forceCheckinFiles.anyMachineOnline ? 'Check In From Different Computer' : 'Cannot Check In - Machine Offline'}
                 </h3>
                 <p className="text-sm text-plm-fg-muted">
                   {forceCheckinFiles.filesOnDifferentMachine.length} file{forceCheckinFiles.filesOnDifferentMachine.length > 1 ? 's are' : ' is'} checked out on {forceCheckinFiles.machineNames.join(', ')}.
@@ -1498,7 +1534,7 @@ export function FileContextMenu({
               <div className="space-y-1">
                 {forceCheckinFiles.filesOnDifferentMachine.slice(0, 5).map((f, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
-                    <File size={14} className="text-plm-warning" />
+                    <File size={14} className={forceCheckinFiles.anyMachineOnline ? 'text-plm-warning' : 'text-plm-error'} />
                     <span className="text-plm-fg truncate">{f.name}</span>
                   </div>
                 ))}
@@ -1510,30 +1546,52 @@ export function FileContextMenu({
               </div>
             </div>
             
-            {/* Warning */}
-            <div className="bg-plm-warning/10 border border-plm-warning/30 rounded p-3 mb-4">
-              <p className="text-sm text-plm-fg">
-                Checking in from here will <strong>discard any unsaved changes</strong> on {forceCheckinFiles.machineNames.length === 1 ? 'that' : 'those'} computer{forceCheckinFiles.machineNames.length > 1 ? 's' : ''}.
-              </p>
-              <p className="text-xs text-plm-fg-muted mt-2">
-                The other computer{forceCheckinFiles.machineNames.length > 1 ? 's' : ''} will be notified.
-              </p>
-            </div>
+            {/* Warning/Info based on online status */}
+            {forceCheckinFiles.anyMachineOnline ? (
+              <div className="bg-plm-warning/10 border border-plm-warning/30 rounded p-3 mb-4">
+                <p className="text-sm text-plm-fg">
+                  Are you sure you want to check in from here? Any unsaved changes on {forceCheckinFiles.machineNames.length === 1 ? 'that' : 'those'} computer{forceCheckinFiles.machineNames.length > 1 ? 's' : ''} will be lost.
+                </p>
+                <p className="text-xs text-plm-fg-muted mt-2">
+                  The other computer{forceCheckinFiles.machineNames.length > 1 ? 's' : ''} will be notified.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-plm-error/10 border border-plm-error/30 rounded p-3 mb-4">
+                <p className="text-sm text-plm-fg">
+                  You can only check in files from another machine when that machine is <strong>online</strong>.
+                </p>
+                <p className="text-xs text-plm-fg-muted mt-2">
+                  This ensures no unsaved work is lost. Please check in from the original computer, or wait for it to come online.
+                </p>
+              </div>
+            )}
             
             <div className="flex flex-col gap-2">
-              <button
-                onClick={handleForceCheckin}
-                className="btn bg-plm-warning hover:bg-plm-warning/80 text-white w-full justify-center"
-              >
-                <ArrowUp size={14} />
-                Force Check In
-              </button>
-              <button
-                onClick={() => { setShowForceCheckinConfirm(false); setForceCheckinFiles(null); onClose(); }}
-                className="btn btn-ghost w-full justify-center"
-              >
-                Cancel
-              </button>
+              {forceCheckinFiles.anyMachineOnline ? (
+                <>
+                  <button
+                    onClick={handleForceCheckin}
+                    className="btn bg-plm-warning hover:bg-plm-warning/80 text-white w-full justify-center"
+                  >
+                    <ArrowUp size={14} />
+                    Force Check In
+                  </button>
+                  <button
+                    onClick={() => { setShowForceCheckinConfirm(false); setForceCheckinFiles(null); onClose(); }}
+                    className="btn btn-ghost w-full justify-center"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { setShowForceCheckinConfirm(false); setForceCheckinFiles(null); onClose(); }}
+                  className="btn btn-primary w-full justify-center"
+                >
+                  OK
+                </button>
+              )}
             </div>
           </div>
         </div>

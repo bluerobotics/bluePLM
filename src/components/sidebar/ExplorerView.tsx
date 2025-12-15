@@ -2533,6 +2533,32 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               <Info size={14} />
               Properties
             </button>
+            <button
+              className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
+              onClick={async () => {
+                const vault = vaultContextMenu.vault
+                setVaultContextMenu(null)
+                
+                // Open folder picker
+                const result = await window.electronAPI?.selectWorkingDir()
+                if (result?.success && result.path) {
+                  // Update the vault's local path
+                  const { updateConnectedVault, setVaultPath, setVaultConnected, addToast } = usePDMStore.getState()
+                  updateConnectedVault(vault.id, { localPath: result.path })
+                  
+                  // If this is the active vault, also update the working directory
+                  if (activeVaultId === vault.id) {
+                    setVaultPath(result.path)
+                    setVaultConnected(true)
+                  }
+                  
+                  addToast('success', `Vault "${vault.name}" path changed to: ${result.path}`)
+                }
+              }}
+            >
+              <FolderOpen size={14} />
+              Change Path...
+            </button>
             <div className="border-t border-plm-border my-1" />
             <button
               className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-warning"

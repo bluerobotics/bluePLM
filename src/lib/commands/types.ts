@@ -24,6 +24,7 @@ export interface CommandContext {
   // Auth & Organization
   user: User | null
   organization: Organization | null
+  isOfflineMode: boolean
   
   // Vault info
   vaultPath: string | null
@@ -110,6 +111,9 @@ export interface DeleteServerParams extends BaseCommandParams {
 // Discard changes (revert to server version)
 export interface DiscardParams extends BaseCommandParams {}
 
+// Get latest version from server (for outdated files)
+export interface GetLatestParams extends BaseCommandParams {}
+
 // Force release checkout (admin only)
 export interface ForceReleaseParams extends BaseCommandParams {}
 
@@ -171,6 +175,7 @@ export type CommandId =
   | 'checkin'
   | 'sync'
   | 'download'
+  | 'get-latest'
   | 'delete-local'
   | 'delete-server'
   | 'discard'
@@ -212,6 +217,7 @@ export type CommandMap = {
   'checkin': Command<CheckinParams>
   'sync': Command<SyncParams>
   'download': Command<DownloadParams>
+  'get-latest': Command<GetLatestParams>
   'delete-local': Command<DeleteLocalParams>
   'delete-server': Command<DeleteServerParams>
   'discard': Command<DiscardParams>

@@ -71,7 +71,8 @@ import {
   isWatchingFile,
   createShareLink,
   getActiveECOs,
-  addFileToECO
+  addFileToECO,
+  isMachineOnline
 } from '../lib/supabase'
 import type { FileMetadataColumn } from '../types/database'
 // Use command system for PDM operations
@@ -1488,7 +1489,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   }
 
   // Inline action: Check in a single file or folder (uses command system)
-  const handleInlineCheckin = (e: React.MouseEvent, file: LocalFile) => {
+  const handleInlineCheckin = async (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
     
     // Get all files that would be checked in
@@ -1501,15 +1502,34 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       return checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
     })
     
-    if (filesOnDifferentMachine.length > 0) {
-      // Show confirmation dialog for force check-in
+    if (filesOnDifferentMachine.length > 0 && user) {
+      // Get unique machine IDs from files on different machines
+      const machineIds = [...new Set(filesOnDifferentMachine.map(f => f.pdmData?.checked_out_by_machine_id).filter(Boolean))] as string[]
       const machineNames = [...new Set(filesOnDifferentMachine.map(f => f.pdmData?.checked_out_by_machine_name || 'another computer'))]
       const machineList = machineNames.join(', ')
       
+      // Check if any of the other machines are online
+      const onlineStatuses = await Promise.all(machineIds.map(mid => isMachineOnline(user.id, mid)))
+      const anyMachineOnline = onlineStatuses.some(isOnline => isOnline)
+      
+      if (!anyMachineOnline) {
+        // Other machine(s) are offline - block the operation
+        setCustomConfirm({
+          title: 'Cannot Check In - Machine Offline',
+          message: `${filesOnDifferentMachine.length === 1 ? 'This file is' : `${filesOnDifferentMachine.length} files are`} checked out on ${machineList}, which is currently offline.`,
+          warning: 'You can only check in files from another machine when that machine is online. This ensures no unsaved work is lost. Please check in from the original computer, or wait for it to come online.',
+          confirmText: 'OK',
+          confirmDanger: false,
+          onConfirm: () => setCustomConfirm(null)
+        })
+        return
+      }
+      
+      // Other machine is online - show confirmation
       setCustomConfirm({
         title: 'Check In From Different Computer',
-        message: `${filesOnDifferentMachine.length === 1 ? 'This file is' : `${filesOnDifferentMachine.length} files are`} checked out on ${machineList}. Checking in from here will discard any unsaved changes on ${machineNames.length === 1 ? 'that' : 'those'} computer${machineNames.length === 1 ? '' : 's'}.`,
-        warning: `The other computer${machineNames.length === 1 ? '' : 's'} will be notified that ${filesOnDifferentMachine.length === 1 ? 'this file was' : 'these files were'} force checked in.`,
+        message: `${filesOnDifferentMachine.length === 1 ? 'This file is' : `${filesOnDifferentMachine.length} files are`} checked out on ${machineList}. Are you sure you want to check in from here?`,
+        warning: `The other computer${machineNames.length === 1 ? '' : 's'} will be notified and any unsaved changes there will be lost.`,
         confirmText: 'Force Check In',
         confirmDanger: true,
         onConfirm: () => {
@@ -4012,16 +4032,22 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         const displayName = fullName || email?.split('@')[0] || 'Unknown'
         const tooltipName = fullName || email || 'Unknown'
         const isMe = user?.id === file.pdmData.checked_out_by
+        const coMachineId = file.pdmData.checked_out_by_machine_id
+        const coMachineName = file.pdmData.checked_out_by_machine_name
+        const onDifferentMachine = isMe && coMachineId && currentMachineId && coMachineId !== currentMachineId
         
         return (
-          <span className={`flex items-center gap-2 ${isMe ? 'text-plm-warning' : 'text-plm-fg'}`} title={tooltipName}>
+          <span 
+            className={`flex items-center gap-2 ${isMe ? (onDifferentMachine ? 'text-plm-warning' : 'text-plm-warning') : 'text-plm-fg'}`} 
+            title={onDifferentMachine ? `Checked out by you on ${coMachineName || 'another computer'}` : tooltipName}
+          >
             <div className="relative w-5 h-5 flex-shrink-0">
               {avatarUrl ? (
                 <img 
                   src={avatarUrl} 
                   alt={displayName}
                   title={tooltipName}
-                  className="w-5 h-5 rounded-full object-cover"
+                  className={`w-5 h-5 rounded-full object-cover ring-1 ${onDifferentMachine ? 'ring-plm-warning' : 'ring-transparent'}`}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement
                     target.style.display = 'none'
@@ -4030,13 +4056,26 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 />
               ) : null}
               <div 
-                className={`w-5 h-5 rounded-full bg-plm-accent/30 flex items-center justify-center text-xs absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
+                className={`w-5 h-5 rounded-full ${onDifferentMachine ? 'bg-plm-warning/30' : 'bg-plm-accent/30'} flex items-center justify-center text-xs absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
                 title={tooltipName}
               >
                 {getInitials(displayName)}
               </div>
+              {/* Machine indicator for different machine */}
+              {onDifferentMachine && (
+                <div 
+                  className="absolute -bottom-0.5 -right-0.5 bg-plm-warning rounded-full flex items-center justify-center"
+                  style={{ width: 10, height: 10 }}
+                  title={`Checked out on ${coMachineName || 'another computer'}`}
+                >
+                  <Monitor size={7} className="text-plm-bg" />
+                </div>
+              )}
             </div>
             <span className="truncate">{displayName}</span>
+            {onDifferentMachine && (
+              <span className="text-[10px] text-plm-warning opacity-75">({coMachineName || 'other PC'})</span>
+            )}
           </span>
         )
       case 'ecoTags':
@@ -5638,7 +5677,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         }}
                       >
                         <Trash2 size={14} />
-                        Remove Local Copy {countLabel}
+                        Remove Local Copy ({syncedFilesInSelection.length} file{syncedFilesInSelection.length !== 1 ? 's' : ''})
                       </div>
                     )}
                     
@@ -5665,7 +5704,33 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         }}
                       >
                         <Trash2 size={14} />
-                        Delete Locally {countLabel}
+                        Delete Locally ({unsyncedFilesInSelection.length} file{unsyncedFilesInSelection.length !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
+                      </div>
+                    )}
+                    
+                    {/* Delete from Server (Keep Local) - deletes from server only, keeps local */}
+                    {hasSyncedFiles && !allCloudOnly && (
+                      <div 
+                        className="context-menu-item"
+                        onClick={() => {
+                          setContextMenu(null)
+                          // Store files for confirmation
+                          const storedSyncedFiles = [...syncedFilesInSelection]
+                          
+                          setCustomConfirm({
+                            title: `Delete from Server ${storedSyncedFiles.length > 1 ? `${storedSyncedFiles.length} Items` : 'Item'}?`,
+                            message: `${storedSyncedFiles.length} file${storedSyncedFiles.length > 1 ? 's' : ''} will be removed from the server. Local copies will be kept.`,
+                            warning: 'Local copies will become unsynced. Files can be recovered from server trash within 30 days.',
+                            confirmText: 'Delete from Server',
+                            confirmDanger: false,
+                            onConfirm: async () => {
+                              executeCommand('delete-server', { files: contextFiles, deleteLocal: false }, { onRefresh })
+                            }
+                          })
+                        }}
+                      >
+                        <CloudOff size={14} />
+                        Delete from Server ({syncedFilesInSelection.length} file{syncedFilesInSelection.length !== 1 ? 's' : ''})
                       </div>
                     )}
                     
@@ -5781,7 +5846,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         }}
                       >
                         <CloudOff size={14} />
-                        {allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} {countLabel}
+                        {allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} ({syncedFilesInSelection.length + cloudOnlyCount} file{(syncedFilesInSelection.length + cloudOnlyCount) !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
                       </div>
                     )}
                   </>

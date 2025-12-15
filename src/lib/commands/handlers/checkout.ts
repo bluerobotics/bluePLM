@@ -10,6 +10,42 @@ import type { Command, CheckoutParams, CommandResult } from '../types'
 import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { checkoutFile } from '../../supabase'
+import type { LocalFile } from '../../../stores/pdmStore'
+
+// Detailed logging for checkout operations
+function logCheckout(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
+  const timestamp = new Date().toISOString()
+  const logData = { timestamp, ...context }
+  
+  const prefix = '[Checkout]'
+  if (level === 'error') {
+    console.error(prefix, message, logData)
+  } else if (level === 'warn') {
+    console.warn(prefix, message, logData)
+  } else if (level === 'debug') {
+    console.debug(prefix, message, logData)
+  } else {
+    console.log(prefix, message, logData)
+  }
+  
+  try {
+    window.electronAPI?.log(level, `${prefix} ${message}`, logData)
+  } catch {
+    // Ignore if electronAPI not available
+  }
+}
+
+function getFileContext(file: LocalFile): Record<string, unknown> {
+  return {
+    fileName: file.name,
+    relativePath: file.relativePath,
+    fullPath: file.path,
+    fileId: file.pdmData?.id,
+    checkedOutBy: file.pdmData?.checked_out_by,
+    version: file.pdmData?.version,
+    state: file.pdmData?.state
+  }
+}
 
 export const checkoutCommand: Command<CheckoutParams> = {
   id: 'checkout',
@@ -19,6 +55,10 @@ export const checkoutCommand: Command<CheckoutParams> = {
   usage: 'checkout <path> [--recursive]',
   
   validate({ files }, ctx) {
+    if (ctx.isOfflineMode) {
+      return 'Cannot check out files while offline'
+    }
+    
     if (!ctx.user) {
       return 'Please sign in first'
     }
@@ -48,12 +88,27 @@ export const checkoutCommand: Command<CheckoutParams> = {
   
   async execute({ files }, ctx): Promise<CommandResult> {
     const user = ctx.user!
+    const operationId = `checkout-${Date.now()}`
+    
+    logCheckout('info', 'Starting checkout operation', {
+      operationId,
+      userId: user.id,
+      selectedFileCount: files.length
+    })
     
     // Get files that can be checked out
     const syncedFiles = getSyncedFilesFromSelection(ctx.files, files)
     const filesToCheckout = syncedFiles.filter(f => !f.pdmData?.checked_out_by)
     
+    logCheckout('debug', 'Filtered files for checkout', {
+      operationId,
+      syncedCount: syncedFiles.length,
+      checkoutableCount: filesToCheckout.length,
+      alreadyCheckedOut: syncedFiles.filter(f => f.pdmData?.checked_out_by).length
+    })
+    
     if (filesToCheckout.length === 0) {
+      logCheckout('info', 'No files to check out', { operationId })
       return {
         success: true,
         message: 'No files to check out',
@@ -91,11 +146,24 @@ export const checkoutCommand: Command<CheckoutParams> = {
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
     const results = await Promise.all(filesToCheckout.map(async (file) => {
+      const fileCtx = getFileContext(file)
+      
       try {
+        logCheckout('debug', 'Checking out file', { operationId, ...fileCtx })
+        
         const result = await checkoutFile(file.pdmData!.id, user.id)
         
         if (result.success) {
-          await window.electronAPI?.setReadonly(file.path, false)
+          // Make file writable
+          const readonlyResult = await window.electronAPI?.setReadonly(file.path, false)
+          if (readonlyResult?.success === false) {
+            logCheckout('warn', 'Failed to clear read-only flag', {
+              operationId,
+              fileName: file.name,
+              error: readonlyResult.error
+            })
+          }
+          
           // Queue update for batch processing
           pendingUpdates.push({
             path: file.path,
@@ -107,13 +175,26 @@ export const checkoutCommand: Command<CheckoutParams> = {
               }
             }
           })
+          
+          logCheckout('debug', 'File checkout successful', { operationId, fileName: file.name })
           progress.update()
           return { success: true }
         } else {
+          logCheckout('error', 'File checkout failed', {
+            operationId,
+            ...fileCtx,
+            error: result.error
+          })
           progress.update()
-          return { success: false, error: result.error || 'Unknown error' }
+          return { success: false, error: `${file.name}: ${result.error || 'Unknown error'}` }
         }
       } catch (err) {
+        logCheckout('error', 'Checkout exception', {
+          operationId,
+          ...fileCtx,
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined
+        })
         progress.update()
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
@@ -137,9 +218,22 @@ export const checkoutCommand: Command<CheckoutParams> = {
     ctx.removeProcessingFolders(foldersBeingProcessed)
     const { duration } = progress.finish()
     
+    // Log final result
+    logCheckout(failed > 0 ? 'warn' : 'info', 'Checkout operation complete', {
+      operationId,
+      total,
+      succeeded,
+      failed,
+      duration,
+      errors: errors.length > 0 ? errors : undefined
+    })
+    
     // Show result
     if (failed > 0) {
-      ctx.addToast('warning', `Checked out ${succeeded}/${total} files`)
+      // Show first error in toast for visibility
+      const firstError = errors[0] || 'Unknown error'
+      const moreText = errors.length > 1 ? ` (+${errors.length - 1} more)` : ''
+      ctx.addToast('error', `Checkout failed: ${firstError}${moreText}`)
     } else {
       ctx.addToast('success', `Checked out ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }

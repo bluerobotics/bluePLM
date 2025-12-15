@@ -2,7 +2,8 @@ import {
   ProfileSettings,
   PreferencesSettings,
   ModulesSettings,
-  OrganizationSettings,
+  VaultsSettings,
+  MembersSettings,
   CompanyProfileSettings,
   RFQSettings,
   MetadataColumnsSettings,
@@ -33,8 +34,10 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <PreferencesSettings />
       case 'modules':
         return <ModulesSettings />
-      case 'organization':
-        return <OrganizationSettings />
+      case 'vaults':
+        return <VaultsSettings />
+      case 'members':
+        return <MembersSettings />
       case 'company-profile':
         return <CompanyProfileSettings />
       case 'rfq':

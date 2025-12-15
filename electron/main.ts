@@ -1872,33 +1872,155 @@ ipcMain.handle('fs:read-file', async (_, filePath: string) => {
 })
 
 ipcMain.handle('fs:write-file', async (_, filePath: string, base64Data: string) => {
+  logDebug('Writing file', { filePath, dataLength: base64Data?.length })
+  
   try {
+    if (!filePath) {
+      logError('Write file: missing file path')
+      return { success: false, error: 'Missing file path' }
+    }
+    
+    if (!base64Data) {
+      logError('Write file: missing data', { filePath })
+      return { success: false, error: 'Missing file data' }
+    }
+    
     const buffer = Buffer.from(base64Data, 'base64')
+    logDebug('Decoded buffer', { filePath, bufferSize: buffer.length })
     
     // Ensure directory exists
     const dir = path.dirname(filePath)
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
+      logDebug('Creating parent directory', { dir })
+      try {
+        fs.mkdirSync(dir, { recursive: true })
+      } catch (mkdirErr) {
+        const nodeErr = mkdirErr as NodeJS.ErrnoException
+        logError('Failed to create parent directory', {
+          dir,
+          error: String(mkdirErr),
+          code: nodeErr.code
+        })
+        return { success: false, error: `Failed to create directory: ${mkdirErr}` }
+      }
     }
     
+    // Check write permission
+    try {
+      fs.accessSync(dir, fs.constants.W_OK)
+    } catch (accessErr) {
+      logError('No write permission', { dir, filePath })
+      return { success: false, error: `No write permission to directory: ${dir}` }
+    }
+    
+    // Write the file
     fs.writeFileSync(filePath, buffer)
     
     // Calculate hash of written file
     const hash = crypto.createHash('sha256').update(buffer).digest('hex')
     
+    logDebug('File written successfully', {
+      filePath,
+      size: buffer.length,
+      hash: hash.substring(0, 12) + '...'
+    })
+    
     return { success: true, hash, size: buffer.length }
   } catch (err) {
-    return { success: false, error: String(err) }
+    const nodeErr = err as NodeJS.ErrnoException
+    logError('Write file error', {
+      filePath,
+      error: String(err),
+      code: nodeErr.code,
+      syscall: nodeErr.syscall
+    })
+    
+    let errorMsg = String(err)
+    if (nodeErr.code === 'EACCES' || nodeErr.code === 'EPERM') {
+      errorMsg = `Permission denied: Cannot write to ${filePath}`
+    } else if (nodeErr.code === 'ENOSPC') {
+      errorMsg = `Disk full: Not enough space to write file`
+    } else if (nodeErr.code === 'EROFS') {
+      errorMsg = `Read-only file system: Cannot write files`
+    } else if (nodeErr.code === 'EBUSY') {
+      errorMsg = `File is busy/locked: ${filePath}`
+    } else if (nodeErr.code === 'ENAMETOOLONG') {
+      errorMsg = `Path too long: ${filePath.length} characters`
+    }
+    
+    return { success: false, error: errorMsg }
   }
 })
 
 // Download file directly in main process (bypasses IPC for large files)
 ipcMain.handle('fs:download-url', async (event, url: string, destPath: string) => {
+  const operationId = `dl-${Date.now()}`
+  const startTime = Date.now()
+  
+  logDebug(`[${operationId}] Starting download`, {
+    destPath,
+    urlLength: url?.length,
+    urlPrefix: url?.substring(0, 80) + '...'
+  })
+  
   try {
+    // Validate inputs
+    if (!url) {
+      logError(`[${operationId}] Missing URL parameter`)
+      return { success: false, error: 'Missing URL parameter' }
+    }
+    
+    if (!destPath) {
+      logError(`[${operationId}] Missing destination path parameter`)
+      return { success: false, error: 'Missing destination path parameter' }
+    }
+    
     // Ensure directory exists
     const dir = path.dirname(destPath)
+    logDebug(`[${operationId}] Ensuring directory exists`, { dir })
+    
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
+      try {
+        fs.mkdirSync(dir, { recursive: true })
+        logDebug(`[${operationId}] Created directory`, { dir })
+      } catch (mkdirErr) {
+        logError(`[${operationId}] Failed to create directory`, {
+          dir,
+          error: String(mkdirErr),
+          code: (mkdirErr as NodeJS.ErrnoException).code
+        })
+        return { success: false, error: `Failed to create directory: ${mkdirErr}` }
+      }
+    }
+    
+    // Check if we have write permission
+    try {
+      fs.accessSync(dir, fs.constants.W_OK)
+    } catch (accessErr) {
+      logError(`[${operationId}] No write permission to directory`, {
+        dir,
+        error: String(accessErr),
+        code: (accessErr as NodeJS.ErrnoException).code
+      })
+      return { success: false, error: `No write permission to directory: ${dir}` }
+    }
+    
+    // Check available disk space (basic check on Windows)
+    try {
+      const stats = fs.statfsSync ? fs.statfsSync(dir) : null
+      if (stats) {
+        const availableBytes = stats.bavail * stats.bsize
+        logDebug(`[${operationId}] Disk space check`, {
+          dir,
+          availableBytes,
+          availableMB: Math.round(availableBytes / 1024 / 1024)
+        })
+        if (availableBytes < 100 * 1024 * 1024) { // Less than 100MB
+          logWarn(`[${operationId}] Low disk space warning`, { availableBytes })
+        }
+      }
+    } catch {
+      // statfsSync may not be available on all platforms
     }
     
     const https = await import('https')
@@ -1906,16 +2028,37 @@ ipcMain.handle('fs:download-url', async (event, url: string, destPath: string) =
     const client = url.startsWith('https') ? https : http
     
     return new Promise((resolve) => {
+      logDebug(`[${operationId}] Initiating HTTP request`)
+      
       const request = client.get(url, (response) => {
+        logDebug(`[${operationId}] Got response`, {
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+          headers: {
+            contentLength: response.headers['content-length'],
+            contentType: response.headers['content-type']
+          }
+        })
+        
         if (response.statusCode === 301 || response.statusCode === 302) {
           // Handle redirect
           const redirectUrl = response.headers.location
+          logDebug(`[${operationId}] Following redirect`, { redirectUrl: redirectUrl?.substring(0, 80) })
+          
           if (redirectUrl) {
             const redirectClient = redirectUrl.startsWith('https') ? https : http
             redirectClient.get(redirectUrl, (redirectResponse) => {
+              logDebug(`[${operationId}] Redirect response`, {
+                statusCode: redirectResponse.statusCode,
+                statusMessage: redirectResponse.statusMessage
+              })
               handleResponse(redirectResponse)
             }).on('error', (err) => {
-              resolve({ success: false, error: String(err) })
+              logError(`[${operationId}] Redirect request error`, {
+                error: String(err),
+                code: (err as NodeJS.ErrnoException).code
+              })
+              resolve({ success: false, error: `Redirect failed: ${err}` })
             })
             return
           }
@@ -1924,17 +2067,77 @@ ipcMain.handle('fs:download-url', async (event, url: string, destPath: string) =
       })
       
       request.on('error', (err) => {
-        resolve({ success: false, error: String(err) })
+        const nodeErr = err as NodeJS.ErrnoException
+        logError(`[${operationId}] HTTP request error`, {
+          error: String(err),
+          code: nodeErr.code,
+          syscall: nodeErr.syscall,
+          hostname: nodeErr.hostname
+        })
+        
+        let errorMsg = String(err)
+        if (nodeErr.code === 'ENOTFOUND') {
+          errorMsg = `Network error: Could not reach server. Check your internet connection.`
+        } else if (nodeErr.code === 'ECONNREFUSED') {
+          errorMsg = `Connection refused by server.`
+        } else if (nodeErr.code === 'ETIMEDOUT') {
+          errorMsg = `Connection timed out. The server may be slow or unreachable.`
+        } else if (nodeErr.code === 'ECONNRESET') {
+          errorMsg = `Connection reset. The download was interrupted.`
+        }
+        
+        resolve({ success: false, error: errorMsg })
+      })
+      
+      request.on('timeout', () => {
+        logError(`[${operationId}] Request timeout`)
+        request.destroy()
+        resolve({ success: false, error: 'Request timed out' })
       })
       
       function handleResponse(response: any) {
         if (response.statusCode !== 200) {
-          resolve({ success: false, error: `HTTP ${response.statusCode}` })
+          logError(`[${operationId}] HTTP error status`, {
+            statusCode: response.statusCode,
+            statusMessage: response.statusMessage,
+            headers: response.headers
+          })
+          
+          let errorMsg = `HTTP ${response.statusCode}: ${response.statusMessage || 'Unknown error'}`
+          if (response.statusCode === 404) {
+            errorMsg = `File not found on server (HTTP 404). The download URL may have expired.`
+          } else if (response.statusCode === 403) {
+            errorMsg = `Access denied (HTTP 403). The download URL may have expired or you don't have permission.`
+          } else if (response.statusCode === 500) {
+            errorMsg = `Server error (HTTP 500). Please try again later.`
+          } else if (response.statusCode === 503) {
+            errorMsg = `Service unavailable (HTTP 503). The server may be overloaded.`
+          }
+          
+          resolve({ success: false, error: errorMsg })
           return
         }
         
         const contentLength = parseInt(response.headers['content-length'] || '0', 10)
-        const writeStream = fs.createWriteStream(destPath)
+        logDebug(`[${operationId}] Starting file write`, {
+          destPath,
+          contentLength,
+          contentType: response.headers['content-type']
+        })
+        
+        let writeStream: fs.WriteStream
+        try {
+          writeStream = fs.createWriteStream(destPath)
+        } catch (createErr) {
+          logError(`[${operationId}] Failed to create write stream`, {
+            destPath,
+            error: String(createErr),
+            code: (createErr as NodeJS.ErrnoException).code
+          })
+          resolve({ success: false, error: `Failed to create file: ${createErr}` })
+          return
+        }
+        
         const hashStream = crypto.createHash('sha256')
         
         let downloaded = 0
@@ -1964,20 +2167,69 @@ ipcMain.handle('fs:download-url', async (event, url: string, destPath: string) =
           }
         })
         
+        response.on('error', (err: Error) => {
+          logError(`[${operationId}] Response stream error`, {
+            error: String(err),
+            downloaded,
+            contentLength
+          })
+          writeStream.destroy()
+          // Try to clean up partial file
+          try { fs.unlinkSync(destPath) } catch {}
+          resolve({ success: false, error: `Download stream error: ${err}` })
+        })
+        
         response.pipe(writeStream)
         
         writeStream.on('finish', () => {
           const hash = hashStream.digest('hex')
+          const duration = Date.now() - startTime
+          
+          log(`[${operationId}] Download complete`, {
+            destPath,
+            size: downloaded,
+            hash: hash.substring(0, 12) + '...',
+            duration,
+            speedMBps: (downloaded / 1024 / 1024 / (duration / 1000)).toFixed(2)
+          })
+          
           resolve({ success: true, hash, size: downloaded })
         })
         
         writeStream.on('error', (err) => {
-          resolve({ success: false, error: String(err) })
+          const nodeErr = err as NodeJS.ErrnoException
+          logError(`[${operationId}] Write stream error`, {
+            destPath,
+            error: String(err),
+            code: nodeErr.code,
+            downloaded,
+            contentLength
+          })
+          
+          let errorMsg = `Failed to write file: ${err}`
+          if (nodeErr.code === 'ENOSPC') {
+            errorMsg = `Disk full: Not enough space to save the file.`
+          } else if (nodeErr.code === 'EACCES' || nodeErr.code === 'EPERM') {
+            errorMsg = `Permission denied: Cannot write to ${destPath}`
+          } else if (nodeErr.code === 'EROFS') {
+            errorMsg = `Read-only file system: Cannot write files.`
+          }
+          
+          // Try to clean up partial file
+          try { fs.unlinkSync(destPath) } catch {}
+          resolve({ success: false, error: errorMsg })
         })
       }
     })
   } catch (err) {
-    return { success: false, error: String(err) }
+    const duration = Date.now() - startTime
+    logError(`[${operationId}] Download exception`, {
+      destPath,
+      error: String(err),
+      stack: (err as Error).stack,
+      duration
+    })
+    return { success: false, error: `Download failed: ${err}` }
   }
 })
 
@@ -2210,11 +2462,52 @@ ipcMain.handle('fs:compute-file-hashes', async (event, filePaths: Array<{ path: 
 })
 
 ipcMain.handle('fs:create-folder', async (_, folderPath: string) => {
+  logDebug('Creating folder', { folderPath })
+  
   try {
+    if (!folderPath) {
+      logError('Create folder: missing path parameter')
+      return { success: false, error: 'Missing folder path' }
+    }
+    
+    // Check if it already exists
+    if (fs.existsSync(folderPath)) {
+      const stats = fs.statSync(folderPath)
+      if (stats.isDirectory()) {
+        logDebug('Folder already exists', { folderPath })
+        return { success: true }
+      } else {
+        logError('Path exists but is not a directory', { folderPath })
+        return { success: false, error: 'Path exists but is not a directory' }
+      }
+    }
+    
     fs.mkdirSync(folderPath, { recursive: true })
+    logDebug('Folder created successfully', { folderPath })
     return { success: true }
   } catch (err) {
-    return { success: false, error: String(err) }
+    const nodeErr = err as NodeJS.ErrnoException
+    logError('Failed to create folder', {
+      folderPath,
+      error: String(err),
+      code: nodeErr.code,
+      syscall: nodeErr.syscall
+    })
+    
+    let errorMsg = String(err)
+    if (nodeErr.code === 'EACCES' || nodeErr.code === 'EPERM') {
+      errorMsg = `Permission denied: Cannot create folder at ${folderPath}`
+    } else if (nodeErr.code === 'ENOSPC') {
+      errorMsg = `Disk full: Cannot create folder`
+    } else if (nodeErr.code === 'ENOENT') {
+      errorMsg = `Invalid path: Parent directory does not exist`
+    } else if (nodeErr.code === 'ENAMETOOLONG') {
+      errorMsg = `Path too long: ${folderPath.length} characters`
+    } else if (nodeErr.code === 'EROFS') {
+      errorMsg = `Read-only file system: Cannot create folders`
+    }
+    
+    return { success: false, error: errorMsg }
   }
 })
 
@@ -2740,7 +3033,7 @@ ipcMain.handle('solidworks:extract-thumbnail', async (_, filePath: string) => {
 // SolidWorks Service Integration
 // ============================================
 
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, ChildProcess, execSync } from 'child_process'
 
 interface SWServiceResult {
   success: boolean
@@ -2753,30 +3046,89 @@ let swServiceProcess: ChildProcess | null = null
 let swServiceBuffer = ''
 let swPendingRequests: Map<number, { resolve: (value: SWServiceResult) => void; reject: (err: Error) => void }> = new Map()
 let swRequestId = 0
+let solidWorksInstalled: boolean | null = null // Cache the detection result
+
+// Detect if SolidWorks is installed on this machine
+function isSolidWorksInstalled(): boolean {
+  // Return cached result if already checked
+  if (solidWorksInstalled !== null) {
+    return solidWorksInstalled
+  }
+
+  // Only check on Windows - SolidWorks is Windows-only
+  if (process.platform !== 'win32') {
+    solidWorksInstalled = false
+    return false
+  }
+
+  try {
+    // Check Windows registry for SolidWorks COM registration
+    // This is the most reliable way to detect if SolidWorks is installed
+    const result = execSync(
+      'reg query "HKEY_CLASSES_ROOT\\SldWorks.Application" /ve',
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    solidWorksInstalled = result.includes('SldWorks.Application')
+    log('[SolidWorks] Installation detected:', solidWorksInstalled)
+    return solidWorksInstalled
+  } catch {
+    // Registry key doesn't exist - SolidWorks not installed
+    // Also check common installation paths as fallback
+    const commonPaths = [
+      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\SLDWORKS.exe',
+      'C:\\Program Files\\SolidWorks Corp\\SolidWorks\\SLDWORKS.exe',
+      'C:\\Program Files (x86)\\SOLIDWORKS Corp\\SOLIDWORKS\\SLDWORKS.exe',
+    ]
+    
+    for (const swPath of commonPaths) {
+      if (fs.existsSync(swPath)) {
+        solidWorksInstalled = true
+        log('[SolidWorks] Installation detected at:', swPath)
+        return true
+      }
+    }
+    
+    solidWorksInstalled = false
+    log('[SolidWorks] Not installed on this machine')
+    return false
+  }
+}
 
 // Get the path to the SolidWorks service executable
-function getSWServicePath(): string {
+function getSWServicePath(): { path: string; isProduction: boolean } {
+  // Check if running from packaged app (production)
+  const isPackaged = app.isPackaged
+  
   const possiblePaths = [
-    // Production - bundled with app
-    path.join(process.resourcesPath || '', 'bin', 'BluePLM.SolidWorksService.exe'),
-    // Development - Release build
-    path.join(__dirname, '..', 'solidworks-addin', 'BluePLM.SolidWorksService', 'bin', 'Release', 'BluePLM.SolidWorksService.exe'),
+    // Production - bundled with app in resources/bin
+    { path: path.join(process.resourcesPath || '', 'bin', 'BluePLM.SolidWorksService.exe'), isProduction: true },
+    // Development - Release build (relative to project root)
+    { path: path.join(app.getAppPath(), 'solidworks-addin', 'BluePLM.SolidWorksService', 'bin', 'Release', 'BluePLM.SolidWorksService.exe'), isProduction: false },
     // Development - Debug build
-    path.join(__dirname, '..', 'solidworks-addin', 'BluePLM.SolidWorksService', 'bin', 'Debug', 'BluePLM.SolidWorksService.exe'),
+    { path: path.join(app.getAppPath(), 'solidworks-addin', 'BluePLM.SolidWorksService', 'bin', 'Debug', 'BluePLM.SolidWorksService.exe'), isProduction: false },
   ]
   
   for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
+    if (fs.existsSync(p.path)) {
       return p
     }
   }
   
-  // Return release path as default
-  return possiblePaths[1]
+  // Return appropriate default based on environment
+  return isPackaged ? possiblePaths[0] : possiblePaths[1]
 }
 
 // Start the SolidWorks service process
 async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
+  // First check if SolidWorks is even installed
+  if (!isSolidWorksInstalled()) {
+    return { 
+      success: false, 
+      error: 'SolidWorks not installed',
+      errorDetails: 'SolidWorks is not installed on this machine. The SolidWorks integration features require SolidWorks to be installed.'
+    }
+  }
+
   if (swServiceProcess) {
     // If service is already running but we have a new license key, set it
     if (dmLicenseKey) {
@@ -2788,9 +3140,24 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
     return { success: true, data: { message: 'Service already running' } }
   }
   
-  const servicePath = getSWServicePath()
+  const serviceInfo = getSWServicePath()
+  const servicePath = serviceInfo.path
   if (!fs.existsSync(servicePath)) {
-    return { success: false, error: `SolidWorks service not found at: ${servicePath}. Build it first with: dotnet build solidworks-addin/BluePLM.SolidWorksService -c Release` }
+    if (serviceInfo.isProduction) {
+      // Running from packaged app - service wasn't bundled
+      return { 
+        success: false, 
+        error: 'SolidWorks service not bundled',
+        errorDetails: 'The SolidWorks service executable was not included in this build. Please contact support or rebuild the app with SolidWorks installed.'
+      }
+    } else {
+      // Development mode - provide build instructions
+      return { 
+        success: false, 
+        error: 'SolidWorks service not built',
+        errorDetails: `Expected at: ${servicePath}\n\nBuild it with: dotnet build solidworks-addin/BluePLM.SolidWorksService -c Release`
+      }
+    }
   }
   
   // Build args - include DM license key if provided
@@ -2923,11 +3290,22 @@ ipcMain.handle('solidworks:stop-service', async () => {
 
 // Check if service is running
 ipcMain.handle('solidworks:service-status', async () => {
+  const swInstalled = isSolidWorksInstalled()
+  
+  if (!swInstalled) {
+    return { success: true, data: { running: false, installed: false } }
+  }
+  
   if (!swServiceProcess) {
-    return { success: true, data: { running: false } }
+    return { success: true, data: { running: false, installed: true } }
   }
   const result = await sendSWCommand({ action: 'ping' })
-  return { success: true, data: { running: result.success, version: (result.data as any)?.version } }
+  return { success: true, data: { running: result.success, installed: true, version: (result.data as any)?.version } }
+})
+
+// Check if SolidWorks is installed on this machine
+ipcMain.handle('solidworks:is-installed', async () => {
+  return { success: true, data: { installed: isSolidWorksInstalled() } }
 })
 
 // Get BOM from assembly

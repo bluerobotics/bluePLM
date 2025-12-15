@@ -16,7 +16,9 @@ import {
   Building2,
   Truck,
   Copy,
-  AlertTriangle
+  AlertTriangle,
+  Mail,
+  Shield
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
@@ -91,6 +93,12 @@ export function CompanyProfileSettings() {
   
   // Delete confirmation modal state
   const [deleteConfirmAddress, setDeleteConfirmAddress] = useState<OrgAddress | null>(null)
+  
+  // Email domain settings state
+  const [emailDomains, setEmailDomains] = useState<string[]>([])
+  const [enforceEmailDomain, setEnforceEmailDomain] = useState(false)
+  const [newDomain, setNewDomain] = useState('')
+  const [savingDomains, setSavingDomains] = useState(false)
 
   // Load current profile
   useEffect(() => {
@@ -101,7 +109,7 @@ export function CompanyProfileSettings() {
       try {
         const { data, error } = await supabase
           .from('organizations')
-          .select('logo_url, logo_storage_path, phone, website, contact_email')
+          .select('logo_url, logo_storage_path, phone, website, contact_email, email_domains, settings')
           .eq('id', organization.id)
           .single()
 
@@ -134,6 +142,11 @@ export function CompanyProfileSettings() {
           website: data?.website || null,
           contact_email: data?.contact_email || null
         })
+        
+        // Load email domain settings
+        setEmailDomains(data?.email_domains || [])
+        const settings = data?.settings || {}
+        setEnforceEmailDomain(settings.enforce_email_domain ?? false)
       } catch (err) {
         console.error('Failed to load company profile:', err)
       } finally {
@@ -528,6 +541,45 @@ export function CompanyProfileSettings() {
     }
   }
 
+  // Add email domain
+  const handleAddDomain = async () => {
+    const domain = newDomain.trim().toLowerCase()
+    if (!domain || !organization?.id) return
+    
+    // Validate domain format
+    if (!/^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i.test(domain)) {
+      addToast('error', 'Invalid domain format')
+      return
+    }
+    
+    // Check if already exists
+    if (emailDomains.includes(domain)) {
+      addToast('error', 'Domain already added')
+      return
+    }
+    
+    setSavingDomains(true)
+    const newDomains = [...emailDomains, domain]
+    
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ email_domains: newDomains })
+        .eq('id', organization.id)
+      
+      if (error) throw error
+      
+      setEmailDomains(newDomains)
+      setNewDomain('')
+      addToast('success', `Added @${domain}`)
+    } catch (err) {
+      console.error('Failed to add domain:', err)
+      addToast('error', 'Failed to add domain')
+    } finally {
+      setSavingDomains(false)
+    }
+  }
+
   // Render address card
   const renderAddressCard = (address: OrgAddress) => (
     <div 
@@ -793,6 +845,145 @@ export function CompanyProfileSettings() {
         </div>
       </div>
 
+      {/* Email Domain Settings */}
+      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+        <div className="flex items-center gap-2 mb-4">
+          <Mail size={20} className="text-plm-accent" />
+          <h3 className="text-base font-medium text-plm-fg">Email Domain Settings</h3>
+        </div>
+        
+        <p className="text-sm text-plm-fg-muted mb-4">
+          Configure which email domains can join your organization. When enforcement is off, anyone with the organization code can join regardless of their email domain.
+        </p>
+
+        {/* Enforce toggle */}
+        <div className="flex items-center justify-between p-3 bg-plm-highlight/50 rounded-lg border border-plm-border mb-4">
+          <div className="flex items-center gap-3">
+            <Shield size={18} className={enforceEmailDomain ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+            <div>
+              <div className="text-sm font-medium text-plm-fg">Enforce Email Domain</div>
+              <div className="text-xs text-plm-fg-muted">
+                {enforceEmailDomain 
+                  ? 'Only users with matching email domains can join' 
+                  : 'Anyone with the organization code can join'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              const newValue = !enforceEmailDomain
+              setEnforceEmailDomain(newValue)
+              
+              try {
+                const { error } = await supabase
+                  .from('organizations')
+                  .update({ 
+                    settings: { 
+                      ...organization?.settings,
+                      enforce_email_domain: newValue 
+                    }
+                  })
+                  .eq('id', organization?.id)
+                
+                if (error) throw error
+                addToast('success', newValue ? 'Email domain enforcement enabled' : 'Email domain enforcement disabled')
+              } catch (err) {
+                console.error('Failed to update setting:', err)
+                setEnforceEmailDomain(!newValue) // Revert
+                addToast('error', 'Failed to update setting')
+              }
+            }}
+            className={`relative w-11 h-6 rounded-full transition-colors ${
+              enforceEmailDomain ? 'bg-plm-accent' : 'bg-plm-fg-muted/30'
+            }`}
+          >
+            <span 
+              className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                enforceEmailDomain ? 'translate-x-5' : 'translate-x-0'
+              }`} 
+            />
+          </button>
+        </div>
+
+        {/* Domain list */}
+        <div className="space-y-2 mb-4">
+          <label className="text-sm text-plm-fg-muted">Allowed Email Domains</label>
+          {emailDomains.length === 0 ? (
+            <div className="text-sm text-plm-fg-dim py-2">
+              No domains configured. Add a domain below.
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {emailDomains.map((domain, idx) => (
+                <div 
+                  key={idx}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-plm-bg-secondary border border-plm-border rounded-lg text-sm"
+                >
+                  <Mail size={14} className="text-plm-fg-muted" />
+                  <span className="text-plm-fg">@{domain}</span>
+                  <button
+                    onClick={async () => {
+                      const newDomains = emailDomains.filter((_, i) => i !== idx)
+                      setEmailDomains(newDomains)
+                      
+                      try {
+                        const { error } = await supabase
+                          .from('organizations')
+                          .update({ email_domains: newDomains })
+                          .eq('id', organization?.id)
+                        
+                        if (error) throw error
+                        addToast('success', `Removed @${domain}`)
+                      } catch (err) {
+                        console.error('Failed to remove domain:', err)
+                        setEmailDomains(emailDomains) // Revert
+                        addToast('error', 'Failed to remove domain')
+                      }
+                    }}
+                    className="p-0.5 hover:bg-plm-error/20 rounded text-plm-fg-muted hover:text-plm-error transition-colors"
+                    title="Remove domain"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Add domain */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted text-sm">@</span>
+            <input
+              type="text"
+              value={newDomain}
+              onChange={(e) => setNewDomain(e.target.value.toLowerCase().replace(/^@/, ''))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newDomain.trim()) {
+                  e.preventDefault()
+                  handleAddDomain()
+                }
+              }}
+              placeholder="example.com"
+              className="w-full pl-7 pr-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+            />
+          </div>
+          <button
+            onClick={handleAddDomain}
+            disabled={!newDomain.trim() || savingDomains}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            {savingDomains ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Plus size={14} />
+            )}
+            Add Domain
+          </button>
+        </div>
+      </div>
+
       {/* Address Modal */}
       {showAddressModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1048,6 +1239,7 @@ export function CompanyProfileSettings() {
           </div>
         </div>
       )}
+
     </div>
   )
 }

@@ -250,6 +250,10 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
   usage: 'delete-server <path> [--local] [--recursive]',
   
   validate({ files }, ctx) {
+    if (ctx.isOfflineMode) {
+      return 'Cannot delete from server while offline'
+    }
+    
     if (!ctx.user) {
       return 'Please sign in first'
     }

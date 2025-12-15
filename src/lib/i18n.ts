@@ -211,6 +211,8 @@ const en: TranslationDict = {
     themeHalloweenDesc: 'Spooky with bonfire sparks, ghosts & pumpkins!',
     themeSystem: 'System',
     themeSystemDesc: 'Follow OS preference',
+    autoSeasonalThemes: 'Auto-apply seasonal themes',
+    autoSeasonalThemesDesc: 'Automatically switch to Halloween (Oct 1) and Christmas (Dec 1) themes',
     
     language: 'Language',
     displayLanguage: 'Display Language',
@@ -516,6 +518,8 @@ const fr: TranslationDict = {
     themeHalloweenDesc: 'Effrayant avec étincelles de feu, fantômes et citrouilles !',
     themeSystem: 'Système',
     themeSystemDesc: 'Suivre les préférences du système',
+    autoSeasonalThemes: 'Thèmes saisonniers automatiques',
+    autoSeasonalThemesDesc: 'Passer automatiquement aux thèmes Halloween (1er oct.) et Noël (1er déc.)',
     
     language: 'Langue',
     displayLanguage: 'Langue d\'affichage',
@@ -814,6 +818,8 @@ const de: TranslationDict = {
     themeHalloweenDesc: 'Gruselig mit Lagerfeuerfunken, Geistern & Kürbissen!',
     themeSystem: 'System',
     themeSystemDesc: 'Systemeinstellung folgen',
+    autoSeasonalThemes: 'Saisonale Themen automatisch anwenden',
+    autoSeasonalThemesDesc: 'Automatisch zu Halloween (1. Okt.) und Weihnachten (1. Dez.) wechseln',
     
     language: 'Sprache',
     displayLanguage: 'Anzeigesprache',
@@ -1112,6 +1118,8 @@ const es: TranslationDict = {
     themeHalloweenDesc: '¡Espeluznante con chispas de fogata, fantasmas y calabazas!',
     themeSystem: 'Sistema',
     themeSystemDesc: 'Seguir preferencia del sistema',
+    autoSeasonalThemes: 'Aplicar temas estacionales automáticamente',
+    autoSeasonalThemesDesc: 'Cambiar automáticamente a Halloween (1 oct.) y Navidad (1 dic.)',
     
     language: 'Idioma',
     displayLanguage: 'Idioma de visualización',
@@ -1410,6 +1418,8 @@ const zhCN: TranslationDict = {
     themeHalloweenDesc: '篝火火花、鬼魂和南瓜的恐怖氛围！',
     themeSystem: '跟随系统',
     themeSystemDesc: '跟随操作系统偏好',
+    autoSeasonalThemes: '自动应用季节性主题',
+    autoSeasonalThemesDesc: '在10月1日自动切换到万圣节主题，12月1日自动切换到圣诞节主题',
     
     language: '语言',
     displayLanguage: '显示语言',
@@ -1708,6 +1718,8 @@ const zhTW: TranslationDict = {
     themeHalloweenDesc: '篝火火花、鬼魂和南瓜的恐怖氛圍！',
     themeSystem: '跟隨系統',
     themeSystemDesc: '跟隨作業系統偏好',
+    autoSeasonalThemes: '自動應用季節性主題',
+    autoSeasonalThemesDesc: '在10月1日自動切換到萬聖節主題，12月1日自動切換到聖誕節主題',
     
     language: '語言',
     displayLanguage: '顯示語言',
@@ -2006,6 +2018,8 @@ const pt: TranslationDict = {
     themeHalloweenDesc: 'Assustador com fagulhas de fogueira, fantasmas e abóboras!',
     themeSystem: 'Sistema',
     themeSystemDesc: 'Seguir preferência do sistema',
+    autoSeasonalThemes: 'Aplicar temas sazonais automaticamente',
+    autoSeasonalThemesDesc: 'Mudar automaticamente para Halloween (1º out.) e Natal (1º dez.)',
     
     language: 'Idioma',
     displayLanguage: 'Idioma de Exibição',

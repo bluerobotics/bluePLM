@@ -22,6 +22,7 @@ import {
   CloudDownload
 } from 'lucide-react'
 import { usePDMStore, ThemeMode, Language } from '../../stores/pdmStore'
+import { CalendarDays } from 'lucide-react'
 import { signOut, getSupabaseClient, endRemoteSession } from '../../lib/supabase'
 import { getMachineId } from '../../lib/backup'
 import { useTranslation } from '../../lib/i18n'
@@ -62,6 +63,8 @@ export function PreferencesSettings() {
     removeIgnorePattern,
     theme,
     setTheme,
+    autoApplySeasonalThemes,
+    setAutoApplySeasonalThemes,
     language,
     setLanguage,
     autoDownloadCloudFiles,
@@ -405,6 +408,33 @@ export function PreferencesSettings() {
               </button>
             )
           })}
+        </div>
+        
+        {/* Auto-apply seasonal themes toggle */}
+        <div className="mt-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-plm-highlight">
+                <CalendarDays size={18} className="text-plm-fg-muted" />
+              </div>
+              <div>
+                <div className="text-base text-plm-fg">{t('preferences.autoSeasonalThemes')}</div>
+                <div className="text-sm text-plm-fg-muted mt-0.5">
+                  {t('preferences.autoSeasonalThemesDesc')}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoApplySeasonalThemes(!autoApplySeasonalThemes)}
+              className="text-plm-accent"
+            >
+              {autoApplySeasonalThemes ? (
+                <ToggleRight size={28} />
+              ) : (
+                <ToggleLeft size={28} className="text-plm-fg-muted" />
+              )}
+            </button>
+          </div>
         </div>
       </section>
 

@@ -250,6 +250,7 @@ interface PDMState {
   iconSize: number              // Icon size for icon view (48-256 pixels)
   listRowSize: number           // Row height for list view (16-64 pixels)
   theme: ThemeMode              // Theme: dark, light, blue, or system
+  autoApplySeasonalThemes: boolean  // Auto-apply halloween/christmas themes on Oct 1 and Dec 1
   language: Language            // UI language
   christmasSnowOpacity: number  // Christmas theme snow opacity (0-100)
   christmasSleighEnabled: boolean // Christmas theme sleigh animation enabled
@@ -363,6 +364,7 @@ interface PDMState {
   setIconSize: (size: number) => void
   setListRowSize: (size: number) => void
   setTheme: (theme: ThemeMode) => void
+  setAutoApplySeasonalThemes: (enabled: boolean) => void
   setLanguage: (language: Language) => void
   setChristmasSnowOpacity: (opacity: number) => void
   setChristmasSleighEnabled: (enabled: boolean) => void
@@ -634,6 +636,7 @@ export const usePDMStore = create<PDMState>()(
       iconSize: 96,  // Default icon size (medium)
       listRowSize: 24, // Default list row height
       theme: 'dark',  // Default theme
+      autoApplySeasonalThemes: true,  // Auto-apply seasonal themes by default
       language: 'en',  // Default language
       christmasSnowOpacity: 50,  // Default 50%
       autoDownloadCloudFiles: false,  // Off by default
@@ -935,6 +938,7 @@ export const usePDMStore = create<PDMState>()(
       setIconSize: (iconSize) => set({ iconSize: Math.max(48, Math.min(256, iconSize)) }),
       setListRowSize: (listRowSize) => set({ listRowSize: Math.max(16, Math.min(64, listRowSize)) }),
       setTheme: (theme) => set({ theme }),
+      setAutoApplySeasonalThemes: (autoApplySeasonalThemes) => set({ autoApplySeasonalThemes }),
       setLanguage: (language) => set({ language }),
       setChristmasSnowOpacity: (christmasSnowOpacity) => set({ christmasSnowOpacity }),
       setChristmasSleighEnabled: (christmasSleighEnabled) => set({ christmasSleighEnabled }),
@@ -1837,6 +1841,7 @@ export const usePDMStore = create<PDMState>()(
         iconSize: state.iconSize,
         listRowSize: state.listRowSize,
         theme: state.theme,
+        autoApplySeasonalThemes: state.autoApplySeasonalThemes,
         language: state.language,
         christmasSnowOpacity: state.christmasSnowOpacity,
         christmasSleighEnabled: state.christmasSleighEnabled,
@@ -1927,6 +1932,8 @@ export const usePDMStore = create<PDMState>()(
           listRowSize: (persisted.listRowSize as number) || 24,
           // Ensure theme has a default
           theme: (persisted.theme as ThemeMode) || 'dark',
+          // Restore autoApplySeasonalThemes (default to true)
+          autoApplySeasonalThemes: persisted.autoApplySeasonalThemes !== undefined ? (persisted.autoApplySeasonalThemes as boolean) : true,
           // Ensure language has a default
           language: (persisted.language as Language) || 'en',
           // Ensure onboarding state has defaults

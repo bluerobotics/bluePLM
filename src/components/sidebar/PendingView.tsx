@@ -4,6 +4,7 @@ import { usePDMStore, LocalFile } from '../../stores/pdmStore'
 import { getInitials } from '../../types/pdm'
 // Use command system instead of direct supabase calls
 import { executeCommand } from '../../lib/commands'
+import { isMachineOnline } from '../../lib/supabase'
 
 // ============================================
 // Memoized Row Components (outside main component)
@@ -283,6 +284,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     filesOnDifferentMachine: LocalFile[]
     allFilesToCheckin: LocalFile[]
     machineNames: string[]
+    anyMachineOnline: boolean
   } | null>(null)
   
   // Load current machine ID once
@@ -422,13 +424,20 @@ export function PendingView({ onRefresh }: PendingViewProps) {
       return checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
     })
     
-    if (filesOnDifferentMachine.length > 0) {
-      // Show confirmation dialog
+    if (filesOnDifferentMachine.length > 0 && user) {
+      // Get unique machine IDs and check if any are online
+      const machineIds = [...new Set(filesOnDifferentMachine.map(f => f.pdmData?.checked_out_by_machine_id).filter(Boolean))] as string[]
       const machineNames = [...new Set(filesOnDifferentMachine.map(f => f.pdmData?.checked_out_by_machine_name || 'another computer'))]
+      
+      // Check if any machines are online
+      const onlineStatuses = await Promise.all(machineIds.map(mid => isMachineOnline(user.id, mid)))
+      const anyMachineOnline = onlineStatuses.some(isOnline => isOnline)
+      
       setForceCheckinConfirm({
         filesOnDifferentMachine,
         allFilesToCheckin: fileObjects,
-        machineNames
+        machineNames,
+        anyMachineOnline
       })
       return
     }
@@ -941,9 +950,11 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-plm-border">
-              <div className="flex items-center gap-2 text-plm-warning">
-                <Monitor size={18} />
-                <span className="font-medium">Check In From Different Computer</span>
+              <div className={`flex items-center gap-2 ${forceCheckinConfirm.anyMachineOnline ? 'text-plm-warning' : 'text-plm-error'}`}>
+                {forceCheckinConfirm.anyMachineOnline ? <Monitor size={18} /> : <CloudOff size={18} />}
+                <span className="font-medium">
+                  {forceCheckinConfirm.anyMachineOnline ? 'Check In From Different Computer' : 'Cannot Check In - Machine Offline'}
+                </span>
               </div>
               <button
                 onClick={() => setForceCheckinConfirm(null)}
@@ -955,30 +966,51 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             
             <div className="p-4">
               <p className="text-sm text-plm-fg mb-3">
-                <span className="font-semibold text-plm-warning">{forceCheckinConfirm.filesOnDifferentMachine.length}</span> file{forceCheckinConfirm.filesOnDifferentMachine.length > 1 ? 's are' : ' is'} checked out on <span className="font-semibold">{forceCheckinConfirm.machineNames.join(', ')}</span>.
+                <span className={`font-semibold ${forceCheckinConfirm.anyMachineOnline ? 'text-plm-warning' : 'text-plm-error'}`}>{forceCheckinConfirm.filesOnDifferentMachine.length}</span> file{forceCheckinConfirm.filesOnDifferentMachine.length > 1 ? 's are' : ' is'} checked out on <span className="font-semibold">{forceCheckinConfirm.machineNames.join(', ')}</span>.
               </p>
-              <p className="text-sm text-plm-fg mb-3">
-                Checking in from here will discard any unsaved changes on {forceCheckinConfirm.machineNames.length === 1 ? 'that' : 'those'} computer{forceCheckinConfirm.machineNames.length > 1 ? 's' : ''}.
-              </p>
-              <div className="bg-plm-warning/10 border border-plm-warning/30 rounded-lg px-3 py-2 text-xs text-plm-warning">
-                The other computer{forceCheckinConfirm.machineNames.length > 1 ? 's' : ''} will be notified that {forceCheckinConfirm.filesOnDifferentMachine.length > 1 ? 'these files were' : 'this file was'} force checked in.
-              </div>
+              
+              {forceCheckinConfirm.anyMachineOnline ? (
+                <>
+                  <p className="text-sm text-plm-fg mb-3">
+                    Are you sure you want to check in from here? Any unsaved changes on {forceCheckinConfirm.machineNames.length === 1 ? 'that' : 'those'} computer{forceCheckinConfirm.machineNames.length > 1 ? 's' : ''} will be lost.
+                  </p>
+                  <div className="bg-plm-warning/10 border border-plm-warning/30 rounded-lg px-3 py-2 text-xs text-plm-warning">
+                    The other computer{forceCheckinConfirm.machineNames.length > 1 ? 's' : ''} will be notified.
+                  </div>
+                </>
+              ) : (
+                <div className="bg-plm-error/10 border border-plm-error/30 rounded-lg px-3 py-2 text-sm text-plm-fg">
+                  <p className="mb-2">You can only check in files from another machine when that machine is <strong>online</strong>.</p>
+                  <p className="text-xs text-plm-fg-muted">This ensures no unsaved work is lost. Please check in from the original computer, or wait for it to come online.</p>
+                </div>
+              )}
             </div>
             
             <div className="flex justify-end gap-2 px-4 py-3 bg-plm-bg border-t border-plm-border">
-              <button
-                onClick={() => setForceCheckinConfirm(null)}
-                className="btn btn-ghost btn-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleForceCheckin}
-                className="btn btn-sm bg-plm-warning hover:bg-plm-warning/80 text-plm-bg flex items-center gap-1"
-              >
-                <ArrowUp size={14} />
-                Force Check In
-              </button>
+              {forceCheckinConfirm.anyMachineOnline ? (
+                <>
+                  <button
+                    onClick={() => setForceCheckinConfirm(null)}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleForceCheckin}
+                    className="btn btn-sm bg-plm-warning hover:bg-plm-warning/80 text-plm-bg flex items-center gap-1"
+                  >
+                    <ArrowUp size={14} />
+                    Force Check In
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setForceCheckinConfirm(null)}
+                  className="btn btn-primary btn-sm"
+                >
+                  OK
+                </button>
+              )}
             </div>
           </div>
         </div>

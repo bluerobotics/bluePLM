@@ -18,11 +18,32 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
       - name: Install dependencies
         run: npm ci
 
       - name: Download restic binary
         run: npm run download-restic -- --current
+
+      # Build SolidWorks service if SolidWorks is installed on the runner
+      # This will fail on GitHub-hosted runners (no SolidWorks), but works on self-hosted runners
+      - name: Build SolidWorks Service
+        id: sw-service
+        continue-on-error: true
+        run: |
+          dotnet build solidworks-addin/BluePLM.SolidWorksService -c Release
+          
+      - name: Copy SolidWorks Service to resources
+        if: steps.sw-service.outcome == 'success'
+        run: |
+          New-Item -ItemType Directory -Force -Path resources/bin/win32
+          Copy-Item solidworks-addin/BluePLM.SolidWorksService/bin/Release/*.exe resources/bin/win32/
+          Copy-Item solidworks-addin/BluePLM.SolidWorksService/bin/Release/*.dll resources/bin/win32/
+          Write-Host "SolidWorks service copied to resources/bin/win32"
 
       - name: Build Electron app
         run: npm run build
