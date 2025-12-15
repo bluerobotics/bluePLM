@@ -3817,6 +3817,402 @@ export async function buildServer(): Promise<FastifyInstance> {
   })
 
   // ============================================
+  // Odoo Saved Configurations Routes
+  // ============================================
+
+  // List all saved Odoo configurations
+  fastify.get('/integrations/odoo/configs', {
+    schema: {
+      description: 'List all saved Odoo configurations',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            configs: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  description: { type: 'string', nullable: true },
+                  url: { type: 'string' },
+                  database: { type: 'string' },
+                  username: { type: 'string' },
+                  color: { type: 'string', nullable: true },
+                  is_active: { type: 'boolean' },
+                  last_tested_at: { type: 'string', nullable: true },
+                  last_test_success: { type: 'boolean', nullable: true },
+                  created_at: { type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can view saved configurations' })
+    }
+    
+    const { data, error } = await request.supabase!
+      .from('odoo_saved_configs')
+      .select('id, name, description, url, database, username, color, is_active, last_tested_at, last_test_success, created_at')
+      .eq('org_id', request.user.org_id)
+      .eq('is_active', true)
+      .order('name')
+    
+    if (error) throw error
+    
+    return { configs: data || [] }
+  })
+
+  // Get a single saved configuration (with API key for loading)
+  fastify.get('/integrations/odoo/configs/:id', {
+    schema: {
+      description: 'Get a saved Odoo configuration (includes API key)',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can access saved configurations' })
+    }
+    
+    const { id } = request.params as { id: string }
+    
+    const { data, error } = await request.supabase!
+      .from('odoo_saved_configs')
+      .select('*')
+      .eq('id', id)
+      .eq('org_id', request.user.org_id)
+      .single()
+    
+    if (error || !data) {
+      return reply.code(404).send({ error: 'Not found', message: 'Configuration not found' })
+    }
+    
+    return {
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      url: data.url,
+      database: data.database,
+      username: data.username,
+      api_key: data.api_key_encrypted, // In production, decrypt this
+      color: data.color,
+      last_tested_at: data.last_tested_at,
+      last_test_success: data.last_test_success
+    }
+  })
+
+  // Save a new Odoo configuration
+  fastify.post('/integrations/odoo/configs', {
+    schema: {
+      description: 'Save a new Odoo configuration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['name', 'url', 'database', 'username', 'api_key'],
+        properties: {
+          name: { type: 'string', description: 'Configuration name/label' },
+          description: { type: 'string', description: 'Optional description' },
+          url: { type: 'string', description: 'Odoo instance URL' },
+          database: { type: 'string', description: 'Odoo database name' },
+          username: { type: 'string', description: 'Odoo username (email)' },
+          api_key: { type: 'string', description: 'Odoo API key' },
+          color: { type: 'string', description: 'Color hex code for UI badge' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can save configurations' })
+    }
+    
+    const { name, description, url, database, username, api_key, color } = request.body as {
+      name: string
+      description?: string
+      url: string
+      database: string
+      username: string
+      api_key: string
+      color?: string
+    }
+    
+    const normalizedUrl = normalizeOdooUrl(url)
+    
+    // Test connection
+    const testResult = await testOdooConnection(normalizedUrl, database, username, api_key)
+    
+    const { data, error } = await request.supabase!
+      .from('odoo_saved_configs')
+      .insert({
+        org_id: request.user.org_id,
+        name,
+        description,
+        url: normalizedUrl,
+        database,
+        username,
+        api_key_encrypted: api_key, // In production, encrypt this
+        color,
+        last_tested_at: new Date().toISOString(),
+        last_test_success: testResult.success,
+        last_test_error: testResult.error,
+        created_by: request.user.id,
+        updated_by: request.user.id
+      })
+      .select()
+      .single()
+    
+    if (error) {
+      if (error.code === '23505') { // Unique constraint violation
+        return reply.code(409).send({ error: 'Conflict', message: `A configuration named "${name}" already exists` })
+      }
+      throw error
+    }
+    
+    return {
+      success: true,
+      config: data,
+      connection_test: testResult,
+      message: testResult.success 
+        ? `Configuration "${name}" saved and connected!` 
+        : `Configuration "${name}" saved but connection failed: ${testResult.error}`
+    }
+  })
+
+  // Update a saved configuration
+  fastify.put('/integrations/odoo/configs/:id', {
+    schema: {
+      description: 'Update a saved Odoo configuration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          description: { type: 'string' },
+          url: { type: 'string' },
+          database: { type: 'string' },
+          username: { type: 'string' },
+          api_key: { type: 'string' },
+          color: { type: 'string' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can update configurations' })
+    }
+    
+    const { id } = request.params as { id: string }
+    const body = request.body as {
+      name?: string
+      description?: string
+      url?: string
+      database?: string
+      username?: string
+      api_key?: string
+      color?: string
+    }
+    
+    const updateData: Record<string, unknown> = {
+      updated_by: request.user.id
+    }
+    
+    if (body.name) updateData.name = body.name
+    if (body.description !== undefined) updateData.description = body.description
+    if (body.url) updateData.url = normalizeOdooUrl(body.url)
+    if (body.database) updateData.database = body.database
+    if (body.username) updateData.username = body.username
+    if (body.api_key) updateData.api_key_encrypted = body.api_key
+    if (body.color !== undefined) updateData.color = body.color
+    
+    const { data, error } = await request.supabase!
+      .from('odoo_saved_configs')
+      .update(updateData)
+      .eq('id', id)
+      .eq('org_id', request.user.org_id)
+      .select()
+      .single()
+    
+    if (error) {
+      if (error.code === '23505') {
+        return reply.code(409).send({ error: 'Conflict', message: 'A configuration with that name already exists' })
+      }
+      throw error
+    }
+    
+    if (!data) {
+      return reply.code(404).send({ error: 'Not found', message: 'Configuration not found' })
+    }
+    
+    return { success: true, config: data, message: 'Configuration updated' }
+  })
+
+  // Delete a saved configuration
+  fastify.delete('/integrations/odoo/configs/:id', {
+    schema: {
+      description: 'Delete a saved Odoo configuration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can delete configurations' })
+    }
+    
+    const { id } = request.params as { id: string }
+    
+    // Soft delete - just mark as inactive
+    const { error } = await request.supabase!
+      .from('odoo_saved_configs')
+      .update({ is_active: false, updated_by: request.user.id })
+      .eq('id', id)
+      .eq('org_id', request.user.org_id)
+    
+    if (error) throw error
+    
+    return { success: true, message: 'Configuration deleted' }
+  })
+
+  // Load a saved configuration into active integration
+  fastify.post('/integrations/odoo/configs/:id/activate', {
+    schema: {
+      description: 'Activate a saved configuration (load it as the active Odoo integration)',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can activate configurations' })
+    }
+    
+    const { id } = request.params as { id: string }
+    
+    // Get the saved config
+    const { data: config, error: configError } = await request.supabase!
+      .from('odoo_saved_configs')
+      .select('*')
+      .eq('id', id)
+      .eq('org_id', request.user.org_id)
+      .single()
+    
+    if (configError || !config) {
+      return reply.code(404).send({ error: 'Not found', message: 'Configuration not found' })
+    }
+    
+    // Test connection
+    const testResult = await testOdooConnection(
+      config.url, 
+      config.database, 
+      config.username, 
+      config.api_key_encrypted
+    )
+    
+    // Update the active integration with this config
+    const { error: upsertError } = await request.supabase!
+      .from('organization_integrations')
+      .upsert({
+        org_id: request.user.org_id,
+        integration_type: 'odoo',
+        settings: { 
+          url: config.url, 
+          database: config.database, 
+          username: config.username,
+          config_id: config.id,
+          config_name: config.name
+        },
+        credentials_encrypted: config.api_key_encrypted,
+        is_active: true,
+        is_connected: testResult.success,
+        last_connected_at: testResult.success ? new Date().toISOString() : null,
+        last_error: testResult.error,
+        updated_by: request.user.id
+      }, {
+        onConflict: 'org_id,integration_type'
+      })
+    
+    if (upsertError) throw upsertError
+    
+    // Update the saved config test status
+    await request.supabase!
+      .from('odoo_saved_configs')
+      .update({
+        last_tested_at: new Date().toISOString(),
+        last_test_success: testResult.success,
+        last_test_error: testResult.error
+      })
+      .eq('id', id)
+    
+    return {
+      success: true,
+      connected: testResult.success,
+      config_name: config.name,
+      message: testResult.success 
+        ? `Switched to "${config.name}" and connected!`
+        : `Switched to "${config.name}" but connection failed: ${testResult.error}`
+    }
+  })
+
+  // ============================================
   // Webhook Routes
   // ============================================
   
