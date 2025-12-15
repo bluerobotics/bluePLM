@@ -49,6 +49,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showVaultDropdown, setShowVaultDropdown] = useState(false)
   const [showZoomDropdown, setShowZoomDropdown] = useState(false)
+  const [showSearchTypeDropdown, setShowSearchTypeDropdown] = useState(false)
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
   const [zoomFactor, setZoomFactor] = useState(1)
   const [sessions, setSessions] = useState<UserSession[]>([])
@@ -56,13 +57,24 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const [signingOutSessionId, setSigningOutSessionId] = useState<string | null>(null)
   const vaultDropdownRef = useRef<HTMLDivElement>(null)
   const zoomDropdownRef = useRef<HTMLDivElement>(null)
+  const searchTypeDropdownRef = useRef<HTMLDivElement>(null)
   const [titleBarPadding, setTitleBarPadding] = useState(140) // Default fallback
   const [platform, setPlatform] = useState<string>('win32') // Default to Windows
   const [localSearch, setLocalSearch] = useState(searchQuery || '')
-  const [availableWidth, setAvailableWidth] = useState(0)
+  const [menuBarWidth, setMenuBarWidth] = useState(1200)
   const menuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const menuBarRef = useRef<HTMLDivElement>(null)
+  
+  // Responsive breakpoints for progressive collapse (in order of priority)
+  // Elements condense before hiding to maximize space efficiency
+  const cpuCondensed = menuBarWidth < 1100  // CPU: full -> single dot
+  const zoomCondensed = menuBarWidth < 1000  // Zoom: percentage -> icon only
+  const searchCondensed = menuBarWidth < 900  // Search type: buttons -> dropdown
+  const showUserName = menuBarWidth > 800
+  const showVaultName = menuBarWidth > 700
+  const showOrgName = menuBarWidth > 600
+  const searchMaxWidth = menuBarWidth > 850 ? 'max-w-lg' : menuBarWidth > 700 ? 'max-w-sm' : menuBarWidth > 550 ? 'max-w-[200px]' : 'max-w-[140px]'
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -76,12 +88,15 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       if (zoomDropdownRef.current && !zoomDropdownRef.current.contains(e.target as Node)) {
         setShowZoomDropdown(false)
       }
+      if (searchTypeDropdownRef.current && !searchTypeDropdownRef.current.contains(e.target as Node)) {
+        setShowSearchTypeDropdown(false)
+      }
     }
-    if (showUserMenu || showVaultDropdown || showZoomDropdown) {
+    if (showUserMenu || showVaultDropdown || showZoomDropdown || showSearchTypeDropdown) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showUserMenu, showVaultDropdown, showZoomDropdown])
+  }, [showUserMenu, showVaultDropdown, showZoomDropdown, showSearchTypeDropdown])
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -94,6 +109,12 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           setTitleBarPadding(rect.width + 8) // Add small margin
         }
       })
+      
+      // Listen for zoom changes from keyboard shortcuts
+      const unsubscribe = window.electronAPI.onZoomChanged?.((factor) => {
+        setZoomFactor(factor)
+      })
+      return () => unsubscribe?.()
     }
   }, [])
 
@@ -190,22 +211,14 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     }
   }, [])
 
-  // Monitor available width for right side to collapse SystemStats when needed
+  // Monitor menubar width for responsive collapse
   useEffect(() => {
     if (!menuBarRef.current) return
 
     const updateWidth = () => {
       if (menuBarRef.current) {
         const rect = menuBarRef.current.getBoundingClientRect()
-        // Calculate available space for right side
-        // Search bar is max-w-lg (512px) centered, so we need to ensure right side doesn't overlap
-        const totalWidth = rect.width
-        const leftSideWidth = platform === 'darwin' ? 200 : 150 // Approximate left side width
-        const rightPadding = platform === 'darwin' ? 16 : titleBarPadding
-        const searchBarHalfWidth = 256 // Half of max-w-lg (512px)
-        // Available space for right side = total width - left side - search bar half - right padding
-        const available = totalWidth - leftSideWidth - searchBarHalfWidth - rightPadding
-        setAvailableWidth(Math.max(0, available))
+        setMenuBarWidth(rect.width)
       }
     }
 
@@ -223,7 +236,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateWidth)
     }
-  }, [platform, titleBarPadding])
+  }, [])
 
   const handleSignIn = async () => {
     uiLog('info', 'Sign in button clicked from MenuBar')
@@ -273,10 +286,10 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   }
 
   return (
-    <div ref={menuBarRef} className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region relative">
+    <div ref={menuBarRef} className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region flex items-center">
       {/* Left side - Logo, Organization, and Vault (add padding on macOS for window buttons) */}
       <div 
-        className="absolute left-0 top-0 h-full flex items-center"
+        className="flex-shrink-0 flex items-center h-full"
         style={{ paddingLeft: platform === 'darwin' ? 72 : 0 }}
       >
         <div className="flex items-center gap-1 px-3 titlebar-no-drag">
@@ -312,7 +325,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           
           {/* Organization (no dropdown for now - single org per user) */}
           {!minimal && organization && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded text-sm text-plm-fg-dim">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded text-sm text-plm-fg-dim" title={organization.name}>
               {orgLogoUrl ? (
                 <img 
                   src={orgLogoUrl} 
@@ -322,7 +335,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
               ) : (
                 <Building2 size={16} className="text-plm-fg-muted" />
               )}
-              <span className="max-w-[120px] truncate">{organization.name}</span>
+              {showOrgName && <span className="max-w-[120px] truncate">{organization.name}</span>}
             </div>
           )}
           
@@ -335,11 +348,14 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
               <button
                 onClick={() => setShowVaultDropdown(!showVaultDropdown)}
                 className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-plm-bg-lighter transition-colors text-sm"
+                title={connectedVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
               >
                 <Database size={14} className="text-plm-fg-muted" />
-                <span className="text-plm-fg max-w-[140px] truncate">
-                  {connectedVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
-                </span>
+                {showVaultName && (
+                  <span className="text-plm-fg max-w-[140px] truncate">
+                    {connectedVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
+                  </span>
+                )}
                 {connectedVaults.length > 1 && (
                   <ChevronDown size={12} className={`text-plm-fg-muted transition-transform ${showVaultDropdown ? 'rotate-180' : ''}`} />
                 )}
@@ -377,46 +393,91 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         </div>
       </div>
 
-      {/* Center - Search bar (absolutely positioned to be truly centered) */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg px-4">
+      {/* Center - Search bar (flexible, gets squeezed between left and right) */}
+      <div className={`flex-1 min-w-0 flex items-center justify-center px-2`}>
         {!minimal && (
-          <div className="flex items-center gap-1 w-full titlebar-no-drag">
-            {/* Search type toggle */}
-            <div className="flex items-center bg-plm-bg border border-plm-border rounded-md h-7">
-              <button
-                onClick={() => setSearchType('all')}
-                className={`px-2 h-full flex items-center gap-1 text-xs rounded-l-md transition-colors ${
-                  searchType === 'all' 
-                    ? 'bg-plm-accent/20 text-plm-accent' 
-                    : 'text-plm-fg-muted hover:text-plm-fg'
-                }`}
-                title="Search all"
-              >
-                <LayoutGrid size={12} />
-              </button>
-              <button
-                onClick={() => setSearchType('folders')}
-                className={`px-2 h-full flex items-center gap-1 text-xs border-l border-plm-border transition-colors ${
-                  searchType === 'folders' 
-                    ? 'bg-plm-accent/20 text-plm-accent' 
-                    : 'text-plm-fg-muted hover:text-plm-fg'
-                }`}
-                title="Search folders"
-              >
-                <Folder size={12} />
-              </button>
-              <button
-                onClick={() => setSearchType('files')}
-                className={`px-2 h-full flex items-center gap-1 text-xs border-l border-plm-border rounded-r-md transition-colors ${
-                  searchType === 'files' 
-                    ? 'bg-plm-accent/20 text-plm-accent' 
-                    : 'text-plm-fg-muted hover:text-plm-fg'
-                }`}
-                title="Search files"
-              >
-                <File size={12} />
-              </button>
-            </div>
+          <div className={`flex items-center gap-1 w-full ${searchMaxWidth} titlebar-no-drag`}>
+            {/* Search type toggle - condenses to dropdown when narrow */}
+            {searchCondensed ? (
+              <div className="relative" ref={searchTypeDropdownRef}>
+                <button
+                  onClick={() => setShowSearchTypeDropdown(!showSearchTypeDropdown)}
+                  className="flex items-center justify-center w-7 h-7 rounded-md bg-plm-bg border border-plm-border text-plm-fg-muted hover:text-plm-fg transition-colors"
+                  title={`Search ${searchType}`}
+                >
+                  {searchType === 'all' && <LayoutGrid size={14} />}
+                  {searchType === 'folders' && <Folder size={14} />}
+                  {searchType === 'files' && <File size={14} />}
+                </button>
+                {showSearchTypeDropdown && (
+                  <div className="absolute top-full left-0 mt-1 bg-plm-bg border border-plm-border rounded-lg shadow-lg py-1 z-50 min-w-[120px]">
+                    <button
+                      onClick={() => { setSearchType('all'); setShowSearchTypeDropdown(false) }}
+                      className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 hover:bg-plm-bg-lighter ${
+                        searchType === 'all' ? 'text-plm-accent' : 'text-plm-fg'
+                      }`}
+                    >
+                      <LayoutGrid size={12} />
+                      All
+                    </button>
+                    <button
+                      onClick={() => { setSearchType('folders'); setShowSearchTypeDropdown(false) }}
+                      className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 hover:bg-plm-bg-lighter ${
+                        searchType === 'folders' ? 'text-plm-accent' : 'text-plm-fg'
+                      }`}
+                    >
+                      <Folder size={12} />
+                      Folders
+                    </button>
+                    <button
+                      onClick={() => { setSearchType('files'); setShowSearchTypeDropdown(false) }}
+                      className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 hover:bg-plm-bg-lighter ${
+                        searchType === 'files' ? 'text-plm-accent' : 'text-plm-fg'
+                      }`}
+                    >
+                      <File size={12} />
+                      Files
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center bg-plm-bg border border-plm-border rounded-md h-7">
+                <button
+                  onClick={() => setSearchType('all')}
+                  className={`px-2 h-full flex items-center gap-1 text-xs rounded-l-md transition-colors ${
+                    searchType === 'all' 
+                      ? 'bg-plm-accent/20 text-plm-accent' 
+                      : 'text-plm-fg-muted hover:text-plm-fg'
+                  }`}
+                  title="Search all"
+                >
+                  <LayoutGrid size={12} />
+                </button>
+                <button
+                  onClick={() => setSearchType('folders')}
+                  className={`px-2 h-full flex items-center gap-1 text-xs border-l border-plm-border transition-colors ${
+                    searchType === 'folders' 
+                      ? 'bg-plm-accent/20 text-plm-accent' 
+                      : 'text-plm-fg-muted hover:text-plm-fg'
+                  }`}
+                  title="Search folders"
+                >
+                  <Folder size={12} />
+                </button>
+                <button
+                  onClick={() => setSearchType('files')}
+                  className={`px-2 h-full flex items-center gap-1 text-xs border-l border-plm-border rounded-r-md transition-colors ${
+                    searchType === 'files' 
+                      ? 'bg-plm-accent/20 text-plm-accent' 
+                      : 'text-plm-fg-muted hover:text-plm-fg'
+                  }`}
+                  title="Search files"
+                >
+                  <File size={12} />
+                </button>
+              </div>
+            )}
             
             {/* Search input */}
             <div className="relative flex-1">
@@ -457,25 +518,27 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
 
       {/* Right side - Settings and User (with padding for window controls on Windows) */}
       <div 
-        className="absolute right-0 top-0 h-full flex items-center gap-2 pl-4 titlebar-no-drag max-w-[50%]"
+        className="flex-shrink-0 h-full flex items-center gap-1 pl-2 titlebar-no-drag"
         style={{ paddingRight: platform === 'darwin' ? 16 : titleBarPadding }}
       >
-        {/* System Stats - hidden on welcome/signin screens */}
-        {!minimal && <SystemStats availableWidth={availableWidth} />}
+        {/* System Stats - condenses to single dot when narrow */}
+        {!minimal && <SystemStats condensed={cpuCondensed} />}
         
-        {/* Separator */}
-        {!minimal && <div className="w-px h-4 bg-plm-border" />}
+        {/* Separator - hide when condensed to save space */}
+        {!minimal && !cpuCondensed && <div className="w-px h-4 bg-plm-border" />}
         
-        {/* Zoom dropdown - hidden on welcome/signin screens */}
+        {/* Zoom dropdown - condenses to icon only when narrow */}
         {!minimal && (
           <div className="relative" ref={zoomDropdownRef}>
             <button
               onClick={() => setShowZoomDropdown(!showZoomDropdown)}
-              className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-plm-bg-lighter transition-colors text-plm-fg-muted hover:text-plm-fg"
+              className={`flex items-center justify-center rounded hover:bg-plm-bg-lighter transition-colors text-plm-fg-muted hover:text-plm-fg ${
+                zoomCondensed ? 'w-6 h-6' : 'gap-1 px-1.5 py-1'
+              }`}
               title={`Zoom: ${Math.round(zoomFactor * 100)}%`}
             >
-              <ZoomIn size={16} />
-              <span className="text-[10px] min-w-[28px] text-center">{Math.round(zoomFactor * 100)}%</span>
+              <ZoomIn size={zoomCondensed ? 14 : 16} />
+              {!zoomCondensed && <span className="text-[10px] min-w-[28px] text-center">{Math.round(zoomFactor * 100)}%</span>}
             </button>
             
             {/* Zoom Dropdown */}
@@ -538,33 +601,44 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           <div className="relative" ref={menuRef}>
             <button 
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 px-2 py-1 rounded hover:bg-plm-bg-lighter transition-colors"
+              className={`flex items-center rounded hover:bg-plm-bg-lighter transition-colors ${
+                showUserName ? 'gap-2 px-2 py-1' : 'justify-center w-6 h-6'
+              }`}
+              title={user.full_name || user.email}
             >
               {user.avatar_url ? (
                 <>
                   <img 
                     src={user.avatar_url} 
                     alt={user.full_name || user.email}
-                    className="w-6 h-6 rounded-full"
+                    className={showUserName ? 'w-6 h-6 rounded-full' : 'w-5 h-5 rounded-full'}
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       target.style.display = 'none'
                       target.nextElementSibling?.classList.remove('hidden')
                     }}
                   />
-                  <div className="w-6 h-6 rounded-full bg-plm-accent flex items-center justify-center text-xs text-white font-semibold hidden">
+                  <div className={`rounded-full bg-plm-accent flex items-center justify-center text-white font-semibold hidden ${
+                    showUserName ? 'w-6 h-6 text-xs' : 'w-5 h-5 text-[10px]'
+                  }`}>
                     {getUserInitial(user)}
                   </div>
                 </>
               ) : (
-                <div className="w-6 h-6 rounded-full bg-plm-accent flex items-center justify-center text-xs text-white font-semibold">
+                <div className={`rounded-full bg-plm-accent flex items-center justify-center text-white font-semibold ${
+                  showUserName ? 'w-6 h-6 text-xs' : 'w-5 h-5 text-[10px]'
+                }`}>
                   {getUserInitial(user)}
                 </div>
               )}
-              <span className="text-xs text-plm-fg-dim max-w-[120px] truncate">
-                {user.full_name || user.email}
-              </span>
-              <ChevronDown size={12} className={`text-plm-fg-muted transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+              {showUserName && (
+                <>
+                  <span className="text-xs text-plm-fg-dim max-w-[120px] truncate">
+                    {user.full_name || user.email}
+                  </span>
+                  <ChevronDown size={12} className={`text-plm-fg-muted transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                </>
+              )}
             </button>
 
             {/* Simplified Dropdown Menu */}

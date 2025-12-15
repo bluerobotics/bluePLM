@@ -9,7 +9,7 @@ interface SystemStats {
 }
 
 interface SystemStatsProps {
-  availableWidth?: number
+  condensed?: boolean
 }
 
 // Format bytes to human readable
@@ -55,10 +55,9 @@ function getDotColor(percent: number): string {
   return 'bg-rose-500'
 }
 
-export function SystemStats({ availableWidth = Infinity }: SystemStatsProps) {
+export function SystemStats({ condensed = false }: SystemStatsProps) {
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [showTooltip, setShowTooltip] = useState(false)
-  const [isHidden, setIsHidden] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(() => {
     // Load from localStorage, default to collapsed
     const saved = localStorage.getItem('systemStats.collapsed')
@@ -82,21 +81,130 @@ export function SystemStats({ availableWidth = Infinity }: SystemStatsProps) {
     return () => clearInterval(interval)
   }, [])
 
-  // Hide completely when space is very limited (prioritize search bar)
-  useEffect(() => {
-    // Hide completely when available space is less than 200px
-    // This ensures search bar always has priority
-    setIsHidden(availableWidth < 200)
-  }, [availableWidth])
-
   const fetchStats = async () => {
     if (!window.electronAPI?.getSystemStats) return
     const data = await window.electronAPI.getSystemStats()
     if (data) setStats(data)
   }
 
-  if (!stats || isHidden) {
+  if (!stats) {
     return null
+  }
+
+  // Condensed view - single dot showing overall status
+  if (condensed) {
+    // Use highest usage as the indicator
+    const maxUsage = Math.max(stats.cpu.usage, stats.memory.percent, stats.disk.percent)
+    return (
+      <div
+        ref={containerRef}
+        className="relative flex items-center flex-shrink-0"
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        <button
+          onClick={toggleCollapsed}
+          className="flex items-center justify-center w-6 h-6 rounded hover:bg-plm-bg-lighter transition-colors"
+          title="System status"
+        >
+          <div className={`w-2 h-2 rounded-full ${getDotColor(maxUsage)}`} />
+        </button>
+
+        {/* Tooltip with detailed info */}
+        {showTooltip && (
+          <div className="absolute top-full right-0 mt-2 p-3 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl z-50 text-xs min-w-[220px]">
+            <div className="space-y-3">
+              {/* CPU Details */}
+              <div>
+                <div className="flex items-center justify-between text-plm-fg mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <Cpu size={12} />
+                    CPU
+                  </span>
+                  <span className="font-medium tabular-nums">{stats.cpu.usage}%</span>
+                </div>
+                <div className="flex gap-0.5">
+                  {stats.cpu.cores.map((core, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 h-3 bg-plm-bg rounded-sm overflow-hidden"
+                      title={`Core ${i}: ${core}%`}
+                    >
+                      <div
+                        className={`h-full transition-all duration-300 ${getBarColor(core)}`}
+                        style={{ width: `${core}%` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="text-plm-fg-muted text-[10px] mt-1">
+                  {stats.cpu.cores.length} cores
+                </div>
+              </div>
+
+              {/* Memory Details */}
+              <div>
+                <div className="flex items-center justify-between text-plm-fg mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <MemoryStick size={12} />
+                    Memory
+                  </span>
+                  <span className="font-medium tabular-nums">{stats.memory.percent}%</span>
+                </div>
+                <div className="h-2 bg-plm-bg rounded-sm overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${getBarColor(stats.memory.percent)}`}
+                    style={{ width: `${stats.memory.percent}%` }}
+                  />
+                </div>
+                <div className="text-plm-fg-muted text-[10px] mt-1">
+                  {formatBytes(stats.memory.used)} / {formatBytes(stats.memory.total)}
+                </div>
+              </div>
+
+              {/* Disk Details */}
+              <div>
+                <div className="flex items-center justify-between text-plm-fg mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <HardDrive size={12} />
+                    Disk
+                  </span>
+                  <span className="font-medium tabular-nums">{stats.disk.percent}%</span>
+                </div>
+                <div className="h-2 bg-plm-bg rounded-sm overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${getBarColor(stats.disk.percent)}`}
+                    style={{ width: `${stats.disk.percent}%` }}
+                  />
+                </div>
+                <div className="text-plm-fg-muted text-[10px] mt-1">
+                  {formatBytes(stats.disk.used)} / {formatBytes(stats.disk.total)}
+                </div>
+              </div>
+
+              {/* Network Details */}
+              <div>
+                <div className="flex items-center gap-1.5 text-plm-fg mb-1.5">
+                  <ArrowDown size={12} className="text-emerald-500" />
+                  <ArrowUp size={12} className="text-amber-500" />
+                  Network
+                </div>
+                <div className="flex justify-between text-plm-fg-muted">
+                  <span className="flex items-center gap-1">
+                    <ArrowDown size={10} className="text-emerald-500" />
+                    {formatSpeed(stats.network.rxSpeed)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <ArrowUp size={10} className="text-amber-500" />
+                    {formatSpeed(stats.network.txSpeed)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   // Collapsed view - shows compact activity indicator with 4 dots

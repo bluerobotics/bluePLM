@@ -21,6 +21,7 @@ const settingsSections: SettingsSection[] = [
     items: [
       { id: 'profile', label: 'Profile' },
       { id: 'preferences', label: 'Preferences' },
+      { id: 'modules', label: 'Modules' },
     ]
   },
   {
@@ -49,6 +50,7 @@ const settingsSections: SettingsSection[] = [
     category: 'System',
     items: [
       { id: 'logs', label: 'Logs' },
+      { id: 'dev-tools', label: 'Dev Tools' },
       { id: 'about', label: 'About' },
     ]
   },

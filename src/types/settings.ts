@@ -3,6 +3,7 @@
 export type SettingsTab = 
   | 'profile' 
   | 'preferences' 
+  | 'modules'
   | 'organization' 
   | 'company-profile' 
   | 'rfq' 
@@ -16,5 +17,6 @@ export type SettingsTab =
   | 'api' 
   | 'supabase' 
   | 'logs' 
+  | 'dev-tools'
   | 'about'
 

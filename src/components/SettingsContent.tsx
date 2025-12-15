@@ -1,6 +1,7 @@
 import {
   ProfileSettings,
   PreferencesSettings,
+  ModulesSettings,
   OrganizationSettings,
   CompanyProfileSettings,
   RFQSettings,
@@ -13,6 +14,7 @@ import {
   WebhooksSettings,
   ApiSettings,
   LogsSettings,
+  DevToolsSettings,
   AboutSettings,
   SupabaseSettings
 } from './settings'
@@ -29,6 +31,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <ProfileSettings />
       case 'preferences':
         return <PreferencesSettings />
+      case 'modules':
+        return <ModulesSettings />
       case 'organization':
         return <OrganizationSettings />
       case 'company-profile':
@@ -55,6 +59,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <SupabaseSettings />
       case 'logs':
         return <LogsSettings />
+      case 'dev-tools':
+        return <DevToolsSettings />
       case 'about':
         return <AboutSettings />
       default:

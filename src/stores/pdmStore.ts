@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { PDMFile, FileState, Organization, User } from '../types/pdm'
+import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider, OrgModuleDefaults, OrderListItem } from '../types/modules'
+import { getDefaultModuleConfig, MODULES, MODULE_GROUPS, isModuleVisible, buildCombinedOrderList, extractFromCombinedList, DEFAULT_DIVIDERS } from '../types/modules'
 import { supabase } from '../lib/supabase'
 
 // Build full path using the correct separator for the platform
@@ -292,6 +294,9 @@ interface PDMState {
   // Orphaned checkouts (files force-checked-in from another machine)
   orphanedCheckouts: OrphanedCheckout[]
   
+  // Module configuration (sidebar modules)
+  moduleConfig: ModuleConfig
+  
   // Onboarding (first app boot)
   onboardingComplete: boolean
   logSharingEnabled: boolean
@@ -299,6 +304,20 @@ interface PDMState {
   // Actions - Onboarding
   completeOnboarding: () => void
   setLogSharingEnabled: (enabled: boolean) => void
+  
+  // Actions - Module Configuration
+  setModuleEnabled: (moduleId: ModuleId, enabled: boolean) => void
+  setGroupEnabled: (groupId: ModuleGroupId, enabled: boolean) => void
+  setModuleOrder: (order: ModuleId[]) => void
+  reorderModule: (fromIndex: number, toIndex: number) => void
+  setDividerEnabled: (dividerId: string, enabled: boolean) => void
+  setCombinedOrder: (combinedList: OrderListItem[]) => void
+  addDivider: (afterPosition: number) => void
+  removeDivider: (dividerId: string) => void
+  resetModulesToDefaults: () => void
+  loadOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
+  saveOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
+  isModuleVisible: (moduleId: ModuleId) => boolean
   
   // Actions - Toasts
   addToast: (type: ToastType, message: string, duration?: number) => void
@@ -642,6 +661,9 @@ export const usePDMStore = create<PDMState>()(
       pendingReviewCount: 0,
       orphanedCheckouts: [],
       
+      // Module configuration
+      moduleConfig: getDefaultModuleConfig(),
+      
       // Actions - Toasts
       addToast: (type, message, duration = 5000) => {
         const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -706,6 +728,186 @@ export const usePDMStore = create<PDMState>()(
       // Actions - Onboarding
       completeOnboarding: () => set({ onboardingComplete: true }),
       setLogSharingEnabled: (logSharingEnabled) => set({ logSharingEnabled }),
+      
+      // Actions - Module Configuration
+      setModuleEnabled: (moduleId, enabled) => {
+        set(state => {
+          const newEnabledModules = { ...state.moduleConfig.enabledModules, [moduleId]: enabled }
+          
+          // If disabling a module, check if any dependent modules need to be disabled
+          if (!enabled) {
+            for (const mod of MODULES) {
+              if (mod.dependencies?.includes(moduleId)) {
+                newEnabledModules[mod.id] = false
+              }
+            }
+          }
+          
+          return {
+            moduleConfig: {
+              ...state.moduleConfig,
+              enabledModules: newEnabledModules
+            }
+          }
+        })
+      },
+      
+      setGroupEnabled: (groupId, enabled) => {
+        set(state => {
+          const group = MODULE_GROUPS.find(g => g.id === groupId)
+          const newEnabledGroups = { ...state.moduleConfig.enabledGroups, [groupId]: enabled }
+          const newEnabledModules = { ...state.moduleConfig.enabledModules }
+          
+          // If this is a master toggle group, enable/disable all modules in the group
+          if (group?.isMasterToggle) {
+            for (const mod of MODULES) {
+              if (mod.group === groupId) {
+                // When enabling, restore to default. When disabling, disable all.
+                newEnabledModules[mod.id] = enabled ? mod.defaultEnabled : false
+              }
+            }
+          }
+          
+          return {
+            moduleConfig: {
+              ...state.moduleConfig,
+              enabledGroups: newEnabledGroups,
+              enabledModules: newEnabledModules
+            }
+          }
+        })
+      },
+      
+      setModuleOrder: (moduleOrder) => {
+        set(state => ({
+          moduleConfig: { ...state.moduleConfig, moduleOrder }
+        }))
+      },
+      
+      reorderModule: (fromIndex, toIndex) => {
+        set(state => {
+          const newOrder = [...state.moduleConfig.moduleOrder]
+          const [removed] = newOrder.splice(fromIndex, 1)
+          newOrder.splice(toIndex, 0, removed)
+          return {
+            moduleConfig: { ...state.moduleConfig, moduleOrder: newOrder }
+          }
+        })
+      },
+      
+      setDividerEnabled: (dividerId, enabled) => {
+        set(state => ({
+          moduleConfig: {
+            ...state.moduleConfig,
+            dividers: state.moduleConfig.dividers.map(d =>
+              d.id === dividerId ? { ...d, enabled } : d
+            )
+          }
+        }))
+      },
+      
+      setCombinedOrder: (combinedList) => {
+        const { moduleConfig } = get()
+        const { moduleOrder, dividers } = extractFromCombinedList(combinedList, moduleConfig.dividers)
+        set({
+          moduleConfig: {
+            ...moduleConfig,
+            moduleOrder,
+            dividers
+          }
+        })
+      },
+      
+      addDivider: (afterPosition) => {
+        set(state => {
+          const newId = `divider-${Date.now()}`
+          return {
+            moduleConfig: {
+              ...state.moduleConfig,
+              dividers: [...state.moduleConfig.dividers, { id: newId, enabled: true, position: afterPosition }]
+            }
+          }
+        })
+      },
+      
+      removeDivider: (dividerId) => {
+        set(state => ({
+          moduleConfig: {
+            ...state.moduleConfig,
+            dividers: state.moduleConfig.dividers.filter(d => d.id !== dividerId)
+          }
+        }))
+      },
+      
+      resetModulesToDefaults: () => {
+        set({ moduleConfig: getDefaultModuleConfig() })
+      },
+      
+      loadOrgModuleDefaults: async () => {
+        const { organization } = get()
+        if (!organization?.id) {
+          return { success: false, error: 'No organization connected' }
+        }
+        
+        try {
+          const { data, error } = await (supabase.rpc as any)('get_org_module_defaults', {
+            p_org_id: organization.id
+          })
+          
+          if (error) throw error
+          
+          if (!data || (Array.isArray(data) && data.length === 0)) {
+            return { success: false, error: 'No org module defaults configured' }
+          }
+          
+          const defaults = Array.isArray(data) ? data[0] : data
+          if (defaults) {
+            const moduleConfig: ModuleConfig = {
+              enabledModules: defaults.enabled_modules || getDefaultModuleConfig().enabledModules,
+              enabledGroups: defaults.enabled_groups || getDefaultModuleConfig().enabledGroups,
+              moduleOrder: defaults.module_order || getDefaultModuleConfig().moduleOrder,
+              dividers: defaults.dividers || getDefaultModuleConfig().dividers,
+            }
+            set({ moduleConfig })
+          }
+          
+          return { success: true }
+        } catch (err) {
+          console.error('Failed to load org module defaults:', err)
+          return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+        }
+      },
+      
+      saveOrgModuleDefaults: async () => {
+        const { organization, moduleConfig, user } = get()
+        if (!organization?.id) {
+          return { success: false, error: 'No organization connected' }
+        }
+        if (user?.role !== 'admin') {
+          return { success: false, error: 'Only admins can save org module defaults' }
+        }
+        
+        try {
+          const { error } = await (supabase.rpc as any)('set_org_module_defaults', {
+            p_org_id: organization.id,
+            p_enabled_modules: moduleConfig.enabledModules,
+            p_enabled_groups: moduleConfig.enabledGroups,
+            p_module_order: moduleConfig.moduleOrder,
+            p_dividers: moduleConfig.dividers
+          })
+          
+          if (error) throw error
+          return { success: true }
+        } catch (err) {
+          console.error('Failed to save org module defaults:', err)
+          return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+        }
+      },
+      
+      isModuleVisible: (moduleId) => {
+        const { moduleConfig } = get()
+        return isModuleVisible(moduleId, moduleConfig)
+      },
       
       // Actions - Auth
       setUser: (user) => set({ user, isAuthenticated: !!user }),
@@ -1662,7 +1864,8 @@ export const usePDMStore = create<PDMState>()(
         ignorePatterns: state.ignorePatterns,
         terminalVisible: state.terminalVisible,
         terminalHeight: state.terminalHeight,
-        terminalHistory: state.terminalHistory.slice(0, 100)  // Keep last 100
+        terminalHistory: state.terminalHistory.slice(0, 100),  // Keep last 100
+        moduleConfig: state.moduleConfig,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Record<string, unknown>
@@ -1743,7 +1946,67 @@ export const usePDMStore = create<PDMState>()(
           // Terminal settings
           terminalVisible: (persisted.terminalVisible as boolean) || false,
           terminalHeight: (persisted.terminalHeight as number) || 250,
-          terminalHistory: (persisted.terminalHistory as string[]) || []
+          terminalHistory: (persisted.terminalHistory as string[]) || [],
+          // Module configuration - merge with defaults to handle new modules
+          moduleConfig: (() => {
+            const persistedConfig = persisted.moduleConfig as ModuleConfig | undefined
+            const defaults = getDefaultModuleConfig()
+            if (!persistedConfig) return defaults
+            
+            // Merge enabled modules (keep persisted values, add defaults for new modules)
+            const enabledModules = { ...defaults.enabledModules }
+            for (const [key, value] of Object.entries(persistedConfig.enabledModules || {})) {
+              if (key in enabledModules) {
+                enabledModules[key as ModuleId] = value as boolean
+              }
+            }
+            
+            // Merge enabled groups
+            const enabledGroups = { ...defaults.enabledGroups }
+            for (const [key, value] of Object.entries(persistedConfig.enabledGroups || {})) {
+              if (key in enabledGroups) {
+                enabledGroups[key as ModuleGroupId] = value as boolean
+              }
+            }
+            
+            // Module order - use persisted if valid, otherwise default
+            let moduleOrder = defaults.moduleOrder
+            if (persistedConfig.moduleOrder && Array.isArray(persistedConfig.moduleOrder)) {
+              // Validate all modules exist
+              const validOrder = persistedConfig.moduleOrder.filter(
+                (id: string) => defaults.enabledModules.hasOwnProperty(id)
+              )
+              // Add any new modules that weren't in persisted order
+              for (const id of defaults.moduleOrder) {
+                if (!validOrder.includes(id)) {
+                  validOrder.push(id)
+                }
+              }
+              moduleOrder = validOrder as ModuleId[]
+            }
+            
+            // Dividers - use persisted if valid, migrate old format if needed
+            let dividers = defaults.dividers
+            if (persistedConfig.dividers && Array.isArray(persistedConfig.dividers)) {
+              // Check if this is old format (has afterGroup) or new format (has position)
+              const hasOldFormat = persistedConfig.dividers.some(
+                (d: any) => 'afterGroup' in d && !('position' in d)
+              )
+              
+              if (hasOldFormat) {
+                // Migrate from old format - just use defaults for now
+                // Old dividers with afterGroup are discarded, new position-based used
+                dividers = defaults.dividers
+              } else {
+                // New format - use persisted dividers
+                dividers = persistedConfig.dividers.filter(
+                  (d: SectionDivider) => typeof d.position === 'number'
+                )
+              }
+            }
+            
+            return { enabledModules, enabledGroups, moduleOrder, dividers }
+          })()
         }
       }
     }

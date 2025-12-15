@@ -315,8 +315,8 @@ function createWindow() {
     y,
     width: savedState.width,
     height: savedState.height,
-    minWidth: 1000,
-    minHeight: 700,
+    minWidth: 600,
+    minHeight: 300,
     backgroundColor: '#0a1929',
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -564,9 +564,37 @@ function createAppMenu() {
           click: () => mainWindow?.webContents.send('menu:toggle-details')
         },
         { type: 'separator' },
-        { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', role: 'zoomIn' },
-        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', role: 'zoomOut' },
-        { label: 'Reset Zoom', accelerator: 'CmdOrCtrl+0', role: 'resetZoom' },
+        { 
+          label: 'Zoom In', 
+          accelerator: 'CmdOrCtrl+=', 
+          click: () => {
+            if (!mainWindow) return
+            const current = mainWindow.webContents.getZoomFactor()
+            const newZoom = Math.min(2.0, current + 0.1)
+            mainWindow.webContents.setZoomFactor(newZoom)
+            mainWindow.webContents.send('zoom-changed', newZoom)
+          }
+        },
+        { 
+          label: 'Zoom Out', 
+          accelerator: 'CmdOrCtrl+-', 
+          click: () => {
+            if (!mainWindow) return
+            const current = mainWindow.webContents.getZoomFactor()
+            const newZoom = Math.max(0.5, current - 0.1)
+            mainWindow.webContents.setZoomFactor(newZoom)
+            mainWindow.webContents.send('zoom-changed', newZoom)
+          }
+        },
+        { 
+          label: 'Reset Zoom', 
+          accelerator: 'CmdOrCtrl+0', 
+          click: () => {
+            if (!mainWindow) return
+            mainWindow.webContents.setZoomFactor(1)
+            mainWindow.webContents.send('zoom-changed', 1)
+          }
+        },
         { type: 'separator' },
         { label: 'Toggle Full Screen', accelerator: 'F11', role: 'togglefullscreen' },
         { type: 'separator' },
@@ -1328,6 +1356,50 @@ ipcMain.handle('app:set-zoom-factor', (_event, factor: number) => {
   const clampedFactor = Math.max(0.5, Math.min(2.0, factor))
   mainWindow.webContents.setZoomFactor(clampedFactor)
   return { success: true, factor: clampedFactor }
+})
+
+// Window size handlers (for dev tools responsive testing)
+ipcMain.handle('app:get-window-size', () => {
+  if (!mainWindow) return null
+  const [width, height] = mainWindow.getSize()
+  return { width, height }
+})
+
+ipcMain.handle('app:set-window-size', (_event, width: number, height: number) => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+  try {
+    // Unmaximize if maximized to allow resize
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize()
+    }
+    // Set the content size (inner window dimensions)
+    mainWindow.setContentSize(width, height)
+    log(`[Main] Window resized to ${width}x${height}`)
+    return { success: true }
+  } catch (err) {
+    log('error', '[Main] Failed to resize window', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+})
+
+ipcMain.handle('app:reset-window-size', () => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+  try {
+    // Reset to default size (1200x800)
+    const defaultWidth = 1200
+    const defaultHeight = 800
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize()
+    }
+    mainWindow.setSize(defaultWidth, defaultHeight)
+    mainWindow.center()
+    const [width, height] = mainWindow.getSize()
+    log(`[Main] Window reset to default size: ${width}x${height}`)
+    return { success: true, size: { width, height } }
+  } catch (err) {
+    log('error', '[Main] Failed to reset window size', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
 })
 
 // ============================================

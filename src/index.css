@@ -438,6 +438,15 @@ html, body, #root {
   background: transparent;
 }
 
+/* Hide scrollbar but keep functionality */
+.scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
 /* Theme-aware scrollbar colors */
 [data-theme="dark"] ::-webkit-scrollbar-thumb,
 :root ::-webkit-scrollbar-thumb {

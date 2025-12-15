@@ -18,6 +18,15 @@ import {
   Building2,
   Globe
 } from 'lucide-react'
+import { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { usePDMStore, SidebarView } from '../stores/pdmStore'
+import { getUnreadNotificationCount, getPendingReviewsForUser } from '../lib/supabase'
+import { useTranslation } from '../lib/i18n'
+import { 
+  MODULES, 
+  isModuleVisible,
+  type ModuleId
+} from '../types/modules'
 
 // Custom Google Drive icon
 function GoogleDriveIcon({ size = 22 }: { size?: number }) {
@@ -29,10 +38,26 @@ function GoogleDriveIcon({ size = 22 }: { size?: number }) {
     </svg>
   )
 }
-import { createContext, useContext, useEffect, useState } from 'react'
-import { usePDMStore, SidebarView } from '../stores/pdmStore'
-import { getUnreadNotificationCount, getPendingReviewsForUser } from '../lib/supabase'
-import { useTranslation } from '../lib/i18n'
+
+// Icon components mapping
+const iconComponents: Record<string, React.ComponentType<{ size?: number }>> = {
+  FolderTree,
+  ArrowDownUp,
+  History,
+  Search,
+  Trash2,
+  Terminal,
+  ClipboardList,
+  GitBranch,
+  ClipboardCheck,
+  AlertCircle,
+  Package,
+  Network,
+  Calendar,
+  Telescope,
+  Building2,
+  Globe,
+}
 
 // Context to share expanded state
 const ExpandedContext = createContext(false)
@@ -165,6 +190,39 @@ function SidebarControl() {
   )
 }
 
+// Get the icon component for a module
+function getModuleIcon(iconName: string, size: number = 22): React.ReactNode {
+  if (iconName === 'GoogleDrive') {
+    return <GoogleDriveIcon size={size} />
+  }
+  const IconComponent = iconComponents[iconName]
+  if (IconComponent) {
+    return <IconComponent size={size} />
+  }
+  return <Package size={size} />
+}
+
+// Translation keys for module names
+const moduleTranslationKeys: Record<ModuleId, string> = {
+  'explorer': 'sidebar.explorer',
+  'pending': 'sidebar.pending',
+  'search': 'sidebar.search',
+  'workflows': 'sidebar.workflows',
+  'history': 'sidebar.history',
+  'trash': 'sidebar.trash',
+  'terminal': 'sidebar.terminal',
+  'eco': 'sidebar.eco',
+  'gsd': 'sidebar.gsd',
+  'ecr': 'sidebar.ecr',
+  'reviews': 'sidebar.reviews',
+  'products': 'sidebar.products',
+  'process': 'sidebar.process',
+  'schedule': 'sidebar.schedule',
+  'suppliers': 'sidebar.suppliers',
+  'supplier-portal': 'sidebar.supplierPortal',
+  'google-drive': 'sidebar.googleDrive',
+}
+
 export function ActivityBar() {
   const { 
     user, 
@@ -173,11 +231,15 @@ export function ActivityBar() {
     pendingReviewCount,
     setUnreadNotificationCount,
     setPendingReviewCount,
-    activityBarMode
+    activityBarMode,
+    moduleConfig
   } = usePDMStore()
   const { t } = useTranslation()
   
   const [isHovering, setIsHovering] = useState(false)
+  const [canScrollUp, setCanScrollUp] = useState(false)
+  const [canScrollDown, setCanScrollDown] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   
   // Determine if sidebar should be expanded based on mode
   const isExpanded = activityBarMode === 'expanded' || (activityBarMode === 'hover' && isHovering)
@@ -207,8 +269,83 @@ export function ActivityBar() {
   
   const totalBadge = unreadNotificationCount + pendingReviewCount
   
+  // Build the visible modules list based on module order and visibility
+  const visibleModules = useMemo(() => {
+    return moduleConfig.moduleOrder.filter(moduleId => 
+      isModuleVisible(moduleId, moduleConfig)
+    )
+  }, [moduleConfig])
+  
+  // Build a map of original index to visible index for divider positioning
+  const originalToVisibleIndex = useMemo(() => {
+    const map = new Map<number, number>()
+    let visibleIdx = -1
+    for (let origIdx = 0; origIdx < moduleConfig.moduleOrder.length; origIdx++) {
+      const moduleId = moduleConfig.moduleOrder[origIdx]
+      if (isModuleVisible(moduleId, moduleConfig)) {
+        visibleIdx++
+        map.set(origIdx, visibleIdx)
+      }
+    }
+    return map
+  }, [moduleConfig])
+  
+  // Determine where to show dividers based on position
+  const getDividerAfterVisibleIndex = useMemo(() => {
+    const result = new Set<number>()
+    
+    for (const divider of moduleConfig.dividers) {
+      if (!divider.enabled) continue
+      
+      // Find the visible index that corresponds to the divider's position
+      // The divider position is in the original module order
+      // We need to find the last visible module at or before that position
+      let lastVisibleIdx = -1
+      for (let origIdx = 0; origIdx <= divider.position && origIdx < moduleConfig.moduleOrder.length; origIdx++) {
+        const visibleIdx = originalToVisibleIndex.get(origIdx)
+        if (visibleIdx !== undefined) {
+          lastVisibleIdx = visibleIdx
+        }
+      }
+      
+      if (lastVisibleIdx >= 0) {
+        result.add(lastVisibleIdx)
+      }
+    }
+    
+    return result
+  }, [moduleConfig.dividers, originalToVisibleIndex, moduleConfig.moduleOrder.length])
+  
+  // Check scroll state
+  const updateScrollState = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    
+    const { scrollTop, scrollHeight, clientHeight } = container
+    setCanScrollUp(scrollTop > 0)
+    setCanScrollDown(scrollTop + clientHeight < scrollHeight - 1)
+  }, [])
+  
+  // Update scroll state on mount, resize, and when modules change
+  useEffect(() => {
+    updateScrollState()
+    
+    const container = scrollContainerRef.current
+    if (container) {
+      container.addEventListener('scroll', updateScrollState)
+      
+      // Also check on resize
+      const resizeObserver = new ResizeObserver(updateScrollState)
+      resizeObserver.observe(container)
+      
+      return () => {
+        container.removeEventListener('scroll', updateScrollState)
+        resizeObserver.disconnect()
+      }
+    }
+  }, [updateScrollState, visibleModules.length])
+  
   // In expanded mode, container matches bar width. In collapsed/hover mode, container is always collapsed width.
-  // Note: +1px to account for border-r
   const containerWidth = activityBarMode === 'expanded' ? 'w-64' : 'w-[53px]'
   
   return (
@@ -223,116 +360,70 @@ export function ActivityBar() {
           onMouseEnter={() => setIsHovering(true)}
           onMouseLeave={() => setIsHovering(false)}
         >
-          {/* PDM Section - File/Data-centric */}
-          <div className="flex flex-col pt-[4px]">
-            <ActivityItem
-              icon={<FolderTree size={22} />}
-              view="explorer"
-              title={t('sidebar.explorer')}
+          {/* Scrollable modules area */}
+          <div className="flex-1 min-h-0 relative">
+            {/* Top fade gradient - indicates more content above */}
+            <div 
+              className={`absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+                canScrollUp ? 'opacity-100' : 'opacity-0'
+              }`}
             />
-            <ActivityItem
-              icon={<ArrowDownUp size={22} />}
-              view="pending"
-              title={t('sidebar.pending')}
-            />
-            <ActivityItem
-              icon={<Search size={22} />}
-              view="search"
-              title={t('sidebar.search')}
-            />
-            <ActivityItem
-              icon={<GitBranch size={22} />}
-              view="workflows"
-              title={t('sidebar.workflows')}
-            />
-            <ActivityItem
-              icon={<History size={22} />}
-              view="history"
-              title={t('sidebar.history')}
-            />
-            <ActivityItem
-              icon={<Trash2 size={22} />}
-              view="trash"
-              title={t('sidebar.trash')}
-            />
-            <ActivityItem
-              icon={<Terminal size={22} />}
-              view="terminal"
-              title={t('sidebar.terminal')}
+            
+            {/* Scrollable container - hide scrollbar since fade gradients indicate scrollability */}
+            <div 
+              ref={scrollContainerRef}
+              className="h-full overflow-y-auto overflow-x-hidden scrollbar-hidden"
+            >
+              {/* Dynamic Modules */}
+              <div className="flex flex-col pt-[4px]">
+                {visibleModules.map((moduleId, visibleIndex) => {
+                  const module = MODULES.find(m => m.id === moduleId)
+                  if (!module) return null
+                  
+                  const translationKey = moduleTranslationKeys[moduleId]
+                  const title = translationKey ? t(translationKey) : module.name
+                  
+                  // Special handling for reviews badge
+                  const badge = moduleId === 'reviews' ? totalBadge : undefined
+                  
+                  return (
+                    <div key={moduleId}>
+                      <ActivityItem
+                        icon={getModuleIcon(module.icon)}
+                        view={moduleId as SidebarView}
+                        title={title}
+                        badge={badge}
+                      />
+                      {getDividerAfterVisibleIndex.has(visibleIndex) && <SectionDivider />}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Settings - always shown, after a divider if there are visible modules */}
+              {visibleModules.length > 0 && <SectionDivider />}
+              <ActivityItem
+                icon={<Settings size={22} />}
+                view="settings"
+                title={t('sidebar.settings')}
+              />
+              
+              {/* Bottom padding for scroll */}
+              <div className="h-2" />
+            </div>
+            
+            {/* Bottom fade gradient - indicates more content below */}
+            <div 
+              className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+                canScrollDown ? 'opacity-100' : 'opacity-0'
+              }`}
             />
           </div>
-
-          {/* Divider between PDM and PLM */}
-          <SectionDivider />
-
-          {/* PLM Section - Lifecycle/Process-centric */}
-          <div className="flex flex-col">
-            <ActivityItem
-              icon={<ClipboardList size={22} />}
-              view="eco"
-              title={t('sidebar.eco')}
-            />
-            <ActivityItem
-              icon={<Telescope size={22} />}
-              view="gsd"
-              title={t('sidebar.gsd')}
-            />
-            <ActivityItem
-              icon={<AlertCircle size={22} />}
-              view="ecr"
-              title={t('sidebar.ecr')}
-            />
-            <ActivityItem
-              icon={<Package size={22} />}
-              view="products"
-              title={t('sidebar.products')}
-            />
-            <ActivityItem
-              icon={<Network size={22} />}
-              view="process"
-              title={t('sidebar.process')}
-            />
-            <ActivityItem
-              icon={<Calendar size={22} />}
-              view="schedule"
-              title={t('sidebar.schedule')}
-            />
-          <ActivityItem
-            icon={<ClipboardCheck size={22} />}
-            view="reviews"
-            title={t('sidebar.reviews')}
-            badge={totalBadge}
-          />
-            <ActivityItem
-              icon={<Building2 size={22} />}
-              view="suppliers"
-              title={t('sidebar.suppliers')}
-            />
-            <ActivityItem
-              icon={<Globe size={22} />}
-              view="supplier-portal"
-              title={t('sidebar.supplierPortal')}
-            />
-            <ActivityItem
-              icon={<GoogleDriveIcon size={22} />}
-              view="google-drive"
-              title={t('sidebar.googleDrive')}
-            />
-          </div>
-
-          {/* Settings */}
-          <SectionDivider />
-          <ActivityItem
-            icon={<Settings size={22} />}
-            view="settings"
-            title={t('sidebar.settings')}
-          />
-
-          {/* Spacer to push sidebar control to bottom */}
-          <div className="flex-1" />
           
-          {/* Sidebar Control at very bottom */}
-          <SidebarControl />
+          {/* Sidebar Control at very bottom - always visible */}
+          <div className="flex-shrink-0">
+            <SidebarControl />
+          </div>
         </div>
       </div>
     </ExpandedContext.Provider>

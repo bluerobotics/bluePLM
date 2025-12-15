@@ -1,26 +1,30 @@
+import { lazy, Suspense } from 'react'
 import { usePDMStore } from '../stores/pdmStore'
 import type { SettingsTab } from '../types/settings'
-// PDM Views
-import { ExplorerView } from './sidebar/ExplorerView'
-import { PendingView } from './sidebar/PendingView'
-import { SearchView } from './sidebar/SearchView'
-import { WorkflowsView } from './sidebar/WorkflowsView'
-import { HistoryView } from './sidebar/HistoryView'
-import { TrashView } from './sidebar/TrashView'
-import { TerminalView } from './sidebar/TerminalView'
-// PLM Views
-import { ECOView } from './sidebar/ECOView'
-import { ECRView } from './sidebar/ECRView'
-import { ProductsView } from './sidebar/ProductsView'
-import { ProcessView } from './sidebar/ProcessView'
-import { ScheduleView } from './sidebar/ScheduleView'
-import { ReviewsView } from './sidebar/ReviewsView'
-import { GSDView } from './sidebar/GSDView'
-import { SuppliersView } from './sidebar/SuppliersView'
-import { SupplierPortalView } from './sidebar/SupplierPortalView'
-import { GoogleDriveView } from './sidebar/GoogleDriveView'
-// System Views
+import { isModuleVisible } from '../types/modules'
+import { Loader2 } from 'lucide-react'
+
+// Eagerly loaded views (always needed)
 import { SettingsNavigation } from './sidebar/SettingsNavigation'
+
+// Lazy loaded views - only loaded when the module is enabled and selected
+const ExplorerView = lazy(() => import('./sidebar/ExplorerView').then(m => ({ default: m.ExplorerView })))
+const PendingView = lazy(() => import('./sidebar/PendingView').then(m => ({ default: m.PendingView })))
+const SearchView = lazy(() => import('./sidebar/SearchView').then(m => ({ default: m.SearchView })))
+const WorkflowsView = lazy(() => import('./sidebar/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
+const HistoryView = lazy(() => import('./sidebar/HistoryView').then(m => ({ default: m.HistoryView })))
+const TrashView = lazy(() => import('./sidebar/TrashView').then(m => ({ default: m.TrashView })))
+const TerminalView = lazy(() => import('./sidebar/TerminalView').then(m => ({ default: m.TerminalView })))
+const ECOView = lazy(() => import('./sidebar/ECOView').then(m => ({ default: m.ECOView })))
+const ECRView = lazy(() => import('./sidebar/ECRView').then(m => ({ default: m.ECRView })))
+const ProductsView = lazy(() => import('./sidebar/ProductsView').then(m => ({ default: m.ProductsView })))
+const ProcessView = lazy(() => import('./sidebar/ProcessView').then(m => ({ default: m.ProcessView })))
+const ScheduleView = lazy(() => import('./sidebar/ScheduleView').then(m => ({ default: m.ScheduleView })))
+const ReviewsView = lazy(() => import('./sidebar/ReviewsView').then(m => ({ default: m.ReviewsView })))
+const GSDView = lazy(() => import('./sidebar/GSDView').then(m => ({ default: m.GSDView })))
+const SuppliersView = lazy(() => import('./sidebar/SuppliersView').then(m => ({ default: m.SuppliersView })))
+const SupplierPortalView = lazy(() => import('./sidebar/SupplierPortalView').then(m => ({ default: m.SupplierPortalView })))
+const GoogleDriveView = lazy(() => import('./sidebar/GoogleDriveView').then(m => ({ default: m.GoogleDriveView })))
 
 interface SidebarProps {
   onOpenVault: () => void
@@ -33,55 +37,195 @@ interface SidebarProps {
 // Fixed width for settings view (not resizable)
 const SETTINGS_SIDEBAR_WIDTH = 200
 
+// Loading fallback for lazy-loaded views
+function ViewLoading() {
+  return (
+    <div className="flex items-center justify-center h-32 text-plm-fg-muted">
+      <Loader2 size={20} className="animate-spin" />
+    </div>
+  )
+}
+
+// Fallback for disabled modules
+function ModuleDisabled({ moduleName }: { moduleName: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-32 text-plm-fg-muted p-4 text-center">
+      <p className="text-sm">
+        The <span className="font-medium">{moduleName}</span> module is disabled.
+      </p>
+      <p className="text-xs mt-1 text-plm-fg-dim">
+        Enable it in Settings → Modules
+      </p>
+    </div>
+  )
+}
+
 export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab = 'profile', onSettingsTabChange }: SidebarProps) {
-  const { activeView, sidebarWidth, connectedVaults } = usePDMStore()
+  const { activeView, sidebarWidth, connectedVaults, moduleConfig } = usePDMStore()
   
   // Settings view uses fixed width, others use resizable width
   const effectiveWidth = activeView === 'settings' ? SETTINGS_SIDEBAR_WIDTH : sidebarWidth
 
   const renderView = () => {
+    // Settings is always available
+    if (activeView === 'settings') {
+      return <SettingsNavigation activeTab={settingsTab} onTabChange={onSettingsTabChange || (() => {})} />
+    }
+    
+    // Check if the module is enabled for all other views
+    const moduleId = activeView as string
+    const isEnabled = isModuleVisible(moduleId as any, moduleConfig)
+    
+    // Map view names to readable names for the disabled message
+    const viewNames: Record<string, string> = {
+      'explorer': 'Explorer',
+      'pending': 'Pending Changes',
+      'search': 'Search',
+      'workflows': 'File Workflows',
+      'history': 'History',
+      'trash': 'Trash',
+      'terminal': 'Terminal',
+      'eco': 'ECO History',
+      'ecr': 'ECR / Issues',
+      'products': 'Products',
+      'process': 'Process Editor',
+      'schedule': 'Schedule',
+      'reviews': 'Reviews',
+      'gsd': 'GSD Summary',
+      'suppliers': 'Suppliers',
+      'supplier-portal': 'Supplier Portal',
+      'google-drive': 'Google Drive',
+    }
+    
     switch (activeView) {
       // PDM Views
       case 'explorer':
-        return <ExplorerView onOpenVault={onOpenVault} onOpenRecentVault={onOpenRecentVault} onRefresh={onRefresh} />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ExplorerView onOpenVault={onOpenVault} onOpenRecentVault={onOpenRecentVault} onRefresh={onRefresh} />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'pending':
-        return <PendingView onRefresh={onRefresh} />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <PendingView onRefresh={onRefresh} />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'search':
-        return <SearchView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <SearchView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'workflows':
-        return <WorkflowsView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <WorkflowsView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'history':
-        return <HistoryView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <HistoryView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'trash':
-        return <TrashView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <TrashView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'terminal':
-        return <TerminalView onRefresh={onRefresh} />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <TerminalView onRefresh={onRefresh} />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       // PLM Views
       case 'eco':
-        return <ECOView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ECOView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'ecr':
-        return <ECRView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ECRView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'products':
-        return <ProductsView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ProductsView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'process':
-        return <ProcessView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ProcessView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'schedule':
-        return <ScheduleView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ScheduleView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'reviews':
-        return <ReviewsView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ReviewsView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'gsd':
-        return <GSDView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <GSDView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'suppliers':
-        return <SuppliersView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <SuppliersView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'supplier-portal':
-        return <SupplierPortalView />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <SupplierPortalView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       case 'google-drive':
-        return <GoogleDriveView />
-      // System Views
-      case 'settings':
-        return <SettingsNavigation activeTab={settingsTab} onTabChange={onSettingsTabChange || (() => {})} />
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <GoogleDriveView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
       default:
-        return <ExplorerView onOpenVault={onOpenVault} onOpenRecentVault={onOpenRecentVault} />
+        // Default to explorer if enabled, otherwise show disabled message
+        return isModuleVisible('explorer', moduleConfig) ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ExplorerView onOpenVault={onOpenVault} onOpenRecentVault={onOpenRecentVault} />
+          </Suspense>
+        ) : <ModuleDisabled moduleName="Explorer" />
     }
   }
 

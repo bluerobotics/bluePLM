@@ -99,6 +99,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTitleBarOverlay: (options: { color: string; symbolColor: string }) => ipcRenderer.invoke('app:set-titlebar-overlay', options),
   getZoomFactor: () => ipcRenderer.invoke('app:get-zoom-factor'),
   setZoomFactor: (factor: number) => ipcRenderer.invoke('app:set-zoom-factor', factor),
+  onZoomChanged: (callback: (factor: number) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, factor: number) => callback(factor)
+    ipcRenderer.on('zoom-changed', handler)
+    return () => ipcRenderer.removeListener('zoom-changed', handler)
+  },
+  getWindowSize: () => ipcRenderer.invoke('app:get-window-size'),
+  setWindowSize: (width: number, height: number) => ipcRenderer.invoke('app:set-window-size', width, height),
+  resetWindowSize: () => ipcRenderer.invoke('app:reset-window-size'),
   
   // Machine identification (for backup service)
   getMachineId: () => ipcRenderer.invoke('app:get-machine-id'),
