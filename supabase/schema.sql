@@ -1062,10 +1062,15 @@ ALTER TABLE backup_machines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE backup_locks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 
--- User sessions: Users can view and manage their own sessions
-CREATE POLICY "Users can view own sessions"
+-- User sessions: Users can view org members' sessions (for online presence)
+-- But can only manage (insert/update/delete) their own sessions
+CREATE POLICY "Users can view org sessions"
   ON user_sessions FOR SELECT
-  USING (user_id = auth.uid());
+  USING (
+    user_id = auth.uid()
+    OR 
+    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+  );
 
 CREATE POLICY "Users can manage own sessions"
   ON user_sessions FOR ALL

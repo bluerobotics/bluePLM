@@ -3751,13 +3751,34 @@ export async function registerDeviceSession(
 
 /**
  * Send a heartbeat to keep the session alive
+ * Returns false if session was remotely invalidated
  */
-export async function sendSessionHeartbeat(userId: string): Promise<void> {
+export async function sendSessionHeartbeat(userId: string): Promise<boolean> {
   const client = getSupabaseClient()
   
   const { getMachineId } = await import('./backup')
   const machineId = await getMachineId()
   
+  // First check if our session is still active
+  const { data: session, error: checkError } = await client
+    .from('user_sessions')
+    .select('is_active')
+    .eq('user_id', userId)
+    .eq('machine_id', machineId)
+    .single()
+  
+  if (checkError) {
+    console.error('[Session] Failed to check session status:', checkError.message)
+    return true // Assume still active on error
+  }
+  
+  // If session was deactivated remotely, don't update and signal sign out needed
+  if (session && !session.is_active) {
+    console.log('[Session] Session was remotely deactivated')
+    return false
+  }
+  
+  // Session is active, update the heartbeat
   const { error } = await client
     .from('user_sessions')
     .update({ 
@@ -3770,24 +3791,35 @@ export async function sendSessionHeartbeat(userId: string): Promise<void> {
   if (error) {
     console.error('[Session] Heartbeat failed:', error.message)
   }
+  
+  return true
 }
 
 /**
  * Start periodic heartbeat (call once when app starts)
+ * @param userId - The user's ID
+ * @param onSessionInvalidated - Callback when session is remotely ended (triggers sign out)
  */
-export function startSessionHeartbeat(userId: string): void {
+export function startSessionHeartbeat(userId: string, onSessionInvalidated?: () => void): void {
   // Clear any existing interval
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval)
   }
   
-  // Send heartbeat every 60 seconds
-  heartbeatInterval = setInterval(() => {
-    sendSessionHeartbeat(userId)
-  }, 60000)
+  const checkHeartbeat = async () => {
+    const isActive = await sendSessionHeartbeat(userId)
+    if (!isActive && onSessionInvalidated) {
+      console.log('[Session] Remote sign out detected, triggering sign out')
+      stopSessionHeartbeat()
+      onSessionInvalidated()
+    }
+  }
+  
+  // Send heartbeat every 30 seconds (faster detection of remote sign out)
+  heartbeatInterval = setInterval(checkHeartbeat, 30000)
   
   // Send initial heartbeat
-  sendSessionHeartbeat(userId)
+  checkHeartbeat()
 }
 
 /**
@@ -3862,6 +3894,35 @@ export async function getActiveSessions(userId: string): Promise<{ sessions: Use
 }
 
 /**
+ * Check if a specific machine is online (has an active session)
+ * @param userId - The user ID
+ * @param machineId - The machine ID to check
+ * @returns Whether the machine is online (active session within last 2 minutes)
+ */
+export async function isMachineOnline(userId: string, machineId: string): Promise<boolean> {
+  const client = getSupabaseClient()
+  
+  // Consider online if active and seen within last 2 minutes
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  
+  const { data, error } = await client
+    .from('user_sessions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('machine_id', machineId)
+    .eq('is_active', true)
+    .gte('last_seen', twoMinutesAgo)
+    .limit(1)
+  
+  if (error) {
+    console.error('[Session] Failed to check machine online status:', error.message)
+    return false
+  }
+  
+  return (data?.length || 0) > 0
+}
+
+/**
  * Subscribe to session changes for realtime updates
  */
 export function subscribeToSessions(
@@ -3884,6 +3945,111 @@ export function subscribeToSessions(
         // When any session changes, fetch all active sessions
         const { sessions } = await getActiveSessions(userId)
         onSessionChange(sessions)
+      }
+    )
+    .subscribe()
+  
+  return () => {
+    channel.unsubscribe()
+  }
+}
+
+// ===========================================
+// ONLINE PRESENCE
+// ===========================================
+
+export interface OnlineUser {
+  user_id: string
+  email: string
+  full_name: string | null
+  avatar_url: string | null
+  role: string
+  machine_name: string
+  platform: string | null
+  last_seen: string
+}
+
+/**
+ * Get all online users from the organization
+ * Returns users who have active sessions within the last 5 minutes
+ */
+export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineUser[]; error?: string }> {
+  const client = getSupabaseClient()
+  
+  // Get sessions active within the last 5 minutes
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+  
+  const { data, error } = await client
+    .from('user_sessions')
+    .select(`
+      user_id,
+      machine_name,
+      platform,
+      last_seen,
+      users!inner (
+        email,
+        full_name,
+        avatar_url,
+        role
+      )
+    `)
+    .eq('org_id', orgId)
+    .eq('is_active', true)
+    .gte('last_seen', fiveMinutesAgo)
+    .order('last_seen', { ascending: false })
+  
+  if (error) {
+    console.error('[OnlineUsers] Failed to fetch online users:', error.message)
+    return { users: [], error: error.message }
+  }
+  
+  // Transform the data to flatten the user info
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const users: OnlineUser[] = (data || []).map((session: any) => ({
+    user_id: session.user_id,
+    email: session.users.email,
+    full_name: session.users.full_name,
+    avatar_url: session.users.avatar_url,
+    role: session.users.role,
+    machine_name: session.machine_name,
+    platform: session.platform,
+    last_seen: session.last_seen
+  }))
+  
+  // Deduplicate by user_id (keep most recent session per user)
+  const uniqueUsers = new Map<string, OnlineUser>()
+  for (const user of users) {
+    if (!uniqueUsers.has(user.user_id)) {
+      uniqueUsers.set(user.user_id, user)
+    }
+  }
+  
+  return { users: Array.from(uniqueUsers.values()) }
+}
+
+/**
+ * Subscribe to organization-wide session changes for online presence
+ */
+export function subscribeToOrgOnlineUsers(
+  orgId: string,
+  onUsersChange: (users: OnlineUser[]) => void
+): () => void {
+  const client = getSupabaseClient()
+  
+  const channel = client
+    .channel(`org_sessions:${orgId}`)
+    .on<UserSession>(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_sessions',
+        filter: `org_id=eq.${orgId}`
+      },
+      async () => {
+        // When any org session changes, fetch all online users
+        const { users } = await getOrgOnlineUsers(orgId)
+        onUsersChange(users)
       }
     )
     .subscribe()

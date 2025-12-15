@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, User, SlidersHorizontal } from 'lucide-react'
+import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, User, SlidersHorizontal, WifiOff } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
 import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization, getActiveSessions, endRemoteSession, UserSession, supabase } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
 import { SystemStats } from './SystemStats'
+import { OnlineUsersIndicator } from './OnlineUsersIndicator'
 import { getMachineId } from '../lib/backup'
 
 // Helper to log to both console and electron log file
@@ -41,7 +42,9 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     connectedVaults,
     activeVaultId,
     switchVault,
-    setActiveView
+    setActiveView,
+    isOfflineMode,
+    setOfflineMode
   } = usePDMStore()
   // appVersion may be used in future UI updates
   const [, setAppVersion] = useState('')
@@ -118,9 +121,12 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     }
   }, [])
 
-  // Load sessions when user menu is opened
+  // Load sessions on mount and refresh when menu is opened
   useEffect(() => {
-    if (!user?.id || !showUserMenu) return
+    if (!user?.id) {
+      setSessions([])
+      return
+    }
     
     const loadSessions = async () => {
       const machineId = await getMachineId()
@@ -129,7 +135,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       setSessions(activeSessions)
     }
     
+    // Load sessions immediately on mount
     loadSessions()
+    
+    // Refresh when menu is opened
+    if (showUserMenu) {
+      loadSessions()
+    }
   }, [user?.id, showUserMenu])
 
   // Load organization logo (with signed URL refresh)
@@ -594,6 +606,47 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+        
+        {/* Online Users Indicator */}
+        {!minimal && organization && !isOfflineMode && (
+          <>
+            <div className="w-px h-4 bg-plm-border mx-1" />
+            <OnlineUsersIndicator orgLogoUrl={orgLogoUrl} />
+          </>
+        )}
+        
+        {/* Offline Mode Indicator */}
+        {isOfflineMode && !minimal && (
+          <>
+            <div className="w-px h-4 bg-plm-border mx-1" />
+            <button
+              onClick={() => {
+                if (navigator.onLine) {
+                  setOfflineMode(false)
+                  addToast('success', 'Back online')
+                } else {
+                  addToast('warning', 'No network connection available')
+                }
+              }}
+              className="flex items-center gap-1.5 px-2 py-1 rounded bg-plm-warning/10 hover:bg-plm-warning/20 transition-colors"
+              title={navigator.onLine ? 'Click to go back online' : 'No network connection'}
+            >
+              <WifiOff size={14} className="text-plm-warning" />
+              <span className="text-xs text-plm-warning font-medium">Offline</span>
+            </button>
+          </>
+        )}
+        
+        {/* Session count indicator - show when multiple sessions */}
+        {user && !minimal && sessions.length > 1 && (
+          <div 
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-plm-bg-lighter text-plm-fg-muted"
+            title={`${sessions.length} active sessions`}
+          >
+            <Monitor size={12} />
+            <span className="text-[10px] font-medium">{sessions.length}</span>
           </div>
         )}
         
