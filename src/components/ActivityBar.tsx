@@ -99,10 +99,12 @@ function ActivityItem({ icon, view, title, badge }: ActivityItemProps) {
         )}
         <div className="relative w-[22px] h-[22px] flex items-center justify-center flex-shrink-0">
           {icon}
-          {badge && badge > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-plm-activitybar">
-              {badge > 99 ? '99+' : badge}
-            </span>
+          {badge !== undefined && badge > 0 && (
+            <div className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] flex items-center justify-center bg-plm-error rounded-full shadow-sm">
+              <span className="text-[10px] font-bold text-white px-1">
+                {badge > 99 ? '99+' : badge}
+              </span>
+            </div>
           )}
         </div>
         {isExpanded && (
