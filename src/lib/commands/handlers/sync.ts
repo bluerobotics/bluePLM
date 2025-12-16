@@ -66,11 +66,13 @@ export const syncCommand: Command<SyncParams> = {
       }
     }
     
-    // Track folders being processed
+    // Track folders and files being processed (for spinner display)
     const foldersBeingProcessed = files
       .filter(f => f.isDirectory)
       .map(f => f.relativePath)
-    ctx.addProcessingFolders(foldersBeingProcessed)
+    const filesBeingProcessed = filesToSync.map(f => f.relativePath)
+    const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
+    ctx.addProcessingFolders(allPathsBeingProcessed)
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -146,7 +148,7 @@ export const syncCommand: Command<SyncParams> = {
     }
     
     // Clean up - batch remove
-    ctx.removeProcessingFolders(foldersBeingProcessed)
+    ctx.removeProcessingFolders(allPathsBeingProcessed)
     const { duration } = progress.finish()
     
     // Show result

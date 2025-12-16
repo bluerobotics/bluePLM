@@ -118,11 +118,13 @@ export const checkoutCommand: Command<CheckoutParams> = {
       }
     }
     
-    // Track folders being processed (for spinner display) - batch add
+    // Track folders and files being processed (for spinner display) - batch add
     const foldersBeingProcessed = files
       .filter(f => f.isDirectory)
       .map(f => f.relativePath)
-    ctx.addProcessingFolders(foldersBeingProcessed)
+    const filesBeingProcessed = filesToCheckout.map(f => f.relativePath)
+    const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
+    ctx.addProcessingFolders(allPathsBeingProcessed)
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -215,7 +217,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
     }
     
     // Clean up - batch remove
-    ctx.removeProcessingFolders(foldersBeingProcessed)
+    ctx.removeProcessingFolders(allPathsBeingProcessed)
     const { duration } = progress.finish()
     
     // Log final result

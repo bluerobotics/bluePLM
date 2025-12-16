@@ -1387,7 +1387,9 @@ export async function checkoutFile(fileId: string, userId: string, message?: str
       checked_out_at: new Date().toISOString(),
       lock_message: message || null,
       checked_out_by_machine_id: machineId,
-      checked_out_by_machine_name: machineName
+      checked_out_by_machine_name: machineName,
+      updated_by: userId,
+      updated_at: new Date().toISOString()
     })
     .eq('id', fileId)
     .select()
