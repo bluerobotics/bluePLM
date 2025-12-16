@@ -1847,9 +1847,16 @@ function App() {
               {detailsPanelVisible && (
                 <>
                   <div
-                    className="h-1 bg-plm-border hover:bg-plm-accent cursor-row-resize transition-colors flex-shrink-0"
-                    onMouseDown={() => setIsResizingDetails(true)}
-                  />
+                    className="h-1.5 bg-plm-border hover:bg-plm-accent cursor-row-resize transition-colors flex-shrink-0 relative z-10"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setIsResizingDetails(true)
+                    }}
+                  >
+                    {/* Taller invisible hit area for easier grabbing - prevents file drag from taking over */}
+                    <div className="absolute inset-x-0 -top-2 -bottom-2 cursor-row-resize" />
+                  </div>
           <DetailsPanel />
                 </>
               )}

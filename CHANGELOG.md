@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.7.1] - 2025-12-16
+
+### Fixed
+- **Bottom panel resize divider**: Fixed issue where dragging the horizontal resize divider between File Browser and Details Panel would accidentally drag files instead of resizing the panel. Added proper z-index, event handling, and expanded hit area to prevent file drag from taking over.
+
+---
+
 ## [2.7.0] - 2025-12-15
 
 ### Added
