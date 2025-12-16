@@ -908,6 +908,36 @@ export async function getCheckedOutUsers(fileIds: string[]) {
   return { users, error: null }
 }
 
+/**
+ * Get basic user info by ID (for checkout display)
+ * Used when realtime updates come in and we need to show who checked out a file
+ */
+export async function getUserBasicInfo(userId: string): Promise<{ 
+  user: { email: string; full_name: string; avatar_url?: string } | null; 
+  error?: string 
+}> {
+  const client = getSupabaseClient()
+  
+  const { data, error } = await client
+    .from('users')
+    .select('email, full_name, avatar_url')
+    .eq('id', userId)
+    .single()
+  
+  if (error) {
+    console.error('[getUserBasicInfo] Failed to fetch user:', error.message)
+    return { user: null, error: error.message }
+  }
+  
+  return { 
+    user: data ? {
+      email: data.email,
+      full_name: data.full_name || '',
+      avatar_url: data.avatar_url || undefined
+    } : null 
+  }
+}
+
 export async function getFile(fileId: string) {
   const client = getSupabaseClient()
   const { data, error } = await client
@@ -3897,8 +3927,10 @@ export async function registerDeviceSession(
 /**
  * Send a heartbeat to keep the session alive
  * Returns false if session was remotely invalidated
+ * @param userId - The user's ID
+ * @param orgId - The user's current organization ID (to keep session org_id in sync)
  */
-export async function sendSessionHeartbeat(userId: string): Promise<boolean> {
+export async function sendSessionHeartbeat(userId: string, orgId?: string | null): Promise<boolean> {
   const client = getSupabaseClient()
   
   const { getMachineId } = await import('./backup')
@@ -3924,12 +3956,20 @@ export async function sendSessionHeartbeat(userId: string): Promise<boolean> {
   }
   
   // Session is active, update the heartbeat
+  // Also update org_id to keep it in sync (handles case where user joins/changes org)
+  const updateData: Record<string, unknown> = { 
+    last_seen: new Date().toISOString(),
+    is_active: true
+  }
+  
+  // Only update org_id if provided (to keep session in sync with current org)
+  if (orgId !== undefined) {
+    updateData.org_id = orgId
+  }
+  
   const { error } = await client
     .from('user_sessions')
-    .update({ 
-      last_seen: new Date().toISOString(),
-      is_active: true
-    })
+    .update(updateData)
     .eq('user_id', userId)
     .eq('machine_id', machineId)
   
@@ -3944,15 +3984,22 @@ export async function sendSessionHeartbeat(userId: string): Promise<boolean> {
  * Start periodic heartbeat (call once when app starts)
  * @param userId - The user's ID
  * @param onSessionInvalidated - Callback when session is remotely ended (triggers sign out)
+ * @param getOrgId - Optional callback to get current org_id (for keeping session org in sync)
  */
-export function startSessionHeartbeat(userId: string, onSessionInvalidated?: () => void): void {
+export function startSessionHeartbeat(
+  userId: string, 
+  onSessionInvalidated?: () => void,
+  getOrgId?: () => string | null | undefined
+): void {
   // Clear any existing interval
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval)
   }
   
   const checkHeartbeat = async () => {
-    const isActive = await sendSessionHeartbeat(userId)
+    // Get current org_id if callback provided (allows org to change during session)
+    const orgId = getOrgId?.()
+    const isActive = await sendSessionHeartbeat(userId, orgId)
     if (!isActive && onSessionInvalidated) {
       console.log('[Session] Remote sign out detected, triggering sign out')
       stopSessionHeartbeat()

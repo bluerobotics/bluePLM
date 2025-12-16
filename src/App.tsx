@@ -1456,7 +1456,32 @@ function App() {
             // Updates from current user are handled by the command handlers directly
             // This prevents race conditions where realtime might interfere with local store updates
             if (newFile.updated_by !== currentUserId) {
-              updateFilePdmData(newFile.id, newFile)
+              // Check if file is newly checked out by someone else
+              // Realtime updates don't include the joined checked_out_user info,
+              // so we need to fetch it separately
+              const isNewlyCheckedOut = newFile.checked_out_by && 
+                (!oldFile?.checked_out_by || oldFile.checked_out_by !== newFile.checked_out_by)
+              
+              if (isNewlyCheckedOut && newFile.checked_out_by !== currentUserId) {
+                // Fetch user info for the person who checked out the file
+                import('./lib/supabase').then(({ getUserBasicInfo }) => {
+                  getUserBasicInfo(newFile.checked_out_by!).then(({ user }) => {
+                    if (user) {
+                      // Update with user info
+                      updateFilePdmData(newFile.id, {
+                        ...newFile,
+                        checked_out_user: user
+                      } as any)
+                    } else {
+                      // Still update even without user info
+                      updateFilePdmData(newFile.id, newFile)
+                    }
+                  })
+                })
+              } else {
+                // No new checkout, just update normally
+                updateFilePdmData(newFile.id, newFile)
+              }
             }
             
             // Check for force check-in from different machine (your file was released)
@@ -1583,15 +1608,20 @@ function App() {
         if (result.success) {
           console.log('[Session] Device session registered')
           // Start heartbeat to keep session alive
-          // Pass callback to handle remote sign out
-          startSessionHeartbeat(user.id, async () => {
-            console.log('[Session] Remote sign out triggered')
-            const { addToast: toast, setUser: clearUser, setOrganization: clearOrg } = usePDMStore.getState()
-            toast('info', 'You were signed out from another device')
-            await signOut()
-            clearUser(null)
-            clearOrg(null)
-          })
+          // Pass callbacks: one for remote sign out, one to get current org_id
+          startSessionHeartbeat(
+            user.id, 
+            async () => {
+              console.log('[Session] Remote sign out triggered')
+              const { addToast: toast, setUser: clearUser, setOrganization: clearOrg } = usePDMStore.getState()
+              toast('info', 'You were signed out from another device')
+              await signOut()
+              clearUser(null)
+              clearOrg(null)
+            },
+            // Get current org_id from store (handles org changes during session)
+            () => usePDMStore.getState().user?.org_id
+          )
         } else {
           console.error('[Session] Failed to register session:', result.error)
         }
@@ -1706,6 +1736,22 @@ function App() {
         addToast('error', `Update error: ${error.message}`)
       })
     )
+    
+    // Check if an update was already detected before listeners were set up
+    // This handles the race condition where the update check completes before
+    // the React app mounts and registers its event listeners
+    window.electronAPI.getUpdateStatus().then((status) => {
+      if (status.updateAvailable) {
+        console.log('[Update] Found pending update on mount:', status.updateAvailable.version)
+        setUpdateAvailable(status.updateAvailable)
+        setShowUpdateModal(true)
+      }
+      if (status.updateDownloaded) {
+        setUpdateDownloaded(true)
+      }
+    }).catch((err) => {
+      console.error('[Update] Failed to get initial status:', err)
+    })
     
     return () => {
       cleanups.forEach(cleanup => cleanup())
