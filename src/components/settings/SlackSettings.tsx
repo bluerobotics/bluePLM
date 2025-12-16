@@ -78,7 +78,7 @@ async function getAuthToken(): Promise<string | null> {
 }
 
 export function SlackSettings() {
-  const { user, organization, addToast, getEffectiveRole } = usePDMStore()
+  const { organization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
   
   const apiUrl = getApiUrl(organization)

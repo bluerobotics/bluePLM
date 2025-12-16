@@ -4,7 +4,7 @@ import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
 
 export function GoogleDriveSettings() {
-  const { user, organization, addToast, getEffectiveRole } = usePDMStore()
+  const { organization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
   
   const [clientId, setClientId] = useState('')

@@ -5,10 +5,12 @@ All notable changes to BluePLM will be documented in this file.
 ## [2.6.0] - 2025-12-15
 
 ### Added
-
-### Changed
-
-### Fixed
+- **SolidWorks Metadata Auto-Extraction**: Automatically extracts metadata from SolidWorks files during file operations
+  - Extracts part number, description, revision, and custom properties from .sldprt, .sldasm, .slddrw files
+  - Runs automatically during sync, checkout, and check-in operations when SW service is running
+  - Also available via right-click context menu "Sync SW Metadata" command
+  - Creates a new file version if metadata has changed
+  - Merges file-level and active configuration properties
 
 ---
 

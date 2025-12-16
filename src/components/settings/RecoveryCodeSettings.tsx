@@ -11,9 +11,6 @@ import {
   Ban,
   Trash2,
   RefreshCw,
-  Eye,
-  EyeOff,
-  ClipboardCopy,
   FileText
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'

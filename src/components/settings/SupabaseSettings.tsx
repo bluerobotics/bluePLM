@@ -62,7 +62,7 @@ interface NetworkStats {
 }
 
 export function SupabaseSettings() {
-  const { user, organization, getEffectiveRole } = usePDMStore()
+  const { organization, getEffectiveRole } = usePDMStore()
   
   const [status, setStatus] = useState<'unknown' | 'online' | 'offline' | 'checking'>('unknown')
   const [showKey, setShowKey] = useState(false)

@@ -204,7 +204,6 @@ function OrderListItemComponent({
 
 export function ModulesSettings() {
   const { 
-    user,
     moduleConfig, 
     setCombinedOrder,
     addDivider,

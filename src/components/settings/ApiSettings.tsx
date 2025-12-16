@@ -35,7 +35,7 @@ const API_URL_KEY = 'blueplm_api_url'
 const API_HISTORY_KEY = 'blueplm_api_history'
 
 export function ApiSettings() {
-  const { user, organization, setOrganization, addToast, getEffectiveRole } = usePDMStore()
+  const { organization, setOrganization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
   
   const [apiToken, setApiToken] = useState<string | null>(null)

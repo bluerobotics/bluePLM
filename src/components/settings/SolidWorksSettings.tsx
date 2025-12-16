@@ -89,7 +89,6 @@ export function SolidWorksSettings() {
   const { 
     organization,
     setOrganization,
-    user,
     addToast,
     cadPreviewMode, 
     setCadPreviewMode,

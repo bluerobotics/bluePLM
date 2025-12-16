@@ -95,7 +95,7 @@ type SortBy = 'name' | 'modifiedTime' | 'size'
 type DriveSource = 'my-drive' | 'shared-drives'
 
 export function GoogleDrivePanel() {
-  const { addToast, organization, user, gdriveCurrentFolderId, gdriveCurrentFolderName, gdriveIsSharedDrive, gdriveDriveId, gdriveOpenDocument, setGdriveOpenDocument, incrementGdriveAuthVersion, getEffectiveRole } = usePDMStore()
+  const { addToast, organization, gdriveCurrentFolderId, gdriveCurrentFolderName, gdriveIsSharedDrive, gdriveDriveId, gdriveOpenDocument, setGdriveOpenDocument, incrementGdriveAuthVersion, getEffectiveRole } = usePDMStore()
   
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
