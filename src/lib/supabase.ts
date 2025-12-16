@@ -1062,7 +1062,13 @@ export async function syncFile(
   extension: string,
   fileSize: number,
   contentHash: string,
-  base64Content: string
+  base64Content: string,
+  metadata?: {
+    partNumber?: string | null
+    description?: string | null
+    revision?: string | null
+    customProperties?: Record<string, string | number | null>
+  }
 ) {
   const client = getSupabaseClient()
   
@@ -1138,16 +1144,31 @@ export async function syncFile(
     
     // If active file exists with same org, update it
     if (activeFile) {
-      logFn('debug', '[syncFile] Updating active file', { filePath, existingId: activeFile.id })
+      logFn('debug', '[syncFile] Updating active file', { filePath, existingId: activeFile.id, metadata })
+      
+      // Build update payload - only include metadata fields if provided
+      const updatePayload: Record<string, unknown> = {
+        content_hash: contentHash,
+        file_size: fileSize,
+        version: activeFile.version + 1,
+        updated_at: new Date().toISOString(),
+        updated_by: userId
+      }
+      
+      // Only update metadata if provided (preserve existing values otherwise)
+      if (metadata?.partNumber !== undefined) {
+        updatePayload.part_number = metadata.partNumber
+      }
+      if (metadata?.description !== undefined) {
+        updatePayload.description = metadata.description
+      }
+      if (metadata?.customProperties !== undefined) {
+        updatePayload.custom_properties = metadata.customProperties
+      }
+      
       const { data, error } = await client
         .from('files')
-        .update({
-          content_hash: contentHash,
-          file_size: fileSize,
-          version: activeFile.version + 1,
-          updated_at: new Date().toISOString(),
-          updated_by: userId
-        })
+        .update(updatePayload)
         .eq('id', activeFile.id)
         .select()
         .single()
@@ -1284,7 +1305,7 @@ export async function syncFile(
       return { file: data, error: null, isNew: false }
     } else {
       // Create new file record
-      logFn('debug', '[syncFile] Inserting new file', { filePath, vaultId, orgId })
+      logFn('debug', '[syncFile] Inserting new file', { filePath, vaultId, orgId, metadata })
       const { data, error } = await client
         .from('files')
         .insert({
@@ -1297,8 +1318,11 @@ export async function syncFile(
           content_hash: contentHash,
           file_size: fileSize,
           state: 'not_tracked',
-          revision: 'A',
+          revision: metadata?.revision || 'A',
           version: 1,
+          part_number: metadata?.partNumber || null,
+          description: metadata?.description || null,
+          custom_properties: metadata?.customProperties || {},
           created_by: userId,
           updated_by: userId
         })
@@ -1571,6 +1595,125 @@ export async function checkinFile(
   })
   
   return { success: true, file: data, error: null, contentChanged, metadataChanged, machineMismatchWarning }
+}
+
+/**
+ * Sync SolidWorks file metadata and create a new version
+ * This can be called without having the file checked out (for metadata-only updates from SW properties)
+ */
+export async function syncSolidWorksFileMetadata(
+  fileId: string,
+  userId: string,
+  metadata: {
+    part_number?: string | null
+    description?: string | null
+    revision?: string | null
+    custom_properties?: Record<string, string | number | null>
+  }
+): Promise<{ success: boolean; file?: any; error?: string | null }> {
+  const client = getSupabaseClient()
+  
+  // Get current file data
+  const { data: file, error: fetchError } = await client
+    .from('files')
+    .select('*')
+    .eq('id', fileId)
+    .single()
+  
+  if (fetchError) {
+    return { success: false, error: fetchError.message }
+  }
+  
+  // Check if any metadata actually changed
+  const partNumberChanged = metadata.part_number !== undefined && 
+    (metadata.part_number || null) !== (file.part_number || null)
+  const descriptionChanged = metadata.description !== undefined && 
+    (metadata.description || null) !== (file.description || null)
+  const revisionChanged = metadata.revision !== undefined && 
+    (metadata.revision || null) !== (file.revision || null)
+  const customPropsChanged = metadata.custom_properties !== undefined
+  
+  if (!partNumberChanged && !descriptionChanged && !revisionChanged && !customPropsChanged) {
+    // No changes - return current file
+    return { success: true, file, error: null }
+  }
+  
+  // Build update data
+  const updateData: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+    updated_by: userId
+  }
+  
+  if (metadata.part_number !== undefined) {
+    updateData.part_number = metadata.part_number
+  }
+  if (metadata.description !== undefined) {
+    updateData.description = metadata.description
+  }
+  if (metadata.revision !== undefined) {
+    updateData.revision = metadata.revision
+  }
+  if (metadata.custom_properties !== undefined) {
+    updateData.custom_properties = metadata.custom_properties
+  }
+  
+  // Create a new version for metadata changes
+  const { data: maxVersionData } = await client
+    .from('file_versions')
+    .select('version')
+    .eq('file_id', fileId)
+    .order('version', { ascending: false })
+    .limit(1)
+    .single()
+  
+  const maxVersionInHistory = maxVersionData?.version || file.version
+  const newVersion = maxVersionInHistory + 1
+  updateData.version = newVersion
+  
+  // Create version record
+  await client.from('file_versions').insert({
+    file_id: fileId,
+    version: newVersion,
+    revision: updateData.revision || file.revision,
+    content_hash: file.content_hash,
+    file_size: file.file_size,
+    state: file.state,
+    created_by: userId,
+    comment: 'Metadata updated from SolidWorks file properties'
+  })
+  
+  // Update the file
+  const { data, error } = await client
+    .from('files')
+    .update(updateData)
+    .eq('id', fileId)
+    .select()
+    .single()
+  
+  if (error) {
+    return { success: false, error: error.message }
+  }
+  
+  // Log activity
+  const changedFields: string[] = []
+  if (partNumberChanged) changedFields.push('part_number')
+  if (descriptionChanged) changedFields.push('description')
+  if (revisionChanged) changedFields.push('revision')
+  if (customPropsChanged) changedFields.push('custom_properties')
+  
+  await client.from('activity').insert({
+    org_id: file.org_id,
+    file_id: fileId,
+    user_id: userId,
+    action: 'checkin',
+    details: { 
+      metadataSync: true,
+      changedFields,
+      source: 'solidworks'
+    }
+  })
+  
+  return { success: true, file: data, error: null }
 }
 
 export async function undoCheckout(fileId: string, userId: string) {

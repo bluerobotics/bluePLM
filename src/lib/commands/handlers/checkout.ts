@@ -4,6 +4,7 @@
  * Check out files for editing. This:
  * 1. Locks the file on the server
  * 2. Makes the local file writable
+ * 3. Auto-extracts SolidWorks metadata (if SW service available)
  */
 
 import type { Command, CheckoutParams, CommandResult } from '../types'
@@ -11,6 +12,99 @@ import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { checkoutFile } from '../../supabase'
 import type { LocalFile } from '../../../stores/pdmStore'
+
+// SolidWorks file extensions that support metadata extraction
+const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+
+/**
+ * Extract metadata from SolidWorks file using the SW service
+ * Returns null if service unavailable or extraction fails
+ */
+async function extractSolidWorksMetadata(
+  fullPath: string,
+  extension: string
+): Promise<{
+  part_number?: string | null
+  description?: string | null
+} | null> {
+  // Only process SolidWorks files
+  if (!SW_EXTENSIONS.includes(extension.toLowerCase())) {
+    return null
+  }
+  
+  // Check if SolidWorks service is available
+  const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+  if (!status?.data?.running) {
+    return null
+  }
+  
+  try {
+    const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
+    
+    if (!result?.success || !result.data) {
+      return null
+    }
+    
+    const data = result.data as {
+      fileProperties?: Record<string, string>
+      configurationProperties?: Record<string, Record<string, string>>
+    }
+    
+    // Merge file-level and active configuration properties
+    const allProps: Record<string, string> = { ...data.fileProperties }
+    
+    // Also check configuration properties (use first config or "Default")
+    const configProps = data.configurationProperties
+    if (configProps) {
+      const configName = Object.keys(configProps).find(k => 
+        k.toLowerCase() === 'default' || k.toLowerCase() === 'standard'
+      ) || Object.keys(configProps)[0]
+      
+      if (configName && configProps[configName]) {
+        Object.assign(allProps, configProps[configName])
+      }
+    }
+    
+    // Extract part number from common property names
+    const partNumberKeys = [
+      'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
+      'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
+      'PN', 'P/N', 'Number', 'No', 'No.'
+    ]
+    let part_number: string | null = null
+    for (const key of partNumberKeys) {
+      if (allProps[key] && allProps[key].trim()) {
+        part_number = allProps[key].trim()
+        break
+      }
+    }
+    // Case-insensitive fallback
+    if (!part_number) {
+      for (const [key, value] of Object.entries(allProps)) {
+        const lowerKey = key.toLowerCase()
+        if ((lowerKey.includes('part') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+            (lowerKey.includes('item') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+            lowerKey === 'pn' || lowerKey === 'p/n') {
+          if (value && value.trim()) {
+            part_number = value.trim()
+            break
+          }
+        }
+      }
+    }
+    
+    // Extract description
+    const description = allProps['Description'] || allProps['description'] || null
+    
+    return {
+      part_number,
+      description: description?.trim() || null
+    }
+  } catch (err) {
+    console.warn('Failed to extract SolidWorks metadata:', err)
+    return null
+  }
+}
 
 // Detailed logging for checkout operations
 function logCheckout(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
@@ -166,7 +260,19 @@ export const checkoutCommand: Command<CheckoutParams> = {
             })
           }
           
+          // Auto-extract SolidWorks metadata on checkout
+          const swMetadata = await extractSolidWorksMetadata(file.path, file.extension)
+          if (swMetadata) {
+            logCheckout('debug', 'Extracted SolidWorks metadata on checkout', {
+              operationId,
+              fileName: file.name,
+              partNumber: swMetadata.part_number,
+              description: swMetadata.description?.substring(0, 50)
+            })
+          }
+          
           // Queue update for batch processing
+          // Include SW metadata as pendingMetadata so it shows in UI and can be compared
           pendingUpdates.push({
             path: file.path,
             updates: {
@@ -174,7 +280,9 @@ export const checkoutCommand: Command<CheckoutParams> = {
                 ...file.pdmData!,
                 checked_out_by: user.id,
                 checked_out_user: { full_name: user.full_name, email: user.email, avatar_url: user.avatar_url }
-              }
+              },
+              // Store extracted SW metadata - will be used on checkin if no manual edits
+              pendingMetadata: swMetadata || undefined
             }
           })
           

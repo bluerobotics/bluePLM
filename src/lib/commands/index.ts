@@ -57,6 +57,7 @@ import {
   copyCommand,
   newFolderCommand
 } from './handlers/fileOps'
+import { syncSwMetadataCommand } from './handlers/syncSwMetadata'
 
 // Register all commands on module load
 function initializeCommands() {
@@ -83,6 +84,9 @@ function initializeCommands() {
   registerCommand('move', moveCommand)
   registerCommand('copy', copyCommand)
   registerCommand('new-folder', newFolderCommand)
+  
+  // SolidWorks specific
+  registerCommand('sync-sw-metadata', syncSwMetadataCommand)
   
   console.log('[Commands] Initialized command registry')
 }
@@ -186,6 +190,16 @@ export async function forceRelease(
   onRefresh?: (silent?: boolean) => void
 ) {
   return executeCommand('force-release', { files }, { onRefresh })
+}
+
+/**
+ * Sync SolidWorks metadata from file properties
+ */
+export async function syncSwMetadata(
+  files: LocalFile[],
+  onRefresh?: (silent?: boolean) => void
+) {
+  return executeCommand('sync-sw-metadata', { files }, { onRefresh })
 }
 
 // ============================================

@@ -1539,12 +1539,14 @@ function App() {
           
         case 'DELETE':
           // File deleted from server
-          if (oldFile) {
-            console.log('[Realtime] File deleted:', oldFile.file_name)
+          // Note: Supabase realtime DELETE events only include primary key by default,
+          // so oldFile may not have all fields (file_name, deleted_by, etc.)
+          if (oldFile?.id) {
+            console.log('[Realtime] File deleted:', oldFile.file_name || oldFile.id)
             removeCloudFile(oldFile.id)
-            if (oldFile.deleted_by !== currentUserId) {
-              addToast('warning', `${oldFile.file_name} was deleted`)
-            }
+            // Only show toast if we have a valid file name AND it wasn't deleted by current user
+            // Skip toast entirely for DELETE events - they spam when bulk deleting and often lack file_name
+            // Users can see deleted files in the file browser (red diff status)
           }
           break
       }

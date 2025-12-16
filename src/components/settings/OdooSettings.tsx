@@ -495,22 +495,19 @@ export function OdooSettings() {
     }
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="text-center py-12">
-        <Puzzle size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
-        <p className="text-base text-plm-fg-muted">
-          Only administrators can manage Odoo integration.
-        </p>
-      </div>
-    )
-  }
-
   // Find active config if any
   const activeConfig = savedConfigs.find(c => c.id === settings?.settings?.config_id)
 
   return (
     <div className="space-y-6">
+      {/* Admin notice for non-admins */}
+      {!isAdmin && (
+        <div className="flex items-center gap-2 p-3 bg-plm-info/10 border border-plm-info/30 rounded-lg text-sm text-plm-info">
+          <Puzzle size={16} className="flex-shrink-0" />
+          <span>Only administrators can edit integration settings.</span>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-lg bg-[#714B67] flex items-center justify-center">
@@ -557,11 +554,11 @@ export function OdooSettings() {
         <div className="flex items-center justify-between">
           <span className="text-base text-plm-fg">Enable Odoo Integration</span>
           <button
-            onClick={() => setEnabled(!enabled)}
-            disabled={apiServerOnline === false}
+            onClick={() => isAdmin && setEnabled(!enabled)}
+            disabled={apiServerOnline === false || !isAdmin}
             className={`w-11 h-6 rounded-full transition-colors relative ${
               enabled ? 'bg-plm-accent' : 'bg-plm-border'
-            } ${apiServerOnline === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${apiServerOnline === false || !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
               enabled ? 'translate-x-6' : 'translate-x-1'
@@ -584,25 +581,27 @@ export function OdooSettings() {
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={() => {
-                    setEditingConfig(null)
-                    setConfigName('')
-                    setConfigDescription('')
-                    setConfigColor(CONFIG_COLORS[0].value)
-                    // Clear form for new config
-                    setUrl('')
-                    setDatabase('')
-                    setUsername('')
-                    setApiKey('')
-                    setTestResult(null)
-                    setShowSaveDialog(true)
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-plm-accent bg-plm-accent/10 hover:bg-plm-accent/20 rounded transition-colors"
-                >
-                  <Plus size={14} />
-                  New Config
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setEditingConfig(null)
+                      setConfigName('')
+                      setConfigDescription('')
+                      setConfigColor(CONFIG_COLORS[0].value)
+                      // Clear form for new config
+                      setUrl('')
+                      setDatabase('')
+                      setUsername('')
+                      setApiKey('')
+                      setTestResult(null)
+                      setShowSaveDialog(true)
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-plm-accent bg-plm-accent/10 hover:bg-plm-accent/20 rounded transition-colors"
+                  >
+                    <Plus size={14} />
+                    New Config
+                  </button>
+                )}
               </div>
               
               {/* Config list - always visible */}
@@ -657,39 +656,43 @@ export function OdooSettings() {
                         
                         {/* Actions */}
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            onClick={() => handleActivateConfig(config)}
-                            disabled={activatingConfigId === config.id || activeConfig?.id === config.id}
-                            className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors disabled:opacity-50"
-                            title="Activate this configuration"
-                          >
-                            {activatingConfigId === config.id ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Plug size={14} />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleLoadConfig(config)}
-                            className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
-                            title="Load into form"
-                          >
-                            <FolderOpen size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleEditConfig(config)}
-                            className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
-                            title="Edit configuration"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteConfig(config)}
-                            className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
-                            title="Delete configuration"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => handleActivateConfig(config)}
+                                disabled={activatingConfigId === config.id || activeConfig?.id === config.id}
+                                className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors disabled:opacity-50"
+                                title="Activate this configuration"
+                              >
+                                {activatingConfigId === config.id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Plug size={14} />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => handleLoadConfig(config)}
+                                className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
+                                title="Load into form"
+                              >
+                                <FolderOpen size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleEditConfig(config)}
+                                className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
+                                title="Edit configuration"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteConfig(config)}
+                                className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
+                                title="Delete configuration"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -724,9 +727,10 @@ export function OdooSettings() {
               <input
                 type="text"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
+                onChange={(e) => isAdmin && setUrl(e.target.value)}
                 placeholder="https://mycompany.odoo.com or erp.mycompany.com"
-                className="w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
+                readOnly={!isAdmin}
+                className={`w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
               <p className="text-xs text-plm-fg-muted">https:// will be added automatically if not provided</p>
             </div>
@@ -737,9 +741,10 @@ export function OdooSettings() {
               <input
                 type="text"
                 value={database}
-                onChange={(e) => setDatabase(e.target.value)}
+                onChange={(e) => isAdmin && setDatabase(e.target.value)}
                 placeholder="master or mycompany-main"
-                className="w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
+                readOnly={!isAdmin}
+                className={`w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
               <p className="text-xs text-plm-fg-muted">
                 Find at: your-odoo-url/web/database/manager
@@ -752,9 +757,10 @@ export function OdooSettings() {
               <input
                 type="email"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => isAdmin && setUsername(e.target.value)}
                 placeholder="admin@mycompany.com"
-                className="w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent"
+                readOnly={!isAdmin}
+                className={`w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
             </div>
             
@@ -765,9 +771,10 @@ export function OdooSettings() {
                 <input
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
+                  onChange={(e) => isAdmin && setApiKey(e.target.value)}
                   placeholder={settings?.is_connected ? '••••••••••••' : 'Enter API key'}
-                  className="w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
+                  readOnly={!isAdmin}
+                  className={`w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
                 <button
                   type="button"
@@ -794,36 +801,38 @@ export function OdooSettings() {
               </div>
             )}
             
-            {/* Action buttons */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={handleTest}
-                disabled={isTesting || !url || !database || !username || !apiKey}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
-              >
-                {isTesting ? <Loader2 size={16} className="animate-spin" /> : <Plug size={16} />}
-                Test
-              </button>
-              <button
-                onClick={() => handleSave(true)}
-                disabled={isSaving || !url || !database || !username || !apiKey}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
-              >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                Save
-              </button>
-              <button
-                onClick={() => handleSave(false)}
-                disabled={isSaving || !url || !database || !username || !apiKey}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
-              >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                Save & Test
-              </button>
-            </div>
+            {/* Action buttons - only show for admins */}
+            {isAdmin && (
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={handleTest}
+                  disabled={isTesting || !url || !database || !username || !apiKey}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
+                >
+                  {isTesting ? <Loader2 size={16} className="animate-spin" /> : <Plug size={16} />}
+                  Test
+                </button>
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={isSaving || !url || !database || !username || !apiKey}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  Save
+                </button>
+                <button
+                  onClick={() => handleSave(false)}
+                  disabled={isSaving || !url || !database || !username || !apiKey}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  Save & Test
+                </button>
+              </div>
+            )}
             
-            {/* Save as configuration button */}
-            {url && database && username && apiKey && (
+            {/* Save as configuration button - only show for admins */}
+            {isAdmin && url && database && username && apiKey && (
               <button
                 onClick={() => {
                   setEditingConfig(null)
@@ -840,8 +849,8 @@ export function OdooSettings() {
               </button>
             )}
             
-            {/* Sync and disconnect when connected */}
-            {settings?.is_connected && (
+            {/* Sync and disconnect when connected - only show for admins */}
+            {settings?.is_connected && isAdmin && (
               <div className="flex gap-2 pt-2 border-t border-plm-border">
                 <button
                   onClick={handleSync}
@@ -876,8 +885,8 @@ export function OdooSettings() {
         )}
       </div>
       
-      {/* Save Configuration Dialog - Full form */}
-      {showSaveDialog && (
+      {/* Save Configuration Dialog - Full form (admin only) */}
+      {showSaveDialog && isAdmin && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-4 py-3 border-b border-plm-border sticky top-0 bg-plm-bg">

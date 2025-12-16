@@ -2,6 +2,16 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.6.0] - 2025-12-15
+
+### Added
+
+### Changed
+
+### Fixed
+
+---
+
 ## [2.5.0] - 2025-12-15
 
 ### Added

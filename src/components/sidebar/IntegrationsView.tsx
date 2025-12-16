@@ -87,7 +87,8 @@ function OdooConfigPanel({
   onSave: () => void
   onRefresh: () => void
 }) {
-  const { addToast, organization } = usePDMStore()
+  const { addToast, organization, getEffectiveRole } = usePDMStore()
+  const isAdmin = getEffectiveRole() === 'admin'
   const [url, setUrl] = useState(settings?.settings?.url || '')
   const [database, setDatabase] = useState(settings?.settings?.database || '')
   const [username, setUsername] = useState(settings?.settings?.username || '')
@@ -274,6 +275,14 @@ function OdooConfigPanel({
         </button>
       </div>
 
+      {/* Admin notice for non-admins */}
+      {!isAdmin && (
+        <div className="flex items-center gap-2 p-2 bg-plm-info/10 border border-plm-info/30 rounded text-xs text-plm-info">
+          <AlertCircle size={14} className="flex-shrink-0" />
+          <span>Only administrators can edit integration settings.</span>
+        </div>
+      )}
+
       {/* Status banner if connected */}
       {settings?.is_connected && (
         <div className="flex items-center justify-between p-2 bg-plm-success/10 border border-plm-success/30 rounded text-xs">
@@ -296,9 +305,10 @@ function OdooConfigPanel({
           <input
             type="url"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => isAdmin && setUrl(e.target.value)}
             placeholder="https://mycompany.odoo.com"
-            className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
+            readOnly={!isAdmin}
+            className={`w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
           />
         </div>
 
@@ -307,9 +317,10 @@ function OdooConfigPanel({
           <input
             type="text"
             value={database}
-            onChange={(e) => setDatabase(e.target.value)}
+            onChange={(e) => isAdmin && setDatabase(e.target.value)}
             placeholder="mycompany-main"
-            className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
+            readOnly={!isAdmin}
+            className={`w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
           />
         </div>
 
@@ -318,9 +329,10 @@ function OdooConfigPanel({
           <input
             type="email"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => isAdmin && setUsername(e.target.value)}
             placeholder="admin@mycompany.com"
-            className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
+            readOnly={!isAdmin}
+            className={`w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
           />
         </div>
 
@@ -330,9 +342,10 @@ function OdooConfigPanel({
             <input
               type={showApiKey ? 'text' : 'password'}
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => isAdmin && setApiKey(e.target.value)}
               placeholder={settings?.is_connected ? '••••••••••••' : 'Enter API key'}
-              className="w-full px-3 py-2 pr-10 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
+              readOnly={!isAdmin}
+              className={`w-full px-3 py-2 pr-10 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
             />
             <button
               onClick={() => setShowApiKey(!showApiKey)}
@@ -359,36 +372,38 @@ function OdooConfigPanel({
         )}
       </div>
 
-      {/* Actions */}
-      <div className="grid grid-cols-3 gap-2 pt-2">
-        <button
-          onClick={handleTest}
-          disabled={testing || !url || !database || !username || !apiKey}
-          className="flex items-center justify-center gap-2 px-3 py-2 bg-plm-sidebar border border-plm-border hover:bg-plm-highlight text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {testing ? <Loader2 size={14} className="animate-spin" /> : <Plug size={14} />}
-          Test
-        </button>
-        <button
-          onClick={() => handleSave(true)}
-          disabled={saving || !url || !database || !username || !apiKey}
-          className="flex items-center justify-center gap-2 px-3 py-2 bg-plm-sidebar border border-plm-border hover:bg-plm-highlight text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-          Save
-        </button>
-        <button
-          onClick={() => handleSave(false)}
-          disabled={saving || !url || !database || !username || !apiKey}
-          className="flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-          Save & Test
-        </button>
-      </div>
+      {/* Actions - only show for admins */}
+      {isAdmin && (
+        <div className="grid grid-cols-3 gap-2 pt-2">
+          <button
+            onClick={handleTest}
+            disabled={testing || !url || !database || !username || !apiKey}
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-plm-sidebar border border-plm-border hover:bg-plm-highlight text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {testing ? <Loader2 size={14} className="animate-spin" /> : <Plug size={14} />}
+            Test
+          </button>
+          <button
+            onClick={() => handleSave(true)}
+            disabled={saving || !url || !database || !username || !apiKey}
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-plm-sidebar border border-plm-border hover:bg-plm-highlight text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Save
+          </button>
+          <button
+            onClick={() => handleSave(false)}
+            disabled={saving || !url || !database || !username || !apiKey}
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Save & Test
+          </button>
+        </div>
+      )}
 
-      {/* Sync and disconnect when connected */}
-      {settings?.is_connected && (
+      {/* Sync and disconnect when connected - only show for admins */}
+      {settings?.is_connected && isAdmin && (
         <div className="flex gap-2 pt-2 border-t border-plm-border">
           <button
             onClick={handleSync}

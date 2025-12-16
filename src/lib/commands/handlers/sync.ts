@@ -3,12 +3,136 @@
  * 
  * Upload new local files to the server for the first time.
  * This syncs files that exist locally but haven't been added to PDM yet.
+ * 
+ * For SolidWorks files, automatically extracts metadata (part number, description)
+ * from file custom properties when the SolidWorks service is available.
  */
 
 import type { Command, SyncParams, CommandResult } from '../types'
 import { getUnsyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { syncFile } from '../../supabase'
+
+// SolidWorks file extensions that support metadata extraction
+const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+
+/**
+ * Extract metadata from SolidWorks file using the SW service
+ * Returns null if service unavailable or extraction fails
+ */
+async function extractSolidWorksMetadata(
+  fullPath: string,
+  extension: string
+): Promise<{
+  partNumber?: string | null
+  description?: string | null
+  revision?: string | null
+  customProperties?: Record<string, string | number | null>
+} | null> {
+  // Only process SolidWorks files
+  if (!SW_EXTENSIONS.includes(extension.toLowerCase())) {
+    return null
+  }
+  
+  // Check if SolidWorks service is available
+  const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+  if (!status?.data?.running) {
+    return null
+  }
+  
+  try {
+    const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
+    
+    if (!result?.success || !result.data) {
+      return null
+    }
+    
+    const data = result.data as {
+      fileProperties?: Record<string, string>
+      configurationProperties?: Record<string, Record<string, string>>
+    }
+    
+    // Merge file-level and active configuration properties
+    const allProps: Record<string, string> = { ...data.fileProperties }
+    
+    // Also check configuration properties (use first config or "Default")
+    const configProps = data.configurationProperties
+    if (configProps) {
+      const configName = Object.keys(configProps).find(k => 
+        k.toLowerCase() === 'default' || k.toLowerCase() === 'standard'
+      ) || Object.keys(configProps)[0]
+      
+      if (configName && configProps[configName]) {
+        // Configuration properties override file-level properties
+        Object.assign(allProps, configProps[configName])
+      }
+    }
+    
+    // Extract part number from common property names
+    const partNumberKeys = [
+      'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
+      'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
+      'PN', 'P/N', 'Number', 'No', 'No.'
+    ]
+    let partNumber: string | null = null
+    for (const key of partNumberKeys) {
+      if (allProps[key] && allProps[key].trim()) {
+        partNumber = allProps[key].trim()
+        break
+      }
+    }
+    // Case-insensitive fallback
+    if (!partNumber) {
+      for (const [key, value] of Object.entries(allProps)) {
+        const lowerKey = key.toLowerCase()
+        if ((lowerKey.includes('part') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+            (lowerKey.includes('item') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+            lowerKey === 'pn' || lowerKey === 'p/n') {
+          if (value && value.trim()) {
+            partNumber = value.trim()
+            break
+          }
+        }
+      }
+    }
+    
+    // Extract description
+    const description = allProps['Description'] || allProps['description'] || null
+    
+    // Extract revision
+    const revisionKeys = ['Revision', 'Rev', 'Rev.', 'REV', 'RevLevel', 'Rev Level']
+    let revision: string | null = null
+    for (const key of revisionKeys) {
+      if (allProps[key] && allProps[key].trim()) {
+        revision = allProps[key].trim()
+        break
+      }
+    }
+    
+    // Build custom properties object (exclude the ones we've already extracted)
+    const excludeKeys = new Set([
+      ...partNumberKeys, 'Description', 'description',
+      ...revisionKeys
+    ].map(k => k.toLowerCase()))
+    
+    const customProperties: Record<string, string | number | null> = {}
+    for (const [key, value] of Object.entries(allProps)) {
+      if (!excludeKeys.has(key.toLowerCase()) && value) {
+        customProperties[key] = value
+      }
+    }
+    
+    return {
+      partNumber,
+      description: description?.trim() || null,
+      revision,
+      customProperties: Object.keys(customProperties).length > 0 ? customProperties : undefined
+    }
+  } catch (err) {
+    console.warn('Failed to extract SolidWorks metadata:', err)
+    return null
+  }
+}
 
 export const syncCommand: Command<SyncParams> = {
   id: 'sync',
@@ -106,10 +230,14 @@ export const syncCommand: Command<SyncParams> = {
           return { success: false, error: `Failed to read ${file.name}` }
         }
         
+        // Extract SolidWorks metadata if this is a SW file and service is available
+        const metadata = await extractSolidWorksMetadata(file.path, file.extension)
+        
         const { error, file: syncedFile } = await syncFile(
           organization.id, activeVaultId, user.id,
           file.relativePath, file.name, file.extension, file.size,
-          readResult.hash, readResult.data
+          readResult.hash, readResult.data,
+          metadata || undefined
         )
         
         if (error || !syncedFile) {

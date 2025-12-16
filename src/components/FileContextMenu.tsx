@@ -28,7 +28,8 @@ import {
   ClipboardList,
   Calendar,
   Monitor,
-  CloudOff
+  CloudOff,
+  RefreshCw
 } from 'lucide-react'
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
@@ -735,6 +736,21 @@ export function FileContextMenu({
     setLoadingECOs(false)
   }
   
+  // Sync SolidWorks Metadata handler
+  const handleSyncSwMetadata = () => {
+    onClose()
+    executeCommand('sync-sw-metadata', { files: contextFiles }, { onRefresh })
+  }
+  
+  // Check if any files are SolidWorks files
+  const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+  const hasSolidWorksFiles = contextFiles.some(f => 
+    !f.isDirectory && SW_EXTENSIONS.includes(f.extension.toLowerCase())
+  )
+  const syncedSolidWorksFiles = syncedFilesInSelection.filter(f => 
+    SW_EXTENSIONS.includes(f.extension.toLowerCase())
+  )
+  
   const handleAddToECO = async () => {
     if (!user?.id || !selectedECO) {
       addToast('warning', 'Please select an ECO')
@@ -1114,6 +1130,18 @@ export function FileContextMenu({
           >
             <ClipboardList size={14} className="text-plm-fg-dim" />
             Add to ECO
+          </div>
+        )}
+        
+        {/* Sync SolidWorks Metadata - for synced SW files */}
+        {hasSolidWorksFiles && syncedSolidWorksFiles.length > 0 && (
+          <div 
+            className="context-menu-item"
+            onClick={handleSyncSwMetadata}
+            title="Extract metadata (part number, description) from SolidWorks file properties and update the database"
+          >
+            <RefreshCw size={14} className="text-plm-accent" />
+            Sync SolidWorks Metadata {syncedSolidWorksFiles.length > 1 ? `(${syncedSolidWorksFiles.length})` : ''}
           </div>
         )}
         

@@ -3,7 +3,7 @@
  * 
  * Check in files after editing. This:
  * 1. Uploads new content if modified
- * 2. Updates metadata on server
+ * 2. Updates metadata on server (auto-extracts from SolidWorks files if available)
  * 3. Releases the checkout lock
  * 4. Makes the local file read-only
  */
@@ -13,6 +13,99 @@ import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { checkinFile } from '../../supabase'
 import type { LocalFile } from '../../../stores/pdmStore'
+
+// SolidWorks file extensions that support metadata extraction
+const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+
+/**
+ * Extract metadata from SolidWorks file using the SW service
+ * Returns null if service unavailable or extraction fails
+ */
+async function extractSolidWorksMetadata(
+  fullPath: string,
+  extension: string
+): Promise<{
+  part_number?: string | null
+  description?: string | null
+} | null> {
+  // Only process SolidWorks files
+  if (!SW_EXTENSIONS.includes(extension.toLowerCase())) {
+    return null
+  }
+  
+  // Check if SolidWorks service is available
+  const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+  if (!status?.data?.running) {
+    return null
+  }
+  
+  try {
+    const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
+    
+    if (!result?.success || !result.data) {
+      return null
+    }
+    
+    const data = result.data as {
+      fileProperties?: Record<string, string>
+      configurationProperties?: Record<string, Record<string, string>>
+    }
+    
+    // Merge file-level and active configuration properties
+    const allProps: Record<string, string> = { ...data.fileProperties }
+    
+    // Also check configuration properties (use first config or "Default")
+    const configProps = data.configurationProperties
+    if (configProps) {
+      const configName = Object.keys(configProps).find(k => 
+        k.toLowerCase() === 'default' || k.toLowerCase() === 'standard'
+      ) || Object.keys(configProps)[0]
+      
+      if (configName && configProps[configName]) {
+        Object.assign(allProps, configProps[configName])
+      }
+    }
+    
+    // Extract part number from common property names
+    const partNumberKeys = [
+      'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
+      'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
+      'PN', 'P/N', 'Number', 'No', 'No.'
+    ]
+    let part_number: string | null = null
+    for (const key of partNumberKeys) {
+      if (allProps[key] && allProps[key].trim()) {
+        part_number = allProps[key].trim()
+        break
+      }
+    }
+    // Case-insensitive fallback
+    if (!part_number) {
+      for (const [key, value] of Object.entries(allProps)) {
+        const lowerKey = key.toLowerCase()
+        if ((lowerKey.includes('part') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+            (lowerKey.includes('item') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+            lowerKey === 'pn' || lowerKey === 'p/n') {
+          if (value && value.trim()) {
+            part_number = value.trim()
+            break
+          }
+        }
+      }
+    }
+    
+    // Extract description
+    const description = allProps['Description'] || allProps['description'] || null
+    
+    return {
+      part_number,
+      description: description?.trim() || null
+    }
+  } catch (err) {
+    console.warn('Failed to extract SolidWorks metadata:', err)
+    return null
+  }
+}
 
 // Detailed logging for checkin operations
 function logCheckin(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
@@ -189,6 +282,21 @@ export const checkinCommand: Command<CheckinParams> = {
           return { success: false, error: `${file.name}: Failed to read file - ${readResult?.error || 'Unknown error'}` }
         }
         
+        // Auto-extract SolidWorks metadata if no manual edits were made
+        let metadataToUse = file.pendingMetadata
+        if (!metadataToUse) {
+          const swMetadata = await extractSolidWorksMetadata(file.path, file.extension)
+          if (swMetadata) {
+            metadataToUse = swMetadata
+            logCheckin('debug', 'Auto-extracted SolidWorks metadata', {
+              operationId,
+              fileName: file.name,
+              partNumber: swMetadata.part_number,
+              description: swMetadata.description?.substring(0, 50)
+            })
+          }
+        }
+        
         if (readResult?.success && readResult.hash) {
           logCheckin('debug', 'File read successful, uploading', {
             operationId,
@@ -202,7 +310,7 @@ export const checkinCommand: Command<CheckinParams> = {
             newFileSize: file.size,
             newFilePath: wasFileMoved ? file.relativePath : undefined,
             newFileName: wasFileRenamed ? file.name : undefined,
-            pendingMetadata: file.pendingMetadata
+            pendingMetadata: metadataToUse
           })
           
           if (result.success && result.file) {
@@ -254,7 +362,7 @@ export const checkinCommand: Command<CheckinParams> = {
           const result = await checkinFile(file.pdmData!.id, user.id, {
             newFilePath: wasFileMoved ? file.relativePath : undefined,
             newFileName: wasFileRenamed ? file.name : undefined,
-            pendingMetadata: file.pendingMetadata
+            pendingMetadata: metadataToUse
           })
           
           if (result.success && result.file) {

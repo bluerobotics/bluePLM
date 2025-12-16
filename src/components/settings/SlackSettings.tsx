@@ -396,19 +396,16 @@ export function SlackSettings() {
     setNotifications(prev => prev.map(n => ({ ...n, channel })))
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="text-center py-12">
-        <Puzzle size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
-        <p className="text-base text-plm-fg-muted">
-          Only administrators can manage Slack integration.
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
+      {/* Admin notice for non-admins */}
+      {!isAdmin && (
+        <div className="flex items-center gap-2 p-3 bg-plm-info/10 border border-plm-info/30 rounded-lg text-sm text-plm-info">
+          <Puzzle size={16} className="flex-shrink-0" />
+          <span>Only administrators can edit integration settings.</span>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#611f69] to-[#4A154B] flex items-center justify-center shadow-lg">
@@ -455,11 +452,11 @@ export function SlackSettings() {
         <div className="flex items-center justify-between">
           <span className="text-base text-plm-fg">Enable Slack Integration</span>
           <button
-            onClick={() => setEnabled(!enabled)}
-            disabled={apiServerOnline === false}
+            onClick={() => isAdmin && setEnabled(!enabled)}
+            disabled={apiServerOnline === false || !isAdmin}
             className={`w-11 h-6 rounded-full transition-colors relative ${
               enabled ? 'bg-plm-accent' : 'bg-plm-border'
-            } ${apiServerOnline === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${apiServerOnline === false || !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
               enabled ? 'translate-x-6' : 'translate-x-1'
@@ -489,9 +486,10 @@ export function SlackSettings() {
                 <input
                   type={showBotToken ? 'text' : 'password'}
                   value={botToken}
-                  onChange={(e) => setBotToken(e.target.value)}
+                  onChange={(e) => isAdmin && setBotToken(e.target.value)}
                   placeholder={settings?.is_connected ? '••••••••••••' : 'xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx'}
-                  className="w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
+                  readOnly={!isAdmin}
+                  className={`w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
                 <button
                   type="button"
@@ -515,9 +513,10 @@ export function SlackSettings() {
                 <input
                   type={showSigningSecret ? 'text' : 'password'}
                   value={signingSecret}
-                  onChange={(e) => setSigningSecret(e.target.value)}
+                  onChange={(e) => isAdmin && setSigningSecret(e.target.value)}
                   placeholder="For receiving events from Slack"
-                  className="w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
+                  readOnly={!isAdmin}
+                  className={`w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
                 <button
                   type="button"
@@ -544,33 +543,35 @@ export function SlackSettings() {
               </div>
             )}
             
-            {/* Action buttons */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={handleTest}
-                disabled={isTesting || !botToken}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
-              >
-                {isTesting ? <Loader2 size={16} className="animate-spin" /> : <Plug size={16} />}
-                Test
-              </button>
-              <button
-                onClick={() => handleSave(true)}
-                disabled={isSaving || (!botToken && !settings?.configured)}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
-              >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                Save
-              </button>
-              <button
-                onClick={() => handleSave(false)}
-                disabled={isSaving || (!botToken && !settings?.configured)}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
-              >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                Save & Test
-              </button>
-            </div>
+            {/* Action buttons - only show for admins */}
+            {isAdmin && (
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={handleTest}
+                  disabled={isTesting || !botToken}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
+                >
+                  {isTesting ? <Loader2 size={16} className="animate-spin" /> : <Plug size={16} />}
+                  Test
+                </button>
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={isSaving || (!botToken && !settings?.configured)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  Save
+                </button>
+                <button
+                  onClick={() => handleSave(false)}
+                  disabled={isSaving || (!botToken && !settings?.configured)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  Save & Test
+                </button>
+              </div>
+            )}
             
             {/* Notification Settings (shown when connected) */}
             {settings?.is_connected && (
@@ -581,18 +582,20 @@ export function SlackSettings() {
                       <Bell size={18} className="text-plm-fg-muted" />
                       <span className="text-base font-medium text-plm-fg">Notification Settings</span>
                     </div>
-                    <button
-                      onClick={handleFetchChannels}
-                      disabled={isFetchingChannels}
-                      className="flex items-center gap-1 text-sm text-plm-accent hover:underline"
-                    >
-                      {isFetchingChannels ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <RefreshCw size={14} />
-                      )}
-                      Refresh channels
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={handleFetchChannels}
+                        disabled={isFetchingChannels}
+                        className="flex items-center gap-1 text-sm text-plm-accent hover:underline"
+                      >
+                        {isFetchingChannels ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={14} />
+                        )}
+                        Refresh channels
+                      </button>
+                    )}
                   </div>
                   
                   {/* Default channel selector */}
@@ -603,8 +606,9 @@ export function SlackSettings() {
                         <Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
                         <select
                           value={defaultChannel}
-                          onChange={(e) => setAllNotificationChannels(e.target.value)}
-                          className="w-full pl-9 pr-3 py-2 text-base bg-plm-bg border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent appearance-none"
+                          onChange={(e) => isAdmin && setAllNotificationChannels(e.target.value)}
+                          disabled={!isAdmin}
+                          className={`w-full pl-9 pr-3 py-2 text-base bg-plm-bg border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent appearance-none ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           <option value="">Select a channel...</option>
                           {channels.map(ch => (
@@ -632,10 +636,11 @@ export function SlackSettings() {
                         }`}
                       >
                         <button
-                          onClick={() => toggleNotification(event.id)}
+                          onClick={() => isAdmin && toggleNotification(event.id)}
+                          disabled={!isAdmin}
                           className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${
                             event.enabled ? 'bg-plm-accent' : 'bg-plm-border'
-                          }`}
+                          } ${!isAdmin ? 'cursor-not-allowed' : ''}`}
                         >
                           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
                             event.enabled ? 'translate-x-5' : 'translate-x-1'
@@ -650,8 +655,9 @@ export function SlackSettings() {
                         {event.enabled && (
                           <select
                             value={event.channel || defaultChannel}
-                            onChange={(e) => setNotificationChannel(event.id, e.target.value)}
-                            className="px-2 py-1.5 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent max-w-[140px]"
+                            onChange={(e) => isAdmin && setNotificationChannel(event.id, e.target.value)}
+                            disabled={!isAdmin}
+                            className={`px-2 py-1.5 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent max-w-[140px] ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                           >
                             <option value="">Use default</option>
                             {channels.map(ch => (
@@ -666,51 +672,55 @@ export function SlackSettings() {
                   </div>
                 </div>
                 
-                {/* Test message section */}
-                <div className="pt-4 border-t border-plm-border">
-                  <div className="flex items-center gap-2 mb-3">
-                    <TestTube2 size={18} className="text-plm-fg-muted" />
-                    <span className="text-base font-medium text-plm-fg">Send Test Message</span>
+                {/* Test message section - admin only */}
+                {isAdmin && (
+                  <div className="pt-4 border-t border-plm-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <TestTube2 size={18} className="text-plm-fg-muted" />
+                      <span className="text-base font-medium text-plm-fg">Send Test Message</span>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={testMessage}
+                        onChange={(e) => setTestMessage(e.target.value)}
+                        placeholder="🔧 Test message from BluePLM!"
+                        className="flex-1 px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent"
+                      />
+                      <button
+                        onClick={handleSendTestMessage}
+                        disabled={isSendingTest || !defaultChannel}
+                        className="flex items-center gap-2 px-4 py-2 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
+                      >
+                        {isSendingTest ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Send size={16} />
+                        )}
+                        Send
+                      </button>
+                    </div>
+                    {!defaultChannel && (
+                      <p className="text-xs text-plm-warning mt-2">
+                        Select a default channel above to send test messages
+                      </p>
+                    )}
                   </div>
-                  
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={testMessage}
-                      onChange={(e) => setTestMessage(e.target.value)}
-                      placeholder="🔧 Test message from BluePLM!"
-                      className="flex-1 px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent"
-                    />
+                )}
+                
+                {/* Disconnect button - admin only */}
+                {isAdmin && (
+                  <div className="flex justify-end pt-4 border-t border-plm-border">
                     <button
-                      onClick={handleSendTestMessage}
-                      disabled={isSendingTest || !defaultChannel}
-                      className="flex items-center gap-2 px-4 py-2 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
+                      onClick={handleDisconnect}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-plm-error hover:bg-plm-error/10 rounded-lg transition-colors"
                     >
-                      {isSendingTest ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Send size={16} />
-                      )}
-                      Send
+                      <Trash2 size={16} />
+                      Disconnect Slack
                     </button>
                   </div>
-                  {!defaultChannel && (
-                    <p className="text-xs text-plm-warning mt-2">
-                      Select a default channel above to send test messages
-                    </p>
-                  )}
-                </div>
-                
-                {/* Disconnect button */}
-                <div className="flex justify-end pt-4 border-t border-plm-border">
-                  <button
-                    onClick={handleDisconnect}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-plm-error hover:bg-plm-error/10 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={16} />
-                    Disconnect Slack
-                  </button>
-                </div>
+                )}
               </>
             )}
             

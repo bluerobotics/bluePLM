@@ -72,19 +72,16 @@ export function GoogleDriveSettings() {
     }
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="text-center py-12">
-        <Puzzle size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
-        <p className="text-base text-plm-fg-muted">
-          Only administrators can manage Google Drive integration.
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
+      {/* Admin notice for non-admins */}
+      {!isAdmin && (
+        <div className="flex items-center gap-2 p-3 bg-plm-info/10 border border-plm-info/30 rounded-lg text-sm text-plm-info">
+          <Puzzle size={16} className="flex-shrink-0" />
+          <span>Only administrators can edit integration settings.</span>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-lg bg-plm-sidebar flex items-center justify-center">
@@ -104,10 +101,11 @@ export function GoogleDriveSettings() {
         <div className="flex items-center justify-between">
           <span className="text-base text-plm-fg">Enable Google Drive</span>
           <button
-            onClick={() => setEnabled(!enabled)}
+            onClick={() => isAdmin && setEnabled(!enabled)}
+            disabled={!isAdmin}
             className={`w-11 h-6 rounded-full transition-colors relative ${
               enabled ? 'bg-plm-accent' : 'bg-plm-border'
-            }`}
+            } ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
               enabled ? 'translate-x-6' : 'translate-x-1'
@@ -123,9 +121,10 @@ export function GoogleDriveSettings() {
               <input
                 type="text"
                 value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
+                onChange={(e) => isAdmin && setClientId(e.target.value)}
                 placeholder="xxxxxxx.apps.googleusercontent.com"
-                className="w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
+                readOnly={!isAdmin}
+                className={`w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
             </div>
             
@@ -136,9 +135,10 @@ export function GoogleDriveSettings() {
                 <input
                   type={showSecret ? 'text' : 'password'}
                   value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
+                  onChange={(e) => isAdmin && setClientSecret(e.target.value)}
                   placeholder="GOCSPX-xxxxxxxxxxxx"
-                  className="w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
+                  readOnly={!isAdmin}
+                  className={`w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
                 <button
                   type="button"
@@ -172,19 +172,21 @@ export function GoogleDriveSettings() {
               </ol>
             </div>
             
-            {/* Save button */}
-            <button
-              onClick={saveSettings}
-              disabled={isSaving}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
-            >
-              {isSaving ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Check size={16} />
-              )}
-              Save Google Drive Settings
-            </button>
+            {/* Save button - only show for admins */}
+            {isAdmin && (
+              <button
+                onClick={saveSettings}
+                disabled={isSaving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Check size={16} />
+                )}
+                Save Google Drive Settings
+              </button>
+            )}
           </>
         )}
       </div>

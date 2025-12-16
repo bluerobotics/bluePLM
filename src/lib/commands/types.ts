@@ -167,6 +167,9 @@ export interface ShowInExplorerParams {
   path: string
 }
 
+// Sync SolidWorks metadata
+export interface SyncSwMetadataParams extends BaseCommandParams {}
+
 // ============================================
 // Command Definition
 // ============================================
@@ -190,6 +193,7 @@ export type CommandId =
   | 'ignore'
   | 'open'
   | 'show-in-explorer'
+  | 'sync-sw-metadata'
 
 export interface Command<TParams = unknown> {
   // Identifier
@@ -232,6 +236,7 @@ export type CommandMap = {
   'ignore': Command<IgnoreParams>
   'open': Command<OpenParams>
   'show-in-explorer': Command<ShowInExplorerParams>
+  'sync-sw-metadata': Command<SyncSwMetadataParams>
 }
 
 // ============================================
