@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.4.1] - 2025-12-15
+
+### Fixed
+- **API URL disappearing after app update**: Organization settings (api_url, solidworks_dm_license_key, enforce_email_domain) were being overwritten when saving individual fields. Each settings update now fetches current settings from database first before merging.
+
+---
+
 ## [2.4.0] - 2025-12-15
 
 ### Added
