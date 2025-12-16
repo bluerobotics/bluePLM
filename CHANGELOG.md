@@ -13,6 +13,8 @@ All notable changes to BluePLM will be documented in this file.
 
 ### Fixed
 - **API URL disappearing after app update**: Organization settings were being overwritten when saving individual fields. Each settings update now fetches current settings from database first before merging.
+- **Checkout toast spam**: Fixed excessive toast notifications on checkout by setting `updated_by` field, so realtime subscription correctly identifies current user's actions
+- **Missing spinners on First Check-In**: Individual files now show loading spinners during sync/checkout/checkin operations (previously only folders showed spinners)
 
 ---
 
