@@ -12,6 +12,12 @@ All notable changes to BluePLM will be documented in this file.
   - Creates a new file version if metadata has changed
   - Merges file-level and active configuration properties
 
+### Changed
+- **Integration Settings Visibility**: Non-admins can now view integration settings (Odoo, Google Drive, Slack) in read-only mode instead of seeing a blank "admins only" message
+
+### Fixed
+- **File sync spinner tracking**: Fixed spinner display during First Check-In to track individual files, not just parent folders
+
 ---
 
 ## [2.5.0] - 2025-12-15
