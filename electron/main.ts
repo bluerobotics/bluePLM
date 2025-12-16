@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell, dialog, screen, nativeImage, nativeTheme } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell, dialog, screen, nativeImage, nativeTheme, session } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
@@ -429,6 +429,18 @@ function createWindow() {
       sandbox: false
     },
     show: false
+  })
+
+  // Set up permission handler for geolocation (needed for local weather feature)
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = ['geolocation', 'notifications', 'clipboard-read']
+    if (allowedPermissions.includes(permission)) {
+      log(`Granting permission: ${permission}`)
+      callback(true)
+    } else {
+      log(`Denying permission: ${permission}`)
+      callback(false)
+    }
   })
 
   // Restore maximized state
@@ -4503,11 +4515,16 @@ ipcMain.handle('backup:list-snapshots', async (_, config: {
   try {
     const snapshots = await new Promise<any[]>((resolve, reject) => {
       let output = ''
+      let stderr = ''
       
       const list = spawn(resticCmd, ['-r', repo, 'snapshots', '--json'], { env })
       
       list.stdout.on('data', (data: Buffer) => {
         output += data.toString()
+      })
+      
+      list.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString()
       })
       
       list.on('close', (code: number) => {
@@ -4519,11 +4536,16 @@ ipcMain.handle('backup:list-snapshots', async (_, config: {
             resolve([])
           }
         } else {
-          reject(new Error('Failed to list snapshots'))
+          const errorMsg = stderr.trim() || `Restic exited with code ${code}`
+          logError('Failed to list snapshots', { code, stderr: errorMsg, repo })
+          reject(new Error(errorMsg))
         }
       })
       
-      list.on('error', reject)
+      list.on('error', (err) => {
+        logError('Failed to spawn restic for list snapshots', { error: String(err) })
+        reject(err)
+      })
     })
     
     return {

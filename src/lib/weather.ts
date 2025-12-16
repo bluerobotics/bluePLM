@@ -6,6 +6,15 @@
  * Any errors will return null/defaults and never crash the app.
  */
 
+// Helper to log to app logs (main process)
+function weatherLog(message: string, data?: Record<string, unknown>) {
+  window.electronAPI?.log?.('info', `[Weather] ${message}`, data)
+}
+
+function weatherWarn(message: string, data?: Record<string, unknown>) {
+  window.electronAPI?.log?.('warn', `[Weather] ${message}`, data)
+}
+
 export interface WeatherData {
   condition: WeatherCondition
   temperature: number // Celsius
@@ -71,12 +80,16 @@ async function getGeolocation(): Promise<{ lat: number; lon: number } | null> {
   return new Promise((resolve) => {
     try {
       if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        weatherWarn('Geolocation API not available')
         resolve(null)
         return
       }
 
+      weatherLog('Requesting geolocation...')
+
       // Set a timeout in case geolocation hangs
       const timeoutId = setTimeout(() => {
+        weatherWarn('Geolocation timed out after 6s')
         resolve(null)
       }, 6000)
 
@@ -85,56 +98,93 @@ async function getGeolocation(): Promise<{ lat: number; lon: number } | null> {
           clearTimeout(timeoutId)
           try {
             if (position?.coords?.latitude && position?.coords?.longitude) {
+              weatherLog('Geolocation success', { 
+                lat: Number(position.coords.latitude.toFixed(2)), 
+                lon: Number(position.coords.longitude.toFixed(2)) 
+              })
               resolve({
                 lat: position.coords.latitude,
                 lon: position.coords.longitude
               })
             } else {
+              weatherWarn('Geolocation returned invalid coords')
               resolve(null)
             }
           } catch {
+            weatherWarn('Error parsing geolocation response')
             resolve(null)
           }
         },
-        () => {
+        (error) => {
           clearTimeout(timeoutId)
+          weatherWarn('Geolocation denied/failed', { code: error.code, message: error.message })
           resolve(null)
         },
         { timeout: 5000, maximumAge: 30 * 60 * 1000 }
       )
-    } catch {
+    } catch (err) {
+      weatherWarn('Geolocation exception', { error: String(err) })
       resolve(null)
     }
   })
 }
 
-// Fallback: Get approximate location from IP (using free service)
+// Fallback: Get approximate location from IP (using free services)
 async function getLocationFromIP(): Promise<{ lat: number; lon: number } | null> {
-  try {
-    // Check if fetch is available
-    if (typeof fetch === 'undefined') return null
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-    const response = await fetch('https://ipapi.co/json/', { 
-      signal: controller.signal
-    })
-    clearTimeout(timeoutId)
-
-    if (!response.ok) return null
-
-    const data = await response.json()
-    if (data?.latitude && data?.longitude && 
-        typeof data.latitude === 'number' && 
-        typeof data.longitude === 'number') {
-      return { lat: data.latitude, lon: data.longitude }
-    }
-    return null
-  } catch {
-    // Silently fail - this is expected if offline or blocked
+  // Check if fetch is available
+  if (typeof fetch === 'undefined') {
+    weatherWarn('Fetch not available for IP location')
     return null
   }
+
+  // Try multiple IP geolocation services
+  const services = [
+    {
+      name: 'ip-api.com',
+      url: 'http://ip-api.com/json/?fields=lat,lon,status',
+      parse: (data: { status: string; lat: number; lon: number }) => 
+        data.status === 'success' ? { lat: data.lat, lon: data.lon } : null
+    },
+    {
+      name: 'ipapi.co',
+      url: 'https://ipapi.co/json/',
+      parse: (data: { latitude: number; longitude: number }) => 
+        data?.latitude && data?.longitude ? { lat: data.latitude, lon: data.longitude } : null
+    }
+  ]
+
+  for (const service of services) {
+    try {
+      weatherLog(`Trying ${service.name}...`)
+      
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+      const response = await fetch(service.url, { signal: controller.signal })
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        weatherWarn(`${service.name} failed`, { status: response.status })
+        continue
+      }
+
+      const data = await response.json()
+      const location = service.parse(data)
+      
+      if (location && typeof location.lat === 'number' && typeof location.lon === 'number') {
+        weatherLog(`${service.name} success`, { 
+          lat: Number(location.lat.toFixed(2)), 
+          lon: Number(location.lon.toFixed(2)) 
+        })
+        return location
+      }
+      weatherWarn(`${service.name} returned invalid data`)
+    } catch (err) {
+      weatherWarn(`${service.name} error`, { error: err instanceof Error ? err.message : 'Unknown' })
+    }
+  }
+
+  return null
 }
 
 /**
@@ -165,13 +215,17 @@ export async function fetchWeather(): Promise<WeatherData | null> {
     // Try geolocation first, then fall back to IP
     let location = await getGeolocation()
     if (!location) {
+      weatherLog('Geolocation unavailable, trying IP fallback...')
       location = await getLocationFromIP()
     }
     
     if (!location) {
       // Can't determine location - use cached data if available
+      weatherWarn('Could not determine location')
       return weatherCache?.data || null
     }
+    
+    weatherLog('Got location, fetching weather data...')
 
     // Fetch weather from Open-Meteo
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${location.lat}&longitude=${location.lon}&current=temperature_2m,relative_humidity_2m,is_day,precipitation,weather_code,cloud_cover,wind_speed_10m&timezone=auto`
@@ -185,6 +239,7 @@ export async function fetchWeather(): Promise<WeatherData | null> {
     clearTimeout(timeoutId)
     
     if (!response.ok) {
+      weatherWarn('API request failed', { status: response.status })
       failureCount++
       lastFailureTime = Date.now()
       return weatherCache?.data || null
@@ -194,6 +249,7 @@ export async function fetchWeather(): Promise<WeatherData | null> {
     
     // Validate response structure
     if (!data?.current) {
+      weatherWarn('API returned invalid data structure')
       failureCount++
       lastFailureTime = Date.now()
       return weatherCache?.data || null
@@ -218,12 +274,17 @@ export async function fetchWeather(): Promise<WeatherData | null> {
     weatherCache = { data: weatherData, timestamp: Date.now() }
     failureCount = 0
     
-    console.log('[Weather] Fetched:', weatherData.condition, weatherData.isDay ? 'day' : 'night', `${weatherData.temperature}°C`)
+    weatherLog('Fetched weather', { 
+      condition: weatherData.condition, 
+      dayNight: weatherData.isDay ? 'day' : 'night', 
+      temp: `${weatherData.temperature}°C`,
+      wind: `${weatherData.windSpeed} km/h`
+    })
     
     return weatherData
   } catch (err) {
     // Log but don't throw - always return gracefully
-    console.warn('[Weather] Failed to fetch (this is okay):', err instanceof Error ? err.message : 'Unknown error')
+    weatherWarn('Failed to fetch', { error: err instanceof Error ? err.message : 'Unknown error' })
     failureCount++
     lastFailureTime = Date.now()
     return weatherCache?.data || null
