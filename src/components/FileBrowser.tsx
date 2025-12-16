@@ -2581,13 +2581,16 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     }
   }
 
-  const handleRowDoubleClick = (file: LocalFile) => {
+  const handleRowDoubleClick = async (file: LocalFile) => {
     if (file.isDirectory) {
       // Navigate into folder - allow even for cloud-only folders
       navigateToFolder(file.relativePath)
     } else if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
-      // Cloud-only files can't be opened (not downloaded yet)
-      addToast('info', 'This file is not downloaded. Right-click to download.')
+      // Cloud-only file: download first, then open
+      const result = await executeCommand('download', { files: [file] }, { onRefresh, silent: true })
+      if (result.success && window.electronAPI) {
+        window.electronAPI.openFile(file.path)
+      }
     } else if (window.electronAPI) {
       // Open file
       window.electronAPI.openFile(file.path)

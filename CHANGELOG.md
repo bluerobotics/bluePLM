@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.7.2] - 2025-12-16
+
+### Changed
+- **Double-click cloud-only files**: Double-clicking a cloud-only file now downloads it first, then automatically opens it. Previously showed a toast asking the user to right-click to download.
+
+---
+
 ## [2.7.1] - 2025-12-16
 
 ### Fixed
