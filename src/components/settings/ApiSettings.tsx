@@ -161,8 +161,21 @@ export function ApiSettings() {
       // Save org-wide for all members when admin sets external URL
       if (organization && user?.role === 'admin') {
         try {
-          // Build new settings, preserving ALL existing properties from database
-          const newSettings = { ...organization.settings, api_url: url }
+          // IMPORTANT: Fetch current settings from database first to avoid overwriting
+          // other fields that may have been set by other components
+          const { data: currentOrg, error: fetchError } = await db
+            .from('organizations')
+            .select('settings')
+            .eq('id', organization.id)
+            .single()
+          
+          if (fetchError) {
+            console.error('[API] Failed to fetch current settings:', fetchError)
+          }
+          
+          // Merge with current database settings (not local state which may be stale)
+          const currentSettings = currentOrg?.settings || organization.settings || {}
+          const newSettings = { ...currentSettings, api_url: url }
           
           const { error } = await db
             .from('organizations')

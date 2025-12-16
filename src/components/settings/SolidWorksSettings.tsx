@@ -298,19 +298,24 @@ export function SolidWorksSettings() {
                     const newKey = e.target.value || null
                     if (!organization) return
                     try {
+                      // Fetch current settings from database first to avoid overwriting other fields
+                      const { data: currentOrg } = await db
+                        .from('organizations')
+                        .select('settings')
+                        .eq('id', organization.id)
+                        .single()
+                      
+                      const currentSettings = currentOrg?.settings || organization.settings || {}
+                      const newSettings = { ...currentSettings, solidworks_dm_license_key: newKey }
+                      
                       const { error } = await db
                         .from('organizations')
-                        .update({ 
-                          settings: { 
-                            ...organization.settings, 
-                            solidworks_dm_license_key: newKey 
-                          } 
-                        })
+                        .update({ settings: newSettings })
                         .eq('id', organization.id)
                       if (error) throw error
                       setOrganization({
                         ...organization,
-                        settings: { ...organization.settings, solidworks_dm_license_key: newKey || undefined }
+                        settings: newSettings
                       })
                       addToast('success', 'SolidWorks license key updated')
                     } catch (err) {

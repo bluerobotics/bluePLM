@@ -875,14 +875,19 @@ export function CompanyProfileSettings() {
               setEnforceEmailDomain(newValue)
               
               try {
+                // Fetch current settings from database first to avoid overwriting other fields
+                const { data: currentOrg } = await supabase
+                  .from('organizations')
+                  .select('settings')
+                  .eq('id', organization?.id)
+                  .single()
+                
+                const currentSettings = (currentOrg as any)?.settings || organization?.settings || {}
+                const newSettings = { ...currentSettings, enforce_email_domain: newValue }
+                
                 const { error } = await supabase
                   .from('organizations')
-                  .update({ 
-                    settings: { 
-                      ...organization?.settings,
-                      enforce_email_domain: newValue 
-                    }
-                  })
+                  .update({ settings: newSettings })
                   .eq('id', organization?.id)
                 
                 if (error) throw error

@@ -146,6 +146,9 @@ interface PDMState {
   isOfflineMode: boolean
   isConnecting: boolean  // True after sign-in while loading organization
   
+  // Role impersonation (dev tools, non-persisted)
+  impersonatedRole: 'admin' | 'engineer' | 'viewer' | null
+  
   // Vault (legacy single vault)
   vaultPath: string | null
   vaultName: string | null  // Custom display name for vault
@@ -353,6 +356,10 @@ interface PDMState {
   setOfflineMode: (offline: boolean) => void
   setIsConnecting: (connecting: boolean) => void
   signOut: () => void
+  
+  // Actions - Role Impersonation (dev tools)
+  setImpersonatedRole: (role: 'admin' | 'engineer' | 'viewer' | null) => void
+  getEffectiveRole: () => 'admin' | 'engineer' | 'viewer'
   
   // Actions - Vault
   setVaultPath: (path: string | null) => void
@@ -571,6 +578,7 @@ export const usePDMStore = create<PDMState>()(
       isAuthenticated: false,
       isOfflineMode: false,
       isConnecting: false,
+      impersonatedRole: null,
       
       // Onboarding (first app boot)
       onboardingComplete: false,
@@ -948,7 +956,14 @@ export const usePDMStore = create<PDMState>()(
       setOrganization: (organization) => set({ organization, isConnecting: false }),  // Clear connecting state when org loads
       setOfflineMode: (isOfflineMode) => set({ isOfflineMode }),
       setIsConnecting: (isConnecting) => set({ isConnecting }),
-      signOut: () => set({ user: null, organization: null, isAuthenticated: false, isOfflineMode: false, isConnecting: false }),
+      signOut: () => set({ user: null, organization: null, isAuthenticated: false, isOfflineMode: false, isConnecting: false, impersonatedRole: null }),
+      
+      // Actions - Role Impersonation (dev tools, session only)
+      setImpersonatedRole: (impersonatedRole) => set({ impersonatedRole }),
+      getEffectiveRole: () => {
+        const { user, impersonatedRole } = get()
+        return impersonatedRole ?? user?.role ?? 'viewer'
+      },
       
       // Actions - Vault
       setVaultPath: (vaultPath) => set({ vaultPath }),

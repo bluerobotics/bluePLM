@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+#if HAS_DOCUMENT_MANAGER
 using SolidWorks.Interop.swdocumentmgr;
+#endif
 
 namespace BluePLM.SolidWorksService
 {
@@ -12,10 +14,15 @@ namespace BluePLM.SolidWorksService
     /// 
     /// Requires a Document Manager API license key (free with SolidWorks subscription).
     /// Get yours at: https://customerportal.solidworks.com/ → API Support
+    /// 
+    /// Note: This feature requires SolidWorks to be installed locally.
+    /// When built without SolidWorks (e.g., CI/CD), stub implementations are used.
     /// </summary>
     public class DocumentManagerAPI : IDisposable
     {
+#if HAS_DOCUMENT_MANAGER
         private SwDMApplication? _dmApp;
+#endif
         private readonly string? _licenseKey;
         private bool _disposed;
         private bool _initialized;
@@ -24,15 +31,23 @@ namespace BluePLM.SolidWorksService
         public DocumentManagerAPI(string? licenseKey = null)
         {
             _licenseKey = licenseKey;
+#if !HAS_DOCUMENT_MANAGER
+            _initError = "Document Manager API not available. SolidWorks must be installed to use this feature.";
+#endif
         }
 
+#if HAS_DOCUMENT_MANAGER
         public bool IsAvailable => _initialized && _dmApp != null;
+#else
+        public bool IsAvailable => false;
+#endif
         public string? InitializationError => _initError;
 
         #region Initialization
 
         public bool Initialize()
         {
+#if HAS_DOCUMENT_MANAGER
             if (_initialized) return _dmApp != null;
 
             try
@@ -65,10 +80,16 @@ namespace BluePLM.SolidWorksService
                 _initialized = true;
                 return false;
             }
+#else
+            _initialized = true;
+            _initError = "Document Manager API not available. SolidWorks must be installed to use this feature.";
+            return false;
+#endif
         }
 
         public bool SetLicenseKey(string key)
         {
+#if HAS_DOCUMENT_MANAGER
             if (string.IsNullOrEmpty(key))
             {
                 _initError = "License key cannot be empty";
@@ -104,8 +125,13 @@ namespace BluePLM.SolidWorksService
                 _initialized = true;
                 return false;
             }
+#else
+            _initError = "Document Manager API not available. SolidWorks must be installed to use this feature.";
+            return false;
+#endif
         }
 
+#if HAS_DOCUMENT_MANAGER
         private SwDMDocument? OpenDocument(string filePath, out SwDmDocumentOpenError error)
         {
             error = SwDmDocumentOpenError.swDmDocumentOpenErrorNone;
@@ -137,6 +163,7 @@ namespace BluePLM.SolidWorksService
                 _ => SwDmDocumentType.swDmDocumentUnknown
             };
         }
+#endif
 
         #endregion
 
@@ -144,6 +171,7 @@ namespace BluePLM.SolidWorksService
 
         public CommandResult GetCustomProperties(string? filePath, string? configuration = null)
         {
+#if HAS_DOCUMENT_MANAGER
             if (!Initialize() || _dmApp == null)
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
 
@@ -189,8 +217,12 @@ namespace BluePLM.SolidWorksService
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
             }
+#else
+            return new CommandResult { Success = false, Error = _initError ?? "Document Manager API not available" };
+#endif
         }
 
+#if HAS_DOCUMENT_MANAGER
         private Dictionary<string, string> ReadProperties(SwDMDocument doc, string? configuration)
         {
             var props = new Dictionary<string, string>();
@@ -233,6 +265,7 @@ namespace BluePLM.SolidWorksService
 
             return props;
         }
+#endif
 
         /// <summary>
         /// Set custom properties on a file WITHOUT launching SolidWorks!
@@ -240,6 +273,7 @@ namespace BluePLM.SolidWorksService
         /// </summary>
         public CommandResult SetCustomProperties(string? filePath, Dictionary<string, string>? properties, string? configuration = null)
         {
+#if HAS_DOCUMENT_MANAGER
             if (!Initialize() || _dmApp == null)
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
 
@@ -340,8 +374,12 @@ namespace BluePLM.SolidWorksService
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
             }
+#else
+            return new CommandResult { Success = false, Error = _initError ?? "Document Manager API not available" };
+#endif
         }
 
+#if HAS_DOCUMENT_MANAGER
         /// <summary>
         /// Open document for write access (not read-only)
         /// </summary>
@@ -365,6 +403,7 @@ namespace BluePLM.SolidWorksService
             // Open with write access (readOnly = false)
             return (SwDMDocument)_dmApp.GetDocument(filePath, docType, false, out error);
         }
+#endif
 
         #endregion
 
@@ -372,6 +411,7 @@ namespace BluePLM.SolidWorksService
 
         public CommandResult GetConfigurations(string? filePath)
         {
+#if HAS_DOCUMENT_MANAGER
             if (!Initialize() || _dmApp == null)
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
 
@@ -423,8 +463,12 @@ namespace BluePLM.SolidWorksService
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
             }
+#else
+            return new CommandResult { Success = false, Error = _initError ?? "Document Manager API not available" };
+#endif
         }
 
+#if HAS_DOCUMENT_MANAGER
         private string[] GetConfigurationNames(SwDMDocument doc)
         {
             try
@@ -437,6 +481,7 @@ namespace BluePLM.SolidWorksService
                 return Array.Empty<string>();
             }
         }
+#endif
 
         #endregion
 
@@ -444,6 +489,7 @@ namespace BluePLM.SolidWorksService
 
         public CommandResult GetBillOfMaterials(string? filePath, string? configuration = null)
         {
+#if HAS_DOCUMENT_MANAGER
             if (!Initialize() || _dmApp == null)
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
 
@@ -542,10 +588,14 @@ namespace BluePLM.SolidWorksService
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
             }
+#else
+            return new CommandResult { Success = false, Error = _initError ?? "Document Manager API not available" };
+#endif
         }
 
         public CommandResult GetExternalReferences(string? filePath)
         {
+#if HAS_DOCUMENT_MANAGER
             if (!Initialize() || _dmApp == null)
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
 
@@ -602,6 +652,9 @@ namespace BluePLM.SolidWorksService
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
             }
+#else
+            return new CommandResult { Success = false, Error = _initError ?? "Document Manager API not available" };
+#endif
         }
 
         #endregion
@@ -617,6 +670,7 @@ namespace BluePLM.SolidWorksService
         /// </summary>
         public CommandResult GetPreviewImage(string? filePath, string? configuration = null)
         {
+#if HAS_DOCUMENT_MANAGER
             if (!Initialize() || _dmApp == null)
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
 
@@ -707,6 +761,9 @@ namespace BluePLM.SolidWorksService
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
             }
+#else
+            return new CommandResult { Success = false, Error = _initError ?? "Document Manager API not available" };
+#endif
         }
 
         /// <summary>
@@ -841,7 +898,9 @@ namespace BluePLM.SolidWorksService
         {
             if (_disposed) return;
             _disposed = true;
+#if HAS_DOCUMENT_MANAGER
             _dmApp = null;
+#endif
             GC.Collect();
         }
 

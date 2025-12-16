@@ -24,6 +24,7 @@ import { HalloweenEffects } from './components/HalloweenEffects'
 import { WeatherEffects } from './components/WeatherEffects'
 import { VaultNotFoundDialog } from './components/VaultNotFoundDialog'
 import { PerformanceWindow } from './components/PerformanceWindow'
+import { ImpersonationBanner } from './components/ImpersonationBanner'
 import { executeTerminalCommand } from './lib/commands/parser'
 import { executeCommand } from './lib/commands'
 import { logKeyboard, logUserAction } from './lib/userActionLogger'
@@ -1783,6 +1784,9 @@ function App() {
         onRefresh={loadFiles}
         minimal={isSignInScreen}
       />
+      
+      {/* Role impersonation banner (dev tools) */}
+      <ImpersonationBanner />
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden min-h-0">

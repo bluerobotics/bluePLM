@@ -13,10 +13,17 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
+  <!-- Conditional: Define HAS_DOCUMENT_MANAGER when the DLL is available locally -->
+  <PropertyGroup Condition="Exists('C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swdocumentmgr.dll')">
+    <DefineConstants>$(DefineConstants);HAS_DOCUMENT_MANAGER</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- SolidWorks Document Manager API - LIGHTWEIGHT, NO SW LAUNCH! -->
-    <!-- Referenced directly from SolidWorks installation -->
-    <Reference Include="SolidWorks.Interop.swdocumentmgr">
+    <!-- Only referenced when SolidWorks is installed locally -->
+    <!-- CI/CD builds will skip this and use stub implementation -->
+    <Reference Include="SolidWorks.Interop.swdocumentmgr"
+               Condition="Exists('C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swdocumentmgr.dll')">
       <HintPath>C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swdocumentmgr.dll</HintPath>
       <Private>true</Private>
     </Reference>
