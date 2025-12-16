@@ -6,17 +6,24 @@ All notable changes to BluePLM will be documented in this file.
 
 ### Added
 - **Online Users Indicator**: Green badge in menu bar shows active team members with hover tooltip
-- **Weather Theme**: Fetches local weather via IP geolocation, adds wind-affected rain effect
+- **Weather Theme**: Fetches local weather via IP geolocation, wind-affected rain effect
 - **Realistic Snow Physics**: Wind speed/direction affects snow particles with turbulence and gusts
-- **Modern Log Viewer**: Timeline histogram, level filtering, search, and crash report highlighting
+- **Modern Log Viewer**: Timeline histogram with stacked bars, level filtering, search, crash report highlighting, resizable histogram
 - **Error Boundary**: Crash screen with stack traces and one-click "Report Bug" to GitHub Issues
 - **Email Domain Enforcement**: Admins can restrict org signups to specific email domains
+- **Performance Monitoring**: Telemetry system with FPS counter and module tracking
+- **User Action Logger**: Tracks user actions for debugging
+- **Log Retention Policies**: Configurable log retention settings
 
 ### Changed
 - Reorganized Organization Settings layout
 - Reviews badge styling matches online indicator
 
 ### Fixed
+- Snow animation frame drops eliminated (GC pressure fix)
+- Weather theme inline styles properly cleanup when switching themes
+- Geolocation permission handling and location fallback improved
+- Crash report help text links to GitHub Issues
 - Clear vault UX improvements
 
 ---
