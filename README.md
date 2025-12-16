@@ -286,6 +286,21 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 MIT — see [LICENSE](LICENSE)
 
+## About Blue Robotics
+
+<div align="center">
+  <img src="./src/assets/blue-robotics-white-name-logo.png" width="200">
+  <p><strong>On a mission to enable the future of marine robotics</strong></p>
+  <p>
+    <a href="https://bluerobotics.com">🌐 Website</a> •
+    <a href="https://github.com/bluerobotics">🐙 GitHub</a> •
+    <a href="https://www.youtube.com/bluerobotics">📺 YouTube</a>
+  </p>
+</div>
+
 ---
 
-[Blue Robotics](https://bluerobotics.com)
+<div align="center">
+  <p>⭐ <strong>Star us on GitHub</strong> if you find Cockpit useful!</p>
+  <p>Made with 💙 by the Blue Robotics team and contributors worldwide</p>
+</div>
