@@ -221,6 +221,99 @@ CREATE INDEX idx_users_org_id ON users(org_id);
 CREATE INDEX idx_users_email ON users(email);
 
 -- ===========================================
+-- AUTO-SET USER ORG_ID TRIGGER
+-- ===========================================
+-- Automatically sets org_id based on email domain when a user is created/updated
+
+CREATE OR REPLACE FUNCTION auto_set_user_org_id_func()
+RETURNS TRIGGER AS $$
+DECLARE
+  matching_org_id UUID;
+BEGIN
+  -- Only run if org_id is NULL
+  IF NEW.org_id IS NULL THEN
+    -- Find organization by email domain
+    SELECT o.id INTO matching_org_id
+    FROM organizations o
+    WHERE SPLIT_PART(NEW.email, '@', 2) = ANY(o.email_domains)
+    LIMIT 1;
+    
+    -- If found, set it
+    IF matching_org_id IS NOT NULL THEN
+      NEW.org_id := matching_org_id;
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER auto_set_user_org_id
+  BEFORE INSERT OR UPDATE ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION auto_set_user_org_id_func();
+
+-- ===========================================
+-- ENSURE USER ORG_ID RPC
+-- ===========================================
+-- RPC function the app calls on boot to ensure user has correct org_id
+
+CREATE OR REPLACE FUNCTION ensure_user_org_id()
+RETURNS JSON AS $$
+DECLARE
+  current_user_id UUID;
+  current_org_id UUID;
+  matching_org_id UUID;
+  user_email TEXT;
+BEGIN
+  current_user_id := auth.uid();
+  
+  IF current_user_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+  
+  -- Get user's current org_id and email
+  SELECT org_id, email INTO current_org_id, user_email
+  FROM users
+  WHERE id = current_user_id;
+  
+  -- Find matching org by email domain
+  SELECT o.id INTO matching_org_id
+  FROM organizations o
+  WHERE SPLIT_PART(user_email, '@', 2) = ANY(o.email_domains)
+  LIMIT 1;
+  
+  -- If user has wrong or NULL org_id, fix it
+  IF matching_org_id IS NOT NULL AND (current_org_id IS NULL OR current_org_id != matching_org_id) THEN
+    UPDATE users
+    SET org_id = matching_org_id
+    WHERE id = current_user_id;
+    
+    -- Also fix their sessions
+    UPDATE user_sessions
+    SET org_id = matching_org_id
+    WHERE user_id = current_user_id
+      AND (org_id IS NULL OR org_id != matching_org_id);
+    
+    RETURN json_build_object(
+      'success', true, 
+      'fixed', true,
+      'previous_org_id', current_org_id,
+      'new_org_id', matching_org_id
+    );
+  END IF;
+  
+  RETURN json_build_object(
+    'success', true,
+    'fixed', false,
+    'org_id', current_org_id
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION ensure_user_org_id() TO authenticated;
+
+-- ===========================================
 -- VAULTS
 -- ===========================================
 
@@ -1030,6 +1123,7 @@ CREATE TABLE user_sessions (
 CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX idx_user_sessions_last_seen ON user_sessions(last_seen);
 CREATE INDEX idx_user_sessions_active ON user_sessions(user_id, is_active) WHERE is_active = true;
+CREATE INDEX idx_user_sessions_org_id ON user_sessions(org_id);
 
 -- Machine heartbeat (tracks which machines are online and can run backups)
 CREATE TABLE backup_machines (
@@ -1084,12 +1178,19 @@ ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 
 -- User sessions: Users can view org members' sessions (for online presence)
 -- But can only manage (insert/update/delete) their own sessions
+-- Note: Uses explicit NULL check to handle SQL NULL comparison quirks
 CREATE POLICY "Users can view org sessions"
   ON user_sessions FOR SELECT
   USING (
+    -- Always allow viewing own sessions
     user_id = auth.uid()
     OR 
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    -- Allow viewing sessions from same organization
+    -- Both the session's org_id and the user's org_id must be non-null and match
+    (
+      org_id IS NOT NULL 
+      AND org_id = (SELECT u.org_id FROM users u WHERE u.id = auth.uid() AND u.org_id IS NOT NULL)
+    )
   );
 
 CREATE POLICY "Users can manage own sessions"

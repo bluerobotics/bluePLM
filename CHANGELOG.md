@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.9.3] - 2025-12-17
+
+### Fixed
+- **Online users visibility (complete fix)**: Fixed RLS policy that was preventing users from seeing other organization members online. The policy now properly handles NULL org_id comparisons. Added database index on `user_sessions.org_id` for better query performance. Improved session sync to update all sessions unconditionally.
+
+---
+
 ## [2.9.2] - 2025-12-17
 
 ### Added

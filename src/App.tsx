@@ -3,7 +3,7 @@ import { registerModule, unregisterModule } from '@/lib/telemetry'
 import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 import type { SettingsTab } from './types/settings'
-import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId } from './lib/supabase'
+import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId, ensureUserOrgId } from './lib/supabase'
 import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, unsubscribeAll } from './lib/realtime'
 import { getBackupStatus, isThisDesignatedMachine, updateHeartbeat } from './lib/backup'
 import { MenuBar } from './components/MenuBar'
@@ -317,6 +317,13 @@ function App() {
         setCurrentAccessToken(session.access_token)
         
         try {
+          // FIRST: Ensure user's org_id is correct in the database
+          // This fixes issues where users have NULL or wrong org_id
+          const orgIdResult = await ensureUserOrgId()
+          if (orgIdResult.fixed) {
+            console.log('[Auth] Fixed user org_id in database')
+          }
+          
           // Fetch user profile from database to get role
           const { profile, error: profileError } = await getUserProfile(session.user.id)
           if (profileError) {
@@ -386,6 +393,13 @@ function App() {
           setCurrentAccessToken(session.access_token)
           
           try {
+            // FIRST: Ensure user's org_id is correct in the database
+            // This fixes issues where users have NULL or wrong org_id
+            const orgIdResult = await ensureUserOrgId()
+            if (orgIdResult.fixed) {
+              console.log('[Auth] Fixed user org_id in database during', event)
+            }
+            
             // Fetch user profile from database to get role
             console.log('[Auth] Fetching user profile...')
             const { profile, error: profileError } = await getUserProfile(session.user.id)
@@ -1965,11 +1979,15 @@ function App() {
     
     // Register this device's session
     // Use user.org_id first, fall back to organization.id if not set
-    const orgIdForSession = user.org_id || usePDMStore.getState().organization?.id || null
+    const orgIdForSession = user.org_id || organization?.id || null
+    console.log('[Session] Registering session with org_id:', orgIdForSession?.substring(0, 8) || 'NULL', 
+      '(user.org_id:', user.org_id?.substring(0, 8) || 'NULL', 
+      ', organization?.id:', organization?.id?.substring(0, 8) || 'NULL', ')')
+    
     registerDeviceSession(user.id, orgIdForSession)
       .then(result => {
         if (result.success) {
-          console.log('[Session] Device session registered')
+          console.log('[Session] Device session registered successfully with org_id:', orgIdForSession?.substring(0, 8) || 'NULL')
           // Start heartbeat to keep session alive
           // Pass callbacks: one for remote sign out, one to get current org_id
           startSessionHeartbeat(

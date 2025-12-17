@@ -3957,24 +3957,65 @@ export async function registerDeviceSession(
 
 /**
  * Sync all sessions for a user to use the correct org_id
- * Call this after org is loaded to fix sessions that were created with null org_id
+ * Call this after org is loaded to fix sessions that were created with null or wrong org_id
  */
 export async function syncUserSessionsOrgId(userId: string, orgId: string): Promise<void> {
   const client = getSupabaseClient()
   
   console.log('[Session] Syncing all user sessions to org_id:', orgId?.substring(0, 8) + '...')
   
-  // Update all active sessions for this user to have the correct org_id
-  const { error } = await client
+  // Update ALL active sessions for this user to have the correct org_id
+  // Use unconditional update - simpler and ensures all sessions have correct org_id
+  // The update only affects this user's sessions, so it's safe
+  const { data, error } = await client
     .from('user_sessions')
     .update({ org_id: orgId })
     .eq('user_id', userId)
-    .is('org_id', null)  // Only update sessions with NULL org_id
+    .select('id')
   
   if (error) {
     console.error('[Session] Failed to sync session org_ids:', error.message)
   } else {
-    console.log('[Session] Session org_ids synced successfully')
+    console.log('[Session] Session org_ids synced successfully, updated:', data?.length || 0, 'sessions')
+  }
+}
+
+/**
+ * Ensure the current user has the correct org_id in the database
+ * This calls a database RPC that checks and fixes org_id based on email domain
+ * Should be called on every app boot to prevent org_id mismatch issues
+ */
+export async function ensureUserOrgId(): Promise<{ success: boolean; fixed: boolean; org_id?: string; error?: string }> {
+  const client = getSupabaseClient()
+  
+  console.log('[Auth] Ensuring user org_id is correct...')
+  
+  try {
+    const { data, error } = await client.rpc('ensure_user_org_id' as never)
+    
+    if (error) {
+      // RPC might not exist yet (before migration runs)
+      console.warn('[Auth] ensure_user_org_id RPC failed (run migration if not done):', error.message)
+      return { success: false, fixed: false, error: error.message }
+    }
+    
+    const result = data as { success: boolean; fixed: boolean; org_id?: string; previous_org_id?: string; new_org_id?: string; error?: string }
+    
+    if (result.fixed) {
+      console.log('[Auth] Fixed user org_id:', result.previous_org_id?.substring(0, 8) + '... ->', result.new_org_id?.substring(0, 8) + '...')
+    } else {
+      console.log('[Auth] User org_id is correct:', result.org_id?.substring(0, 8) + '...')
+    }
+    
+    return { 
+      success: result.success, 
+      fixed: result.fixed, 
+      org_id: result.new_org_id || result.org_id,
+      error: result.error
+    }
+  } catch (err) {
+    console.error('[Auth] ensureUserOrgId failed:', err)
+    return { success: false, fixed: false, error: String(err) }
   }
 }
 
@@ -4232,24 +4273,29 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
   // Get sessions active within the last 5 minutes
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
   
-  console.log('[OnlineUsers] Fetching online users for org:', orgId, 'since:', fiveMinutesAgo)
+  console.log('[OnlineUsers] Fetching online users for org:', orgId?.substring(0, 8) + '...', 'since:', fiveMinutesAgo)
   
-  // First, let's debug by fetching ALL active sessions for this org (without RLS filtering)
+  // First, let's debug by fetching ALL active sessions visible to current user (RLS applies)
+  // This helps diagnose if the RLS policy is working correctly
   const { data: debugData, error: debugError } = await client
     .from('user_sessions')
     .select('user_id, org_id, machine_name, is_active, last_seen')
     .eq('is_active', true)
     .gte('last_seen', fiveMinutesAgo)
   
-  console.log('[OnlineUsers] DEBUG - All active sessions visible to current user:', 
-    debugData?.map(s => ({ 
-      user_id: s.user_id?.substring(0, 8), 
-      org_id: s.org_id?.substring(0, 8) || 'NULL',
-      machine: s.machine_name,
-      last_seen: s.last_seen
-    })) || [], 
-    'Error:', debugError?.message || 'none'
-  )
+  console.log('[OnlineUsers] DEBUG - All active sessions visible to current user (RLS filtered):', 
+    debugData?.length || 0, 'sessions')
+  if (debugData && debugData.length > 0) {
+    debugData.forEach(s => {
+      console.log('[OnlineUsers]   -', s.machine_name, 
+        '| user:', s.user_id?.substring(0, 8) + '...',
+        '| org:', s.org_id?.substring(0, 8) || 'NULL',
+        '| last_seen:', new Date(s.last_seen).toLocaleTimeString())
+    })
+  }
+  if (debugError) {
+    console.error('[OnlineUsers] DEBUG query error:', debugError.message)
+  }
   
   const { data, error } = await client
     .from('user_sessions')
@@ -4310,6 +4356,8 @@ export function subscribeToOrgOnlineUsers(
 ): () => void {
   const client = getSupabaseClient()
   
+  console.log('[OnlineUsers] Subscribing to realtime updates for org:', orgId?.substring(0, 8) + '...')
+  
   const channel = client
     .channel(`org_sessions:${orgId}`)
     .on<UserSession>(
@@ -4320,15 +4368,22 @@ export function subscribeToOrgOnlineUsers(
         table: 'user_sessions',
         filter: `org_id=eq.${orgId}`
       },
-      async () => {
+      async (payload) => {
+        console.log('[OnlineUsers] Realtime event received:', payload.eventType, 
+          '| user:', (payload.new as UserSession)?.user_id?.substring(0, 8) || (payload.old as UserSession)?.user_id?.substring(0, 8) || 'unknown')
+        
         // When any org session changes, fetch all online users
         const { users } = await getOrgOnlineUsers(orgId)
+        console.log('[OnlineUsers] Refreshed online users after realtime event:', users.length)
         onUsersChange(users)
       }
     )
-    .subscribe()
+    .subscribe((status) => {
+      console.log('[OnlineUsers] Subscription status:', status)
+    })
   
   return () => {
+    console.log('[OnlineUsers] Unsubscribing from realtime updates for org:', orgId?.substring(0, 8) + '...')
     channel.unsubscribe()
   }
 }
