@@ -813,6 +813,84 @@ html, body, #root {
   background: rgba(100, 100, 100, 0.5);
 }
 
+/* Light mode - increase contrast for inline buttons and UI elements */
+/* Replace near-invisible white/10 backgrounds with visible dark alternatives */
+[data-theme="light"] .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .hover\:bg-orange-400\/30:hover {
+  background-color: rgba(251, 146, 60, 0.35) !important;
+}
+
+[data-theme="light"] .hover\:bg-sky-400\/30:hover {
+  background-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+[data-theme="light"] .hover\:bg-purple-500\/20:hover {
+  background-color: rgba(168, 85, 247, 0.3) !important;
+}
+
+[data-theme="light"] .hover\:bg-emerald-400\/30:hover,
+[data-theme="light"] .bg-emerald-400\/30 {
+  background-color: rgba(52, 211, 153, 0.35) !important;
+}
+
+[data-theme="light"] .bg-orange-400\/30 {
+  background-color: rgba(251, 146, 60, 0.35) !important;
+}
+
+[data-theme="light"] .bg-sky-400\/30 {
+  background-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+[data-theme="light"] .bg-sky-400\/20 {
+  background-color: rgba(56, 189, 248, 0.3) !important;
+}
+
+[data-theme="light"] .bg-purple-500\/20 {
+  background-color: rgba(168, 85, 247, 0.3) !important;
+}
+
+[data-theme="light"] .bg-plm-success\/20 {
+  background-color: rgba(56, 138, 52, 0.25) !important;
+}
+
+/* Light mode avatar backgrounds - more visible */
+[data-theme="light"] .bg-plm-accent\/30 {
+  background-color: rgba(0, 120, 212, 0.2) !important;
+}
+
+[data-theme="light"] .bg-plm-warning\/30 {
+  background-color: rgba(191, 136, 3, 0.25) !important;
+}
+
+/* Light mode highlight/selection backgrounds */
+[data-theme="light"] .bg-plm-bg-light {
+  background-color: #e8e8e8 !important;
+}
+
+[data-theme="light"] .bg-plm-highlight {
+  background-color: rgba(0, 120, 212, 0.12) !important;
+}
+
+/* Light mode text colors - ensure visibility */
+[data-theme="light"] .text-plm-success {
+  color: #2d7a2d !important;
+}
+
+[data-theme="light"] .text-orange-400 {
+  color: #c2410c !important;
+}
+
+[data-theme="light"] .text-emerald-400 {
+  color: #059669 !important;
+}
+
+[data-theme="light"] .text-purple-400 {
+  color: #7c3aed !important;
+}
+
 ::selection {
   background-color: var(--plm-selection);
 }
