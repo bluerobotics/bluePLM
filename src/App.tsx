@@ -1242,7 +1242,7 @@ function App() {
         if (outdatedFiles.length > 0) {
           window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - updating outdated files', { count: outdatedFiles.length })
           try {
-            const result = await executeCommand('update', { files: outdatedFiles })
+            const result = await executeCommand('get-latest', { files: outdatedFiles })
             if (result.succeeded > 0) {
               addToast('success', `Auto-updated ${result.succeeded} file${result.succeeded > 1 ? 's' : ''}`)
             }

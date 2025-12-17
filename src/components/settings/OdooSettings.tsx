@@ -521,9 +521,6 @@ export function OdooSettings() {
     }
   }
 
-  // Find active config if any
-  const activeConfig = savedConfigs.find(c => c.id === settings?.settings?.config_id)
-
   return (
     <div className="space-y-6">
       {/* Admin notice for non-admins */}
