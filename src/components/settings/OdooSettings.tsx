@@ -667,18 +667,28 @@ export function OdooSettings() {
                         <div className="flex items-center gap-1 flex-shrink-0">
                           {isAdmin && (
                             <>
-                              <button
-                                onClick={() => handleActivateConfig(config)}
-                                disabled={activatingConfigId === config.id || activeConfig?.id === config.id}
-                                className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors disabled:opacity-50"
-                                title="Activate this configuration"
-                              >
-                                {activatingConfigId === config.id ? (
-                                  <Loader2 size={14} className="animate-spin" />
-                                ) : (
+                              {activeConfig?.id === config.id ? (
+                                <button
+                                  onClick={handleDisconnect}
+                                  className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
+                                  title="Disconnect this configuration"
+                                >
                                   <Plug size={14} />
-                                )}
-                              </button>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleActivateConfig(config)}
+                                  disabled={activatingConfigId === config.id}
+                                  className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors disabled:opacity-50"
+                                  title="Activate this configuration"
+                                >
+                                  {activatingConfigId === config.id ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <Plug size={14} />
+                                  )}
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleLoadConfig(config)}
                                 className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
