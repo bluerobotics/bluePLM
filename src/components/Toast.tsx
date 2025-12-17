@@ -239,9 +239,21 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(toast.message)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      // Use Electron clipboard API (more reliable than navigator.clipboard in Electron)
+      if (window.electronAPI?.copyToClipboard) {
+        const result = await window.electronAPI.copyToClipboard(toast.message)
+        if (result.success) {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        } else {
+          console.error('Failed to copy via Electron:', result.error)
+        }
+      } else {
+        // Fallback for non-Electron environments (e.g., browser development)
+        await navigator.clipboard.writeText(toast.message)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
     } catch (err) {
       console.error('Failed to copy:', err)
     }

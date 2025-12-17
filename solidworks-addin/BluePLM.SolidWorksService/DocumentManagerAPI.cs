@@ -45,43 +45,67 @@ namespace BluePLM.SolidWorksService
         #region Dynamic Assembly Loading
 
         /// <summary>
+        /// Log a debug message to stderr (captured by Electron)
+        /// </summary>
+        private void LogDebug(string message)
+        {
+            Console.Error.WriteLine($"[DM-API] {message}");
+        }
+
+        /// <summary>
         /// Try to load the Document Manager assembly from the user's SolidWorks installation
         /// </summary>
         private bool TryLoadAssembly()
         {
-            if (_dmAssembly != null) return true;
+            if (_dmAssembly != null) 
+            {
+                LogDebug("Assembly already loaded");
+                return true;
+            }
+
+            LogDebug($"Searching for Document Manager DLL in {DllSearchPaths.Length} locations...");
 
             foreach (var path in DllSearchPaths)
             {
+                LogDebug($"  Checking: {path}");
                 if (File.Exists(path))
                 {
+                    LogDebug($"  Found DLL at: {path}");
                     try
                     {
                         _dmAssembly = Assembly.LoadFrom(path);
+                        LogDebug($"  Successfully loaded assembly from: {path}");
                         return true;
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"Failed to load Document Manager from {path}: {ex.Message}");
+                        LogDebug($"  FAILED to load from {path}: {ex.Message}");
                     }
+                }
+                else
+                {
+                    LogDebug($"  Not found at: {path}");
                 }
             }
 
             // Also check environment variable for custom path
             var customPath = Environment.GetEnvironmentVariable("SOLIDWORKS_DM_DLL_PATH");
+            LogDebug($"Checking SOLIDWORKS_DM_DLL_PATH env var: {(string.IsNullOrEmpty(customPath) ? "(not set)" : customPath)}");
             if (!string.IsNullOrEmpty(customPath) && File.Exists(customPath))
             {
                 try
                 {
                     _dmAssembly = Assembly.LoadFrom(customPath);
+                    LogDebug($"Successfully loaded assembly from custom path: {customPath}");
                     return true;
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"Failed to load Document Manager from custom path {customPath}: {ex.Message}");
+                    LogDebug($"FAILED to load from custom path {customPath}: {ex.Message}");
                 }
             }
 
+            LogDebug("Document Manager DLL not found in any search location");
             return false;
         }
 
@@ -99,89 +123,184 @@ namespace BluePLM.SolidWorksService
 
         public bool Initialize()
         {
-            if (_initialized) return _dmApp != null;
+            LogDebug("=== Initialize() called ===");
+            
+            if (_initialized) 
+            {
+                LogDebug($"Already initialized. _dmApp is {(_dmApp != null ? "available" : "null")}");
+                return _dmApp != null;
+            }
 
             try
             {
                 // First, try to load the Document Manager DLL
+                LogDebug("Step 1: Loading Document Manager DLL...");
                 if (!TryLoadAssembly())
                 {
                     _initError = "Document Manager DLL not found. Please ensure SolidWorks is installed. " +
                                  "You can also set SOLIDWORKS_DM_DLL_PATH environment variable to specify the DLL location.";
+                    LogDebug($"FAILED: {_initError}");
                     _initialized = true;
                     return false;
                 }
+                LogDebug("Step 1: SUCCESS - DLL loaded");
 
+                LogDebug("Step 2: Checking license key...");
                 var key = _licenseKey ?? Environment.GetEnvironmentVariable("SOLIDWORKS_DM_LICENSE_KEY");
                 
                 if (string.IsNullOrEmpty(key))
                 {
                     _initError = "Document Manager license key not provided. Set SOLIDWORKS_DM_LICENSE_KEY environment variable or use 'setDmLicense' command.";
+                    LogDebug($"FAILED: {_initError}");
                     _initialized = true;
                     return false;
                 }
+                
+                // Log key info (masked for security)
+                var keyPrefix = key.Length > 30 ? key.Substring(0, 30) + "..." : key;
+                var keyLength = key.Length;
+                var hasCommas = key.Contains(",");
+                var hasColon = key.Contains(":");
+                LogDebug($"Step 2: SUCCESS - License key found");
+                LogDebug($"  Key length: {keyLength} chars");
+                LogDebug($"  Key prefix: {keyPrefix}");
+                LogDebug($"  Has colon separator: {hasColon}");
+                LogDebug($"  Has comma separators: {hasCommas}");
+                if (hasCommas)
+                {
+                    var parts = key.Split(',');
+                    LogDebug($"  Number of license components: {parts.Length}");
+                    foreach (var part in parts)
+                    {
+                        var partType = part.Contains(":") ? part.Split(':')[1].Split('-')[0] : part.Split('-')[0];
+                        LogDebug($"    - {partType} (len={part.Length})");
+                    }
+                }
 
-                // Create SwDMClassFactory using reflection
-                var factoryType = GetDmType("SwDMClassFactory");
+                // Create SwDMClassFactory using COM ProgID (the proper way to instantiate COM objects)
+                LogDebug("Step 3: Creating SwDMClassFactory via COM ProgID...");
+                var factoryType = Type.GetTypeFromProgID("SwDocumentMgr.SwDMClassFactory");
                 if (factoryType == null)
                 {
-                    _initError = "Failed to find SwDMClassFactory type in Document Manager assembly.";
+                    // Fallback: try from loaded assembly (older approach)
+                    LogDebug("  ProgID not found, trying from loaded assembly...");
+                    factoryType = GetDmType("SwDMClassFactory");
+                }
+                
+                if (factoryType == null)
+                {
+                    _initError = "Failed to find SwDMClassFactory type. Document Manager may not be installed.";
+                    LogDebug($"FAILED: {_initError}");
+                    // List available types for debugging
+                    LogDebug("Available types in assembly:");
+                    if (_dmAssembly != null)
+                    {
+                        foreach (var t in _dmAssembly.GetTypes().Take(20))
+                        {
+                            LogDebug($"  - {t.FullName}");
+                        }
+                    }
                     _initialized = true;
                     return false;
                 }
+                LogDebug($"Step 3: SUCCESS - Found SwDMClassFactory type: {factoryType.FullName}");
 
+                LogDebug("Step 4: Creating factory instance...");
                 var factory = Activator.CreateInstance(factoryType);
                 if (factory == null)
                 {
                     _initError = "Failed to create SwDMClassFactory instance.";
+                    LogDebug($"FAILED: {_initError}");
                     _initialized = true;
                     return false;
                 }
+                LogDebug($"Step 4: SUCCESS - Factory instance created: {factory.GetType().FullName}");
 
                 // Call GetApplication method
+                LogDebug("Step 5: Looking for GetApplication method...");
                 var getAppMethod = factoryType.GetMethod("ISwDMClassFactory_QueryInterface") ?? 
                                    factoryType.GetMethod("GetApplication");
                 
                 // Try to get the application through the interface
                 var iFactoryType = GetDmType("ISwDMClassFactory");
+                LogDebug($"  ISwDMClassFactory type: {(iFactoryType != null ? "found" : "not found")}");
                 if (iFactoryType != null)
                 {
                     getAppMethod = iFactoryType.GetMethod("GetApplication");
+                    LogDebug($"  GetApplication from interface: {(getAppMethod != null ? "found" : "not found")}");
                 }
 
+                LogDebug("Step 6: Calling GetApplication with license key...");
                 if (getAppMethod == null)
                 {
                     // Try direct invocation via COM
+                    LogDebug("  Using dynamic COM invocation...");
                     try
                     {
                         dynamic dynamicFactory = factory;
                         _dmApp = dynamicFactory.GetApplication(key);
+                        LogDebug($"  Dynamic call result: {(_dmApp != null ? "SUCCESS" : "returned null")}");
                     }
                     catch (Exception ex)
                     {
                         _initError = $"Failed to call GetApplication: {ex.Message}";
+                        LogDebug($"FAILED: {_initError}");
+                        LogDebug($"  Exception type: {ex.GetType().Name}");
+                        LogDebug($"  Stack trace: {ex.StackTrace}");
+                        if (ex.InnerException != null)
+                        {
+                            LogDebug($"  Inner exception: {ex.InnerException.Message}");
+                        }
                         _initialized = true;
                         return false;
                     }
                 }
                 else
                 {
-                    _dmApp = getAppMethod.Invoke(factory, new object[] { key });
+                    LogDebug("  Using reflection invoke...");
+                    try
+                    {
+                        _dmApp = getAppMethod.Invoke(factory, new object[] { key });
+                        LogDebug($"  Reflection call result: {(_dmApp != null ? "SUCCESS" : "returned null")}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _initError = $"Failed to invoke GetApplication: {ex.Message}";
+                        LogDebug($"FAILED: {_initError}");
+                        LogDebug($"  Exception type: {ex.GetType().Name}");
+                        if (ex.InnerException != null)
+                        {
+                            LogDebug($"  Inner exception: {ex.InnerException.Message}");
+                        }
+                        _initialized = true;
+                        return false;
+                    }
                 }
                 
                 if (_dmApp == null)
                 {
                     _initError = "Failed to initialize Document Manager. Check that the license key is valid.";
+                    LogDebug($"FAILED: {_initError}");
+                    LogDebug("  GetApplication returned null - this usually means the license key is invalid or expired");
                     _initialized = true;
                     return false;
                 }
 
+                LogDebug($"Step 6: SUCCESS - _dmApp created: {_dmApp.GetType().FullName}");
+                LogDebug("=== Document Manager API initialized successfully! ===");
                 _initialized = true;
                 return true;
             }
             catch (Exception ex)
             {
                 _initError = $"Document Manager initialization failed: {ex.Message}";
+                LogDebug($"EXCEPTION during initialization: {ex.Message}");
+                LogDebug($"  Exception type: {ex.GetType().Name}");
+                LogDebug($"  Stack trace: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    LogDebug($"  Inner exception: {ex.InnerException.Message}");
+                }
                 _initialized = true;
                 return false;
             }
@@ -189,67 +308,144 @@ namespace BluePLM.SolidWorksService
 
         public bool SetLicenseKey(string key)
         {
+            LogDebug("=== SetLicenseKey() called ===");
+            
             if (string.IsNullOrEmpty(key))
             {
                 _initError = "License key cannot be empty";
+                LogDebug($"FAILED: {_initError}");
                 return false;
             }
 
+            // Log key info (masked for security)
+            var keyPrefix = key.Length > 30 ? key.Substring(0, 30) + "..." : key;
+            LogDebug($"License key length: {key.Length} chars");
+            LogDebug($"License key prefix: {keyPrefix}");
+            LogDebug($"Has colon: {key.Contains(":")}");
+            LogDebug($"Has commas: {key.Contains(",")}");
+            if (key.Contains(","))
+            {
+                var parts = key.Split(',');
+                LogDebug($"Number of license components: {parts.Length}");
+            }
+
+            LogDebug("Resetting state...");
             _disposed = false;
             _initialized = false;
             _dmApp = null;
 
             try
             {
+                LogDebug("Loading assembly...");
                 if (!TryLoadAssembly())
                 {
                     _initError = "Document Manager DLL not found. Please ensure SolidWorks is installed.";
+                    LogDebug($"FAILED: {_initError}");
                     return false;
                 }
+                LogDebug("Assembly loaded successfully");
 
-                var factoryType = GetDmType("SwDMClassFactory");
+                // Create factory using COM ProgID (the proper way to instantiate COM objects)
+                LogDebug("Creating SwDMClassFactory via COM ProgID...");
+                var factoryType = Type.GetTypeFromProgID("SwDocumentMgr.SwDMClassFactory");
                 if (factoryType == null)
                 {
-                    _initError = "Failed to find SwDMClassFactory type.";
+                    // Fallback: try from loaded assembly (older approach)
+                    LogDebug("ProgID not found, trying from loaded assembly...");
+                    factoryType = GetDmType("SwDMClassFactory");
+                }
+                
+                if (factoryType == null)
+                {
+                    _initError = "Failed to find SwDMClassFactory type. Document Manager may not be installed.";
+                    LogDebug($"FAILED: {_initError}");
                     return false;
                 }
+                LogDebug($"Factory type found: {factoryType.FullName}");
 
+                LogDebug("Creating factory instance...");
                 var factory = Activator.CreateInstance(factoryType);
                 if (factory == null)
                 {
                     _initError = "Failed to create factory instance.";
+                    LogDebug($"FAILED: {_initError}");
                     return false;
                 }
+                LogDebug("Factory instance created");
 
+                LogDebug("Calling GetApplication with license key...");
+                
+                // Use reflection to call GetApplication (more reliable than dynamic binding)
+                var iFactoryType = GetDmType("ISwDMClassFactory");
+                System.Reflection.MethodInfo? getAppMethod = null;
+                if (iFactoryType != null)
+                {
+                    getAppMethod = iFactoryType.GetMethod("GetApplication");
+                    LogDebug($"  GetApplication from interface: {(getAppMethod != null ? "found" : "not found")}");
+                }
+                
                 try
                 {
-                    dynamic dynamicFactory = factory;
-                    _dmApp = dynamicFactory.GetApplication(key);
+                    if (getAppMethod != null)
+                    {
+                        LogDebug("  Using reflection invoke...");
+                        _dmApp = getAppMethod.Invoke(factory, new object[] { key });
+                        LogDebug($"  Reflection call result: {(_dmApp != null ? "SUCCESS" : "returned null")}");
+                    }
+                    else
+                    {
+                        // Fallback to dynamic (requires Microsoft.CSharp)
+                        LogDebug("  Using dynamic COM invocation...");
+                        dynamic dynamicFactory = factory;
+                        _dmApp = dynamicFactory.GetApplication(key);
+                        LogDebug($"  Dynamic call result: {(_dmApp != null ? "SUCCESS" : "returned null")}");
+                    }
                 }
                 catch (Exception ex)
                 {
                     _initError = $"Invalid license key: {ex.Message}";
+                    LogDebug($"FAILED: {_initError}");
+                    LogDebug($"Exception type: {ex.GetType().Name}");
+                    if (ex.InnerException != null)
+                    {
+                        LogDebug($"Inner exception: {ex.InnerException.Message}");
+                    }
                     _initialized = true;
                     return false;
                 }
                 
                 if (_dmApp == null)
                 {
-                    _initError = "Invalid license key";
+                    _initError = "Invalid license key - GetApplication returned null";
+                    LogDebug($"FAILED: {_initError}");
+                    LogDebug("This usually means the license key format is incorrect or the key is invalid/expired");
                     _initialized = true;
                     return false;
                 }
 
-                try { Environment.SetEnvironmentVariable("SOLIDWORKS_DM_LICENSE_KEY", key, EnvironmentVariableTarget.User); }
-                catch { }
+                LogDebug($"Document Manager application created: {_dmApp.GetType().FullName}");
+
+                try 
+                { 
+                    Environment.SetEnvironmentVariable("SOLIDWORKS_DM_LICENSE_KEY", key, EnvironmentVariableTarget.User); 
+                    LogDebug("Saved license key to user environment variable");
+                }
+                catch (Exception ex)
+                {
+                    LogDebug($"Warning: Could not save license key to environment: {ex.Message}");
+                }
 
                 _initialized = true;
                 _initError = null;
+                LogDebug("=== SetLicenseKey() completed successfully! ===");
                 return true;
             }
             catch (Exception ex)
             {
                 _initError = $"License key validation failed: {ex.Message}";
+                LogDebug($"EXCEPTION: {_initError}");
+                LogDebug($"Exception type: {ex.GetType().Name}");
+                LogDebug($"Stack trace: {ex.StackTrace}");
                 _initialized = true;
                 return false;
             }
@@ -311,9 +507,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            object? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -330,8 +527,6 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
-                dynDoc.CloseDoc();
-
                 return new CommandResult
                 {
                     Success = true,
@@ -347,6 +542,14 @@ namespace BluePLM.SolidWorksService
             catch (Exception ex)
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { ((dynamic)doc).CloseDoc(); } catch { }
+                }
             }
         }
 
@@ -411,10 +614,11 @@ namespace BluePLM.SolidWorksService
             if (properties == null || properties.Count == 0)
                 return new CommandResult { Success = false, Error = "Missing or empty 'properties'" };
 
+            object? doc = null;
             try
             {
                 // Open document for WRITE access (not read-only)
-                var doc = OpenDocumentForWrite(filePath, out var openError);
+                doc = OpenDocumentForWrite(filePath, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file for writing: error code {openError}" };
 
@@ -451,7 +655,6 @@ namespace BluePLM.SolidWorksService
                     var config = configMgr.GetConfigurationByName(configuration);
                     if (config == null)
                     {
-                        dynDoc.CloseDoc();
                         return new CommandResult { Success = false, Error = $"Configuration not found: {configuration}" };
                     }
 
@@ -475,9 +678,8 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
-                // Save and close
+                // Save the document
                 dynDoc.Save();
-                dynDoc.CloseDoc();
 
                 return new CommandResult
                 {
@@ -493,6 +695,14 @@ namespace BluePLM.SolidWorksService
             catch (Exception ex)
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { ((dynamic)doc).CloseDoc(); } catch { }
+                }
             }
         }
 
@@ -544,9 +754,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            object? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -569,8 +780,6 @@ namespace BluePLM.SolidWorksService
                     });
                 }
 
-                dynDoc.CloseDoc();
-
                 return new CommandResult
                 {
                     Success = true,
@@ -586,6 +795,14 @@ namespace BluePLM.SolidWorksService
             catch (Exception ex)
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { ((dynamic)doc).CloseDoc(); } catch { }
+                }
             }
         }
 
@@ -621,9 +838,10 @@ namespace BluePLM.SolidWorksService
             if (ext != ".sldasm")
                 return new CommandResult { Success = false, Error = "BOM extraction only works on assembly files (.sldasm)" };
 
+            object? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -668,17 +886,25 @@ namespace BluePLM.SolidWorksService
                                 var fileType = depExt == ".sldprt" ? "Part" : depExt == ".sldasm" ? "Assembly" : "Other";
 
                                 var props = new Dictionary<string, string>();
+                                object? compDoc = null;
                                 try
                                 {
-                                    var compDoc = OpenDocument(depPath, out _);
+                                    compDoc = OpenDocument(depPath, out _);
                                     if (compDoc != null)
                                     {
                                         dynamic dynCompDoc = compDoc;
                                         props = ReadProperties(dynCompDoc, null);
-                                        dynCompDoc.CloseDoc();
                                     }
                                 }
                                 catch { }
+                                finally
+                                {
+                                    // ALWAYS close component documents
+                                    if (compDoc != null)
+                                    {
+                                        try { ((dynamic)compDoc).CloseDoc(); } catch { }
+                                    }
+                                }
 
                                 bom.Add(new BomItem
                                 {
@@ -698,8 +924,6 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
-                dynDoc.CloseDoc();
-
                 return new CommandResult
                 {
                     Success = true,
@@ -717,6 +941,14 @@ namespace BluePLM.SolidWorksService
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
             }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { ((dynamic)doc).CloseDoc(); } catch { }
+                }
+            }
         }
 
         public CommandResult GetExternalReferences(string? filePath)
@@ -730,9 +962,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            object? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -771,8 +1004,6 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
-                dynDoc.CloseDoc();
-
                 return new CommandResult
                 {
                     Success = true,
@@ -787,6 +1018,14 @@ namespace BluePLM.SolidWorksService
             catch (Exception ex)
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { ((dynamic)doc).CloseDoc(); } catch { }
+                }
             }
         }
 
@@ -809,9 +1048,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            object? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -844,18 +1084,14 @@ namespace BluePLM.SolidWorksService
                         previewBitmap = dynDoc.GetPreviewBitmap(out errResult);
                         if (errResult != 0 || previewBitmap == null)
                         {
-                            dynDoc.CloseDoc();
                             return new CommandResult { Success = false, Error = "No preview available for this file" };
                         }
                     }
                     catch (Exception ex)
                     {
-                        dynDoc.CloseDoc();
                         return new CommandResult { Success = false, Error = $"Failed to extract preview: {ex.Message}" };
                     }
                 }
-
-                dynDoc.CloseDoc();
 
                 // The preview bitmap is a byte array containing DIB data
                 if (previewBitmap is byte[] dibData && dibData.Length > 0)
@@ -887,6 +1123,14 @@ namespace BluePLM.SolidWorksService
             catch (Exception ex)
             {
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { ((dynamic)doc).CloseDoc(); } catch { }
+                }
             }
         }
 
@@ -943,6 +1187,7 @@ namespace BluePLM.SolidWorksService
         private static string GetPartNumber(Dictionary<string, string> props)
         {
             string[] partNumberKeys = {
+                "Base Item Number",  // SolidWorks Document Manager standard property
                 "PartNumber", "Part Number", "Part No", "Part No.", "PartNo",
                 "ItemNumber", "Item Number", "Item No", "Item No.", "ItemNo",
                 "PN", "P/N", "Number", "No", "No."

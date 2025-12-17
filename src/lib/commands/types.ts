@@ -50,6 +50,9 @@ export interface CommandContext {
   removeProcessingFolder: (path: string) => void
   removeProcessingFolders: (paths: string[]) => void  // Batch remove (single state update)
   
+  // Auto-download exclusion (for tracking intentionally removed local copies)
+  addAutoDownloadExclusion: (relativePath: string) => void
+  
   // Refresh callback
   onRefresh?: (silent?: boolean) => void
 }

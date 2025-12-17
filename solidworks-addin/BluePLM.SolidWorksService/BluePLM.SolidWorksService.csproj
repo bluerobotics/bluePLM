@@ -25,6 +25,9 @@
     
     <!-- JSON handling for IPC with Electron -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    
+    <!-- Required for dynamic binding (used in Document Manager API cleanup) -->
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
   </ItemGroup>
 
 </Project>

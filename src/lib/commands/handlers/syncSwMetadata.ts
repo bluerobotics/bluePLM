@@ -92,6 +92,7 @@ async function extractSolidWorksMetadata(
     
     // Extract part number from common property names
     const partNumberKeys = [
+      'Base Item Number',  // SolidWorks Document Manager standard property
       'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
       'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
       'PN', 'P/N', 'Number', 'No', 'No.'

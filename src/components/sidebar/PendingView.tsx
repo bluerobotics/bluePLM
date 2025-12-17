@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback, memo, useEffect } from 'react'
-import { Lock, File, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, AlertTriangle, Shield, Unlock, FolderOpen, CloudOff, Monitor } from 'lucide-react'
+import { Lock, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, AlertTriangle, Shield, Unlock, FolderOpen, CloudOff, Monitor } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../../stores/pdmStore'
 import { getInitials } from '../../types/pdm'
+// Shared file icon component for consistent file type icons
+import { FileTypeIcon } from '../shared/FileItemComponents'
 // Use command system instead of direct supabase calls
 import { executeCommand } from '../../lib/commands'
 import { isMachineOnline } from '../../lib/supabase'
@@ -40,7 +42,7 @@ const FileRow = memo(function FileRow({
       <div className="flex items-center gap-2 px-2 py-1.5 rounded text-sm opacity-50 cursor-not-allowed">
         <div className="w-4 h-4 border-2 border-plm-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
         <Lock size={14} className="flex-shrink-0 text-plm-fg-muted" />
-        <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+        <FileTypeIcon extension={file.extension} size={14} />
         <span className="truncate text-plm-fg-muted flex-1" title={file.relativePath}>
           {file.name}
         </span>
@@ -77,7 +79,7 @@ const FileRow = memo(function FileRow({
         </button>
       )}
       <Lock size={14} className={`flex-shrink-0 ${isOwn ? 'text-plm-warning' : 'text-plm-error'}`} />
-      <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+      <FileTypeIcon extension={file.extension} size={14} />
       <span className="truncate flex-1" title={file.relativePath}>
         {file.name}
       </span>
@@ -91,7 +93,7 @@ const FileRow = memo(function FileRow({
             <img 
               src={avatarUrl} 
               alt={userName}
-              className="w-5 h-5 rounded-full ring-1 ring-plm-error/50 bg-plm-bg object-cover"
+              className="w-5 h-5 rounded-full bg-plm-bg object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none'
                 const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement
@@ -100,7 +102,7 @@ const FileRow = memo(function FileRow({
             />
           ) : null}
           <div 
-            className={`w-5 h-5 rounded-full ring-1 ring-plm-error/50 bg-plm-error/20 text-plm-error flex items-center justify-center text-[9px] font-medium ${avatarUrl ? 'hidden' : ''}`}
+            className={`w-5 h-5 rounded-full bg-plm-error/20 text-plm-error flex items-center justify-center text-[9px] font-medium ${avatarUrl ? 'hidden' : ''}`}
           >
             {getInitials(userName)}
           </div>
@@ -142,7 +144,7 @@ const AddedFileRow = memo(function AddedFileRow({
       <div className="flex items-center gap-2 px-2 py-1.5 rounded text-sm opacity-50 cursor-not-allowed">
         <div className="w-4 h-4 border-2 border-plm-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
         <Plus size={14} className="flex-shrink-0 text-plm-fg-muted" />
-        <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+        <FileTypeIcon extension={file.extension} size={14} />
         <span className="truncate text-plm-fg-muted flex-1" title={file.relativePath}>
           {file.name}
         </span>
@@ -171,7 +173,7 @@ const AddedFileRow = memo(function AddedFileRow({
         )}
       </button>
       <Plus size={14} className="flex-shrink-0 text-plm-success" />
-      <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+      <FileTypeIcon extension={file.extension} size={14} />
       <span className="truncate flex-1" title={file.relativePath}>
         {file.name}
       </span>
@@ -211,7 +213,7 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
       <div className="flex items-center gap-2 px-2 py-1.5 rounded text-sm opacity-50 cursor-not-allowed">
         <div className="w-4 h-4 border-2 border-plm-error border-t-transparent rounded-full animate-spin flex-shrink-0" />
         <CloudOff size={14} className="flex-shrink-0 text-plm-fg-muted" />
-        <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+        <FileTypeIcon extension={file.extension} size={14} />
         <span className="truncate text-plm-fg-muted flex-1" title={file.relativePath}>
           {file.name}
         </span>
@@ -240,7 +242,7 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
         )}
       </button>
       <CloudOff size={14} className="flex-shrink-0 text-plm-error" />
-      <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+      <FileTypeIcon extension={file.extension} size={14} />
       <span className="truncate flex-1" title={file.relativePath}>
         {file.name}
       </span>

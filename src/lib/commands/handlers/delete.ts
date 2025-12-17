@@ -147,6 +147,11 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
         updateProgress()
         
         if (result?.success) {
+          // If this was a synced file (exists on server), add to auto-download exclusion list
+          // This prevents auto-download from re-downloading files the user intentionally removed
+          if (file.pdmData?.id && file.relativePath) {
+            ctx.addAutoDownloadExclusion(file.relativePath)
+          }
           return { success: true }
         } else {
           return { success: false, error: `${file.name}: ${result?.error || 'Delete failed'}` }
@@ -166,6 +171,9 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
         failed++
         if (result.error) {
           errors.push(result.error)
+          // Log each error for debugging
+          console.error('[delete-local] Failed to remove file:', result.error)
+          window.electronAPI?.log('ERROR', '[delete-local] Failed to remove file', { error: result.error })
         }
       }
     }
@@ -219,7 +227,31 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     
     // Show result toast - be clear this is local-only deletion
     if (failed > 0) {
-      ctx.addToast('warning', `Removed ${succeeded}/${total} local files (server copies preserved)`)
+      // Check if errors are due to locked files (EBUSY)
+      const lockedFileErrors = errors.filter(e => e.includes('EBUSY') || e.includes('resource busy') || e.includes('locked'))
+      const isAllLocked = lockedFileErrors.length === errors.length && errors.length > 0
+      
+      // Show specific error info when files fail to delete
+      if (isAllLocked) {
+        // All failures are due to locked files - give helpful message
+        const fileNames = lockedFileErrors.map(e => e.split(':')[0]).join(', ')
+        if (succeeded === 0) {
+          ctx.addToast('error', `Cannot delete - file${failed > 1 ? 's' : ''} open in another app: ${fileNames}`)
+        } else {
+          ctx.addToast('warning', `Removed ${succeeded}/${total}. ${failed} file${failed > 1 ? 's' : ''} locked (close in SolidWorks): ${fileNames}`)
+        }
+      } else if (total === 1 && errors.length > 0) {
+        // Single file - show specific error
+        ctx.addToast('warning', `Failed to remove: ${errors[0]}`)
+      } else if (errors.length === 1) {
+        // Multiple files but only one error - show it
+        ctx.addToast('warning', `Removed ${succeeded}/${total} local files. Error: ${errors[0]}`)
+      } else if (errors.length > 0) {
+        // Multiple errors - summarize
+        ctx.addToast('warning', `Removed ${succeeded}/${total} local files. ${errors.length} error(s) - check logs for details`)
+      } else {
+        ctx.addToast('warning', `Removed ${succeeded}/${total} local files (server copies preserved)`)
+      }
     } else if (succeeded > 0) {
       ctx.addToast('success', `Removed ${succeeded} local file${succeeded > 1 ? 's' : ''} (server copies preserved)`)
     }
@@ -416,6 +448,9 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
           errors.push(`${file.name}: ${errorMsg}`)
+          // Log each error for debugging
+          console.error('[delete-server] Failed to delete file:', file.name, errorMsg)
+          window.electronAPI?.log('ERROR', '[delete-server] Failed to delete file', { fileName: file.name, error: errorMsg })
           return false
         }
       }))
@@ -446,7 +481,25 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     }
     
     if (deletedServer > 0 || deletedLocal > 0) {
-      ctx.addToast('success', message)
+      if (failed > 0 && errors.length > 0) {
+        // Show error info when some files failed
+        if (uniqueFiles.length === 1) {
+          ctx.addToast('warning', `Failed to delete: ${errors[0]}`)
+        } else if (errors.length === 1) {
+          ctx.addToast('warning', `${message}. Error: ${errors[0]}`)
+        } else {
+          ctx.addToast('warning', `${message}. ${errors.length} error(s) - check logs for details`)
+        }
+      } else {
+        ctx.addToast('success', message)
+      }
+    } else if (failed > 0 && errors.length > 0) {
+      // All files failed
+      if (errors.length === 1) {
+        ctx.addToast('error', `Delete failed: ${errors[0]}`)
+      } else {
+        ctx.addToast('error', `Delete failed for ${failed} file(s) - check logs for details`)
+      }
     }
     
     return {

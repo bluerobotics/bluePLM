@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell, dialog, screen, nativeImage, nativeTheme, session } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell, dialog, screen, nativeImage, nativeTheme, session, clipboard } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
@@ -8,6 +8,10 @@ import chokidar from 'chokidar'
 import type { AddressInfo } from 'net'
 import { autoUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import * as si from 'systeminformation'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -35,6 +39,9 @@ const DEFAULT_LOG_RETENTION: LogRetentionSettings = {
 // Current settings (loaded on startup)
 let logRetentionSettings: LogRetentionSettings = { ...DEFAULT_LOG_RETENTION }
 
+// Recording enabled flag (default true, persisted)
+let logRecordingEnabled = true
+
 // Settings file path
 let logSettingsFilePath: string | null = null
 
@@ -43,6 +50,34 @@ function getLogSettingsPath(): string {
     logSettingsFilePath = path.join(app.getPath('userData'), 'log-settings.json')
   }
   return logSettingsFilePath
+}
+
+function getLogRecordingStatePath(): string {
+  return path.join(app.getPath('userData'), 'log-recording-state.json')
+}
+
+function loadLogRecordingState(): boolean {
+  try {
+    const statePath = getLogRecordingStatePath()
+    if (fs.existsSync(statePath)) {
+      const data = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+      logRecordingEnabled = data.enabled !== false // Default to true if not set
+    }
+  } catch {
+    logRecordingEnabled = true // Default to enabled
+  }
+  return logRecordingEnabled
+}
+
+function saveLogRecordingState(enabled: boolean): boolean {
+  try {
+    const statePath = getLogRecordingStatePath()
+    fs.writeFileSync(statePath, JSON.stringify({ enabled }), 'utf8')
+    logRecordingEnabled = enabled
+    return true
+  } catch {
+    return false
+  }
 }
 
 function loadLogRetentionSettings(): LogRetentionSettings {
@@ -108,8 +143,9 @@ function formatDateForFilename(date: Date): string {
 
 function initializeLogging() {
   try {
-    // Load log retention settings
+    // Load log retention settings and recording state
     loadLogRetentionSettings()
+    loadLogRecordingState()
     
     const logsDir = path.join(app.getPath('userData'), 'logs')
     if (!fs.existsSync(logsDir)) {
@@ -260,7 +296,7 @@ function writeLog(level: LogEntry['level'], message: string, data?: unknown) {
     data
   }
   
-  // Add to memory buffer
+  // Add to memory buffer (always, regardless of recording state)
   logBuffer.push(entry)
   if (logBuffer.length > LOG_BUFFER_MAX) {
     logBuffer.shift() // Remove oldest
@@ -279,8 +315,8 @@ function writeLog(level: LogEntry['level'], message: string, data?: unknown) {
     console.log(logLine.trim())
   }
   
-  // Write to file
-  if (logStream) {
+  // Write to file (only if recording is enabled)
+  if (logRecordingEnabled && logStream) {
     const lineBytes = Buffer.byteLength(logLine, 'utf8')
     
     // Check if we need to rotate before writing
@@ -307,6 +343,11 @@ let mainWindow: BrowserWindow | null = null
 // Local working directory for checked-out files
 let workingDirectory: string | null = null
 let fileWatcher: chokidar.FSWatcher | null = null
+
+// Counter for pending delete operations - prevents race condition where file watcher
+// restarts while other deletes are still in progress
+let pendingDeleteOperations = 0
+let deleteWatcherStopPromise: Promise<void> | null = null
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -1423,6 +1464,26 @@ ipcMain.handle('app:get-machine-name', () => {
   return os.hostname()
 })
 
+// Clipboard operations (more reliable than navigator.clipboard in Electron)
+ipcMain.handle('clipboard:write-text', (_event, text: string) => {
+  try {
+    clipboard.writeText(text)
+    return { success: true }
+  } catch (err) {
+    logDebug('Clipboard write failed', err)
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('clipboard:read-text', () => {
+  try {
+    return { success: true, text: clipboard.readText() }
+  } catch (err) {
+    logDebug('Clipboard read failed', err)
+    return { success: false, error: String(err) }
+  }
+})
+
 ipcMain.handle('app:get-titlebar-overlay-rect', () => {
   if (!mainWindow) return { x: 0, y: 0, width: 138, height: 38 }
   // getTitleBarOverlayRect is available in Electron 20+
@@ -2076,6 +2137,66 @@ ipcMain.handle('logs:get-storage-info', async () => {
   }
 })
 
+// Get recording state
+ipcMain.handle('logs:get-recording-state', () => {
+  return { enabled: logRecordingEnabled }
+})
+
+// Toggle recording state
+ipcMain.handle('logs:set-recording-state', (_, enabled: boolean) => {
+  const success = saveLogRecordingState(enabled)
+  if (success) {
+    log(`Log recording ${enabled ? 'enabled' : 'disabled'}`)
+  }
+  return { success, enabled: logRecordingEnabled }
+})
+
+// Start new log file (rotate)
+ipcMain.handle('logs:start-new-file', () => {
+  try {
+    log('Starting new log file (manual rotation)')
+    rotateLogFile()
+    return { success: true, path: logFilePath }
+  } catch (err) {
+    logError('Failed to start new log file', { error: String(err) })
+    return { success: false, error: String(err) }
+  }
+})
+
+// Export filtered entries (download snippet)
+ipcMain.handle('logs:export-filtered', async (_, entries: Array<{ raw: string }>) => {
+  try {
+    // Build content from filtered entries
+    let content = `BluePLM Filtered Logs\nExported: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\nEntries: ${entries.length}\n${'='.repeat(60)}\n\n`
+    
+    for (const entry of entries) {
+      content += entry.raw + '\n'
+    }
+    
+    // Show save dialog
+    const result = await dialog.showSaveDialog(mainWindow!, {
+      title: 'Export Filtered Logs',
+      defaultPath: `blueplm-filtered-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`,
+      filters: [
+        { name: 'Text Files', extensions: ['txt'] },
+        { name: 'Log Files', extensions: ['log'] }
+      ]
+    })
+    
+    if (result.canceled || !result.filePath) {
+      return { success: false, canceled: true }
+    }
+    
+    fs.writeFileSync(result.filePath, content)
+    log('Filtered logs exported to: ' + result.filePath, { count: entries.length })
+    
+    return { success: true, path: result.filePath }
+  } catch (err) {
+    logError('Failed to export filtered logs', { error: String(err) })
+    return { success: false, error: String(err) }
+  }
+})
+
 // Log from renderer process
 ipcMain.on('logs:write', (_, level: string, message: string, data?: unknown) => {
   const validLevel = ['info', 'warn', 'error', 'debug'].includes(level) ? level as LogEntry['level'] : 'info'
@@ -2117,9 +2238,9 @@ ipcMain.handle('working-dir:select', async () => {
 
 ipcMain.handle('working-dir:get', () => workingDirectory)
 
-ipcMain.handle('working-dir:clear', () => {
+ipcMain.handle('working-dir:clear', async () => {
   log('Clearing working directory and stopping file watcher')
-  stopFileWatcher()
+  await stopFileWatcher()
   workingDirectory = null
   hashCache.clear() // Clear hash cache
   return { success: true }
@@ -2160,11 +2281,13 @@ ipcMain.handle('working-dir:create', async (_, newPath: string) => {
 })
 
 // Stop file watcher
-function stopFileWatcher() {
+async function stopFileWatcher(): Promise<void> {
   if (fileWatcher) {
     log('Stopping file watcher')
-    fileWatcher.close()
+    const watcher = fileWatcher
     fileWatcher = null
+    await watcher.close()
+    log('File watcher closed')
   }
 }
 
@@ -2453,10 +2576,13 @@ ipcMain.handle('fs:download-url', async (event, url: string, destPath: string) =
     const http = await import('http')
     const client = url.startsWith('https') ? https : http
     
+    // Timeout for the initial connection (2 minutes should be plenty)
+    const REQUEST_TIMEOUT_MS = 120000
+    
     return new Promise((resolve) => {
-      logDebug(`[${operationId}] Initiating HTTP request`)
+      logDebug(`[${operationId}] Initiating HTTP request`, { timeoutMs: REQUEST_TIMEOUT_MS })
       
-      const request = client.get(url, (response) => {
+      const request = client.get(url, { timeout: REQUEST_TIMEOUT_MS }, (response) => {
         logDebug(`[${operationId}] Got response`, {
           statusCode: response.statusCode,
           statusMessage: response.statusMessage,
@@ -2473,18 +2599,24 @@ ipcMain.handle('fs:download-url', async (event, url: string, destPath: string) =
           
           if (redirectUrl) {
             const redirectClient = redirectUrl.startsWith('https') ? https : http
-            redirectClient.get(redirectUrl, (redirectResponse) => {
+            const redirectRequest = redirectClient.get(redirectUrl, { timeout: REQUEST_TIMEOUT_MS }, (redirectResponse) => {
               logDebug(`[${operationId}] Redirect response`, {
                 statusCode: redirectResponse.statusCode,
                 statusMessage: redirectResponse.statusMessage
               })
               handleResponse(redirectResponse)
-            }).on('error', (err) => {
+            })
+            redirectRequest.on('error', (err) => {
               logError(`[${operationId}] Redirect request error`, {
                 error: String(err),
                 code: (err as NodeJS.ErrnoException).code
               })
               resolve({ success: false, error: `Redirect failed: ${err}` })
+            })
+            redirectRequest.on('timeout', () => {
+              logError(`[${operationId}] Redirect request timeout`)
+              redirectRequest.destroy()
+              resolve({ success: false, error: 'Request timed out (during redirect)' })
             })
             return
           }
@@ -2954,13 +3086,110 @@ ipcMain.handle('fs:is-dir-empty', async (_, dirPath: string) => {
   }
 })
 
-ipcMain.handle('fs:delete', async (_, targetPath: string) => {
+// Track delete operations for debugging
+let deleteOperationCounter = 0
+
+// Try to find what process has a file locked using Windows commands
+async function findLockingProcess(filePath: string): Promise<string | null> {
+  const fileName = path.basename(filePath)
+  
   try {
-    log('Deleting item:', targetPath)
+    // Method 1: Try handle.exe / handle64.exe from Sysinternals (if installed)
+    for (const handleExe of ['handle64.exe', 'handle.exe']) {
+      try {
+        const { stdout } = await execAsync(`${handleExe} -accepteula "${fileName}" 2>nul`, { timeout: 5000 })
+        if (stdout && stdout.trim() && !stdout.includes('No matching handles found')) {
+          // Parse the output to find process names
+          const lines = stdout.split('\n').filter(l => l.includes(fileName) || l.match(/^\w+\.exe/i))
+          if (lines.length > 0) {
+            log(`[LockDetect] ${handleExe} output:\n${stdout.trim()}`)
+            return `${handleExe}: ${lines.slice(0, 3).join(' | ')}`
+          }
+        }
+      } catch {
+        // handle.exe not available
+      }
+    }
+    
+    // Method 2: Try PowerShell to check for processes with the file path in their modules
+    try {
+      // This checks if any process has the file's directory as its working directory or loaded module
+      const psCommand = `Get-Process | Where-Object { $_.Path -like '*SolidWorks*' -or $_.ProcessName -like '*SLDWORKS*' -or $_.ProcessName -like '*explorer*' } | Select-Object ProcessName, Id | ConvertTo-Json`
+      const { stdout } = await execAsync(`powershell -Command "${psCommand}"`, { timeout: 5000 })
+      if (stdout && stdout.trim()) {
+        const processes = JSON.parse(stdout)
+        const procList = Array.isArray(processes) ? processes : [processes]
+        if (procList.length > 0) {
+          const procInfo = procList.map((p: any) => `${p.ProcessName}(${p.Id})`).join(', ')
+          log(`[LockDetect] Potential locking processes: ${procInfo}`)
+          return `Potential: ${procInfo}`
+        }
+      }
+    } catch (e) {
+      log(`[LockDetect] PowerShell check failed: ${e}`)
+    }
+    
+    // Method 3: Check for SolidWorks temp files
+    const dir = path.dirname(filePath)
+    const baseName = path.basename(filePath, path.extname(filePath))
+    const tempFile = path.join(dir, `~$${baseName}${path.extname(filePath)}`)
+    if (fs.existsSync(tempFile)) {
+      log(`[LockDetect] Found SolidWorks temp file: ${tempFile}`)
+      return `SolidWorks temp file exists: ~$${fileName} (file is open in SolidWorks)`
+    }
+    
+    // Method 4: Try to open the file exclusively to confirm it's locked
+    try {
+      const fd = fs.openSync(filePath, fs.constants.O_RDWR | fs.constants.O_EXCL)
+      fs.closeSync(fd)
+      log(`[LockDetect] File is NOT locked (opened successfully)`)
+      return null // File is not actually locked
+    } catch (openErr: any) {
+      if (openErr.code === 'EBUSY' || openErr.code === 'EACCES') {
+        log(`[LockDetect] Confirmed file is locked: ${openErr.code}`)
+        return `File is locked (${openErr.code}) but process unknown`
+      }
+    }
+    
+    return null
+  } catch (err) {
+    log(`[LockDetect] Detection failed: ${err}`)
+    return null
+  }
+}
+
+ipcMain.handle('fs:delete', async (_, targetPath: string) => {
+  const deleteStartTime = Date.now()
+  const fileName = path.basename(targetPath)
+  const deleteOpId = ++deleteOperationCounter
+  
+  try {
+    log(`[Delete #${deleteOpId}] START: ${fileName}`)
+    log(`[Delete #${deleteOpId}] Full path: ${targetPath}`)
+    
     // Check if path exists first
     if (!fs.existsSync(targetPath)) {
-      log('Path does not exist:', targetPath)
+      log(`[Delete #${deleteOpId}] Path does not exist: ${targetPath}`)
       return { success: false, error: 'Path does not exist' }
+    }
+    
+    // Log file stats
+    try {
+      const preStats = fs.statSync(targetPath)
+      log(`[Delete #${deleteOpId}] File stats - size: ${preStats.size}, mode: ${preStats.mode.toString(8)}, isFile: ${preStats.isFile()}`)
+    } catch (e) {
+      log(`[Delete #${deleteOpId}] Could not stat file: ${e}`)
+    }
+    
+    // Check if file is currently being thumbnailed (potential race condition)
+    if (isFileBeingThumbnailed(targetPath)) {
+      log(`[Delete #${deleteOpId}] WARNING: File is currently being thumbnailed! This may cause EBUSY. Waiting 200ms...`)
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+    
+    // Log all files currently being thumbnailed
+    if (thumbnailsInProgress.size > 0) {
+      log(`[Delete #${deleteOpId}] Files currently being thumbnailed: ${Array.from(thumbnailsInProgress).map(p => path.basename(p)).join(', ')}`)
     }
     
     // If deleting anything inside the working directory, pause the file watcher
@@ -2971,28 +3200,143 @@ ipcMain.handle('fs:delete', async (_, targetPath: string) => {
       targetPath.startsWith(workingDirectory)
     )
     
+    log(`[Delete #${deleteOpId}] Needs watcher pause: ${needsWatcherPause}, workingDirectory: ${workingDirectory}`)
+    
     if (needsWatcherPause) {
-      log('Pausing file watcher before delete')
-      stopFileWatcher()
-      // Give OS time to release file handles
-      await new Promise(resolve => setTimeout(resolve, 100))
+      pendingDeleteOperations++
+      log(`[Delete #${deleteOpId}] Pending delete ops: ${pendingDeleteOperations}, fileWatcher exists: ${!!fileWatcher}`)
+      
+      // First operation stops the watcher and creates the wait promise
+      if (pendingDeleteOperations === 1) {
+        log(`[Delete #${deleteOpId}] First delete op - stopping file watcher...`)
+        const watcherStopStart = Date.now()
+        
+        // Create a promise that properly awaits watcher close AND adds buffer time
+        deleteWatcherStopPromise = (async () => {
+          await stopFileWatcher()
+          log(`[Delete] File watcher stopped in ${Date.now() - watcherStopStart}ms`)
+          // Extra buffer for Windows to fully release handles
+          await new Promise(resolve => setTimeout(resolve, 100))
+          log(`[Delete] Buffer wait complete, total watcher stop time: ${Date.now() - watcherStopStart}ms`)
+        })()
+      }
+      
+      // All operations wait for the watcher to fully stop
+      if (deleteWatcherStopPromise) {
+        log(`[Delete #${deleteOpId}] Waiting for watcher stop promise...`)
+        await deleteWatcherStopPromise
+        log(`[Delete #${deleteOpId}] Watcher stop promise resolved`)
+      }
+    }
+    
+    // Helper to attempt delete with retries for EBUSY errors
+    const attemptDelete = async (filePath: string, isFile: boolean, retries = 3): Promise<{ success: boolean, error?: string }> => {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        log(`[Delete #${deleteOpId}] Attempt ${attempt}/${retries} for: ${fileName}`)
+        
+        try {
+          // Try to move to Recycle Bin first
+          log(`[Delete #${deleteOpId}] Trying shell.trashItem...`)
+          await shell.trashItem(filePath)
+          log(`[Delete #${deleteOpId}] SUCCESS via Recycle Bin: ${fileName} (attempt ${attempt})`)
+          return { success: true }
+        } catch (trashErr) {
+          // shell.trashItem failed, try direct delete
+          log(`[Delete #${deleteOpId}] shell.trashItem failed: ${trashErr}`)
+          
+          try {
+            log(`[Delete #${deleteOpId}] Trying fs.${isFile ? 'unlinkSync' : 'rmSync'}...`)
+            if (isFile) {
+              fs.unlinkSync(filePath)
+            } else {
+              fs.rmSync(filePath, { recursive: true, force: true })
+            }
+            log(`[Delete #${deleteOpId}] SUCCESS via fs delete: ${fileName} (attempt ${attempt})`)
+            return { success: true }
+          } catch (deleteErr) {
+            const errStr = String(deleteErr)
+            const isLocked = errStr.includes('EBUSY') || errStr.includes('resource busy')
+            
+            log(`[Delete #${deleteOpId}] fs delete failed: ${errStr}`)
+            log(`[Delete #${deleteOpId}] Is locked (EBUSY): ${isLocked}`)
+            
+            // Try to find what's locking the file
+            if (isLocked) {
+              log(`[Delete #${deleteOpId}] Attempting to detect locking process...`)
+              const lockInfo = await findLockingProcess(filePath)
+              if (lockInfo) {
+                log(`[Delete #${deleteOpId}] LOCK DETECTION: ${lockInfo}`)
+              } else {
+                log(`[Delete #${deleteOpId}] LOCK DETECTION: Could not determine locking process`)
+              }
+            }
+            
+            if (isLocked && attempt < retries) {
+              // Wait and retry for locked files
+              const delay = attempt * 300  // Increased: 300ms, 600ms delays
+              log(`[Delete #${deleteOpId}] File locked, waiting ${delay}ms before retry...`)
+              await new Promise(resolve => setTimeout(resolve, delay))
+              continue
+            }
+            
+            // Final attempt failed or non-retryable error
+            log(`[Delete #${deleteOpId}] FAILED after ${attempt} attempts: ${fileName}`)
+            throw deleteErr
+          }
+        }
+      }
+      return { success: false, error: 'Max retries exceeded' }
     }
     
     try {
-      // Move to Recycle Bin instead of permanent delete
-      await shell.trashItem(targetPath)
-      log('Successfully moved to Recycle Bin:', targetPath)
+      // Clear read-only attribute before trashing (Windows shell.trashItem fails on read-only files)
+      const stats = fs.statSync(targetPath)
+      const isFile = !stats.isDirectory()
+      
+      if (isFile && (stats.mode & 0o200) === 0) {
+        // File is read-only, make it writable
+        log(`[Delete #${deleteOpId}] Clearing read-only attribute for: ${fileName}`)
+        fs.chmodSync(targetPath, stats.mode | 0o200)
+      }
+      
+      const result = await attemptDelete(targetPath, isFile)
+      const totalTime = Date.now() - deleteStartTime
+      log(`[Delete #${deleteOpId}] END: ${fileName} - success: ${result.success}, total time: ${totalTime}ms`)
+      
+      if (!result.success) {
+        return result
+      }
       return { success: true }
     } finally {
-      // Restart the file watcher if we paused it (and we didn't delete the working directory itself)
-      if (needsWatcherPause && workingDirectory && fs.existsSync(workingDirectory)) {
-        log('Restarting file watcher after delete')
-        startFileWatcher(workingDirectory)
+      // Decrement pending operations and only restart watcher when all are done
+      if (needsWatcherPause) {
+        pendingDeleteOperations--
+        log(`[Delete #${deleteOpId}] Complete, pending ops remaining: ${pendingDeleteOperations}`)
+        
+        // Only restart file watcher when all pending deletes are done
+        if (pendingDeleteOperations === 0) {
+          deleteWatcherStopPromise = null
+          if (workingDirectory && fs.existsSync(workingDirectory)) {
+            log(`[Delete] All deletes complete, restarting file watcher`)
+            startFileWatcher(workingDirectory)
+          }
+        }
       }
     }
   } catch (err) {
-    log('Failed to delete:', targetPath, err)
-    return { success: false, error: String(err) }
+    log(`[Delete #${deleteOpId}] EXCEPTION for ${fileName}:`, err)
+    // Provide more helpful error messages for common issues
+    const errStr = String(err)
+    let errorMsg = errStr
+    if (errStr.includes('EBUSY') || errStr.includes('resource busy')) {
+      const fileName = path.basename(targetPath)
+      errorMsg = `EBUSY: ${fileName} is locked (close it in the other application first)`
+    } else if (errStr.includes('EPERM') || errStr.includes('permission denied')) {
+      errorMsg = `Permission denied - file may be read-only or in use`
+    } else if (errStr.includes('ENOENT')) {
+      errorMsg = `File not found`
+    }
+    return { success: false, error: errorMsg }
   }
 })
 
@@ -3406,12 +3750,23 @@ try {
   log('[eDrawings] Native module not available:', err)
 }
 
+// Track files currently having thumbnails extracted (for debugging file locks)
+const thumbnailsInProgress = new Set<string>()
+
 // Extract thumbnail or icon from files using Windows Shell API (same as Explorer)
 // First tries to get a preview thumbnail, then falls back to the file type icon
 async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: boolean; data?: string; error?: string }> {
+  const fileName = path.basename(filePath)
+  const startTime = Date.now()
+  
+  // Track this extraction
+  thumbnailsInProgress.add(filePath)
+  log(`[Thumbnail] START extraction: ${fileName} (${thumbnailsInProgress.size} in progress)`)
+  
   try {
     // First, try to get a preview thumbnail (works for images, PDFs with preview, SolidWorks, etc.)
     try {
+      log(`[Thumbnail] Calling createThumbnailFromPath for: ${fileName}`)
       const thumbnail = await nativeImage.createThumbnailFromPath(filePath, { 
         width: 256, 
         height: 256 
@@ -3420,34 +3775,49 @@ async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: 
       if (thumbnail && !thumbnail.isEmpty()) {
         const pngData = thumbnail.toPNG()
         if (pngData && pngData.length > 100) {
-          log('[Thumbnail] Got OS thumbnail for:', path.basename(filePath), 'size:', pngData.length)
+          const elapsed = Date.now() - startTime
+          log(`[Thumbnail] Got OS thumbnail for: ${fileName}, size: ${pngData.length}, time: ${elapsed}ms`)
           return { success: true, data: `data:image/png;base64,${pngData.toString('base64')}` }
         }
       }
+      log(`[Thumbnail] createThumbnailFromPath returned empty for: ${fileName}`)
     } catch (thumbErr) {
+      log(`[Thumbnail] createThumbnailFromPath failed for ${fileName}: ${thumbErr}`)
       // Thumbnail not available, will try icon below
     }
     
     // Fall back to file type icon (like Explorer shows for PDFs, Excel files, etc.)
     try {
+      log(`[Thumbnail] Trying getFileIcon for: ${fileName}`)
       const icon = await app.getFileIcon(filePath, { size: 'large' })
       if (icon && !icon.isEmpty()) {
         const pngData = icon.toPNG()
         if (pngData && pngData.length > 100) {
-          log('[Thumbnail] Got OS file icon for:', path.basename(filePath), 'size:', pngData.length)
+          const elapsed = Date.now() - startTime
+          log(`[Thumbnail] Got OS file icon for: ${fileName}, size: ${pngData.length}, time: ${elapsed}ms`)
           return { success: true, data: `data:image/png;base64,${pngData.toString('base64')}` }
         }
       }
     } catch (iconErr) {
-      log('[Thumbnail] Could not get file icon:', String(iconErr))
+      log(`[Thumbnail] getFileIcon failed for ${fileName}: ${iconErr}`)
     }
     
-    log('[Thumbnail] No OS thumbnail/icon available for:', path.basename(filePath))
+    const elapsed = Date.now() - startTime
+    log(`[Thumbnail] No OS thumbnail/icon available for: ${fileName}, time: ${elapsed}ms`)
     return { success: false, error: 'No thumbnail or icon available from OS' }
   } catch (err) {
-    log('[Thumbnail] OS thumbnail extraction failed:', String(err))
+    const elapsed = Date.now() - startTime
+    log(`[Thumbnail] Extraction failed for ${fileName}: ${err}, time: ${elapsed}ms`)
     return { success: false, error: String(err) }
+  } finally {
+    thumbnailsInProgress.delete(filePath)
+    log(`[Thumbnail] END extraction: ${fileName} (${thumbnailsInProgress.size} still in progress)`)
   }
+}
+
+// Helper to check if a file is currently being thumbnailed
+function isFileBeingThumbnailed(filePath: string): boolean {
+  return thumbnailsInProgress.has(filePath)
 }
 
 // IPC handler for extracting thumbnails
@@ -3546,19 +3916,35 @@ function getSWServicePath(): { path: string; isProduction: boolean } {
 
 // Start the SolidWorks service process
 async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
+  log('[SolidWorks] startSWService called')
+  log('[SolidWorks] DM License key provided:', dmLicenseKey ? `yes (${dmLicenseKey.length} chars)` : 'no')
+  if (dmLicenseKey) {
+    log('[SolidWorks] License key prefix:', dmLicenseKey.substring(0, Math.min(30, dmLicenseKey.length)) + '...')
+    log('[SolidWorks] License key has colon:', dmLicenseKey.includes(':'))
+    log('[SolidWorks] License key has commas:', dmLicenseKey.includes(','))
+    if (dmLicenseKey.includes(',')) {
+      log('[SolidWorks] License components:', dmLicenseKey.split(',').length)
+    }
+  }
+  
   // First check if SolidWorks is even installed
   if (!isSolidWorksInstalled()) {
+    log('[SolidWorks] SolidWorks not installed')
     return { 
       success: false, 
       error: 'SolidWorks not installed',
       errorDetails: 'SolidWorks is not installed on this machine. The SolidWorks integration features require SolidWorks to be installed.'
     }
   }
+  log('[SolidWorks] SolidWorks is installed')
 
   if (swServiceProcess) {
+    log('[SolidWorks] Service already running')
     // If service is already running but we have a new license key, set it
     if (dmLicenseKey) {
+      log('[SolidWorks] Sending setDmLicense command to running service...')
       const result = await sendSWCommand({ action: 'setDmLicense', licenseKey: dmLicenseKey })
+      log('[SolidWorks] setDmLicense result:', JSON.stringify(result))
       if (result.success) {
         return { success: true, data: { message: 'Service running, license key updated' } }
       }
@@ -3568,7 +3954,10 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
   
   const serviceInfo = getSWServicePath()
   const servicePath = serviceInfo.path
+  log('[SolidWorks] Service path:', servicePath)
+  
   if (!fs.existsSync(servicePath)) {
+    log('[SolidWorks] Service executable not found at path')
     if (serviceInfo.isProduction) {
       // Running from packaged app - service wasn't bundled
       return { 
@@ -3590,6 +3979,9 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
   const args: string[] = []
   if (dmLicenseKey) {
     args.push('--dm-license', dmLicenseKey)
+    log('[SolidWorks] Starting service with --dm-license argument')
+  } else {
+    log('[SolidWorks] Starting service without license key')
   }
   
   return new Promise((resolve) => {
@@ -3612,17 +4004,21 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
         swServiceProcess = null
       })
       
-      swServiceProcess.on('close', (code) => {
-        log('[SolidWorks Service] Process exited with code:', code)
+      swServiceProcess.on('close', (code, signal) => {
+        log('[SolidWorks Service] Process exited with code:', code, 'signal:', signal)
         swServiceProcess = null
       })
       
       // Wait a moment and test with ping
       setTimeout(async () => {
         try {
+          log('[SolidWorks] Sending initial ping to verify service...')
           const pingResult = await sendSWCommand({ action: 'ping' })
+          log('[SolidWorks] Ping response received:', JSON.stringify(pingResult).substring(0, 100))
+          log('[SolidWorks] Service started successfully, keeping process alive')
           resolve(pingResult)
         } catch (err) {
+          log('[SolidWorks] Ping failed:', String(err))
           resolve({ success: false, error: String(err) })
         }
       }, 1000)
@@ -3705,6 +4101,8 @@ async function sendSWCommand(command: Record<string, unknown>): Promise<SWServic
 
 // Start the service
 ipcMain.handle('solidworks:start-service', async (_, dmLicenseKey?: string) => {
+  log('[SolidWorks] IPC: start-service received')
+  log('[SolidWorks] IPC: dmLicenseKey provided:', dmLicenseKey ? `yes (${dmLicenseKey.length} chars)` : 'no')
   return startSWService(dmLicenseKey)
 })
 
@@ -3716,17 +4114,36 @@ ipcMain.handle('solidworks:stop-service', async () => {
 
 // Check if service is running
 ipcMain.handle('solidworks:service-status', async () => {
+  log('[SolidWorks] Getting service status...')
   const swInstalled = isSolidWorksInstalled()
+  log('[SolidWorks] SolidWorks installed:', swInstalled)
   
   if (!swInstalled) {
+    log('[SolidWorks] Status: SW not installed')
     return { success: true, data: { running: false, installed: false } }
   }
   
   if (!swServiceProcess) {
+    log('[SolidWorks] Status: Service not running')
     return { success: true, data: { running: false, installed: true } }
   }
+  
+  log('[SolidWorks] Sending ping to service...')
   const result = await sendSWCommand({ action: 'ping' })
-  return { success: true, data: { running: result.success, installed: true, version: (result.data as any)?.version } }
+  log('[SolidWorks] Ping result:', JSON.stringify(result))
+  
+  const data = result.data as any
+  const statusData = { 
+    running: result.success, 
+    installed: true, 
+    version: data?.version,
+    swInstalled: data?.swInstalled,
+    documentManagerAvailable: data?.documentManagerAvailable,
+    documentManagerError: data?.documentManagerError,
+    fastModeEnabled: data?.fastModeEnabled
+  }
+  log('[SolidWorks] Status data:', JSON.stringify(statusData))
+  return { success: true, data: statusData }
 })
 
 // Check if SolidWorks is installed on this machine

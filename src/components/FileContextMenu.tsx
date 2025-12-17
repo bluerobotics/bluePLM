@@ -29,7 +29,8 @@ import {
   Calendar,
   Monitor,
   CloudOff,
-  RefreshCw
+  RefreshCw,
+  Undo2
 } from 'lucide-react'
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
@@ -399,6 +400,11 @@ export function FileContextMenu({
   const handleForceRelease = () => {
     onClose()
     executeCommand('force-release', { files: contextFiles }, { onRefresh })
+  }
+  
+  const handleDiscardCheckout = () => {
+    onClose()
+    executeCommand('discard', { files: contextFiles }, { onRefresh })
   }
   
   // Handle delete from server (shows confirmation dialog first)
@@ -936,7 +942,7 @@ export function FileContextMenu({
         {/* First Check In - for unsynced files */}
         {anyUnsynced && !allCloudOnly && (
           <div className="context-menu-item" onClick={handleFirstCheckin}>
-            <ArrowUp size={14} className="text-plm-success" />
+            <ArrowUp size={14} className="text-plm-info" />
             First Check In {unsyncedFilesInSelection.length > 0 ? `${unsyncedFilesInSelection.length} file${unsyncedFilesInSelection.length !== 1 ? 's' : ''}` : countLabel}
           </div>
         )}
@@ -969,6 +975,18 @@ export function FileContextMenu({
             <ArrowUp size={14} className={allCheckedIn || checkinableCount === 0 ? 'text-plm-fg-muted' : 'text-plm-success'} />
             Check In {allFolders && !multiSelect && checkinableCount > 0 ? `${checkinableCount} files` : countLabel}
             {allCheckedIn && <span className="text-xs text-plm-fg-muted ml-auto">(already in)</span>}
+          </div>
+        )}
+        
+        {/* Discard Checkout - for files checked out by current user */}
+        {checkinableCount > 0 && (
+          <div 
+            className="context-menu-item text-plm-warning"
+            onClick={handleDiscardCheckout}
+            title="Discard local changes and revert to server version"
+          >
+            <Undo2 size={14} />
+            Discard Checkout {checkinableCount > 1 ? `(${checkinableCount})` : ''}
           </div>
         )}
         

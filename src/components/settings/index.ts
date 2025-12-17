@@ -1,6 +1,7 @@
 export { AccountSettings } from './AccountSettings'
 export { ProfileSettings } from './ProfileSettings'
 export { PreferencesSettings } from './PreferencesSettings'
+export { KeybindingsSettings } from './KeybindingsSettings'
 export { ModulesSettings } from './ModulesSettings'
 export { ContributionHistory } from './ContributionHistory'
 export { UserProfileModal } from './UserProfileModal'

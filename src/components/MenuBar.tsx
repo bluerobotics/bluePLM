@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { registerModule, unregisterModule } from '@/lib/telemetry'
-import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, User, SlidersHorizontal, WifiOff } from 'lucide-react'
+import { LogOut, ChevronDown, Building2, Search, File, Folder, LayoutGrid, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, Settings, WifiOff } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
-import { signInWithGoogle, signOut, isSupabaseConfigured, linkUserToOrganization, getActiveSessions, endRemoteSession, UserSession, supabase } from '../lib/supabase'
+import { signInWithGoogle, signOut, isSupabaseConfigured, getActiveSessions, endRemoteSession, UserSession, supabase } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
 import { logAuth } from '../lib/userActionLogger'
 import { SystemStats } from './SystemStats'
@@ -401,7 +401,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                             : 'text-plm-fg hover:bg-plm-bg-lighter'
                         }`}
                       >
-                        <Database size={14} className={vault.id === activeVaultId ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+                        <Database size={14} className={`vault-icon ${vault.id === activeVaultId ? 'text-plm-accent' : 'text-plm-fg-muted'}`} />
                         <div className="flex-1 text-left truncate">{vault.name}</div>
                         {vault.id === activeVaultId && (
                           <div className="w-1.5 h-1.5 rounded-full bg-plm-accent" />
@@ -743,46 +743,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                   </div>
                 </div>
 
-                {/* Organization Info */}
-                <div className="px-4 py-2 border-b border-plm-border">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-plm-fg-dim">
-                      {orgLogoUrl ? (
-                        <img 
-                          src={orgLogoUrl} 
-                          alt={organization?.name || 'Organization'} 
-                          className="h-4 max-w-[60px] object-contain rounded-sm"
-                        />
-                      ) : (
-                        <Building2 size={14} />
-                      )}
-                      {organization ? (
-                        <span>{organization.name}</span>
-                      ) : (
-                        <span className="text-plm-warning">No organization</span>
-                      )}
-                    </div>
-                    {!organization && user && (
-                      <button
-                        onClick={async () => {
-                          const { org, error } = await linkUserToOrganization(user.id, user.email)
-                          if (error) {
-                            addToast('error', `Could not find org for @${user.email.split('@')[1]}`)
-                          } else if (org) {
-                            setOrganization(org as any)
-                            addToast('success', `Linked to ${(org as any).name}`)
-                            setShowUserMenu(false)
-                          }
-                        }}
-                        className="text-xs text-plm-accent hover:text-plm-accent-hover"
-                      >
-                        Link
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Profile & Preferences */}
+                {/* Settings */}
                 <div className="py-1 border-b border-plm-border">
                   <button 
                     onClick={() => {
@@ -794,21 +755,8 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
                   >
-                    <User size={14} />
-                    Profile
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setShowUserMenu(false)
-                      setActiveView('settings')
-                      setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'preferences' }))
-                      }, 0)
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
-                  >
-                    <SlidersHorizontal size={14} />
-                    Preferences
+                    <Settings size={14} />
+                    Settings
                   </button>
                 </div>
 

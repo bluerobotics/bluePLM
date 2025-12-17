@@ -11,6 +11,49 @@ import { ProgressTracker } from '../executor'
 import { getDownloadUrl } from '../../storage'
 import type { LocalFile } from '../../../stores/pdmStore'
 
+// Concurrency limit for parallel downloads
+// Too many concurrent downloads can overwhelm network/Supabase rate limits
+const MAX_CONCURRENT_DOWNLOADS = 15
+
+// Number of retry attempts for failed downloads
+const MAX_RETRY_ATTEMPTS = 3
+
+// Delay between retries (exponential backoff: 1s, 2s, 4s)
+const RETRY_BASE_DELAY_MS = 1000
+
+/**
+ * Simple concurrency limiter for async operations
+ * Allows running up to `limit` promises concurrently
+ */
+function createConcurrencyLimiter(limit: number) {
+  let running = 0
+  const queue: Array<() => void> = []
+  
+  return async function<T>(fn: () => Promise<T>): Promise<T> {
+    // Wait for a slot if at capacity
+    if (running >= limit) {
+      await new Promise<void>(resolve => queue.push(resolve))
+    }
+    
+    running++
+    try {
+      return await fn()
+    } finally {
+      running--
+      // Release next waiting task
+      const next = queue.shift()
+      if (next) next()
+    }
+  }
+}
+
+/**
+ * Sleep helper for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 // Detailed logging for download operations
 function logDownload(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
   const timestamp = new Date().toISOString()
@@ -211,8 +254,17 @@ export const downloadCommand: Command<DownloadParams> = {
     let failed = 0
     const errors: string[] = []
     
-    // Process all files in parallel
-    const results = await Promise.all(cloudFiles.map(async (file) => {
+    // Create concurrency limiter to avoid overwhelming network/Supabase
+    const limit = createConcurrencyLimiter(MAX_CONCURRENT_DOWNLOADS)
+    
+    logDownload('info', 'Starting parallel downloads with concurrency limit', {
+      operationId,
+      totalFiles: cloudFiles.length,
+      maxConcurrent: MAX_CONCURRENT_DOWNLOADS
+    })
+    
+    // Helper function to download a single file with retry logic
+    const downloadWithRetry = async (file: LocalFile, attempt: number = 1): Promise<{ success: boolean; error?: string }> => {
       const fileCtx = getFileContext(file)
       
       if (!file.pdmData?.content_hash) {
@@ -226,7 +278,6 @@ export const downloadCommand: Command<DownloadParams> = {
             hasHash: !!file.pdmData.content_hash
           } : null
         })
-        progress.update()
         return { success: false, error: `${file.name}: No content hash - file metadata may be corrupted or incomplete` }
       }
       
@@ -238,7 +289,8 @@ export const downloadCommand: Command<DownloadParams> = {
           operationId,
           ...fileCtx,
           fullPath,
-          parentDir
+          parentDir,
+          attempt
         })
         
         // Create parent directory
@@ -250,7 +302,6 @@ export const downloadCommand: Command<DownloadParams> = {
             parentDir,
             error: mkdirResult.error
           })
-          progress.update()
           return { success: false, error: `${file.name}: Failed to create directory - ${mkdirResult.error}` }
         }
         
@@ -259,7 +310,8 @@ export const downloadCommand: Command<DownloadParams> = {
           operationId,
           fileName: file.name,
           orgId: organization.id,
-          hash: file.pdmData.content_hash?.substring(0, 12)
+          hash: file.pdmData.content_hash?.substring(0, 12),
+          attempt
         })
         
         const { url, error: urlError } = await getDownloadUrl(organization.id, file.pdmData.content_hash)
@@ -271,7 +323,6 @@ export const downloadCommand: Command<DownloadParams> = {
             orgId: organization.id,
             hash: file.pdmData.content_hash?.substring(0, 16)
           })
-          progress.update()
           return { success: false, error: `${file.name}: ${urlError || 'Failed to get download URL - file may not exist in cloud storage'}` }
         }
         
@@ -279,20 +330,44 @@ export const downloadCommand: Command<DownloadParams> = {
         logDownload('debug', 'Starting file download', {
           operationId,
           fileName: file.name,
-          destPath: fullPath
+          destPath: fullPath,
+          attempt
         })
         
         const downloadResult = await window.electronAPI?.downloadUrl(url, fullPath)
         if (!downloadResult?.success) {
+          const errorMsg = downloadResult?.error || 'Unknown error writing to disk'
+          const isRetryable = errorMsg.includes('timed out') || 
+                              errorMsg.includes('ECONNRESET') || 
+                              errorMsg.includes('ETIMEDOUT') ||
+                              errorMsg.includes('socket hang up') ||
+                              errorMsg.includes('Connection')
+          
+          // Retry on timeout/connection errors
+          if (isRetryable && attempt < MAX_RETRY_ATTEMPTS) {
+            const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1)
+            logDownload('warn', 'Download failed, retrying...', {
+              operationId,
+              fileName: file.name,
+              attempt,
+              maxAttempts: MAX_RETRY_ATTEMPTS,
+              error: errorMsg,
+              retryDelayMs: delayMs
+            })
+            await sleep(delayMs)
+            return downloadWithRetry(file, attempt + 1)
+          }
+          
           logDownload('error', 'File download failed', {
             operationId,
             ...fileCtx,
             fullPath,
-            downloadError: downloadResult?.error,
-            downloadResult
+            downloadError: errorMsg,
+            downloadResult,
+            attempt,
+            willRetry: false
           })
-          progress.update()
-          return { success: false, error: `${file.name}: Download failed - ${downloadResult?.error || 'Unknown error writing to disk'}` }
+          return { success: false, error: `${file.name}: Download failed - ${errorMsg}` }
         }
         
         // Set read-only
@@ -312,25 +387,56 @@ export const downloadCommand: Command<DownloadParams> = {
           fileName: file.name,
           fullPath,
           downloadedSize: downloadResult.size,
-          hash: downloadResult.hash?.substring(0, 12)
+          hash: downloadResult.hash?.substring(0, 12),
+          attempt
         })
         
-        progress.update()
         return { success: true }
         
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err)
+        
+        // Retry on exceptions that look like network errors
+        const isRetryable = errorMsg.includes('timed out') || 
+                            errorMsg.includes('ECONNRESET') || 
+                            errorMsg.includes('ETIMEDOUT') ||
+                            errorMsg.includes('socket hang up') ||
+                            errorMsg.includes('Connection')
+        
+        if (isRetryable && attempt < MAX_RETRY_ATTEMPTS) {
+          const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1)
+          logDownload('warn', 'Download exception, retrying...', {
+            operationId,
+            fileName: file.name,
+            attempt,
+            maxAttempts: MAX_RETRY_ATTEMPTS,
+            error: errorMsg,
+            retryDelayMs: delayMs
+          })
+          await sleep(delayMs)
+          return downloadWithRetry(file, attempt + 1)
+        }
+        
         logDownload('error', 'Download exception', {
           operationId,
           ...fileCtx,
           fullPath,
           error: errorMsg,
-          stack: err instanceof Error ? err.stack : undefined
+          stack: err instanceof Error ? err.stack : undefined,
+          attempt
         })
-        progress.update()
         return { success: false, error: `${file.name}: ${errorMsg}` }
       }
-    }))
+    }
+    
+    // Process all files with concurrency limit
+    const results = await Promise.all(cloudFiles.map(file => 
+      limit(async () => {
+        const result = await downloadWithRetry(file)
+        progress.update()
+        return result
+      })
+    ))
     
     // Count results
     for (const result of results) {

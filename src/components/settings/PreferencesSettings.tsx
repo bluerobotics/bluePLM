@@ -21,7 +21,8 @@ import {
   Ghost,
   CloudDownload,
   CloudSun,
-  Crown
+  Crown,
+  Trash2
 } from 'lucide-react'
 import { usePDMStore, ThemeMode, Language } from '../../stores/pdmStore'
 import { CalendarDays } from 'lucide-react'
@@ -72,7 +73,9 @@ export function PreferencesSettings() {
     autoDownloadCloudFiles,
     setAutoDownloadCloudFiles,
     autoDownloadUpdates,
-    setAutoDownloadUpdates
+    setAutoDownloadUpdates,
+    autoDownloadExcludedFiles,
+    clearAutoDownloadExclusions
   } = usePDMStore()
   
   const [sessions, setSessions] = useState<UserSession[]>([])
@@ -576,6 +579,31 @@ export function PreferencesSettings() {
               )}
             </button>
           </div>
+          
+          {/* Excluded files from auto-download */}
+          {activeVaultId && (autoDownloadExcludedFiles[activeVaultId]?.length || 0) > 0 && (
+            <div className="flex items-center justify-between pt-3 border-t border-plm-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-plm-highlight">
+                  <FileText size={18} className="text-plm-fg-muted" />
+                </div>
+                <div>
+                  <div className="text-base text-plm-fg">{t('preferences.excludedFiles')}</div>
+                  <div className="text-sm text-plm-fg-muted mt-0.5">
+                    {t('preferences.excludedFilesDesc').replace('{{count}}', String(autoDownloadExcludedFiles[activeVaultId]?.length || 0))}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => clearAutoDownloadExclusions(activeVaultId)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-plm-highlight hover:bg-plm-border text-plm-fg-muted hover:text-plm-fg transition-colors"
+                title={t('preferences.clearExcludedFiles')}
+              >
+                <Trash2 size={14} />
+                <span className="text-sm">{t('preferences.clearExcludedFiles')}</span>
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

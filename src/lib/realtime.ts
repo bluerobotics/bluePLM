@@ -12,6 +12,7 @@
 import { supabase } from './supabase'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { PDMFile } from '../types/pdm'
+import type { Organization } from '../types/pdm'
 
 type FileChangeCallback = (
   eventType: 'INSERT' | 'UPDATE' | 'DELETE',
@@ -27,8 +28,15 @@ type ActivityCallback = (activity: {
   created_at: string
 }) => void
 
+type OrganizationChangeCallback = (
+  eventType: 'UPDATE',
+  org: Organization,
+  oldOrg?: Organization
+) => void
+
 let filesChannel: RealtimeChannel | null = null
 let activityChannel: RealtimeChannel | null = null
+let organizationChannel: RealtimeChannel | null = null
 
 /**
  * Subscribe to real-time file changes for an organization
@@ -132,6 +140,70 @@ export function subscribeToActivity(
 }
 
 /**
+ * Subscribe to organization settings changes for real-time sync
+ * 
+ * Updates are instant for:
+ * - Integration settings (API URLs, license keys)
+ * - Google Drive configuration
+ * - RFQ settings
+ * - Any other org-level settings
+ * 
+ * This ensures all users in an org see settings changes immediately
+ * without needing to refresh.
+ */
+export function subscribeToOrganization(
+  orgId: string,
+  onOrgChange: OrganizationChangeCallback
+): () => void {
+  // Unsubscribe from previous channel if exists
+  if (organizationChannel) {
+    organizationChannel.unsubscribe()
+  }
+
+  organizationChannel = supabase
+    .channel(`organization:${orgId}`)
+    .on<Organization>(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'organizations',
+        filter: `id=eq.${orgId}`
+      },
+      (payload: RealtimePostgresChangesPayload<Organization>) => {
+        const newOrg = payload.new as Organization
+        const oldOrg = payload.old as Organization | undefined
+
+        // Log settings changes for debugging
+        const newSettings = (newOrg?.settings || {}) as unknown as Record<string, unknown>
+        const oldSettings = (oldOrg?.settings || {}) as unknown as Record<string, unknown>
+        const changedKeys = Object.keys(newSettings).filter(
+          key => JSON.stringify(newSettings[key]) !== JSON.stringify(oldSettings[key])
+        )
+        
+        if (changedKeys.length > 0) {
+          console.log('[Realtime] Organization settings changed:', changedKeys)
+        } else {
+          console.log('[Realtime] Organization updated (non-settings change)')
+        }
+
+        onOrgChange('UPDATE', newOrg, oldOrg)
+      }
+    )
+    .subscribe((status) => {
+      console.log('[Realtime] Organization subscription status:', status)
+    })
+
+  // Return unsubscribe function
+  return () => {
+    if (organizationChannel) {
+      organizationChannel.unsubscribe()
+      organizationChannel = null
+    }
+  }
+}
+
+/**
  * Unsubscribe from all realtime channels
  */
 export function unsubscribeAll() {
@@ -143,6 +215,10 @@ export function unsubscribeAll() {
     activityChannel.unsubscribe()
     activityChannel = null
   }
+  if (organizationChannel) {
+    organizationChannel.unsubscribe()
+    organizationChannel = null
+  }
 }
 
 /**
@@ -150,5 +226,12 @@ export function unsubscribeAll() {
  */
 export function isRealtimeConnected(): boolean {
   return filesChannel !== null && activityChannel !== null
+}
+
+/**
+ * Check if organization realtime is connected
+ */
+export function isOrgRealtimeConnected(): boolean {
+  return organizationChannel !== null
 }
 

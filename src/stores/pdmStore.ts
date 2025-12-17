@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { PDMFile, FileState, Organization, User } from '../types/pdm'
 import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider, OrderListItem } from '../types/modules'
 import { getDefaultModuleConfig, MODULES, MODULE_GROUPS, isModuleVisible, extractFromCombinedList } from '../types/modules'
+import type { KeybindingAction, KeybindingsConfig, Keybinding } from '../types/settings'
 import { supabase } from '../lib/supabase'
 
 // Build full path using the correct separator for the platform
@@ -31,6 +32,7 @@ export type SidebarView =
   | 'schedule'   // ECO schedule
   | 'reviews'    // Gate approvals & reviews
   | 'gsd'        // ECO summary (Getting Stuff Done)
+  | 'deviations' // Deviations tracking
   | 'suppliers'  // Supplier database
   | 'supplier-portal'  // Supplier portal
   | 'google-drive'  // Google Drive integration
@@ -136,6 +138,17 @@ export interface OrphanedCheckout {
   newVersion: number         // The new server version
   localHash?: string         // Hash of local file (if available)
   serverHash?: string        // Hash of server file
+}
+
+// Files that show as "needs update" but the storage blob is missing
+// This happens when a check-in partially failed (database updated but upload failed)
+export interface MissingStorageFile {
+  fileId: string
+  fileName: string
+  filePath: string           // Relative path in vault
+  serverHash: string         // The hash that's missing from storage
+  version: number            // The version that's missing
+  detectedAt: string         // When we detected this issue
 }
 
 interface PDMState {
@@ -262,6 +275,7 @@ interface PDMState {
   theme: ThemeMode              // Theme: dark, light, blue, or system
   autoApplySeasonalThemes: boolean  // Auto-apply halloween/christmas themes on Oct 1 and Dec 1
   language: Language            // UI language
+  keybindings: KeybindingsConfig  // Keyboard shortcuts configuration
   christmasSnowOpacity: number  // Christmas theme snow opacity (0-100)
   christmasSnowDensity: number  // Christmas theme snow density (10-200 flakes)
   christmasSnowSize: number     // Christmas theme snowflake size multiplier (50-200%)
@@ -283,6 +297,7 @@ interface PDMState {
   // Auto-download settings
   autoDownloadCloudFiles: boolean  // Auto-download files that exist on server but not locally
   autoDownloadUpdates: boolean     // Auto-download when server has new versions
+  autoDownloadExcludedFiles: Record<string, string[]>  // Per-vault list of relative paths excluded from auto-download
   
   // Pinned items (quick access)
   pinnedFolders: { path: string; vaultId: string; vaultName: string; isDirectory: boolean }[]
@@ -315,6 +330,9 @@ interface PDMState {
   
   // Orphaned checkouts (files force-checked-in from another machine)
   orphanedCheckouts: OrphanedCheckout[]
+  
+  // Missing storage files (database has records but storage blobs are missing)
+  missingStorageFiles: MissingStorageFile[]
   
   // Module configuration (sidebar modules)
   moduleConfig: ModuleConfig
@@ -398,6 +416,8 @@ interface PDMState {
   setTheme: (theme: ThemeMode) => void
   setAutoApplySeasonalThemes: (enabled: boolean) => void
   setLanguage: (language: Language) => void
+  setKeybinding: (action: KeybindingAction, keybinding: Keybinding) => void
+  resetKeybindings: () => void
   setChristmasSnowOpacity: (opacity: number) => void
   setChristmasSnowDensity: (density: number) => void
   setChristmasSnowSize: (size: number) => void
@@ -419,6 +439,10 @@ interface PDMState {
   // Actions - Auto-download settings
   setAutoDownloadCloudFiles: (enabled: boolean) => void
   setAutoDownloadUpdates: (enabled: boolean) => void
+  addAutoDownloadExclusion: (vaultId: string, relativePath: string) => void
+  removeAutoDownloadExclusion: (vaultId: string, relativePath: string) => void
+  clearAutoDownloadExclusions: (vaultId: string) => void
+  cleanupStaleExclusions: (vaultId: string, serverFilePaths: Set<string>) => void
   
   // Actions - Pinned items
   pinFolder: (path: string, vaultId: string, vaultName: string, isDirectory: boolean) => void
@@ -525,6 +549,10 @@ interface PDMState {
   addOrphanedCheckout: (checkout: OrphanedCheckout) => void
   removeOrphanedCheckout: (fileId: string) => void
   clearOrphanedCheckouts: () => void
+  
+  // Actions - Missing Storage Files
+  setMissingStorageFiles: (files: MissingStorageFile[]) => void
+  clearMissingStorageFiles: () => void
   
   // Actions - Columns
   setColumnWidth: (id: string, width: number) => void
@@ -687,6 +715,21 @@ export const usePDMStore = create<PDMState>()(
       theme: 'dark',  // Default theme
       autoApplySeasonalThemes: true,  // Auto-apply seasonal themes by default
       language: 'en',  // Default language
+      keybindings: {
+        navigateUp: { key: 'ArrowUp' },
+        navigateDown: { key: 'ArrowDown' },
+        expandFolder: { key: 'ArrowRight' },
+        collapseFolder: { key: 'ArrowLeft' },
+        selectAll: { key: 'a', ctrlKey: true },
+        copy: { key: 'c', ctrlKey: true },
+        cut: { key: 'x', ctrlKey: true },
+        paste: { key: 'v', ctrlKey: true },
+        delete: { key: 'Delete' },
+        escape: { key: 'Escape' },
+        openFile: { key: 'Enter' },
+        toggleDetailsPanel: { key: 'p', ctrlKey: true },
+        refresh: { key: 'r', ctrlKey: true },
+      } as KeybindingsConfig,
       christmasSnowOpacity: 40,  // Default 40%
       christmasSnowDensity: 100,  // Default 100 snowflakes
       christmasSnowSize: 55,     // Default 55% size (smaller flakes)
@@ -694,6 +737,7 @@ export const usePDMStore = create<PDMState>()(
       christmasUseLocalWeather: true,  // Default ON - link to local weather
       autoDownloadCloudFiles: false,  // Off by default
       autoDownloadUpdates: false,     // Off by default
+      autoDownloadExcludedFiles: {},  // Per-vault exclusion lists
       christmasSleighEnabled: true,  // Default ON
       halloweenSparksEnabled: true,  // Default ON
       halloweenSparksOpacity: 70,  // Default 70%
@@ -721,6 +765,7 @@ export const usePDMStore = create<PDMState>()(
       unreadNotificationCount: 0,
       pendingReviewCount: 0,
       orphanedCheckouts: [],
+      missingStorageFiles: [],
       
       // Module configuration
       moduleConfig: getDefaultModuleConfig(),
@@ -1018,6 +1063,26 @@ export const usePDMStore = create<PDMState>()(
       setTheme: (theme) => set({ theme }),
       setAutoApplySeasonalThemes: (autoApplySeasonalThemes) => set({ autoApplySeasonalThemes }),
       setLanguage: (language) => set({ language }),
+      setKeybinding: (action, keybinding) => set(state => ({
+        keybindings: { ...state.keybindings, [action]: keybinding }
+      })),
+      resetKeybindings: () => set({
+        keybindings: {
+          navigateUp: { key: 'ArrowUp' },
+          navigateDown: { key: 'ArrowDown' },
+          expandFolder: { key: 'ArrowRight' },
+          collapseFolder: { key: 'ArrowLeft' },
+          selectAll: { key: 'a', ctrlKey: true },
+          copy: { key: 'c', ctrlKey: true },
+          cut: { key: 'x', ctrlKey: true },
+          paste: { key: 'v', ctrlKey: true },
+          delete: { key: 'Delete' },
+          escape: { key: 'Escape' },
+          openFile: { key: 'Enter' },
+          toggleDetailsPanel: { key: 'p', ctrlKey: true },
+          refresh: { key: 'r', ctrlKey: true },
+        }
+      }),
       setChristmasSnowOpacity: (christmasSnowOpacity) => set({ christmasSnowOpacity }),
       setChristmasSnowDensity: (christmasSnowDensity) => set({ christmasSnowDensity }),
       setChristmasSnowSize: (christmasSnowSize) => set({ christmasSnowSize }),
@@ -1039,6 +1104,45 @@ export const usePDMStore = create<PDMState>()(
       // Actions - Auto-download settings
       setAutoDownloadCloudFiles: (autoDownloadCloudFiles) => set({ autoDownloadCloudFiles }),
       setAutoDownloadUpdates: (autoDownloadUpdates) => set({ autoDownloadUpdates }),
+      addAutoDownloadExclusion: (vaultId, relativePath) => set(state => {
+        const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
+        // Don't add duplicates
+        if (currentExclusions.includes(relativePath)) return state
+        return {
+          autoDownloadExcludedFiles: {
+            ...state.autoDownloadExcludedFiles,
+            [vaultId]: [...currentExclusions, relativePath]
+          }
+        }
+      }),
+      removeAutoDownloadExclusion: (vaultId, relativePath) => set(state => {
+        const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
+        return {
+          autoDownloadExcludedFiles: {
+            ...state.autoDownloadExcludedFiles,
+            [vaultId]: currentExclusions.filter(p => p !== relativePath)
+          }
+        }
+      }),
+      clearAutoDownloadExclusions: (vaultId) => set(state => ({
+        autoDownloadExcludedFiles: {
+          ...state.autoDownloadExcludedFiles,
+          [vaultId]: []
+        }
+      })),
+      cleanupStaleExclusions: (vaultId, serverFilePaths) => set(state => {
+        const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
+        // Keep only exclusions for files that still exist on the server
+        const validExclusions = currentExclusions.filter(path => serverFilePaths.has(path))
+        // Only update if something changed
+        if (validExclusions.length === currentExclusions.length) return state
+        return {
+          autoDownloadExcludedFiles: {
+            ...state.autoDownloadExcludedFiles,
+            [vaultId]: validExclusions
+          }
+        }
+      }),
       
       // Actions - Pinned items
       pinFolder: (path, vaultId, vaultName, isDirectory) => {
@@ -1578,6 +1682,10 @@ export const usePDMStore = create<PDMState>()(
       })),
       clearOrphanedCheckouts: () => set({ orphanedCheckouts: [] }),
       
+      // Actions - Missing Storage Files
+      setMissingStorageFiles: (files) => set({ missingStorageFiles: files }),
+      clearMissingStorageFiles: () => set({ missingStorageFiles: [] }),
+      
       // Actions - Columns
       setColumnWidth: (id, width) => {
         const { columns } = get()
@@ -1935,6 +2043,7 @@ export const usePDMStore = create<PDMState>()(
         theme: state.theme,
         autoApplySeasonalThemes: state.autoApplySeasonalThemes,
         language: state.language,
+        keybindings: state.keybindings,
         christmasSnowOpacity: state.christmasSnowOpacity,
         christmasSnowDensity: state.christmasSnowDensity,
         christmasSnowSize: state.christmasSnowSize,
@@ -1947,6 +2056,7 @@ export const usePDMStore = create<PDMState>()(
         halloweenGhostsOpacity: state.halloweenGhostsOpacity,
         autoDownloadCloudFiles: state.autoDownloadCloudFiles,
         autoDownloadUpdates: state.autoDownloadUpdates,
+        autoDownloadExcludedFiles: state.autoDownloadExcludedFiles,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         connectedVaults: state.connectedVaults,
@@ -2043,12 +2153,29 @@ export const usePDMStore = create<PDMState>()(
           autoApplySeasonalThemes: persisted.autoApplySeasonalThemes !== undefined ? (persisted.autoApplySeasonalThemes as boolean) : true,
           // Ensure language has a default
           language: (persisted.language as Language) || 'en',
+          // Ensure keybindings has defaults (merge with defaults for new keybindings)
+          keybindings: Object.assign({
+            navigateUp: { key: 'ArrowUp' },
+            navigateDown: { key: 'ArrowDown' },
+            expandFolder: { key: 'ArrowRight' },
+            collapseFolder: { key: 'ArrowLeft' },
+            selectAll: { key: 'a', ctrlKey: true },
+            copy: { key: 'c', ctrlKey: true },
+            cut: { key: 'x', ctrlKey: true },
+            paste: { key: 'v', ctrlKey: true },
+            delete: { key: 'Delete' },
+            escape: { key: 'Escape' },
+            openFile: { key: 'Enter' },
+            toggleDetailsPanel: { key: 'p', ctrlKey: true },
+            refresh: { key: 'r', ctrlKey: true },
+          }, persisted.keybindings as KeybindingsConfig || {}),
           // Ensure onboarding state has defaults
           onboardingComplete: (persisted.onboardingComplete as boolean) || false,
           logSharingEnabled: (persisted.logSharingEnabled as boolean) || false,
           // Ensure auto-download settings have defaults
           autoDownloadCloudFiles: (persisted.autoDownloadCloudFiles as boolean) || false,
           autoDownloadUpdates: (persisted.autoDownloadUpdates as boolean) || false,
+          autoDownloadExcludedFiles: (persisted.autoDownloadExcludedFiles as Record<string, string[]>) || {},
           // Ensure columns have all fields
           columns: currentState.columns.map(defaultCol => {
             const persistedCol = (persisted.columns as ColumnConfig[] || [])

@@ -16,7 +16,8 @@ import {
   Telescope,
   PanelLeft,
   Building2,
-  Globe
+  Globe,
+  FileWarning
 } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { usePDMStore, SidebarView } from '../stores/pdmStore'
@@ -59,6 +60,7 @@ const iconComponents: Record<string, React.ComponentType<{ size?: number }>> = {
   Telescope,
   Building2,
   Globe,
+  FileWarning,
 }
 
 // Context to share expanded state
@@ -223,6 +225,7 @@ const moduleTranslationKeys: Record<ModuleId, string> = {
   'gsd': 'sidebar.gsd',
   'ecr': 'sidebar.ecr',
   'reviews': 'sidebar.reviews',
+  'deviations': 'sidebar.deviations',
   'products': 'sidebar.products',
   'process': 'sidebar.process',
   'schedule': 'sidebar.schedule',

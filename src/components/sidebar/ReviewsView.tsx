@@ -1,20 +1,21 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   Bell, 
   CheckCircle2, 
   XCircle, 
   Clock, 
   Send, 
-  User,
   FileText,
   ChevronRight,
   Loader2,
-  MessageSquare,
   Check,
   X,
   Trash2,
   MailOpen,
-  RefreshCw
+  RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  RotateCcw
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { 
@@ -31,6 +32,51 @@ import type { Review, Notification, ReviewStatus } from '../../types/database'
 
 type ViewTab = 'notifications' | 'pending' | 'my-reviews'
 
+// Build full path using the correct separator for the platform
+function buildFullPath(vaultPath: string, relativePath: string): string {
+  const isWindows = vaultPath.includes('\\')
+  const sep = isWindows ? '\\' : '/'
+  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
+  return `${vaultPath}${sep}${normalizedRelative}`
+}
+
+// Avatar component for user display
+function UserAvatar({ user, size = 24 }: { user?: { email: string; full_name: string | null; avatar_url: string | null } | null; size?: number }) {
+  if (!user) return null
+  
+  const initials = user.full_name 
+    ? user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : user.email[0].toUpperCase()
+  
+  if (user.avatar_url) {
+    return (
+      <img 
+        src={user.avatar_url} 
+        alt={user.full_name || user.email}
+        className="rounded-full object-cover flex-shrink-0"
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+  
+  // Generate a consistent color based on email
+  const colors = [
+    'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 
+    'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500'
+  ]
+  const colorIndex = user.email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length
+  
+  return (
+    <div 
+      className={`${colors[colorIndex]} rounded-full flex items-center justify-center text-white font-medium flex-shrink-0`}
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
+      title={user.full_name || user.email}
+    >
+      {initials}
+    </div>
+  )
+}
+
 export function ReviewsView() {
   const { 
     user, 
@@ -39,8 +85,117 @@ export function ReviewsView() {
     unreadNotificationCount, 
     setUnreadNotificationCount,
     pendingReviewCount,
-    setPendingReviewCount
+    setPendingReviewCount,
+    vaultPath,
+    connectedVaults,
+    activeVaultId,
+    setActiveView,
+    setCurrentFolder,
+    setSelectedFiles,
+    files
   } = usePDMStore()
+  
+  
+  // Get the vault path for a review (by vault_id or fall back to active vault)
+  const getVaultPathForReview = useCallback((review: Review): string | null => {
+    // First try to find the vault by vault_id
+    if (review.vault_id && connectedVaults.length > 0) {
+      const vault = connectedVaults.find(v => v.id === review.vault_id)
+      if (vault?.localPath) return vault.localPath
+    }
+    // Fall back to active vault or legacy vaultPath
+    if (activeVaultId && connectedVaults.length > 0) {
+      const activeVault = connectedVaults.find(v => v.id === activeVaultId)
+      if (activeVault?.localPath) return activeVault.localPath
+    }
+    return vaultPath
+  }, [connectedVaults, activeVaultId, vaultPath])
+  
+  // Get full file path for a review
+  const getFullFilePath = useCallback((review: Review): string | null => {
+    if (!review.file?.file_path) return null
+    const reviewVaultPath = getVaultPathForReview(review)
+    if (!reviewVaultPath) return null
+    return buildFullPath(reviewVaultPath, review.file.file_path)
+  }, [getVaultPathForReview])
+  
+  // Open file handler
+  const handleOpenFile = useCallback((review: Review) => {
+    const fullPath = getFullFilePath(review)
+    if (fullPath) {
+      window.electronAPI?.openFile(fullPath)
+    } else {
+      addToast('error', 'Cannot open file: vault not connected')
+    }
+  }, [getFullFilePath, addToast])
+  
+  // Get full file path for a notification (similar to review but uses notification.file)
+  const getNotificationFilePath = useCallback((notification: Notification): string | null => {
+    if (!notification.file?.file_path) return null
+    // Use active vault or legacy vaultPath
+    let notifVaultPath: string | null = null
+    if (activeVaultId && connectedVaults.length > 0) {
+      const activeVault = connectedVaults.find(v => v.id === activeVaultId)
+      if (activeVault?.localPath) notifVaultPath = activeVault.localPath
+    }
+    if (!notifVaultPath) notifVaultPath = vaultPath
+    if (!notifVaultPath) return null
+    return buildFullPath(notifVaultPath, notification.file.file_path)
+  }, [connectedVaults, activeVaultId, vaultPath])
+  
+  // Open notification file handler
+  const handleOpenNotificationFile = useCallback((notification: Notification) => {
+    const fullPath = getNotificationFilePath(notification)
+    if (fullPath) {
+      window.electronAPI?.openFile(fullPath)
+    } else {
+      addToast('error', 'Cannot open file: vault not connected')
+    }
+  }, [getNotificationFilePath, addToast])
+  
+  // Navigate to file in file browser (single click)
+  const handleNavigateToFile = useCallback((filePath: string | undefined) => {
+    if (!filePath) {
+      addToast('error', 'File path not available')
+      return
+    }
+    
+    // Get the parent folder path
+    const pathParts = filePath.replace(/\\/g, '/').split('/')
+    pathParts.pop() // Remove filename, we only need the parent folder
+    const parentFolder = pathParts.join('/')
+    
+    // Find the full local path
+    const fullPath = files.find(f => f.relativePath.replace(/\\/g, '/') === filePath)?.path
+    
+    // Navigate to explorer, set folder and select file
+    setActiveView('explorer')
+    setCurrentFolder(parentFolder)
+    if (fullPath) {
+      setSelectedFiles([fullPath])
+    }
+  }, [files, setActiveView, setCurrentFolder, setSelectedFiles, addToast])
+  
+  // Track double-click timing
+  const lastClickTime = useRef<number>(0)
+  const lastClickedId = useRef<string | null>(null)
+  
+  // Handle row click - single click navigates, double click opens
+  const handleRowClick = useCallback((review: Review) => {
+    const now = Date.now()
+    const isDoubleClick = lastClickedId.current === review.id && (now - lastClickTime.current) < 300
+    
+    lastClickTime.current = now
+    lastClickedId.current = review.id
+    
+    if (isDoubleClick) {
+      // Double click - open the file
+      handleOpenFile(review)
+    } else {
+      // Single click - navigate to file in browser
+      handleNavigateToFile(review.file?.file_path)
+    }
+  }, [handleOpenFile, handleNavigateToFile])
   
   const [activeTab, setActiveTab] = useState<ViewTab>('notifications')
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -197,19 +352,6 @@ export function ReviewsView() {
   }
   
   // Get notification icon
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'review_request': return <Send size={14} className="text-plm-accent" />
-      case 'review_approved': return <CheckCircle2 size={14} className="text-plm-success" />
-      case 'review_rejected': return <XCircle size={14} className="text-plm-error" />
-      case 'review_comment': return <MessageSquare size={14} className="text-plm-accent" />
-      case 'checkout_request': return <Clock size={14} className="text-plm-warning" />
-      case 'mention': return <User size={14} className="text-plm-accent" />
-      case 'file_updated': return <FileText size={14} className="text-plm-fg-dim" />
-      default: return <Bell size={14} className="text-plm-fg-dim" />
-    }
-  }
-  
   if (!user) {
     return (
       <div className="p-4 text-center text-plm-fg-muted">
@@ -297,187 +439,386 @@ export function ReviewsView() {
             <Loader2 size={24} className="animate-spin text-plm-accent" />
           </div>
         ) : activeTab === 'notifications' ? (
-          // Notifications list
+          // Notifications list - with special handling for review requests
           notifications.length === 0 ? (
-            <div className="p-4 text-center text-plm-fg-muted">
-              <Bell size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No notifications yet</p>
+            <div className="p-6 text-center text-plm-fg-muted">
+              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-plm-accent/10 flex items-center justify-center">
+                <Bell size={32} className="text-plm-accent" />
+              </div>
+              <p className="text-sm font-medium text-plm-fg">No notifications</p>
+              <p className="text-xs mt-1 text-plm-fg-muted">You're all caught up!</p>
             </div>
           ) : (
-            <div className="divide-y divide-plm-border">
-              {notifications.map(notification => (
-                <div
-                  key={notification.id}
-                  className={`p-3 hover:bg-plm-highlight transition-colors group ${
-                    !notification.read ? 'bg-plm-accent/5' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <div className="mt-0.5">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-medium truncate ${!notification.read ? 'text-plm-fg' : 'text-plm-fg-dim'}`}>
-                          {notification.title}
-                        </span>
-                        {!notification.read && (
-                          <span className="w-2 h-2 bg-plm-accent rounded-full flex-shrink-0" />
-                        )}
-                      </div>
-                      {notification.message && (
-                        <p className="text-xs text-plm-fg-muted mt-0.5 line-clamp-2">
-                          {notification.message}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] text-plm-fg-muted">
-                          {formatRelativeTime(notification.created_at)}
-                        </span>
-                        {notification.from_user && (
-                          <span className="text-[10px] text-plm-fg-muted flex items-center gap-1">
-                            <User size={10} />
-                            {notification.from_user.full_name || notification.from_user.email}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!notification.read && (
-                        <button
-                          onClick={() => handleMarkRead(notification.id)}
-                          className="p-1 text-plm-fg-muted hover:text-plm-fg rounded"
-                          title="Mark as read"
-                        >
-                          <Check size={12} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteNotification(notification.id)}
-                        className="p-1 text-plm-fg-muted hover:text-plm-error rounded"
-                        title="Delete"
+            <div className="space-y-2 p-2">
+              {notifications.map(notification => {
+                const isReviewRequest = notification.type === 'review_request'
+                const hasFile = !!notification.file
+                
+                // For review requests, show card-style with approve/reject
+                if (isReviewRequest && notification.review_id) {
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`bg-plm-bg-light border rounded-lg overflow-hidden transition-colors ${
+                        !notification.read ? 'border-plm-accent/50' : 'border-plm-border hover:border-plm-accent/30'
+                      }`}
+                    >
+                      {/* Clickable card area */}
+                      <div 
+                        className="p-3 cursor-pointer"
+                        onClick={() => {
+                          if (notification.file?.file_path) {
+                            handleNavigateToFile(notification.file.file_path)
+                          }
+                        }}
+                        onDoubleClick={() => handleOpenNotificationFile(notification)}
+                        title="Click to view in browser, double-click to open file"
                       >
-                        <Trash2 size={12} />
-                      </button>
+                        {/* Header with avatar */}
+                        <div className="flex items-start gap-3">
+                          <UserAvatar user={notification.from_user} size={36} />
+                          <div className="flex-1 min-w-0">
+                            {/* From user */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-plm-fg">
+                                {notification.from_user?.full_name || notification.from_user?.email?.split('@')[0] || 'Someone'}
+                              </span>
+                              {!notification.read && (
+                                <span className="w-2 h-2 bg-plm-accent rounded-full flex-shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-plm-fg-muted">requested your review</p>
+                            
+                            {/* File info */}
+                            {hasFile && (
+                              <div className="flex items-center gap-2 mt-2 p-2 bg-plm-bg rounded">
+                                <FileText size={16} className="text-plm-accent flex-shrink-0" />
+                                <span className="text-sm font-medium text-plm-fg truncate">
+                                  {notification.file?.file_name}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Message */}
+                            {notification.message && (
+                              <p className="text-xs text-plm-fg-dim mt-2 line-clamp-2">
+                                "{notification.message}"
+                              </p>
+                            )}
+                            
+                            {/* Time */}
+                            <p className="text-[10px] text-plm-fg-muted mt-2">
+                              {formatRelativeTime(notification.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Action buttons */}
+                      <div className="flex items-center border-t border-plm-border bg-plm-bg/50">
+                        <button
+                          onClick={async () => {
+                            if (notification.review_id) {
+                              await respondToReview(notification.review_id, user!.id, 'approved')
+                              handleMarkRead(notification.id)
+                              addToast('success', 'Review approved')
+                              loadData()
+                            }
+                          }}
+                          className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-success hover:bg-plm-success/10 flex items-center justify-center gap-1.5 transition-colors border-r border-plm-border"
+                        >
+                          <ThumbsUp size={14} />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => {
+                            setExpandedReview(expandedReview === notification.id ? null : notification.id)
+                          }}
+                          className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-warning hover:bg-plm-warning/10 flex items-center justify-center gap-1.5 transition-colors border-r border-plm-border"
+                        >
+                          <RotateCcw size={14} />
+                          Request Changes
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (notification.review_id) {
+                              await respondToReview(notification.review_id, user!.id, 'rejected')
+                              handleMarkRead(notification.id)
+                              addToast('info', 'Review rejected')
+                              loadData()
+                            }
+                          }}
+                          className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-error hover:bg-plm-error/10 flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <ThumbsDown size={14} />
+                          Reject
+                        </button>
+                      </div>
+                      
+                      {/* Expanded comment form */}
+                      {expandedReview === notification.id && (
+                        <div className="p-3 border-t border-plm-border bg-plm-bg">
+                          <textarea
+                            placeholder="Add feedback or reason for changes..."
+                            value={responseComment}
+                            onChange={(e) => setResponseComment(e.target.value)}
+                            className="w-full px-3 py-2 text-xs bg-plm-bg-light border border-plm-border rounded-lg resize-none focus:outline-none focus:border-plm-accent"
+                            rows={3}
+                            autoFocus
+                          />
+                          <div className="flex justify-end gap-2 mt-2">
+                            <button
+                              onClick={() => {
+                                setExpandedReview(null)
+                                setResponseComment('')
+                              }}
+                              className="px-3 py-1.5 text-xs text-plm-fg-muted hover:text-plm-fg"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (notification.review_id) {
+                                  await respondToReview(notification.review_id, user!.id, 'rejected', responseComment)
+                                  handleMarkRead(notification.id)
+                                  addToast('info', 'Feedback sent')
+                                  setExpandedReview(null)
+                                  setResponseComment('')
+                                  loadData()
+                                }
+                              }}
+                              disabled={!responseComment.trim()}
+                              className="px-4 py-1.5 text-xs font-medium bg-plm-warning text-white rounded hover:bg-plm-warning/90 disabled:opacity-50"
+                            >
+                              Send Feedback
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+                
+                // Regular notifications (non-review)
+                return (
+                  <div
+                    key={notification.id}
+                    className={`p-3 rounded-lg transition-colors group ${
+                      !notification.read ? 'bg-plm-accent/5 border border-plm-accent/20' : 'bg-plm-bg-light border border-plm-border hover:border-plm-accent/30'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <UserAvatar user={notification.from_user} size={32} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-medium truncate ${!notification.read ? 'text-plm-fg' : 'text-plm-fg-dim'}`}>
+                            {notification.title}
+                          </span>
+                          {!notification.read && (
+                            <span className="w-2 h-2 bg-plm-accent rounded-full flex-shrink-0" />
+                          )}
+                        </div>
+                        {notification.message && (
+                          <p className="text-xs text-plm-fg-muted mt-0.5 line-clamp-2">
+                            {notification.message}
+                          </p>
+                        )}
+                        {hasFile && (
+                          <div 
+                            className="flex items-center gap-1 mt-1.5 p-1.5 bg-plm-bg rounded cursor-pointer hover:bg-plm-highlight"
+                            onClick={() => handleNavigateToFile(notification.file?.file_path)}
+                            onDoubleClick={() => handleOpenNotificationFile(notification)}
+                          >
+                            <FileText size={12} className="text-plm-accent" />
+                            <span className="text-[11px] text-plm-fg truncate">
+                              {notification.file?.file_name}
+                            </span>
+                          </div>
+                        )}
+                        <p className="text-[10px] text-plm-fg-muted mt-1.5">
+                          {formatRelativeTime(notification.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {!notification.read && (
+                          <button
+                            onClick={() => handleMarkRead(notification.id)}
+                            className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded"
+                            title="Mark as read"
+                          >
+                            <Check size={14} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteNotification(notification.id)}
+                          className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-highlight rounded"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )
         ) : activeTab === 'pending' ? (
           // Pending reviews (need response)
           pendingReviews.length === 0 ? (
-            <div className="p-4 text-center text-plm-fg-muted">
-              <CheckCircle2 size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No pending reviews</p>
-              <p className="text-xs mt-1">You're all caught up!</p>
+            <div className="p-6 text-center text-plm-fg-muted">
+              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-plm-success/10 flex items-center justify-center">
+                <CheckCircle2 size={32} className="text-plm-success" />
+              </div>
+              <p className="text-sm font-medium text-plm-fg">All caught up!</p>
+              <p className="text-xs mt-1 text-plm-fg-muted">No reviews waiting for your response</p>
             </div>
           ) : (
-            <div className="divide-y divide-plm-border">
+            <div className="space-y-2 p-2">
               {pendingReviews.map(review => (
-                <div key={review.id} className="p-3">
-                  {/* Review header */}
+                <div 
+                  key={review.id} 
+                  className="bg-plm-bg-light border border-plm-border rounded-lg overflow-hidden hover:border-plm-accent/50 transition-colors"
+                >
+                  {/* Clickable review card */}
                   <div 
-                    className="flex items-start gap-2 cursor-pointer"
-                    onClick={() => setExpandedReview(expandedReview === review.id ? null : review.id)}
+                    className="p-3 cursor-pointer"
+                    onClick={() => handleRowClick(review)}
+                    title="Click to view in browser, double-click to open file"
                   >
-                    <FileText size={14} className="mt-0.5 text-plm-fg-dim flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-plm-fg truncate">
-                          {review.file?.file_name || 'Unknown file'}
-                        </span>
-                        {getStatusIcon(review.status)}
+                    {/* Header with avatar and file info */}
+                    <div className="flex items-start gap-3">
+                      <UserAvatar user={review.requester} size={32} />
+                      <div className="flex-1 min-w-0">
+                        {/* File name */}
+                        <div className="flex items-center gap-2">
+                          <FileText size={14} className="text-plm-accent flex-shrink-0" />
+                          <span className="text-sm font-medium text-plm-fg truncate">
+                            {review.file?.file_name || 'Unknown file'}
+                          </span>
+                        </div>
+                        
+                        {/* Review title if present */}
+                        {review.title && (
+                          <p className="text-xs text-plm-fg-dim mt-1 truncate">{review.title}</p>
+                        )}
+                        
+                        {/* Requester and metadata */}
+                        <div className="flex items-center gap-2 mt-1.5 text-[11px] text-plm-fg-muted">
+                          <span className="font-medium text-plm-fg-dim">
+                            {review.requester?.full_name || review.requester?.email?.split('@')[0]}
+                          </span>
+                          <span>•</span>
+                          <span>v{review.file_version}</span>
+                          <span>•</span>
+                          <span>{formatRelativeTime(review.created_at)}</span>
+                        </div>
                       </div>
-                      {review.title && (
-                        <p className="text-xs text-plm-fg-dim mt-0.5">{review.title}</p>
-                      )}
-                      {/* Priority and Due Date badges */}
-                      <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      
+                      {/* Priority/Due badges */}
+                      <div className="flex flex-col items-end gap-1">
                         {review.priority && review.priority !== 'normal' && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                            review.priority === 'urgent' ? 'bg-plm-error/20 text-plm-error' :
-                            review.priority === 'high' ? 'bg-plm-warning/20 text-plm-warning' :
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                            review.priority === 'urgent' ? 'bg-plm-error text-white' :
+                            review.priority === 'high' ? 'bg-plm-warning text-white' :
                             'bg-plm-fg-muted/20 text-plm-fg-muted'
                           }`}>
                             {review.priority.toUpperCase()}
                           </span>
                         )}
                         {review.due_date && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
-                            new Date(review.due_date) < new Date() ? 'bg-plm-error/20 text-plm-error' :
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            new Date(review.due_date) < new Date() ? 'bg-plm-error text-white' :
                             new Date(review.due_date) < new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) ? 'bg-plm-warning/20 text-plm-warning' :
                             'bg-plm-fg-muted/20 text-plm-fg-muted'
                           }`}>
                             <Clock size={10} />
-                            Due {new Date(review.due_date).toLocaleDateString()}
+                            {new Date(review.due_date).toLocaleDateString()}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-1 text-[10px] text-plm-fg-muted">
-                        <span className="flex items-center gap-1">
-                          <User size={10} />
-                          {review.requester?.full_name || review.requester?.email}
-                        </span>
-                        <span>•</span>
-                        <span>v{review.file_version}</span>
-                        <span>•</span>
-                        <span>{formatRelativeTime(review.created_at)}</span>
-                      </div>
                     </div>
-                    <ChevronRight 
-                      size={14} 
-                      className={`text-plm-fg-muted transition-transform ${
-                        expandedReview === review.id ? 'rotate-90' : ''
-                      }`}
-                    />
+                    
+                    {/* Message preview */}
+                    {review.message && (
+                      <div className="mt-2 p-2 bg-plm-bg rounded text-xs text-plm-fg-dim line-clamp-2">
+                        "{review.message}"
+                      </div>
+                    )}
                   </div>
                   
-                  {/* Expanded review details */}
-                  {expandedReview === review.id && (
-                    <div className="mt-3 ml-6 space-y-3">
-                      {review.message && (
-                        <div className="p-2 bg-plm-bg-light rounded text-xs text-plm-fg-dim">
-                          {review.message}
-                        </div>
+                  {/* Action buttons - always visible at bottom */}
+                  <div className="flex items-center border-t border-plm-border bg-plm-bg/50">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRespond(review.id, 'approved')
+                      }}
+                      disabled={respondingTo === review.id}
+                      className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-success hover:bg-plm-success/10 disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors border-r border-plm-border"
+                    >
+                      {respondingTo === review.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <ThumbsUp size={14} />
                       )}
-                      
-                      {/* Response form */}
-                      <div className="space-y-2">
-                        <textarea
-                          placeholder="Add a comment (optional)..."
-                          value={responseComment}
-                          onChange={(e) => setResponseComment(e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs bg-plm-bg border border-plm-border rounded resize-none focus:outline-none focus:border-plm-accent"
-                          rows={2}
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleRespond(review.id, 'approved')}
-                            disabled={respondingTo === review.id}
-                            className="flex-1 px-3 py-1.5 text-xs font-medium bg-plm-success text-white rounded hover:bg-plm-success/90 disabled:opacity-50 flex items-center justify-center gap-1"
-                          >
-                            {respondingTo === review.id ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : (
-                              <CheckCircle2 size={12} />
-                            )}
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleRespond(review.id, 'rejected')}
-                            disabled={respondingTo === review.id}
-                            className="flex-1 px-3 py-1.5 text-xs font-medium bg-plm-error text-white rounded hover:bg-plm-error/90 disabled:opacity-50 flex items-center justify-center gap-1"
-                          >
-                            {respondingTo === review.id ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : (
-                              <XCircle size={12} />
-                            )}
-                            Reject
-                          </button>
-                        </div>
+                      Approve
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setExpandedReview(expandedReview === review.id ? null : review.id)
+                      }}
+                      className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-warning hover:bg-plm-warning/10 flex items-center justify-center gap-1.5 transition-colors border-r border-plm-border"
+                    >
+                      <RotateCcw size={14} />
+                      Request Changes
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRespond(review.id, 'rejected')
+                      }}
+                      disabled={respondingTo === review.id}
+                      className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-error hover:bg-plm-error/10 disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      {respondingTo === review.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <ThumbsDown size={14} />
+                      )}
+                      Reject
+                    </button>
+                  </div>
+                  
+                  {/* Expanded comment form */}
+                  {expandedReview === review.id && (
+                    <div className="p-3 border-t border-plm-border bg-plm-bg">
+                      <textarea
+                        placeholder="Add feedback or reason for changes..."
+                        value={responseComment}
+                        onChange={(e) => setResponseComment(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-plm-bg-light border border-plm-border rounded-lg resize-none focus:outline-none focus:border-plm-accent"
+                        rows={3}
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2 mt-2">
+                        <button
+                          onClick={() => {
+                            setExpandedReview(null)
+                            setResponseComment('')
+                          }}
+                          className="px-3 py-1.5 text-xs text-plm-fg-muted hover:text-plm-fg"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleRespond(review.id, 'rejected')}
+                          disabled={respondingTo === review.id || !responseComment.trim()}
+                          className="px-4 py-1.5 text-xs font-medium bg-plm-warning text-white rounded hover:bg-plm-warning/90 disabled:opacity-50"
+                        >
+                          Send Feedback
+                        </button>
                       </div>
                     </div>
                   )}
@@ -488,75 +829,145 @@ export function ReviewsView() {
         ) : (
           // My reviews (reviews I requested)
           myReviews.length === 0 ? (
-            <div className="p-4 text-center text-plm-fg-muted">
-              <Send size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No review requests</p>
-              <p className="text-xs mt-1">Right-click a file to request a review</p>
+            <div className="p-6 text-center text-plm-fg-muted">
+              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-plm-accent/10 flex items-center justify-center">
+                <Send size={32} className="text-plm-accent" />
+              </div>
+              <p className="text-sm font-medium text-plm-fg">No review requests</p>
+              <p className="text-xs mt-1 text-plm-fg-muted">Right-click a file to request a review</p>
             </div>
           ) : (
-            <div className="divide-y divide-plm-border">
+            <div className="space-y-2 p-2">
               {myReviews.map(review => (
-                <div key={review.id} className="p-3">
-                  {/* Review header */}
+                <div 
+                  key={review.id} 
+                  className={`bg-plm-bg-light border rounded-lg overflow-hidden transition-colors ${
+                    review.status === 'approved' ? 'border-plm-success/30' :
+                    review.status === 'rejected' ? 'border-plm-error/30' :
+                    'border-plm-border hover:border-plm-accent/50'
+                  }`}
+                >
+                  {/* Clickable review card */}
                   <div 
-                    className="flex items-start gap-2 cursor-pointer"
-                    onClick={() => setExpandedReview(expandedReview === review.id ? null : review.id)}
+                    className="p-3 cursor-pointer"
+                    onClick={() => handleRowClick(review)}
+                    title="Click to view in browser, double-click to open file"
                   >
-                    <FileText size={14} className="mt-0.5 text-plm-fg-dim flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-plm-fg truncate">
-                          {review.file?.file_name || 'Unknown file'}
-                        </span>
-                        {getStatusIcon(review.status)}
+                    {/* Header with file info and status */}
+                    <div className="flex items-start gap-3">
+                      {/* Status indicator */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        review.status === 'approved' ? 'bg-plm-success/20' :
+                        review.status === 'rejected' ? 'bg-plm-error/20' :
+                        review.status === 'cancelled' ? 'bg-plm-fg-muted/20' :
+                        'bg-plm-warning/20'
+                      }`}>
+                        {review.status === 'approved' ? <CheckCircle2 size={20} className="text-plm-success" /> :
+                         review.status === 'rejected' ? <XCircle size={20} className="text-plm-error" /> :
+                         review.status === 'cancelled' ? <X size={20} className="text-plm-fg-muted" /> :
+                         <Clock size={20} className="text-plm-warning" />}
                       </div>
-                      {review.title && (
-                        <p className="text-xs text-plm-fg-dim mt-0.5">{review.title}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-1 text-[10px] text-plm-fg-muted">
-                        <span className={`font-medium ${getStatusColor(review.status)}`}>
-                          {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
-                        </span>
-                        <span>•</span>
-                        <span>v{review.file_version}</span>
-                        <span>•</span>
-                        <span>{formatRelativeTime(review.created_at)}</span>
+                      
+                      <div className="flex-1 min-w-0">
+                        {/* File name */}
+                        <div className="flex items-center gap-2">
+                          <FileText size={14} className="text-plm-accent flex-shrink-0" />
+                          <span className="text-sm font-medium text-plm-fg truncate">
+                            {review.file?.file_name || 'Unknown file'}
+                          </span>
+                        </div>
+                        
+                        {/* Review title if present */}
+                        {review.title && (
+                          <p className="text-xs text-plm-fg-dim mt-1 truncate">{review.title}</p>
+                        )}
+                        
+                        {/* Status and metadata */}
+                        <div className="flex items-center gap-2 mt-1.5 text-[11px] text-plm-fg-muted">
+                          <span className={`font-semibold ${getStatusColor(review.status)}`}>
+                            {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
+                          </span>
+                          <span>•</span>
+                          <span>v{review.file_version}</span>
+                          <span>•</span>
+                          <span>{formatRelativeTime(review.created_at)}</span>
+                        </div>
                       </div>
+                      
+                      {/* Expand indicator */}
+                      <ChevronRight 
+                        size={16} 
+                        className={`text-plm-fg-muted transition-transform flex-shrink-0 ${
+                          expandedReview === review.id ? 'rotate-90' : ''
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setExpandedReview(expandedReview === review.id ? null : review.id)
+                        }}
+                      />
                     </div>
-                    <ChevronRight 
-                      size={14} 
-                      className={`text-plm-fg-muted transition-transform ${
-                        expandedReview === review.id ? 'rotate-90' : ''
-                      }`}
-                    />
+                    
+                    {/* Reviewers summary */}
+                    {review.responses && review.responses.length > 0 && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="flex -space-x-2">
+                          {review.responses.slice(0, 3).map(response => (
+                            <div key={response.id} className="relative">
+                              <UserAvatar user={response.reviewer} size={24} />
+                              {response.status !== 'pending' && (
+                                <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border border-plm-bg-light flex items-center justify-center ${
+                                  response.status === 'approved' ? 'bg-plm-success' : 'bg-plm-error'
+                                }`}>
+                                  {response.status === 'approved' ? 
+                                    <Check size={8} className="text-white" /> : 
+                                    <X size={8} className="text-white" />
+                                  }
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <span className="text-[10px] text-plm-fg-muted">
+                          {review.responses.filter(r => r.status === 'approved').length}/{review.responses.length} approved
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
-                  {/* Expanded review details */}
+                  {/* Expanded details */}
                   {expandedReview === review.id && (
-                    <div className="mt-3 ml-6 space-y-3">
+                    <div className="p-3 border-t border-plm-border bg-plm-bg space-y-3">
                       {review.message && (
                         <div className="p-2 bg-plm-bg-light rounded text-xs text-plm-fg-dim">
-                          {review.message}
+                          "{review.message}"
                         </div>
                       )}
                       
-                      {/* Reviewers */}
-                      <div className="space-y-1">
-                        <p className="text-[10px] text-plm-fg-muted uppercase tracking-wide">Reviewers</p>
+                      {/* Detailed reviewers list */}
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-plm-fg-muted uppercase tracking-wide font-medium">Reviewers</p>
                         {review.responses?.map(response => (
                           <div 
                             key={response.id}
-                            className="flex items-center gap-2 text-xs"
+                            className="flex items-center gap-2 p-2 bg-plm-bg-light rounded"
                           >
-                            {getStatusIcon(response.status)}
-                            <span className="text-plm-fg-dim">
-                              {response.reviewer?.full_name || response.reviewer?.email}
-                            </span>
-                            {response.responded_at && (
-                              <span className="text-[10px] text-plm-fg-muted">
-                                {formatRelativeTime(response.responded_at)}
+                            <UserAvatar user={response.reviewer} size={28} />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-plm-fg truncate block">
+                                {response.reviewer?.full_name || response.reviewer?.email}
                               </span>
-                            )}
+                              {response.comment && (
+                                <p className="text-[10px] text-plm-fg-muted truncate">"{response.comment}"</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {getStatusIcon(response.status)}
+                              {response.responded_at && (
+                                <span className="text-[10px] text-plm-fg-muted">
+                                  {formatRelativeTime(response.responded_at)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -565,10 +976,10 @@ export function ReviewsView() {
                       {review.status === 'pending' && (
                         <button
                           onClick={() => handleCancelReview(review.id)}
-                          className="text-xs text-plm-error hover:text-plm-error/80 flex items-center gap-1"
+                          className="w-full px-3 py-2 text-xs font-medium text-plm-error hover:bg-plm-error/10 rounded flex items-center justify-center gap-1.5 transition-colors"
                         >
-                          <X size={12} />
-                          Cancel Review
+                          <Trash2 size={14} />
+                          Cancel Review Request
                         </button>
                       )}
                     </div>

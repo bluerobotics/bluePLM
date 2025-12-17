@@ -60,6 +60,8 @@ import {
 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { getFileIconType, formatFileSize, STATE_INFO, getInitials } from '../types/pdm'
+// Shared file/folder components - use FileIcon for files with thumbnail support
+import { FileIcon } from './shared/FileItemComponents'
 import { logFileAction, logContextMenu, logDragDrop } from '../lib/userActionLogger'
 import { 
   supabase,
@@ -77,6 +79,17 @@ import {
   isMachineOnline
 } from '../lib/supabase'
 import type { FileMetadataColumn } from '../types/database'
+// Shared inline action button components
+import { 
+  InlineCheckoutButton, 
+  InlineDownloadButton, 
+  InlineUploadButton, 
+  InlineSyncButton,
+  InlineCheckinButton,
+  FolderDownloadButton,
+  FolderUploadButton,
+  FolderCheckinButton
+} from './InlineActionButtons'
 // Use command system for PDM operations
 import { executeCommand } from '../lib/commands'
 import { getSyncedFilesFromSelection } from '../lib/commands/types'
@@ -117,6 +130,7 @@ interface FileIconCardProps {
   file: LocalFile
   iconSize: number
   isSelected: boolean
+  isCut: boolean  // Whether file is in clipboard with cut operation
   allFiles: LocalFile[]
   processingPaths: Set<string>  // Paths currently being processed
   currentMachineId: string | null  // Current machine ID for multi-device checkout detection
@@ -136,7 +150,7 @@ interface FileIconCardProps {
 }
 
 // Memoized to prevent re-renders when other files change
-const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, allFiles, processingPaths, currentMachineId, lowercaseExtensions, userId, userFullName, userEmail, userAvatarUrl, onClick, onDoubleClick, onContextMenu, onDownload, onCheckout, onCheckin, onUpload, onStateChange }: FileIconCardProps) {
+const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, isCut, allFiles, processingPaths, currentMachineId, lowercaseExtensions, userId, userFullName, userEmail, userAvatarUrl, onClick, onDoubleClick, onContextMenu, onDownload, onCheckout, onCheckin, onUpload, onStateChange }: FileIconCardProps) {
   const [thumbnail, setThumbnail] = useState<string | null>(null)
   const [thumbnailError, setThumbnailError] = useState(false)
   const [loadingThumbnail, setLoadingThumbnail] = useState(false)
@@ -174,7 +188,15 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
   }, [showStateDropdown])
   
   // Load SolidWorks thumbnail for supported files
+  // Skip if file is being processed (deleted, etc.) to avoid holding file handles
   useEffect(() => {
+    // Don't load thumbnails for files being processed - prevents race condition with delete
+    if (isProcessing) {
+      setThumbnail(null)
+      setLoadingThumbnail(false)
+      return
+    }
+    
     const loadThumbnail = async () => {
       const ext = file.extension.toLowerCase()
       const supportedExts = ['.sldprt', '.sldasm', '.slddrw']
@@ -208,7 +230,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
     }
     
     loadThumbnail()
-  }, [file.path, file.extension, file.isDirectory, iconSize])
+  }, [file.path, file.extension, file.isDirectory, iconSize, isProcessing])
   
   const iconType = getFileIconType(file.extension)
   const displayExt = file.extension ? (lowercaseExtensions ? file.extension.toLowerCase() : file.extension.toUpperCase()) : ''
@@ -360,8 +382,8 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
     // Red for folders with files checked out by others
     if (checkedOutByOthers) return 'text-plm-error'
     
-    // Orange for folders with only my checkouts
-    if (checkedOutByMe) return 'text-plm-warning'
+    // Vibrant orange for folders with only my checkouts (matches lock icon)
+    if (checkedOutByMe) return 'text-orange-400'
     
     // Check if all files are truly synced (not just content-matched)
     if (folderFiles.length === 0) return 'text-plm-fg-muted' // Empty folder
@@ -447,6 +469,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
           ? 'bg-plm-accent/20 ring-2 ring-plm-accent' 
           : `hover:bg-plm-bg-lighter ${getDiffClass()}`
         }
+        ${isCut ? 'opacity-50' : ''}
       `}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
@@ -486,7 +509,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
                         <img 
                           src={u.avatar_url} 
                           alt={u.name}
-                          className={`rounded-full ring-2 ${u.isMe ? (u.isDifferentMachine ? 'ring-plm-warning' : 'ring-plm-accent') : 'ring-plm-bg-light'} bg-plm-bg object-cover`}
+                          className="rounded-full bg-plm-bg object-cover"
                           style={{ width: avatarSize, height: avatarSize }}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement
@@ -496,7 +519,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
                         />
                       ) : null}
                       <div 
-                        className={`rounded-full ring-2 ${u.isMe ? (u.isDifferentMachine ? 'ring-plm-warning bg-plm-warning/30 text-plm-warning' : 'ring-plm-accent bg-plm-accent/30 text-plm-accent') : 'ring-plm-bg-light bg-plm-fg-muted/30 text-plm-fg'} flex items-center justify-center font-medium ${u.avatar_url ? 'hidden' : ''}`}
+                        className={`rounded-full ${u.isMe ? (u.isDifferentMachine ? 'bg-plm-warning/30 text-plm-warning' : 'bg-plm-accent/30 text-plm-accent') : 'bg-plm-fg-muted/30 text-plm-fg'} flex items-center justify-center font-medium ${u.avatar_url ? 'hidden' : ''}`}
                         style={{ width: avatarSize, height: avatarSize, fontSize: avatarFontSize }}
                       >
                         {getInitials(u.name)}
@@ -518,7 +541,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
                   ))}
                   {checkoutUsers.length > 3 && (
                     <div 
-                      className="rounded-full ring-2 ring-plm-fg-muted bg-plm-bg flex items-center justify-center text-plm-fg-muted font-medium"
+                      className="rounded-full bg-plm-bg-light flex items-center justify-center text-plm-fg-muted font-medium"
                       style={{ 
                         width: avatarSize, 
                         height: avatarSize, 
@@ -573,12 +596,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
                   </>
                 ) : checkoutUsers.length === 0 && (
                   <>
-                    {file.diffStatus === 'cloud' && (
-                      <span title="Cloud only"><Cloud size={statusIconSize} className="text-plm-info" /></span>
-                    )}
-                    {file.diffStatus === 'cloud_new' && (
-                      <span title="New file added by another user"><Plus size={statusIconSize} className="text-green-400" /></span>
-                    )}
+                    {/* Cloud status shown in grouped download button instead */}
                     {(file.diffStatus === 'added' || file.diffStatus === 'ignored') && (
                       <span title="Local only"><HardDrive size={statusIconSize} className="text-plm-fg-muted" /></span>
                     )}
@@ -591,9 +609,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
                     {file.diffStatus === 'outdated' && (
                       <span title="Outdated"><AlertTriangle size={statusIconSize} className="text-purple-400" /></span>
                     )}
-                    {file.pdmData && !file.diffStatus && (
-                      <span title="Synced"><Cloud size={statusIconSize} className="text-plm-success" /></span>
-                    )}
+                    {/* Don't show green cloud for checked out files - avatar/buttons indicate status */}
                   </>
                 )}
               </div>
@@ -638,38 +654,58 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
               
               return (
                 <div className="absolute top-1 left-1 flex items-center z-10" style={{ gap: spacing }}>
-                  {/* Download button for cloud files/folders - blue down arrow */}
-                  {/* Show for: cloud-only files (including cloud_new), folders with cloud files, OR empty cloud-only folders */}
-                  {(((file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && !file.isDirectory) || (file.isDirectory && (cloudFilesCount > 0 || file.diffStatus === 'cloud'))) && onDownload && (
+                  {/* Download button for cloud files - grouped cloud + arrow with hover effect */}
+                  {(file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && !file.isDirectory && onDownload && (
                     <button
-                      className="p-0.5 rounded hover:bg-plm-info/20 text-plm-info transition-colors cursor-pointer"
+                      className="group/download flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
                       onClick={(e) => onDownload(e, file)}
-                      title={file.isDirectory ? (cloudFilesCount > 0 ? `Download ${cloudFilesCount} files` : 'Create folder locally') : 'Download'}
+                      title="Download"
                     >
-                      <ArrowDown size={buttonIconSize} />
+                      {file.diffStatus === 'cloud_new' ? (
+                        <Plus size={buttonIconSize} className="text-green-400 group-hover/download:text-plm-info transition-colors duration-200" />
+                      ) : (
+                        <Cloud size={buttonIconSize} className="text-plm-info group-hover/download:text-plm-info transition-colors duration-200" />
+                      )}
+                      <ArrowDown size={buttonIconSize} className="text-plm-info opacity-0 group-hover/download:opacity-100 -ml-1 group-hover/download:ml-0 transition-all duration-200" />
+                    </button>
+                  )}
+                  {/* Download button for folders with cloud files */}
+                  {file.isDirectory && (cloudFilesCount > 0 || file.diffStatus === 'cloud') && onDownload && (
+                    <button
+                      className="group/folderdownload flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
+                      onClick={(e) => onDownload(e, file)}
+                      title={cloudFilesCount > 0 ? `Download ${cloudFilesCount} files` : 'Create folder locally'}
+                    >
+                      <Cloud size={buttonIconSize} className="text-plm-info group-hover/folderdownload:text-plm-info transition-colors duration-200" />
+                      {cloudFilesCount > 0 && (
+                        <span className="text-[10px] font-medium text-plm-info opacity-0 group-hover/folderdownload:opacity-100 -ml-0.5 group-hover/folderdownload:ml-0.5 transition-all duration-200">
+                          {cloudFilesCount}
+                        </span>
+                      )}
+                      <ArrowDown size={buttonIconSize} className="text-plm-info opacity-0 group-hover/folderdownload:opacity-100 -ml-1 group-hover/folderdownload:ml-0 transition-all duration-200" />
                     </button>
                   )}
                   
-                  {/* FILE: Checked out by me - green up arrow to check in */}
+                  {/* FILE: Checked out by me - avatar + arrow hover effect to check in */}
                   {!file.isDirectory && file.pdmData?.checked_out_by === userId && onCheckin && (
-                    <button
-                      className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success transition-colors cursor-pointer"
-                      title="Click to check in"
+                    <InlineCheckinButton
                       onClick={(e) => onCheckin(e, file)}
-                    >
-                      <ArrowUp size={buttonIconSize} />
-                    </button>
+                      userAvatarUrl={userAvatarUrl}
+                      userFullName={userFullName}
+                      userEmail={userEmail}
+                      title="Click to check in"
+                    />
                   )}
                   
-                  {/* FOLDER: Has files checked out by me - green up arrow to check in all */}
+                  {/* FOLDER: Has files checked out by me - avatar + count + arrow hover effect */}
                   {file.isDirectory && folderInfo && folderInfo.checkedOutByMe > 0 && onCheckin && (
-                    <button
-                      className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success transition-colors cursor-pointer"
-                      title={`Click to check in ${folderInfo.checkedOutByMe} file${folderInfo.checkedOutByMe > 1 ? 's' : ''}`}
+                    <FolderCheckinButton
                       onClick={(e) => onCheckin(e, file)}
-                    >
-                      <ArrowUp size={buttonIconSize} />
-                    </button>
+                      users={[{ id: userId || '', name: userFullName || userEmail || '', avatar_url: userAvatarUrl, isMe: true, count: folderInfo.checkedOutByMe }]}
+                      myCheckedOutCount={folderInfo.checkedOutByMe}
+                      totalCheckouts={folderInfo.checkedOutByMe}
+                      title={`Click to check in ${folderInfo.checkedOutByMe} file${folderInfo.checkedOutByMe > 1 ? 's' : ''}`}
+                    />
                   )}
                   
                   {/* FILE: Checked out by others - red down arrow (not clickable) */}
@@ -684,47 +720,57 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
                   
                   {/* FOLDER: Has files checked out by others - no arrow, folder color shows status */}
                   
-                  {/* FILE: Synced not checked out - orange down arrow to checkout */}
+                  {/* FILE: Synced not checked out - cloud + arrow hover effect to checkout */}
                   {!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && onCheckout && (
                     <button
-                      className="p-0.5 rounded hover:bg-plm-warning/20 text-plm-warning transition-colors cursor-pointer"
+                      className="group/checkout flex items-center gap-px p-0.5 rounded hover:bg-plm-warning/20 transition-colors cursor-pointer"
                       title="Click to check out"
                       onClick={(e) => onCheckout(e, file)}
                     >
-                      <ArrowDown size={buttonIconSize} />
+                      <Cloud size={buttonIconSize} className="text-plm-success group-hover/checkout:text-plm-warning transition-colors duration-200" />
+                      <ArrowDown size={buttonIconSize} className="text-plm-warning opacity-0 group-hover/checkout:opacity-100 -ml-1 group-hover/checkout:ml-0 transition-all duration-200" />
                     </button>
                   )}
                   
-                  {/* FOLDER: Has synced files ready to checkout - orange down arrow to checkout all */}
+                  {/* FOLDER: Has synced files ready to checkout - cloud + count + arrow hover effect */}
                   {file.isDirectory && folderInfo && folderInfo.syncedNotCheckedOut > 0 && folderInfo.checkedOutByMe === 0 && folderInfo.checkedOutByOthers === 0 && onCheckout && (
                     <button
-                      className="p-0.5 rounded hover:bg-plm-warning/20 text-plm-warning transition-colors cursor-pointer"
+                      className="group/foldercheckout flex items-center gap-px p-0.5 rounded hover:bg-plm-warning/20 transition-colors cursor-pointer"
                       title={`Click to check out ${folderInfo.syncedNotCheckedOut} file${folderInfo.syncedNotCheckedOut > 1 ? 's' : ''}`}
                       onClick={(e) => onCheckout(e, file)}
                     >
-                      <ArrowDown size={buttonIconSize} />
+                      <Cloud size={buttonIconSize} className="text-plm-success group-hover/foldercheckout:text-plm-warning transition-colors duration-200" />
+                      <span className="text-[10px] font-medium text-plm-warning opacity-0 group-hover/foldercheckout:opacity-100 -ml-0.5 group-hover/foldercheckout:ml-0.5 transition-all duration-200">
+                        {folderInfo.syncedNotCheckedOut}
+                      </span>
+                      <ArrowDown size={buttonIconSize} className="text-plm-warning opacity-0 group-hover/foldercheckout:opacity-100 -ml-1 group-hover/foldercheckout:ml-0 transition-all duration-200" />
                     </button>
                   )}
                   
-                  {/* FILE: Local only - green up arrow for first check in */}
-                  {!file.isDirectory && (!file.pdmData || file.diffStatus === 'added' || file.diffStatus === 'deleted_remote') && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && onUpload && (
+                  {/* FILE: Local only - HardDrive + arrow hover effect for first check in */}
+                  {!file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && onUpload && (
                     <button
-                      className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success transition-colors cursor-pointer"
+                      className="group/fileupload flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
                       title="First Check In"
                       onClick={(e) => onUpload(e, file)}
                     >
-                      <ArrowUp size={buttonIconSize} />
+                      <HardDrive size={buttonIconSize} className="text-plm-fg-muted group-hover/fileupload:text-plm-info transition-colors duration-200" />
+                      <ArrowUp size={buttonIconSize} className="text-plm-info opacity-0 group-hover/fileupload:opacity-100 -ml-1 group-hover/fileupload:ml-0 transition-all duration-200" />
                     </button>
                   )}
                   
-                  {/* FOLDER: Has local only files - green up arrow for first check in all */}
+                  {/* FOLDER: Has local only files - HardDrive + count + arrow hover effect for first check in all */}
                   {file.isDirectory && folderInfo && folderInfo.localOnly > 0 && folderInfo.syncedNotCheckedOut === 0 && folderInfo.checkedOutByMe === 0 && folderInfo.checkedOutByOthers === 0 && cloudFilesCount === 0 && onUpload && (
                     <button
-                      className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success transition-colors cursor-pointer"
+                      className="group/folderupload flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
                       title={`First Check In ${folderInfo.localOnly} file${folderInfo.localOnly > 1 ? 's' : ''}`}
                       onClick={(e) => onUpload(e, file)}
                     >
-                      <ArrowUp size={buttonIconSize} />
+                      <HardDrive size={buttonIconSize} className="text-plm-fg-muted group-hover/folderupload:text-plm-info transition-colors duration-200" />
+                      <span className="text-[10px] font-medium text-plm-info opacity-0 group-hover/folderupload:opacity-100 -ml-0.5 group-hover/folderupload:ml-0.5 transition-all duration-200">
+                        {folderInfo.localOnly}
+                      </span>
+                      <ArrowUp size={buttonIconSize} className="text-plm-info opacity-0 group-hover/folderupload:opacity-100 -ml-1 group-hover/folderupload:ml-0 transition-all duration-200" />
                     </button>
                   )}
                 </div>
@@ -836,6 +882,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
   }
   if (prevProps.iconSize !== nextProps.iconSize) return false
   if (prevProps.isSelected !== nextProps.isSelected) return false
+  if (prevProps.isCut !== nextProps.isCut) return false
   if (prevProps.currentMachineId !== nextProps.currentMachineId) return false
   if (prevProps.lowercaseExtensions !== nextProps.lowercaseExtensions) return false
   if (prevProps.userId !== nextProps.userId) return false
@@ -851,6 +898,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, al
 })
 
 // Component for list view icons with OS thumbnail support
+// Uses shared FileIcon for files, custom folder rendering for status colors
 interface ListRowIconProps {
   file: LocalFile
   size: number
@@ -860,57 +908,13 @@ interface ListRowIconProps {
 }
 
 // Memoized to prevent re-renders when unrelated state changes
-const ListRowIcon = memo(function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderSynced }: ListRowIconProps) {
-  const [thumbnail, setThumbnail] = useState<string | null>(null)
-  const [thumbnailError, setThumbnailError] = useState(false)
-  
-  // Load OS thumbnail for files (not folders) - minimum size of 20 to show thumbnails
-  useEffect(() => {
-    // Skip for folders or if no path
-    if (file.isDirectory || !file.path) {
-      setThumbnail(null)
-      setThumbnailError(false)
-      return
-    }
-    
-    // Only load thumbnails when row is large enough to see details (16px minimum)
-    if (size < 16) {
-      setThumbnail(null)
-      return
-    }
-    
-    let cancelled = false
-    
-    const loadThumbnail = async () => {
-      try {
-        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-        if (!cancelled) {
-          if (result?.success && result.data && result.data.startsWith('data:image/')) {
-            setThumbnail(result.data)
-            setThumbnailError(false)
-          } else {
-            setThumbnail(null)
-          }
-        }
-      } catch (err) {
-        console.error('Thumbnail load error:', err)
-        if (!cancelled) setThumbnail(null)
-      }
-    }
-    
-    loadThumbnail()
-    
-    return () => {
-      cancelled = true
-    }
-  }, [file.path, file.isDirectory, size])
-  
+const ListRowIcon = memo(function ListRowIcon({ file, size, isProcessing, folderCheckoutStatus, isFolderSynced: folderSynced }: ListRowIconProps) {
   // Processing state - show spinner
   if (isProcessing) {
     return <Loader2 size={size} className="text-sky-400 animate-spin flex-shrink-0" />
   }
   
-  // For folders, always use React icons
+  // For folders, use React icons with status colors (matches ExplorerView)
   if (file.isDirectory) {
     // Cloud-only folders
     if (file.diffStatus === 'cloud') {
@@ -921,57 +925,14 @@ const ListRowIcon = memo(function ListRowIcon({ file, size, isProcessing, folder
       return <FolderOpen size={size} className="text-plm-error flex-shrink-0" />
     }
     if (folderCheckoutStatus === 'mine') {
-      return <FolderOpen size={size} className="text-plm-warning flex-shrink-0" />
+      return <FolderOpen size={size} className="text-orange-400 flex-shrink-0" />
     }
     // Synced status
-    return <FolderOpen size={size} className={`${isFolderSynced ? 'text-plm-success' : 'text-plm-fg-muted'} flex-shrink-0`} />
+    return <FolderOpen size={size} className={`${folderSynced ? 'text-plm-success' : 'text-plm-fg-muted'} flex-shrink-0`} />
   }
   
-  // For files, show thumbnail if available
-  if (thumbnail && !thumbnailError) {
-    return (
-      <img 
-        src={thumbnail} 
-        alt={file.name}
-        className="object-contain flex-shrink-0 rounded"
-        style={{ width: size, height: size }}
-        onError={() => setThumbnailError(true)}
-      />
-    )
-  }
-  
-  // Fallback to default file icon based on type
-  const iconType = getFileIconType(file.extension)
-  switch (iconType) {
-    case 'part':
-      return <FileBox size={size} className="text-plm-accent flex-shrink-0" />
-    case 'assembly':
-      return <Layers size={size} className="text-amber-400 flex-shrink-0" />
-    case 'drawing':
-      return <FilePen size={size} className="text-sky-300 flex-shrink-0" />
-    case 'step':
-      return <FileBox size={size} className="text-orange-400 flex-shrink-0" />
-    case 'pdf':
-      return <FileType size={size} className="text-red-400 flex-shrink-0" />
-    case 'image':
-      return <FileImage size={size} className="text-purple-400 flex-shrink-0" />
-    case 'spreadsheet':
-      return <FileSpreadsheet size={size} className="text-green-400 flex-shrink-0" />
-    case 'archive':
-      return <FileArchive size={size} className="text-yellow-500 flex-shrink-0" />
-    case 'schematic':
-      return <Cpu size={size} className="text-red-400 flex-shrink-0" />
-    case 'library':
-      return <Cpu size={size} className="text-violet-400 flex-shrink-0" />
-    case 'pcb':
-      return <Cpu size={size} className="text-emerald-400 flex-shrink-0" />
-    case 'code':
-      return <FileCode size={size} className="text-sky-400 flex-shrink-0" />
-    case 'text':
-      return <FileText size={size} className="text-plm-fg-muted flex-shrink-0" />
-    default:
-      return <File size={size} className="text-plm-fg-muted flex-shrink-0" />
-  }
+  // For files, use shared FileIcon (includes thumbnail support)
+  return <FileIcon file={file} size={size} className="flex-shrink-0" />
 })
 
 export function FileBrowser({ onRefresh }: FileBrowserProps) {
@@ -1043,7 +1004,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     setIconSize,
     listRowSize,
     setListRowSize,
-    hideSolidworksTempFiles
+    hideSolidworksTempFiles,
+    keybindings
   } = usePDMStore()
   
   // Helper function to get translated column label
@@ -1121,6 +1083,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const [clipboard, setClipboard] = useState<{ files: LocalFile[]; operation: 'copy' | 'cut' } | null>(null)
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   const [selectionBox, setSelectionBox] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const [isDownloadHovered, setIsDownloadHovered] = useState(false)
+  const [isUploadHovered, setIsUploadHovered] = useState(false)
+  const [isCheckoutHovered, setIsCheckoutHovered] = useState(false)
+  const [isUpdateHovered, setIsUpdateHovered] = useState(false)
   const tableRef = useRef<HTMLDivElement>(null)
   const newFolderInputRef = useRef<HTMLInputElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -1167,6 +1133,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const [generatedShareLink, setGeneratedShareLink] = useState<string | null>(null)
   const [isCreatingShareLink, setIsCreatingShareLink] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+  
+  // Multi-select check-in hover state
+  const [isCheckinHovered, setIsCheckinHovered] = useState(false)
   
   // Add to ECO state
   const [showECOModal, setShowECOModal] = useState(false)
@@ -1347,10 +1316,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       cloudFilesCount: number
       cloudNewFilesCount: number
       localOnlyFilesCount: number
+      checkoutableFilesCount: number
+      outdatedFilesCount: number
       hasCheckoutableFiles: boolean
       hasMyCheckedOutFiles: boolean
       hasOthersCheckedOutFiles: boolean
       hasUnsyncedFiles: boolean
+      myCheckedOutFilesCount: number
+      totalCheckedOutFilesCount: number
       checkoutUsers: Array<{ id: string; name: string; avatar_url?: string; isMe: boolean }>
       isSynced: boolean
     }>()
@@ -1377,10 +1350,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             cloudFilesCount: 0,
             cloudNewFilesCount: 0,
             localOnlyFilesCount: 0,
+            checkoutableFilesCount: 0,
+            outdatedFilesCount: 0,
             hasCheckoutableFiles: false,
             hasMyCheckedOutFiles: false,
             hasOthersCheckedOutFiles: false,
             hasUnsyncedFiles: false,
+            myCheckedOutFilesCount: 0,
+            totalCheckedOutFilesCount: 0,
             checkoutUsers: [],
             isSynced: true
           })
@@ -1404,17 +1381,26 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         // Checkoutable files (synced, not checked out, not cloud-only)
         if (file.pdmData && !file.pdmData.checked_out_by && 
             file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new') {
+          m.checkoutableFilesCount++
           m.hasCheckoutableFiles = true
+        }
+        
+        // Outdated files (newer version on server)
+        if (file.diffStatus === 'outdated') {
+          m.outdatedFilesCount++
         }
         
         // Checked out by me
         if (file.pdmData?.checked_out_by === user?.id) {
           m.hasMyCheckedOutFiles = true
+          m.myCheckedOutFilesCount++
+          m.totalCheckedOutFilesCount++
         }
         
         // Checked out by others
         if (file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id) {
           m.hasOthersCheckedOutFiles = true
+          m.totalCheckedOutFilesCount++
         }
         
         // Synced status (all files must have pdmData and not be 'added')
@@ -1471,6 +1457,64 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     
     return metrics
   }, [files, user?.id, user?.full_name, user?.email, user?.avatar_url, hideSolidworksTempFiles])
+  
+  // Calculate selected files that can be checked in (for multi-select check-in feature)
+  const selectedCheckinableFiles = useMemo(() => {
+    if (selectedFiles.length <= 1) return []
+    return files.filter(f => 
+      selectedFiles.includes(f.path) && 
+      !f.isDirectory && 
+      f.pdmData?.checked_out_by === user?.id
+    )
+  }, [files, selectedFiles, user?.id])
+
+  // Calculate selected files that can be downloaded (for multi-select download feature)
+  // Includes cloud files (to download) and outdated files (to update/sync)
+  const selectedDownloadableFiles = useMemo(() => {
+    if (selectedFiles.length <= 1) return []
+    return files.filter(f => 
+      selectedFiles.includes(f.path) && 
+      !f.isDirectory && 
+      (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new' || f.diffStatus === 'outdated')
+    )
+  }, [files, selectedFiles])
+
+  // Calculate selected files that can be uploaded (for multi-select upload feature)
+  const selectedUploadableFiles = useMemo(() => {
+    if (selectedFiles.length <= 1) return []
+    return files.filter(f => 
+      selectedFiles.includes(f.path) && 
+      !f.isDirectory && 
+      !f.pdmData && 
+      f.diffStatus !== 'cloud' && 
+      f.diffStatus !== 'cloud_new' && 
+      f.diffStatus !== 'ignored'
+    )
+  }, [files, selectedFiles])
+
+  // Calculate selected files that can be checked out (for multi-select checkout feature)
+  const selectedCheckoutableFiles = useMemo(() => {
+    if (selectedFiles.length <= 1) return []
+    return files.filter(f => 
+      selectedFiles.includes(f.path) && 
+      !f.isDirectory && 
+      f.pdmData && 
+      !f.pdmData.checked_out_by && 
+      f.diffStatus !== 'cloud' && 
+      f.diffStatus !== 'cloud_new'
+    )
+  }, [files, selectedFiles])
+
+  // Calculate selected files that can be updated (for multi-select update feature)
+  // These are outdated files (local file exists but server has newer version)
+  const selectedUpdatableFiles = useMemo(() => {
+    if (selectedFiles.length <= 1) return []
+    return files.filter(f => 
+      selectedFiles.includes(f.path) && 
+      !f.isDirectory && 
+      f.diffStatus === 'outdated'
+    )
+  }, [files, selectedFiles])
 
   // Check if all files in a folder are synced (truly synced, not just content-matched)
   // Uses pre-computed folderMetrics for O(1) lookup
@@ -1509,27 +1553,80 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     return false
   }, [processingFolders])
 
-  // Inline action: Download a single file or folder (uses command system)
+  // Inline action: Download a single file/folder or multi-select (uses command system)
+  // Uses 'download' for cloud-only files and 'get-latest' for outdated files
   const handleInlineDownload = (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
-    logFileAction('Download file', file.relativePath)
-    executeCommand('download', { files: [file] }, { onRefresh })
+    
+    // Check if this is a multi-select download
+    const isMultiSelect = selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1
+    
+    logFileAction('Download file', isMultiSelect ? `${selectedDownloadableFiles.length} selected files` : file.relativePath)
+    
+    if (isMultiSelect) {
+      // Multi-select: properly separate outdated and cloud files
+      const outdatedFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'outdated')
+      const cloudFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+      
+      if (outdatedFiles.length > 0) {
+        executeCommand('get-latest', { files: outdatedFiles }, { onRefresh })
+      }
+      if (cloudFiles.length > 0) {
+        executeCommand('download', { files: cloudFiles }, { onRefresh })
+      }
+      setIsDownloadHovered(false)
+      setIsUpdateHovered(false)
+      return
+    }
+    
+    // Single file/folder handling
+    // For folders, check if they contain outdated files and use appropriate command
+    if (file.isDirectory) {
+      const filesInFolder = files.filter(f => f.relativePath.startsWith(file.relativePath + '/'))
+      const hasOutdated = filesInFolder.some(f => f.diffStatus === 'outdated')
+      const hasCloud = filesInFolder.some(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+      
+      if (hasOutdated) {
+        executeCommand('get-latest', { files: [file] }, { onRefresh })
+      }
+      if (hasCloud || file.diffStatus === 'cloud') {
+        executeCommand('download', { files: [file] }, { onRefresh })
+      }
+    } else if (file.diffStatus === 'outdated') {
+      // Use get-latest for outdated files
+      executeCommand('get-latest', { files: [file] }, { onRefresh })
+    } else {
+      executeCommand('download', { files: [file] }, { onRefresh })
+    }
+    setIsDownloadHovered(false)
+    setIsUpdateHovered(false)
   }
 
-  // Inline action: Check out a single file or folder (uses command system)
+  // Inline action: Check out a single file/folder or multi-select (uses command system)
   const handleInlineCheckout = (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
-    logFileAction('Checkout file', file.relativePath)
-    executeCommand('checkout', { files: [file] }, { onRefresh })
+    
+    // Check if this is a multi-select checkout
+    const isMultiSelect = selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1
+    const targetFiles = isMultiSelect ? selectedCheckoutableFiles : [file]
+    
+    logFileAction('Checkout file', isMultiSelect ? `${targetFiles.length} selected files` : file.relativePath)
+    executeCommand('checkout', { files: targetFiles }, { onRefresh })
+    setIsCheckoutHovered(false)
   }
 
   // Inline action: Check in a single file or folder (uses command system)
   const handleInlineCheckin = async (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
-    logFileAction('Checkin file', file.relativePath)
+    
+    // Check if this is a multi-select check-in (clicking any selected file's check-in icon checks in all selected)
+    const isMultiSelect = selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1
+    const targetFiles = isMultiSelect ? selectedCheckinableFiles : [file]
+    
+    logFileAction('Checkin file', isMultiSelect ? `${targetFiles.length} selected files` : file.relativePath)
     
     // Get all files that would be checked in
-    const filesToCheckin = getSyncedFilesFromSelection(files, [file])
+    const filesToCheckin = getSyncedFilesFromSelection(files, targetFiles)
       .filter(f => f.pdmData?.checked_out_by === user?.id)
     
     // Check if any files are checked out on a different machine
@@ -1570,20 +1667,29 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         confirmDanger: true,
         onConfirm: () => {
           setCustomConfirm(null)
-          executeCommand('checkin', { files: [file] }, { onRefresh })
+          executeCommand('checkin', { files: targetFiles }, { onRefresh })
         }
       })
       return
     }
     
-    executeCommand('checkin', { files: [file] }, { onRefresh })
+    executeCommand('checkin', { files: targetFiles }, { onRefresh })
+    
+    // Reset hover state after check-in
+    setIsCheckinHovered(false)
   }
 
-  // Inline action: Upload/sync a single file or folder (uses command system)
+  // Inline action: Upload/sync a single file/folder or multi-select (uses command system)
   const handleInlineUpload = (e: React.MouseEvent, file: LocalFile) => {
     e.stopPropagation()
-    logFileAction('Upload/sync file', file.relativePath)
-    executeCommand('sync', { files: [file] }, { onRefresh })
+    
+    // Check if this is a multi-select upload
+    const isMultiSelect = selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1
+    const targetFiles = isMultiSelect ? selectedUploadableFiles : [file]
+    
+    logFileAction('Upload/sync file', isMultiSelect ? `${targetFiles.length} selected files` : file.relativePath)
+    executeCommand('sync', { files: targetFiles }, { onRefresh })
+    setIsUploadHovered(false)
   }
 
   // Navigate to a folder - also expand it and its parents in sidebar
@@ -2514,6 +2620,24 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     setContextMenuAdjustedPos({ x: newX, y: newY })
   }, [contextMenu])
 
+  // Helper function to check if a keyboard event matches a keybinding
+  const matchesKeybinding = useCallback((e: KeyboardEvent, action: keyof typeof keybindings): boolean => {
+    const binding = keybindings[action]
+    if (!binding) return false
+    
+    // Check modifiers - treat Ctrl and Meta as interchangeable (for Mac compatibility)
+    const ctrlOrMeta = e.ctrlKey || e.metaKey
+    const bindingCtrlOrMeta = binding.ctrlKey || binding.metaKey
+    
+    if (bindingCtrlOrMeta && !ctrlOrMeta) return false
+    if (!bindingCtrlOrMeta && ctrlOrMeta) return false
+    if (!!binding.altKey !== e.altKey) return false
+    if (!!binding.shiftKey !== e.shiftKey) return false
+    
+    // Check key (case-insensitive for letters)
+    return e.key.toLowerCase() === binding.key.toLowerCase()
+  }, [keybindings])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -2522,49 +2646,182 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         return
       }
 
-      // Ctrl+Z for undo
+      // Ctrl+Z for undo (not configurable)
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
         handleUndo()
+        return
       }
-      // Ctrl+C for copy
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      
+      // Arrow key navigation - use direct key check for reliability
+      // ArrowUp = move selection up (to lower index), ArrowDown = move selection down (to higher index)
+      // Shift+Arrow = extend selection
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        // Only handle if Ctrl/Meta/Alt are not pressed (Shift is allowed for range selection)
+        if (e.ctrlKey || e.metaKey || e.altKey) return
+        
         e.preventDefault()
+        e.stopPropagation()
+        if (sortedFiles.length === 0) return
+        
+        const isUp = e.key === 'ArrowUp'
+        const isShift = e.shiftKey
+        
+        // Find the "focus" index - where the keyboard cursor currently is
+        // This is the last item in the selection when extending, or the only selected item
+        const focusIndex = selectedFiles.length > 0 
+          ? sortedFiles.findIndex(f => f.path === selectedFiles[selectedFiles.length - 1])
+          : -1
+        
+        // If current selection is not in view, select first or last based on direction
+        if (focusIndex === -1) {
+          const newIndex = isUp ? sortedFiles.length - 1 : 0
+          setSelectedFiles([sortedFiles[newIndex].path])
+          setLastClickedIndex(newIndex)
+          return
+        }
+        
+        // Calculate new index based on direction
+        let newIndex: number
+        if (isUp) {
+          newIndex = Math.max(0, focusIndex - 1)
+        } else {
+          newIndex = Math.min(sortedFiles.length - 1, focusIndex + 1)
+        }
+        
+        // Only update if index actually changed
+        if (newIndex !== focusIndex) {
+          if (isShift) {
+            // Shift held - extend selection from anchor (lastClickedIndex) to new position
+            const anchorIndex = lastClickedIndex ?? focusIndex
+            const start = Math.min(anchorIndex, newIndex)
+            const end = Math.max(anchorIndex, newIndex)
+            const rangePaths = sortedFiles.slice(start, end + 1).map(f => f.path)
+            setSelectedFiles(rangePaths)
+            // Don't update lastClickedIndex - it's the anchor
+          } else {
+            // No shift - single selection
+            setSelectedFiles([sortedFiles[newIndex].path])
+            setLastClickedIndex(newIndex)
+          }
+        }
+        return
+      }
+      
+      // ArrowRight - navigate into selected folder
+      if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (selectedFiles.length !== 1) return
+        
+        const selectedFile = sortedFiles.find(f => f.path === selectedFiles[0])
+        if (!selectedFile?.isDirectory) return
+        
+        e.preventDefault()
+        e.stopPropagation()
+        // Navigate into the folder
+        navigateToFolder(selectedFile.relativePath)
+        return
+      }
+      
+      // ArrowLeft - navigate to parent folder
+      if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (!currentPath) return
+        
+        e.preventDefault()
+        e.stopPropagation()
+        navigateUp()
+        return
+      }
+      
+      // Open File (Enter) - open selected file or navigate into folder
+      if (matchesKeybinding(e, 'openFile')) {
+        e.preventDefault()
+        e.stopPropagation()
+        if (selectedFiles.length !== 1) return
+        
+        const selectedFile = sortedFiles.find(f => f.path === selectedFiles[0])
+        if (!selectedFile) return
+        
+        if (selectedFile.isDirectory) {
+          navigateToFolder(selectedFile.relativePath)
+        } else if (window.electronAPI) {
+          window.electronAPI.openFile(selectedFile.path)
+        }
+        return
+      }
+      
+      // Copy
+      if (matchesKeybinding(e, 'copy')) {
+        e.preventDefault()
+        e.stopPropagation()
         handleCopy()
+        return
       }
-      // Ctrl+X for cut
-      if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
+      
+      // Cut
+      if (matchesKeybinding(e, 'cut')) {
         e.preventDefault()
+        e.stopPropagation()
         handleCut()
+        return
       }
-      // Ctrl+V for paste
-      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+      
+      // Paste
+      if (matchesKeybinding(e, 'paste')) {
         e.preventDefault()
+        e.stopPropagation()
         handlePaste()
+        return
       }
-      // Ctrl+A for select all
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      
+      // Select All
+      if (matchesKeybinding(e, 'selectAll')) {
         e.preventDefault()
+        e.stopPropagation()
         setSelectedFiles(sortedFiles.map(f => f.path))
+        return
       }
+      
       // Delete key - always delete locally only, never from server
-      if (e.key === 'Delete' && selectedFiles.length > 0) {
+      if (matchesKeybinding(e, 'delete') && selectedFiles.length > 0) {
+        e.preventDefault()
+        e.stopPropagation()
         const selectedFile = files.find(f => f.path === selectedFiles[0])
         if (selectedFile) {
           setDeleteEverywhere(false) // Keyboard delete is local only
           setDeleteConfirm(selectedFile)
         }
+        return
       }
+      
       // Escape to clear selection
-      if (e.key === 'Escape') {
+      if (matchesKeybinding(e, 'escape')) {
+        e.preventDefault()
+        e.stopPropagation()
         clearSelection()
         setClipboard(null)
+        return
+      }
+      
+      // Toggle Details Panel
+      if (matchesKeybinding(e, 'toggleDetailsPanel')) {
+        e.preventDefault()
+        e.stopPropagation()
+        toggleDetailsPanel()
+        return
+      }
+      
+      // Refresh
+      if (matchesKeybinding(e, 'refresh')) {
+        e.preventDefault()
+        e.stopPropagation()
+        onRefresh?.()
+        return
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undoStack, selectedFiles, files, clipboard, sortedFiles, currentPath, vaultPath])
+  }, [undoStack, selectedFiles, files, clipboard, sortedFiles, currentPath, vaultPath, keybindings, matchesKeybinding, expandedFolders, toggleFolder, navigateToFolder, toggleDetailsPanel, onRefresh])
 
   const handleRowClick = (e: React.MouseEvent, file: LocalFile, index: number) => {
     if (e.shiftKey && lastClickedIndex !== null) {
@@ -3518,12 +3775,11 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         
         // Use pre-computed folder metrics (O(1) lookup instead of O(n) iterations)
         const fm = file.isDirectory ? folderMetrics.get(file.relativePath) : null
-        const hasCheckoutableFiles = fm?.hasCheckoutableFiles || false
-        const hasMyCheckedOutFiles = fm?.hasMyCheckedOutFiles || false
-        const hasUnsyncedFiles = fm?.hasUnsyncedFiles || false
+        const checkoutableFilesCount = fm?.checkoutableFilesCount || 0
         const localOnlyFilesCount = fm?.localOnlyFilesCount || 0
         const cloudFilesCount = fm?.cloudFilesCount || 0
-        const cloudNewFilesCount = fm?.cloudNewFilesCount || 0
+        const myCheckedOutFilesCount = fm?.myCheckedOutFilesCount || 0
+        const totalCheckedOutFilesCount = fm?.totalCheckedOutFilesCount || 0
         
         // Get checkout users for avatars (for both files and folders)
         const getCheckoutAvatars = () => {
@@ -3534,12 +3790,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
             // Single file checkout
             const isMe = file.pdmData.checked_out_by === user?.id
             if (isMe) {
-              return [{
-                id: file.pdmData.checked_out_by,
-                name: user?.full_name || user?.email || 'You',
-                avatar_url: user?.avatar_url || undefined,
-                isMe: true
-              }]
+              // Don't show avatar here for files checked out by me - shown in check-in button
+              return []
             } else {
               const checkedOutUser = (file.pdmData as any).checked_out_user
               return [{
@@ -3555,11 +3807,18 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         
         const checkoutUsers = getCheckoutAvatars()
         const maxShow = 3
-        const shownUsers = checkoutUsers.slice(0, maxShow)
-        const extraUsers = checkoutUsers.length - maxShow
         
         // Icon size scales with row size, but has a minimum of 16
         const iconSize = Math.max(16, listRowSize - 8)
+        
+        // Check if this file's name should be dimmed (part of multi-select action hover)
+        const isNameDimmed = !file.isDirectory && (
+          (isDownloadHovered && selectedDownloadableFiles.some(f => f.path === file.path)) ||
+          (isUploadHovered && selectedUploadableFiles.some(f => f.path === file.path)) ||
+          (isCheckoutHovered && selectedCheckoutableFiles.some(f => f.path === file.path)) ||
+          (isCheckinHovered && selectedCheckinableFiles.some(f => f.path === file.path)) ||
+          (isUpdateHovered && selectedUpdatableFiles.some(f => f.path === file.path))
+        )
         
         return (
           <div className="flex items-center gap-1 group/name" style={{ minHeight: listRowSize }}>
@@ -3570,63 +3829,145 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               folderCheckoutStatus={file.isDirectory ? getFolderCheckoutStatus(file.relativePath) : undefined}
               isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
             />
-            <span className={`truncate flex-1 ${file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new' ? 'italic text-plm-fg-muted' : ''} ${file.diffStatus === 'cloud_new' ? 'text-green-400' : ''}`}>{displayFilename}</span>
+            <span className={`truncate flex-1 transition-opacity duration-200 ${isNameDimmed ? 'opacity-50' : ''} ${file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new' ? 'italic text-plm-fg-muted' : ''} ${file.diffStatus === 'cloud_new' ? 'text-green-400' : ''}`}>{displayFilename}</span>
             
-            {/* NEW cloud files count for folders - green positive indicator */}
-            {file.isDirectory && cloudNewFilesCount > 0 && (
-              <span className="flex items-center gap-0.5 text-xs text-green-400 flex-shrink-0" title={`${cloudNewFilesCount} new file${cloudNewFilesCount > 1 ? 's' : ''} added by others - download to sync`}>
-                <Plus size={10} />
-                <span className="font-bold">{cloudNewFilesCount}</span>
-              </span>
-            )}
-            
-            {/* Existing cloud files count for folders - files already on server that you haven't downloaded */}
-            {/* Also show download button for empty cloud-only folders */}
-            {file.isDirectory && ((cloudFilesCount - cloudNewFilesCount > 0) || (file.diffStatus === 'cloud' && cloudFilesCount === 0)) && (
-              <span className="flex items-center gap-0.5 text-xs text-plm-info flex-shrink-0" title={cloudFilesCount - cloudNewFilesCount > 0 ? `${cloudFilesCount - cloudNewFilesCount} cloud file${cloudFilesCount - cloudNewFilesCount > 1 ? 's' : ''} to download` : 'Create folder locally'}>
-                {cloudFilesCount - cloudNewFilesCount > 0 && (
-                  <>
-                    <Cloud size={10} />
-                    <span>{cloudFilesCount - cloudNewFilesCount}</span>
-                  </>
+            {/* Folder inline buttons - order from left to right: update, cloud, avatar checkout, green cloud, local */}
+            {file.isDirectory && (checkoutUsers.length > 0 || cloudFilesCount > 0 || file.diffStatus === 'cloud' || checkoutableFilesCount > 0 || localOnlyFilesCount > 0 || (fm?.outdatedFilesCount || 0) > 0) && (
+              <span className="flex items-center gap-1 ml-auto mr-0.5 text-[10px]">
+                {/* 1. Update files (outdated) - farthest left */}
+                {(fm?.outdatedFilesCount || 0) > 0 && (
+                  <InlineSyncButton
+                    onClick={(e) => handleInlineDownload(e, file)}
+                    count={fm?.outdatedFilesCount || 0}
+                  />
+                )}
+                {/* 2. Cloud files to download */}
+                {(cloudFilesCount > 0 || file.diffStatus === 'cloud') && (
+                  <FolderDownloadButton
+                    onClick={(e) => handleInlineDownload(e, file)}
+                    cloudCount={cloudFilesCount}
+                  />
+                )}
+                {/* 3. Avatar checkout (users with check-in button) */}
+                {checkoutUsers.length > 0 && (
+                  <FolderCheckinButton
+                    onClick={(e) => handleInlineCheckin(e, file)}
+                    users={checkoutUsers}
+                    myCheckedOutCount={myCheckedOutFilesCount}
+                    totalCheckouts={totalCheckedOutFilesCount}
+                  />
+                )}
+                {/* 4. Green cloud - synced files ready to checkout */}
+                {checkoutableFilesCount > 0 && (
+                  <InlineCheckoutButton
+                    onClick={(e) => handleInlineCheckout(e, file)}
+                    count={checkoutableFilesCount}
+                  />
+                )}
+                {/* 5. Local files to upload - farthest right */}
+                {localOnlyFilesCount > 0 && (
+                  <FolderUploadButton
+                    onClick={(e) => handleInlineUpload(e, file)}
+                    localCount={localOnlyFilesCount}
+                  />
                 )}
               </span>
             )}
             
-            {/* Download button for folders with cloud files */}
-            {file.isDirectory && (cloudFilesCount > 0 || file.diffStatus === 'cloud') && (
-              <button
-                className="inline-actions p-0.5 rounded hover:bg-sky-400/20 text-sky-400 flex-shrink-0"
+            {/* Status icon for files without checkout users */}
+            {!file.isDirectory && checkoutUsers.length === 0 && !fileStatusColumnVisible && (() => {
+              // For files - cloud status shown in grouped download button instead
+              if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+                return null
+              }
+              // Synced files that can be checked out - don't show icon here, shown in grouped checkout button
+              if (isSynced && !file.pdmData?.checked_out_by) {
+                return null
+              }
+              // Don't show green cloud for checked out files - avatar/buttons indicate status
+              if (isSynced && file.pdmData?.checked_out_by) {
+                return null
+              }
+              if (file.diffStatus === 'ignored') {
+                return <span title="Local only (ignored from sync)"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
+              }
+              // Only show drive for truly local-only files (not synced, not added status handled elsewhere)
+              if (!file.pdmData && file.diffStatus !== 'added') {
+                return <span title="Local only - not synced"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
+              }
+              return null
+            })()}
+            
+            {/* Download for individual cloud files (not folders) */}
+            {!file.isDirectory && (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && (
+              <InlineDownloadButton
                 onClick={(e) => handleInlineDownload(e, file)}
-                title={cloudFilesCount > 0 ? 'Download cloud files' : 'Create folder locally'}
-              >
-                <ArrowDown size={12} />
-              </button>
+                isCloudNew={file.diffStatus === 'cloud_new'}
+                selectedCount={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 ? selectedDownloadableFiles.length : undefined}
+                isSelectionHovered={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 && isDownloadHovered}
+                onMouseEnter={() => selectedDownloadableFiles.length > 1 && selectedFiles.includes(file.path) && setIsDownloadHovered(true)}
+                onMouseLeave={() => setIsDownloadHovered(false)}
+              />
             )}
             
-            {/* Local-only files count for folders - next to check-in button */}
-            {file.isDirectory && localOnlyFilesCount > 0 && (
-              <span className="flex items-center gap-0.5 text-xs text-plm-fg-muted flex-shrink-0" title={`${localOnlyFilesCount} local files not yet synced`}>
-                <HardDrive size={10} />
-                <span>{localOnlyFilesCount}</span>
-              </span>
+            {/* Sync outdated files */}
+            {!file.isDirectory && file.diffStatus === 'outdated' && (
+              <InlineSyncButton 
+                onClick={(e) => handleInlineDownload(e, file)}
+                selectedCount={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 ? selectedUpdatableFiles.length : undefined}
+                isSelectionHovered={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 && isUpdateHovered}
+                onMouseEnter={() => selectedUpdatableFiles.length > 1 && selectedFiles.includes(file.path) && setIsUpdateHovered(true)}
+                onMouseLeave={() => setIsUpdateHovered(false)}
+              />
             )}
             
-            {/* Status icon (avatars or cloud) - before download button */}
-            {(() => {
-              // If there are checkout users, show avatars
-              if (checkoutUsers.length > 0) {
-                return (
-                  <span className="flex items-center flex-shrink-0 -space-x-1.5" title={checkoutUsers.map(u => u.name).join(', ')}>
-                    {shownUsers.map((u, i) => (
+            {/* First Check In - for local only single files only */}
+            {!isBeingProcessed(file.relativePath) && !file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && (
+              <InlineUploadButton 
+                onClick={(e) => handleInlineUpload(e, file)}
+                selectedCount={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 ? selectedUploadableFiles.length : undefined}
+                isSelectionHovered={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 && isUploadHovered}
+                onMouseEnter={() => selectedUploadableFiles.length > 1 && selectedFiles.includes(file.path) && setIsUploadHovered(true)}
+                onMouseLeave={() => setIsUploadHovered(false)}
+              />
+            )}
+            {/* Checkout/Checkin buttons for FILES only (folders handled in grouped span above) */}
+            {!isBeingProcessed(file.relativePath) && !file.isDirectory && (
+              <span className="flex items-center gap-0.5 flex-shrink-0">
+                {/* Check Out - for individual files */}
+                {file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && (
+                  <InlineCheckoutButton
+                    onClick={(e) => handleInlineCheckout(e, file)}
+                    selectedCount={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 ? selectedCheckoutableFiles.length : undefined}
+                    isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 && isCheckoutHovered}
+                    onMouseEnter={() => selectedCheckoutableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckoutHovered(true)}
+                    onMouseLeave={() => setIsCheckoutHovered(false)}
+                  />
+                )}
+                {/* Check In - for individual files checked out by me */}
+                {file.pdmData?.checked_out_by === user?.id && (
+                  <InlineCheckinButton
+                    onClick={(e) => handleInlineCheckin(e, file)}
+                    userAvatarUrl={user?.avatar_url ?? undefined}
+                    userFullName={user?.full_name ?? undefined}
+                    userEmail={user?.email}
+                    selectedCount={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 ? selectedCheckinableFiles.length : undefined}
+                    isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 && isCheckinHovered}
+                    onMouseEnter={() => selectedCheckinableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckinHovered(true)}
+                    onMouseLeave={() => setIsCheckinHovered(false)}
+                  />
+                )}
+                {/* Avatar for files checked out by OTHERS - rightmost */}
+                {file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id && checkoutUsers.filter(u => !u.isMe).length > 0 && (
+                  <span className="flex items-center flex-shrink-0 -space-x-1.5 ml-0.5" title={checkoutUsers.filter(u => !u.isMe).map(u => u.name).join(', ')}>
+                    {checkoutUsers.filter(u => !u.isMe).slice(0, maxShow).map((u, i) => (
                       <div key={u.id} className="relative" style={{ zIndex: maxShow - i }}>
                         {u.avatar_url ? (
                           <img 
                             src={u.avatar_url} 
                             alt={u.name}
-                            className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-plm-accent' : 'ring-plm-bg-light'} bg-plm-bg object-cover`}
+                            className="w-5 h-5 rounded-full bg-plm-bg object-cover"
                             onError={(e) => {
-                              // On error, replace with initial fallback
                               const target = e.target as HTMLImageElement
                               target.style.display = 'none'
                               target.nextElementSibling?.classList.remove('hidden')
@@ -3634,111 +3975,21 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                           />
                         ) : null}
                         <div 
-                          className={`w-5 h-5 rounded-full ring-1 ${u.isMe ? 'ring-plm-accent bg-plm-accent/30 text-plm-accent' : 'ring-plm-bg-light bg-plm-fg-muted/30 text-plm-fg'} flex items-center justify-center text-[9px] font-medium ${u.avatar_url ? 'hidden' : ''}`}
+                          className={`w-5 h-5 rounded-full bg-plm-fg-muted/30 text-plm-fg flex items-center justify-center text-[9px] font-medium ${u.avatar_url ? 'hidden' : ''}`}
                         >
                           {getInitials(u.name)}
                         </div>
                       </div>
                     ))}
-                    {extraUsers > 0 && (
+                    {checkoutUsers.filter(u => !u.isMe).length > maxShow && (
                       <div 
-                        className="w-5 h-5 rounded-full ring-1 ring-plm-fg-muted bg-plm-bg flex items-center justify-center text-[9px] font-medium text-plm-fg-muted"
+                        className="w-5 h-5 rounded-full bg-plm-bg-light flex items-center justify-center text-[9px] font-medium text-plm-fg-muted"
                         style={{ zIndex: 0 }}
                       >
-                        +{extraUsers}
+                        +{checkoutUsers.filter(u => !u.isMe).length - maxShow}
                       </div>
                     )}
                   </span>
-                )
-              }
-              
-              // No checkout users - show cloud/sync status if fileStatus column hidden
-              if (!fileStatusColumnVisible) {
-                if (file.isDirectory) {
-                  // If we're already showing cloud count badge, don't show redundant cloud status icon
-                  if (cloudFilesCount > 0) {
-                    return null
-                  }
-                  // If we're already showing badges (localOnlyFilesCount), don't show redundant status icon
-                  // Only show green synced cloud if folder is fully synced (no badges shown)
-                  if (localOnlyFilesCount === 0) {
-                    const folderPrefix = file.relativePath + '/'
-                    const folderFiles = files.filter(f => 
-                      !f.isDirectory && f.relativePath.startsWith(folderPrefix)
-                    )
-                    const hasAnyFiles = folderFiles.length > 0
-                    const allSyncedHere = hasAnyFiles && folderFiles.every(f => !!f.pdmData && f.diffStatus !== 'added')
-                    
-                    if (allSyncedHere) {
-                      return <span title="Synced with cloud"><Cloud size={12} className="text-plm-success flex-shrink-0" /></span>
-                    }
-                  }
-                  // Don't show HardDrive here - we already show localOnlyFilesCount badge above
-                  return null
-                }
-                
-                // For files
-                if (file.diffStatus === 'cloud') {
-                  return <span title="Cloud only - not downloaded"><Cloud size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
-                }
-                if (file.diffStatus === 'cloud_new') {
-                  return <span title="New file added by another user - download to sync"><Plus size={12} className="text-green-400 flex-shrink-0" /></span>
-                }
-                if (isSynced) {
-                  return <span title="Synced with cloud"><Cloud size={12} className="text-plm-success flex-shrink-0" /></span>
-                }
-                if (file.diffStatus === 'ignored') {
-                  return <span title="Local only (ignored from sync)"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
-                }
-                return <span title="Local only - not synced"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
-              }
-              
-              return null
-            })()}
-            
-            {/* Download for individual cloud files (not folders) - after cloud icon */}
-            {!file.isDirectory && (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && (
-              <button
-                className="inline-actions p-0.5 rounded hover:bg-sky-400/20 text-sky-400 flex-shrink-0"
-                onClick={(e) => handleInlineDownload(e, file)}
-                title="Download"
-              >
-                <ArrowDown size={12} />
-              </button>
-            )}
-            
-            {/* Inline action buttons - show on hover (checkout/checkin only, download moved to cloud count) */}
-            {!isBeingProcessed(file.relativePath) && (
-              <span className="inline-actions flex items-center gap-0.5 flex-shrink-0">
-                {/* First Check In - for local only files/folders */}
-                {((!file.isDirectory && (!file.pdmData || file.diffStatus === 'added' || file.diffStatus === 'deleted_remote') && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored') || hasUnsyncedFiles) && (
-                  <button
-                    className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success"
-                    onClick={(e) => handleInlineUpload(e, file)}
-                    title="First Check In"
-                  >
-                    <ArrowUp size={12} />
-                  </button>
-                )}
-                {/* Check Out - for synced files/folders not checked out */}
-                {((!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new') || hasCheckoutableFiles) && (
-                  <button
-                    className="p-0.5 rounded hover:bg-plm-warning/20 text-plm-warning"
-                    onClick={(e) => handleInlineCheckout(e, file)}
-                    title="Check Out"
-                  >
-                    <ArrowDown size={12} />
-                  </button>
-                )}
-                {/* Check In - for files/folders checked out by me */}
-                {((!file.isDirectory && file.pdmData?.checked_out_by === user?.id) || hasMyCheckedOutFiles) && (
-                  <button
-                    className="p-0.5 rounded hover:bg-plm-success/20 text-plm-success"
-                    onClick={(e) => handleInlineCheckin(e, file)}
-                    title="Check In"
-                  >
-                    <ArrowUp size={12} />
-                  </button>
                 )}
               </span>
             )}
@@ -3985,30 +4236,37 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           </span>
         )
       case 'fileStatus':
+        // Priority (highest to lowest):
+        // 1. Update files (outdated) - needs update from server
+        // 2. Cloud files (cloud only, not downloaded)
+        // 3. Avatar checkout (checked out by someone)
+        // 4. Green cloud (synced/checked in)
+        // 5. Local files (not synced) - lowest priority
+        
         if (file.isDirectory) return ''
         
-        if (file.diffStatus === 'cloud') {
-          // Cloud only (not downloaded)
+        // 1. HIGHEST: Update files (outdated - server has newer version)
+        if (file.diffStatus === 'outdated') {
           return (
-            <span className="flex items-center gap-1 text-plm-fg-muted">
+            <span className="flex items-center gap-1 text-purple-400" title="Server has a newer version - update available">
+              <ArrowDown size={12} />
+              Update
+            </span>
+          )
+        }
+        
+        // 2. Cloud files (exists on server, not downloaded locally)
+        if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+          return (
+            <span className={`flex items-center gap-1 ${file.diffStatus === 'cloud_new' ? 'text-green-400' : 'text-plm-info'}`} title={file.diffStatus === 'cloud_new' ? 'New file added by others' : 'Cloud file - download to work on it'}>
               <Cloud size={12} />
-              Cloud
+              {file.diffStatus === 'cloud_new' ? 'New' : 'Cloud'}
             </span>
           )
         }
         
-        if (!file.pdmData) {
-          // Not synced
-          return (
-            <span className="flex items-center gap-1 text-plm-fg-muted">
-              <HardDrive size={12} />
-              Local
-            </span>
-          )
-        }
-        
-        if (file.pdmData.checked_out_by) {
-          // Checked out - show avatar instead of lock
+        // 3. Avatar checkout (checked out by someone)
+        if (file.pdmData?.checked_out_by) {
           const isMe = user?.id === file.pdmData.checked_out_by
           const checkoutUser = (file.pdmData as any).checked_out_user
           const checkoutAvatarUrl = isMe ? user?.avatar_url : checkoutUser?.avatar_url
@@ -4029,7 +4287,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   <img 
                     src={checkoutAvatarUrl} 
                     alt={checkoutName}
-                    className={`w-5 h-5 rounded-full ring-1 ${isMe ? (isDifferentMachine ? 'ring-plm-warning' : 'ring-plm-warning') : 'ring-plm-error'} object-cover`}
+                    className="w-5 h-5 rounded-full object-cover"
                     onError={(e) => {
                       // Hide broken image and show fallback
                       const target = e.target as HTMLImageElement
@@ -4038,7 +4296,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     }}
                   />
                 ) : null}
-                <div className={`w-5 h-5 rounded-full ring-1 ${isMe ? 'ring-plm-warning bg-plm-warning/30' : 'ring-plm-error bg-plm-error/30'} flex items-center justify-center text-[9px] font-medium absolute inset-0 ${checkoutAvatarUrl ? 'hidden' : ''}`}>
+                <div className={`w-5 h-5 rounded-full ${isMe ? 'bg-plm-warning/30' : 'bg-plm-error/30'} flex items-center justify-center text-[9px] font-medium absolute inset-0 ${checkoutAvatarUrl ? 'hidden' : ''}`}>
                   {getInitials(checkoutName)}
                 </div>
                 {isDifferentMachine && (
@@ -4059,11 +4317,21 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           )
         }
         
-        // Synced but not checked out
+        // 4. Green cloud (synced/checked in - has pdmData, no checkout)
+        if (file.pdmData) {
+          return (
+            <span className="flex items-center gap-1 text-plm-success" title="Synced and checked in">
+              <Cloud size={12} />
+              Checked In
+            </span>
+          )
+        }
+        
+        // 5. LOWEST: Local files (not synced - no pdmData)
         return (
-          <span className="flex items-center gap-1 text-plm-success">
-            <Cloud size={12} />
-            Checked In
+          <span className="flex items-center gap-1 text-plm-fg-muted" title="Local file - not yet synced to cloud">
+            <HardDrive size={12} />
+            Local
           </span>
         )
       case 'checkedOutBy':
@@ -4091,7 +4359,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   src={avatarUrl} 
                   alt={displayName}
                   title={tooltipName}
-                  className={`w-5 h-5 rounded-full object-cover ring-1 ${onDifferentMachine ? 'ring-plm-warning' : 'ring-transparent'}`}
+                  className="w-5 h-5 rounded-full object-cover"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement
                     target.style.display = 'none'
@@ -4524,6 +4792,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 file={file}
                 iconSize={iconSize}
                 isSelected={selectedFiles.includes(file.path)}
+                isCut={clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)}
                 allFiles={files}
                 processingPaths={processingFolders}
                 currentMachineId={currentMachineId}
@@ -4624,11 +4893,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 : file.diffStatus === 'cloud' ? 'diff-cloud' : ''
               const isProcessing = isBeingProcessed(file.relativePath)
               const isDragTarget = file.isDirectory && dragOverFolder === file.relativePath
+              const isCut = clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)
               
               return (
               <tr
                 key={file.path}
-                className={`${selectedFiles.includes(file.path) ? 'selected' : ''} ${isProcessing ? 'processing' : ''} ${diffClass} ${isDragTarget ? 'drag-target' : ''}`}
+                className={`${selectedFiles.includes(file.path) ? 'selected' : ''} ${isProcessing ? 'processing' : ''} ${diffClass} ${isDragTarget ? 'drag-target' : ''} ${isCut ? 'opacity-50' : ''}`}
                 style={{ height: listRowSize + 8 }}
                 onClick={(e) => handleRowClick(e, file, index)}
                 onDoubleClick={() => handleRowDoubleClick(file)}
@@ -5355,7 +5625,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     executeCommand('sync', { files: contextFiles }, { onRefresh })
                   }}
                 >
-                  <Cloud size={14} />
+                  <ArrowUp size={14} className="text-plm-info" />
                   First Check In {unsyncedFilesInSelection.length > 0 ? `${unsyncedFilesInSelection.length} file${unsyncedFilesInSelection.length !== 1 ? 's' : ''}` : ''}
                 </div>
               )}
@@ -5425,6 +5695,21 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     {!allCheckedIn && allCheckedOutByOthers && <span className="text-xs text-plm-fg-muted ml-auto">(by others)</span>}
                   </div>
                 )
+              )}
+              
+              {/* Discard Checkout - for files checked out by current user */}
+              {checkinableCount > 0 && (
+                <div 
+                  className="context-menu-item text-plm-warning"
+                  onClick={() => {
+                    setContextMenu(null)
+                    executeCommand('discard', { files: contextFiles }, { onRefresh })
+                  }}
+                  title="Discard local changes and revert to server version"
+                >
+                  <Undo2 size={14} />
+                  Discard Checkout {checkinableCount > 1 ? `(${checkinableCount})` : ''}
+                </div>
               )}
               
               {/* Admin: Force Release - for files checked out by others */}
@@ -5571,6 +5856,20 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 <Info size={14} />
                 Properties
               </div>
+              
+              {/* Refresh Metadata - for synced SolidWorks files */}
+              {!isFolder && isSynced && ['.sldprt', '.sldasm', '.slddrw'].includes(firstFile.extension.toLowerCase()) && (
+                <div 
+                  className="context-menu-item"
+                  onClick={() => {
+                    setContextMenu(null)
+                    executeCommand('sync-sw-metadata', { files: multiSelect ? contextFiles : [firstFile] }, { onRefresh })
+                  }}
+                >
+                  <RefreshCw size={14} className="text-plm-accent" />
+                  Refresh Metadata
+                </div>
+              )}
               
               {/* Request Review - for synced files (not folders) */}
               {!multiSelect && !isFolder && isSynced && firstFile.pdmData?.id && (

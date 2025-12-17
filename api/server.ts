@@ -49,6 +49,11 @@ import { createClient, SupabaseClient, User as SupabaseUser } from '@supabase/su
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+// ESM-compatible __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Load version from API's own package.json
 const packageJsonPath = path.join(__dirname, 'package.json')
@@ -3538,13 +3543,97 @@ export async function buildServer(): Promise<FastifyInstance> {
       }
     }
     
-    // Always save the settings (even if connection failed)
+    // Check if this config already exists in saved configs
+    // Compare url, database, username, and api_key to detect if it's a new/different config
+    const { data: existingConfigs } = await request.supabase!
+      .from('odoo_saved_configs')
+      .select('id, url, database, username, api_key_encrypted')
+      .eq('org_id', request.user.org_id)
+      .eq('is_active', true)
+    
+    // Check if any saved config matches the current settings
+    const matchingConfig = existingConfigs?.find(config => 
+      config.url === normalizedUrl &&
+      config.database === database &&
+      config.username === username &&
+      config.api_key_encrypted === api_key
+    )
+    
+    let newConfigId: string | null = null
+    let newConfigName: string | null = null
+    
+    // If no matching config exists, create a new saved config automatically
+    if (!matchingConfig) {
+      // Generate a unique name based on existing configs
+      const existingNames = existingConfigs?.map(c => c.url) || []
+      let baseName = `${normalizedUrl.replace(/^https?:\/\//, '').split('/')[0]}`
+      let configName = baseName
+      let counter = 1
+      
+      // Check against existing saved config names
+      const { data: existingNamedConfigs } = await request.supabase!
+        .from('odoo_saved_configs')
+        .select('name')
+        .eq('org_id', request.user.org_id)
+        .eq('is_active', true)
+      
+      const usedNames = existingNamedConfigs?.map(c => c.name) || []
+      while (usedNames.includes(configName)) {
+        counter++
+        configName = `${baseName} (${counter})`
+      }
+      
+      // Pick a color based on index
+      const colors = ['#22c55e', '#3b82f6', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4', '#eab308', '#ef4444']
+      const colorIndex = (existingConfigs?.length || 0) % colors.length
+      
+      const { data: newConfig, error: configError } = await request.supabase!
+        .from('odoo_saved_configs')
+        .insert({
+          org_id: request.user.org_id,
+          name: configName,
+          url: normalizedUrl,
+          database,
+          username,
+          api_key_encrypted: api_key,
+          color: colors[colorIndex],
+          is_active: true,
+          last_tested_at: !skip_test ? new Date().toISOString() : null,
+          last_test_success: !skip_test ? isConnected : null,
+          last_test_error: !skip_test ? connectionError : null,
+          created_by: request.user.id,
+          updated_by: request.user.id
+        })
+        .select('id, name')
+        .single()
+      
+      if (!configError && newConfig) {
+        newConfigId = newConfig.id
+        newConfigName = newConfig.name
+      }
+    } else {
+      // Update the test status on the matching config
+      if (!skip_test) {
+        await request.supabase!
+          .from('odoo_saved_configs')
+          .update({
+            last_tested_at: new Date().toISOString(),
+            last_test_success: isConnected,
+            last_test_error: connectionError,
+            updated_by: request.user.id
+          })
+          .eq('id', matchingConfig.id)
+      }
+      newConfigId = matchingConfig.id
+    }
+    
+    // Always save the settings to organization_integrations (even if connection failed)
     const { error } = await request.supabase!
       .from('organization_integrations')
       .upsert({
         org_id: request.user.org_id,
         integration_type: 'odoo',
-        settings: { url: normalizedUrl, database, username },
+        settings: { url: normalizedUrl, database, username, config_id: newConfigId, config_name: newConfigName || matchingConfig?.url },
         credentials_encrypted: api_key, // In production, encrypt this
         is_active: true,
         is_connected: isConnected,
@@ -3559,11 +3648,17 @@ export async function buildServer(): Promise<FastifyInstance> {
     if (error) throw error
     
     if (skip_test) {
-      return { success: true, message: 'Odoo credentials saved (connection not tested)' }
+      const msg = newConfigName 
+        ? `Odoo credentials saved as "${newConfigName}" (connection not tested)`
+        : 'Odoo credentials saved (connection not tested)'
+      return { success: true, message: msg, new_config: newConfigName ? { id: newConfigId, name: newConfigName } : undefined }
     } else if (isConnected) {
-      return { success: true, message: 'Odoo integration configured and connected!' }
+      const msg = newConfigName 
+        ? `Odoo integration connected and saved as "${newConfigName}"!`
+        : 'Odoo integration configured and connected!'
+      return { success: true, message: msg, new_config: newConfigName ? { id: newConfigId, name: newConfigName } : undefined }
     } else {
-      return { success: true, message: `Credentials saved but connection failed: ${connectionError}`, connection_error: connectionError }
+      return { success: true, message: `Credentials saved but connection failed: ${connectionError}`, connection_error: connectionError, new_config: newConfigName ? { id: newConfigId, name: newConfigName } : undefined }
     }
   })
 

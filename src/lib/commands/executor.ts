@@ -170,6 +170,14 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void): Com
     removeProcessingFolder: store.removeProcessingFolder,
     removeProcessingFolders: store.removeProcessingFolders,
     
+    // Auto-download exclusion (scoped to active vault)
+    addAutoDownloadExclusion: (relativePath: string) => {
+      const vaultId = store.activeVaultId
+      if (vaultId) {
+        store.addAutoDownloadExclusion(vaultId, relativePath)
+      }
+    },
+    
     // Refresh
     onRefresh
   }

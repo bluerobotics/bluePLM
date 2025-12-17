@@ -114,6 +114,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMachineName: () => ipcRenderer.invoke('app:get-machine-name'),
   getAppVersion: () => ipcRenderer.invoke('app:get-app-version'),
   
+  // Clipboard operations (more reliable than navigator.clipboard in Electron)
+  copyToClipboard: (text: string) => ipcRenderer.invoke('clipboard:write-text', text),
+  readFromClipboard: () => ipcRenderer.invoke('clipboard:read-text'),
+  
   // Backup execution
   checkResticInstalled: () => ipcRenderer.invoke('backup:check-restic'),
   runBackup: (config: {
@@ -187,6 +191,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setLogRetentionSettings: (settings: { maxFiles?: number; maxAgeDays?: number; maxSizeMb?: number; maxTotalSizeMb?: number }) => 
     ipcRenderer.invoke('logs:set-retention-settings', settings),
   getLogStorageInfo: () => ipcRenderer.invoke('logs:get-storage-info'),
+  getLogRecordingState: () => ipcRenderer.invoke('logs:get-recording-state'),
+  setLogRecordingState: (enabled: boolean) => ipcRenderer.invoke('logs:set-recording-state', enabled),
+  startNewLogFile: () => ipcRenderer.invoke('logs:start-new-file'),
+  exportFilteredLogs: (entries: Array<{ raw: string }>) => ipcRenderer.invoke('logs:export-filtered', entries),
   
   // Crash reports
   listCrashFiles: () => ipcRenderer.invoke('logs:list-crashes'),
@@ -508,6 +516,10 @@ declare global {
       getLogRetentionSettings: () => Promise<{ success: boolean; settings?: { maxFiles: number; maxAgeDays: number; maxSizeMb: number; maxTotalSizeMb: number }; defaults?: { maxFiles: number; maxAgeDays: number; maxSizeMb: number; maxTotalSizeMb: number }; error?: string }>
       setLogRetentionSettings: (settings: { maxFiles?: number; maxAgeDays?: number; maxSizeMb?: number; maxTotalSizeMb?: number }) => Promise<{ success: boolean; settings?: { maxFiles: number; maxAgeDays: number; maxSizeMb: number; maxTotalSizeMb: number }; error?: string }>
       getLogStorageInfo: () => Promise<{ success: boolean; totalSize?: number; fileCount?: number; logsDir?: string; error?: string }>
+      getLogRecordingState: () => Promise<{ enabled: boolean }>
+      setLogRecordingState: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean }>
+      startNewLogFile: () => Promise<{ success: boolean; path?: string; error?: string }>
+      exportFilteredLogs: (entries: Array<{ raw: string }>) => Promise<{ success: boolean; path?: string; error?: string; canceled?: boolean }>
       
       // Crash reports
       listCrashFiles: () => Promise<{ success: boolean; files?: Array<{ name: string; path: string; size: number; modifiedTime: string }>; error?: string }>

@@ -4,7 +4,7 @@ import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 import type { SettingsTab } from './types/settings'
 import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut } from './lib/supabase'
-import { subscribeToFiles, subscribeToActivity, unsubscribeAll } from './lib/realtime'
+import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, unsubscribeAll } from './lib/realtime'
 // Backup services removed - now handled directly via restic
 import { MenuBar } from './components/MenuBar'
 import { ActivityBar } from './components/ActivityBar'
@@ -18,6 +18,7 @@ import { OnboardingScreen } from './components/OnboardingScreen'
 import { Toast } from './components/Toast'
 import { RightPanel } from './components/RightPanel'
 import { OrphanedCheckoutsContainer } from './components/OrphanedCheckoutDialog'
+import { MissingStorageFilesContainer } from './components/MissingStorageFilesDialog'
 import { GoogleDrivePanel } from './components/GoogleDrivePanel'
 import { ChristmasEffects } from './components/ChristmasEffects'
 import { HalloweenEffects } from './components/HalloweenEffects'
@@ -344,6 +345,9 @@ function App() {
           const { org, error } = await linkUserToOrganization(session.user.id, session.user.email || '')
           if (org) {
             console.log('[Auth] Organization loaded:', (org as any).name)
+            window.electronAPI?.log?.('info', `[Auth] Organization loaded: ${(org as any).name}`)
+            window.electronAPI?.log?.('info', `[Auth] Organization settings keys: ${Object.keys((org as any).settings || {}).join(', ')}`)
+            window.electronAPI?.log?.('info', `[Auth] DM License key in settings: ${(org as any).settings?.solidworks_dm_license_key ? 'PRESENT (' + (org as any).settings.solidworks_dm_license_key.length + ' chars)' : 'NOT PRESENT'}`)
             setOrganization(org as any)
           } else if (error) {
             console.log('[Auth] No organization found:', error)
@@ -404,6 +408,9 @@ function App() {
             const { org, error: orgError } = await linkUserToOrganization(session.user.id, session.user.email || '')
             if (org) {
               console.log('[Auth] Organization loaded:', (org as any).name)
+              window.electronAPI?.log?.('info', `[Auth] Organization loaded: ${(org as any).name}`)
+              window.electronAPI?.log?.('info', `[Auth] Organization settings keys: ${Object.keys((org as any).settings || {}).join(', ')}`)
+              window.electronAPI?.log?.('info', `[Auth] DM License key in settings: ${(org as any).settings?.solidworks_dm_license_key ? 'PRESENT (' + (org as any).settings.solidworks_dm_license_key.length + ' chars)' : 'NOT PRESENT'}`)
               setOrganization(org as any)
             } else {
               console.log('[Auth] No organization found:', orgError)
@@ -612,6 +619,12 @@ function App() {
           }))
           setServerFiles(serverFilesList)
           
+          // Clean up auto-download exclusions for files that no longer exist on the server
+          if (currentVaultId) {
+            const serverFilePaths = new Set(pdmFiles.map((f: any) => f.file_path))
+            usePDMStore.getState().cleanupStaleExclusions(currentVaultId, serverFilePaths)
+          }
+          
           // Compute all folder paths that exist on the server
           const serverFolderPathsSet = new Set<string>()
           for (const file of pdmFiles as any[]) {
@@ -721,8 +734,28 @@ function App() {
                 } else {
                   // Cloud was updated more recently - need to pull
                   diffStatus = 'outdated'
+                  // Debug: Log outdated file details
+                  window.electronAPI?.log('debug', '[LoadFiles] File marked as OUTDATED', {
+                    name: localFile.name,
+                    relativePath: localFile.relativePath,
+                    localHash: localFile.localHash?.substring(0, 16),
+                    serverHash: pdmData.content_hash?.substring(0, 16),
+                    localModTime: new Date(localModTime).toISOString(),
+                    cloudUpdateTime: new Date(cloudUpdateTime).toISOString(),
+                    fileId: pdmData.id,
+                    version: pdmData.version,
+                    checkedOutBy: pdmData.checked_out_by
+                  })
                 }
               }
+            } else if (pdmData.content_hash && !localFile.localHash) {
+              // Debug: Log files waiting for hash computation
+              window.electronAPI?.log('debug', '[LoadFiles] File waiting for hash computation', {
+                name: localFile.name,
+                relativePath: localFile.relativePath,
+                hasServerHash: !!pdmData.content_hash,
+                hasLocalHash: !!localFile.localHash
+              })
             }
             // NOTE: If cloud has hash but local doesn't have one yet, leave diffStatus undefined
             // The background hash computation will set the proper status once hashes are computed
@@ -1005,15 +1038,23 @@ function App() {
             window.electronAPI?.log('info', '[AutoDownload] Skipping - silent refresh')
           }
           
-          const { autoDownloadCloudFiles, autoDownloadUpdates, addToast } = usePDMStore.getState()
+          const { autoDownloadCloudFiles, autoDownloadUpdates, addToast, autoDownloadExcludedFiles, activeVaultId } = usePDMStore.getState()
           
           if (!silent && (autoDownloadCloudFiles || autoDownloadUpdates) && organization && !isOfflineMode) {
             const latestFiles = usePDMStore.getState().files
             
+            // Get exclusion list for current vault
+            const excludedPaths = activeVaultId ? (autoDownloadExcludedFiles[activeVaultId] || []) : []
+            const excludedPathsSet = new Set(excludedPaths)
+            
             // Auto-download cloud-only files
             if (autoDownloadCloudFiles) {
               const cloudOnlyFiles = latestFiles.filter(f => 
-                !f.isDirectory && f.diffStatus === 'cloud' && f.pdmData?.content_hash
+                !f.isDirectory && 
+                f.diffStatus === 'cloud' && 
+                f.pdmData?.content_hash &&
+                // Exclude files that were intentionally removed locally
+                !excludedPathsSet.has(f.relativePath)
               )
               
               if (cloudOnlyFiles.length > 0) {
@@ -1036,15 +1077,61 @@ function App() {
             
             // Auto-download updates for outdated files
             if (autoDownloadUpdates) {
+              // Debug: Log all files with outdated status before filtering
+              const allOutdatedStatus = latestFiles.filter(f => f.diffStatus === 'outdated')
+              window.electronAPI?.log('debug', '[AutoDownload] Files with outdated status', {
+                count: allOutdatedStatus.length,
+                files: allOutdatedStatus.map(f => ({
+                  name: f.name,
+                  relativePath: f.relativePath,
+                  isDirectory: f.isDirectory,
+                  hasContentHash: !!f.pdmData?.content_hash,
+                  contentHash: f.pdmData?.content_hash?.substring(0, 12),
+                  localHash: f.localHash?.substring(0, 12),
+                  fileId: f.pdmData?.id,
+                  checkedOutBy: f.pdmData?.checked_out_by
+                }))
+              })
+              
               const outdatedFiles = latestFiles.filter(f => 
                 !f.isDirectory && f.diffStatus === 'outdated' && f.pdmData?.content_hash
               )
               
+              // Debug: Log files that were filtered out
+              const filteredOut = allOutdatedStatus.filter(f => 
+                f.isDirectory || !f.pdmData?.content_hash
+              )
+              if (filteredOut.length > 0) {
+                window.electronAPI?.log('warn', '[AutoDownload] Outdated files FILTERED OUT (no content_hash or is directory)', {
+                  count: filteredOut.length,
+                  files: filteredOut.map(f => ({
+                    name: f.name,
+                    isDirectory: f.isDirectory,
+                    hasContentHash: !!f.pdmData?.content_hash
+                  }))
+                })
+              }
+              
               if (outdatedFiles.length > 0) {
-                window.electronAPI?.log('info', '[AutoDownload] Updating outdated files', { count: outdatedFiles.length })
+                window.electronAPI?.log('info', '[AutoDownload] Updating outdated files', { 
+                  count: outdatedFiles.length,
+                  files: outdatedFiles.map(f => ({
+                    name: f.name,
+                    relativePath: f.relativePath,
+                    localHash: f.localHash?.substring(0, 12),
+                    serverHash: f.pdmData?.content_hash?.substring(0, 12),
+                    fileId: f.pdmData?.id
+                  }))
+                })
                 try {
                   // Don't pass onRefresh - same reason as above
                   const result = await executeCommand('get-latest', { files: outdatedFiles })
+                  window.electronAPI?.log('info', '[AutoDownload] Update result', {
+                    total: result.total,
+                    succeeded: result.succeeded,
+                    failed: result.failed,
+                    errors: result.errors
+                  })
                   if (result.succeeded > 0) {
                     addToast('success', `Auto-updated ${result.succeeded} file${result.succeeded > 1 ? 's' : ''}`)
                   }
@@ -1430,6 +1517,119 @@ function App() {
     
     const { addCloudFile, updateFilePdmData, removeCloudFile, addToast } = usePDMStore.getState()
     
+    // Batch notifications to avoid toast spam when someone does bulk operations
+    // Collects notifications over 500ms then shows a single summary toast
+    type NotificationType = 'checkout' | 'checkin' | 'version' | 'state' | 'add'
+    interface PendingNotification {
+      type: NotificationType
+      userId: string
+      userName: string | null  // null means we need to fetch it
+      fileNames: string[]
+      version?: number
+      state?: string
+    }
+    
+    const pendingNotifications: Map<string, PendingNotification> = new Map()
+    let flushTimeout: NodeJS.Timeout | null = null
+    const userNameCache: Map<string, string> = new Map()
+    
+    const flushNotifications = () => {
+      flushTimeout = null
+      
+      for (const notification of pendingNotifications.values()) {
+        const count = notification.fileNames.length
+        const userName = notification.userName || 'Another user'
+        
+        let message: string
+        if (count === 1) {
+          // Single file - show file name
+          const fileName = notification.fileNames[0]
+          switch (notification.type) {
+            case 'checkout':
+              message = `${userName} checked out ${fileName}`
+              break
+            case 'checkin':
+              message = `${userName} checked in ${fileName} (v${notification.version})`
+              break
+            case 'version':
+              message = `${userName} updated ${fileName} to v${notification.version}`
+              break
+            case 'state':
+              message = `${fileName} → ${notification.state}`
+              break
+            case 'add':
+              message = `${userName} added ${fileName}`
+              break
+          }
+        } else {
+          // Multiple files - show count
+          switch (notification.type) {
+            case 'checkout':
+              message = `${userName} checked out ${count} files`
+              break
+            case 'checkin':
+              message = `${userName} checked in ${count} files`
+              break
+            case 'version':
+              message = `${userName} updated ${count} files`
+              break
+            case 'state':
+              message = `${count} files → ${notification.state}`
+              break
+            case 'add':
+              message = `${userName} added ${count} files`
+              break
+          }
+        }
+        
+        addToast('info', message)
+      }
+      
+      pendingNotifications.clear()
+    }
+    
+    const queueNotification = (type: NotificationType, userId: string, fileName: string, extra?: { version?: number; state?: string }) => {
+      const key = `${type}:${userId}:${extra?.state || ''}`  // Group by type, user, and state (for state changes)
+      
+      const existing = pendingNotifications.get(key)
+      if (existing) {
+        existing.fileNames.push(fileName)
+        if (extra?.version) existing.version = extra.version
+      } else {
+        // Check cache for user name
+        const cachedName = userNameCache.get(userId)
+        pendingNotifications.set(key, {
+          type,
+          userId,
+          userName: cachedName || null,
+          fileNames: [fileName],
+          ...extra
+        })
+        
+        // Fetch user name if not cached
+        if (!cachedName) {
+          import('./lib/supabase').then(({ getUserBasicInfo }) => {
+            getUserBasicInfo(userId).then(({ user }) => {
+              const displayName = user?.full_name || user?.email?.split('@')[0] || 'Another user'
+              userNameCache.set(userId, displayName)
+              
+              // Update pending notification if it still exists
+              const notification = pendingNotifications.get(key)
+              if (notification) {
+                notification.userName = displayName
+              }
+            })
+          })
+        }
+      }
+      
+      // Start/reset the flush timer
+      if (flushTimeout) {
+        clearTimeout(flushTimeout)
+      }
+      flushTimeout = setTimeout(flushNotifications, 500)
+    }
+    
     // Subscribe to file changes
     const unsubscribeFiles = subscribeToFiles(organization.id, (eventType, newFile, oldFile) => {
       // Skip updates caused by current user (we handle those locally)
@@ -1441,9 +1641,8 @@ function App() {
           if (newFile && newFile.created_by !== currentUserId) {
             console.log('[Realtime] New file from another user:', newFile.file_name)
             addCloudFile(newFile)
-            // Show toast notification for new files
-            const userName = newFile.created_by === currentUserId ? 'You' : 'Another user'
-            addToast('info', `${userName} added: ${newFile.file_name}`)
+            // Queue batched notification for new files
+            queueNotification('add', newFile.created_by, newFile.file_name)
           }
           break
           
@@ -1539,23 +1738,23 @@ function App() {
               })
             }
             
-            // Notify about important changes from other users
+            // Queue batched notifications for important changes from other users
             if (newFile.updated_by && newFile.updated_by !== currentUserId) {
               // Check for checkout changes
               if (oldFile?.checked_out_by !== newFile.checked_out_by) {
                 if (newFile.checked_out_by) {
-                  addToast('info', `${newFile.file_name} checked out`)
+                  queueNotification('checkout', newFile.updated_by, newFile.file_name)
                 } else {
-                  addToast('info', `${newFile.file_name} checked in (v${newFile.version})`)
+                  queueNotification('checkin', newFile.updated_by, newFile.file_name, { version: newFile.version })
                 }
               }
               // Check for new version
               else if (oldFile?.version !== newFile.version) {
-                addToast('info', `${newFile.file_name} updated to v${newFile.version}`)
+                queueNotification('version', newFile.updated_by, newFile.file_name, { version: newFile.version })
               }
               // Check for state change
               else if (oldFile?.state !== newFile.state) {
-                addToast('info', `${newFile.file_name} → ${newFile.state}`)
+                queueNotification('state', newFile.updated_by, newFile.file_name, { state: newFile.state })
               }
             }
           }
@@ -1583,13 +1782,61 @@ function App() {
       console.log('[Realtime] Activity:', activity.action, activity.details)
     })
     
+    // Subscribe to organization settings changes (integration settings, etc.)
+    const unsubscribeOrg = subscribeToOrganization(organization.id, (_eventType, newOrg, oldOrg) => {
+      // Check what changed in the settings JSONB
+      const newSettings = (newOrg?.settings || {}) as unknown as Record<string, unknown>
+      const oldSettings = (oldOrg?.settings || {}) as unknown as Record<string, unknown>
+      
+      // Integration keys in the settings JSONB
+      const settingsIntegrationKeys = [
+        'solidworks_dm_license_key',
+        'api_url',
+        'slack_enabled',
+        'slack_webhook_url',
+        'odoo_url',
+        'odoo_api_key'
+      ]
+      
+      const changedSettingsKeys = settingsIntegrationKeys.filter(
+        key => JSON.stringify(newSettings[key]) !== JSON.stringify(oldSettings[key])
+      )
+      
+      // Integration fields directly on the organization table
+      const orgIntegrationFields = [
+        'google_drive_enabled',
+        'google_drive_client_id',
+        'google_drive_client_secret'
+      ] as const
+      
+      const changedOrgFields = orgIntegrationFields.filter(
+        key => (newOrg as any)?.[key] !== (oldOrg as any)?.[key]
+      )
+      
+      const allChangedIntegrations = [...changedSettingsKeys, ...changedOrgFields]
+      
+      // Update the organization in the store
+      setOrganization(newOrg)
+      
+      // Show toast if integration settings changed
+      if (allChangedIntegrations.length > 0) {
+        console.log('[Realtime] Integration settings updated:', allChangedIntegrations)
+        addToast('info', 'Organization settings updated by an admin')
+      }
+    })
+    
     return () => {
       console.log('[Realtime] Cleaning up subscriptions')
+      // Clear any pending notification timeout
+      if (flushTimeout) {
+        clearTimeout(flushTimeout)
+      }
       unsubscribeFiles()
       unsubscribeActivity()
+      unsubscribeOrg()
       unsubscribeAll()
     }
-  }, [organization, isOfflineMode])
+  }, [organization, isOfflineMode, setOrganization, addToast])
 
   // Start backup heartbeat and scheduler when user and org are available
   // Backup services removed - all backup operations are now handled directly via restic
@@ -1640,6 +1887,11 @@ function App() {
     const autoStart = usePDMStore.getState().autoStartSolidworksService
     const dmLicenseKey = organization?.settings?.solidworks_dm_license_key
     
+    window.electronAPI?.log?.('info', '[SolidWorks] Auto-start effect triggered')
+    window.electronAPI?.log?.('info', `[SolidWorks] autoStart setting: ${autoStart}`)
+    window.electronAPI?.log?.('info', `[SolidWorks] organization loaded: ${!!organization}`)
+    window.electronAPI?.log?.('info', `[SolidWorks] dmLicenseKey from org settings: ${dmLicenseKey ? `PRESENT (${dmLicenseKey.length} chars)` : 'NOT PRESENT'}`)
+    
     if (autoStart && window.electronAPI?.solidworks) {
       // First check if SolidWorks is installed on this machine
       window.electronAPI.solidworks.getServiceStatus().then(result => {
@@ -1649,9 +1901,13 @@ function App() {
           return
         }
         
+        const data = result?.data as any
+        
         // SolidWorks is installed, check if service is already running
-        if (result?.success && !result.data?.running) {
+        if (result?.success && !data?.running) {
+          // Service not running - start it with license key
           console.log('[SolidWorks] Auto-starting service...')
+          console.log('[SolidWorks] DM License key available:', !!dmLicenseKey)
           window.electronAPI?.solidworks?.startService(dmLicenseKey || undefined).then(startResult => {
             if (startResult?.success) {
               const modeMsg = (startResult.data as any)?.fastModeEnabled 
@@ -1663,6 +1919,18 @@ function App() {
             }
           }).catch(err => {
             console.warn('[SolidWorks] Auto-start error:', err)
+          })
+        } else if (result?.success && data?.running && dmLicenseKey && !data?.documentManagerAvailable) {
+          // Service is running but DM API not available - send license key
+          console.log('[SolidWorks] Service running but DM API not available, sending license key...')
+          window.electronAPI?.solidworks?.startService(dmLicenseKey).then(setKeyResult => {
+            if (setKeyResult?.success) {
+              console.log('[SolidWorks] License key sent to running service')
+            } else {
+              console.warn('[SolidWorks] Failed to set license key:', setKeyResult?.error)
+            }
+          }).catch(err => {
+            console.warn('[SolidWorks] Error sending license key:', err)
           })
         }
       }).catch(() => {
@@ -1934,6 +2202,9 @@ function App() {
       
       {/* Orphaned Checkouts Dialog */}
       <OrphanedCheckoutsContainer onRefresh={loadFiles} />
+      
+      {/* Missing Storage Files Dialog */}
+      <MissingStorageFilesContainer onRefresh={loadFiles} />
       
       {/* Vault Not Found Dialog */}
       {vaultNotFoundPath && (

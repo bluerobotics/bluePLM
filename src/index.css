@@ -157,8 +157,8 @@
   --plm-accent: #c41e3a; /* Christmas red */
   --plm-accent-hover: #a61830;
   --plm-accent-dim: #8b1428;
-  --plm-selection: rgba(196, 30, 58, 0.25);
-  --plm-highlight: rgba(196, 30, 58, 0.12);
+  --plm-selection: rgba(255, 255, 255, 0.12); /* Greyscale - red was confusing */
+  --plm-highlight: rgba(255, 255, 255, 0.06);
   /* Christmas status colors */
   --plm-success: #2ea043; /* Christmas green */
   --plm-warning: #d4a72c; /* Gold */
@@ -212,16 +212,12 @@
   color: #c41e3a !important;
 }
 
-/* Sidebar tree item selected - red highlight */
-[data-theme="christmas"] .tree-item.selected svg,
-[data-theme="christmas"] .sidebar-item.selected svg {
-  color: #c41e3a;
-}
-
-[data-theme="christmas"] .tree-item.selected span,
-[data-theme="christmas"] .sidebar-item.selected span {
+/* Sidebar tree item selected - preserve text color */
+[data-theme="christmas"] .tree-item.selected > span:not(.tree-item-icon),
+[data-theme="christmas"] .sidebar-item.selected > span {
   color: #f0f6fc;
 }
+/* Note: SVG icons keep their semantic colors (success green, info blue, etc.) */
 
 /* Sidebar header bar - Christmas RED */
 [data-theme="christmas"] .sidebar-header {
@@ -260,26 +256,23 @@
   background: linear-gradient(135deg, #d42a46 0%, #c41e3a 100%);
 }
 
-/* Selection highlights with red tint */
+/* Selection highlights - neutral greyscale (red is confusing) */
 [data-theme="christmas"] .file-table tr.selected,
 [data-theme="christmas"] .tree-item.selected,
-[data-theme="christmas"] .sidebar-item.selected,
-[data-theme="christmas"] [class*="selected"] {
-  background: rgba(196, 30, 58, 0.3) !important;
+[data-theme="christmas"] .sidebar-item.selected {
+  background: rgba(255, 255, 255, 0.12) !important;
 }
 
-/* Hover with subtle red */
+/* Hover with subtle greyscale */
 [data-theme="christmas"] .file-table tr:hover:not(.selected),
 [data-theme="christmas"] .tree-item:hover:not(.selected),
-[data-theme="christmas"] .sidebar-item:hover:not(.selected),
-[data-theme="christmas"] .activity-bar button:hover,
-[data-theme="christmas"] .bg-plm-activitybar button:hover {
-  background: rgba(196, 30, 58, 0.2);
+[data-theme="christmas"] .sidebar-item:hover:not(.selected) {
+  background: rgba(255, 255, 255, 0.06);
 }
 
-/* Context menu hover */
+/* Context menu hover - neutral greyscale */
 [data-theme="christmas"] .context-menu-item:hover {
-  background: rgba(196, 30, 58, 0.3);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* Input focus ring red */
@@ -297,6 +290,15 @@
 /* Panel headers with red accent */
 [data-theme="christmas"] .panel-header {
   background: rgba(196, 30, 58, 0.15);
+}
+
+/* Vault icon - icy blue instead of red (red looks like error) */
+[data-theme="christmas"] .vault-icon {
+  color: #58a6ff !important; /* Christmas ice blue */
+}
+
+[data-theme="christmas"] .vault-icon-bg {
+  background: rgba(88, 166, 255, 0.2) !important; /* Christmas ice blue bg */
 }
 
 /* Success/released badges extra festive */
@@ -507,16 +509,12 @@
   color: #a855f7 !important;
 }
 
-/* Sidebar tree item selected - purple highlight */
-[data-theme="kenneth"] .tree-item.selected svg,
-[data-theme="kenneth"] .sidebar-item.selected svg {
-  color: #a855f7;
-}
-
-[data-theme="kenneth"] .tree-item.selected span,
-[data-theme="kenneth"] .sidebar-item.selected span {
+/* Sidebar tree item selected - preserve text color */
+[data-theme="kenneth"] .tree-item.selected > span:not(.tree-item-icon),
+[data-theme="kenneth"] .sidebar-item.selected > span {
   color: #e8e0f0;
 }
+/* Note: SVG icons keep their semantic colors (success green, info blue, etc.) */
 
 /* Sidebar header bar - Deep purple gradient */
 [data-theme="kenneth"] .sidebar-header {
@@ -1379,10 +1377,14 @@ tr.selected.diff-cloud {
 }
 
 .sidebar-diff-cloud {
-  opacity: 0.5;
+  /* No opacity on container - only text should be dimmed, not icon */
 }
 
-.sidebar-diff-cloud span {
+.sidebar-diff-cloud .tree-item-icon {
+  opacity: 1;
+}
+
+.sidebar-diff-cloud span:not(.tree-item-icon) {
   font-style: italic;
   color: var(--plm-fg-muted);
 }

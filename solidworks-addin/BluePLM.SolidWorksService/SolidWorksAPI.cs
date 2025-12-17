@@ -177,9 +177,10 @@ namespace BluePLM.SolidWorksService
             if (ext != ".sldasm")
                 return new CommandResult { Success = false, Error = "BOM extraction only works on assembly files (.sldasm)" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -247,9 +248,6 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
-
                 return new CommandResult
                 {
                     Success = true,
@@ -265,8 +263,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -281,9 +287,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -308,9 +315,6 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
-
                 return new CommandResult
                 {
                     Success = true,
@@ -324,8 +328,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -344,9 +356,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -363,9 +376,6 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
-
                 return new CommandResult
                 {
                     Success = true,
@@ -380,8 +390,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -399,9 +417,10 @@ namespace BluePLM.SolidWorksService
             if (properties == null || properties.Count == 0)
                 return new CommandResult { Success = false, Error = "Missing or empty 'properties'" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings, readOnly: false);
+                doc = OpenDocument(filePath, out var errors, out var warnings, readOnly: false);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -413,9 +432,6 @@ namespace BluePLM.SolidWorksService
                     ref errors,
                     ref warnings
                 );
-
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
 
                 return new CommandResult
                 {
@@ -430,8 +446,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -500,9 +524,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -524,9 +549,6 @@ namespace BluePLM.SolidWorksService
                     });
                 }
 
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
-
                 return new CommandResult
                 {
                     Success = true,
@@ -541,8 +563,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -561,9 +591,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -574,9 +605,6 @@ namespace BluePLM.SolidWorksService
                 }
 
                 var massProps = (double[])doc.Extension.GetMassProperties2(1, out var status, true);
-
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
 
                 if (massProps == null || status != 0)
                 {
@@ -607,8 +635,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -627,12 +663,14 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
+            ISldWorks? sw = null;
             try
             {
-                var sw = GetSolidWorks();
+                sw = GetSolidWorks();
                 int errors = 0, warnings = 0;
 
-                var doc = (ModelDoc2)sw.OpenDoc6(
+                doc = (ModelDoc2)sw.OpenDoc6(
                     filePath,
                     (int)swDocumentTypes_e.swDocDRAWING,
                     (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
@@ -664,9 +702,6 @@ namespace BluePLM.SolidWorksService
                     ref warnings
                 );
 
-                sw.CloseDoc(filePath);
-                CloseSolidWorksIfWeStartedIt();
-
                 if (!success)
                     return new CommandResult { Success = false, Error = $"PDF export failed: errors={errors}" };
 
@@ -683,8 +718,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null && sw != null)
+                {
+                    try { sw.CloseDoc(filePath); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -699,14 +742,16 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
+            ISldWorks? sw = null;
             try
             {
-                var sw = GetSolidWorks();
+                sw = GetSolidWorks();
                 var ext = Path.GetExtension(filePath).ToLowerInvariant();
                 var docType = ext == ".sldprt" ? swDocumentTypes_e.swDocPART : swDocumentTypes_e.swDocASSEMBLY;
 
                 int errors = 0, warnings = 0;
-                var doc = (ModelDoc2)sw.OpenDoc6(
+                doc = (ModelDoc2)sw.OpenDoc6(
                     filePath,
                     (int)docType,
                     (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
@@ -769,9 +814,6 @@ namespace BluePLM.SolidWorksService
                         exportedFiles.Add(finalOutputPath);
                 }
 
-                sw.CloseDoc(filePath);
-                CloseSolidWorksIfWeStartedIt();
-
                 return new CommandResult
                 {
                     Success = exportedFiles.Count > 0,
@@ -785,8 +827,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null && sw != null)
+                {
+                    try { sw.CloseDoc(filePath); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -801,9 +851,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -817,9 +868,6 @@ namespace BluePLM.SolidWorksService
                     null, null,
                     ref errors, ref warnings
                 );
-
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
 
                 if (!success)
                     return new CommandResult { Success = false, Error = $"IGES export failed: errors={errors}" };
@@ -837,8 +885,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -853,9 +909,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -869,9 +926,6 @@ namespace BluePLM.SolidWorksService
                     null, null,
                     ref errors, ref warnings
                 );
-
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
 
                 if (!success)
                     return new CommandResult { Success = false, Error = $"DXF export failed: errors={errors}" };
@@ -889,8 +943,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -905,9 +967,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -927,9 +990,6 @@ namespace BluePLM.SolidWorksService
                     ref saveWarnings
                 );
 
-                CloseDocument(filePath);
-                CloseSolidWorksIfWeStartedIt();
-
                 return new CommandResult
                 {
                     Success = success && File.Exists(finalOutputPath),
@@ -945,8 +1005,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(filePath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -968,9 +1036,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(newComponent))
                 return new CommandResult { Success = false, Error = $"New component not found: {newComponent}" };
 
+            ModelDoc2? doc = null;
             try
             {
-                var doc = OpenDocument(assemblyPath, out var errors, out var warnings, readOnly: false);
+                doc = OpenDocument(assemblyPath, out var errors, out var warnings, readOnly: false);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open assembly: errors={errors}" };
 
@@ -1006,9 +1075,6 @@ namespace BluePLM.SolidWorksService
                     ref errors, ref warnings
                 );
 
-                CloseDocument(assemblyPath);
-                CloseSolidWorksIfWeStartedIt();
-
                 return new CommandResult
                 {
                     Success = replacedCount > 0,
@@ -1023,8 +1089,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(assemblyPath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 
@@ -1039,12 +1113,14 @@ namespace BluePLM.SolidWorksService
             if (string.IsNullOrEmpty(outputFolder))
                 return new CommandResult { Success = false, Error = "Missing 'outputFolder'" };
 
+            ModelDoc2? doc = null;
+            ISldWorks? sw = null;
             try
             {
-                var sw = GetSolidWorks();
+                sw = GetSolidWorks();
                 int errors = 0, warnings = 0;
 
-                var doc = (ModelDoc2)sw.OpenDoc6(
+                doc = (ModelDoc2)sw.OpenDoc6(
                     filePath,
                     (int)swDocumentTypes_e.swDocASSEMBLY,
                     (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
@@ -1080,9 +1156,6 @@ namespace BluePLM.SolidWorksService
                 packAndGo.SetDocumentSaveToNames(newNames);
                 var statuses = (int[])doc.Extension.SavePackAndGo(packAndGo);
 
-                sw.CloseDoc(filePath);
-                CloseSolidWorksIfWeStartedIt();
-
                 int successCount = 0;
                 var copiedFiles = new List<string>();
                 for (int i = 0; i < statuses.Length; i++)
@@ -1109,8 +1182,16 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
-                CloseSolidWorksIfWeStartedIt();
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null && sw != null)
+                {
+                    try { sw.CloseDoc(filePath); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
             }
         }
 

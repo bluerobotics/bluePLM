@@ -2,6 +2,23 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.8.0] - 2025-12-16
+
+### Added
+- Keybindings settings page with new keybinding features
+- Discard checkout on right click menu
+- Admin setting changes now sync instantly across all connected clients via Supabase Realtime subscriptions
+
+### Changed
+- **File Operation Icons Overhaul**: Redesigned file status and action icons for improved clarity and visual consistency across the file browser
+- **SolidWorks Integration Improvements**: Enhanced stability and performance for SW metadata extraction and file operations
+- **Odoo Configuration Improvements**: Streamlined Odoo integration setup with better validation and error handling
+
+### Fixed
+- **Organization settings not saving**: Added missing RLS UPDATE policy for organizations table. Admin updates to organization settings (e.g., SolidWorks DM license key) were silently blocked by Row Level Security.
+
+---
+
 ## [2.7.2] - 2025-12-16
 
 ### Changed

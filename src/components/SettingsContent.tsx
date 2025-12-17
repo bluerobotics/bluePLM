@@ -1,6 +1,7 @@
 import {
   ProfileSettings,
   PreferencesSettings,
+  KeybindingsSettings,
   ModulesSettings,
   VaultsSettings,
   MembersSettings,
@@ -34,6 +35,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <ProfileSettings />
       case 'preferences':
         return <PreferencesSettings />
+      case 'keybindings':
+        return <KeybindingsSettings />
       case 'modules':
         return <ModulesSettings />
       case 'vaults':

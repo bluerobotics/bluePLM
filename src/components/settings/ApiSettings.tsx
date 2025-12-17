@@ -61,14 +61,19 @@ export function ApiSettings() {
   // Get API token from Supabase session
   useEffect(() => {
     const getToken = async () => {
+      console.log('[API] Fetching access token from Supabase session...')
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
+        console.log('[API] Access token retrieved successfully (length:', session.access_token.length, ')')
         setApiToken(session.access_token)
+      } else {
+        console.log('[API] No active session found - user not authenticated')
       }
     }
     getToken()
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('[API] Auth state changed, event:', _event, '- token:', session?.access_token ? 'present' : 'none')
       setApiToken(session?.access_token || null)
     })
     
@@ -77,7 +82,12 @@ export function ApiSettings() {
   
   // Sync API URL from org settings to store (handles persistence)
   useEffect(() => {
+    console.log('[API] Checking org settings for API URL...', {
+      orgApiUrl: organization?.settings?.api_url || 'none',
+      storeApiUrl: apiServerUrl || 'none'
+    })
     if (organization?.settings?.api_url && organization.settings.api_url !== apiServerUrl) {
+      console.log('[API] Syncing API URL from org settings:', organization.settings.api_url)
       setApiServerUrl(organization.settings.api_url)
     }
   }, [organization?.settings?.api_url, apiServerUrl, setApiServerUrl])
@@ -85,16 +95,21 @@ export function ApiSettings() {
   // Check API status on mount (only if we have a URL)
   useEffect(() => {
     if (apiUrl) {
+      console.log('[API] Component mounted with API URL configured, checking status...')
       checkApiStatus()
+    } else {
+      console.log('[API] Component mounted - no API URL configured')
     }
   }, [])
   
   const checkApiStatus = async () => {
     if (!apiUrl) {
+      console.log('[API] Cannot check status - no API URL configured')
       setApiStatus('unknown')
       return
     }
     
+    console.log('[API] Checking API server status at:', apiUrl)
     setApiStatus('checking')
     const start = Date.now()
     try {
@@ -106,17 +121,21 @@ export function ApiSettings() {
       
       if (response.ok) {
         const data = await response.json()
+        console.log('[API] Server ONLINE - version:', data.version, 'build:', data.build, 'latency:', duration, 'ms')
         setApiStatus('online')
         setApiVersion(data.version || null)
         setApiBuild(data.build || null)
         addApiCall('GET', '/health', response.status, duration)
       } else {
+        console.log('[API] Server responded with error status:', response.status, 'latency:', duration, 'ms')
         setApiStatus('offline')
         addApiCall('GET', '/health', response.status, duration)
       }
-    } catch {
+    } catch (err) {
+      const duration = Date.now() - start
+      console.log('[API] Server OFFLINE - connection failed after', duration, 'ms:', err instanceof Error ? err.message : 'Unknown error')
       setApiStatus('offline')
-      addApiCall('GET', '/health', 0, Date.now() - start)
+      addApiCall('GET', '/health', 0, duration)
     }
     setLastChecked(new Date())
   }
@@ -145,6 +164,7 @@ export function ApiSettings() {
   const handleSaveApiUrl = async () => {
     let url = apiUrlInput.trim()
     if (url) {
+      console.log('[API] Saving API URL, input:', url)
       // Remove any existing protocol and normalize
       url = url.replace(/^https?:\/\//, '')
       // Remove trailing slashes
@@ -153,12 +173,15 @@ export function ApiSettings() {
       url = url.trim()
       // Add https:// (always use https for production)
       url = 'https://' + url
+      console.log('[API] Normalized URL:', url)
       
       // Update store (which also syncs to localStorage for backward compatibility)
+      console.log('[API] Saving URL to local store...')
       setApiUrl(url)
       
       // Save org-wide for all members when admin sets external URL
       if (organization && isAdmin) {
+        console.log('[API] Admin detected - syncing URL to organization settings for org:', organization.id)
         try {
           // IMPORTANT: Fetch current settings from database first to avoid overwriting
           // other fields that may have been set by other components
@@ -175,6 +198,7 @@ export function ApiSettings() {
           // Merge with current database settings (not local state which may be stale)
           const currentSettings = currentOrg?.settings || organization.settings || {}
           const newSettings = { ...currentSettings, api_url: url }
+          console.log('[API] Updating org settings with new API URL...')
           
           const { error } = await db
             .from('organizations')
@@ -185,6 +209,7 @@ export function ApiSettings() {
             console.error('[API] Failed to save API URL to org:', error)
             addToast('error', `Saved locally, but failed to sync: ${error.message}`)
           } else {
+            console.log('[API] API URL saved to organization successfully')
             // Update local state
             setOrganization({
               ...organization,
@@ -197,10 +222,12 @@ export function ApiSettings() {
           addToast('error', 'Saved locally, but failed to sync to organization')
         }
       } else {
+        console.log('[API] Non-admin or no org - URL saved locally only')
         addToast('success', 'API URL saved')
       }
     }
     setEditingApiUrl(false)
+    console.log('[API] Triggering status check after URL save...')
     setTimeout(checkApiStatus, 100)
   }
   
@@ -216,39 +243,43 @@ export function ApiSettings() {
   }
   
   const testApiEndpoint = async (endpoint: string) => {
-    if (!apiToken) return
+    if (!apiToken) {
+      console.log('[API] Cannot test endpoint - no access token available')
+      return
+    }
+    console.log('[API] Testing endpoint:', endpoint, 'with authorization header')
     const start = Date.now()
     try {
       const response = await fetch(`${apiUrl}${endpoint}`, {
         headers: { 'Authorization': `Bearer ${apiToken}` },
         signal: AbortSignal.timeout(10000)
       })
-      addApiCall('GET', endpoint, response.status, Date.now() - start)
-    } catch {
-      addApiCall('GET', endpoint, 0, Date.now() - start)
+      const duration = Date.now() - start
+      console.log('[API] Test response:', response.status, 'latency:', duration, 'ms')
+      addApiCall('GET', endpoint, response.status, duration)
+    } catch (err) {
+      const duration = Date.now() - start
+      console.log('[API] Test failed after', duration, 'ms:', err instanceof Error ? err.message : 'Unknown error')
+      addApiCall('GET', endpoint, 0, duration)
     }
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="text-center py-12">
-        <Shield size={40} className="mx-auto text-plm-fg-muted mb-4" />
-        <div className="text-base font-medium text-plm-fg">Admin Only</div>
-        <p className="text-sm text-plm-fg-muted mt-1">
-          API settings require admin access.
-        </p>
-      </div>
-    )
   }
 
   return (
     <div className="space-y-6">
       {/* API URL */}
       <div className="space-y-2">
-        <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-          API Server URL
-        </label>
-        {editingApiUrl ? (
+        <div className="flex items-center justify-between">
+          <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
+            API Server URL
+          </label>
+          {!isAdmin && (
+            <span className="text-xs text-plm-fg-muted flex items-center gap-1">
+              <Shield size={12} />
+              Admin required to edit
+            </span>
+          )}
+        </div>
+        {editingApiUrl && isAdmin ? (
           <div className="space-y-2">
             <div className="flex gap-2">
               <input
@@ -279,25 +310,36 @@ export function ApiSettings() {
           </div>
         ) : apiUrl ? (
           <div 
-            className="p-3 bg-plm-bg rounded-lg border border-plm-border cursor-pointer hover:border-plm-accent transition-colors flex items-center justify-between group"
+            className={`p-3 bg-plm-bg rounded-lg border border-plm-border flex items-center justify-between ${
+              isAdmin ? 'cursor-pointer hover:border-plm-accent group' : ''
+            } transition-colors`}
             onClick={() => {
+              if (!isAdmin) return
               setApiUrlInput(apiUrl.replace(/^https?:\/\//, ''))
               setEditingApiUrl(true)
             }}
           >
             <code className="text-base text-plm-fg font-mono">{apiUrl}</code>
-            <Edit2 size={14} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+            {isAdmin && (
+              <Edit2 size={14} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
           </div>
         ) : (
-          <button
-            onClick={() => {
-              setApiUrlInput('')
-              setEditingApiUrl(true)
-            }}
-            className="w-full p-4 bg-plm-bg rounded-lg border border-dashed border-plm-border hover:border-plm-accent transition-colors text-plm-fg-muted"
-          >
-            + Set API Server URL
-          </button>
+          isAdmin ? (
+            <button
+              onClick={() => {
+                setApiUrlInput('')
+                setEditingApiUrl(true)
+              }}
+              className="w-full p-4 bg-plm-bg rounded-lg border border-dashed border-plm-border hover:border-plm-accent transition-colors text-plm-fg-muted"
+            >
+              + Set API Server URL
+            </button>
+          ) : (
+            <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-plm-fg-muted">
+              No API server configured
+            </div>
+          )
         )}
       </div>
 

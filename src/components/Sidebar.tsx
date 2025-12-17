@@ -17,6 +17,7 @@ const TrashView = lazy(() => import('./sidebar/TrashView').then(m => ({ default:
 const TerminalView = lazy(() => import('./sidebar/TerminalView').then(m => ({ default: m.TerminalView })))
 const ECOView = lazy(() => import('./sidebar/ECOView').then(m => ({ default: m.ECOView })))
 const ECRView = lazy(() => import('./sidebar/ECRView').then(m => ({ default: m.ECRView })))
+const DeviationsView = lazy(() => import('./sidebar/DeviationsView').then(m => ({ default: m.DeviationsView })))
 const ProductsView = lazy(() => import('./sidebar/ProductsView').then(m => ({ default: m.ProductsView })))
 const ProcessView = lazy(() => import('./sidebar/ProcessView').then(m => ({ default: m.ProcessView })))
 const ScheduleView = lazy(() => import('./sidebar/ScheduleView').then(m => ({ default: m.ScheduleView })))
@@ -87,6 +88,7 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
       'terminal': 'Terminal',
       'eco': 'ECOs',
       'ecr': 'ECR / Issues',
+      'deviations': 'Deviations',
       'products': 'Products',
       'process': 'Process Editor',
       'schedule': 'Schedule',
@@ -160,6 +162,13 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <ECRView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={viewNames[activeView]} />
+        
+      case 'deviations':
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <DeviationsView />
           </Suspense>
         ) : <ModuleDisabled moduleName={viewNames[activeView]} />
         
@@ -251,6 +260,8 @@ export function Sidebar({ onOpenVault, onOpenRecentVault, onRefresh, settingsTab
         return 'ECOs'
       case 'ecr':
         return 'ECRs / ISSUES'
+      case 'deviations':
+        return 'DEVIATIONS'
       case 'products':
         return 'PRODUCTS'
       case 'process':

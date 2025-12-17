@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
+import { syncSolidWorksFileMetadata } from '../lib/supabase'
 import {
   FileBox,
   Layers,
@@ -934,12 +935,13 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
   const [fileProperties, setFileProperties] = useState<Record<string, string>>({})
   const [configProperties, setConfigProperties] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [showAllProps, setShowAllProps] = useState(false)
   const [exportConfigMode, setExportConfigMode] = useState<ExportConfigMode>('current')
   const [isExporting, setIsExporting] = useState<string | null>(null)
   const [showExportOptions, setShowExportOptions] = useState(false)
   const { status, startService, isStarting } = useSolidWorksService()
-  const { addToast } = usePDMStore()
+  const { addToast, user, updateFileInStore } = usePDMStore()
 
   const ext = file.extension?.toLowerCase() || ''
   const isSolidWorks = ['.sldprt', '.sldasm', '.slddrw'].includes(ext)
@@ -1084,6 +1086,142 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
     }
   }
 
+  // Sync metadata from SW file to PDM database
+  const handleSyncMetadata = async () => {
+    if (!status.running || !file.pdmData?.id || !user) {
+      if (!status.running) addToast('info', 'Start SolidWorks service to sync metadata')
+      else if (!file.pdmData?.id) addToast('info', 'Sync file to cloud first')
+      return
+    }
+
+    setIsSyncing(true)
+    try {
+      // Extract properties from SW file
+      const result = await window.electronAPI?.solidworks?.getProperties(file.path)
+      if (!result?.success || !result.data) {
+        addToast('error', 'Failed to read SolidWorks properties')
+        return
+      }
+
+      const data = result.data as {
+        fileProperties?: Record<string, string>
+        configurationProperties?: Record<string, Record<string, string>>
+      }
+
+      // Merge file-level and config properties
+      const allProps: Record<string, string> = { ...data.fileProperties }
+      const configProps = data.configurationProperties
+      if (configProps) {
+        const configName = Object.keys(configProps).find(k =>
+          k.toLowerCase() === 'default' || k.toLowerCase() === 'standard'
+        ) || Object.keys(configProps)[0]
+        if (configName && configProps[configName]) {
+          Object.assign(allProps, configProps[configName])
+        }
+      }
+
+      // Extract part number from common property names
+      const partNumberKeys = [
+        'Base Item Number',  // SolidWorks Document Manager standard property
+        'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
+        'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
+        'PN', 'P/N', 'Number', 'No', 'No.'
+      ]
+      let partNumber: string | null = null
+      for (const key of partNumberKeys) {
+        if (allProps[key] && allProps[key].trim()) {
+          partNumber = allProps[key].trim()
+          break
+        }
+      }
+
+      // Extract description
+      const description = allProps['Description'] || allProps['description'] || null
+
+      // Check if anything changed
+      const currentPn = file.pdmData?.part_number || null
+      const currentDesc = file.pdmData?.description || null
+      const newPn = partNumber || null
+      const newDesc = description?.trim() || null
+
+      if (currentPn === newPn && currentDesc === newDesc) {
+        addToast('info', 'Metadata already up to date')
+        return
+      }
+
+      // Update PDM database
+      const syncResult = await syncSolidWorksFileMetadata(file.pdmData.id, user.id, {
+        part_number: newPn,
+        description: newDesc
+      })
+
+      if (syncResult.success && syncResult.file) {
+        updateFileInStore(file.path, {
+          pdmData: { ...file.pdmData, ...syncResult.file }
+        })
+        addToast('success', 'Metadata synced from SolidWorks')
+      } else {
+        addToast('error', syncResult.error || 'Failed to sync metadata')
+      }
+    } catch (err) {
+      addToast('error', `Sync failed: ${err}`)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  // Write PDM metadata back to SW file
+  const handleWriteToSwFile = async () => {
+    if (!status.running || !file.pdmData) {
+      if (!status.running) addToast('info', 'Start SolidWorks service first')
+      return
+    }
+
+    // Must be checked out to write
+    if (file.pdmData.checked_out_by !== user?.id) {
+      addToast('info', 'Check out file first to write metadata')
+      return
+    }
+
+    setIsSyncing(true)
+    try {
+      const properties: Record<string, string> = {}
+      
+      // Map PDM metadata to SW properties
+      if (file.pdmData.part_number) {
+        properties['Base Item Number'] = file.pdmData.part_number
+      }
+      if (file.pdmData.description) {
+        properties['Description'] = file.pdmData.description
+      }
+
+      if (Object.keys(properties).length === 0) {
+        addToast('info', 'No metadata to write')
+        return
+      }
+
+      const result = await window.electronAPI?.solidworks?.setProperties(file.path, properties)
+      if (result?.success) {
+        addToast('success', 'Metadata written to SolidWorks file')
+        // Reload properties to show updated values
+        const reloadResult = await window.electronAPI?.solidworks?.getProperties(file.path)
+        if (reloadResult?.success && reloadResult.data) {
+          const data = reloadResult.data as Record<string, unknown>
+          const props = data.fileProperties || data.customProperties || data.properties || reloadResult.data
+          if (typeof props === 'object' && props !== null) {
+            setFileProperties(props as Record<string, string>)
+          }
+        }
+      } else {
+        addToast('error', result?.error || 'Failed to write to SolidWorks file')
+      }
+    } catch (err) {
+      addToast('error', `Write failed: ${err}`)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   if (!isSolidWorks) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-plm-fg-muted py-8">
@@ -1133,6 +1271,21 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-plm-fg truncate">{file.name}</div>
           </div>
+          {/* Sync metadata button - only for synced files */}
+          {file.pdmData?.id && status.running && (
+            <button
+              onClick={handleSyncMetadata}
+              disabled={isSyncing || isLoading}
+              className="p-1 rounded hover:bg-plm-accent/20 text-plm-fg-muted hover:text-plm-accent transition-colors"
+              title="Refresh metadata from SolidWorks file"
+            >
+              {isSyncing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+            </button>
+          )}
           {hasData ? (
             <span className="w-2 h-2 rounded-full bg-plm-success flex-shrink-0" title="Connected" />
           ) : (
@@ -1150,6 +1303,43 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
             />
           ))}
         </div>
+
+        {/* PDM Metadata sync section - for synced SW files */}
+        {file.pdmData?.id && status.running && (
+          <div className="p-2 rounded bg-plm-panel border border-plm-border/50 mb-2 flex-shrink-0">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide">PDM Metadata</span>
+              {file.pdmData.checked_out_by === user?.id && (
+                <button
+                  onClick={handleWriteToSwFile}
+                  disabled={isSyncing}
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30 transition-colors disabled:opacity-50"
+                  title="Write PDM metadata to SolidWorks file"
+                >
+                  {isSyncing ? <Loader2 size={10} className="animate-spin" /> : <ArrowUpRight size={10} />}
+                  Write to File
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+              <div className="flex items-baseline gap-1">
+                <span className="text-plm-fg-muted">P/N:</span>
+                <span className={`truncate ${file.pdmData.part_number !== getPropertyValue('PartNumber', ['PartNo', 'Part Number', 'Item Number', 'Base Item Number']) ? 'text-plm-warning' : 'text-plm-fg'}`}>
+                  {file.pdmData.part_number || '—'}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-plm-fg-muted">Desc:</span>
+                <span className={`truncate ${file.pdmData.description !== getPropertyValue('Description', ['DESCRIPTION']) ? 'text-plm-warning' : 'text-plm-fg'}`}>
+                  {file.pdmData.description || '—'}
+                </span>
+              </div>
+            </div>
+            {!file.pdmData.checked_out_by && (
+              <div className="text-[10px] text-plm-fg-muted mt-1">Check out to write metadata to file</div>
+            )}
+          </div>
+        )}
 
         {/* Configuration selector - compact */}
         {isPartOrAsm && (

@@ -148,6 +148,10 @@ declare global {
       getLogRetentionSettings: () => Promise<{ success: boolean; settings?: { maxFiles: number; maxAgeDays: number; maxSizeMb: number; maxTotalSizeMb: number }; defaults?: { maxFiles: number; maxAgeDays: number; maxSizeMb: number; maxTotalSizeMb: number }; error?: string }>
       setLogRetentionSettings: (settings: { maxFiles?: number; maxAgeDays?: number; maxSizeMb?: number; maxTotalSizeMb?: number }) => Promise<{ success: boolean; settings?: { maxFiles: number; maxAgeDays: number; maxSizeMb: number; maxTotalSizeMb: number }; error?: string }>
       getLogStorageInfo: () => Promise<{ success: boolean; totalSize?: number; fileCount?: number; logsDir?: string; error?: string }>
+      getLogRecordingState: () => Promise<{ enabled: boolean }>
+      setLogRecordingState: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean }>
+      startNewLogFile: () => Promise<{ success: boolean; path?: string; error?: string }>
+      exportFilteredLogs: (entries: Array<{ raw: string }>) => Promise<{ success: boolean; path?: string; error?: string; canceled?: boolean }>
       
       // Crash reports
       listCrashFiles: () => Promise<{ success: boolean; files?: Array<{ name: string; path: string; size: number; modifiedTime: string }>; error?: string }>
@@ -327,6 +331,10 @@ declare global {
       getMachineId: () => Promise<string | null>
       getMachineName: () => Promise<string | null>
       getAppVersion: () => Promise<string>
+      
+      // Clipboard operations (more reliable than navigator.clipboard in Electron)
+      copyToClipboard: (text: string) => Promise<{ success: boolean; error?: string }>
+      readFromClipboard: () => Promise<{ success: boolean; text?: string; error?: string }>
       
       // Backup execution
       checkResticInstalled: () => Promise<{ installed: boolean; version?: string; error?: string }>

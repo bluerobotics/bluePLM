@@ -33,6 +33,19 @@ namespace BluePLM.SolidWorksService
 
         static int Main(string[] args)
         {
+            // Catch ALL unhandled exceptions to prevent silent crashes
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+            {
+                var ex = e.ExceptionObject as Exception;
+                Console.Error.WriteLine($"[FATAL] Unhandled exception: {ex?.Message}");
+                Console.Error.WriteLine($"[FATAL] Stack trace: {ex?.StackTrace}");
+                if (ex?.InnerException != null)
+                {
+                    Console.Error.WriteLine($"[FATAL] Inner exception: {ex.InnerException.Message}");
+                }
+                Console.Error.Flush();
+            };
+
             bool keepSwRunning = true;
             bool singleCommand = false;
             string? commandJson = null;
@@ -61,11 +74,26 @@ namespace BluePLM.SolidWorksService
             }
 
             // Initialize Document Manager API (for FAST operations - no SW launch!)
+            Console.Error.WriteLine("=== BluePLM SolidWorks Service Startup ===");
+            Console.Error.WriteLine($"[Startup] DM License key from command line: {(!string.IsNullOrEmpty(dmLicenseKey) ? $"provided ({dmLicenseKey.Length} chars)" : "not provided")}");
+            if (!string.IsNullOrEmpty(dmLicenseKey))
+            {
+                Console.Error.WriteLine($"[Startup] License key prefix: {(dmLicenseKey.Length > 30 ? dmLicenseKey.Substring(0, 30) + "..." : dmLicenseKey)}");
+            }
+            
+            Console.Error.WriteLine("[Startup] Creating DocumentManagerAPI instance...");
             _dmApi = new DocumentManagerAPI(dmLicenseKey);
-            _dmApi.Initialize(); // Try to init, may fail if no license key
+            
+            Console.Error.WriteLine("[Startup] Calling Initialize()...");
+            var initResult = _dmApi.Initialize(); // Try to init, may fail if no license key
+            Console.Error.WriteLine($"[Startup] Initialize() returned: {initResult}");
+            Console.Error.WriteLine($"[Startup] IsAvailable: {_dmApi.IsAvailable}");
+            Console.Error.WriteLine($"[Startup] InitializationError: {_dmApi.InitializationError ?? "(none)"}");
             
             // Initialize SolidWorks API handler (for exports - launches SW on demand)
+            Console.Error.WriteLine("[Startup] Creating SolidWorksAPI instance...");
             _swApi = new SolidWorksAPI(keepSwRunning);
+            Console.Error.WriteLine($"[Startup] SolidWorks available: {_swApi.IsSolidWorksAvailable()}");
 
             // Single command mode
             if (singleCommand && !string.IsNullOrEmpty(commandJson))
@@ -77,37 +105,55 @@ namespace BluePLM.SolidWorksService
 
             // Interactive mode - read commands from stdin
             var dmStatus = _dmApi.IsAvailable ? "✓ READY (fast mode enabled)" : $"✗ {_dmApi.InitializationError}";
+            Console.Error.WriteLine("=== Service Ready ===");
             Console.Error.WriteLine("BluePLM SolidWorks Service v1.0.0");
             Console.Error.WriteLine($"  Document Manager API: {dmStatus}");
             Console.Error.WriteLine("  Full SolidWorks API: launches on demand for exports");
             Console.Error.WriteLine("Ready for commands...");
             
             string? line;
-            while ((line = Console.ReadLine()) != null)
+            try
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                
-                try
+                while ((line = Console.ReadLine()) != null)
                 {
-                    var result = ProcessCommand(line);
-                    Console.WriteLine(JsonConvert.SerializeObject(result));
-                }
-                catch (Exception ex)
-                {
-                    var error = new CommandResult
+                    Console.Error.WriteLine($"[Service] Received command: {line.Substring(0, Math.Min(50, line.Length))}...");
+                    
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    
+                    try
                     {
-                        Success = false,
-                        Error = $"Unhandled error: {ex.Message}",
-                        ErrorDetails = ex.ToString()
-                    };
-                    Console.WriteLine(JsonConvert.SerializeObject(error));
+                        var result = ProcessCommand(line);
+                        var response = JsonConvert.SerializeObject(result);
+                        Console.Error.WriteLine($"[Service] Sending response ({response.Length} chars)");
+                        Console.WriteLine(response);
+                        Console.Out.Flush();
+                        Console.Error.WriteLine("[Service] Response sent, waiting for next command...");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[Service] Exception processing command: {ex.Message}");
+                        var error = new CommandResult
+                        {
+                            Success = false,
+                            Error = $"Unhandled error: {ex.Message}",
+                            ErrorDetails = ex.ToString()
+                        };
+                        Console.WriteLine(JsonConvert.SerializeObject(error));
+                        Console.Out.Flush();
+                    }
                 }
-                
-                Console.Out.Flush();
+                Console.Error.WriteLine("[Service] stdin closed (ReadLine returned null), exiting...");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Service] Exception in main loop: {ex.Message}");
+                Console.Error.WriteLine($"[Service] Stack: {ex.StackTrace}");
             }
 
+            Console.Error.WriteLine("[Service] Cleaning up...");
             _dmApi?.Dispose();
             _swApi?.Dispose();
+            Console.Error.WriteLine("[Service] Cleanup complete, exiting with code 0");
 
             return 0;
         }
@@ -294,6 +340,12 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult Ping()
         {
+            Console.Error.WriteLine("[Service] Ping received");
+            Console.Error.WriteLine($"[Service] DM API instance: {(_dmApi != null ? "exists" : "null")}");
+            Console.Error.WriteLine($"[Service] DM API IsAvailable: {_dmApi?.IsAvailable ?? false}");
+            Console.Error.WriteLine($"[Service] DM API InitError: {_dmApi?.InitializationError ?? "(none)"}");
+            Console.Error.WriteLine($"[Service] SW API IsSolidWorksAvailable: {_swApi?.IsSolidWorksAvailable() ?? false}");
+            
             return new CommandResult 
             { 
                 Success = true, 
@@ -311,13 +363,30 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult SetDmLicense(string? licenseKey)
         {
+            Console.Error.WriteLine("[Service] SetDmLicense command received");
+            Console.Error.WriteLine($"[Service] License key provided: {!string.IsNullOrEmpty(licenseKey)}");
+            if (!string.IsNullOrEmpty(licenseKey))
+            {
+                Console.Error.WriteLine($"[Service] License key length: {licenseKey.Length}");
+                Console.Error.WriteLine($"[Service] License key prefix: {(licenseKey.Length > 30 ? licenseKey.Substring(0, 30) + "..." : licenseKey)}");
+            }
+            
             if (string.IsNullOrEmpty(licenseKey))
                 return new CommandResult { Success = false, Error = "Missing 'licenseKey'" };
 
             if (_dmApi == null)
+            {
+                Console.Error.WriteLine("[Service] Creating new DocumentManagerAPI instance");
                 _dmApi = new DocumentManagerAPI();
+            }
 
+            Console.Error.WriteLine("[Service] Calling SetLicenseKey...");
             var success = _dmApi.SetLicenseKey(licenseKey);
+            Console.Error.WriteLine($"[Service] SetLicenseKey result: {(success ? "SUCCESS" : "FAILED")}");
+            if (!success)
+            {
+                Console.Error.WriteLine($"[Service] Error: {_dmApi.InitializationError}");
+            }
 
             return new CommandResult
             {

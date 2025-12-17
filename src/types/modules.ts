@@ -16,6 +16,7 @@ export type ModuleId =
   | 'ecr'
   | 'gsd'
   | 'reviews'
+  | 'deviations'
   // Product Lifecycle (PLM)
   | 'products'
   | 'process'
@@ -218,6 +219,13 @@ export const MODULES: ModuleDefinition[] = [
     icon: 'ClipboardCheck',
     defaultEnabled: true,
   },
+  {
+    id: 'deviations',
+    name: 'Deviations',
+    group: 'change-management',
+    icon: 'FileWarning',
+    defaultEnabled: true,
+  },
   // Product Lifecycle (PLM)
   {
     id: 'products',
@@ -284,6 +292,7 @@ export const DEFAULT_MODULE_ORDER: ModuleId[] = [
   'gsd',        // indented
   'eco',        // indented (eco history)
   'reviews',    // indented
+  'deviations', // indented
   'process',    // indented
   'schedule',   // indented
   // Standalone
