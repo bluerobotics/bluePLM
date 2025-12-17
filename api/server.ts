@@ -3748,10 +3748,11 @@ export async function buildServer(): Promise<FastifyInstance> {
     )
     
     if (!odooSuppliers.success) {
-      // Update integration status with error
+      // Update integration status with error - mark as disconnected since sync failed
       await request.supabase!
         .from('organization_integrations')
         .update({
+          is_connected: false,
           last_sync_at: new Date().toISOString(),
           last_sync_status: 'error',
           last_sync_message: odooSuppliers.error,
@@ -3838,10 +3839,13 @@ export async function buildServer(): Promise<FastifyInstance> {
       }
     }
     
-    // Update integration status
+    // Update integration status - also mark as connected since sync succeeded
     await request.supabase!
       .from('organization_integrations')
       .update({
+        is_connected: true,
+        last_connected_at: new Date().toISOString(),
+        last_error: null,
         last_sync_at: new Date().toISOString(),
         last_sync_status: errors > 0 ? 'partial' : 'success',
         last_sync_count: created + updated,

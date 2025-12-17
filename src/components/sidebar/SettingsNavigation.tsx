@@ -216,7 +216,25 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
               if (odooData.is_connected) {
                 newStatuses['odoo'] = 'online'
               } else if (odooData.configured) {
-                newStatuses['odoo'] = 'offline'
+                // Main integration says configured but not connected - check saved configs
+                // for last_test_success which is what the UI shows
+                try {
+                  const configsResponse = await fetch(`${apiUrl}/integrations/odoo/configs`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    signal: AbortSignal.timeout(3000)
+                  })
+                  if (configsResponse.ok) {
+                    const configsData = await configsResponse.json()
+                    const hasSuccessfulConfig = configsData.configs?.some(
+                      (c: { last_test_success: boolean | null }) => c.last_test_success === true
+                    )
+                    newStatuses['odoo'] = hasSuccessfulConfig ? 'online' : 'offline'
+                  } else {
+                    newStatuses['odoo'] = 'offline'
+                  }
+                } catch {
+                  newStatuses['odoo'] = 'offline'
+                }
               } else {
                 newStatuses['odoo'] = 'not-configured'
               }
