@@ -47,8 +47,8 @@ jobs:
 
       - name: Build Electron app
         run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Note: Don't pass GH_TOKEN here - it causes electron-builder to auto-publish draft releases
+        # The release job handles publishing after all builds complete
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -79,8 +79,8 @@ jobs:
 
       - name: Build Electron app
         run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Note: Don't pass GH_TOKEN here - it causes electron-builder to auto-publish draft releases
+        # The release job handles publishing after all builds complete
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
