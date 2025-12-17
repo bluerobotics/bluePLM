@@ -468,7 +468,7 @@ export const downloadCommand: Command<DownloadParams> = {
     }
     
     // Clean up - use batch remove to avoid N state updates
-    ctx.removeProcessingFolders(cloudFilePaths)
+    ctx.removeProcessingFolders(allPathsToTrack)
     const { duration } = progress.finish()
     ctx.onRefresh?.(true)
     

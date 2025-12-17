@@ -2,6 +2,29 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.9.0] - 2025-12-17
+
+### Changed
+- Auto-enabled auto download, auto sync, and auto start SolidWorks service by default
+- Only administrators can manage RFQ settings
+- Odoo configuration improvements
+
+### Fixed
+- REST API configuration not syncing org-wide
+- Auto download toggle not triggering downloads until app restart
+- False update available notification
+- Other users not showing online
+- Storage displaying 2 TB instead of actual 1 TB quota
+- Backup source computer showing offline when online
+- Double spinners on vault root, missing spinners on child folders
+- Checkout avatar by others appearing dark
+- Light mode styling issues
+
+### Removed
+- Download eDrawings viewer option
+
+---
+
 ## [2.8.0] - 2025-12-16
 
 ### Added
