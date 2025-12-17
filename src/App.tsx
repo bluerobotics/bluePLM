@@ -3,7 +3,7 @@ import { registerModule, unregisterModule } from '@/lib/telemetry'
 import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 import type { SettingsTab } from './types/settings'
-import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId, ensureUserOrgId } from './lib/supabase'
+import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId } from './lib/supabase'
 import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, unsubscribeAll } from './lib/realtime'
 import { getBackupStatus, isThisDesignatedMachine, updateHeartbeat } from './lib/backup'
 import { MenuBar } from './components/MenuBar'
@@ -317,12 +317,8 @@ function App() {
         setCurrentAccessToken(session.access_token)
         
         try {
-          // FIRST: Ensure user's org_id is correct in the database
-          // This fixes issues where users have NULL or wrong org_id
-          const orgIdResult = await ensureUserOrgId()
-          if (orgIdResult.fixed) {
-            console.log('[Auth] Fixed user org_id in database')
-          }
+          // NOTE: ensureUserOrgId() removed - it used client.rpc() which hangs
+          // linkUserToOrganization() handles org_id setup correctly as fallback
           
           // Fetch user profile from database to get role
           const { profile, error: profileError } = await getUserProfile(session.user.id)
@@ -385,20 +381,24 @@ function App() {
         
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
           // Show connecting state while loading organization
+          // Add timeout to prevent infinite hanging if network/db is slow
+          let connectingTimeout: ReturnType<typeof setTimeout> | null = null
           if (event === 'SIGNED_IN') {
             setIsConnecting(true)
+            // Safety timeout: clear isConnecting after 30s to prevent infinite hang
+            connectingTimeout = setTimeout(() => {
+              console.warn('[Auth] Organization loading timeout - clearing connecting state')
+              setIsConnecting(false)
+              addToast('warning', 'Connection timed out. You may need to sign in again.')
+            }, 30000)
           }
           
           // Store access token for raw fetch calls (Supabase client methods hang)
           setCurrentAccessToken(session.access_token)
           
           try {
-            // FIRST: Ensure user's org_id is correct in the database
-            // This fixes issues where users have NULL or wrong org_id
-            const orgIdResult = await ensureUserOrgId()
-            if (orgIdResult.fixed) {
-              console.log('[Auth] Fixed user org_id in database during', event)
-            }
+            // NOTE: ensureUserOrgId() removed - it used client.rpc() which hangs
+            // linkUserToOrganization() handles org_id setup correctly as fallback
             
             // Fetch user profile from database to get role
             console.log('[Auth] Fetching user profile...')
@@ -434,6 +434,7 @@ function App() {
               window.electronAPI?.log?.('info', `[Auth] Organization loaded: ${(org as any).name}`)
               window.electronAPI?.log?.('info', `[Auth] Organization settings keys: ${Object.keys((org as any).settings || {}).join(', ')}`)
               window.electronAPI?.log?.('info', `[Auth] DM License key in settings: ${(org as any).settings?.solidworks_dm_license_key ? 'PRESENT (' + (org as any).settings.solidworks_dm_license_key.length + ' chars)' : 'NOT PRESENT'}`)
+              if (connectingTimeout) clearTimeout(connectingTimeout)
               setOrganization(org as any)
               
               // Update user's org_id in store if it wasn't set (triggers session re-registration with correct org_id)
@@ -448,10 +449,12 @@ function App() {
               syncUserSessionsOrgId(session.user.id, (org as any).id)
             } else {
               console.log('[Auth] No organization found:', orgError)
+              if (connectingTimeout) clearTimeout(connectingTimeout)
               setIsConnecting(false)
             }
           } catch (err) {
             console.error('[Auth] Error in auth state handler:', err)
+            if (connectingTimeout) clearTimeout(connectingTimeout)
             setIsConnecting(false)
           }
         } else if (event === 'SIGNED_OUT') {

@@ -117,10 +117,10 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
               <Users size={16} className="text-plm-fg-muted group-hover:text-plm-fg transition-colors" />
             )}
             
-            {/* Online count badge */}
+            {/* Online count - visible but not like a notification */}
             {onlineUsers.length > 0 && (
-              <div className="absolute -top-1 -right-1 min-w-[14px] h-[14px] flex items-center justify-center bg-plm-success rounded-full">
-                <span className="text-[9px] font-bold text-white px-0.5">
+              <div className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] flex items-center justify-center bg-plm-bg-lighter rounded-full border border-plm-border">
+                <span className="text-[9px] font-semibold text-plm-fg-dim group-hover:text-plm-fg transition-colors px-0.5">
                   {onlineUsers.length > 99 ? '99+' : onlineUsers.length}
                 </span>
               </div>

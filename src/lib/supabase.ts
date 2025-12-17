@@ -3984,14 +3984,26 @@ export async function syncUserSessionsOrgId(userId: string, orgId: string): Prom
  * Ensure the current user has the correct org_id in the database
  * This calls a database RPC that checks and fixes org_id based on email domain
  * Should be called on every app boot to prevent org_id mismatch issues
+ * 
+ * NOTE: This uses Supabase client.rpc() which can sometimes hang. We add a timeout
+ * to prevent blocking the auth flow. If it times out, we just skip it - the
+ * linkUserToOrganization function will handle setting org_id as a fallback.
  */
 export async function ensureUserOrgId(): Promise<{ success: boolean; fixed: boolean; org_id?: string; error?: string }> {
   const client = getSupabaseClient()
   
   console.log('[Auth] Ensuring user org_id is correct...')
   
+  // Wrap in a timeout since client.rpc() can hang
+  const timeoutMs = 5000 // 5 second timeout
+  
   try {
-    const { data, error } = await client.rpc('ensure_user_org_id' as never)
+    const rpcPromise = client.rpc('ensure_user_org_id' as never)
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('RPC timeout after 5s')), timeoutMs)
+    )
+    
+    const { data, error } = await Promise.race([rpcPromise, timeoutPromise]) as { data: unknown; error: { message: string } | null }
     
     if (error) {
       // RPC might not exist yet (before migration runs)
@@ -4014,8 +4026,14 @@ export async function ensureUserOrgId(): Promise<{ success: boolean; fixed: bool
       error: result.error
     }
   } catch (err) {
-    console.error('[Auth] ensureUserOrgId failed:', err)
-    return { success: false, fixed: false, error: String(err) }
+    // This catches both RPC errors and timeout
+    const errorMsg = String(err)
+    if (errorMsg.includes('timeout')) {
+      console.warn('[Auth] ensureUserOrgId timed out - skipping (not critical)')
+    } else {
+      console.error('[Auth] ensureUserOrgId failed:', err)
+    }
+    return { success: false, fixed: false, error: errorMsg }
   }
 }
 

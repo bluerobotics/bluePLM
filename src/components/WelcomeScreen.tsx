@@ -588,6 +588,12 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   // CONNECTING SCREEN (shown after sign-in while loading organization)
   // ============================================
   if (isAuthConnecting) {
+    const handleCancelConnecting = async () => {
+      uiLog('info', 'User cancelled connecting - signing out')
+      const { signOut: supabaseSignOut } = await import('../lib/supabase')
+      await supabaseSignOut()
+    }
+    
     return (
       <div className="flex-1 flex items-center justify-center bg-plm-bg overflow-auto">
         <div className="max-w-md w-full p-8 text-center">
@@ -620,6 +626,14 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           
           <Loader2 size={40} className="animate-spin text-plm-accent mx-auto mb-4" />
           <p className="text-plm-fg-muted">{t('welcome.connectingToOrg')}</p>
+          
+          {/* Cancel button - allows users to escape if connection hangs */}
+          <button
+            onClick={handleCancelConnecting}
+            className="mt-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors underline"
+          >
+            {t('common.cancel')}
+          </button>
         </div>
       </div>
     )

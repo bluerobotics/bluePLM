@@ -1,6 +1,6 @@
 {
   "name": "blue-plm",
-  "version": "2.9.3",
+  "version": "2.9.4",
   "description": "Product Lifecycle Management for everyone who builds",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -110,6 +110,12 @@
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "universal"
           ]

@@ -2,6 +2,18 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.9.4] - 2025-12-17
+
+### Fixed
+- **Auth flow hanging on "Connecting to your organization"**: Removed `ensureUserOrgId()` RPC call that was causing the Supabase client to hang indefinitely. The `linkUserToOrganization()` function (which uses raw fetch) handles org_id setup correctly as a fallback.
+- **Added auth timeout safety net**: If organization connection takes longer than 30 seconds, the app will now timeout gracefully instead of hanging forever
+- **Added cancel button to connecting screen**: Users can now click "Cancel" to sign out and retry if the connection hangs
+
+### Changed
+- **Online users indicator styling**: Changed from bright green notification badge to a subtle neutral badge that doesn't look like a notification
+
+---
+
 ## [2.9.3] - 2025-12-17
 
 ### Fixed
