@@ -4221,10 +4221,10 @@ export async function buildServer(): Promise<FastifyInstance> {
     
     const { id } = request.params as { id: string }
     
-    // Soft delete - just mark as inactive
+    // Hard delete the config
     const { error } = await request.supabase!
       .from('odoo_saved_configs')
-      .update({ is_active: false, updated_by: request.user.id })
+      .delete()
       .eq('id', id)
       .eq('org_id', request.user.org_id)
     
