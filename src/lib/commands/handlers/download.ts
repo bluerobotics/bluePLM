@@ -225,11 +225,31 @@ export const downloadCommand: Command<DownloadParams> = {
       }
     }
     
-    // Track only the cloud-only files being downloaded (not entire folders)
-    // This prevents spinners showing on ALL files when downloading from a parent folder
-    // Use batch add to avoid N state updates
+    // Track cloud files, selected folders, and all cloud-only folders for spinner display
+    // This ensures:
+    // 1. Individual cloud files show spinners
+    // 2. Parent folders that were selected show spinners  
+    // 3. Child cloud-only folders also show spinners
     const cloudFilePaths = cloudFiles.map(f => f.relativePath)
-    ctx.addProcessingFolders(cloudFilePaths)
+    const selectedFolderPaths = files.filter(f => f.isDirectory).map(f => f.relativePath)
+    
+    // Find all cloud-only folders that are descendants of selected folders
+    const childCloudFolderPaths: string[] = []
+    for (const selectedFolder of selectedFolderPaths) {
+      const normalizedSelected = selectedFolder.replace(/\\/g, '/')
+      // Find cloud folders that are children of this selected folder
+      const childFolders = ctx.files.filter(f => {
+        if (!f.isDirectory) return false
+        if (f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new') return false
+        const normalizedPath = f.relativePath.replace(/\\/g, '/')
+        return normalizedPath.startsWith(normalizedSelected + '/')
+      }).map(f => f.relativePath)
+      childCloudFolderPaths.push(...childFolders)
+    }
+    
+    // Combine all paths that need spinners (deduplicated)
+    const allPathsToTrack = [...new Set([...cloudFilePaths, ...selectedFolderPaths, ...childCloudFolderPaths])]
+    ctx.addProcessingFolders(allPathsToTrack)
     
     // Yield to event loop so React can render spinners before starting download
     await new Promise(resolve => setTimeout(resolve, 0))
