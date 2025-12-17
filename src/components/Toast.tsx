@@ -96,8 +96,8 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
   return (
     <div
       className={`
-        flex flex-col gap-2 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-sm min-w-[320px]
-        bg-gradient-to-r from-plm-accent/20 to-cyan-500/10 border-plm-accent/50
+        flex flex-col gap-2 px-4 py-3 rounded-lg border shadow-lg min-w-[320px]
+        bg-plm-panel border-plm-accent/50
         ${isExiting ? 'animate-slide-out' : 'animate-slide-in'}
       `}
     >
@@ -192,7 +192,7 @@ function ProgressToastItem({ toast }: { toast: ToastMessage }) {
   const progress = toast.progress
   
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-sm bg-plm-panel/95 border-plm-border min-w-[300px]">
+    <div className="flex flex-col gap-2 px-4 py-3 rounded-lg border shadow-lg bg-plm-panel border-plm-border min-w-[300px]">
       <div className="flex items-center gap-2">
         <Loader2 size={14} className="text-plm-accent animate-spin" />
         <span className="text-sm text-plm-fg">{toast.message}</span>
@@ -269,12 +269,12 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
   }
 
   const colors: Record<ToastType, string> = {
-    error: 'bg-red-900/90 border-red-700 text-red-100',
-    success: 'bg-green-900/90 border-green-700 text-green-100',
-    info: 'bg-blue-900/90 border-blue-700 text-blue-100',
-    warning: 'bg-yellow-900/90 border-yellow-700 text-yellow-100',
+    error: 'bg-red-900 border-red-700 text-red-100',
+    success: 'bg-green-900 border-green-700 text-green-100',
+    info: 'bg-blue-900 border-blue-700 text-blue-100',
+    warning: 'bg-yellow-900 border-yellow-700 text-yellow-100',
     progress: 'bg-plm-panel border-plm-border text-plm-fg',
-    update: 'bg-plm-accent/20 border-plm-accent/50 text-plm-fg'
+    update: 'bg-plm-panel border-plm-accent/50 text-plm-fg'
   }
 
   const iconColors: Record<ToastType, string> = {
@@ -289,7 +289,7 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
   return (
     <div
       className={`
-        flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-sm
+        flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg
         ${colors[toast.type]}
         ${isExiting ? 'animate-slide-out' : 'animate-slide-in'}
       `}
