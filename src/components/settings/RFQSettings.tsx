@@ -35,7 +35,7 @@ const DEFAULT_RFQ_SETTINGS: RFQSettingsData = {
 }
 
 export function RFQSettings() {
-  const { organization, user, addToast, getEffectiveRole } = usePDMStore()
+  const { organization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -101,14 +101,6 @@ export function RFQSettings() {
     )
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="text-center py-12 text-plm-fg-muted">
-        Only administrators can manage RFQ settings
-      </div>
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -119,6 +111,13 @@ export function RFQSettings() {
 
   return (
     <div className="space-y-6">
+      {/* Read-only notice for non-admins */}
+      {!isAdmin && (
+        <div className="p-3 bg-plm-highlight rounded-lg border border-plm-border text-sm text-plm-fg-muted">
+          Only administrators can modify RFQ settings. You are viewing in read-only mode.
+        </div>
+      )}
+      
       {/* RFQ Template Settings */}
       <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
@@ -136,7 +135,8 @@ export function RFQSettings() {
                 value={settings.default_payment_terms}
                 onChange={(e) => updateSetting('default_payment_terms', e.target.value)}
                 placeholder="Net 30"
-                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                disabled={!isAdmin}
+                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
             <div>
@@ -146,7 +146,8 @@ export function RFQSettings() {
                 value={settings.default_incoterms}
                 onChange={(e) => updateSetting('default_incoterms', e.target.value)}
                 placeholder="FOB"
-                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                disabled={!isAdmin}
+                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
             <div>
@@ -156,7 +157,8 @@ export function RFQSettings() {
                 value={settings.default_valid_days}
                 onChange={(e) => updateSetting('default_valid_days', parseInt(e.target.value) || 30)}
                 min="1"
-                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+                disabled={!isAdmin}
+                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -165,47 +167,52 @@ export function RFQSettings() {
           <div>
             <label className="text-sm text-plm-fg-muted block mb-2">RFQ Document Columns</label>
             <div className="grid grid-cols-2 gap-2">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                 <input
                   type="checkbox"
                   checked={settings.show_company_logo}
                   onChange={(e) => updateSetting('show_company_logo', e.target.checked)}
+                  disabled={!isAdmin}
                   className="rounded"
                 />
                 <span className="text-sm text-plm-fg">Show company logo</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                 <input
                   type="checkbox"
                   checked={settings.show_revision_column}
                   onChange={(e) => updateSetting('show_revision_column', e.target.checked)}
+                  disabled={!isAdmin}
                   className="rounded"
                 />
                 <span className="text-sm text-plm-fg">Show revision column</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                 <input
                   type="checkbox"
                   checked={settings.show_material_column}
                   onChange={(e) => updateSetting('show_material_column', e.target.checked)}
+                  disabled={!isAdmin}
                   className="rounded"
                 />
                 <span className="text-sm text-plm-fg">Show material column</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                 <input
                   type="checkbox"
                   checked={settings.show_finish_column}
                   onChange={(e) => updateSetting('show_finish_column', e.target.checked)}
+                  disabled={!isAdmin}
                   className="rounded"
                 />
                 <span className="text-sm text-plm-fg">Show finish column</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                 <input
                   type="checkbox"
                   checked={settings.show_notes_column}
                   onChange={(e) => updateSetting('show_notes_column', e.target.checked)}
+                  disabled={!isAdmin}
                   className="rounded"
                 />
                 <span className="text-sm text-plm-fg">Show notes column</span>
@@ -221,7 +228,8 @@ export function RFQSettings() {
               onChange={(e) => updateSetting('terms_and_conditions', e.target.value)}
               rows={4}
               placeholder="Enter standard terms and conditions for RFQ documents..."
-              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent resize-none"
+              disabled={!isAdmin}
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent resize-none disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -233,27 +241,30 @@ export function RFQSettings() {
               value={settings.footer_text}
               onChange={(e) => updateSetting('footer_text', e.target.value)}
               placeholder="Custom footer text for RFQ documents"
-              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+              disabled={!isAdmin}
+              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
         </div>
       </div>
 
-      {/* Save button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn btn-primary flex items-center gap-2"
-        >
-          {saving ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Save size={16} />
-          )}
-          Save Settings
-        </button>
-      </div>
+      {/* Save button - only shown for admins */}
+      {isAdmin && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            {saving ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Save size={16} />
+            )}
+            Save Settings
+          </button>
+        </div>
+      )}
     </div>
   )
 }
