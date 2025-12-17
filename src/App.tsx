@@ -3,7 +3,7 @@ import { registerModule, unregisterModule } from '@/lib/telemetry'
 import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 import type { SettingsTab } from './types/settings'
-import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut } from './lib/supabase'
+import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId } from './lib/supabase'
 import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, unsubscribeAll } from './lib/realtime'
 import { getBackupStatus, isThisDesignatedMachine, updateHeartbeat } from './lib/backup'
 import { MenuBar } from './components/MenuBar'
@@ -355,6 +355,9 @@ function App() {
               console.log('[Auth] Updating user org_id in store:', (org as any).id)
               setUser({ ...userData, org_id: (org as any).id })
             }
+            
+            // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
+            syncUserSessionsOrgId(session.user.id, (org as any).id)
           } else if (error) {
             console.log('[Auth] No organization found:', error)
           }
@@ -426,6 +429,9 @@ function App() {
                 console.log('[Auth] Updating user org_id in store:', (org as any).id)
                 setUser({ ...currentUser, org_id: (org as any).id })
               }
+              
+              // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
+              syncUserSessionsOrgId(session.user.id, (org as any).id)
             } else {
               console.log('[Auth] No organization found:', orgError)
               setIsConnecting(false)
@@ -1958,7 +1964,9 @@ function App() {
     }
     
     // Register this device's session
-    registerDeviceSession(user.id, user.org_id || null)
+    // Use user.org_id first, fall back to organization.id if not set
+    const orgIdForSession = user.org_id || usePDMStore.getState().organization?.id || null
+    registerDeviceSession(user.id, orgIdForSession)
       .then(result => {
         if (result.success) {
           console.log('[Session] Device session registered')
@@ -1975,7 +1983,8 @@ function App() {
               clearOrg(null)
             },
             // Get current org_id from store (handles org changes during session)
-            () => usePDMStore.getState().user?.org_id
+            // Fall back to organization.id if user.org_id is not set
+            () => usePDMStore.getState().user?.org_id || usePDMStore.getState().organization?.id
           )
         } else {
           console.error('[Session] Failed to register session:', result.error)
@@ -1988,7 +1997,7 @@ function App() {
     return () => {
       stopSessionHeartbeat()
     }
-  }, [user?.id, user?.org_id])
+  }, [user?.id, user?.org_id, organization?.id])
 
   // Backup machine heartbeat - keeps designated_machine_last_seen updated
   // This runs at App level so it doesn't require BackupPanel to be open

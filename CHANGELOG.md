@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.9.1] - 2025-12-17
+
+### Fixed
+- **Online users presence not showing other org members**: Fixed critical bug where sessions were registered with `org_id = NULL` before the organization was fully loaded. Other users in the same org couldn't see each other online. Now properly syncs session org_id with the user's organization and updates user org_id in database when matching org is found.
+
+---
+
 ## [2.9.0] - 2025-12-17
 
 ### Changed

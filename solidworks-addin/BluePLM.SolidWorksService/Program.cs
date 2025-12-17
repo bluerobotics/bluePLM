@@ -75,8 +75,8 @@ namespace BluePLM.SolidWorksService
 
             // Initialize Document Manager API (for FAST operations - no SW launch!)
             Console.Error.WriteLine("=== BluePLM SolidWorks Service Startup ===");
-            Console.Error.WriteLine($"[Startup] DM License key from command line: {(!string.IsNullOrEmpty(dmLicenseKey) ? $"provided ({dmLicenseKey.Length} chars)" : "not provided")}");
-            if (!string.IsNullOrEmpty(dmLicenseKey))
+            Console.Error.WriteLine($"[Startup] DM License key from command line: {(dmLicenseKey == null ? "not provided" : $"provided ({dmLicenseKey.Length} chars)")}");
+            if (dmLicenseKey != null && dmLicenseKey.Length > 0)
             {
                 Console.Error.WriteLine($"[Startup] License key prefix: {(dmLicenseKey.Length > 30 ? dmLicenseKey.Substring(0, 30) + "..." : dmLicenseKey)}");
             }
@@ -96,7 +96,7 @@ namespace BluePLM.SolidWorksService
             Console.Error.WriteLine($"[Startup] SolidWorks available: {_swApi.IsSolidWorksAvailable()}");
 
             // Single command mode
-            if (singleCommand && !string.IsNullOrEmpty(commandJson))
+            if (singleCommand && commandJson != null && commandJson.Length > 0)
             {
                 var result = ProcessCommand(commandJson);
                 Console.WriteLine(JsonConvert.SerializeObject(result));
@@ -365,14 +365,12 @@ namespace BluePLM.SolidWorksService
         {
             Console.Error.WriteLine("[Service] SetDmLicense command received");
             Console.Error.WriteLine($"[Service] License key provided: {!string.IsNullOrEmpty(licenseKey)}");
-            if (!string.IsNullOrEmpty(licenseKey))
-            {
-                Console.Error.WriteLine($"[Service] License key length: {licenseKey.Length}");
-                Console.Error.WriteLine($"[Service] License key prefix: {(licenseKey.Length > 30 ? licenseKey.Substring(0, 30) + "..." : licenseKey)}");
-            }
             
-            if (string.IsNullOrEmpty(licenseKey))
+            if (licenseKey == null || licenseKey.Length == 0)
                 return new CommandResult { Success = false, Error = "Missing 'licenseKey'" };
+
+            Console.Error.WriteLine($"[Service] License key length: {licenseKey.Length}");
+            Console.Error.WriteLine($"[Service] License key prefix: {(licenseKey.Length > 30 ? licenseKey.Substring(0, 30) + "..." : licenseKey)}");
 
             if (_dmApi == null)
             {

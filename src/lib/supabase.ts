@@ -662,6 +662,30 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
         settingsApiUrl: matchingOrg.settings?.api_url,
         settingsKeys: Object.keys(matchingOrg.settings || {})
       })
+      
+      // Update the user's org_id in the database so future logins remember the org
+      // This also ensures sessions are registered with the correct org_id immediately
+      try {
+        const updateResponse = await fetch(`${url}/rest/v1/users?id=eq.${userId}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': key,
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ org_id: matchingOrg.id })
+        })
+        
+        if (updateResponse.ok) {
+          authLog('info', 'Updated user org_id in database', { orgId: matchingOrg.id?.substring(0, 8) + '...' })
+        } else {
+          authLog('warn', 'Failed to update user org_id', { status: updateResponse.status })
+        }
+      } catch (updateErr) {
+        authLog('warn', 'Error updating user org_id', { error: String(updateErr) })
+      }
+      
       return { org: matchingOrg, error: null }
     }
     
@@ -3897,6 +3921,13 @@ export async function registerDeviceSession(
   const platform = await window.electronAPI?.getPlatform() || 'unknown'
   const appVersion = await window.electronAPI?.getAppVersion() || 'unknown'
   
+  console.log('[Session] Registering device session:', {
+    userId: userId?.substring(0, 8) + '...',
+    orgId: orgId ? orgId.substring(0, 8) + '...' : 'NULL',
+    machineId: machineId?.substring(0, 8),
+    machineName
+  })
+  
   // Upsert the session
   const { data, error } = await client
     .from('user_sessions')
@@ -3920,8 +3951,31 @@ export async function registerDeviceSession(
     return { success: false, error: error.message }
   }
   
-  console.log('[Session] Device registered:', machineName)
+  console.log('[Session] Device registered:', machineName, 'org_id in session:', data?.org_id || 'NULL')
   return { success: true, session: data }
+}
+
+/**
+ * Sync all sessions for a user to use the correct org_id
+ * Call this after org is loaded to fix sessions that were created with null org_id
+ */
+export async function syncUserSessionsOrgId(userId: string, orgId: string): Promise<void> {
+  const client = getSupabaseClient()
+  
+  console.log('[Session] Syncing all user sessions to org_id:', orgId?.substring(0, 8) + '...')
+  
+  // Update all active sessions for this user to have the correct org_id
+  const { error } = await client
+    .from('user_sessions')
+    .update({ org_id: orgId })
+    .eq('user_id', userId)
+    .is('org_id', null)  // Only update sessions with NULL org_id
+  
+  if (error) {
+    console.error('[Session] Failed to sync session org_ids:', error.message)
+  } else {
+    console.log('[Session] Session org_ids synced successfully')
+  }
 }
 
 /**
@@ -3936,10 +3990,10 @@ export async function sendSessionHeartbeat(userId: string, orgId?: string | null
   const { getMachineId } = await import('./backup')
   const machineId = await getMachineId()
   
-  // First check if our session is still active
+  // First check if our session is still active (also get current org_id for logging)
   const { data: session, error: checkError } = await client
     .from('user_sessions')
-    .select('is_active')
+    .select('is_active, org_id')
     .eq('user_id', userId)
     .eq('machine_id', machineId)
     .single()
@@ -3965,6 +4019,13 @@ export async function sendSessionHeartbeat(userId: string, orgId?: string | null
   // Only update org_id if provided (to keep session in sync with current org)
   if (orgId !== undefined) {
     updateData.org_id = orgId
+  }
+  
+  // Log when org_id changes
+  const currentOrgId = session?.org_id
+  const newOrgId = orgId !== undefined ? orgId : currentOrgId
+  if (currentOrgId !== newOrgId) {
+    console.log('[Session] Heartbeat updating org_id:', currentOrgId?.substring(0, 8) || 'NULL', '→', newOrgId?.substring(0, 8) || 'NULL')
   }
   
   const { error } = await client
@@ -4171,6 +4232,25 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
   // Get sessions active within the last 5 minutes
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
   
+  console.log('[OnlineUsers] Fetching online users for org:', orgId, 'since:', fiveMinutesAgo)
+  
+  // First, let's debug by fetching ALL active sessions for this org (without RLS filtering)
+  const { data: debugData, error: debugError } = await client
+    .from('user_sessions')
+    .select('user_id, org_id, machine_name, is_active, last_seen')
+    .eq('is_active', true)
+    .gte('last_seen', fiveMinutesAgo)
+  
+  console.log('[OnlineUsers] DEBUG - All active sessions visible to current user:', 
+    debugData?.map(s => ({ 
+      user_id: s.user_id?.substring(0, 8), 
+      org_id: s.org_id?.substring(0, 8) || 'NULL',
+      machine: s.machine_name,
+      last_seen: s.last_seen
+    })) || [], 
+    'Error:', debugError?.message || 'none'
+  )
+  
   const { data, error } = await client
     .from('user_sessions')
     .select(`
@@ -4189,6 +4269,8 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
     .eq('is_active', true)
     .gte('last_seen', fiveMinutesAgo)
     .order('last_seen', { ascending: false })
+  
+  console.log('[OnlineUsers] Query result - sessions with org_id match:', data?.length || 0, 'Error:', error?.message || 'none')
   
   if (error) {
     console.error('[OnlineUsers] Failed to fetch online users:', error.message)

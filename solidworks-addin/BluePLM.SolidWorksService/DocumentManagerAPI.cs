@@ -510,7 +510,7 @@ namespace BluePLM.SolidWorksService
             object? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath!, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -618,7 +618,7 @@ namespace BluePLM.SolidWorksService
             try
             {
                 // Open document for WRITE access (not read-only)
-                doc = OpenDocumentForWrite(filePath, out var openError);
+                doc = OpenDocumentForWrite(filePath!, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file for writing: error code {openError}" };
 
@@ -757,7 +757,7 @@ namespace BluePLM.SolidWorksService
             object? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath!, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -841,7 +841,7 @@ namespace BluePLM.SolidWorksService
             object? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath!, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -965,7 +965,7 @@ namespace BluePLM.SolidWorksService
             object? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath!, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -1051,7 +1051,7 @@ namespace BluePLM.SolidWorksService
             object? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var openError);
+                doc = OpenDocument(filePath!, out var openError);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -1196,7 +1196,7 @@ namespace BluePLM.SolidWorksService
             foreach (var key in partNumberKeys)
             {
                 var value = GetDictValue(props, key);
-                if (!string.IsNullOrEmpty(value))
+                if (value != null && value.Length > 0)
                     return value;
             }
 
@@ -1225,7 +1225,7 @@ namespace BluePLM.SolidWorksService
             foreach (var key in revisionKeys)
             {
                 var value = GetDictValue(props, key);
-                if (!string.IsNullOrEmpty(value))
+                if (value != null && value.Length > 0)
                     return value;
             }
 

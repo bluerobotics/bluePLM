@@ -180,7 +180,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -290,7 +290,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -310,7 +310,7 @@ namespace BluePLM.SolidWorksService
                             path = refPath,
                             fileName = Path.GetFileName(refPath),
                             exists = File.Exists(refPath),
-                            fileType = GetFileType(refPath)
+                            fileType = GetFileType(refPath!)
                         });
                     }
                 }
@@ -359,7 +359,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -420,7 +420,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings, readOnly: false);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, readOnly: false);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -527,7 +527,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -594,7 +594,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -854,7 +854,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -912,7 +912,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -970,7 +970,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(filePath, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -1039,7 +1039,7 @@ namespace BluePLM.SolidWorksService
             ModelDoc2? doc = null;
             try
             {
-                doc = OpenDocument(assemblyPath, out var errors, out var warnings, readOnly: false);
+                doc = OpenDocument(assemblyPath!, out var errors, out var warnings, readOnly: false);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open assembly: errors={errors}" };
 
@@ -1236,7 +1236,7 @@ namespace BluePLM.SolidWorksService
             foreach (var key in partNumberKeys)
             {
                 var value = GetDictValue(props, key);
-                if (!string.IsNullOrEmpty(value))
+                if (value != null && value.Length > 0)
                     return value;
             }
 
@@ -1270,7 +1270,7 @@ namespace BluePLM.SolidWorksService
             foreach (var key in revisionKeys)
             {
                 var value = GetDictValue(props, key);
-                if (!string.IsNullOrEmpty(value))
+                if (value != null && value.Length > 0)
                     return value;
             }
 
@@ -1624,7 +1624,7 @@ namespace BluePLM.SolidWorksService
                         isOpen = true,
                         isReadOnly = doc.IsOpenedReadOnly(),
                         isDirty = doc.GetSaveFlag(),
-                        fileType = GetFileType(filePath),
+                        fileType = GetFileType(filePath!),
                         activeConfiguration = doc.ConfigurationManager?.ActiveConfiguration?.Name ?? "",
                         properties = props
                     }
