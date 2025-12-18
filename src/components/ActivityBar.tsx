@@ -30,6 +30,7 @@ import {
   MODULES, 
   isModuleVisible,
   getChildModules,
+  buildCombinedOrderList,
   type ModuleId,
   type ModuleDefinition
 } from '../types/modules'
@@ -64,6 +65,7 @@ const iconComponents: Record<string, React.ComponentType<{ size?: number }>> = {
   Building2,
   Globe,
   FileWarning,
+  Settings,
 }
 
 // Context to share expanded state
@@ -157,7 +159,7 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
         </div>
         {isExpanded && (
           <>
-            <span className="text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1">
+            <span className="text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
               {title}
             </span>
             {/* Chevron for items with children */}
@@ -228,6 +230,7 @@ function NestedSubmenu({ parentRect, children, depth, onMouseEnter, onMouseLeave
         const translationKey = moduleTranslationKeys[child.id]
         const childTitle = translationKey ? t(translationKey) : child.name
         const isActive = activeView === child.id
+        const childIconColor = moduleConfig.moduleIconColors?.[child.id] || null
         
         return (
           <div
@@ -257,7 +260,7 @@ function NestedSubmenu({ parentRect, children, depth, onMouseEnter, onMouseLeave
               style={{ width: 'calc(100% - 8px)' }}
             >
               <div className="w-[18px] h-[18px] flex items-center justify-center flex-shrink-0">
-                {getModuleIcon(child.icon, 18)}
+                {getModuleIcon(child.icon, 18, childIconColor)}
               </div>
               <span className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
                 {childTitle}
@@ -360,16 +363,18 @@ function SidebarControl() {
   )
 }
 
-// Get the icon component for a module
-function getModuleIcon(iconName: string, size: number = 22): React.ReactNode {
+// Get the icon component for a module with optional custom color
+function getModuleIcon(iconName: string, size: number = 22, color?: string | null): React.ReactNode {
+  const style = color ? { color } : undefined
+  
   if (iconName === 'GoogleDrive') {
-    return <GoogleDriveIcon size={size} />
+    return <span style={style}><GoogleDriveIcon size={size} /></span>
   }
   const IconComponent = iconComponents[iconName]
   if (IconComponent) {
-    return <IconComponent size={size} />
+    return <span style={style}><IconComponent size={size} /></span>
   }
-  return <Package size={size} />
+  return <span style={style}><Package size={size} /></span>
 }
 
 // Translation keys for module names
@@ -392,6 +397,7 @@ const moduleTranslationKeys: Record<ModuleId, string> = {
   'suppliers': 'sidebar.suppliers',
   'supplier-portal': 'sidebar.supplierPortal',
   'google-drive': 'sidebar.googleDrive',
+  'settings': 'sidebar.settings',
 }
 
 export function ActivityBar() {
@@ -446,15 +452,65 @@ export function ActivityBar() {
   
   const totalBadge = unreadNotificationCount + pendingReviewCount
   
-  // Build the visible modules list based on module order and visibility
-  // Only show top-level modules (those without a parent)
-  const visibleModules = useMemo(() => {
-    return moduleConfig.moduleOrder.filter(moduleId => {
+  // Build the visible items list using the same combined order as ModulesSettings
+  type SidebarItem = 
+    | { type: 'module'; id: ModuleId; module: ModuleDefinition }
+    | { type: 'group'; id: string; group: typeof moduleConfig.customGroups[0] }
+  
+  const visibleSidebarItems = useMemo(() => {
+    // Use buildCombinedOrderList to get the proper order
+    const combinedList = buildCombinedOrderList(
+      moduleConfig.moduleOrder,
+      moduleConfig.dividers,
+      moduleConfig.customGroups || []
+    )
+    
+    const items: SidebarItem[] = []
+    const enabledGroups = (moduleConfig.customGroups || []).filter(g => g.enabled)
+    
+    for (const item of combinedList) {
+      if (item.type === 'group') {
+        // Find the group config
+        const group = enabledGroups.find(g => g.id === item.id)
+        if (!group) continue // Skip disabled groups
+        
+        // Only show if group has visible children
+        const childModules = getChildModules(group.id, moduleConfig).filter(child => 
+          isModuleVisible(child.id, moduleConfig)
+        )
+        if (childModules.length > 0) {
+          items.push({ type: 'group', id: group.id, group })
+        }
+      } else if (item.type === 'module') {
+        const moduleId = item.id as ModuleId
+        const module = MODULES.find(m => m.id === moduleId)
+        if (!module) continue
+        
+        // Only show if visible AND is top-level (no parent in config)
+        const hasParent = moduleConfig.moduleParents?.[moduleId]
+        if (!hasParent && isModuleVisible(moduleId, moduleConfig)) {
+          items.push({ type: 'module', id: moduleId, module })
+        }
+      }
+      // Skip dividers - they're handled separately with getDividerAfterVisibleIndex
+    }
+    
+    return items
+  }, [moduleConfig])
+  
+  // For divider positioning, we need to track visible module indices
+  const visibleModuleIndices = useMemo(() => {
+    const indices = new Map<ModuleId, number>()
+    let visibleIdx = 0
+    for (const moduleId of moduleConfig.moduleOrder) {
       const module = MODULES.find(m => m.id === moduleId)
-      // Only show if visible AND is top-level (no parent in config)
       const hasParent = moduleConfig.moduleParents?.[moduleId]
-      return module && !hasParent && isModuleVisible(moduleId, moduleConfig)
-    })
+      if (module && !hasParent && isModuleVisible(moduleId, moduleConfig)) {
+        indices.set(moduleId, visibleIdx)
+        visibleIdx++
+      }
+    }
+    return indices
   }, [moduleConfig])
   
   // Build a map of original index to visible index for divider positioning
@@ -524,7 +580,7 @@ export function ActivityBar() {
         resizeObserver.disconnect()
       }
     }
-  }, [updateScrollState, visibleModules.length])
+  }, [updateScrollState, visibleSidebarItems.length])
   
   // In expanded mode, container matches bar width. In collapsed/hover mode, container is always collapsed width.
   const containerWidth = activityBarMode === 'expanded' ? 'w-64' : 'w-[53px]'
@@ -555,47 +611,64 @@ export function ActivityBar() {
               ref={scrollContainerRef}
               className="h-full overflow-y-auto overflow-x-hidden scrollbar-hidden"
             >
-              {/* Dynamic Modules */}
+              {/* Dynamic Modules and Groups - combined and ordered */}
               <div className="flex flex-col pt-[4px]">
-                {visibleModules.map((moduleId, visibleIndex) => {
-                  const module = MODULES.find(m => m.id === moduleId)
-                  if (!module) return null
-                  
-                  const translationKey = moduleTranslationKeys[moduleId]
-                  const title = translationKey ? t(translationKey) : module.name
-                  
-                  // Special handling for reviews badge
-                  const badge = moduleId === 'reviews' ? totalBadge : undefined
-                  
-                  // Get visible child modules (using config's moduleParents)
-                  const childModules = getChildModules(moduleId, moduleConfig).filter(child => 
-                    isModuleVisible(child.id, moduleConfig)
-                  )
-                  const moduleHasChildren = childModules.length > 0
-                  
-                  return (
-                    <div key={moduleId}>
+                {visibleSidebarItems.map((item) => {
+                  if (item.type === 'group') {
+                    // Render custom group
+                    const childModules = getChildModules(item.id, moduleConfig).filter(child => 
+                      isModuleVisible(child.id, moduleConfig)
+                    )
+                    
+                    return (
                       <ActivityItem
-                        icon={getModuleIcon(module.icon)}
-                        view={moduleId as SidebarView}
-                        title={title}
-                        badge={badge}
-                        hasChildren={moduleHasChildren}
+                        key={item.id}
+                        icon={getModuleIcon(item.group.icon, 22, item.group.iconColor)}
+                        view={'explorer' as SidebarView}  // Groups don't navigate
+                        title={item.group.name}
+                        hasChildren={true}
                         children={childModules}
                       />
-                      {getDividerAfterVisibleIndex.has(visibleIndex) && <SectionDivider />}
-                    </div>
-                  )
+                    )
+                  } else {
+                    // Render module
+                    const { module, id: moduleId } = item
+                    const translationKey = moduleTranslationKeys[moduleId]
+                    const title = translationKey ? t(translationKey) : module.name
+                    
+                    // Special handling for reviews badge
+                    const badge = moduleId === 'reviews' ? totalBadge : undefined
+                    
+                    // Get visible child modules (using config's moduleParents)
+                    const childModules = getChildModules(moduleId, moduleConfig).filter(child => 
+                      isModuleVisible(child.id, moduleConfig)
+                    )
+                    const moduleHasChildren = childModules.length > 0
+                    
+                    // Get custom icon color
+                    const customIconColor = moduleConfig.moduleIconColors?.[moduleId] || null
+                    
+                    // Get visible index for divider positioning
+                    const visibleIndex = visibleModuleIndices.get(moduleId)
+                    
+                    return (
+                      <div key={moduleId}>
+                        <ActivityItem
+                          icon={getModuleIcon(module.icon, 22, customIconColor)}
+                          view={moduleId as SidebarView}
+                          title={title}
+                          badge={badge}
+                          hasChildren={moduleHasChildren}
+                          children={childModules}
+                        />
+                        {visibleIndex !== undefined && getDividerAfterVisibleIndex.has(visibleIndex) && <SectionDivider />}
+                      </div>
+                    )
+                  }
                 })}
               </div>
 
-              {/* Settings - always shown, after a divider if there are visible modules */}
-              {visibleModules.length > 0 && <SectionDivider />}
-              <ActivityItem
-                icon={<Settings size={22} />}
-                view="settings"
-                title={t('sidebar.settings')}
-              />
+              {/* Note: Settings is now part of the module order and rendered above */}
               
               {/* Bottom padding for scroll */}
               <div className="h-2" />

@@ -356,8 +356,11 @@ interface PDMState {
   setCombinedOrder: (combinedList: OrderListItem[]) => void
   addDivider: (afterPosition: number) => void
   removeDivider: (dividerId: string) => void
-  setModuleParent: (moduleId: ModuleId, parentId: ModuleId | null) => void
+  setModuleParent: (moduleId: ModuleId, parentId: string | null) => void
   setModuleIconColor: (moduleId: ModuleId, color: string | null) => void
+  addCustomGroup: (name: string, icon: string, iconColor: string | null) => string  // Returns group ID
+  updateCustomGroup: (groupId: string, updates: Partial<{ name: string; icon: string; iconColor: string | null; enabled: boolean }>) => void
+  removeCustomGroup: (groupId: string) => void
   resetModulesToDefaults: () => void
   loadOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
   saveOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
@@ -931,12 +934,17 @@ export const usePDMStore = create<PDMState>()(
       
       setCombinedOrder: (combinedList) => {
         const { moduleConfig } = get()
-        const { moduleOrder, dividers } = extractFromCombinedList(combinedList, moduleConfig.dividers)
+        const { moduleOrder, dividers, customGroups } = extractFromCombinedList(
+          combinedList, 
+          moduleConfig.dividers,
+          moduleConfig.customGroups
+        )
         set({
           moduleConfig: {
             ...moduleConfig,
             moduleOrder,
-            dividers
+            dividers,
+            customGroups
           }
         })
       },
@@ -986,6 +994,55 @@ export const usePDMStore = create<PDMState>()(
         }))
       },
       
+      addCustomGroup: (name, icon, iconColor) => {
+        const groupId = `group-${Date.now()}`
+        set(state => {
+          // Add at the end of the module order
+          const position = state.moduleConfig.moduleOrder.length
+          return {
+            moduleConfig: {
+              ...state.moduleConfig,
+              customGroups: [
+                ...state.moduleConfig.customGroups,
+                { id: groupId, name, icon, iconColor, position, enabled: true }
+              ]
+            }
+          }
+        })
+        return groupId
+      },
+      
+      updateCustomGroup: (groupId, updates) => {
+        set(state => ({
+          moduleConfig: {
+            ...state.moduleConfig,
+            customGroups: state.moduleConfig.customGroups.map(g =>
+              g.id === groupId ? { ...g, ...updates } : g
+            )
+          }
+        }))
+      },
+      
+      removeCustomGroup: (groupId) => {
+        set(state => {
+          // Remove group and unset any modules that had this as parent
+          const newModuleParents = { ...state.moduleConfig.moduleParents }
+          for (const [moduleId, parentId] of Object.entries(newModuleParents)) {
+            if (parentId === groupId) {
+              newModuleParents[moduleId as ModuleId] = null
+            }
+          }
+          
+          return {
+            moduleConfig: {
+              ...state.moduleConfig,
+              customGroups: state.moduleConfig.customGroups.filter(g => g.id !== groupId),
+              moduleParents: newModuleParents
+            }
+          }
+        })
+      },
+      
       resetModulesToDefaults: () => {
         set({ moduleConfig: getDefaultModuleConfig() })
       },
@@ -1016,6 +1073,7 @@ export const usePDMStore = create<PDMState>()(
               dividers: defaults.dividers || getDefaultModuleConfig().dividers,
               moduleParents: defaults.module_parents || getDefaultModuleConfig().moduleParents,
               moduleIconColors: defaults.module_icon_colors || getDefaultModuleConfig().moduleIconColors,
+              customGroups: defaults.custom_groups || getDefaultModuleConfig().customGroups,
             }
             set({ moduleConfig })
           }
@@ -1044,7 +1102,8 @@ export const usePDMStore = create<PDMState>()(
             p_module_order: moduleConfig.moduleOrder,
             p_dividers: moduleConfig.dividers,
             p_module_parents: moduleConfig.moduleParents,
-            p_module_icon_colors: moduleConfig.moduleIconColors
+            p_module_icon_colors: moduleConfig.moduleIconColors,
+            p_custom_groups: moduleConfig.customGroups
           })
           
           if (error) throw error
@@ -2318,7 +2377,10 @@ export const usePDMStore = create<PDMState>()(
               }
             }
             
-            return { enabledModules, enabledGroups, moduleOrder, dividers, moduleParents, moduleIconColors }
+            // Custom groups - use persisted if available
+            const customGroups = persistedConfig.customGroups || defaults.customGroups
+            
+            return { enabledModules, enabledGroups, moduleOrder, dividers, moduleParents, moduleIconColors, customGroups }
           })()
         }
       }

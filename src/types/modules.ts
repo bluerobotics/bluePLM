@@ -26,6 +26,8 @@ export type ModuleId =
   | 'supplier-portal'
   // Integrations
   | 'google-drive'
+  // System
+  | 'settings'
 
 // Module group identifiers
 export type ModuleGroupId =
@@ -35,6 +37,7 @@ export type ModuleGroupId =
   | 'product-lifecycle'
   | 'supply-chain'
   | 'integrations'
+  | 'system'
 
 // Section divider configuration
 export interface SectionDivider {
@@ -43,6 +46,17 @@ export interface SectionDivider {
   // Position is the index in the module order where this divider appears AFTER
   // e.g., position 6 means the divider appears after the 7th module (index 6)
   position: number
+}
+
+// Custom group configuration (user-created organizational folders)
+export interface CustomGroup {
+  id: string
+  name: string
+  icon: string  // Lucide icon name
+  iconColor: string | null  // Custom color or null for default
+  // Position in the sidebar order (index in combined order)
+  position: number
+  enabled: boolean
 }
 
 // Individual module definition
@@ -70,6 +84,9 @@ export interface ModuleGroupDefinition {
   defaultEnabled: boolean
 }
 
+// Parent can be a module ID or a custom group ID
+export type ParentId = ModuleId | string | null
+
 // User's module configuration (stored in pdmStore)
 export interface ModuleConfig {
   enabledModules: Record<ModuleId, boolean>
@@ -77,9 +94,12 @@ export interface ModuleConfig {
   moduleOrder: ModuleId[]  // Custom order of modules in sidebar
   dividers: SectionDivider[]
   // Custom parent-child relationships (overrides default parentId from ModuleDefinition)
-  moduleParents: Record<ModuleId, ModuleId | null>
+  // Parent can be a ModuleId or a custom group ID (prefixed with "group-")
+  moduleParents: Record<ModuleId, ParentId>
   // Custom icon colors per module (hex colors like "#ff0000" or null for default)
   moduleIconColors: Record<ModuleId, string | null>
+  // User-created custom groups for organizing modules
+  customGroups: CustomGroup[]
 }
 
 // Org's module defaults (stored in database)
@@ -88,8 +108,9 @@ export interface OrgModuleDefaults {
   enabledGroups: Record<ModuleGroupId, boolean>
   moduleOrder: ModuleId[]
   dividers: SectionDivider[]
-  moduleParents: Record<ModuleId, ModuleId | null>
+  moduleParents: Record<ModuleId, ParentId>
   moduleIconColors: Record<ModuleId, string | null>
+  customGroups: CustomGroup[]
 }
 
 // ============================================
@@ -137,6 +158,13 @@ export const MODULE_GROUPS: ModuleGroupDefinition[] = [
     name: 'Integrations',
     description: 'External service connections',
     isMasterToggle: true,
+    defaultEnabled: true,
+  },
+  {
+    id: 'system',
+    name: 'System',
+    description: 'Core application settings',
+    isMasterToggle: false,  // Cannot disable system modules
     defaultEnabled: true,
   },
 ]
@@ -279,6 +307,15 @@ export const MODULES: ModuleDefinition[] = [
     icon: 'GoogleDrive',  // Custom icon
     defaultEnabled: false,  // Off by default
   },
+  // System
+  {
+    id: 'settings',
+    name: 'Settings',
+    group: 'system',
+    icon: 'Settings',
+    defaultEnabled: true,
+    required: true,  // Cannot be disabled
+  },
 ]
 
 // Default section dividers (matches current ActivityBar layout)
@@ -310,8 +347,10 @@ export const DEFAULT_MODULE_ORDER: ModuleId[] = [
   // Suppliers
   'suppliers',
   'supplier-portal',  // indented
-  // Tools (above Settings)
+  // Tools
   'terminal',
+  // System (always at bottom by default, but can be moved)
+  'settings',
 ]
 
 // Helper to get default enabled modules
@@ -359,6 +398,7 @@ export function getDefaultModuleConfig(): ModuleConfig {
     dividers: [...DEFAULT_DIVIDERS],
     moduleParents: getDefaultModuleParents(),
     moduleIconColors: getDefaultModuleIconColors(),
+    customGroups: [],
   }
 }
 
@@ -396,17 +436,14 @@ export function isModuleVisible(
 // Helper to check if a module can be toggled (not required)
 export function canToggleModule(
   moduleId: ModuleId,
-  config: ModuleConfig
+  _config: ModuleConfig
 ): boolean {
   const module = MODULES.find(m => m.id === moduleId)
   if (!module) return false
   
-  // Required modules can't be toggled when their group is enabled
+  // Required modules can never be toggled
   if (module.required) {
-    const group = MODULE_GROUPS.find(g => g.id === module.group)
-    if (group?.isMasterToggle && config.enabledGroups[module.group]) {
-      return false
-    }
+    return false
   }
   
   return true
@@ -427,20 +464,20 @@ export function getGroupById(groupId: ModuleGroupId): ModuleGroupDefinition | un
   return MODULE_GROUPS.find(g => g.id === groupId)
 }
 
-// Get child modules of a parent module (using config's moduleParents if provided)
-export function getChildModules(parentId: ModuleId, config?: ModuleConfig): ModuleDefinition[] {
+// Get child modules of a parent (module or custom group)
+export function getChildModules(parentId: string, config?: ModuleConfig): ModuleDefinition[] {
   if (config) {
     return MODULES.filter(m => config.moduleParents[m.id] === parentId)
   }
   return MODULES.filter(m => m.parentId === parentId)
 }
 
-// Check if a module has children (using config's moduleParents if provided)
-export function hasChildModules(moduleId: ModuleId, config?: ModuleConfig): boolean {
+// Check if a module or group has children
+export function hasChildModules(parentId: string, config?: ModuleConfig): boolean {
   if (config) {
-    return MODULES.some(m => config.moduleParents[m.id] === moduleId)
+    return MODULES.some(m => config.moduleParents[m.id] === parentId)
   }
-  return MODULES.some(m => m.parentId === moduleId)
+  return MODULES.some(m => m.parentId === parentId)
 }
 
 // Get only top-level modules (no parent, using config's moduleParents if provided)
@@ -452,25 +489,53 @@ export function getTopLevelModules(config?: ModuleConfig): ModuleDefinition[] {
 }
 
 // Get the parent of a module (using config's moduleParents)
-export function getModuleParent(moduleId: ModuleId, config: ModuleConfig): ModuleId | null {
+export function getModuleParent(moduleId: ModuleId, config: ModuleConfig): ParentId {
   return config.moduleParents[moduleId] || null
+}
+
+// Check if an ID is a custom group ID
+export function isCustomGroupId(id: string): boolean {
+  return id.startsWith('group-')
+}
+
+// Get a custom group by ID
+export function getCustomGroup(groupId: string, config: ModuleConfig): CustomGroup | undefined {
+  return config.customGroups.find(g => g.id === groupId)
+}
+
+// Get visible custom groups (enabled and in order)
+export function getVisibleCustomGroups(config: ModuleConfig): CustomGroup[] {
+  return config.customGroups
+    .filter(g => g.enabled)
+    .sort((a, b) => a.position - b.position)
 }
 
 // Type for combined order list items
 export type OrderListItem = 
   | { type: 'module'; id: ModuleId }
   | { type: 'divider'; id: string }
+  | { type: 'group'; id: string }
 
-// Build a combined order list with modules and dividers interleaved
+// Build a combined order list with modules, dividers, and groups interleaved
 export function buildCombinedOrderList(
   moduleOrder: ModuleId[],
-  dividers: SectionDivider[]
+  dividers: SectionDivider[],
+  customGroups: CustomGroup[] = []
 ): OrderListItem[] {
   const result: OrderListItem[] = []
   const sortedDividers = [...dividers].sort((a, b) => a.position - b.position)
+  const sortedGroups = [...customGroups].sort((a, b) => a.position - b.position)
   
   let dividerIdx = 0
+  let groupIdx = 0
+  
   for (let i = 0; i < moduleOrder.length; i++) {
+    // Add any groups that come before this position
+    while (groupIdx < sortedGroups.length && sortedGroups[groupIdx].position === i) {
+      result.push({ type: 'group', id: sortedGroups[groupIdx].id })
+      groupIdx++
+    }
+    
     result.push({ type: 'module', id: moduleOrder[i] })
     
     // Add any dividers that come after this position
@@ -478,6 +543,12 @@ export function buildCombinedOrderList(
       result.push({ type: 'divider', id: sortedDividers[dividerIdx].id })
       dividerIdx++
     }
+  }
+  
+  // Add any remaining groups at the end
+  while (groupIdx < sortedGroups.length) {
+    result.push({ type: 'group', id: sortedGroups[groupIdx].id })
+    groupIdx++
   }
   
   // Add any remaining dividers at the end
@@ -489,20 +560,22 @@ export function buildCombinedOrderList(
   return result
 }
 
-// Extract module order and divider positions from a combined list
+// Extract module order, divider positions, and group positions from a combined list
 export function extractFromCombinedList(
   combinedList: OrderListItem[],
-  existingDividers: SectionDivider[]
-): { moduleOrder: ModuleId[]; dividers: SectionDivider[] } {
+  existingDividers: SectionDivider[],
+  existingGroups: CustomGroup[] = []
+): { moduleOrder: ModuleId[]; dividers: SectionDivider[]; customGroups: CustomGroup[] } {
   const moduleOrder: ModuleId[] = []
   const dividers: SectionDivider[] = []
+  const customGroups: CustomGroup[] = []
   
   let moduleIndex = -1
   for (const item of combinedList) {
     if (item.type === 'module') {
       moduleIndex++
       moduleOrder.push(item.id)
-    } else {
+    } else if (item.type === 'divider') {
       // Find existing divider to preserve enabled state
       const existing = existingDividers.find(d => d.id === item.id)
       dividers.push({
@@ -510,9 +583,18 @@ export function extractFromCombinedList(
         enabled: existing?.enabled ?? true,
         position: moduleIndex  // Position is after the last module
       })
+    } else if (item.type === 'group') {
+      // Find existing group to preserve all properties
+      const existing = existingGroups.find(g => g.id === item.id)
+      if (existing) {
+        customGroups.push({
+          ...existing,
+          position: moduleIndex + 1  // Position before next module
+        })
+      }
     }
   }
   
-  return { moduleOrder, dividers }
+  return { moduleOrder, dividers, customGroups }
 }
 
