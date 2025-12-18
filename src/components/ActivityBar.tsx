@@ -1,26 +1,5 @@
 import * as LucideIcons from 'lucide-react'
-import { 
-  FolderTree, 
-  ArrowDownUp, 
-  History, 
-  Search,
-  Trash2,
-  Terminal,
-  ClipboardList,
-  GitBranch,
-  ClipboardCheck,
-  Settings,
-  AlertCircle,
-  Package,
-  Network,
-  Calendar,
-  Telescope,
-  PanelLeft,
-  Building2,
-  Globe,
-  FileWarning,
-  ChevronRight
-} from 'lucide-react'
+import { Package, PanelLeft, ChevronRight } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { usePDMStore, SidebarView } from '../stores/pdmStore'
 import { registerModule, unregisterModule } from '@/lib/telemetry'
@@ -48,26 +27,6 @@ function GoogleDriveIcon({ size = 22 }: { size?: number }) {
 }
 
 // Icon components mapping
-const iconComponents: Record<string, React.ComponentType<{ size?: number }>> = {
-  FolderTree,
-  ArrowDownUp,
-  History,
-  Search,
-  Trash2,
-  Terminal,
-  ClipboardList,
-  GitBranch,
-  ClipboardCheck,
-  AlertCircle,
-  Package,
-  Network,
-  Calendar,
-  Telescope,
-  Building2,
-  Globe,
-  FileWarning,
-  Settings,
-}
 
 // Context to share expanded state
 const ExpandedContext = createContext(false)
@@ -496,17 +455,9 @@ function getModuleIcon(iconName: string, size: number = 22, customColor?: string
     return <GoogleDriveIcon size={size} />
   }
   
-  // First try our static mapping
-  let IconComponent = iconComponents[iconName]
-  
-  // If not found, try dynamic lookup from Lucide
-  if (!IconComponent) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const DynamicIcon = (LucideIcons as any)[iconName]
-    if (DynamicIcon && typeof DynamicIcon === 'function') {
-      IconComponent = DynamicIcon
-    }
-  }
+  // Lookup from Lucide icons directly (same method as ModulesSettings)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const IconComponent = (LucideIcons as any)[iconName]
   
   if (IconComponent) {
     if (customColor) {
@@ -518,6 +469,8 @@ function getModuleIcon(iconName: string, size: number = 22, customColor?: string
     }
     return <IconComponent size={size} />
   }
+  
+  // Fallback to Package icon if not found
   return <Package size={size} />
 }
 
