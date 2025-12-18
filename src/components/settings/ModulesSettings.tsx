@@ -27,7 +27,8 @@ import {
   Plus,
   X,
   ChevronRight,
-  Palette
+  Palette,
+  Pencil
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import {
@@ -310,10 +311,10 @@ function OrderListItemComponent({
             e.stopPropagation()
             onEditGroup?.(group)
           }}
-          className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
-          title="Edit group"
+          className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-highlight rounded transition-colors"
+          title="Edit group name and icon"
         >
-          <Palette size={14} />
+          <Pencil size={14} />
         </button>
         <button
           onClick={(e) => {
