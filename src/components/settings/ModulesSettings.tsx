@@ -717,17 +717,52 @@ export function ModulesSettings() {
   const handleDrop = () => {
     if (dragIndex !== null && dropIndicator !== null) {
       const newList = [...combinedList]
-      const [removed] = newList.splice(dragIndex, 1)
+      const draggedItem = newList[dragIndex]
       
+      // Check if dragging a group - if so, also drag its children
+      let itemsToMove: OrderListItem[] = []
+      let indicesToRemove: number[] = []
+      
+      if (draggedItem.type === 'group') {
+        // Find all modules that are children of this group
+        const childModuleIds = getChildModules(draggedItem.id, moduleConfig).map(m => m.id)
+        
+        // Collect the group and all its children from the list
+        itemsToMove.push(draggedItem)
+        indicesToRemove.push(dragIndex)
+        
+        // Find indices of child modules in the list
+        newList.forEach((item, idx) => {
+          if (item.type === 'module' && childModuleIds.includes(item.id as ModuleId)) {
+            itemsToMove.push(item)
+            indicesToRemove.push(idx)
+          }
+        })
+        
+        // Sort indices in descending order so we can remove from back to front
+        indicesToRemove.sort((a, b) => b - a)
+      } else {
+        // Just moving a single item
+        itemsToMove = [draggedItem]
+        indicesToRemove = [dragIndex]
+      }
+      
+      // Remove all items (from back to front to preserve indices)
+      for (const idx of indicesToRemove) {
+        newList.splice(idx, 1)
+      }
+      
+      // Calculate insert position (accounting for removed items before it)
       let insertIndex = dropIndicator.index
       if (dropIndicator.position === 'after') {
         insertIndex++
       }
-      if (dragIndex < insertIndex) {
-        insertIndex--
-      }
+      // Adjust for removed items that were before the insert position
+      const removedBefore = indicesToRemove.filter(idx => idx < insertIndex).length
+      insertIndex -= removedBefore
       
-      newList.splice(insertIndex, 0, removed)
+      // Insert all items at the target position
+      newList.splice(insertIndex, 0, ...itemsToMove)
       setCombinedOrder(newList)
     }
     setDragIndex(null)
