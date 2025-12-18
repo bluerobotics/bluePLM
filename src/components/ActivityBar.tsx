@@ -69,6 +69,9 @@ const iconComponents: Record<string, React.ComponentType<{ size?: number }>> = {
 // Context to share expanded state
 const ExpandedContext = createContext(false)
 
+// Context to share sidebar rect for cascading panels
+const SidebarRectContext = createContext<DOMRect | null>(null)
+
 type SidebarMode = 'expanded' | 'collapsed' | 'hover'
 
 interface ActivityItemProps {
@@ -85,9 +88,9 @@ interface ActivityItemProps {
 function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren }: ActivityItemProps) {
   const { activeView, setActiveView } = usePDMStore()
   const isExpanded = useContext(ExpandedContext)
+  const sidebarRect = useContext(SidebarRectContext)
   const [showTooltip, setShowTooltip] = useState(false)
   const [showSubmenu, setShowSubmenu] = useState(false)
-  const [submenuRect, setSubmenuRect] = useState<DOMRect | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const isActive = activeView === view
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -99,9 +102,6 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
       // Delay showing submenu slightly to prevent accidental triggers
       hoverTimeoutRef.current = setTimeout(() => {
         setShowSubmenu(true)
-        if (buttonRef.current) {
-          setSubmenuRect(buttonRef.current.getBoundingClientRect())
-        }
         onHoverWithChildren?.(view as ModuleId, buttonRef.current?.getBoundingClientRect() || null)
       }, 150)
     }
@@ -171,10 +171,10 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
         )}
       </button>
       
-      {/* Nested Submenu Panel */}
-      {showSubmenu && hasChildren && children && children.length > 0 && submenuRect && (
-        <NestedSubmenu
-          parentRect={submenuRect}
+      {/* Cascading Sidebar Panel */}
+      {showSubmenu && hasChildren && children && children.length > 0 && sidebarRect && (
+        <CascadingSidebar
+          parentRect={sidebarRect}
           children={children}
           depth={depth + 1}
           onMouseEnter={() => setShowSubmenu(true)}
@@ -185,8 +185,8 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
   )
 }
 
-// Nested submenu component that appears on hover
-interface NestedSubmenuProps {
+// Cascading sidebar panel that appears on hover - matches main sidebar style
+interface CascadingSidebarProps {
   parentRect: DOMRect
   children: ModuleDefinition[]
   depth: number
@@ -194,95 +194,187 @@ interface NestedSubmenuProps {
   onMouseLeave: () => void
 }
 
-function NestedSubmenu({ parentRect, children, depth, onMouseEnter, onMouseLeave }: NestedSubmenuProps) {
+function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLeave }: CascadingSidebarProps) {
   const { activeView, setActiveView, moduleConfig } = usePDMStore()
   const { t } = useTranslation()
+  const isExpanded = useContext(ExpandedContext)
   const [hoveredChild, setHoveredChild] = useState<ModuleId | null>(null)
   const [childRect, setChildRect] = useState<DOMRect | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [canScrollUp, setCanScrollUp] = useState(false)
+  const [canScrollDown, setCanScrollDown] = useState(false)
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Filter to only show visible children
   const visibleChildren = children.filter(child => isModuleVisible(child.id, moduleConfig))
   
+  // Update scroll state
+  const updateScrollState = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (container) {
+      setCanScrollUp(container.scrollTop > 0)
+      setCanScrollDown(container.scrollTop < container.scrollHeight - container.clientHeight - 1)
+    }
+  }, [])
+  
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (container) {
+      updateScrollState()
+      container.addEventListener('scroll', updateScrollState)
+      return () => container.removeEventListener('scroll', updateScrollState)
+    }
+  }, [updateScrollState])
+  
   if (visibleChildren.length === 0) return null
   
-  // Calculate position - always to the right of parent
+  // Calculate position - full height, to the right of parent sidebar
   const style: React.CSSProperties = {
     position: 'fixed',
-    top: parentRect.top - 4,
-    left: parentRect.right + 4,
-    zIndex: 50 + depth,
+    top: 0,
+    bottom: 0,
+    left: parentRect.right,
+    zIndex: 40 + depth,
+    width: isExpanded ? '256px' : '53px', // Match main sidebar width (w-64 = 256px, w-[53px])
+  }
+  
+  const handleChildMouseEnter = (childId: ModuleId, e: React.MouseEvent) => {
+    const childModules = getChildModules(childId, moduleConfig).filter(c => isModuleVisible(c.id, moduleConfig))
+    if (childModules.length > 0) {
+      // Clear any pending timeout
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+      }
+      setHoveredChild(childId)
+      const target = e.currentTarget
+      setChildRect(target.getBoundingClientRect())
+    }
+  }
+  
+  const handleChildMouseLeave = () => {
+    // Delay clearing to allow moving to submenu
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredChild(null)
+      setChildRect(null)
+    }, 150)
   }
   
   return (
     <div
       ref={panelRef}
       style={style}
-      className="min-w-[180px] bg-plm-activitybar border border-plm-border rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-left-2 duration-150"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      className="bg-plm-activitybar border-r border-plm-border shadow-xl flex flex-col animate-in slide-in-from-left-2 duration-200"
+      onMouseEnter={() => {
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current)
+        }
+        onMouseEnter()
+      }}
+      onMouseLeave={() => {
+        setHoveredChild(null)
+        setChildRect(null)
+        onMouseLeave()
+      }}
     >
-      {visibleChildren.map(child => {
-        const childChildren = getChildModules(child.id, moduleConfig).filter(c => isModuleVisible(c.id, moduleConfig))
-        const hasGrandchildren = childChildren.length > 0
-        const translationKey = moduleTranslationKeys[child.id]
-        const childTitle = translationKey ? t(translationKey) : child.name
-        const isActive = activeView === child.id
+      {/* Scrollable area */}
+      <div className="flex-1 min-h-0 relative">
+        {/* Top fade gradient */}
+        <div 
+          className={`absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+            canScrollUp ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
         
-        return (
-          <div
-            key={child.id}
-            className="relative"
-            onMouseEnter={(e) => {
-              if (hasGrandchildren) {
-                setHoveredChild(child.id)
-                const target = e.currentTarget
-                setChildRect(target.getBoundingClientRect())
-              }
-            }}
-            onMouseLeave={() => {
-              setTimeout(() => setHoveredChild(null), 100)
-            }}
-          >
-            <button
-              onClick={() => {
-                logNavigation(child.id, { title: childTitle })
-                setActiveView(child.id as SidebarView)
-              }}
-              className={`w-full h-10 flex items-center gap-3 px-3 rounded-md mx-1 transition-colors ${
-                isActive
-                  ? 'text-plm-accent bg-plm-highlight'
-                  : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight'
-              }`}
-              style={{ width: 'calc(100% - 8px)' }}
-            >
-              <div className="w-[18px] h-[18px] flex items-center justify-center flex-shrink-0">
-                {getModuleIcon(child.icon, 18)}
-              </div>
-              <span className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
-                {childTitle}
-              </span>
-              {hasGrandchildren && (
-                <ChevronRight size={12} className="flex-shrink-0 text-plm-fg-dim" />
-              )}
-            </button>
-            
-            {/* Nested children (recursive) */}
-            {hoveredChild === child.id && hasGrandchildren && childRect && (
-              <NestedSubmenu
-                parentRect={childRect}
-                children={childChildren}
-                depth={depth + 1}
-                onMouseEnter={() => setHoveredChild(child.id)}
-                onMouseLeave={() => setHoveredChild(null)}
-              />
-            )}
+        {/* Scrollable container */}
+        <div 
+          ref={scrollContainerRef}
+          className="h-full overflow-y-auto overflow-x-hidden scrollbar-hidden"
+        >
+          <div className="flex flex-col pt-[4px]">
+            {visibleChildren.map(child => {
+              const childChildren = getChildModules(child.id, moduleConfig).filter(c => isModuleVisible(c.id, moduleConfig))
+              const hasGrandchildren = childChildren.length > 0
+              const translationKey = moduleTranslationKeys[child.id]
+              const childTitle = translationKey ? t(translationKey) : child.name
+              const isActive = activeView === child.id
+              const customIconColor = moduleConfig.moduleIconColors?.[child.id] || null
+              
+              return (
+                <div
+                  key={child.id}
+                  className="relative"
+                  onMouseEnter={(e) => handleChildMouseEnter(child.id, e)}
+                  onMouseLeave={handleChildMouseLeave}
+                >
+                  {/* Item button - styled like ActivityItem */}
+                  <button
+                    onClick={() => {
+                      logNavigation(child.id, { title: childTitle })
+                      setActiveView(child.id as SidebarView)
+                    }}
+                    className={`relative w-full h-11 flex items-center gap-3 px-4 transition-colors group ${
+                      isActive
+                        ? 'text-plm-fg bg-plm-highlight border-l-2 border-plm-accent'
+                        : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight border-l-2 border-transparent'
+                    }`}
+                  >
+                    {/* Icon */}
+                    <div className="w-[22px] h-[22px] flex items-center justify-center flex-shrink-0">
+                      {getModuleIcon(child.icon, 22, customIconColor)}
+                    </div>
+                    
+                    {/* Title - only show when expanded */}
+                    {isExpanded && (
+                      <>
+                        <span className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
+                          {childTitle}
+                        </span>
+                        {hasGrandchildren && (
+                          <ChevronRight 
+                            size={14} 
+                            className={`flex-shrink-0 text-plm-fg-dim transition-transform duration-200 ${hoveredChild === child.id ? 'translate-x-0.5' : ''}`}
+                          />
+                        )}
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Nested cascade (recursive) */}
+                  {hoveredChild === child.id && hasGrandchildren && childRect && (
+                    <CascadingSidebar
+                      parentRect={panelRef.current?.getBoundingClientRect() || childRect}
+                      children={childChildren}
+                      depth={depth + 1}
+                      onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) {
+                          clearTimeout(hoverTimeoutRef.current)
+                        }
+                        setHoveredChild(child.id)
+                      }}
+                      onMouseLeave={() => setHoveredChild(null)}
+                    />
+                  )}
+                </div>
+              )
+            })}
           </div>
-        )
-      })}
+          
+          {/* Bottom padding */}
+          <div className="h-2" />
+        </div>
+        
+        {/* Bottom fade gradient */}
+        <div 
+          className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+            canScrollDown ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      </div>
     </div>
   )
 }
+
 
 function SectionDivider() {
   return (
@@ -361,12 +453,19 @@ function SidebarControl() {
 }
 
 // Get the icon component for a module
-function getModuleIcon(iconName: string, size: number = 22): React.ReactNode {
+function getModuleIcon(iconName: string, size: number = 22, customColor?: string | null): React.ReactNode {
   if (iconName === 'GoogleDrive') {
     return <GoogleDriveIcon size={size} />
   }
   const IconComponent = iconComponents[iconName]
   if (IconComponent) {
+    if (customColor) {
+      return (
+        <span style={{ color: customColor }}>
+          <IconComponent size={size} />
+        </span>
+      )
+    }
     return <IconComponent size={size} />
   }
   return <Package size={size} />
@@ -416,7 +515,9 @@ export function ActivityBar() {
   const [isHovering, setIsHovering] = useState(false)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
+  const [sidebarRect, setSidebarRect] = useState<DOMRect | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const sidebarRef = useRef<HTMLDivElement>(null)
   
   // Determine if sidebar should be expanded based on mode
   const isExpanded = activityBarMode === 'expanded' || (activityBarMode === 'hover' && isHovering)
@@ -526,15 +627,36 @@ export function ActivityBar() {
     }
   }, [updateScrollState, visibleModules.length])
   
+  // Update sidebar rect for cascading panels
+  useEffect(() => {
+    const updateSidebarRect = () => {
+      if (sidebarRef.current) {
+        setSidebarRect(sidebarRef.current.getBoundingClientRect())
+      }
+    }
+    
+    updateSidebarRect()
+    
+    // Update on resize
+    const resizeObserver = new ResizeObserver(updateSidebarRect)
+    if (sidebarRef.current) {
+      resizeObserver.observe(sidebarRef.current)
+    }
+    
+    return () => resizeObserver.disconnect()
+  }, [isExpanded])
+  
   // In expanded mode, container matches bar width. In collapsed/hover mode, container is always collapsed width.
   const containerWidth = activityBarMode === 'expanded' ? 'w-64' : 'w-[53px]'
   
   return (
     <ExpandedContext.Provider value={isExpanded}>
+      <SidebarRectContext.Provider value={sidebarRect}>
       {/* Container with relative positioning for the overlay */}
       <div className={`relative flex-shrink-0 transition-all duration-200 ${containerWidth}`}>
         {/* Actual activity bar - expands on hover, overlays content */}
         <div 
+          ref={sidebarRef}
           className={`absolute inset-y-0 left-0 bg-plm-activitybar flex flex-col border-r border-plm-border z-40 transition-all duration-200 ease-out ${
             isExpanded ? 'w-64' : 'w-[53px]'
           } ${activityBarMode === 'hover' && isExpanded ? 'shadow-xl' : ''}`}
@@ -615,6 +737,7 @@ export function ActivityBar() {
           </div>
         </div>
       </div>
+      </SidebarRectContext.Provider>
     </ExpandedContext.Provider>
   )
 }

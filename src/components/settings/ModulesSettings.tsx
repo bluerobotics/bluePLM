@@ -26,8 +26,7 @@ import {
   Plus,
   X,
   ChevronRight,
-  Palette,
-  Pipette
+  Palette
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import {
@@ -660,6 +659,7 @@ export function ModulesSettings() {
                 isDragging={dragIndex === index}
                 isDropTarget={dropTargetIndex === index && dragIndex !== index}
                 onSetParent={setModuleParent}
+                onSetIconColor={setModuleIconColor}
               />
             ))}
           </div>
