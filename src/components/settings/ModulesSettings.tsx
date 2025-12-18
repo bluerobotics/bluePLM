@@ -723,7 +723,17 @@ export function ModulesSettings() {
     // Check if this would result in no actual movement
     // Item at dragIndex occupies gaps dragIndex and dragIndex+1
     if (insertGap === dragIndex || insertGap === dragIndex + 1) {
-      setDropIndicator(null)
+      // Still show the indicator but at a valid adjacent position
+      // This prevents the "dead zone" feeling
+      if (insertGap <= dragIndex && dragIndex > 0) {
+        // Show indicator before the dragged item
+        setDropIndicator({ index: dragIndex - 1, position: 'after' })
+      } else if (insertGap > dragIndex && dragIndex < combinedList.length - 1) {
+        // Show indicator after the dragged item
+        setDropIndicator({ index: dragIndex, position: 'after' })
+      } else {
+        setDropIndicator(null)
+      }
       return
     }
     
@@ -930,23 +940,39 @@ export function ModulesSettings() {
           <p className="text-sm text-plm-fg-muted mb-4">
             Drag to reorder. Toggle to enable/disable. Disabling a module hides its dependents.
           </p>
-          <div className="space-y-2" onDragEnd={handleDragEnd}>
+          <div className="flex flex-col" onDragEnd={handleDragEnd}>
             {combinedList.map((item, index) => (
-              <OrderListItemComponent
+              <div 
                 key={item.type === 'module' ? item.id : item.type === 'group' ? `group-${item.id}` : `divider-${item.id}`}
-                item={item}
-                index={index}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onDragEnd={handleDragEnd}
-                isDragging={dragIndex === index}
-                dropIndicator={dropIndicator}
-                onSetParent={setModuleParent}
-                onSetIconColor={setModuleIconColor}
-                onEditGroup={handleEditGroup}
-                onRemoveGroup={handleRemoveGroup}
-              />
+                className="py-1"
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  handleDragOver(e, index)
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault()
+                  handleDragOver(e, index)
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  handleDrop()
+                }}
+              >
+                <OrderListItemComponent
+                  item={item}
+                  index={index}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onDragEnd={handleDragEnd}
+                  isDragging={dragIndex === index}
+                  dropIndicator={dropIndicator}
+                  onSetParent={setModuleParent}
+                  onSetIconColor={setModuleIconColor}
+                  onEditGroup={handleEditGroup}
+                  onRemoveGroup={handleRemoveGroup}
+                />
+              </div>
             ))}
           </div>
         </div>
