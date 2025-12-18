@@ -10,8 +10,68 @@ import { autoUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import * as si from 'systeminformation'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import * as Sentry from '@sentry/electron/main'
 
 const execAsync = promisify(exec)
+
+// ============================================
+// Sentry Error Tracking (Main Process)
+// ============================================
+
+// Initialize Sentry for main process crash reporting
+const SENTRY_DSN = process.env.VITE_SENTRY_DSN || 'https://7e0fa5359dedac9d87c951c593def9fa@o4510557909417984.ingest.us.sentry.io/4510557913350144'
+
+// Analytics settings file (separate from localStorage for main process access)
+function getAnalyticsSettingsPath(): string {
+  return path.join(app.getPath('userData'), 'analytics-settings.json')
+}
+
+function readAnalyticsEnabled(): boolean {
+  try {
+    const settingsPath = getAnalyticsSettingsPath()
+    if (fs.existsSync(settingsPath)) {
+      const data = JSON.parse(fs.readFileSync(settingsPath, 'utf8'))
+      return data?.enabled === true
+    }
+  } catch {
+    // Ignore errors
+  }
+  return false
+}
+
+function writeAnalyticsEnabled(enabled: boolean): void {
+  try {
+    const settingsPath = getAnalyticsSettingsPath()
+    fs.writeFileSync(settingsPath, JSON.stringify({ enabled }), 'utf8')
+  } catch (err) {
+    console.error('[Analytics] Failed to write settings:', err)
+  }
+}
+
+let sentryInitialized = false
+
+function initSentryMain(): void {
+  if (sentryInitialized) return
+  
+  const analyticsEnabled = readAnalyticsEnabled()
+  
+  if (analyticsEnabled && SENTRY_DSN) {
+    try {
+      Sentry.init({
+        dsn: SENTRY_DSN,
+        environment: process.env.NODE_ENV || 'production',
+        release: app.getVersion(),
+        sendDefaultPii: false,
+      })
+      sentryInitialized = true
+      console.log('[Sentry] Main process initialized')
+    } catch (err) {
+      console.error('[Sentry] Failed to initialize:', err)
+    }
+  } else {
+    console.log('[Sentry] Not initialized (disabled by user or no DSN)')
+  }
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -1502,6 +1562,22 @@ ipcMain.handle('auth:google-drive', async (_, credentials?: { clientId?: string;
 ipcMain.handle('app:get-version', () => app.getVersion())
 ipcMain.handle('app:get-platform', () => process.platform)
 ipcMain.handle('app:get-app-version', () => app.getVersion())
+
+// ============================================
+// IPC Handlers - Analytics Settings
+// ============================================
+ipcMain.handle('analytics:set-enabled', (_, enabled: boolean) => {
+  writeAnalyticsEnabled(enabled)
+  // If enabling and not yet initialized, try to initialize
+  if (enabled && !sentryInitialized) {
+    initSentryMain()
+  }
+  return { success: true }
+})
+
+ipcMain.handle('analytics:get-enabled', () => {
+  return readAnalyticsEnabled()
+})
 
 // Machine identification for backup service
 ipcMain.handle('app:get-machine-id', () => {
@@ -5589,7 +5665,22 @@ ipcMain.handle('updater:install', () => {
     return { success: false, error: 'No update downloaded' }
   }
   log('Installing update and restarting...')
-  autoUpdater.quitAndInstall(false, true)
+  
+  // Use setImmediate to ensure IPC response is sent before we quit
+  // On macOS, quitAndInstall may not always quit the app properly with DMG packages
+  setImmediate(() => {
+    autoUpdater.quitAndInstall(false, true)
+    
+    // On macOS, explicitly quit the app if quitAndInstall doesn't do it
+    // This fixes the hanging spinner issue on Mac
+    if (process.platform === 'darwin') {
+      setTimeout(() => {
+        log('[Update] Force quitting app for macOS update...')
+        app.quit()
+      }, 1000)
+    }
+  })
+  
   return { success: true }
 })
 
@@ -5776,6 +5867,9 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   // Initialize file-based logging now that app paths are available
   initializeLogging()
+  
+  // Initialize Sentry for crash reporting (if user consented)
+  initSentryMain()
   
   log('App ready, creating window...')
   createWindow()
