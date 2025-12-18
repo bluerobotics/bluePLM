@@ -1,3 +1,4 @@
+import * as LucideIcons from 'lucide-react'
 import { 
   FolderTree, 
   ArrowDownUp, 
@@ -88,7 +89,7 @@ interface ActivityItemProps {
 }
 
 function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren }: ActivityItemProps) {
-  const { activeView, setActiveView } = usePDMStore()
+  const { activeView, setActiveView, activityBarMode } = usePDMStore()
   const isExpanded = useContext(ExpandedContext)
   const sidebarRect = useContext(SidebarRectContext)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -96,16 +97,25 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
   const buttonRef = useRef<HTMLButtonElement>(null)
   const isActive = activeView === view
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Show chevron in collapsed mode only (not in hover mode)
+  const showCollapsedChevron = !isExpanded && activityBarMode === 'collapsed' && hasChildren && children && children.length > 0
 
   const handleMouseEnter = () => {
-    if (!isExpanded) setShowTooltip(true)
+    if (!isExpanded && !hasChildren) setShowTooltip(true)
     
     if (hasChildren && children && children.length > 0) {
+      // Clear any pending close timeout
+      if (submenuTimeoutRef.current) {
+        clearTimeout(submenuTimeoutRef.current)
+        submenuTimeoutRef.current = null
+      }
       // Delay showing submenu slightly to prevent accidental triggers
       hoverTimeoutRef.current = setTimeout(() => {
         setShowSubmenu(true)
         onHoverWithChildren?.(view as ModuleId, buttonRef.current?.getBoundingClientRect() || null)
-      }, 150)
+      }, 100)
     }
   }
 
@@ -115,11 +125,11 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
       clearTimeout(hoverTimeoutRef.current)
       hoverTimeoutRef.current = null
     }
-    // Don't close submenu immediately - let the submenu handle its own hover
-    setTimeout(() => {
+    // Don't close submenu immediately - give time to move to submenu
+    submenuTimeoutRef.current = setTimeout(() => {
       setShowSubmenu(false)
       onHoverWithChildren?.(null, null)
-    }, 100)
+    }, 200)
   }
 
   return (
@@ -139,7 +149,7 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
             : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight'
         }`}
       >
-        {/* Tooltip for collapsed state */}
+        {/* Tooltip for collapsed state (only if no children) */}
         {showTooltip && !isExpanded && !hasChildren && (
           <div className="absolute left-full ml-3 z-50 pointer-events-none">
             <div className="px-2.5 py-1.5 bg-plm-fg text-plm-bg text-sm font-medium rounded whitespace-nowrap">
@@ -157,6 +167,13 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
             </div>
           )}
         </div>
+        {/* Small chevron for collapsed mode (not hover mode) */}
+        {showCollapsedChevron && (
+          <ChevronRight 
+            size={10} 
+            className="absolute right-1 text-plm-fg-dim"
+          />
+        )}
         {isExpanded && (
           <>
             <span className="text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
@@ -207,6 +224,7 @@ function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLe
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Filter to only show visible children
   const visibleChildren = children.filter(child => isModuleVisible(child.id, moduleConfig))
@@ -229,22 +247,29 @@ function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLe
     }
   }, [updateScrollState])
   
+  // Clear timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+    }
+  }, [])
+  
   if (visibleChildren.length === 0) return null
   
-  // Calculate position - full height, to the right of parent sidebar
+  // Calculate position - match parent sidebar exactly
   const style: React.CSSProperties = {
     position: 'fixed',
-    top: 0,
-    bottom: 0,
+    top: parentRect.top,
+    bottom: window.innerHeight - parentRect.bottom,
     left: parentRect.right,
     zIndex: 40 + depth,
-    width: isExpanded ? '256px' : '53px', // Match main sidebar width (w-64 = 256px, w-[53px])
+    width: isExpanded ? '256px' : '53px',
   }
   
   const handleChildMouseEnter = (childId: ModuleId, e: React.MouseEvent) => {
     const childModules = getChildModules(childId, moduleConfig).filter(c => isModuleVisible(c.id, moduleConfig))
     if (childModules.length > 0) {
-      // Clear any pending timeout
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current)
       }
@@ -255,29 +280,40 @@ function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLe
   }
   
   const handleChildMouseLeave = () => {
-    // Delay clearing to allow moving to submenu
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredChild(null)
       setChildRect(null)
-    }, 150)
+    }, 200)
+  }
+  
+  const handlePanelMouseEnter = () => {
+    // Clear any pending close timeouts when entering the panel
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+    }
+    onMouseEnter()
+  }
+  
+  const handlePanelMouseLeave = () => {
+    setHoveredChild(null)
+    setChildRect(null)
+    // Small delay before calling parent's onMouseLeave
+    closeTimeoutRef.current = setTimeout(() => {
+      onMouseLeave()
+    }, 100)
   }
   
   return (
     <div
       ref={panelRef}
       style={style}
-      className="bg-plm-activitybar border-r border-plm-border shadow-xl flex flex-col animate-in slide-in-from-left-2 duration-200"
-      onMouseEnter={() => {
-        if (hoverTimeoutRef.current) {
-          clearTimeout(hoverTimeoutRef.current)
-        }
-        onMouseEnter()
-      }}
-      onMouseLeave={() => {
-        setHoveredChild(null)
-        setChildRect(null)
-        onMouseLeave()
-      }}
+      className="bg-plm-activitybar border-r border-plm-border shadow-xl flex flex-col animate-in slide-in-from-left-2 duration-150"
+      onMouseEnter={handlePanelMouseEnter}
+      onMouseLeave={handlePanelMouseLeave}
     >
       {/* Scrollable area */}
       <div className="flex-1 min-h-0 relative">
@@ -459,7 +495,19 @@ function getModuleIcon(iconName: string, size: number = 22, customColor?: string
   if (iconName === 'GoogleDrive') {
     return <GoogleDriveIcon size={size} />
   }
-  const IconComponent = iconComponents[iconName]
+  
+  // First try our static mapping
+  let IconComponent = iconComponents[iconName]
+  
+  // If not found, try dynamic lookup from Lucide
+  if (!IconComponent) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const DynamicIcon = (LucideIcons as any)[iconName]
+    if (DynamicIcon && typeof DynamicIcon === 'function') {
+      IconComponent = DynamicIcon
+    }
+  }
+  
   if (IconComponent) {
     if (customColor) {
       return (
