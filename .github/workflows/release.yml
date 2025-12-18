@@ -46,9 +46,7 @@ jobs:
           Write-Host "SolidWorks service copied to resources/bin/win32"
 
       - name: Build Electron app
-        run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build -- --publish never
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -57,7 +55,7 @@ jobs:
           path: |
             release/*.exe
             release/latest.yml
-          if-no-files-found: warn
+          if-no-files-found: error
 
   build-macos:
     runs-on: macos-latest
@@ -78,9 +76,7 @@ jobs:
         run: npm run download-restic -- --current
 
       - name: Build Electron app
-        run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build -- --publish never
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -89,7 +85,7 @@ jobs:
           path: |
             release/*.dmg
             release/latest-mac.yml
-          if-no-files-found: warn
+          if-no-files-found: error
 
   build-api:
     runs-on: ubuntu-latest
@@ -130,7 +126,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  update-release:
+  release:
     needs: [build-windows, build-macos, build-api]
     runs-on: ubuntu-latest
     permissions:
@@ -138,6 +134,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: dist/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+          path: dist/macos
 
       - name: Get version from tag
         id: get_version
@@ -152,11 +160,15 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Update release with changelog
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ steps.get_version.outputs.VERSION }}
           body: ${{ steps.changelog.outputs.CHANGELOG }}
           draft: false
+          prerelease: false
+          files: |
+            dist/windows/*
+            dist/macos/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
