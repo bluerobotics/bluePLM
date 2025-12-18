@@ -40,12 +40,14 @@ export function ChristmasEffects() {
   const blusteryness = usePDMStore(s => s.christmasBlusteryness)
   const useLocalWeather = usePDMStore(s => s.christmasUseLocalWeather)
   const sleighEnabled = usePDMStore(s => s.christmasSleighEnabled)
+  const sleighDirection = usePDMStore(s => s.christmasSleighDirection) ?? 'push' // Default to push for users with old persisted state
   const setSnowOpacity = usePDMStore(s => s.setChristmasSnowOpacity)
   const setSnowDensity = usePDMStore(s => s.setChristmasSnowDensity)
   const setSnowSize = usePDMStore(s => s.setChristmasSnowSize)
   const setBlusteryness = usePDMStore(s => s.setChristmasBlusteryness)
   const setUseLocalWeather = usePDMStore(s => s.setChristmasUseLocalWeather)
   const setSleighEnabled = usePDMStore(s => s.setChristmasSleighEnabled)
+  const setSleighDirection = usePDMStore(s => s.setChristmasSleighDirection)
   
   // Use refs for snowflakes to avoid React re-renders - Canvas handles all rendering
   const snowflakesRef = useRef<Snowflake[]>([])
@@ -429,10 +431,13 @@ export function ChristmasEffects() {
             viewBox="0 0 200 60"
             style={{ 
               position: 'absolute', 
-              right: '100%',
               top: '50%',
               transform: 'translateY(-50%)',
-              marginRight: '-20px',
+              // Push mode: reindeer behind sleigh (funny), Pull mode: reindeer in front (normal)
+              ...(sleighDirection === 'pull' 
+                ? { left: '100%', marginLeft: '-20px' }  // In front, facing direction of travel
+                : { right: '100%', marginRight: '-20px' }  // Behind, facing toward sleigh (pushing)
+              ),
             }}
           >
             {/* Reindeer silhouettes */}
@@ -457,7 +462,12 @@ export function ChristmasEffects() {
           </svg>
           
           {/* Sleigh */}
-          <svg width="120" height="80" viewBox="0 0 120 80">
+          <svg 
+            width="120" 
+            height="80" 
+            viewBox="0 0 120 80"
+            style={sleighDirection === 'pull' ? { transform: 'scaleX(-1)' } : undefined}
+          >
             {/* Sleigh body */}
             <path 
               d="M10 30 Q0 30 5 50 L15 65 Q20 70 30 70 L100 70 Q110 70 110 60 L110 35 Q110 25 100 25 L30 25 Q20 25 10 30" 
@@ -625,7 +635,7 @@ export function ChristmasEffects() {
             </div>
             
             {/* Sleigh toggle */}
-            <div className="flex items-center justify-between px-1">
+            <div className="flex items-center justify-between px-1 mb-2">
               <span className="text-plm-fg">🛷 Sleigh</span>
               <button
                 onClick={() => setSleighEnabled(!sleighEnabled)}
@@ -638,6 +648,19 @@ export function ChristmasEffects() {
                     sleighEnabled ? 'translate-x-5' : 'translate-x-0.5'
                   }`}
                 />
+              </button>
+            </div>
+            
+            {/* Sleigh direction toggle */}
+            <div className={`flex items-center justify-between px-1 ${!sleighEnabled ? 'opacity-50' : ''}`}>
+              <span className="text-plm-fg">🦌 Polarity</span>
+              <button
+                onClick={() => setSleighDirection(sleighDirection === 'push' ? 'pull' : 'push')}
+                disabled={!sleighEnabled}
+                className={`px-2 py-0.5 rounded text-[10px] bg-plm-border transition-colors ${sleighEnabled ? 'hover:bg-plm-border/80 cursor-pointer' : 'cursor-not-allowed'}`}
+                title={sleighDirection === 'push' ? 'Reindeer pushing (funny!)' : 'Reindeer pulling (normal)'}
+              >
+                {sleighDirection === 'push' ? '← Push' : 'Pull →'}
               </button>
             </div>
           </div>
