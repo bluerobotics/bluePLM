@@ -2,6 +2,19 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.9.5] - 2025-12-18
+
+### Added
+- **SolidWorks integration toggle**: Enable/disable SolidWorks integration from settings
+- **Christmas sleigh direction toggle**: Push/pull polarity for the festive sleigh animation
+
+### Fixed
+- **macOS UI freeze**: Resolved freeze after dialogs and update modal
+- **Odoo saved configs**: Hard delete instead of soft delete to prevent orphaned records
+- **Log viewer performance**: Improved rendering for large log files
+
+---
+
 ## [2.9.4] - 2025-12-17
 
 ### Fixed
