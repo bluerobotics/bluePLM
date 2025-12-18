@@ -322,7 +322,7 @@ function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLe
                       logNavigation(child.id, { title: childTitle })
                       setActiveView(child.id as SidebarView)
                     }}
-                    className={`relative w-full h-11 flex items-center gap-3 px-4 transition-colors group ${
+                    className={`relative w-full h-11 flex items-center gap-3 px-[15px] transition-colors group ${
                       isActive
                         ? 'text-plm-fg bg-plm-highlight border-l-2 border-plm-accent'
                         : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight border-l-2 border-transparent'
@@ -336,7 +336,7 @@ function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLe
                     {/* Title - only show when expanded */}
                     {isExpanded && (
                       <>
-                        <span className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
+                        <span className="text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
                           {childTitle}
                         </span>
                         {hasGrandchildren && (
