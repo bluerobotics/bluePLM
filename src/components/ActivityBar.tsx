@@ -64,6 +64,7 @@ const iconComponents: Record<string, React.ComponentType<{ size?: number }>> = {
   Building2,
   Globe,
   FileWarning,
+  Settings,
 }
 
 // Context to share expanded state
@@ -712,14 +713,6 @@ export function ActivityBar() {
                 })}
               </div>
 
-              {/* Settings - always shown, after a divider if there are visible modules */}
-              {visibleModules.length > 0 && <SectionDivider />}
-              <ActivityItem
-                icon={<Settings size={22} />}
-                view="settings"
-                title={t('sidebar.settings')}
-              />
-              
               {/* Bottom padding for scroll */}
               <div className="h-2" />
             </div>

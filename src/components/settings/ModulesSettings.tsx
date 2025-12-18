@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import * as LucideIcons from 'lucide-react'
 import {
   GripVertical,
   Lock,
@@ -179,7 +180,7 @@ function IconColorPicker({
   )
 }
 
-// Combined order list item (module or divider)
+// Combined order list item (module, divider, or group)
 function OrderListItemComponent({
   item,
   index,
@@ -189,7 +190,9 @@ function OrderListItemComponent({
   isDragging,
   isDropTarget,
   onSetParent,
-  onSetIconColor
+  onSetIconColor,
+  onEditGroup,
+  onRemoveGroup
 }: {
   item: OrderListItem
   index: number
@@ -200,6 +203,8 @@ function OrderListItemComponent({
   isDropTarget: boolean
   onSetParent?: (moduleId: ModuleId, parentId: ModuleId | null) => void
   onSetIconColor?: (moduleId: ModuleId, color: string | null) => void
+  onEditGroup?: (group: { id: string; name: string; icon: string; iconColor: string | null }) => void
+  onRemoveGroup?: (groupId: string) => void
 }) {
   const { moduleConfig, setModuleEnabled, removeDivider } = usePDMStore()
   const [showParentSelect, setShowParentSelect] = useState(false)
@@ -254,6 +259,69 @@ function OrderListItemComponent({
           }}
           className="p-1 text-plm-fg-muted hover:text-plm-error rounded transition-colors"
           title="Remove divider"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    )
+  }
+  
+  // Group item
+  if (item.type === 'group') {
+    const group = moduleConfig.customGroups?.find(g => g.id === item.id)
+    if (!group) return null
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const IconComponent = (LucideIcons as any)[group.icon]
+    const childCount = getChildModules(group.id, moduleConfig).length
+    
+    return (
+      <div
+        draggable
+        onDragStart={() => onDragStart(index)}
+        onDragOver={(e) => onDragOver(e, index)}
+        onDrop={() => onDrop(index)}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all cursor-move ${
+          isDragging 
+            ? 'opacity-50 border-plm-accent bg-plm-accent/10' 
+            : isDropTarget
+            ? 'border-plm-accent border-dashed bg-plm-accent/5'
+            : 'border-plm-accent/30 bg-plm-accent/5'
+        }`}
+      >
+        <GripVertical size={14} className="text-plm-fg-muted flex-shrink-0" />
+        <div 
+          className="p-1.5 rounded-md"
+          style={{ color: group.iconColor || 'var(--plm-accent)' }}
+        >
+          {IconComponent ? <IconComponent size={16} /> : <Package size={16} />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-plm-fg font-medium">{group.name}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-accent/20 text-plm-accent uppercase">Group</span>
+            {childCount > 0 && (
+              <span className="text-[10px] text-plm-fg-dim">{childCount} items</span>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEditGroup?.(group)
+          }}
+          className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
+          title="Edit group"
+        >
+          <Palette size={14} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemoveGroup?.(group.id)
+          }}
+          className="p-1 text-plm-fg-muted hover:text-plm-error rounded transition-colors"
+          title="Remove group"
         >
           <X size={14} />
         </button>
@@ -501,6 +569,9 @@ export function ModulesSettings() {
     addDivider,
     setModuleParent,
     setModuleIconColor,
+    addCustomGroup,
+    updateCustomGroup,
+    removeCustomGroup,
     resetModulesToDefaults,
     loadOrgModuleDefaults,
     saveOrgModuleDefaults,
@@ -512,13 +583,15 @@ export function ModulesSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null)
+  const [showGroupEditor, setShowGroupEditor] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<{ id: string; name: string; icon: string; iconColor: string | null } | null>(null)
   
   const isAdmin = getEffectiveRole() === 'admin'
   
-  // Build combined list for display
+  // Build combined list for display (including custom groups)
   const combinedList = useMemo(() => {
-    return buildCombinedOrderList(moduleConfig.moduleOrder, moduleConfig.dividers)
-  }, [moduleConfig.moduleOrder, moduleConfig.dividers])
+    return buildCombinedOrderList(moduleConfig.moduleOrder, moduleConfig.dividers, moduleConfig.customGroups || [])
+  }, [moduleConfig.moduleOrder, moduleConfig.dividers, moduleConfig.customGroups])
   
   const handleDragStart = (index: number) => {
     setDragIndex(index)
@@ -548,6 +621,25 @@ export function ModulesSettings() {
   const handleAddDivider = () => {
     // Add divider at the end
     addDivider(moduleConfig.moduleOrder.length - 1)
+  }
+  
+  const handleEditGroup = (group: { id: string; name: string; icon: string; iconColor: string | null }) => {
+    setEditingGroup(group)
+    setShowGroupEditor(true)
+  }
+  
+  const handleSaveGroup = (name: string, icon: string, iconColor: string | null) => {
+    if (editingGroup) {
+      updateCustomGroup(editingGroup.id, { name, icon, iconColor })
+    } else {
+      addCustomGroup(name, icon, iconColor)
+    }
+    setShowGroupEditor(false)
+    setEditingGroup(null)
+  }
+  
+  const handleRemoveGroup = (groupId: string) => {
+    removeCustomGroup(groupId)
   }
   
   const handleSaveOrgDefaults = async () => {
@@ -633,14 +725,27 @@ export function ModulesSettings() {
           <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
             Sidebar Order
           </h2>
-          <button
-            onClick={handleAddDivider}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
-            title="Add a section divider"
-          >
-            <Plus size={12} />
-            Add Divider
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setEditingGroup(null)
+                setShowGroupEditor(true)
+              }}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-plm-accent/50 text-plm-accent hover:bg-plm-accent/10 transition-colors"
+              title="Add a custom group"
+            >
+              <Plus size={12} />
+              Add Group
+            </button>
+            <button
+              onClick={handleAddDivider}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
+              title="Add a section divider"
+            >
+              <Plus size={12} />
+              Add Divider
+            </button>
+          </div>
         </div>
         
         <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
@@ -650,7 +755,7 @@ export function ModulesSettings() {
           <div className="space-y-2" onDragEnd={handleDragEnd}>
             {combinedList.map((item, index) => (
               <OrderListItemComponent
-                key={item.type === 'module' ? item.id : `divider-${item.id}`}
+                key={item.type === 'module' ? item.id : item.type === 'group' ? `group-${item.id}` : `divider-${item.id}`}
                 item={item}
                 index={index}
                 onDragStart={handleDragStart}
@@ -660,6 +765,8 @@ export function ModulesSettings() {
                 isDropTarget={dropTargetIndex === index && dragIndex !== index}
                 onSetParent={setModuleParent}
                 onSetIconColor={setModuleIconColor}
+                onEditGroup={handleEditGroup}
+                onRemoveGroup={handleRemoveGroup}
               />
             ))}
           </div>
@@ -695,6 +802,168 @@ export function ModulesSettings() {
           </p>
         </div>
       </section>
+      
+      {/* Group Editor Modal */}
+      {showGroupEditor && (
+        <GroupEditorModal
+          group={editingGroup}
+          onSave={handleSaveGroup}
+          onCancel={() => {
+            setShowGroupEditor(false)
+            setEditingGroup(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Group Editor Modal Component
+function GroupEditorModal({
+  group,
+  onSave,
+  onCancel
+}: {
+  group: { id: string; name: string; icon: string; iconColor: string | null } | null
+  onSave: (name: string, icon: string, iconColor: string | null) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(group?.name || '')
+  const [icon, setIcon] = useState(group?.icon || 'Folder')
+  const [iconColor, setIconColor] = useState<string | null>(group?.iconColor || null)
+  const [iconSearch, setIconSearch] = useState('')
+  
+  const POPULAR_ICONS = [
+    'Folder', 'FolderTree', 'Package', 'Box', 'Layers', 'Grid2X2', 'LayoutGrid',
+    'Workflow', 'GitBranch', 'Network', 'Share2', 'Puzzle', 'Blocks', 'Cog',
+    'Settings', 'Wrench', 'Star', 'Heart', 'Bookmark', 'Tag', 'Flag', 'Award',
+    'Users', 'User', 'Building2', 'Globe', 'Database', 'Server', 'Cloud',
+    'File', 'FileText', 'Files', 'ClipboardList', 'Book', 'Notebook',
+    'Mail', 'MessageSquare', 'Bell', 'Calendar', 'Clock', 'Timer',
+    'Shield', 'Lock', 'Key', 'Eye', 'Search', 'Zap', 'Sparkles'
+  ]
+  
+  const PRESET_COLORS = [
+    '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', 
+    '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#64748b'
+  ]
+  
+  const filteredIcons = iconSearch
+    ? POPULAR_ICONS.filter(i => i.toLowerCase().includes(iconSearch.toLowerCase()))
+    : POPULAR_ICONS
+  
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl w-[400px] max-h-[80vh] overflow-hidden">
+        <div className="p-4 border-b border-plm-border">
+          <h3 className="text-lg font-semibold text-plm-fg">
+            {group ? 'Edit Group' : 'Add Group'}
+          </h3>
+        </div>
+        
+        <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+          {/* Name input */}
+          <div>
+            <label className="block text-sm text-plm-fg-muted mb-1">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Group name"
+              className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              autoFocus
+            />
+          </div>
+          
+          {/* Icon picker */}
+          <div>
+            <label className="block text-sm text-plm-fg-muted mb-1">Icon</label>
+            <input
+              type="text"
+              value={iconSearch}
+              onChange={(e) => setIconSearch(e.target.value)}
+              placeholder="Search icons..."
+              className="w-full px-3 py-2 mb-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+            />
+            <div className="grid grid-cols-8 gap-1 max-h-32 overflow-y-auto p-2 bg-plm-bg-secondary rounded border border-plm-border">
+              {filteredIcons.map(iconName => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const IconComponent = (LucideIcons as any)[iconName]
+                return (
+                  <button
+                    key={iconName}
+                    onClick={() => setIcon(iconName)}
+                    className={`p-2 rounded hover:bg-plm-highlight transition-colors ${
+                      icon === iconName ? 'bg-plm-accent/20 text-plm-accent' : 'text-plm-fg-muted'
+                    }`}
+                    title={iconName}
+                  >
+                    {IconComponent && <IconComponent size={16} />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          
+          {/* Color picker */}
+          <div>
+            <label className="block text-sm text-plm-fg-muted mb-1">Color (optional)</label>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIconColor(null)}
+                className={`w-8 h-8 rounded border-2 ${
+                  iconColor === null ? 'border-plm-accent' : 'border-plm-border'
+                } bg-plm-bg-secondary flex items-center justify-center text-xs text-plm-fg-muted`}
+                title="Default"
+              >
+                ∅
+              </button>
+              {PRESET_COLORS.map(color => (
+                <button
+                  key={color}
+                  onClick={() => setIconColor(color)}
+                  className={`w-8 h-8 rounded border-2 ${
+                    iconColor === color ? 'border-plm-accent' : 'border-transparent'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                />
+              ))}
+            </div>
+          </div>
+          
+          {/* Preview */}
+          <div>
+            <label className="block text-sm text-plm-fg-muted mb-1">Preview</label>
+            <div className="flex items-center gap-3 p-3 bg-plm-bg-secondary rounded border border-plm-border">
+              <div style={{ color: iconColor || 'var(--plm-accent)' }}>
+                {(() => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const IconComponent = (LucideIcons as any)[icon]
+                  return IconComponent ? <IconComponent size={22} /> : <Package size={22} />
+                })()}
+              </div>
+              <span className="text-plm-fg">{name || 'Group Name'}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="p-4 border-t border-plm-border flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm text-plm-fg-muted hover:text-plm-fg border border-plm-border rounded hover:bg-plm-highlight transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(name, icon, iconColor)}
+            disabled={!name.trim()}
+            className="px-4 py-2 text-sm bg-plm-accent text-white rounded hover:bg-plm-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {group ? 'Save' : 'Create'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
