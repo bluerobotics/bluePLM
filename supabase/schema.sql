@@ -3156,8 +3156,172 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION get_org_odoo_configs(UUID) TO authenticated;
 
 -- ===========================================
--- FILE METADATA COLUMNS (Custom metadata fields per org)
+-- WOOCOMMERCE SAVED CONFIGURATIONS
 -- ===========================================
+-- Stores multiple WooCommerce store configurations per org
+-- Users can save, load, and switch between store connections
+
+CREATE TABLE woocommerce_saved_configs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Configuration identity
+  name TEXT NOT NULL,           -- User-friendly label (e.g., "Main Store", "US Store")
+  description TEXT,             -- Optional description
+  
+  -- Connection settings
+  store_url TEXT NOT NULL,      -- WooCommerce store URL
+  store_name TEXT,              -- Store name (fetched from WC API)
+  consumer_key_encrypted TEXT,  -- WooCommerce REST API Consumer Key
+  consumer_secret_encrypted TEXT, -- WooCommerce REST API Consumer Secret
+  
+  -- Sync settings
+  sync_settings JSONB DEFAULT '{
+    "sync_products": true,
+    "sync_on_release": false,
+    "sync_categories": true,
+    "default_status": "draft"
+  }'::jsonb,
+  
+  -- Status tracking
+  is_active BOOLEAN DEFAULT true,
+  last_tested_at TIMESTAMPTZ,
+  last_test_success BOOLEAN,
+  last_test_error TEXT,
+  wc_version TEXT,
+  
+  -- Sync tracking
+  last_sync_at TIMESTAMPTZ,
+  last_sync_status TEXT,
+  last_sync_count INTEGER,
+  
+  -- Color for visual distinction
+  color TEXT,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  -- Unique name per org
+  UNIQUE(org_id, name)
+);
+
+CREATE INDEX idx_woocommerce_saved_configs_org_id ON woocommerce_saved_configs(org_id);
+CREATE INDEX idx_woocommerce_saved_configs_active ON woocommerce_saved_configs(is_active) WHERE is_active = true;
+
+ALTER TABLE woocommerce_saved_configs ENABLE ROW LEVEL SECURITY;
+
+-- All org members can view saved WooCommerce configs
+CREATE POLICY "Org members can view woocommerce configs"
+  ON woocommerce_saved_configs FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+-- Only admins can modify WooCommerce configs
+CREATE POLICY "Admins can insert woocommerce configs"
+  ON woocommerce_saved_configs FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Admins can update woocommerce configs"
+  ON woocommerce_saved_configs FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Admins can delete woocommerce configs"
+  ON woocommerce_saved_configs FOR DELETE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- Helper function to get WooCommerce configs (no credentials exposed)
+CREATE OR REPLACE FUNCTION get_org_woocommerce_configs(p_org_id UUID)
+RETURNS TABLE (
+  id UUID,
+  name TEXT,
+  description TEXT,
+  store_url TEXT,
+  store_name TEXT,
+  color TEXT,
+  is_active BOOLEAN,
+  last_tested_at TIMESTAMPTZ,
+  last_test_success BOOLEAN,
+  last_sync_at TIMESTAMPTZ,
+  last_sync_status TEXT,
+  last_sync_count INTEGER,
+  created_at TIMESTAMPTZ
+) AS $$
+BEGIN
+  -- Only return data if user belongs to this org
+  IF p_org_id NOT IN (SELECT org_id FROM users WHERE users.id = auth.uid()) THEN
+    RETURN;
+  END IF;
+  
+  RETURN QUERY
+  SELECT 
+    wsc.id,
+    wsc.name,
+    wsc.description,
+    wsc.store_url,
+    wsc.store_name,
+    wsc.color,
+    wsc.is_active,
+    wsc.last_tested_at,
+    wsc.last_test_success,
+    wsc.last_sync_at,
+    wsc.last_sync_status,
+    wsc.last_sync_count,
+    wsc.created_at
+  FROM woocommerce_saved_configs wsc
+  WHERE wsc.org_id = p_org_id
+    AND wsc.is_active = true
+  ORDER BY wsc.name;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_org_woocommerce_configs(UUID) TO authenticated;
+
+-- WooCommerce Product Mappings (tracks synced products)
+CREATE TABLE woocommerce_product_mappings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  config_id UUID NOT NULL REFERENCES woocommerce_saved_configs(id) ON DELETE CASCADE,
+  
+  -- BluePLM file reference
+  file_id UUID REFERENCES files(id) ON DELETE SET NULL,
+  file_path TEXT,
+  file_revision TEXT,
+  
+  -- WooCommerce product reference
+  wc_product_id BIGINT NOT NULL,
+  wc_product_sku TEXT,
+  wc_product_name TEXT,
+  wc_product_url TEXT,
+  
+  -- Sync metadata
+  synced_at TIMESTAMPTZ DEFAULT NOW(),
+  synced_by UUID REFERENCES users(id),
+  sync_direction TEXT DEFAULT 'push',
+  synced_fields JSONB,
+  
+  UNIQUE(config_id, file_id),
+  UNIQUE(config_id, wc_product_id)
+);
+
+CREATE INDEX idx_wc_product_mappings_org_id ON woocommerce_product_mappings(org_id);
+CREATE INDEX idx_wc_product_mappings_config_id ON woocommerce_product_mappings(config_id);
+CREATE INDEX idx_wc_product_mappings_file_id ON woocommerce_product_mappings(file_id);
+
+ALTER TABLE woocommerce_product_mappings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Org members can view wc product mappings"
+  ON woocommerce_product_mappings FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "Admins can manage wc product mappings"
+  ON woocommerce_product_mappings FOR ALL
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- ===========================================
+-- FILE METADATA COLUMNS (Custom metadata fields per org)
+-- =========================================== 
 -- Org admins can define custom metadata columns that appear in the file browser
 -- Values are stored in files.custom_properties JSONB field
 

@@ -709,19 +709,31 @@ export function ModulesSettings() {
     // Calculate if we're in the top or bottom half
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const y = e.clientY - rect.top
-    const position = y < rect.height / 2 ? 'before' : 'after'
+    const isTopHalf = y < rect.height / 2
     
-    // Don't show indicator right next to dragged item
-    if (position === 'after' && index === dragIndex - 1) {
+    // Determine the insertion point (gap between items)
+    // Gap 0 = before first item, Gap N = after item N-1
+    let insertGap: number
+    if (isTopHalf) {
+      insertGap = index  // Insert before this item
+    } else {
+      insertGap = index + 1  // Insert after this item
+    }
+    
+    // Check if this would result in no actual movement
+    // Item at dragIndex occupies gaps dragIndex and dragIndex+1
+    if (insertGap === dragIndex || insertGap === dragIndex + 1) {
       setDropIndicator(null)
       return
     }
-    if (position === 'before' && index === dragIndex + 1) {
-      setDropIndicator(null)
-      return
-    }
     
-    setDropIndicator({ index, position })
+    // Convert gap back to index/position for display
+    // Use "after" for all gaps except gap 0 (before first item)
+    if (insertGap === 0) {
+      setDropIndicator({ index: 0, position: 'before' })
+    } else {
+      setDropIndicator({ index: insertGap - 1, position: 'after' })
+    }
   }
   
   const handleDrop = () => {

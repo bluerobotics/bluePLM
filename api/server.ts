@@ -675,6 +675,97 @@ async function testOdooConnection(
   }
 }
 
+// ============================================
+// WooCommerce Helper Functions
+// ============================================
+
+// Normalize WooCommerce store URL - ensure https:// prefix, remove trailing slashes
+function normalizeWooCommerceUrl(url: string): string {
+  let normalized = url.trim()
+  // Remove trailing slashes
+  normalized = normalized.replace(/\/+$/, '')
+  // Add https:// if no protocol specified
+  if (!normalized.match(/^https?:\/\//i)) {
+    normalized = 'https://' + normalized
+  }
+  return normalized
+}
+
+// Test WooCommerce connection using REST API
+async function testWooCommerceConnection(
+  storeUrl: string,
+  consumerKey: string,
+  consumerSecret: string
+): Promise<{ success: boolean; store_name?: string; version?: string; error?: string }> {
+  const normalizedUrl = normalizeWooCommerceUrl(storeUrl)
+  
+  try {
+    // WooCommerce REST API uses Basic Auth with consumer key:secret
+    const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
+    
+    // Test connection by fetching system status
+    const response = await fetch(`${normalizedUrl}/wp-json/wc/v3/system_status`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json'
+      },
+      signal: AbortSignal.timeout(15000)
+    })
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        return { success: false, error: 'Invalid consumer key or secret' }
+      }
+      if (response.status === 404) {
+        // Try alternative endpoint for older WC versions
+        const altResponse = await fetch(`${normalizedUrl}/wp-json/wc/v3/`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json'
+          },
+          signal: AbortSignal.timeout(10000)
+        })
+        
+        if (altResponse.ok) {
+          const data = await altResponse.json()
+          return {
+            success: true,
+            store_name: normalizedUrl.replace(/^https?:\/\//, '').split('/')[0],
+            version: data.version || 'Unknown'
+          }
+        }
+        return { success: false, error: 'WooCommerce REST API not found. Make sure permalinks are enabled.' }
+      }
+      const errorText = await response.text()
+      return { success: false, error: `HTTP ${response.status}: ${errorText.substring(0, 200)}` }
+    }
+    
+    const data = await response.json()
+    
+    // Extract store info from system status
+    const environment = data.environment || {}
+    const settings = data.settings || {}
+    
+    return {
+      success: true,
+      store_name: settings.store_name || environment.site_url || normalizedUrl,
+      version: environment.wc_version || data.version || 'Unknown'
+    }
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.name === 'AbortError' || err.message.includes('timeout')) {
+        return { success: false, error: 'Connection timeout - check if the store URL is correct' }
+      }
+      if (err.message.includes('fetch')) {
+        return { success: false, error: 'Could not connect to store - check the URL' }
+      }
+    }
+    return { success: false, error: String(err) }
+  }
+}
+
 interface OdooFetchResult {
   success: boolean
   suppliers: OdooSupplier[]
@@ -4310,6 +4401,780 @@ export async function buildServer(): Promise<FastifyInstance> {
         last_tested_at: new Date().toISOString(),
         last_test_success: testResult.success,
         last_test_error: testResult.error
+      })
+      .eq('id', id)
+    
+    return {
+      success: true,
+      connected: testResult.success,
+      config_name: config.name,
+      message: testResult.success 
+        ? `Switched to "${config.name}" and connected!`
+        : `Switched to "${config.name}" but connection failed: ${testResult.error}`
+    }
+  })
+
+  // ============================================
+  // WooCommerce Integration Routes
+  // ============================================
+
+  // Get WooCommerce integration settings
+  fastify.get('/integrations/woocommerce', {
+    schema: {
+      description: 'Get WooCommerce integration settings',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            configured: { type: 'boolean' },
+            settings: {
+              type: 'object',
+              properties: {
+                store_url: { type: 'string' },
+                store_name: { type: 'string' },
+                config_id: { type: 'string' },
+                config_name: { type: 'string' }
+              }
+            },
+            is_connected: { type: 'boolean' },
+            wc_version: { type: 'string', nullable: true },
+            last_sync_at: { type: 'string', nullable: true },
+            last_sync_status: { type: 'string', nullable: true },
+            products_synced: { type: 'number', nullable: true },
+            auto_sync: { type: 'boolean' }
+          }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    
+    const { data, error } = await request.supabase!
+      .from('organization_integrations')
+      .select('*')
+      .eq('org_id', request.user.org_id)
+      .eq('integration_type', 'woocommerce')
+      .single()
+    
+    if (error || !data) {
+      return { configured: false }
+    }
+    
+    return {
+      configured: true,
+      settings: {
+        store_url: data.settings?.store_url,
+        store_name: data.settings?.store_name,
+        config_id: data.settings?.config_id,
+        config_name: data.settings?.config_name
+      },
+      is_connected: data.is_connected,
+      wc_version: data.settings?.wc_version,
+      last_sync_at: data.last_sync_at,
+      last_sync_status: data.last_sync_status,
+      products_synced: data.last_sync_count,
+      auto_sync: data.auto_sync
+    }
+  })
+
+  // Configure WooCommerce integration
+  fastify.post('/integrations/woocommerce', {
+    schema: {
+      description: 'Configure WooCommerce integration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['store_url', 'consumer_key', 'consumer_secret'],
+        properties: {
+          store_url: { type: 'string', description: 'WooCommerce store URL' },
+          consumer_key: { type: 'string', description: 'WooCommerce REST API consumer key' },
+          consumer_secret: { type: 'string', description: 'WooCommerce REST API consumer secret' },
+          sync_settings: { type: 'object', additionalProperties: true },
+          auto_sync: { type: 'boolean', default: false },
+          skip_test: { type: 'boolean', default: false, description: 'Save without testing connection' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can configure integrations' })
+    }
+    
+    const { store_url, consumer_key, consumer_secret, sync_settings, auto_sync, skip_test } = request.body as {
+      store_url: string
+      consumer_key: string
+      consumer_secret: string
+      sync_settings?: Record<string, unknown>
+      auto_sync?: boolean
+      skip_test?: boolean
+    }
+    
+    const normalizedUrl = normalizeWooCommerceUrl(store_url)
+    
+    let isConnected = false
+    let connectionError: string | null = null
+    let storeName: string | null = null
+    let wcVersion: string | null = null
+    
+    // Test connection (unless skip_test is true)
+    if (!skip_test) {
+      try {
+        const testResult = await testWooCommerceConnection(normalizedUrl, consumer_key, consumer_secret)
+        if (testResult.success) {
+          isConnected = true
+          storeName = testResult.store_name || null
+          wcVersion = testResult.version || null
+        } else {
+          connectionError = testResult.error || 'Connection failed'
+        }
+      } catch (err) {
+        connectionError = String(err)
+      }
+    }
+    
+    // Check if this config already exists in saved configs
+    const { data: existingConfigs } = await request.supabase!
+      .from('woocommerce_saved_configs')
+      .select('id, store_url, consumer_key_encrypted')
+      .eq('org_id', request.user.org_id)
+      .eq('is_active', true)
+    
+    const matchingConfig = existingConfigs?.find(config => 
+      config.store_url === normalizedUrl &&
+      config.consumer_key_encrypted === consumer_key
+    )
+    
+    let newConfigId: string | null = null
+    let newConfigName: string | null = null
+    
+    // If no matching config exists, create a new saved config automatically
+    if (!matchingConfig) {
+      const { data: existingNamedConfigs } = await request.supabase!
+        .from('woocommerce_saved_configs')
+        .select('name')
+        .eq('org_id', request.user.org_id)
+        .eq('is_active', true)
+      
+      const usedNames = existingNamedConfigs?.map(c => c.name) || []
+      let baseName = storeName || normalizedUrl.replace(/^https?:\/\//, '').split('/')[0]
+      let configName = baseName
+      let counter = 1
+      
+      while (usedNames.includes(configName)) {
+        counter++
+        configName = `${baseName} (${counter})`
+      }
+      
+      const colors = ['#96588a', '#3b82f6', '#22c55e', '#f97316', '#ec4899', '#06b6d4', '#eab308', '#ef4444']
+      const colorIndex = (existingConfigs?.length || 0) % colors.length
+      
+      const { data: newConfig, error: configError } = await request.supabase!
+        .from('woocommerce_saved_configs')
+        .insert({
+          org_id: request.user.org_id,
+          name: configName,
+          store_url: normalizedUrl,
+          store_name: storeName,
+          consumer_key_encrypted: consumer_key,
+          consumer_secret_encrypted: consumer_secret,
+          color: colors[colorIndex],
+          sync_settings: sync_settings || {},
+          is_active: true,
+          wc_version: wcVersion,
+          last_tested_at: !skip_test ? new Date().toISOString() : null,
+          last_test_success: !skip_test ? isConnected : null,
+          last_test_error: !skip_test ? connectionError : null,
+          created_by: request.user.id,
+          updated_by: request.user.id
+        })
+        .select('id, name')
+        .single()
+      
+      if (!configError && newConfig) {
+        newConfigId = newConfig.id
+        newConfigName = newConfig.name
+      }
+    } else {
+      // Update the test status on the matching config
+      if (!skip_test) {
+        await request.supabase!
+          .from('woocommerce_saved_configs')
+          .update({
+            last_tested_at: new Date().toISOString(),
+            last_test_success: isConnected,
+            last_test_error: connectionError,
+            store_name: storeName,
+            wc_version: wcVersion,
+            updated_by: request.user.id
+          })
+          .eq('id', matchingConfig.id)
+      }
+      newConfigId = matchingConfig.id
+    }
+    
+    // Save to organization_integrations
+    const { error } = await request.supabase!
+      .from('organization_integrations')
+      .upsert({
+        org_id: request.user.org_id,
+        integration_type: 'woocommerce',
+        settings: { 
+          store_url: normalizedUrl, 
+          store_name: storeName,
+          wc_version: wcVersion,
+          config_id: newConfigId, 
+          config_name: newConfigName || matchingConfig?.store_url,
+          sync_settings: sync_settings
+        },
+        credentials_encrypted: JSON.stringify({ consumer_key, consumer_secret }),
+        is_active: true,
+        is_connected: isConnected,
+        last_connected_at: isConnected ? new Date().toISOString() : null,
+        last_error: connectionError,
+        auto_sync: auto_sync || false,
+        updated_by: request.user.id
+      }, {
+        onConflict: 'org_id,integration_type'
+      })
+    
+    if (error) throw error
+    
+    if (skip_test) {
+      const msg = newConfigName 
+        ? `WooCommerce credentials saved as "${newConfigName}" (connection not tested)`
+        : 'WooCommerce credentials saved (connection not tested)'
+      return { success: true, message: msg, new_config: newConfigName ? { id: newConfigId, name: newConfigName } : undefined }
+    } else if (isConnected) {
+      const msg = newConfigName 
+        ? `WooCommerce integration connected and saved as "${newConfigName}"!`
+        : 'WooCommerce integration configured and connected!'
+      return { success: true, message: msg, new_config: newConfigName ? { id: newConfigId, name: newConfigName } : undefined }
+    } else {
+      return { success: true, message: `Credentials saved but connection failed: ${connectionError}`, connection_error: connectionError, new_config: newConfigName ? { id: newConfigId, name: newConfigName } : undefined }
+    }
+  })
+
+  // Test WooCommerce connection
+  fastify.post('/integrations/woocommerce/test', {
+    schema: {
+      description: 'Test WooCommerce connection',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['store_url', 'consumer_key', 'consumer_secret'],
+        properties: {
+          store_url: { type: 'string' },
+          consumer_key: { type: 'string' },
+          consumer_secret: { type: 'string' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    const { store_url, consumer_key, consumer_secret } = request.body as {
+      store_url: string
+      consumer_key: string
+      consumer_secret: string
+    }
+    
+    const result = await testWooCommerceConnection(store_url, consumer_key, consumer_secret)
+    
+    if (!result.success) {
+      return reply.code(400).send({ success: false, error: result.error })
+    }
+    
+    return { success: true, store_name: result.store_name, version: result.version }
+  })
+
+  // Sync products to WooCommerce (placeholder - to be implemented)
+  fastify.post('/integrations/woocommerce/sync/products', {
+    schema: {
+      description: 'Sync products to WooCommerce',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            created: { type: 'number' },
+            updated: { type: 'number' },
+            skipped: { type: 'number' },
+            errors: { type: 'number' },
+            message: { type: 'string' }
+          }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin' && request.user.role !== 'engineer') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins and engineers can sync' })
+    }
+    
+    // Get WooCommerce integration settings
+    const { data: integration, error: intError } = await request.supabase!
+      .from('organization_integrations')
+      .select('*')
+      .eq('org_id', request.user.org_id)
+      .eq('integration_type', 'woocommerce')
+      .single()
+    
+    if (intError || !integration) {
+      return reply.code(400).send({ error: 'Not configured', message: 'WooCommerce integration not configured' })
+    }
+    
+    // TODO: Implement actual product sync logic
+    // For now, return a placeholder response
+    return {
+      success: true,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: 0,
+      message: 'Product sync not yet implemented - coming soon!'
+    }
+  })
+
+  // Disconnect WooCommerce integration
+  fastify.delete('/integrations/woocommerce', {
+    schema: {
+      description: 'Disconnect WooCommerce integration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }]
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can disconnect integrations' })
+    }
+    
+    const { error } = await request.supabase!
+      .from('organization_integrations')
+      .update({
+        is_active: false,
+        is_connected: false,
+        credentials_encrypted: null,
+        updated_by: request.user.id
+      })
+      .eq('org_id', request.user.org_id)
+      .eq('integration_type', 'woocommerce')
+    
+    if (error) throw error
+    
+    return { success: true, message: 'WooCommerce integration disconnected' }
+  })
+
+  // ============================================
+  // WooCommerce Saved Configurations Routes
+  // ============================================
+
+  // List all saved WooCommerce configurations
+  fastify.get('/integrations/woocommerce/configs', {
+    schema: {
+      description: 'List all saved WooCommerce configurations',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            configs: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  description: { type: 'string', nullable: true },
+                  store_url: { type: 'string' },
+                  store_name: { type: 'string', nullable: true },
+                  color: { type: 'string', nullable: true },
+                  is_active: { type: 'boolean' },
+                  last_tested_at: { type: 'string', nullable: true },
+                  last_test_success: { type: 'boolean', nullable: true },
+                  created_at: { type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    
+    const { data, error } = await request.supabase!
+      .from('woocommerce_saved_configs')
+      .select('id, name, description, store_url, store_name, color, is_active, last_tested_at, last_test_success, created_at')
+      .eq('org_id', request.user.org_id)
+      .eq('is_active', true)
+      .order('name')
+    
+    if (error) throw error
+    
+    return { configs: data || [] }
+  })
+
+  // Get a single saved WooCommerce configuration (with credentials - admin only)
+  fastify.get('/integrations/woocommerce/configs/:id', {
+    schema: {
+      description: 'Get a saved WooCommerce configuration (includes credentials)',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can access saved configurations' })
+    }
+    
+    const { id } = request.params as { id: string }
+    
+    const { data, error } = await request.supabase!
+      .from('woocommerce_saved_configs')
+      .select('*')
+      .eq('id', id)
+      .eq('org_id', request.user.org_id)
+      .single()
+    
+    if (error || !data) {
+      return reply.code(404).send({ error: 'Not found', message: 'Configuration not found' })
+    }
+    
+    return {
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      store_url: data.store_url,
+      store_name: data.store_name,
+      consumer_key: data.consumer_key_encrypted,
+      consumer_secret: data.consumer_secret_encrypted,
+      color: data.color,
+      sync_settings: data.sync_settings,
+      last_tested_at: data.last_tested_at,
+      last_test_success: data.last_test_success
+    }
+  })
+
+  // Save a new WooCommerce configuration
+  fastify.post('/integrations/woocommerce/configs', {
+    schema: {
+      description: 'Save a new WooCommerce configuration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['name', 'store_url', 'consumer_key', 'consumer_secret'],
+        properties: {
+          name: { type: 'string', description: 'Configuration name/label' },
+          description: { type: 'string', description: 'Optional description' },
+          store_url: { type: 'string', description: 'WooCommerce store URL' },
+          consumer_key: { type: 'string', description: 'Consumer key' },
+          consumer_secret: { type: 'string', description: 'Consumer secret' },
+          color: { type: 'string', description: 'Color hex code for UI badge' },
+          skip_test: { type: 'boolean', default: false, description: 'Save without testing connection' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can save configurations' })
+    }
+    
+    const { name, description, store_url, consumer_key, consumer_secret, color, skip_test } = request.body as {
+      name: string
+      description?: string
+      store_url: string
+      consumer_key: string
+      consumer_secret: string
+      color?: string
+      skip_test?: boolean
+    }
+    
+    const normalizedUrl = normalizeWooCommerceUrl(store_url)
+    
+    // Test connection (unless skip_test is true)
+    let testResult: { success: boolean; store_name?: string; version?: string; error?: string } = { success: false }
+    if (!skip_test) {
+      testResult = await testWooCommerceConnection(normalizedUrl, consumer_key, consumer_secret)
+    }
+    
+    const { data, error } = await request.supabase!
+      .from('woocommerce_saved_configs')
+      .insert({
+        org_id: request.user.org_id,
+        name,
+        description,
+        store_url: normalizedUrl,
+        store_name: testResult.store_name || null,
+        consumer_key_encrypted: consumer_key,
+        consumer_secret_encrypted: consumer_secret,
+        color,
+        wc_version: testResult.version || null,
+        last_tested_at: !skip_test ? new Date().toISOString() : null,
+        last_test_success: !skip_test ? testResult.success : null,
+        last_test_error: !skip_test ? testResult.error : null,
+        created_by: request.user.id,
+        updated_by: request.user.id
+      })
+      .select()
+      .single()
+    
+    if (error) {
+      if (error.code === '23505') {
+        return reply.code(409).send({ error: 'Conflict', message: `A configuration named "${name}" already exists` })
+      }
+      throw error
+    }
+    
+    if (skip_test) {
+      return {
+        success: true,
+        config: data,
+        message: `Configuration "${name}" saved (connection not tested)`
+      }
+    }
+    
+    return {
+      success: true,
+      config: data,
+      connection_test: testResult,
+      message: testResult.success 
+        ? `Configuration "${name}" saved and connected!` 
+        : `Configuration "${name}" saved but connection failed: ${testResult.error}`
+    }
+  })
+
+  // Update a saved WooCommerce configuration
+  fastify.put('/integrations/woocommerce/configs/:id', {
+    schema: {
+      description: 'Update a saved WooCommerce configuration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          description: { type: 'string' },
+          store_url: { type: 'string' },
+          consumer_key: { type: 'string' },
+          consumer_secret: { type: 'string' },
+          color: { type: 'string' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can update configurations' })
+    }
+    
+    const { id } = request.params as { id: string }
+    const body = request.body as {
+      name?: string
+      description?: string
+      store_url?: string
+      consumer_key?: string
+      consumer_secret?: string
+      color?: string
+    }
+    
+    const updateData: Record<string, unknown> = {
+      updated_by: request.user.id
+    }
+    
+    if (body.name) updateData.name = body.name
+    if (body.description !== undefined) updateData.description = body.description
+    if (body.store_url) updateData.store_url = normalizeWooCommerceUrl(body.store_url)
+    if (body.consumer_key) updateData.consumer_key_encrypted = body.consumer_key
+    if (body.consumer_secret) updateData.consumer_secret_encrypted = body.consumer_secret
+    if (body.color !== undefined) updateData.color = body.color
+    
+    const { data, error } = await request.supabase!
+      .from('woocommerce_saved_configs')
+      .update(updateData)
+      .eq('id', id)
+      .eq('org_id', request.user.org_id)
+      .select()
+      .single()
+    
+    if (error) {
+      if (error.code === '23505') {
+        return reply.code(409).send({ error: 'Conflict', message: 'A configuration with that name already exists' })
+      }
+      throw error
+    }
+    
+    if (!data) {
+      return reply.code(404).send({ error: 'Not found', message: 'Configuration not found' })
+    }
+    
+    return { success: true, config: data, message: 'Configuration updated' }
+  })
+
+  // Delete a saved WooCommerce configuration
+  fastify.delete('/integrations/woocommerce/configs/:id', {
+    schema: {
+      description: 'Delete a saved WooCommerce configuration',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can delete configurations' })
+    }
+    
+    const { id } = request.params as { id: string }
+    
+    const { error } = await request.supabase!
+      .from('woocommerce_saved_configs')
+      .delete()
+      .eq('id', id)
+      .eq('org_id', request.user.org_id)
+    
+    if (error) throw error
+    
+    return { success: true, message: 'Configuration deleted' }
+  })
+
+  // Activate a saved WooCommerce configuration
+  fastify.post('/integrations/woocommerce/configs/:id/activate', {
+    schema: {
+      description: 'Activate a saved configuration (load it as the active WooCommerce integration)',
+      tags: ['Integrations'],
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', format: 'uuid' }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    if (!request.user) {
+      return reply.code(401).send({ error: 'Unauthorized', message: 'Authentication required' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Only admins can activate configurations' })
+    }
+    
+    const { id } = request.params as { id: string }
+    
+    // Get the saved config
+    const { data: config, error: configError } = await request.supabase!
+      .from('woocommerce_saved_configs')
+      .select('*')
+      .eq('id', id)
+      .eq('org_id', request.user.org_id)
+      .single()
+    
+    if (configError || !config) {
+      return reply.code(404).send({ error: 'Not found', message: 'Configuration not found' })
+    }
+    
+    // Test connection
+    const testResult = await testWooCommerceConnection(
+      config.store_url, 
+      config.consumer_key_encrypted, 
+      config.consumer_secret_encrypted
+    )
+    
+    // Update the active integration with this config
+    const { error: upsertError } = await request.supabase!
+      .from('organization_integrations')
+      .upsert({
+        org_id: request.user.org_id,
+        integration_type: 'woocommerce',
+        settings: { 
+          store_url: config.store_url, 
+          store_name: testResult.store_name || config.store_name,
+          wc_version: testResult.version || config.wc_version,
+          config_id: config.id,
+          config_name: config.name,
+          sync_settings: config.sync_settings
+        },
+        credentials_encrypted: JSON.stringify({
+          consumer_key: config.consumer_key_encrypted,
+          consumer_secret: config.consumer_secret_encrypted
+        }),
+        is_active: true,
+        is_connected: testResult.success,
+        last_connected_at: testResult.success ? new Date().toISOString() : null,
+        last_error: testResult.error,
+        updated_by: request.user.id
+      }, {
+        onConflict: 'org_id,integration_type'
+      })
+    
+    if (upsertError) throw upsertError
+    
+    // Update the saved config test status
+    await request.supabase!
+      .from('woocommerce_saved_configs')
+      .update({
+        last_tested_at: new Date().toISOString(),
+        last_test_success: testResult.success,
+        last_test_error: testResult.error,
+        store_name: testResult.store_name || config.store_name,
+        wc_version: testResult.version || config.wc_version
       })
       .eq('id', id)
     
