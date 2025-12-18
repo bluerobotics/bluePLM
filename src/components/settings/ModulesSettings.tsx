@@ -201,7 +201,7 @@ function OrderListItemComponent({
   onDrop: (index: number) => void
   isDragging: boolean
   isDropTarget: boolean
-  onSetParent?: (moduleId: ModuleId, parentId: ModuleId | null) => void
+  onSetParent?: (moduleId: ModuleId, parentId: string | null) => void
   onSetIconColor?: (moduleId: ModuleId, color: string | null) => void
   onEditGroup?: (group: { id: string; name: string; icon: string; iconColor: string | null }) => void
   onRemoveGroup?: (groupId: string) => void
@@ -493,24 +493,63 @@ function OrderListItemComponent({
               <div className={`w-2 h-2 rounded-full ${!currentParentId ? 'bg-plm-accent' : 'bg-transparent border border-plm-border'}`} />
               None (Top-level)
             </button>
-            {availableParents.map(parent => (
-              <button
-                key={parent.id}
-                onClick={() => {
-                  onSetParent?.(moduleId, parent.id)
-                  setShowParentSelect(false)
-                }}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight transition-colors flex items-center gap-2 ${
-                  currentParentId === parent.id ? 'text-plm-accent' : 'text-plm-fg'
-                }`}
-              >
-                <div className={`w-2 h-2 rounded-full ${currentParentId === parent.id ? 'bg-plm-accent' : 'bg-transparent border border-plm-border'}`} />
-                <span className="text-plm-fg-muted mr-1">
-                  {moduleIcons[parent.icon] || <Package size={12} />}
-                </span>
-                {parent.name}
-              </button>
-            ))}
+            {/* Custom Groups section */}
+            {(moduleConfig.customGroups || []).length > 0 && (
+              <>
+                <div className="px-3 py-1 text-[9px] uppercase tracking-wide text-plm-fg-dim bg-plm-bg-secondary border-y border-plm-border">
+                  Groups
+                </div>
+                {(moduleConfig.customGroups || []).map(group => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const GroupIcon = (LucideIcons as any)[group.icon]
+                  return (
+                    <button
+                      key={group.id}
+                      onClick={() => {
+                        onSetParent?.(moduleId, group.id)
+                        setShowParentSelect(false)
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight transition-colors flex items-center gap-2 ${
+                        currentParentId === group.id ? 'text-plm-accent' : 'text-plm-fg'
+                      }`}
+                    >
+                      <div className={`w-2 h-2 rounded-full ${currentParentId === group.id ? 'bg-plm-accent' : 'bg-transparent border border-plm-border'}`} />
+                      <span style={{ color: group.iconColor || 'var(--plm-accent)' }}>
+                        {GroupIcon ? <GroupIcon size={12} /> : <Package size={12} />}
+                      </span>
+                      {group.name}
+                    </button>
+                  )
+                })}
+              </>
+            )}
+            
+            {/* Modules section */}
+            {availableParents.length > 0 && (
+              <>
+                <div className="px-3 py-1 text-[9px] uppercase tracking-wide text-plm-fg-dim bg-plm-bg-secondary border-y border-plm-border">
+                  Modules
+                </div>
+                {availableParents.map(parent => (
+                  <button
+                    key={parent.id}
+                    onClick={() => {
+                      onSetParent?.(moduleId, parent.id)
+                      setShowParentSelect(false)
+                    }}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight transition-colors flex items-center gap-2 ${
+                      currentParentId === parent.id ? 'text-plm-accent' : 'text-plm-fg'
+                    }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${currentParentId === parent.id ? 'bg-plm-accent' : 'bg-transparent border border-plm-border'}`} />
+                    <span className="text-plm-fg-muted mr-1">
+                      {moduleIcons[parent.icon] || <Package size={12} />}
+                    </span>
+                    {parent.name}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
