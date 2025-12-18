@@ -17,7 +17,8 @@ import {
   PanelLeft,
   Building2,
   Globe,
-  FileWarning
+  FileWarning,
+  ChevronRight
 } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { usePDMStore, SidebarView } from '../stores/pdmStore'
@@ -28,7 +29,9 @@ import { logNavigation, logSettings } from '../lib/userActionLogger'
 import { 
   MODULES, 
   isModuleVisible,
-  type ModuleId
+  getChildModules,
+  type ModuleId,
+  type ModuleDefinition
 } from '../types/modules'
 
 // Custom Google Drive icon
@@ -73,23 +76,61 @@ interface ActivityItemProps {
   view: SidebarView
   title: string
   badge?: number
+  hasChildren?: boolean
+  children?: ModuleDefinition[]
+  depth?: number
+  onHoverWithChildren?: (moduleId: ModuleId | null, rect: DOMRect | null) => void
 }
 
-function ActivityItem({ icon, view, title, badge }: ActivityItemProps) {
+function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren }: ActivityItemProps) {
   const { activeView, setActiveView } = usePDMStore()
   const isExpanded = useContext(ExpandedContext)
   const [showTooltip, setShowTooltip] = useState(false)
+  const [showSubmenu, setShowSubmenu] = useState(false)
+  const [submenuRect, setSubmenuRect] = useState<DOMRect | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const isActive = activeView === view
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const handleMouseEnter = () => {
+    if (!isExpanded) setShowTooltip(true)
+    
+    if (hasChildren && children && children.length > 0) {
+      // Delay showing submenu slightly to prevent accidental triggers
+      hoverTimeoutRef.current = setTimeout(() => {
+        setShowSubmenu(true)
+        if (buttonRef.current) {
+          setSubmenuRect(buttonRef.current.getBoundingClientRect())
+        }
+        onHoverWithChildren?.(view as ModuleId, buttonRef.current?.getBoundingClientRect() || null)
+      }, 150)
+    }
+  }
+
+  const handleMouseLeave = () => {
+    setShowTooltip(false)
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+    // Don't close submenu immediately - let the submenu handle its own hover
+    setTimeout(() => {
+      setShowSubmenu(false)
+      onHoverWithChildren?.(null, null)
+    }, 100)
+  }
 
   return (
     <div className="py-1 px-[6px]">
       <button
+        ref={buttonRef}
         onClick={() => {
+          // If has children, clicking still navigates to the main view
           logNavigation(view, { title })
           setActiveView(view)
         }}
-        onMouseEnter={() => !isExpanded && setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={`relative h-11 w-full flex items-center gap-3 px-[9px] rounded-lg transition-colors overflow-hidden ${
           isActive
             ? 'text-plm-accent bg-plm-highlight'
@@ -97,7 +138,7 @@ function ActivityItem({ icon, view, title, badge }: ActivityItemProps) {
         }`}
       >
         {/* Tooltip for collapsed state */}
-        {showTooltip && !isExpanded && (
+        {showTooltip && !isExpanded && !hasChildren && (
           <div className="absolute left-full ml-3 z-50 pointer-events-none">
             <div className="px-2.5 py-1.5 bg-plm-fg text-plm-bg text-sm font-medium rounded whitespace-nowrap">
               {title}
@@ -115,11 +156,130 @@ function ActivityItem({ icon, view, title, badge }: ActivityItemProps) {
           )}
         </div>
         {isExpanded && (
-          <span className="text-[15px] font-medium whitespace-nowrap overflow-hidden">
-            {title}
-          </span>
+          <>
+            <span className="text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1">
+              {title}
+            </span>
+            {/* Chevron for items with children */}
+            {hasChildren && children && children.length > 0 && (
+              <ChevronRight 
+                size={14} 
+                className={`flex-shrink-0 text-plm-fg-dim transition-transform duration-200 ${showSubmenu ? 'translate-x-0.5' : ''}`}
+              />
+            )}
+          </>
         )}
       </button>
+      
+      {/* Nested Submenu Panel */}
+      {showSubmenu && hasChildren && children && children.length > 0 && submenuRect && (
+        <NestedSubmenu
+          parentRect={submenuRect}
+          children={children}
+          depth={depth + 1}
+          onMouseEnter={() => setShowSubmenu(true)}
+          onMouseLeave={() => setShowSubmenu(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Nested submenu component that appears on hover
+interface NestedSubmenuProps {
+  parentRect: DOMRect
+  children: ModuleDefinition[]
+  depth: number
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+}
+
+function NestedSubmenu({ parentRect, children, depth, onMouseEnter, onMouseLeave }: NestedSubmenuProps) {
+  const { activeView, setActiveView, moduleConfig } = usePDMStore()
+  const { t } = useTranslation()
+  const [hoveredChild, setHoveredChild] = useState<ModuleId | null>(null)
+  const [childRect, setChildRect] = useState<DOMRect | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  
+  // Filter to only show visible children
+  const visibleChildren = children.filter(child => isModuleVisible(child.id, moduleConfig))
+  
+  if (visibleChildren.length === 0) return null
+  
+  // Calculate position - always to the right of parent
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    top: parentRect.top - 4,
+    left: parentRect.right + 4,
+    zIndex: 50 + depth,
+  }
+  
+  return (
+    <div
+      ref={panelRef}
+      style={style}
+      className="min-w-[180px] bg-plm-activitybar border border-plm-border rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-left-2 duration-150"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {visibleChildren.map(child => {
+        const childChildren = getChildModules(child.id, moduleConfig).filter(c => isModuleVisible(c.id, moduleConfig))
+        const hasGrandchildren = childChildren.length > 0
+        const translationKey = moduleTranslationKeys[child.id]
+        const childTitle = translationKey ? t(translationKey) : child.name
+        const isActive = activeView === child.id
+        
+        return (
+          <div
+            key={child.id}
+            className="relative"
+            onMouseEnter={(e) => {
+              if (hasGrandchildren) {
+                setHoveredChild(child.id)
+                const target = e.currentTarget
+                setChildRect(target.getBoundingClientRect())
+              }
+            }}
+            onMouseLeave={() => {
+              setTimeout(() => setHoveredChild(null), 100)
+            }}
+          >
+            <button
+              onClick={() => {
+                logNavigation(child.id, { title: childTitle })
+                setActiveView(child.id as SidebarView)
+              }}
+              className={`w-full h-10 flex items-center gap-3 px-3 rounded-md mx-1 transition-colors ${
+                isActive
+                  ? 'text-plm-accent bg-plm-highlight'
+                  : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight'
+              }`}
+              style={{ width: 'calc(100% - 8px)' }}
+            >
+              <div className="w-[18px] h-[18px] flex items-center justify-center flex-shrink-0">
+                {getModuleIcon(child.icon, 18)}
+              </div>
+              <span className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
+                {childTitle}
+              </span>
+              {hasGrandchildren && (
+                <ChevronRight size={12} className="flex-shrink-0 text-plm-fg-dim" />
+              )}
+            </button>
+            
+            {/* Nested children (recursive) */}
+            {hoveredChild === child.id && hasGrandchildren && childRect && (
+              <NestedSubmenu
+                parentRect={childRect}
+                children={childChildren}
+                depth={depth + 1}
+                onMouseEnter={() => setHoveredChild(child.id)}
+                onMouseLeave={() => setHoveredChild(null)}
+              />
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -287,10 +447,14 @@ export function ActivityBar() {
   const totalBadge = unreadNotificationCount + pendingReviewCount
   
   // Build the visible modules list based on module order and visibility
+  // Only show top-level modules (those without a parent)
   const visibleModules = useMemo(() => {
-    return moduleConfig.moduleOrder.filter(moduleId => 
-      isModuleVisible(moduleId, moduleConfig)
-    )
+    return moduleConfig.moduleOrder.filter(moduleId => {
+      const module = MODULES.find(m => m.id === moduleId)
+      // Only show if visible AND is top-level (no parent in config)
+      const hasParent = moduleConfig.moduleParents?.[moduleId]
+      return module && !hasParent && isModuleVisible(moduleId, moduleConfig)
+    })
   }, [moduleConfig])
   
   // Build a map of original index to visible index for divider positioning
@@ -403,6 +567,12 @@ export function ActivityBar() {
                   // Special handling for reviews badge
                   const badge = moduleId === 'reviews' ? totalBadge : undefined
                   
+                  // Get visible child modules (using config's moduleParents)
+                  const childModules = getChildModules(moduleId, moduleConfig).filter(child => 
+                    isModuleVisible(child.id, moduleConfig)
+                  )
+                  const moduleHasChildren = childModules.length > 0
+                  
                   return (
                     <div key={moduleId}>
                       <ActivityItem
@@ -410,6 +580,8 @@ export function ActivityBar() {
                         view={moduleId as SidebarView}
                         title={title}
                         badge={badge}
+                        hasChildren={moduleHasChildren}
+                        children={childModules}
                       />
                       {getDividerAfterVisibleIndex.has(visibleIndex) && <SectionDivider />}
                     </div>

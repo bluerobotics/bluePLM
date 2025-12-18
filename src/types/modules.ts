@@ -56,6 +56,8 @@ export interface ModuleDefinition {
   required?: boolean
   // Module IDs that must be enabled for this module to work
   dependencies?: ModuleId[]
+  // Parent module ID - if set, this module appears in a submenu when parent is hovered
+  parentId?: ModuleId
 }
 
 // Module group definition
@@ -74,6 +76,10 @@ export interface ModuleConfig {
   enabledGroups: Record<ModuleGroupId, boolean>
   moduleOrder: ModuleId[]  // Custom order of modules in sidebar
   dividers: SectionDivider[]
+  // Custom parent-child relationships (overrides default parentId from ModuleDefinition)
+  moduleParents: Record<ModuleId, ModuleId | null>
+  // Custom icon colors per module (hex colors like "#ff0000" or null for default)
+  moduleIconColors: Record<ModuleId, string | null>
 }
 
 // Org's module defaults (stored in database)
@@ -82,6 +88,8 @@ export interface OrgModuleDefaults {
   enabledGroups: Record<ModuleGroupId, boolean>
   moduleOrder: ModuleId[]
   dividers: SectionDivider[]
+  moduleParents: Record<ModuleId, ModuleId | null>
+  moduleIconColors: Record<ModuleId, string | null>
 }
 
 // ============================================
@@ -324,6 +332,24 @@ export function getDefaultEnabledGroups(): Record<ModuleGroupId, boolean> {
   return result as Record<ModuleGroupId, boolean>
 }
 
+// Helper to get default module parents from module definitions
+export function getDefaultModuleParents(): Record<ModuleId, ModuleId | null> {
+  const result: Record<string, ModuleId | null> = {}
+  for (const mod of MODULES) {
+    result[mod.id] = mod.parentId || null
+  }
+  return result as Record<ModuleId, ModuleId | null>
+}
+
+// Helper to get default icon colors (all null = use theme default)
+export function getDefaultModuleIconColors(): Record<ModuleId, string | null> {
+  const result: Record<string, string | null> = {}
+  for (const mod of MODULES) {
+    result[mod.id] = null
+  }
+  return result as Record<ModuleId, string | null>
+}
+
 // Helper to get default module config
 export function getDefaultModuleConfig(): ModuleConfig {
   return {
@@ -331,6 +357,8 @@ export function getDefaultModuleConfig(): ModuleConfig {
     enabledGroups: getDefaultEnabledGroups(),
     moduleOrder: [...DEFAULT_MODULE_ORDER],
     dividers: [...DEFAULT_DIVIDERS],
+    moduleParents: getDefaultModuleParents(),
+    moduleIconColors: getDefaultModuleIconColors(),
   }
 }
 
@@ -397,6 +425,35 @@ export function getModuleById(moduleId: ModuleId): ModuleDefinition | undefined 
 // Get a group definition by ID
 export function getGroupById(groupId: ModuleGroupId): ModuleGroupDefinition | undefined {
   return MODULE_GROUPS.find(g => g.id === groupId)
+}
+
+// Get child modules of a parent module (using config's moduleParents if provided)
+export function getChildModules(parentId: ModuleId, config?: ModuleConfig): ModuleDefinition[] {
+  if (config) {
+    return MODULES.filter(m => config.moduleParents[m.id] === parentId)
+  }
+  return MODULES.filter(m => m.parentId === parentId)
+}
+
+// Check if a module has children (using config's moduleParents if provided)
+export function hasChildModules(moduleId: ModuleId, config?: ModuleConfig): boolean {
+  if (config) {
+    return MODULES.some(m => config.moduleParents[m.id] === moduleId)
+  }
+  return MODULES.some(m => m.parentId === moduleId)
+}
+
+// Get only top-level modules (no parent, using config's moduleParents if provided)
+export function getTopLevelModules(config?: ModuleConfig): ModuleDefinition[] {
+  if (config) {
+    return MODULES.filter(m => !config.moduleParents[m.id])
+  }
+  return MODULES.filter(m => !m.parentId)
+}
+
+// Get the parent of a module (using config's moduleParents)
+export function getModuleParent(moduleId: ModuleId, config: ModuleConfig): ModuleId | null {
+  return config.moduleParents[moduleId] || null
 }
 
 // Type for combined order list items

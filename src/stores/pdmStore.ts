@@ -356,6 +356,8 @@ interface PDMState {
   setCombinedOrder: (combinedList: OrderListItem[]) => void
   addDivider: (afterPosition: number) => void
   removeDivider: (dividerId: string) => void
+  setModuleParent: (moduleId: ModuleId, parentId: ModuleId | null) => void
+  setModuleIconColor: (moduleId: ModuleId, color: string | null) => void
   resetModulesToDefaults: () => void
   loadOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
   saveOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
@@ -960,6 +962,30 @@ export const usePDMStore = create<PDMState>()(
         }))
       },
       
+      setModuleParent: (moduleId, parentId) => {
+        set(state => ({
+          moduleConfig: {
+            ...state.moduleConfig,
+            moduleParents: {
+              ...state.moduleConfig.moduleParents,
+              [moduleId]: parentId
+            }
+          }
+        }))
+      },
+      
+      setModuleIconColor: (moduleId, color) => {
+        set(state => ({
+          moduleConfig: {
+            ...state.moduleConfig,
+            moduleIconColors: {
+              ...state.moduleConfig.moduleIconColors,
+              [moduleId]: color
+            }
+          }
+        }))
+      },
+      
       resetModulesToDefaults: () => {
         set({ moduleConfig: getDefaultModuleConfig() })
       },
@@ -988,6 +1014,8 @@ export const usePDMStore = create<PDMState>()(
               enabledGroups: defaults.enabled_groups || getDefaultModuleConfig().enabledGroups,
               moduleOrder: defaults.module_order || getDefaultModuleConfig().moduleOrder,
               dividers: defaults.dividers || getDefaultModuleConfig().dividers,
+              moduleParents: defaults.module_parents || getDefaultModuleConfig().moduleParents,
+              moduleIconColors: defaults.module_icon_colors || getDefaultModuleConfig().moduleIconColors,
             }
             set({ moduleConfig })
           }
@@ -1014,7 +1042,9 @@ export const usePDMStore = create<PDMState>()(
             p_enabled_modules: moduleConfig.enabledModules,
             p_enabled_groups: moduleConfig.enabledGroups,
             p_module_order: moduleConfig.moduleOrder,
-            p_dividers: moduleConfig.dividers
+            p_dividers: moduleConfig.dividers,
+            p_module_parents: moduleConfig.moduleParents,
+            p_module_icon_colors: moduleConfig.moduleIconColors
           })
           
           if (error) throw error
@@ -2268,7 +2298,27 @@ export const usePDMStore = create<PDMState>()(
               }
             }
             
-            return { enabledModules, enabledGroups, moduleOrder, dividers }
+            // Module parents - merge with defaults
+            const moduleParents = { ...defaults.moduleParents }
+            if (persistedConfig.moduleParents) {
+              for (const [key, value] of Object.entries(persistedConfig.moduleParents)) {
+                if (key in moduleParents) {
+                  moduleParents[key as ModuleId] = value as ModuleId | null
+                }
+              }
+            }
+            
+            // Module icon colors - merge with defaults
+            const moduleIconColors = { ...defaults.moduleIconColors }
+            if (persistedConfig.moduleIconColors) {
+              for (const [key, value] of Object.entries(persistedConfig.moduleIconColors)) {
+                if (key in moduleIconColors) {
+                  moduleIconColors[key as ModuleId] = value as string | null
+                }
+              }
+            }
+            
+            return { enabledModules, enabledGroups, moduleOrder, dividers, moduleParents, moduleIconColors }
           })()
         }
       }

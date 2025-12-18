@@ -84,6 +84,7 @@ jobs:
           name: macos-build
           path: |
             release/*.dmg
+            release/*.zip
             release/latest-mac.yml
           if-no-files-found: error
 
