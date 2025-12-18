@@ -153,6 +153,7 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
       {showSubmenu && hasChildren && children && children.length > 0 && sidebarRect && (
         <CascadingSidebar
           parentRect={sidebarRect}
+          itemRect={buttonRef.current?.getBoundingClientRect()}
           children={children}
           depth={depth + 1}
           onMouseEnter={() => {
@@ -178,13 +179,14 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
 // Cascading sidebar panel that appears on hover - matches main sidebar style
 interface CascadingSidebarProps {
   parentRect: DOMRect
+  itemRect?: DOMRect | null  // The rect of the hovered item for vertical positioning
   children: ModuleDefinition[]
   depth: number
   onMouseEnter: () => void
   onMouseLeave: () => void
 }
 
-function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLeave }: CascadingSidebarProps) {
+function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter, onMouseLeave }: CascadingSidebarProps) {
   const { activeView, setActiveView, moduleConfig } = usePDMStore()
   const { t } = useTranslation()
   const isExpanded = useContext(ExpandedContext)
@@ -194,6 +196,7 @@ function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLe
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
+  const [panelHeight, setPanelHeight] = useState<number | null>(null)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
@@ -226,16 +229,38 @@ function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLe
     }
   }, [])
   
+  // Measure content height after render
+  useEffect(() => {
+    if (panelRef.current) {
+      setPanelHeight(panelRef.current.scrollHeight)
+    }
+  }, [visibleChildren.length])
+  
   if (visibleChildren.length === 0) return null
   
-  // Calculate position - match parent sidebar exactly
+  // Calculate position - start at hovered item, fit to content
+  const itemHeight = 44 // h-11 = 44px per item
+  const contentHeight = panelHeight || (visibleChildren.length * itemHeight + 16) // items + padding
+  const maxHeight = window.innerHeight - 32 // 16px margin top and bottom
+  const finalHeight = Math.min(contentHeight, maxHeight)
+  
+  // Start position: align with hovered item, or use parent top
+  let topPosition = itemRect?.top ?? parentRect.top
+  
+  // Check if would overflow bottom of screen
+  const bottomOverflow = topPosition + finalHeight - (window.innerHeight - 16)
+  if (bottomOverflow > 0) {
+    // Shift up to fit, but don't go above 16px from top
+    topPosition = Math.max(16, topPosition - bottomOverflow)
+  }
+  
   const style: React.CSSProperties = {
     position: 'fixed',
-    top: parentRect.top,
-    bottom: window.innerHeight - parentRect.bottom,
+    top: topPosition,
     left: parentRect.right,
     zIndex: 40 + depth,
     width: isExpanded ? '256px' : '53px',
+    maxHeight: maxHeight,
   }
   
   const handleChildMouseEnter = (childId: ModuleId, e: React.MouseEvent) => {
@@ -353,6 +378,7 @@ function CascadingSidebar({ parentRect, children, depth, onMouseEnter, onMouseLe
                   {hoveredChild === child.id && hasGrandchildren && childRect && (
                     <CascadingSidebar
                       parentRect={panelRef.current?.getBoundingClientRect() || childRect}
+                      itemRect={childRect}
                       children={childChildren}
                       depth={depth + 1}
                       onMouseEnter={() => {
