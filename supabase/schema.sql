@@ -205,12 +205,14 @@ CREATE TRIGGER ensure_single_default
 -- RLS Policies for organization_addresses
 ALTER TABLE organization_addresses ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view org addresses" ON organization_addresses;
 CREATE POLICY "Users can view org addresses"
   ON organization_addresses FOR SELECT
   USING (
     org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Admins can insert addresses" ON organization_addresses;
 CREATE POLICY "Admins can insert addresses"
   ON organization_addresses FOR INSERT
   WITH CHECK (
@@ -222,6 +224,7 @@ CREATE POLICY "Admins can insert addresses"
     )
   );
 
+DROP POLICY IF EXISTS "Admins can update addresses" ON organization_addresses;
 CREATE POLICY "Admins can update addresses"
   ON organization_addresses FOR UPDATE
   USING (
@@ -233,6 +236,7 @@ CREATE POLICY "Admins can update addresses"
     )
   );
 
+DROP POLICY IF EXISTS "Admins can delete addresses" ON organization_addresses;
 CREATE POLICY "Admins can delete addresses"
   ON organization_addresses FOR DELETE
   USING (
@@ -612,12 +616,14 @@ ALTER TABLE file_references ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity ENABLE ROW LEVEL SECURITY;
 
 -- Organizations: authenticated users can view (app filters by membership)
+DROP POLICY IF EXISTS "Authenticated users can view organizations" ON organizations;
 CREATE POLICY "Authenticated users can view organizations"
   ON organizations FOR SELECT
   TO authenticated
   USING (true);
 
 -- Organizations: admins can update their own organization's settings
+DROP POLICY IF EXISTS "Admins can update their organization" ON organizations;
 CREATE POLICY "Admins can update their organization"
   ON organizations FOR UPDATE
   TO authenticated
@@ -629,12 +635,14 @@ CREATE POLICY "Admins can update their organization"
   );
 
 -- Vaults: authenticated users can view (app filters by org)
+DROP POLICY IF EXISTS "Authenticated users can view vaults" ON vaults;
 CREATE POLICY "Authenticated users can view vaults"
   ON vaults FOR SELECT
   TO authenticated
   USING (true);
 
 -- Vaults: only admins can create vaults
+DROP POLICY IF EXISTS "Admins can create vaults" ON vaults;
 CREATE POLICY "Admins can create vaults"
   ON vaults FOR INSERT
   WITH CHECK (
@@ -642,22 +650,26 @@ CREATE POLICY "Admins can create vaults"
   );
 
 -- Vaults: only admins can update vaults
+DROP POLICY IF EXISTS "Admins can update vaults" ON vaults;
 CREATE POLICY "Admins can update vaults"
   ON vaults FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Vaults: only admins can delete vaults
+DROP POLICY IF EXISTS "Admins can delete vaults" ON vaults;
 CREATE POLICY "Admins can delete vaults"
   ON vaults FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Vault Access: authenticated users can view access records
+DROP POLICY IF EXISTS "Authenticated users can view vault access" ON vault_access;
 CREATE POLICY "Authenticated users can view vault access"
   ON vault_access FOR SELECT
   TO authenticated
   USING (true);
 
 -- Vault Access: only admins can manage vault access
+DROP POLICY IF EXISTS "Admins can insert vault access" ON vault_access;
 CREATE POLICY "Admins can insert vault access"
   ON vault_access FOR INSERT
   WITH CHECK (
@@ -668,6 +680,7 @@ CREATE POLICY "Admins can insert vault access"
     )
   );
 
+DROP POLICY IF EXISTS "Admins can delete vault access" ON vault_access;
 CREATE POLICY "Admins can delete vault access"
   ON vault_access FOR DELETE
   USING (
@@ -679,17 +692,20 @@ CREATE POLICY "Admins can delete vault access"
   );
 
 -- Users: authenticated users can view (app filters by org)
+DROP POLICY IF EXISTS "Authenticated users can view users" ON users;
 CREATE POLICY "Authenticated users can view users"
   ON users FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
 CREATE POLICY "Users can update own profile"
   ON users FOR UPDATE
   USING (id = auth.uid())
   WITH CHECK (id = auth.uid());
 
 -- Allow admins to update users in their organization (change role, remove from org)
+DROP POLICY IF EXISTS "Admins can update users in their org" ON users;
 CREATE POLICY "Admins can update users in their org"
   ON users FOR UPDATE
   TO authenticated
@@ -706,60 +722,72 @@ CREATE POLICY "Admins can update users in their org"
   );
 
 -- Files: authenticated users can access (org filtering done in queries)
+DROP POLICY IF EXISTS "Authenticated users can view files" ON files;
 CREATE POLICY "Authenticated users can view files"
   ON files FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can insert files" ON files;
 CREATE POLICY "Authenticated users can insert files"
   ON files FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated users can update files" ON files;
 CREATE POLICY "Authenticated users can update files"
   ON files FOR UPDATE
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can delete files" ON files;
 CREATE POLICY "Authenticated users can delete files"
   ON files FOR DELETE
   TO authenticated
   USING (true);
 
 -- File versions: authenticated users can access
+DROP POLICY IF EXISTS "Authenticated users can view file versions" ON file_versions;
 CREATE POLICY "Authenticated users can view file versions"
   ON file_versions FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can insert file versions" ON file_versions;
 CREATE POLICY "Authenticated users can insert file versions"
   ON file_versions FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
 -- Release files: users can view org release files, engineers can manage
+DROP POLICY IF EXISTS "Users can view org release files" ON release_files;
 CREATE POLICY "Users can view org release files"
   ON release_files FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can manage release files" ON release_files;
 CREATE POLICY "Engineers can manage release files"
   ON release_files FOR ALL
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
 -- File references: same as files
+DROP POLICY IF EXISTS "Users can view file references" ON file_references;
 CREATE POLICY "Users can view file references"
   ON file_references FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can manage references" ON file_references;
 CREATE POLICY "Engineers can manage references"
   ON file_references FOR ALL
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
 -- Activity: users can view and insert for their org
+DROP POLICY IF EXISTS "Users can view org activity" ON activity;
 CREATE POLICY "Users can view org activity"
   ON activity FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can log activity" ON activity;
 CREATE POLICY "Users can log activity"
   ON activity FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
@@ -918,23 +946,27 @@ CREATE TRIGGER log_file_changes
 -- Storage policies for the 'vault' bucket
 -- These allow authenticated users to access files in their organization's folder
 
+DROP POLICY IF EXISTS "Authenticated users can upload to vault" ON storage;
 CREATE POLICY "Authenticated users can upload to vault"
-ON storage.objects FOR INSERT
+  ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'vault');
 
+DROP POLICY IF EXISTS "Authenticated users can read from vault" ON storage;
 CREATE POLICY "Authenticated users can read from vault"
-ON storage.objects FOR SELECT
+  ON storage.objects FOR SELECT
 TO authenticated
 USING (bucket_id = 'vault');
 
+DROP POLICY IF EXISTS "Authenticated users can update vault files" ON storage;
 CREATE POLICY "Authenticated users can update vault files"
-ON storage.objects FOR UPDATE
+  ON storage.objects FOR UPDATE
 TO authenticated
 USING (bucket_id = 'vault');
 
+DROP POLICY IF EXISTS "Authenticated users can delete from vault" ON storage;
 CREATE POLICY "Authenticated users can delete from vault"
-ON storage.objects FOR DELETE
+  ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'vault');
 
@@ -1238,6 +1270,7 @@ ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 -- User sessions: Users can view org members' sessions (for online presence)
 -- But can only manage (insert/update/delete) their own sessions
 -- Note: Uses explicit NULL check to handle SQL NULL comparison quirks
+DROP POLICY IF EXISTS "Users can view org sessions" ON user_sessions;
 CREATE POLICY "Users can view org sessions"
   ON user_sessions FOR SELECT
   USING (
@@ -1252,53 +1285,65 @@ CREATE POLICY "Users can view org sessions"
     )
   );
 
+DROP POLICY IF EXISTS "Users can manage own sessions" ON user_sessions;
 CREATE POLICY "Users can manage own sessions"
   ON user_sessions FOR ALL
   USING (user_id = auth.uid());
 
 -- Backup config: All org members can read, only admins can modify
+DROP POLICY IF EXISTS "Users can view org backup config" ON backup_config;
 CREATE POLICY "Users can view org backup config"
   ON backup_config FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can insert backup config" ON backup_config;
 CREATE POLICY "Admins can insert backup config"
   ON backup_config FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can update backup config" ON backup_config;
 CREATE POLICY "Admins can update backup config"
   ON backup_config FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can delete backup config" ON backup_config;
 CREATE POLICY "Admins can delete backup config"
   ON backup_config FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Backup history: All org members can read, authenticated users can insert
+DROP POLICY IF EXISTS "Users can view org backup history" ON backup_history;
 CREATE POLICY "Users can view org backup history"
   ON backup_history FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Authenticated users can insert backup history" ON backup_history;
 CREATE POLICY "Authenticated users can insert backup history"
   ON backup_history FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Authenticated users can update backup history" ON backup_history;
 CREATE POLICY "Authenticated users can update backup history"
   ON backup_history FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- Backup machines: All org members can read and manage their own machines
+DROP POLICY IF EXISTS "Users can view org backup machines" ON backup_machines;
 CREATE POLICY "Users can view org backup machines"
   ON backup_machines FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can register their machines" ON backup_machines;
 CREATE POLICY "Users can register their machines"
   ON backup_machines FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can update their machines" ON backup_machines;
 CREATE POLICY "Users can update their machines"
   ON backup_machines FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can remove their machines" ON backup_machines;
 CREATE POLICY "Users can remove their machines"
   ON backup_machines FOR DELETE
   USING (
@@ -1308,18 +1353,22 @@ CREATE POLICY "Users can remove their machines"
   );
 
 -- Backup locks: Org members can manage locks
+DROP POLICY IF EXISTS "Users can view org backup locks" ON backup_locks;
 CREATE POLICY "Users can view org backup locks"
   ON backup_locks FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can create backup locks" ON backup_locks;
 CREATE POLICY "Users can create backup locks"
   ON backup_locks FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can update backup locks" ON backup_locks;
 CREATE POLICY "Users can update backup locks"
   ON backup_locks FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can delete backup locks" ON backup_locks;
 CREATE POLICY "Users can delete backup locks"
   ON backup_locks FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
@@ -1556,26 +1605,32 @@ CREATE INDEX IF NOT EXISTS idx_file_ecos_eco_id ON file_ecos(eco_id);
 ALTER TABLE ecos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_ecos ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view org ECOs" ON ecos;
 CREATE POLICY "Users can view org ECOs"
   ON ecos FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can create ECOs" ON ecos;
 CREATE POLICY "Engineers can create ECOs"
   ON ecos FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Engineers can update ECOs" ON ecos;
 CREATE POLICY "Engineers can update ECOs"
   ON ecos FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Admins can delete ECOs" ON ecos;
 CREATE POLICY "Admins can delete ECOs"
   ON ecos FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Users can view file-eco associations" ON file_ecos;
 CREATE POLICY "Users can view file-eco associations"
   ON file_ecos FOR SELECT
   USING (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Engineers can manage file-eco associations" ON file_ecos;
 CREATE POLICY "Engineers can manage file-eco associations"
   ON file_ecos FOR ALL
   USING (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
@@ -1775,42 +1830,52 @@ ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE review_responses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view org reviews" ON reviews;
 CREATE POLICY "Users can view org reviews"
   ON reviews FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can create reviews" ON reviews;
 CREATE POLICY "Engineers can create reviews"
   ON reviews FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Users can update their reviews" ON reviews;
 CREATE POLICY "Users can update their reviews"
   ON reviews FOR UPDATE
   USING (requested_by = auth.uid() OR org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Users can view review responses" ON review_responses;
 CREATE POLICY "Users can view review responses"
   ON review_responses FOR SELECT
   USING (review_id IN (SELECT id FROM reviews WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Users can create review responses" ON review_responses;
 CREATE POLICY "Users can create review responses"
   ON review_responses FOR INSERT
   WITH CHECK (review_id IN (SELECT id FROM reviews WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Users can update their responses" ON review_responses;
 CREATE POLICY "Users can update their responses"
   ON review_responses FOR UPDATE
   USING (reviewer_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can view their notifications" ON notifications;
 CREATE POLICY "Users can view their notifications"
   ON notifications FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "System can create notifications" ON notifications;
 CREATE POLICY "System can create notifications"
   ON notifications FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can update their notifications" ON notifications;
 CREATE POLICY "Users can update their notifications"
   ON notifications FOR UPDATE
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can delete their notifications" ON notifications;
 CREATE POLICY "Users can delete their notifications"
   ON notifications FOR DELETE
   USING (user_id = auth.uid());
@@ -2068,85 +2133,104 @@ ALTER TABLE pending_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workflow_review_history ENABLE ROW LEVEL SECURITY;
 
 -- Workflow templates: org members can view, admins can modify
+DROP POLICY IF EXISTS "Users can view org workflows" ON workflow_templates;
 CREATE POLICY "Users can view org workflows"
   ON workflow_templates FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can create workflows" ON workflow_templates;
 CREATE POLICY "Admins can create workflows"
   ON workflow_templates FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can update workflows" ON workflow_templates;
 CREATE POLICY "Admins can update workflows"
   ON workflow_templates FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can delete workflows" ON workflow_templates;
 CREATE POLICY "Admins can delete workflows"
   ON workflow_templates FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Workflow states: linked to templates
+DROP POLICY IF EXISTS "Users can view workflow states" ON workflow_states;
 CREATE POLICY "Users can view workflow states"
   ON workflow_states FOR SELECT
   USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Admins can manage workflow states" ON workflow_states;
 CREATE POLICY "Admins can manage workflow states"
   ON workflow_states FOR ALL
   USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
 
 -- Workflow transitions: linked to templates
+DROP POLICY IF EXISTS "Users can view workflow transitions" ON workflow_transitions;
 CREATE POLICY "Users can view workflow transitions"
   ON workflow_transitions FOR SELECT
   USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Admins can manage workflow transitions" ON workflow_transitions;
 CREATE POLICY "Admins can manage workflow transitions"
   ON workflow_transitions FOR ALL
   USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
 
 -- Workflow gates: linked to transitions
+DROP POLICY IF EXISTS "Users can view workflow gates" ON workflow_gates;
 CREATE POLICY "Users can view workflow gates"
   ON workflow_gates FOR SELECT
   USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))));
 
+DROP POLICY IF EXISTS "Admins can manage workflow gates" ON workflow_gates;
 CREATE POLICY "Admins can manage workflow gates"
   ON workflow_gates FOR ALL
   USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))));
 
 -- Gate reviewers: linked to gates
+DROP POLICY IF EXISTS "Users can view gate reviewers" ON workflow_gate_reviewers;
 CREATE POLICY "Users can view gate reviewers"
   ON workflow_gate_reviewers FOR SELECT
   USING (gate_id IN (SELECT id FROM workflow_gates WHERE transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())))));
 
+DROP POLICY IF EXISTS "Admins can manage gate reviewers" ON workflow_gate_reviewers;
 CREATE POLICY "Admins can manage gate reviewers"
   ON workflow_gate_reviewers FOR ALL
   USING (gate_id IN (SELECT id FROM workflow_gates WHERE transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')))));
 
 -- File workflow assignments
+DROP POLICY IF EXISTS "Users can view file workflow assignments" ON file_workflow_assignments;
 CREATE POLICY "Users can view file workflow assignments"
   ON file_workflow_assignments FOR SELECT
   USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Engineers can manage file workflow assignments" ON file_workflow_assignments;
 CREATE POLICY "Engineers can manage file workflow assignments"
   ON file_workflow_assignments FOR ALL
   USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
 
 -- Pending reviews
+DROP POLICY IF EXISTS "Users can view pending reviews" ON pending_reviews;
 CREATE POLICY "Users can view pending reviews"
   ON pending_reviews FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can create pending reviews" ON pending_reviews;
 CREATE POLICY "Engineers can create pending reviews"
   ON pending_reviews FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Users can update pending reviews" ON pending_reviews;
 CREATE POLICY "Users can update pending reviews"
   ON pending_reviews FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- Workflow review history
+DROP POLICY IF EXISTS "Users can view workflow review history" ON workflow_review_history;
 CREATE POLICY "Users can view workflow review history"
   ON workflow_review_history FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "System can insert workflow review history" ON workflow_review_history;
 CREATE POLICY "System can insert workflow review history"
   ON workflow_review_history FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
@@ -2348,61 +2432,73 @@ ALTER TABLE file_share_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_comments ENABLE ROW LEVEL SECURITY;
 
 -- File Watchers: Users can view watchers for files in their org
+DROP POLICY IF EXISTS "Users can view file watchers in org" ON file_watchers;
 CREATE POLICY "Users can view file watchers in org"
   ON file_watchers FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- File Watchers: Users can create watchers for themselves
+DROP POLICY IF EXISTS "Users can watch files" ON file_watchers;
 CREATE POLICY "Users can watch files"
   ON file_watchers FOR INSERT
   WITH CHECK (user_id = auth.uid() AND org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- File Watchers: Users can update their own watchers
+DROP POLICY IF EXISTS "Users can update own watchers" ON file_watchers;
 CREATE POLICY "Users can update own watchers"
   ON file_watchers FOR UPDATE
   USING (user_id = auth.uid());
 
 -- File Watchers: Users can delete their own watchers
+DROP POLICY IF EXISTS "Users can unwatch files" ON file_watchers;
 CREATE POLICY "Users can unwatch files"
   ON file_watchers FOR DELETE
   USING (user_id = auth.uid());
 
 -- File Share Links: Users can view share links they created or for files in their org
+DROP POLICY IF EXISTS "Users can view share links in org" ON file_share_links;
 CREATE POLICY "Users can view share links in org"
   ON file_share_links FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- File Share Links: Engineers and admins can create share links
+DROP POLICY IF EXISTS "Engineers can create share links" ON file_share_links;
 CREATE POLICY "Engineers can create share links"
   ON file_share_links FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
 -- File Share Links: Users can update their own share links
+DROP POLICY IF EXISTS "Users can update own share links" ON file_share_links;
 CREATE POLICY "Users can update own share links"
   ON file_share_links FOR UPDATE
   USING (created_by = auth.uid());
 
 -- File Share Links: Users can delete their own share links, admins can delete any
+DROP POLICY IF EXISTS "Users can delete share links" ON file_share_links;
 CREATE POLICY "Users can delete share links"
   ON file_share_links FOR DELETE
   USING (created_by = auth.uid() OR auth.uid() IN (SELECT id FROM users WHERE org_id = file_share_links.org_id AND role = 'admin'));
 
 -- File Comments: Users can view comments in their org
+DROP POLICY IF EXISTS "Users can view file comments in org" ON file_comments;
 CREATE POLICY "Users can view file comments in org"
   ON file_comments FOR SELECT
   USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
 -- File Comments: Users can create comments
+DROP POLICY IF EXISTS "Users can create file comments" ON file_comments;
 CREATE POLICY "Users can create file comments"
   ON file_comments FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
 -- File Comments: Users can update their own comments
+DROP POLICY IF EXISTS "Users can update own comments" ON file_comments;
 CREATE POLICY "Users can update own comments"
   ON file_comments FOR UPDATE
   USING (user_id = auth.uid());
 
 -- File Comments: Users can delete their own comments
+DROP POLICY IF EXISTS "Users can delete own comments" ON file_comments;
 CREATE POLICY "Users can delete own comments"
   ON file_comments FOR DELETE
   USING (user_id = auth.uid());
@@ -2860,27 +2956,33 @@ ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE part_suppliers ENABLE ROW LEVEL SECURITY;
 
 -- Suppliers: All org members can read, engineers/admins can modify
+DROP POLICY IF EXISTS "Users can view org suppliers" ON suppliers;
 CREATE POLICY "Users can view org suppliers"
   ON suppliers FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can insert suppliers" ON suppliers;
 CREATE POLICY "Engineers can insert suppliers"
   ON suppliers FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Engineers can update suppliers" ON suppliers;
 CREATE POLICY "Engineers can update suppliers"
   ON suppliers FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Admins can delete suppliers" ON suppliers;
 CREATE POLICY "Admins can delete suppliers"
   ON suppliers FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Part-Suppliers: All org members can read, engineers/admins can modify
+DROP POLICY IF EXISTS "Users can view part suppliers" ON part_suppliers;
 CREATE POLICY "Users can view part suppliers"
   ON part_suppliers FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can manage part suppliers" ON part_suppliers;
 CREATE POLICY "Engineers can manage part suppliers"
   ON part_suppliers FOR ALL
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
@@ -3255,50 +3357,62 @@ ALTER TABLE rfq_suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rfq_quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rfq_activity ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view org RFQs" ON rfqs;
 CREATE POLICY "Users can view org RFQs"
   ON rfqs FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can create RFQs" ON rfqs;
 CREATE POLICY "Engineers can create RFQs"
   ON rfqs FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Engineers can update RFQs" ON rfqs;
 CREATE POLICY "Engineers can update RFQs"
   ON rfqs FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Admins can delete RFQs" ON rfqs;
 CREATE POLICY "Admins can delete RFQs"
   ON rfqs FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Users can view RFQ items" ON rfq_items;
 CREATE POLICY "Users can view RFQ items"
   ON rfq_items FOR SELECT
   USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Engineers can manage RFQ items" ON rfq_items;
 CREATE POLICY "Engineers can manage RFQ items"
   ON rfq_items FOR ALL
   USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
 
+DROP POLICY IF EXISTS "Users can view RFQ suppliers" ON rfq_suppliers;
 CREATE POLICY "Users can view RFQ suppliers"
   ON rfq_suppliers FOR SELECT
   USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Engineers can manage RFQ suppliers" ON rfq_suppliers;
 CREATE POLICY "Engineers can manage RFQ suppliers"
   ON rfq_suppliers FOR ALL
   USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
 
+DROP POLICY IF EXISTS "Users can view RFQ quotes" ON rfq_quotes;
 CREATE POLICY "Users can view RFQ quotes"
   ON rfq_quotes FOR SELECT
   USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Engineers can manage RFQ quotes" ON rfq_quotes;
 CREATE POLICY "Engineers can manage RFQ quotes"
   ON rfq_quotes FOR ALL
   USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
 
+DROP POLICY IF EXISTS "Users can view RFQ activity" ON rfq_activity;
 CREATE POLICY "Users can view RFQ activity"
   ON rfq_activity FOR SELECT
   USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "System can log RFQ activity" ON rfq_activity;
 CREATE POLICY "System can log RFQ activity"
   ON rfq_activity FOR INSERT
   WITH CHECK (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
@@ -3465,28 +3579,34 @@ ALTER TABLE integration_sync_log ENABLE ROW LEVEL SECURITY;
 
 -- All org members can view integration status (connection info, sync status)
 -- Credentials are protected at the application layer - not returned in SELECT
+DROP POLICY IF EXISTS "Org members can view integrations" ON organization_integrations;
 CREATE POLICY "Org members can view integrations"
   ON organization_integrations FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- Only admins can modify integrations (separate policies for each operation)
+DROP POLICY IF EXISTS "Admins can insert org integrations" ON organization_integrations;
 CREATE POLICY "Admins can insert org integrations"
   ON organization_integrations FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can update org integrations" ON organization_integrations;
 CREATE POLICY "Admins can update org integrations"
   ON organization_integrations FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can delete org integrations" ON organization_integrations;
 CREATE POLICY "Admins can delete org integrations"
   ON organization_integrations FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Admins and engineers can view sync logs
+DROP POLICY IF EXISTS "Engineers can view sync logs" ON integration_sync_log;
 CREATE POLICY "Engineers can view sync logs"
   ON integration_sync_log FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "System can insert sync logs" ON integration_sync_log;
 CREATE POLICY "System can insert sync logs"
   ON integration_sync_log FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
@@ -3537,19 +3657,23 @@ ALTER TABLE odoo_saved_configs ENABLE ROW LEVEL SECURITY;
 
 -- All org members can view saved Odoo configs (names, URLs, status)
 -- API keys (api_key_encrypted) are protected at the application layer
+DROP POLICY IF EXISTS "Org members can view odoo configs" ON odoo_saved_configs;
 CREATE POLICY "Org members can view odoo configs"
   ON odoo_saved_configs FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- Only admins can modify Odoo configs (separate policies for each operation)
+DROP POLICY IF EXISTS "Admins can insert odoo configs" ON odoo_saved_configs;
 CREATE POLICY "Admins can insert odoo configs"
   ON odoo_saved_configs FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can update odoo configs" ON odoo_saved_configs;
 CREATE POLICY "Admins can update odoo configs"
   ON odoo_saved_configs FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can delete odoo configs" ON odoo_saved_configs;
 CREATE POLICY "Admins can delete odoo configs"
   ON odoo_saved_configs FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
@@ -3693,19 +3817,23 @@ CREATE INDEX IF NOT EXISTS idx_woocommerce_saved_configs_active ON woocommerce_s
 ALTER TABLE woocommerce_saved_configs ENABLE ROW LEVEL SECURITY;
 
 -- All org members can view saved WooCommerce configs
+DROP POLICY IF EXISTS "Org members can view woocommerce configs" ON woocommerce_saved_configs;
 CREATE POLICY "Org members can view woocommerce configs"
   ON woocommerce_saved_configs FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- Only admins can modify WooCommerce configs
+DROP POLICY IF EXISTS "Admins can insert woocommerce configs" ON woocommerce_saved_configs;
 CREATE POLICY "Admins can insert woocommerce configs"
   ON woocommerce_saved_configs FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can update woocommerce configs" ON woocommerce_saved_configs;
 CREATE POLICY "Admins can update woocommerce configs"
   ON woocommerce_saved_configs FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can delete woocommerce configs" ON woocommerce_saved_configs;
 CREATE POLICY "Admins can delete woocommerce configs"
   ON woocommerce_saved_configs FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
@@ -3790,10 +3918,12 @@ CREATE INDEX IF NOT EXISTS idx_wc_product_mappings_file_id ON woocommerce_produc
 
 ALTER TABLE woocommerce_product_mappings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Org members can view wc product mappings" ON woocommerce_product_mappings;
 CREATE POLICY "Org members can view wc product mappings"
   ON woocommerce_product_mappings FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can manage wc product mappings" ON woocommerce_product_mappings;
 CREATE POLICY "Admins can manage wc product mappings"
   ON woocommerce_product_mappings FOR ALL
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
@@ -3848,19 +3978,23 @@ CREATE INDEX IF NOT EXISTS idx_file_metadata_columns_sort_order ON file_metadata
 ALTER TABLE file_metadata_columns ENABLE ROW LEVEL SECURITY;
 
 -- All org members can view metadata columns
+DROP POLICY IF EXISTS "Users can view org metadata columns" ON file_metadata_columns;
 CREATE POLICY "Users can view org metadata columns"
   ON file_metadata_columns FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- Only admins can manage metadata columns
+DROP POLICY IF EXISTS "Admins can create metadata columns" ON file_metadata_columns;
 CREATE POLICY "Admins can create metadata columns"
   ON file_metadata_columns FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can update metadata columns" ON file_metadata_columns;
 CREATE POLICY "Admins can update metadata columns"
   ON file_metadata_columns FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can delete metadata columns" ON file_metadata_columns;
 CREATE POLICY "Admins can delete metadata columns"
   ON file_metadata_columns FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
@@ -3978,6 +4112,7 @@ ALTER TABLE supplier_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE supplier_invitations ENABLE ROW LEVEL SECURITY;
 
 -- Supplier contacts: Org members can view suppliers linked to their org
+DROP POLICY IF EXISTS "Org members can view supplier contacts" ON supplier_contacts;
 CREATE POLICY "Org members can view supplier contacts"
   ON supplier_contacts FOR SELECT
   USING (
@@ -3989,6 +4124,7 @@ CREATE POLICY "Org members can view supplier contacts"
   );
 
 -- Supplier contacts: Only admins/engineers can invite (create) new contacts
+DROP POLICY IF EXISTS "Engineers can create supplier contacts" ON supplier_contacts;
 CREATE POLICY "Engineers can create supplier contacts"
   ON supplier_contacts FOR INSERT
   WITH CHECK (
@@ -3999,11 +4135,13 @@ CREATE POLICY "Engineers can create supplier contacts"
   );
 
 -- Supplier contacts: Contacts can update their own profile
+DROP POLICY IF EXISTS "Suppliers can update own profile" ON supplier_contacts;
 CREATE POLICY "Suppliers can update own profile"
   ON supplier_contacts FOR UPDATE
   USING (auth_user_id = auth.uid());
 
 -- Supplier contacts: Admins can update any contact in their org's suppliers
+DROP POLICY IF EXISTS "Admins can update supplier contacts" ON supplier_contacts;
 CREATE POLICY "Admins can update supplier contacts"
   ON supplier_contacts FOR UPDATE
   USING (
@@ -4014,16 +4152,19 @@ CREATE POLICY "Admins can update supplier contacts"
   );
 
 -- Supplier invitations: Org members can view
+DROP POLICY IF EXISTS "Org members can view supplier invitations" ON supplier_invitations;
 CREATE POLICY "Org members can view supplier invitations"
   ON supplier_invitations FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 -- Supplier invitations: Engineers can create
+DROP POLICY IF EXISTS "Engineers can create supplier invitations" ON supplier_invitations;
 CREATE POLICY "Engineers can create supplier invitations"
   ON supplier_invitations FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
 -- Supplier invitations: Admins can update/delete
+DROP POLICY IF EXISTS "Admins can manage supplier invitations" ON supplier_invitations;
 CREATE POLICY "Admins can manage supplier invitations"
   ON supplier_invitations FOR ALL
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
@@ -4563,32 +4704,39 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created_at ON webhook_deliveri
 ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webhook_deliveries ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their org webhooks" ON webhooks;
 CREATE POLICY "Users can view their org webhooks"
   ON webhooks FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can insert webhooks" ON webhooks;
 CREATE POLICY "Admins can insert webhooks"
   ON webhooks FOR INSERT
   WITH CHECK (
     org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')
   );
 
+DROP POLICY IF EXISTS "Admins can update webhooks" ON webhooks;
 CREATE POLICY "Admins can update webhooks"
   ON webhooks FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can delete webhooks" ON webhooks;
 CREATE POLICY "Admins can delete webhooks"
   ON webhooks FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Users can view their org webhook deliveries" ON webhook_deliveries;
 CREATE POLICY "Users can view their org webhook deliveries"
   ON webhook_deliveries FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Service can insert webhook deliveries" ON webhook_deliveries;
 CREATE POLICY "Service can insert webhook deliveries"
   ON webhook_deliveries FOR INSERT
   WITH CHECK (TRUE);
 
+DROP POLICY IF EXISTS "Service can update webhook deliveries" ON webhook_deliveries;
 CREATE POLICY "Service can update webhook deliveries"
   ON webhook_deliveries FOR UPDATE
   USING (TRUE);
@@ -4657,21 +4805,25 @@ CREATE INDEX IF NOT EXISTS idx_admin_recovery_codes_active ON admin_recovery_cod
 ALTER TABLE admin_recovery_codes ENABLE ROW LEVEL SECURITY;
 
 -- Admins can view recovery code metadata (but NEVER the hash - that's not exposed in queries)
+DROP POLICY IF EXISTS "Admins can view org recovery codes" ON admin_recovery_codes;
 CREATE POLICY "Admins can view org recovery codes"
   ON admin_recovery_codes FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Only admins can create recovery codes
+DROP POLICY IF EXISTS "Admins can create recovery codes" ON admin_recovery_codes;
 CREATE POLICY "Admins can create recovery codes"
   ON admin_recovery_codes FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Only admins can update (revoke) recovery codes
+DROP POLICY IF EXISTS "Admins can update recovery codes" ON admin_recovery_codes;
 CREATE POLICY "Admins can update recovery codes"
   ON admin_recovery_codes FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Admins can delete old recovery codes
+DROP POLICY IF EXISTS "Admins can delete recovery codes" ON admin_recovery_codes;
 CREATE POLICY "Admins can delete recovery codes"
   ON admin_recovery_codes FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
@@ -4849,26 +5001,32 @@ CREATE INDEX IF NOT EXISTS idx_file_deviations_deviation_id ON file_deviations(d
 ALTER TABLE deviations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_deviations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view org deviations" ON deviations;
 CREATE POLICY "Users can view org deviations"
   ON deviations FOR SELECT
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Engineers can create deviations" ON deviations;
 CREATE POLICY "Engineers can create deviations"
   ON deviations FOR INSERT
   WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Engineers can update deviations" ON deviations;
 CREATE POLICY "Engineers can update deviations"
   ON deviations FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
 
+DROP POLICY IF EXISTS "Admins can delete deviations" ON deviations;
 CREATE POLICY "Admins can delete deviations"
   ON deviations FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Users can view file-deviation associations" ON file_deviations;
 CREATE POLICY "Users can view file-deviation associations"
   ON file_deviations FOR SELECT
   USING (deviation_id IN (SELECT id FROM deviations WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
 
+DROP POLICY IF EXISTS "Engineers can manage file-deviation associations" ON file_deviations;
 CREATE POLICY "Engineers can manage file-deviation associations"
   ON file_deviations FOR ALL
   USING (deviation_id IN (SELECT id FROM deviations WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
