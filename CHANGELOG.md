@@ -2,19 +2,6 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [2.12.0] - 2025-12-19
-
-### Added
-- **Topbar panel toggles**: VS Code-style toggle buttons for left sidebar, bottom panel, and right sidebar
-- **Topbar configuration dropdown**: Customize which elements appear in the topbar (FPS, system stats, zoom, org, search, online users, panel toggles, user name)
-- **Independent FPS counter**: FPS display is now separate from system stats and can be toggled independently
-- **System stats display modes**: Toggle between minimal (dots) and expanded (full stats) view
-
-### Changed
-- **Removed session monitor**: Session count indicator removed from topbar (still accessible in user menu)
-
----
-
 ## [2.13.0] - 2025-12-19
 
 ### Added
@@ -30,6 +17,19 @@ All notable changes to BluePLM will be documented in this file.
 ### Fixed
 - **Right panel toggle**: Now properly shows/hides panel
 - **SW preview launch**: Previews no longer open SolidWorks (uses Document Manager only)
+
+---
+
+## [2.12.0] - 2025-12-19
+
+### Added
+- **Topbar panel toggles**: VS Code-style toggle buttons for left sidebar, bottom panel, and right sidebar
+- **Topbar configuration dropdown**: Customize which elements appear in the topbar
+- **Independent FPS counter**: Separate from system stats, can be toggled independently
+- **System stats display modes**: Toggle between minimal (dots) and expanded view
+
+### Changed
+- **Removed session monitor**: Session count removed from topbar (still in user menu)
 
 ---
 
