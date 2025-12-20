@@ -2,6 +2,16 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.13.1] - 2025-12-19
+
+### Improved
+- **Idempotent schema**: `schema.sql` is now safe to rerun on existing databases (no more separate migrations needed)
+
+### Changed
+- **Consolidated migrations**: All migration files merged into `schema.sql` as single source of truth
+
+---
+
 ## [2.13.0] - 2025-12-19
 
 ### Added
