@@ -1,25 +1,49 @@
 -- BluePLM Database Schema (Supabase Storage Edition)
--- Run this in your Supabase SQL editor to set up the database
+-- This schema is IDEMPOTENT - safe to run multiple times on the same database.
+-- Run this in your Supabase SQL editor to set up or update the database.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ===========================================
--- ENUMS
+-- ENUMS (idempotent - wrapped in exception handlers)
 -- ===========================================
 
-CREATE TYPE file_state AS ENUM ('not_tracked', 'wip', 'in_review', 'released', 'obsolete');
-CREATE TYPE file_type AS ENUM ('part', 'assembly', 'drawing', 'document', 'other');
-CREATE TYPE reference_type AS ENUM ('component', 'drawing_view', 'derived', 'copy');
-CREATE TYPE user_role AS ENUM ('admin', 'engineer', 'viewer');
-CREATE TYPE revision_scheme AS ENUM ('letter', 'numeric');
-CREATE TYPE activity_action AS ENUM ('checkout', 'checkin', 'create', 'delete', 'restore', 'state_change', 'revision_change', 'rename', 'move', 'rollback', 'roll_forward');
+DO $$ BEGIN
+  CREATE TYPE file_state AS ENUM ('not_tracked', 'wip', 'in_review', 'released', 'obsolete');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE file_type AS ENUM ('part', 'assembly', 'drawing', 'document', 'other');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE reference_type AS ENUM ('component', 'drawing_view', 'derived', 'copy');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE user_role AS ENUM ('admin', 'engineer', 'viewer');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE revision_scheme AS ENUM ('letter', 'numeric');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE activity_action AS ENUM ('checkout', 'checkin', 'create', 'delete', 'restore', 'state_change', 'revision_change', 'rename', 'move', 'rollback', 'roll_forward');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ===========================================
 -- ORGANIZATIONS
 -- ===========================================
 
-CREATE TABLE organizations (
+CREATE TABLE IF NOT EXISTS organizations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
@@ -97,15 +121,18 @@ CREATE TABLE organizations (
 );
 
 -- Index for email domain lookup
-CREATE INDEX idx_organizations_email_domains ON organizations USING GIN (email_domains);
+CREATE INDEX IF NOT EXISTS idx_organizations_email_domains ON organizations USING GIN (email_domains);
 
 -- ===========================================
 -- ORGANIZATION ADDRESSES
 -- ===========================================
 
-CREATE TYPE address_type AS ENUM ('billing', 'shipping');
+DO $$ BEGIN
+  CREATE TYPE address_type AS ENUM ('billing', 'shipping');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE organization_addresses (
+CREATE TABLE IF NOT EXISTS organization_addresses (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   address_type address_type NOT NULL,
@@ -137,8 +164,8 @@ CREATE TABLE organization_addresses (
   )
 );
 
-CREATE INDEX idx_org_addresses_org_id ON organization_addresses(org_id);
-CREATE INDEX idx_org_addresses_type ON organization_addresses(org_id, address_type);
+CREATE INDEX IF NOT EXISTS idx_org_addresses_org_id ON organization_addresses(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_addresses_type ON organization_addresses(org_id, address_type);
 
 -- Trigger to update updated_at
 CREATE OR REPLACE FUNCTION update_org_address_timestamp()
@@ -221,7 +248,7 @@ CREATE POLICY "Admins can delete addresses"
 -- USERS
 -- ===========================================
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL UNIQUE,
   full_name TEXT,
@@ -232,8 +259,8 @@ CREATE TABLE users (
   last_sign_in TIMESTAMPTZ
 );
 
-CREATE INDEX idx_users_org_id ON users(org_id);
-CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_org_id ON users(org_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- ===========================================
 -- AUTO-SET USER ORG_ID TRIGGER
@@ -332,7 +359,7 @@ GRANT EXECUTE ON FUNCTION ensure_user_org_id() TO authenticated;
 -- VAULTS
 -- ===========================================
 
-CREATE TABLE vaults (
+CREATE TABLE IF NOT EXISTS vaults (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,                  -- Display name (e.g., "Main Vault", "Archive")
@@ -346,13 +373,13 @@ CREATE TABLE vaults (
   UNIQUE(org_id, slug)
 );
 
-CREATE INDEX idx_vaults_org_id ON vaults(org_id);
+CREATE INDEX IF NOT EXISTS idx_vaults_org_id ON vaults(org_id);
 
 -- ===========================================
 -- VAULT ACCESS (Per-user vault permissions)
 -- ===========================================
 
-CREATE TABLE vault_access (
+CREATE TABLE IF NOT EXISTS vault_access (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   vault_id UUID NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -362,14 +389,14 @@ CREATE TABLE vault_access (
   UNIQUE(vault_id, user_id)
 );
 
-CREATE INDEX idx_vault_access_vault_id ON vault_access(vault_id);
-CREATE INDEX idx_vault_access_user_id ON vault_access(user_id);
+CREATE INDEX IF NOT EXISTS idx_vault_access_vault_id ON vault_access(vault_id);
+CREATE INDEX IF NOT EXISTS idx_vault_access_user_id ON vault_access(user_id);
 
 -- ===========================================
 -- FILES (Metadata only - content in Supabase Storage)
 -- =========================================== 
 
-CREATE TABLE files (
+CREATE TABLE IF NOT EXISTS files (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   vault_id UUID REFERENCES vaults(id) ON DELETE CASCADE,
@@ -421,29 +448,29 @@ CREATE TABLE files (
 
 -- Partial unique index: only one active (non-deleted) file per path per vault
 -- This allows soft-deleted files with the same path to exist in trash
-CREATE UNIQUE INDEX idx_files_vault_path_unique_active 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_files_vault_path_unique_active 
   ON files(vault_id, file_path) 
   WHERE deleted_at IS NULL;
 
 -- Indexes for common queries
-CREATE INDEX idx_files_org_id ON files(org_id);
-CREATE INDEX idx_files_vault_id ON files(vault_id);
-CREATE INDEX idx_files_file_path ON files(file_path);
-CREATE INDEX idx_files_part_number ON files(part_number) WHERE part_number IS NOT NULL;
-CREATE INDEX idx_files_state ON files(state);
-CREATE INDEX idx_files_checked_out_by ON files(checked_out_by) WHERE checked_out_by IS NOT NULL;
-CREATE INDEX idx_files_extension ON files(extension);
-CREATE INDEX idx_files_content_hash ON files(content_hash) WHERE content_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_files_org_id ON files(org_id);
+CREATE INDEX IF NOT EXISTS idx_files_vault_id ON files(vault_id);
+CREATE INDEX IF NOT EXISTS idx_files_file_path ON files(file_path);
+CREATE INDEX IF NOT EXISTS idx_files_part_number ON files(part_number) WHERE part_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_files_state ON files(state);
+CREATE INDEX IF NOT EXISTS idx_files_checked_out_by ON files(checked_out_by) WHERE checked_out_by IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_files_extension ON files(extension);
+CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash) WHERE content_hash IS NOT NULL;
 
 -- Soft delete indexes
-CREATE INDEX idx_files_deleted_at ON files(deleted_at) WHERE deleted_at IS NOT NULL;
-CREATE INDEX idx_files_active ON files(vault_id, file_path) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_files_deleted_at ON files(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_files_active ON files(vault_id, file_path) WHERE deleted_at IS NULL;
 
 -- ECO tags index
-CREATE INDEX idx_files_eco_tags ON files USING GIN (eco_tags);
+CREATE INDEX IF NOT EXISTS idx_files_eco_tags ON files USING GIN (eco_tags);
 
 -- Full text search index (includes ECO tags)
-CREATE INDEX idx_files_search ON files USING GIN (
+CREATE INDEX IF NOT EXISTS idx_files_search ON files USING GIN (
   to_tsvector('english', 
     coalesce(file_name, '') || ' ' || 
     coalesce(part_number, '') || ' ' || 
@@ -456,7 +483,7 @@ CREATE INDEX idx_files_search ON files USING GIN (
 -- FILE VERSIONS (Complete history)
 -- ===========================================
 
-CREATE TABLE file_versions (
+CREATE TABLE IF NOT EXISTS file_versions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   version INTEGER NOT NULL,
@@ -477,8 +504,8 @@ CREATE TABLE file_versions (
   UNIQUE(file_id, version)
 );
 
-CREATE INDEX idx_file_versions_file_id ON file_versions(file_id);
-CREATE INDEX idx_file_versions_content_hash ON file_versions(content_hash);
+CREATE INDEX IF NOT EXISTS idx_file_versions_file_id ON file_versions(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_versions_content_hash ON file_versions(content_hash);
 
 -- ===========================================
 -- RELEASE FILES (Exported STEP, PDF, etc.)
@@ -486,9 +513,12 @@ CREATE INDEX idx_file_versions_content_hash ON file_versions(content_hash);
 -- Stores release files linked to file versions
 -- Generated during RFQ creation or manual export
 
-CREATE TYPE release_file_type AS ENUM ('step', 'pdf', 'dxf', 'iges', 'stl', 'dwg', 'dxf_flat');
+DO $$ BEGIN
+  CREATE TYPE release_file_type AS ENUM ('step', 'pdf', 'dxf', 'iges', 'stl', 'dwg', 'dxf_flat');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE release_files (
+CREATE TABLE IF NOT EXISTS release_files (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   
   -- Link to the source file version
@@ -520,16 +550,16 @@ CREATE TABLE release_files (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_release_files_file_id ON release_files(file_id);
-CREATE INDEX idx_release_files_file_version ON release_files(file_version_id);
-CREATE INDEX idx_release_files_org ON release_files(org_id);
-CREATE INDEX idx_release_files_file_version_type ON release_files(file_id, version, file_type);
+CREATE INDEX IF NOT EXISTS idx_release_files_file_id ON release_files(file_id);
+CREATE INDEX IF NOT EXISTS idx_release_files_file_version ON release_files(file_version_id);
+CREATE INDEX IF NOT EXISTS idx_release_files_org ON release_files(org_id);
+CREATE INDEX IF NOT EXISTS idx_release_files_file_version_type ON release_files(file_id, version, file_type);
 
 -- ===========================================
 -- FILE REFERENCES (Assembly relationships / BOM)
 -- ===========================================
 
-CREATE TABLE file_references (
+CREATE TABLE IF NOT EXISTS file_references (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   parent_file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -543,14 +573,14 @@ CREATE TABLE file_references (
   UNIQUE(parent_file_id, child_file_id, configuration)
 );
 
-CREATE INDEX idx_file_references_parent ON file_references(parent_file_id);
-CREATE INDEX idx_file_references_child ON file_references(child_file_id);
+CREATE INDEX IF NOT EXISTS idx_file_references_parent ON file_references(parent_file_id);
+CREATE INDEX IF NOT EXISTS idx_file_references_child ON file_references(child_file_id);
 
 -- ===========================================
 -- ACTIVITY LOG (Audit trail)
 -- ===========================================
 
-CREATE TABLE activity (
+CREATE TABLE IF NOT EXISTS activity (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   file_id UUID REFERENCES files(id) ON DELETE SET NULL,
@@ -561,11 +591,11 @@ CREATE TABLE activity (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_activity_org_id ON activity(org_id);
-CREATE INDEX idx_activity_file_id ON activity(file_id);
-CREATE INDEX idx_activity_user_id ON activity(user_id);
-CREATE INDEX idx_activity_created_at ON activity(created_at DESC);
-CREATE INDEX idx_activity_action ON activity(action);
+CREATE INDEX IF NOT EXISTS idx_activity_org_id ON activity(org_id);
+CREATE INDEX IF NOT EXISTS idx_activity_file_id ON activity(file_id);
+CREATE INDEX IF NOT EXISTS idx_activity_user_id ON activity(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_action ON activity(action);
 
 -- ===========================================
 -- ROW LEVEL SECURITY
@@ -1039,7 +1069,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ===========================================
 
 -- Backup configuration (one per org, admin-managed)
-CREATE TABLE backup_config (
+CREATE TABLE IF NOT EXISTS backup_config (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE UNIQUE,
   
@@ -1083,10 +1113,10 @@ CREATE TABLE backup_config (
   updated_by UUID REFERENCES users(id)
 );
 
-CREATE INDEX idx_backup_config_org_id ON backup_config(org_id);
+CREATE INDEX IF NOT EXISTS idx_backup_config_org_id ON backup_config(org_id);
 
 -- Backup history (log of all backup runs)
-CREATE TABLE backup_history (
+CREATE TABLE IF NOT EXISTS backup_history (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -1119,15 +1149,15 @@ CREATE TABLE backup_history (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_backup_history_org_id ON backup_history(org_id);
-CREATE INDEX idx_backup_history_started_at ON backup_history(started_at DESC);
-CREATE INDEX idx_backup_history_status ON backup_history(status);
+CREATE INDEX IF NOT EXISTS idx_backup_history_org_id ON backup_history(org_id);
+CREATE INDEX IF NOT EXISTS idx_backup_history_started_at ON backup_history(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_backup_history_status ON backup_history(status);
 
 -- ===========================================
 -- USER SESSIONS (Active Device Tracking)
 -- ===========================================
 
-CREATE TABLE user_sessions (
+CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
@@ -1149,13 +1179,13 @@ CREATE TABLE user_sessions (
   UNIQUE(user_id, machine_id)
 );
 
-CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX idx_user_sessions_last_seen ON user_sessions(last_seen);
-CREATE INDEX idx_user_sessions_active ON user_sessions(user_id, is_active) WHERE is_active = true;
-CREATE INDEX idx_user_sessions_org_id ON user_sessions(org_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_seen);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(user_id, is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_user_sessions_org_id ON user_sessions(org_id);
 
 -- Machine heartbeat (tracks which machines are online and can run backups)
-CREATE TABLE backup_machines (
+CREATE TABLE IF NOT EXISTS backup_machines (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   machine_id TEXT NOT NULL,
@@ -1178,11 +1208,11 @@ CREATE TABLE backup_machines (
   UNIQUE(org_id, machine_id)
 );
 
-CREATE INDEX idx_backup_machines_org_id ON backup_machines(org_id);
-CREATE INDEX idx_backup_machines_last_seen ON backup_machines(last_seen);
+CREATE INDEX IF NOT EXISTS idx_backup_machines_org_id ON backup_machines(org_id);
+CREATE INDEX IF NOT EXISTS idx_backup_machines_last_seen ON backup_machines(last_seen);
 
 -- Backup lock (prevents concurrent backups)
-CREATE TABLE backup_locks (
+CREATE TABLE IF NOT EXISTS backup_locks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE UNIQUE,
   
@@ -1195,8 +1225,8 @@ CREATE TABLE backup_locks (
   backup_history_id UUID REFERENCES backup_history(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_backup_locks_org_id ON backup_locks(org_id);
-CREATE INDEX idx_backup_locks_expires_at ON backup_locks(expires_at);
+CREATE INDEX IF NOT EXISTS idx_backup_locks_org_id ON backup_locks(org_id);
+CREATE INDEX IF NOT EXISTS idx_backup_locks_expires_at ON backup_locks(expires_at);
 
 -- Enable RLS on backup tables
 ALTER TABLE backup_config ENABLE ROW LEVEL SECURITY;
@@ -1465,10 +1495,13 @@ WHERE u.id = au.id AND u.avatar_url IS NULL;
 -- ===========================================
 
 -- ECO status enum
-CREATE TYPE eco_status AS ENUM ('open', 'in_progress', 'completed', 'cancelled');
+DO $$ BEGIN
+  CREATE TYPE eco_status AS ENUM ('open', 'in_progress', 'completed', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ECO table
-CREATE TABLE ecos (
+CREATE TABLE IF NOT EXISTS ecos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -1494,13 +1527,13 @@ CREATE TABLE ecos (
   UNIQUE(org_id, eco_number)
 );
 
-CREATE INDEX idx_ecos_org_id ON ecos(org_id);
-CREATE INDEX idx_ecos_eco_number ON ecos(eco_number);
-CREATE INDEX idx_ecos_status ON ecos(status);
-CREATE INDEX idx_ecos_created_at ON ecos(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ecos_org_id ON ecos(org_id);
+CREATE INDEX IF NOT EXISTS idx_ecos_eco_number ON ecos(eco_number);
+CREATE INDEX IF NOT EXISTS idx_ecos_status ON ecos(status);
+CREATE INDEX IF NOT EXISTS idx_ecos_created_at ON ecos(created_at DESC);
 
 -- File-ECO junction table (Many-to-Many)
-CREATE TABLE file_ecos (
+CREATE TABLE IF NOT EXISTS file_ecos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   eco_id UUID NOT NULL REFERENCES ecos(id) ON DELETE CASCADE,
@@ -1516,8 +1549,8 @@ CREATE TABLE file_ecos (
   UNIQUE(file_id, eco_id)
 );
 
-CREATE INDEX idx_file_ecos_file_id ON file_ecos(file_id);
-CREATE INDEX idx_file_ecos_eco_id ON file_ecos(eco_id);
+CREATE INDEX IF NOT EXISTS idx_file_ecos_file_id ON file_ecos(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_ecos_eco_id ON file_ecos(eco_id);
 
 -- ECO RLS
 ALTER TABLE ecos ENABLE ROW LEVEL SECURITY;
@@ -1631,21 +1664,27 @@ CREATE TRIGGER trigger_sync_eco_tags_on_eco_update
 -- ===========================================
 
 -- Review status enum
-CREATE TYPE review_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled');
+DO $$ BEGIN
+  CREATE TYPE review_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Notification type enum
-CREATE TYPE notification_type AS ENUM (
-  'review_request',
-  'review_approved',
-  'review_rejected',
-  'review_comment',
-  'mention',
-  'file_updated',
-  'checkout_request'
-);
+DO $$ BEGIN
+  CREATE TYPE notification_type AS ENUM (
+    'review_request',
+    'review_approved',
+    'review_rejected',
+    'review_comment',
+    'mention',
+    'file_updated',
+    'checkout_request'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Reviews table (file review requests)
-CREATE TABLE reviews (
+CREATE TABLE IF NOT EXISTS reviews (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -1671,16 +1710,16 @@ CREATE TABLE reviews (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_reviews_org_id ON reviews(org_id);
-CREATE INDEX idx_reviews_file_id ON reviews(file_id);
-CREATE INDEX idx_reviews_requested_by ON reviews(requested_by);
-CREATE INDEX idx_reviews_status ON reviews(status);
-CREATE INDEX idx_reviews_created_at ON reviews(created_at DESC);
-CREATE INDEX idx_reviews_due_date ON reviews(due_date) WHERE due_date IS NOT NULL;
-CREATE INDEX idx_reviews_priority ON reviews(priority);
+CREATE INDEX IF NOT EXISTS idx_reviews_org_id ON reviews(org_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_file_id ON reviews(file_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_requested_by ON reviews(requested_by);
+CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
+CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reviews_due_date ON reviews(due_date) WHERE due_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_reviews_priority ON reviews(priority);
 
 -- Review responses (individual reviewer responses)
-CREATE TABLE review_responses (
+CREATE TABLE IF NOT EXISTS review_responses (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   review_id UUID NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
   reviewer_id UUID NOT NULL REFERENCES users(id),
@@ -1697,12 +1736,12 @@ CREATE TABLE review_responses (
   UNIQUE(review_id, reviewer_id)
 );
 
-CREATE INDEX idx_review_responses_review_id ON review_responses(review_id);
-CREATE INDEX idx_review_responses_reviewer_id ON review_responses(reviewer_id);
-CREATE INDEX idx_review_responses_status ON review_responses(status);
+CREATE INDEX IF NOT EXISTS idx_review_responses_review_id ON review_responses(review_id);
+CREATE INDEX IF NOT EXISTS idx_review_responses_reviewer_id ON review_responses(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_review_responses_status ON review_responses(status);
 
 -- Notifications table
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- Who receives the notification
@@ -1725,11 +1764,11 @@ CREATE TABLE notifications (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_org_id ON notifications(org_id);
-CREATE INDEX idx_notifications_read ON notifications(read);
-CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
-CREATE INDEX idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_org_id ON notifications(org_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
 
 -- Reviews RLS
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
@@ -1781,22 +1820,37 @@ CREATE POLICY "Users can delete their notifications"
 -- ===========================================
 
 -- Workflow state type enum
-CREATE TYPE workflow_state_type AS ENUM ('initial', 'intermediate', 'final', 'rejected');
+DO $$ BEGIN
+  CREATE TYPE workflow_state_type AS ENUM ('initial', 'intermediate', 'final', 'rejected');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Workflow gate type enum
-CREATE TYPE gate_type AS ENUM ('approval', 'checklist', 'condition', 'notification');
+DO $$ BEGIN
+  CREATE TYPE gate_type AS ENUM ('approval', 'checklist', 'condition', 'notification');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Approval mode enum
-CREATE TYPE approval_mode AS ENUM ('any', 'all', 'sequential');
+DO $$ BEGIN
+  CREATE TYPE approval_mode AS ENUM ('any', 'all', 'sequential');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Reviewer type enum
-CREATE TYPE reviewer_type AS ENUM ('user', 'role', 'group', 'file_owner', 'checkout_user');
+DO $$ BEGIN
+  CREATE TYPE reviewer_type AS ENUM ('user', 'role', 'group', 'file_owner', 'checkout_user');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Transition line style enum
-CREATE TYPE transition_line_style AS ENUM ('solid', 'dashed', 'dotted');
+DO $$ BEGIN
+  CREATE TYPE transition_line_style AS ENUM ('solid', 'dashed', 'dotted');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Workflow templates (org-wide workflow definitions)
-CREATE TABLE workflow_templates (
+CREATE TABLE IF NOT EXISTS workflow_templates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -1815,12 +1869,12 @@ CREATE TABLE workflow_templates (
   updated_by UUID REFERENCES users(id)
 );
 
-CREATE INDEX idx_workflow_templates_org_id ON workflow_templates(org_id);
-CREATE INDEX idx_workflow_templates_is_default ON workflow_templates(is_default);
-CREATE INDEX idx_workflow_templates_is_active ON workflow_templates(is_active);
+CREATE INDEX IF NOT EXISTS idx_workflow_templates_org_id ON workflow_templates(org_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_templates_is_default ON workflow_templates(is_default);
+CREATE INDEX IF NOT EXISTS idx_workflow_templates_is_active ON workflow_templates(is_active);
 
 -- Workflow states (nodes in the workflow)
-CREATE TABLE workflow_states (
+CREATE TABLE IF NOT EXISTS workflow_states (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   workflow_id UUID NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
   
@@ -1845,11 +1899,11 @@ CREATE TABLE workflow_states (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_workflow_states_workflow_id ON workflow_states(workflow_id);
-CREATE INDEX idx_workflow_states_state_type ON workflow_states(state_type);
+CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_id ON workflow_states(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_states_state_type ON workflow_states(state_type);
 
 -- Workflow transitions (connections between states)
-CREATE TABLE workflow_transitions (
+CREATE TABLE IF NOT EXISTS workflow_transitions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   workflow_id UUID NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
   
@@ -1875,12 +1929,12 @@ CREATE TABLE workflow_transitions (
   UNIQUE(from_state_id, to_state_id)
 );
 
-CREATE INDEX idx_workflow_transitions_workflow_id ON workflow_transitions(workflow_id);
-CREATE INDEX idx_workflow_transitions_from_state ON workflow_transitions(from_state_id);
-CREATE INDEX idx_workflow_transitions_to_state ON workflow_transitions(to_state_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_transitions_workflow_id ON workflow_transitions(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_transitions_from_state ON workflow_transitions(from_state_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_transitions_to_state ON workflow_transitions(to_state_id);
 
 -- Workflow gates (approval requirements on transitions)
-CREATE TABLE workflow_gates (
+CREATE TABLE IF NOT EXISTS workflow_gates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   transition_id UUID NOT NULL REFERENCES workflow_transitions(id) ON DELETE CASCADE,
   
@@ -1906,10 +1960,10 @@ CREATE TABLE workflow_gates (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_workflow_gates_transition_id ON workflow_gates(transition_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_gates_transition_id ON workflow_gates(transition_id);
 
 -- Gate reviewers (who can approve a gate)
-CREATE TABLE workflow_gate_reviewers (
+CREATE TABLE IF NOT EXISTS workflow_gate_reviewers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   gate_id UUID NOT NULL REFERENCES workflow_gates(id) ON DELETE CASCADE,
   
@@ -1921,11 +1975,11 @@ CREATE TABLE workflow_gate_reviewers (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_workflow_gate_reviewers_gate_id ON workflow_gate_reviewers(gate_id);
-CREATE INDEX idx_workflow_gate_reviewers_user_id ON workflow_gate_reviewers(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_gate_reviewers_gate_id ON workflow_gate_reviewers(gate_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_gate_reviewers_user_id ON workflow_gate_reviewers(user_id);
 
 -- File workflow assignments (which workflow is assigned to a file)
-CREATE TABLE file_workflow_assignments (
+CREATE TABLE IF NOT EXISTS file_workflow_assignments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE UNIQUE,
   workflow_id UUID NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
@@ -1935,12 +1989,12 @@ CREATE TABLE file_workflow_assignments (
   assigned_by UUID REFERENCES users(id)
 );
 
-CREATE INDEX idx_file_workflow_assignments_file_id ON file_workflow_assignments(file_id);
-CREATE INDEX idx_file_workflow_assignments_workflow_id ON file_workflow_assignments(workflow_id);
-CREATE INDEX idx_file_workflow_assignments_current_state ON file_workflow_assignments(current_state_id);
+CREATE INDEX IF NOT EXISTS idx_file_workflow_assignments_file_id ON file_workflow_assignments(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_workflow_assignments_workflow_id ON file_workflow_assignments(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_file_workflow_assignments_current_state ON file_workflow_assignments(current_state_id);
 
 -- Pending workflow reviews (active gate reviews)
-CREATE TABLE pending_reviews (
+CREATE TABLE IF NOT EXISTS pending_reviews (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -1963,13 +2017,13 @@ CREATE TABLE pending_reviews (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_pending_reviews_org_id ON pending_reviews(org_id);
-CREATE INDEX idx_pending_reviews_file_id ON pending_reviews(file_id);
-CREATE INDEX idx_pending_reviews_status ON pending_reviews(status);
-CREATE INDEX idx_pending_reviews_assigned_to ON pending_reviews(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_pending_reviews_org_id ON pending_reviews(org_id);
+CREATE INDEX IF NOT EXISTS idx_pending_reviews_file_id ON pending_reviews(file_id);
+CREATE INDEX IF NOT EXISTS idx_pending_reviews_status ON pending_reviews(status);
+CREATE INDEX IF NOT EXISTS idx_pending_reviews_assigned_to ON pending_reviews(assigned_to);
 
 -- Workflow review history (audit trail)
-CREATE TABLE workflow_review_history (
+CREATE TABLE IF NOT EXISTS workflow_review_history (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -1999,9 +2053,9 @@ CREATE TABLE workflow_review_history (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_workflow_review_history_org_id ON workflow_review_history(org_id);
-CREATE INDEX idx_workflow_review_history_file_id ON workflow_review_history(file_id);
-CREATE INDEX idx_workflow_review_history_created_at ON workflow_review_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workflow_review_history_org_id ON workflow_review_history(org_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_review_history_file_id ON workflow_review_history(file_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_review_history_created_at ON workflow_review_history(created_at DESC);
 
 -- Workflow RLS
 ALTER TABLE workflow_templates ENABLE ROW LEVEL SECURITY;
@@ -2207,7 +2261,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- FILE WATCHERS (Watch/Subscribe to files)
 -- ===========================================
 
-CREATE TABLE file_watchers (
+CREATE TABLE IF NOT EXISTS file_watchers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -2226,15 +2280,15 @@ CREATE TABLE file_watchers (
   UNIQUE(file_id, user_id)
 );
 
-CREATE INDEX idx_file_watchers_file_id ON file_watchers(file_id);
-CREATE INDEX idx_file_watchers_user_id ON file_watchers(user_id);
-CREATE INDEX idx_file_watchers_org_id ON file_watchers(org_id);
+CREATE INDEX IF NOT EXISTS idx_file_watchers_file_id ON file_watchers(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_watchers_user_id ON file_watchers(user_id);
+CREATE INDEX IF NOT EXISTS idx_file_watchers_org_id ON file_watchers(org_id);
 
 -- ===========================================
 -- FILE SHARE LINKS
 -- ===========================================
 
-CREATE TABLE file_share_links (
+CREATE TABLE IF NOT EXISTS file_share_links (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -2264,17 +2318,17 @@ CREATE TABLE file_share_links (
   is_active BOOLEAN DEFAULT true
 );
 
-CREATE INDEX idx_file_share_links_token ON file_share_links(token);
-CREATE INDEX idx_file_share_links_file_id ON file_share_links(file_id);
-CREATE INDEX idx_file_share_links_org_id ON file_share_links(org_id);
-CREATE INDEX idx_file_share_links_created_by ON file_share_links(created_by);
-CREATE INDEX idx_file_share_links_expires_at ON file_share_links(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_file_share_links_token ON file_share_links(token);
+CREATE INDEX IF NOT EXISTS idx_file_share_links_file_id ON file_share_links(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_share_links_org_id ON file_share_links(org_id);
+CREATE INDEX IF NOT EXISTS idx_file_share_links_created_by ON file_share_links(created_by);
+CREATE INDEX IF NOT EXISTS idx_file_share_links_expires_at ON file_share_links(expires_at) WHERE expires_at IS NOT NULL;
 
 -- ===========================================
 -- FILE COMMENTS
 -- ===========================================
 
-CREATE TABLE file_comments (
+CREATE TABLE IF NOT EXISTS file_comments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -2282,8 +2336,8 @@ CREATE TABLE file_comments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_file_comments_file_id ON file_comments(file_id);
-CREATE INDEX idx_file_comments_user_id ON file_comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_file_comments_file_id ON file_comments(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_comments_user_id ON file_comments(user_id);
 
 -- ===========================================
 -- FILE WATCHERS, SHARE LINKS, COMMENTS RLS
@@ -2672,7 +2726,7 @@ GRANT EXECUTE ON FUNCTION update_google_drive_settings(UUID, TEXT, TEXT, BOOLEAN
 -- SUPPLIERS (Vendor/Supplier Companies)
 -- ===========================================
 
-CREATE TABLE suppliers (
+CREATE TABLE IF NOT EXISTS suppliers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -2723,14 +2777,14 @@ CREATE TABLE suppliers (
   UNIQUE(org_id, code)
 );
 
-CREATE INDEX idx_suppliers_org_id ON suppliers(org_id);
-CREATE INDEX idx_suppliers_name ON suppliers(name);
-CREATE INDEX idx_suppliers_code ON suppliers(code);
-CREATE INDEX idx_suppliers_is_active ON suppliers(is_active);
-CREATE INDEX idx_suppliers_erp_id ON suppliers(erp_id) WHERE erp_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_suppliers_org_id ON suppliers(org_id);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
+CREATE INDEX IF NOT EXISTS idx_suppliers_code ON suppliers(code);
+CREATE INDEX IF NOT EXISTS idx_suppliers_is_active ON suppliers(is_active);
+CREATE INDEX IF NOT EXISTS idx_suppliers_erp_id ON suppliers(erp_id) WHERE erp_id IS NOT NULL;
 
 -- Full text search on suppliers
-CREATE INDEX idx_suppliers_search ON suppliers USING GIN (
+CREATE INDEX IF NOT EXISTS idx_suppliers_search ON suppliers USING GIN (
   to_tsvector('english', 
     coalesce(name, '') || ' ' || 
     coalesce(code, '') || ' ' || 
@@ -2742,7 +2796,7 @@ CREATE INDEX idx_suppliers_search ON suppliers USING GIN (
 -- PART_SUPPLIERS (Junction table with pricing)
 -- ===========================================
 
-CREATE TABLE part_suppliers (
+CREATE TABLE IF NOT EXISTS part_suppliers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -2795,11 +2849,11 @@ CREATE TABLE part_suppliers (
   UNIQUE(file_id, supplier_id)
 );
 
-CREATE INDEX idx_part_suppliers_org_id ON part_suppliers(org_id);
-CREATE INDEX idx_part_suppliers_file_id ON part_suppliers(file_id);
-CREATE INDEX idx_part_suppliers_supplier_id ON part_suppliers(supplier_id);
-CREATE INDEX idx_part_suppliers_is_preferred ON part_suppliers(is_preferred) WHERE is_preferred = true;
-CREATE INDEX idx_part_suppliers_supplier_part_number ON part_suppliers(supplier_part_number) WHERE supplier_part_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_part_suppliers_org_id ON part_suppliers(org_id);
+CREATE INDEX IF NOT EXISTS idx_part_suppliers_file_id ON part_suppliers(file_id);
+CREATE INDEX IF NOT EXISTS idx_part_suppliers_supplier_id ON part_suppliers(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_part_suppliers_is_preferred ON part_suppliers(is_preferred) WHERE is_preferred = true;
+CREATE INDEX IF NOT EXISTS idx_part_suppliers_supplier_part_number ON part_suppliers(supplier_part_number) WHERE supplier_part_number IS NOT NULL;
 
 -- Suppliers RLS
 ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
@@ -3002,21 +3056,24 @@ WHERE f.deleted_at IS NULL
 -- ===========================================
 
 -- RFQ Status enum
-CREATE TYPE rfq_status AS ENUM (
-  'draft',           -- RFQ is being prepared
-  'pending_files',   -- Files need to be added
-  'generating',      -- Release files are being generated
-  'ready',           -- RFQ is ready to send
-  'sent',            -- RFQ has been sent to suppliers
-  'awaiting_quote',  -- Waiting for supplier responses
-  'quoted',          -- All quotes received
-  'awarded',         -- Contract awarded to supplier
-  'cancelled',       -- RFQ was cancelled
-  'completed'        -- Order completed
-);
+DO $$ BEGIN
+  CREATE TYPE rfq_status AS ENUM (
+    'draft',           -- RFQ is being prepared
+    'pending_files',   -- Files need to be added
+    'generating',      -- Release files are being generated
+    'ready',           -- RFQ is ready to send
+    'sent',            -- RFQ has been sent to suppliers
+    'awaiting_quote',  -- Waiting for supplier responses
+    'quoted',          -- All quotes received
+    'awarded',         -- Contract awarded to supplier
+    'cancelled',       -- RFQ was cancelled
+    'completed'        -- Order completed
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- RFQs (Request for Quote header)
-CREATE TABLE rfqs (
+CREATE TABLE IF NOT EXISTS rfqs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -3069,14 +3126,14 @@ CREATE TABLE rfqs (
   UNIQUE(org_id, rfq_number)
 );
 
-CREATE INDEX idx_rfqs_org_id ON rfqs(org_id);
-CREATE INDEX idx_rfqs_status ON rfqs(status);
-CREATE INDEX idx_rfqs_rfq_number ON rfqs(rfq_number);
-CREATE INDEX idx_rfqs_created_at ON rfqs(created_at DESC);
-CREATE INDEX idx_rfqs_due_date ON rfqs(due_date);
+CREATE INDEX IF NOT EXISTS idx_rfqs_org_id ON rfqs(org_id);
+CREATE INDEX IF NOT EXISTS idx_rfqs_status ON rfqs(status);
+CREATE INDEX IF NOT EXISTS idx_rfqs_rfq_number ON rfqs(rfq_number);
+CREATE INDEX IF NOT EXISTS idx_rfqs_created_at ON rfqs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rfqs_due_date ON rfqs(due_date);
 
 -- RFQ Items (Line items / files on the RFQ)
-CREATE TABLE rfq_items (
+CREATE TABLE IF NOT EXISTS rfq_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   rfq_id UUID NOT NULL REFERENCES rfqs(id) ON DELETE CASCADE,
   
@@ -3116,12 +3173,12 @@ CREATE TABLE rfq_items (
   UNIQUE(rfq_id, line_number)
 );
 
-CREATE INDEX idx_rfq_items_rfq_id ON rfq_items(rfq_id);
-CREATE INDEX idx_rfq_items_file_id ON rfq_items(file_id) WHERE file_id IS NOT NULL;
-CREATE INDEX idx_rfq_items_part_number ON rfq_items(part_number);
+CREATE INDEX IF NOT EXISTS idx_rfq_items_rfq_id ON rfq_items(rfq_id);
+CREATE INDEX IF NOT EXISTS idx_rfq_items_file_id ON rfq_items(file_id) WHERE file_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rfq_items_part_number ON rfq_items(part_number);
 
 -- RFQ Suppliers (Suppliers assigned to an RFQ)
-CREATE TABLE rfq_suppliers (
+CREATE TABLE IF NOT EXISTS rfq_suppliers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   rfq_id UUID NOT NULL REFERENCES rfqs(id) ON DELETE CASCADE,
   supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
@@ -3146,11 +3203,11 @@ CREATE TABLE rfq_suppliers (
   UNIQUE(rfq_id, supplier_id)
 );
 
-CREATE INDEX idx_rfq_suppliers_rfq_id ON rfq_suppliers(rfq_id);
-CREATE INDEX idx_rfq_suppliers_supplier_id ON rfq_suppliers(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_rfq_suppliers_rfq_id ON rfq_suppliers(rfq_id);
+CREATE INDEX IF NOT EXISTS idx_rfq_suppliers_supplier_id ON rfq_suppliers(supplier_id);
 
 -- RFQ Quotes (Line item quotes from suppliers)
-CREATE TABLE rfq_quotes (
+CREATE TABLE IF NOT EXISTS rfq_quotes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   rfq_id UUID NOT NULL REFERENCES rfqs(id) ON DELETE CASCADE,
   rfq_supplier_id UUID NOT NULL REFERENCES rfq_suppliers(id) ON DELETE CASCADE,
@@ -3172,12 +3229,12 @@ CREATE TABLE rfq_quotes (
   UNIQUE(rfq_supplier_id, rfq_item_id)
 );
 
-CREATE INDEX idx_rfq_quotes_rfq_id ON rfq_quotes(rfq_id);
-CREATE INDEX idx_rfq_quotes_rfq_supplier_id ON rfq_quotes(rfq_supplier_id);
-CREATE INDEX idx_rfq_quotes_rfq_item_id ON rfq_quotes(rfq_item_id);
+CREATE INDEX IF NOT EXISTS idx_rfq_quotes_rfq_id ON rfq_quotes(rfq_id);
+CREATE INDEX IF NOT EXISTS idx_rfq_quotes_rfq_supplier_id ON rfq_quotes(rfq_supplier_id);
+CREATE INDEX IF NOT EXISTS idx_rfq_quotes_rfq_item_id ON rfq_quotes(rfq_item_id);
 
 -- RFQ Activity Log
-CREATE TABLE rfq_activity (
+CREATE TABLE IF NOT EXISTS rfq_activity (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   rfq_id UUID NOT NULL REFERENCES rfqs(id) ON DELETE CASCADE,
   action TEXT NOT NULL,
@@ -3188,8 +3245,8 @@ CREATE TABLE rfq_activity (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_rfq_activity_rfq_id ON rfq_activity(rfq_id);
-CREATE INDEX idx_rfq_activity_created_at ON rfq_activity(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rfq_activity_rfq_id ON rfq_activity(rfq_id);
+CREATE INDEX IF NOT EXISTS idx_rfq_activity_created_at ON rfq_activity(created_at DESC);
 
 -- RFQ RLS
 ALTER TABLE rfqs ENABLE ROW LEVEL SECURITY;
@@ -3319,7 +3376,7 @@ END $$;
 -- ORGANIZATION INTEGRATIONS (Odoo, Slack, etc.)
 -- ===========================================
 
-CREATE TABLE organization_integrations (
+CREATE TABLE IF NOT EXISTS organization_integrations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -3357,15 +3414,15 @@ CREATE TABLE organization_integrations (
   UNIQUE(org_id, integration_type)
 );
 
-CREATE INDEX idx_org_integrations_org_id ON organization_integrations(org_id);
-CREATE INDEX idx_org_integrations_type ON organization_integrations(integration_type);
-CREATE INDEX idx_org_integrations_active ON organization_integrations(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_org_integrations_org_id ON organization_integrations(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_type ON organization_integrations(integration_type);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_active ON organization_integrations(is_active) WHERE is_active = true;
 
 -- ===========================================
 -- INTEGRATION SYNC LOG (Audit trail)
 -- ===========================================
 
-CREATE TABLE integration_sync_log (
+CREATE TABLE IF NOT EXISTS integration_sync_log (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   integration_id UUID NOT NULL REFERENCES organization_integrations(id) ON DELETE CASCADE,
@@ -3395,9 +3452,9 @@ CREATE TABLE integration_sync_log (
   trigger_type TEXT DEFAULT 'manual'  -- 'manual', 'scheduled', 'webhook'
 );
 
-CREATE INDEX idx_sync_log_org_id ON integration_sync_log(org_id);
-CREATE INDEX idx_sync_log_integration_id ON integration_sync_log(integration_id);
-CREATE INDEX idx_sync_log_started_at ON integration_sync_log(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sync_log_org_id ON integration_sync_log(org_id);
+CREATE INDEX IF NOT EXISTS idx_sync_log_integration_id ON integration_sync_log(integration_id);
+CREATE INDEX IF NOT EXISTS idx_sync_log_started_at ON integration_sync_log(started_at DESC);
 
 -- ===========================================
 -- INTEGRATION RLS POLICIES
@@ -3440,7 +3497,7 @@ CREATE POLICY "System can insert sync logs"
 -- Stores multiple named Odoo configurations per org
 -- Users can save, load, and switch between configurations
 
-CREATE TABLE odoo_saved_configs (
+CREATE TABLE IF NOT EXISTS odoo_saved_configs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -3473,8 +3530,8 @@ CREATE TABLE odoo_saved_configs (
   UNIQUE(org_id, name)
 );
 
-CREATE INDEX idx_odoo_saved_configs_org_id ON odoo_saved_configs(org_id);
-CREATE INDEX idx_odoo_saved_configs_active ON odoo_saved_configs(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_odoo_saved_configs_org_id ON odoo_saved_configs(org_id);
+CREATE INDEX IF NOT EXISTS idx_odoo_saved_configs_active ON odoo_saved_configs(is_active) WHERE is_active = true;
 
 ALTER TABLE odoo_saved_configs ENABLE ROW LEVEL SECURITY;
 
@@ -3583,7 +3640,7 @@ GRANT EXECUTE ON FUNCTION get_org_odoo_configs(UUID) TO authenticated;
 -- Stores multiple WooCommerce store configurations per org
 -- Users can save, load, and switch between store connections
 
-CREATE TABLE woocommerce_saved_configs (
+CREATE TABLE IF NOT EXISTS woocommerce_saved_configs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -3630,8 +3687,8 @@ CREATE TABLE woocommerce_saved_configs (
   UNIQUE(org_id, name)
 );
 
-CREATE INDEX idx_woocommerce_saved_configs_org_id ON woocommerce_saved_configs(org_id);
-CREATE INDEX idx_woocommerce_saved_configs_active ON woocommerce_saved_configs(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_woocommerce_saved_configs_org_id ON woocommerce_saved_configs(org_id);
+CREATE INDEX IF NOT EXISTS idx_woocommerce_saved_configs_active ON woocommerce_saved_configs(is_active) WHERE is_active = true;
 
 ALTER TABLE woocommerce_saved_configs ENABLE ROW LEVEL SECURITY;
 
@@ -3701,7 +3758,7 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION get_org_woocommerce_configs(UUID) TO authenticated;
 
 -- WooCommerce Product Mappings (tracks synced products)
-CREATE TABLE woocommerce_product_mappings (
+CREATE TABLE IF NOT EXISTS woocommerce_product_mappings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   config_id UUID NOT NULL REFERENCES woocommerce_saved_configs(id) ON DELETE CASCADE,
@@ -3727,9 +3784,9 @@ CREATE TABLE woocommerce_product_mappings (
   UNIQUE(config_id, wc_product_id)
 );
 
-CREATE INDEX idx_wc_product_mappings_org_id ON woocommerce_product_mappings(org_id);
-CREATE INDEX idx_wc_product_mappings_config_id ON woocommerce_product_mappings(config_id);
-CREATE INDEX idx_wc_product_mappings_file_id ON woocommerce_product_mappings(file_id);
+CREATE INDEX IF NOT EXISTS idx_wc_product_mappings_org_id ON woocommerce_product_mappings(org_id);
+CREATE INDEX IF NOT EXISTS idx_wc_product_mappings_config_id ON woocommerce_product_mappings(config_id);
+CREATE INDEX IF NOT EXISTS idx_wc_product_mappings_file_id ON woocommerce_product_mappings(file_id);
 
 ALTER TABLE woocommerce_product_mappings ENABLE ROW LEVEL SECURITY;
 
@@ -3747,9 +3804,12 @@ CREATE POLICY "Admins can manage wc product mappings"
 -- Org admins can define custom metadata columns that appear in the file browser
 -- Values are stored in files.custom_properties JSONB field
 
-CREATE TYPE metadata_column_type AS ENUM ('text', 'number', 'date', 'boolean', 'select');
+DO $$ BEGIN
+  CREATE TYPE metadata_column_type AS ENUM ('text', 'number', 'date', 'boolean', 'select');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE file_metadata_columns (
+CREATE TABLE IF NOT EXISTS file_metadata_columns (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -3781,8 +3841,8 @@ CREATE TABLE file_metadata_columns (
   UNIQUE(org_id, name)
 );
 
-CREATE INDEX idx_file_metadata_columns_org_id ON file_metadata_columns(org_id);
-CREATE INDEX idx_file_metadata_columns_sort_order ON file_metadata_columns(org_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_file_metadata_columns_org_id ON file_metadata_columns(org_id);
+CREATE INDEX IF NOT EXISTS idx_file_metadata_columns_sort_order ON file_metadata_columns(org_id, sort_order);
 
 -- Enable RLS
 ALTER TABLE file_metadata_columns ENABLE ROW LEVEL SECURITY;
@@ -3810,14 +3870,17 @@ CREATE POLICY "Admins can delete metadata columns"
 -- ===========================================
 
 -- Auth method enum for suppliers (not all have Google access in China)
-CREATE TYPE supplier_auth_method AS ENUM ('email', 'phone', 'wechat');
+DO $$ BEGIN
+  CREATE TYPE supplier_auth_method AS ENUM ('email', 'phone', 'wechat');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ===========================================
 -- SUPPLIER CONTACTS (Supplier Portal Users)
 -- ===========================================
 -- These are people who work at supplier companies and need portal access
 
-CREATE TABLE supplier_contacts (
+CREATE TABLE IF NOT EXISTS supplier_contacts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   
   -- Link to Supabase auth (if they have one)
@@ -3864,19 +3927,19 @@ CREATE TABLE supplier_contacts (
   UNIQUE(wechat_openid)
 );
 
-CREATE INDEX idx_supplier_contacts_supplier_id ON supplier_contacts(supplier_id);
-CREATE INDEX idx_supplier_contacts_email ON supplier_contacts(email) WHERE email IS NOT NULL;
-CREATE INDEX idx_supplier_contacts_phone ON supplier_contacts(phone) WHERE phone IS NOT NULL;
-CREATE INDEX idx_supplier_contacts_auth_user_id ON supplier_contacts(auth_user_id) WHERE auth_user_id IS NOT NULL;
-CREATE INDEX idx_supplier_contacts_wechat_openid ON supplier_contacts(wechat_openid) WHERE wechat_openid IS NOT NULL;
-CREATE INDEX idx_supplier_contacts_is_active ON supplier_contacts(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_supplier_contacts_supplier_id ON supplier_contacts(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_contacts_email ON supplier_contacts(email) WHERE email IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_supplier_contacts_phone ON supplier_contacts(phone) WHERE phone IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_supplier_contacts_auth_user_id ON supplier_contacts(auth_user_id) WHERE auth_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_supplier_contacts_wechat_openid ON supplier_contacts(wechat_openid) WHERE wechat_openid IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_supplier_contacts_is_active ON supplier_contacts(is_active) WHERE is_active = true;
 
 -- ===========================================
 -- SUPPLIER INVITATIONS
 -- ===========================================
 -- Organizations can invite suppliers to the portal
 
-CREATE TABLE supplier_invitations (
+CREATE TABLE IF NOT EXISTS supplier_invitations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   
   -- Who invited
@@ -3901,11 +3964,11 @@ CREATE TABLE supplier_invitations (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_supplier_invitations_org_id ON supplier_invitations(org_id);
-CREATE INDEX idx_supplier_invitations_supplier_id ON supplier_invitations(supplier_id);
-CREATE INDEX idx_supplier_invitations_token ON supplier_invitations(token);
-CREATE INDEX idx_supplier_invitations_status ON supplier_invitations(status);
-CREATE INDEX idx_supplier_invitations_email ON supplier_invitations(email) WHERE email IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_supplier_invitations_org_id ON supplier_invitations(org_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invitations_supplier_id ON supplier_invitations(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invitations_token ON supplier_invitations(token);
+CREATE INDEX IF NOT EXISTS idx_supplier_invitations_status ON supplier_invitations(status);
+CREATE INDEX IF NOT EXISTS idx_supplier_invitations_email ON supplier_invitations(email) WHERE email IS NOT NULL;
 
 -- ===========================================
 -- SUPPLIER AUTH RLS POLICIES
@@ -4391,29 +4454,35 @@ $$ LANGUAGE plpgsql;
 -- WEBHOOKS
 -- ===========================================
 
-CREATE TYPE webhook_event AS ENUM (
-  'file.created',
-  'file.updated', 
-  'file.deleted',
-  'file.checked_out',
-  'file.checked_in',
-  'file.state_changed',
-  'file.revision_changed',
-  'review.requested',
-  'review.approved',
-  'review.rejected',
-  'eco.created',
-  'eco.completed'
-);
+DO $$ BEGIN
+  CREATE TYPE webhook_event AS ENUM (
+    'file.created',
+    'file.updated', 
+    'file.deleted',
+    'file.checked_out',
+    'file.checked_in',
+    'file.state_changed',
+    'file.revision_changed',
+    'review.requested',
+    'review.approved',
+    'review.rejected',
+    'eco.created',
+    'eco.completed'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE webhook_delivery_status AS ENUM (
-  'pending',
-  'success',
-  'failed',
-  'retrying'
-);
+DO $$ BEGIN
+  CREATE TYPE webhook_delivery_status AS ENUM (
+    'pending',
+    'success',
+    'failed',
+    'retrying'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE webhooks (
+CREATE TABLE IF NOT EXISTS webhooks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -4454,10 +4523,10 @@ CREATE TABLE webhooks (
   failure_count INTEGER DEFAULT 0
 );
 
-CREATE INDEX idx_webhooks_org_id ON webhooks(org_id);
-CREATE INDEX idx_webhooks_active ON webhooks(org_id, is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_webhooks_org_id ON webhooks(org_id);
+CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(org_id, is_active) WHERE is_active = TRUE;
 
-CREATE TABLE webhook_deliveries (
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   webhook_id UUID NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -4485,10 +4554,10 @@ CREATE TABLE webhook_deliveries (
   last_error TEXT
 );
 
-CREATE INDEX idx_webhook_deliveries_webhook_id ON webhook_deliveries(webhook_id);
-CREATE INDEX idx_webhook_deliveries_org_id ON webhook_deliveries(org_id);
-CREATE INDEX idx_webhook_deliveries_status ON webhook_deliveries(status) WHERE status IN ('pending', 'retrying');
-CREATE INDEX idx_webhook_deliveries_created_at ON webhook_deliveries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook_id ON webhook_deliveries(webhook_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_org_id ON webhook_deliveries(org_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status ON webhook_deliveries(status) WHERE status IN ('pending', 'retrying');
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created_at ON webhook_deliveries(created_at DESC);
 
 -- Webhooks RLS
 ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
@@ -4550,7 +4619,7 @@ CREATE TRIGGER webhooks_updated_at
 -- Emergency mechanism to regain admin access
 -- ===========================================
 
-CREATE TABLE admin_recovery_codes (
+CREATE TABLE IF NOT EXISTS admin_recovery_codes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -4580,9 +4649,9 @@ CREATE TABLE admin_recovery_codes (
 );
 
 -- Index for efficient lookups
-CREATE INDEX idx_admin_recovery_codes_org ON admin_recovery_codes(org_id);
-CREATE INDEX idx_admin_recovery_codes_hash ON admin_recovery_codes(code_hash);
-CREATE INDEX idx_admin_recovery_codes_active ON admin_recovery_codes(org_id, is_used, is_revoked, expires_at);
+CREATE INDEX IF NOT EXISTS idx_admin_recovery_codes_org ON admin_recovery_codes(org_id);
+CREATE INDEX IF NOT EXISTS idx_admin_recovery_codes_hash ON admin_recovery_codes(code_hash);
+CREATE INDEX IF NOT EXISTS idx_admin_recovery_codes_active ON admin_recovery_codes(org_id, is_used, is_revoked, expires_at);
 
 -- Enable RLS
 ALTER TABLE admin_recovery_codes ENABLE ROW LEVEL SECURITY;
@@ -4703,10 +4772,13 @@ COMMENT ON FUNCTION use_admin_recovery_code IS 'Validates a recovery code and el
 -- drawings, or requirements for specific files/revisions
 
 -- Deviation status enum
-CREATE TYPE deviation_status AS ENUM ('draft', 'pending_approval', 'approved', 'rejected', 'closed', 'expired');
+DO $$ BEGIN
+  CREATE TYPE deviation_status AS ENUM ('draft', 'pending_approval', 'approved', 'rejected', 'closed', 'expired');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Deviations table
-CREATE TABLE deviations (
+CREATE TABLE IF NOT EXISTS deviations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -4742,14 +4814,14 @@ CREATE TABLE deviations (
   UNIQUE(org_id, deviation_number)
 );
 
-CREATE INDEX idx_deviations_org_id ON deviations(org_id);
-CREATE INDEX idx_deviations_deviation_number ON deviations(deviation_number);
-CREATE INDEX idx_deviations_status ON deviations(status);
-CREATE INDEX idx_deviations_created_at ON deviations(created_at DESC);
-CREATE INDEX idx_deviations_affected_parts ON deviations USING GIN (affected_part_numbers);
+CREATE INDEX IF NOT EXISTS idx_deviations_org_id ON deviations(org_id);
+CREATE INDEX IF NOT EXISTS idx_deviations_deviation_number ON deviations(deviation_number);
+CREATE INDEX IF NOT EXISTS idx_deviations_status ON deviations(status);
+CREATE INDEX IF NOT EXISTS idx_deviations_created_at ON deviations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_deviations_affected_parts ON deviations USING GIN (affected_part_numbers);
 
 -- File-Deviation junction table (Many-to-Many with version tracking)
-CREATE TABLE file_deviations (
+CREATE TABLE IF NOT EXISTS file_deviations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   deviation_id UUID NOT NULL REFERENCES deviations(id) ON DELETE CASCADE,
@@ -4770,8 +4842,8 @@ CREATE TABLE file_deviations (
   UNIQUE(file_id, deviation_id)
 );
 
-CREATE INDEX idx_file_deviations_file_id ON file_deviations(file_id);
-CREATE INDEX idx_file_deviations_deviation_id ON file_deviations(deviation_id);
+CREATE INDEX IF NOT EXISTS idx_file_deviations_file_id ON file_deviations(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_deviations_deviation_id ON file_deviations(deviation_id);
 
 -- Deviation RLS
 ALTER TABLE deviations ENABLE ROW LEVEL SECURITY;

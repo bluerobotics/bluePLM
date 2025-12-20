@@ -2304,9 +2304,6 @@ function App() {
         minimal={isSignInScreen}
       />
       
-      {/* Tab bar (browser-like tabs) - only shown when tabs are enabled */}
-      {!showWelcome && <TabBar />}
-      
       {/* Role impersonation banner (dev tools) */}
       <ImpersonationBanner />
 
@@ -2340,6 +2337,9 @@ function App() {
 
         {/* Main Content */}
         <div className={`flex-1 flex flex-col overflow-hidden min-w-0 ${isResizingSidebar || isResizingRightPanel ? 'pointer-events-none' : ''}`}>
+          {/* Tab bar (browser-like tabs) - only shown when tabs are enabled */}
+          {!showWelcome && <TabBar />}
+          
           {showWelcome ? (
             <WelcomeScreen 
               onOpenRecentVault={handleOpenRecentVault}

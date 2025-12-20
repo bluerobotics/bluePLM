@@ -18,40 +18,18 @@ All notable changes to BluePLM will be documented in this file.
 ## [2.13.0] - 2025-12-19
 
 ### Added
-- **SolidWorks Datacard**: Combined Preview and Properties into a single "Datacard" tab for SolidWorks files
-  - Split layout with preview on left, properties on right
-  - Unique 3D-inspired configuration tabs with geometric icons and glow effects
-  - Key properties always visible (Part #, Description, Revision, Material)
-  - PDM metadata section with sync capability
-  - Integrated export buttons (STEP, IGES, STL, PDF, DXF)
-- **Vault-wide metadata sync**: New "Sync All Vault Metadata" button in SolidWorks Settings
-  - Bulk extract part numbers, descriptions, and revisions from all SolidWorks files
-  - Shows progress and results (updated/unchanged/failed counts)
-  - Useful for retroactive metadata sync after bulk imports
-- **Browser-like tab system**: Optional tab bar below the menu bar for multi-view workflows
-  - Add, close, reorder tabs via drag-and-drop
-  - Pin tabs, duplicate, close to right, close others
-  - Tab groups with custom colors for organization
-  - Pop out tabs to separate windows for multi-monitor setups
-  - Enable in Settings → Preferences → Interface
-- **Serialization settings**: New settings page for sequential item/part numbers with org-level sync
-  - Custom prefix, suffix, and letter prefix (e.g., "PN-AB00001-REV")
-  - Configurable digit padding (3-8 digits)
-  - Keepout zones to reserve/skip number ranges
-  - Live preview of next serial number
-  - File type filtering: Select which extensions auto-receive serial numbers (e.g., .sldprt, .sldasm)
-- **Generate serial button**: Sparkles icon in Details Panel to auto-generate next item number
+- **SolidWorks Datacard**: Combined preview + properties panel with 3D config tabs and export buttons
+- **Vault-wide metadata sync**: Bulk extract part numbers from all SW files (Settings → SolidWorks)
+- **Browser-like tabs**: Optional tab bar with drag-reorder, pin, groups, and pop-out windows
+- **Serialization settings**: Auto-generate sequential part numbers with prefix/suffix/keepouts
+- **Generate serial button**: Sparkles icon in Details Panel for quick item number generation
 
 ### Improved
-- **SolidWorks metadata extraction**: Expanded property name detection
-  - Added 20+ property name aliases for part numbers, descriptions, and revisions
-  - Case-insensitive fallback matching for non-standard property names
-  - Now extracts revision during check-in (previously only part number and description)
-  - Skips formula references (values starting with $)
-  - Better configuration property priority (Default > Standard > first available)
+- **SW metadata extraction**: 20+ property aliases, case-insensitive fallback, revision extraction
 
 ### Fixed
-- **Right panel toggle**: Toggle button now properly shows/hides the right panel (auto-adds properties tab when empty)
+- **Right panel toggle**: Now properly shows/hides panel
+- **SW preview launch**: Previews no longer open SolidWorks (uses Document Manager only)
 
 ---
 
