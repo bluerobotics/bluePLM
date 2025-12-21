@@ -42,10 +42,10 @@ function TabItem({ tab, tabIndex, isActive, isOnlyTab, isDragging, onContextMenu
         onDragStart(e, tab)
       }}
       className={`
-        group relative flex items-center gap-1.5 px-3 cursor-grab active:cursor-grabbing select-none titlebar-no-drag
+        tab-item group relative flex items-center gap-1.5 px-3 cursor-grab active:cursor-grabbing select-none titlebar-no-drag
         transition-all min-w-[120px] max-w-[220px]
         ${isActive 
-          ? 'bg-[#3a3a3a] text-plm-fg h-[34px] rounded-t-xl z-10 -mb-px' 
+          ? 'tab-active bg-plm-bg-lighter text-plm-fg h-[34px] rounded-t-xl z-10 -mb-px' 
           : 'bg-plm-bg/50 text-plm-fg-dim hover:bg-plm-bg-lighter hover:text-plm-fg h-[30px] mt-1 mx-0.5 rounded-t-lg'
         }
         ${isDragging ? 'opacity-50 scale-95' : ''}
@@ -56,17 +56,11 @@ function TabItem({ tab, tabIndex, isActive, isOnlyTab, isDragging, onContextMenu
         <>
           {/* Left interior curve - uses box-shadow trick */}
           <div 
-            className="absolute -left-[10px] bottom-0 w-[10px] h-[10px] rounded-br-full bg-transparent"
-            style={{
-              boxShadow: '5px 0 0 0 #3a3a3a',
-            }}
+            className="tab-curve-left absolute -left-[10px] bottom-0 w-[10px] h-[10px] rounded-br-full bg-transparent"
           />
           {/* Right interior curve */}
           <div 
-            className="absolute -right-[10px] bottom-0 w-[10px] h-[10px] rounded-bl-full bg-transparent"
-            style={{
-              boxShadow: '-5px 0 0 0 #3a3a3a',
-            }}
+            className="tab-curve-right absolute -right-[10px] bottom-0 w-[10px] h-[10px] rounded-bl-full bg-transparent"
           />
         </>
       )}

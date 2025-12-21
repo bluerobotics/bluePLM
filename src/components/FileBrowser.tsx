@@ -4582,7 +4582,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       )}
 
       {/* Toolbar with breadcrumb - Chrome-style lighter bar */}
-      <div className="h-12 bg-[#3a3a3a] border-b border-plm-border flex items-center px-3 flex-shrink-0 gap-2">
+      <div className="crumb-bar-container h-12 bg-plm-bg-lighter border-b border-plm-border flex items-center px-3 flex-shrink-0 gap-2">
         {/* Breadcrumb / Search indicator */}
         {isSearching ? (
           <div className="flex items-center gap-2 flex-1 min-w-0 text-sm text-plm-fg-dim">
@@ -4618,7 +4618,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               navigator.clipboard.writeText(fullPath)
               addToast('success', 'Path copied to clipboard')
             }}
-            className="p-1.5 rounded-md text-plm-fg-muted hover:text-plm-fg hover:bg-black/20 transition-colors"
+            className="p-1.5 rounded-md text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
             title="Copy current path"
           >
             <Copy size={16} />
@@ -4632,7 +4632,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 window.electronAPI.openInExplorer(fullPath)
               }
             }}
-            className="p-1.5 rounded-md text-plm-fg-muted hover:text-plm-fg hover:bg-black/20 transition-colors"
+            className="p-1.5 rounded-md text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
             title={platform === 'darwin' ? 'Reveal in Finder' : 'Open in Explorer'}
           >
             <ExternalLink size={16} />

@@ -1662,3 +1662,172 @@ tr.selected.diff-cloud {
   padding: 12px 24px;
   font-size: 14px;
 }
+
+/* =============================================
+   TAB BAR STYLING (Theme-aware)
+   ============================================= */
+
+/* Tab curve shadows - use CSS variable for theme awareness */
+.tab-curve-left {
+  box-shadow: 5px 0 0 0 var(--plm-bg-lighter);
+}
+
+.tab-curve-right {
+  box-shadow: -5px 0 0 0 var(--plm-bg-lighter);
+}
+
+/* Active tab background color for themes */
+.tab-active {
+  background-color: var(--plm-bg-lighter);
+}
+
+/* Light mode tab bar fixes */
+[data-theme="light"] .tab-active {
+  background-color: #ffffff !important;
+  border-top: 1px solid var(--plm-border);
+  border-left: 1px solid var(--plm-border);
+  border-right: 1px solid var(--plm-border);
+}
+
+[data-theme="light"] .tab-curve-left {
+  box-shadow: 5px 0 0 0 #ffffff;
+}
+
+[data-theme="light"] .tab-curve-right {
+  box-shadow: -5px 0 0 0 #ffffff;
+}
+
+/* Light mode crumb bar background */
+[data-theme="light"] .bg-plm-activitybar {
+  background-color: #e8e8e8;
+}
+
+/* =============================================
+   CHRISTMAS THEME TAB BAR 🎄
+   ============================================= */
+
+[data-theme="christmas"] .tab-active {
+  background: linear-gradient(180deg, #1a4d2e 0%, #143d24 100%) !important;
+  border-top: 1px solid #2ea043;
+  border-left: 1px solid #2ea043;
+  border-right: 1px solid #2ea043;
+}
+
+[data-theme="christmas"] .tab-curve-left {
+  box-shadow: 5px 0 0 0 #143d24;
+}
+
+[data-theme="christmas"] .tab-curve-right {
+  box-shadow: -5px 0 0 0 #143d24;
+}
+
+/* Christmas theme activity bar (tab bar container) */
+[data-theme="christmas"] .bg-plm-activitybar {
+  background: linear-gradient(180deg, #0a0e13 0%, #0d1117 100%);
+}
+
+/* =============================================
+   HALLOWEEN THEME TAB BAR 🎃
+   ============================================= */
+
+[data-theme="halloween"] .tab-active {
+  background: linear-gradient(180deg, #1a0a2e 0%, #150826 100%) !important;
+  border-top: 1px solid #bd93f9;
+  border-left: 1px solid rgba(189, 147, 249, 0.3);
+  border-right: 1px solid rgba(189, 147, 249, 0.3);
+}
+
+[data-theme="halloween"] .tab-curve-left {
+  box-shadow: 5px 0 0 0 #150826;
+}
+
+[data-theme="halloween"] .tab-curve-right {
+  box-shadow: -5px 0 0 0 #150826;
+}
+
+/* =============================================
+   KENNETH THEME TAB BAR 💜
+   ============================================= */
+
+[data-theme="kenneth"] .tab-active {
+  background: linear-gradient(180deg, #2d1f45 0%, #231435 100%) !important;
+  border-top: 1px solid #a855f7;
+  border-left: 1px solid rgba(168, 85, 247, 0.3);
+  border-right: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+[data-theme="kenneth"] .tab-curve-left {
+  box-shadow: 5px 0 0 0 #231435;
+}
+
+[data-theme="kenneth"] .tab-curve-right {
+  box-shadow: -5px 0 0 0 #231435;
+}
+
+/* =============================================
+   DEEP BLUE THEME TAB BAR 🌊
+   ============================================= */
+
+[data-theme="deep-blue"] .tab-active {
+  background: linear-gradient(180deg, #122a44 0%, #0d2137 100%) !important;
+  border-top: 1px solid #00b4d8;
+  border-left: 1px solid rgba(0, 180, 216, 0.3);
+  border-right: 1px solid rgba(0, 180, 216, 0.3);
+}
+
+[data-theme="deep-blue"] .tab-curve-left {
+  box-shadow: 5px 0 0 0 #0d2137;
+}
+
+[data-theme="deep-blue"] .tab-curve-right {
+  box-shadow: -5px 0 0 0 #0d2137;
+}
+
+/* =============================================
+   CRUMB BAR CONTAINER STYLING (Theme-aware)
+   ============================================= */
+
+/* Light mode crumb bar */
+[data-theme="light"] .crumb-bar-container {
+  background-color: #e8e8e8 !important;
+}
+
+[data-theme="light"] .crumb-bar-container .bg-plm-bg {
+  background-color: #ffffff !important;
+}
+
+/* Christmas theme crumb bar 🎄 */
+[data-theme="christmas"] .crumb-bar-container {
+  background: linear-gradient(180deg, #8b1428 0%, #6b1020 100%) !important;
+}
+
+[data-theme="christmas"] .crumb-bar-container .bg-plm-bg {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Halloween theme crumb bar 🎃 */
+[data-theme="halloween"] .crumb-bar-container {
+  background: linear-gradient(180deg, #1a0a2e 0%, #150826 100%) !important;
+}
+
+[data-theme="halloween"] .crumb-bar-container .bg-plm-bg {
+  background: rgba(189, 147, 249, 0.1) !important;
+}
+
+/* Kenneth theme crumb bar 💜 */
+[data-theme="kenneth"] .crumb-bar-container {
+  background: linear-gradient(180deg, #231435 0%, #1a1028 100%) !important;
+}
+
+[data-theme="kenneth"] .crumb-bar-container .bg-plm-bg {
+  background: rgba(168, 85, 247, 0.1) !important;
+}
+
+/* Deep Blue theme crumb bar 🌊 */
+[data-theme="deep-blue"] .crumb-bar-container {
+  background: linear-gradient(180deg, #122a44 0%, #0d2137 100%) !important;
+}
+
+[data-theme="deep-blue"] .crumb-bar-container .bg-plm-bg {
+  background: rgba(0, 180, 216, 0.1) !important;
+}

@@ -158,7 +158,7 @@ export function CrumbBar({
         <button
           onClick={onBack}
           disabled={!canGoBack}
-          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-black/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           title="Back"
         >
           <ArrowLeft size={20} />
@@ -168,7 +168,7 @@ export function CrumbBar({
         <button
           onClick={onForward}
           disabled={!canGoForward}
-          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-black/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           title="Forward"
         >
           <ArrowRight size={20} />
@@ -178,7 +178,7 @@ export function CrumbBar({
         <button
           onClick={onNavigateUp}
           disabled={!currentPath}
-          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-black/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           title="Up one level"
         >
           <ChevronUp size={20} />
@@ -187,7 +187,7 @@ export function CrumbBar({
         {/* Refresh */}
         <button
           onClick={onRefresh}
-          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-black/20 transition-colors"
+          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors"
           title="Refresh"
         >
           <RefreshCw size={18} />
@@ -232,7 +232,7 @@ export function CrumbBar({
                 e.stopPropagation()
                 onNavigateRoot()
               }}
-              className="flex items-center gap-2 text-plm-fg-dim hover:text-plm-fg hover:bg-white/10 transition-colors px-2 py-1 rounded-md flex-shrink-0"
+              className="flex items-center gap-2 text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors px-2 py-1 rounded-md flex-shrink-0"
               title="Go to vault root"
             >
               <Home size={18} />
@@ -252,7 +252,7 @@ export function CrumbBar({
                       e.stopPropagation()
                       onNavigate(pathUpToHere)
                     }}
-                    className={`px-2 py-1 rounded-md truncate max-w-[150px] hover:bg-white/10 transition-colors text-sm ${
+                    className={`px-2 py-1 rounded-md truncate max-w-[150px] hover:bg-plm-highlight transition-colors text-sm ${
                       isLast
                         ? 'text-plm-fg font-medium'
                         : 'text-plm-fg-dim hover:text-plm-fg'
