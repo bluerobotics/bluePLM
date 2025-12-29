@@ -591,11 +591,13 @@ export interface Database {
           label: string | null
           description: string | null
           color: string
+          fill_opacity: number | null
+          border_color: string | null
+          border_opacity: number | null
+          border_thickness: number | null
           icon: string
           position_x: number
           position_y: number
-          state_type: 'initial' | 'intermediate' | 'final' | 'rejected'
-          maps_to_file_state: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           is_editable: boolean
           requires_checkout: boolean
           auto_increment_revision: boolean
@@ -609,11 +611,13 @@ export interface Database {
           label?: string | null
           description?: string | null
           color?: string
+          fill_opacity?: number | null
+          border_color?: string | null
+          border_opacity?: number | null
+          border_thickness?: number | null
           icon?: string
           position_x?: number
           position_y?: number
-          state_type?: 'initial' | 'intermediate' | 'final' | 'rejected'
-          maps_to_file_state?: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           is_editable?: boolean
           requires_checkout?: boolean
           auto_increment_revision?: boolean
@@ -627,11 +631,13 @@ export interface Database {
           label?: string | null
           description?: string | null
           color?: string
+          fill_opacity?: number | null
+          border_color?: string | null
+          border_opacity?: number | null
+          border_thickness?: number | null
           icon?: string
           position_x?: number
           position_y?: number
-          state_type?: 'initial' | 'intermediate' | 'final' | 'rejected'
-          maps_to_file_state?: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
           is_editable?: boolean
           requires_checkout?: boolean
           auto_increment_revision?: boolean
@@ -1685,7 +1691,6 @@ export interface Database {
       }
     }
     Enums: {
-      file_state: 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
       file_type: 'part' | 'assembly' | 'drawing' | 'document' | 'other'
       reference_type: 'component' | 'drawing_view' | 'derived' | 'copy'
       user_role: 'admin' | 'engineer' | 'viewer'
@@ -1694,7 +1699,6 @@ export interface Database {
       eco_status: 'open' | 'in_progress' | 'completed' | 'cancelled'
       review_status: 'pending' | 'approved' | 'rejected' | 'cancelled'
       notification_type: 'review_request' | 'review_approved' | 'review_rejected' | 'review_comment' | 'mention' | 'file_updated' | 'checkout_request'
-      workflow_state_type: 'initial' | 'intermediate' | 'final' | 'rejected'
       gate_type: 'approval' | 'checklist' | 'condition' | 'notification'
       approval_mode: 'any' | 'all' | 'sequential'
       reviewer_type: 'user' | 'role' | 'group' | 'file_owner' | 'checkout_user'

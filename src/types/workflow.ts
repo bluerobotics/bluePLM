@@ -29,9 +29,6 @@ export interface CanvasConfig {
 // WORKFLOW STATE (Node in the workflow)
 // ===========================================
 
-export type WorkflowStateType = 'initial' | 'intermediate' | 'final' | 'rejected'
-export type FileStateMapping = 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
-
 export interface WorkflowState {
   id: string
   workflow_id: string
@@ -39,11 +36,13 @@ export interface WorkflowState {
   label: string | null
   description: string | null
   color: string
+  fill_opacity: number | null          // Fill opacity (0.0-1.0), null = 1.0
+  border_color: string | null          // Border color (null = same as fill)
+  border_opacity: number | null        // Border opacity (0.0-1.0), null = 1.0
+  border_thickness: number | null      // Border thickness in px (1-6), null = 2
   icon: string
   position_x: number
   position_y: number
-  state_type: WorkflowStateType
-  maps_to_file_state: FileStateMapping
   is_editable: boolean
   requires_checkout: boolean
   auto_increment_revision: boolean
@@ -63,6 +62,9 @@ export interface WorkflowStateNode extends WorkflowState {
 // ===========================================
 
 export type TransitionLineStyle = 'solid' | 'dashed' | 'dotted'
+export type TransitionPathType = 'straight' | 'spline' | 'elbow'
+export type TransitionArrowHead = 'end' | 'start' | 'both' | 'none'
+export type TransitionLineThickness = 1 | 2 | 3 | 4 | 6
 export type UserRole = 'admin' | 'engineer' | 'viewer'
 
 export interface WorkflowTransition {
@@ -74,6 +76,9 @@ export interface WorkflowTransition {
   description: string | null
   line_style: TransitionLineStyle
   line_color: string | null
+  line_path_type: TransitionPathType | null  // straight, spline (curved), elbow (orthogonal)
+  line_arrow_head: TransitionArrowHead | null  // which end has arrow
+  line_thickness: TransitionLineThickness | null  // stroke width
   allowed_roles: UserRole[]
   auto_conditions: Record<string, unknown> | null
   created_at: string
@@ -276,8 +281,6 @@ export interface CreateStateForm {
   description: string
   color: string
   icon: string
-  state_type: WorkflowStateType
-  maps_to_file_state: FileStateMapping
   is_editable: boolean
   requires_checkout: boolean
   auto_increment_revision: boolean

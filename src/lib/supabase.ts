@@ -737,8 +737,8 @@ export async function getFiles(orgId: string, options?: {
     query = query.ilike('file_path', `${options.folder}%`)
   }
   
-  if (options?.state && options.state.length > 0) {
-    query = query.in('state', options.state)
+  if (options?.workflow_state_ids && options.workflow_state_ids.length > 0) {
+    query = query.in('workflow_state_id', options.workflow_state_ids)
   }
   
   if (options?.search) {
@@ -1239,7 +1239,7 @@ export async function syncFile(
         revision: data.revision,
         content_hash: contentHash,
         file_size: fileSize,
-        state: data.state,
+        workflow_state_id: data.workflow_state_id,
         created_by: userId
       })
       
@@ -1606,7 +1606,7 @@ export async function checkinFile(
       revision: updateData.revision || file.revision,
       content_hash: updateData.content_hash || file.content_hash,
       file_size: updateData.file_size || file.file_size,
-      state: file.state,
+      workflow_state_id: file.workflow_state_id,
       created_by: userId,
       comment: options?.comment || null
     })
@@ -1731,7 +1731,7 @@ export async function syncSolidWorksFileMetadata(
     revision: updateData.revision || file.revision,
     content_hash: file.content_hash,
     file_size: file.file_size,
-    state: file.state,
+    workflow_state_id: file.workflow_state_id,
     created_by: userId,
     comment: 'Metadata updated from SolidWorks file properties'
   })
@@ -2479,8 +2479,8 @@ export async function updateFileMetadata(
     return { success: false, error: fetchError.message }
   }
   
-  // Check if state actually changed
-  if (!updates.state || updates.state === file.state) {
+  // Check if workflow state actually changed
+  if (!updates.workflow_state_id || updates.workflow_state_id === file.workflow_state_id) {
     return { success: true, file, error: null }
   }
   
@@ -2488,7 +2488,7 @@ export async function updateFileMetadata(
   const updateData: Record<string, any> = {
     updated_at: new Date().toISOString(),
     updated_by: userId,
-    state: updates.state,
+    workflow_state_id: updates.workflow_state_id,
     state_changed_at: new Date().toISOString(),
     state_changed_by: userId
   }
@@ -2498,7 +2498,7 @@ export async function updateFileMetadata(
     .from('files')
     .update(updateData)
     .eq('id', fileId)
-    .select()
+    .select('*, workflow_state:workflow_states(*)')
     .single()
   
   if (error) {
@@ -2512,8 +2512,8 @@ export async function updateFileMetadata(
     user_id: userId,
     action: 'state_change',
     details: {
-      old_state: file.state,
-      new_state: updates.state
+      old_state_id: file.workflow_state_id,
+      new_state_id: updates.workflow_state_id
     }
   })
   

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { usePDMStore, LocalFile, DetailsPanelTab } from '../stores/pdmStore'
-import { formatFileSize, getFileIconType, STATE_INFO } from '../types/pdm'
+import { formatFileSize, getFileIconType } from '../types/pdm'
 import { DraggableTab, TabDropZone, PanelLocation } from './shared/DraggableTab'
 import { format, formatDistanceToNow } from 'date-fns'
 import { getFileVersions, getRecentActivity, updateFileMetadata } from '../lib/supabase'
@@ -522,7 +522,7 @@ export function DetailsPanel() {
     }
     
     // State changes don't require checkout
-    if (field !== 'state' && file.pdmData.checked_out_by !== user?.id) {
+    if (file.pdmData.checked_out_by !== user?.id) {
       addToast('info', 'Check out file to edit metadata')
       return
     }
@@ -537,9 +537,6 @@ export function DetailsPanel() {
         break
       case 'revision':
         currentValue = file.pdmData?.revision || 'A'
-        break
-      case 'state':
-        currentValue = file.pdmData?.state || 'not_tracked'
         break
     }
     
@@ -575,9 +572,6 @@ export function DetailsPanel() {
           ? file.pendingMetadata.revision 
           : (file.pdmData?.revision || 'A')
         break
-      case 'state':
-        currentValue = file.pdmData?.state || 'not_tracked'
-        break
     }
     
     if (trimmedValue === currentValue) {
@@ -592,45 +586,22 @@ export function DetailsPanel() {
       return
     }
     
-    // For state changes, sync to server immediately
-    if (editingField === 'state') {
-      setIsSavingEdit(true)
-      try {
-        const result = await updateFileMetadata(file.pdmData.id, user.id, {
-          state: trimmedValue as 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
-        })
-        
-        if (result.success && result.file) {
-          updateFileInStore(file.path, {
-            pdmData: { ...file.pdmData, ...result.file }
-          })
-          addToast('success', 'State updated')
-        } else {
-          addToast('error', result.error || 'Failed to update state')
-        }
-      } catch (err) {
-        addToast('error', `Failed to update state: ${err instanceof Error ? err.message : String(err)}`)
-      } finally {
-        setIsSavingEdit(false)
-      }
-    } else {
-      // For item number, description, revision - save locally only (syncs on check-in)
-      const pendingUpdates: { part_number?: string | null; description?: string | null; revision?: string } = {}
-      switch (editingField) {
-        case 'itemNumber':
-          pendingUpdates.part_number = trimmedValue || null
-          break
-        case 'description':
-          pendingUpdates.description = trimmedValue || null
-          break
-        case 'revision':
-          pendingUpdates.revision = trimmedValue.toUpperCase()
-          break
-      }
-      
-      // Update locally - will sync on check-in
-      updatePendingMetadata(file.path, pendingUpdates)
+    // For item number, description, revision - save locally only (syncs on check-in)
+    const pendingUpdates: { part_number?: string | null; description?: string | null; revision?: string } = {}
+    switch (editingField) {
+      case 'itemNumber':
+        pendingUpdates.part_number = trimmedValue || null
+        break
+      case 'description':
+        pendingUpdates.description = trimmedValue || null
+        break
+      case 'revision':
+        pendingUpdates.revision = trimmedValue.toUpperCase()
+        break
     }
+    
+    // Update locally - will sync on check-in
+    updatePendingMetadata(file.path, pendingUpdates)
     
     setEditingField(null)
     setEditValue('')
@@ -828,9 +799,15 @@ export function DetailsPanel() {
                     <div>
                       <div className="font-semibold text-lg">{file.name}</div>
                       <div className="text-sm text-plm-fg-muted">{file.relativePath}</div>
-                      {!isFolder && file.pdmData?.state && (
-                        <span className={`state-badge ${file.pdmData.state.replace('_', '-')} mt-2`}>
-                          {STATE_INFO[file.pdmData.state]?.label}
+                      {!isFolder && file.pdmData?.workflow_state && (
+                        <span 
+                          className="px-2 py-0.5 rounded text-xs font-medium mt-2 inline-block"
+                          style={{ 
+                            backgroundColor: file.pdmData.workflow_state.color + '30',
+                            color: file.pdmData.workflow_state.color
+                          }}
+                        >
+                          {file.pdmData.workflow_state.label || file.pdmData.workflow_state.name}
                         </span>
                       )}
                     </div>
@@ -926,18 +903,25 @@ export function DetailsPanel() {
                           onEditValueChange={setEditValue}
                           placeholder="A"
                         />
-                        <StatePropertyItem
-                          icon={<RefreshCw size={14} />}
-                          label="State"
-                          state={file.pdmData?.state || 'not_tracked'}
-                          isEditing={editingField === 'state'}
-                          editValue={editValue}
-                          isSaving={isSavingEdit}
-                          editable={canEditState}
-                          onStartEdit={() => handleStartEdit('state')}
-                          onStateChange={handleStateChange}
-                          onCancel={handleCancelEdit}
-                        />
+                        {/* State - display only, changes via workflow transitions */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-plm-fg-muted"><RefreshCw size={14} /></span>
+                          <span className="text-plm-fg-muted">State:</span>
+                          {file.pdmData?.workflow_state ? (
+                            <span 
+                              className="px-2 py-0.5 rounded text-xs font-medium"
+                              style={{ 
+                                backgroundColor: file.pdmData.workflow_state.color + '30',
+                                color: file.pdmData.workflow_state.color
+                              }}
+                              title={file.pdmData.workflow_state.is_editable ? 'Editable' : 'Locked'}
+                            >
+                              {file.pdmData.workflow_state.label || file.pdmData.workflow_state.name}
+                            </span>
+                          ) : (
+                            <span className="text-plm-fg-muted">—</span>
+                          )}
+                        </div>
                         <PropertyItem 
                           icon={<Hash size={14} />}
                           label="Version"
@@ -1520,84 +1504,4 @@ function EditablePropertyItem({
   )
 }
 
-interface StatePropertyItemProps {
-  icon: React.ReactNode
-  label: string
-  state: string
-  isEditing: boolean
-  editValue: string
-  isSaving: boolean
-  editable: boolean
-  onStartEdit: () => void
-  onStateChange: (newState: string) => void
-  onCancel: () => void
-}
-
-function StatePropertyItem({
-  icon,
-  label,
-  state,
-  isEditing,
-  editValue,
-  isSaving,
-  editable,
-  onStartEdit,
-  onStateChange,
-  onCancel
-}: StatePropertyItemProps) {
-  const stateInfo = STATE_INFO[state as keyof typeof STATE_INFO]
-  
-  if (isEditing && editable) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-plm-fg-muted">{icon}</span>
-        <span className="text-plm-fg-muted">{label}:</span>
-        <div className="flex items-center gap-1 flex-1">
-          <select
-            ref={(el: HTMLSelectElement | null) => {
-              // Auto-open dropdown when element mounts
-              if (el && !isSaving) {
-                el.focus()
-                if ('showPicker' in el) {
-                  try {
-                    (el as any).showPicker()
-                  } catch {
-                    (el as HTMLSelectElement).click()
-                  }
-                } else {
-                  (el as HTMLSelectElement).click()
-                }
-              }
-            }}
-            value={editValue}
-            onChange={(e) => onStateChange(e.target.value)}
-            onBlur={() => setTimeout(onCancel, 100)}
-            disabled={isSaving}
-            className="bg-plm-bg border border-plm-accent rounded px-2 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent disabled:opacity-50"
-          >
-            <option value="not_tracked">Not Tracked</option>
-            <option value="wip">Work in Progress</option>
-            <option value="in_review">In Review</option>
-            <option value="released">Released</option>
-            <option value="obsolete">Obsolete</option>
-          </select>
-          {isSaving && <Loader2 size={14} className="animate-spin text-plm-accent" />}
-        </div>
-      </div>
-    )
-  }
-  
-  return (
-    <div className="flex items-center gap-2 group">
-      <span className={editable ? "text-plm-fg-muted" : "text-plm-fg-muted/50"}>{icon}</span>
-      <span className={editable ? "text-plm-fg-muted" : "text-plm-fg-muted/50"}>{label}:</span>
-      <span 
-        className={`state-badge ${state.replace('_', '-')} ${editable ? 'cursor-pointer hover:ring-1 hover:ring-plm-accent' : 'opacity-60'}`}
-        onClick={editable ? onStartEdit : undefined}
-        title={editable ? 'Click to change state' : 'Check out file to edit'}
-      >
-        {stateInfo?.label || state}
-      </span>
-    </div>
-  )
-}
+// StatePropertyItem removed - state changes now use workflow transitions

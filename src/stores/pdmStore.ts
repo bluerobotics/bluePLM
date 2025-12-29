@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { PDMFile, FileState, Organization, User } from '../types/pdm'
+import type { PDMFile, Organization, User } from '../types/pdm'
 import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider, OrderListItem, OrgModuleDefaults } from '../types/modules'
 import { getDefaultModuleConfig, MODULES, MODULE_GROUPS, isModuleVisible, extractFromCombinedList } from '../types/modules'
 import type { KeybindingAction, KeybindingsConfig, Keybinding } from '../types/settings'
@@ -273,7 +273,7 @@ interface PDMState {
   recentSearches: string[]
   
   // Filter
-  stateFilter: FileState[]
+  workflowStateFilter: string[]  // workflow_state_id[]
   extensionFilter: string[]
   checkedOutFilter: 'all' | 'mine' | 'others'
   
@@ -622,7 +622,7 @@ interface PDMState {
   setSortColumn: (column: string) => void
   setSortDirection: (direction: 'asc' | 'desc') => void
   toggleSort: (column: string) => void
-  setStateFilter: (states: FileState[]) => void
+  setWorkflowStateFilter: (stateIds: string[]) => void
   setExtensionFilter: (extensions: string[]) => void
   setCheckedOutFilter: (filter: 'all' | 'mine' | 'others') => void
   
@@ -808,7 +808,7 @@ export const usePDMStore = create<PDMState>()(
       isSearching: false,
       recentSearches: [],
       
-      stateFilter: [],
+      workflowStateFilter: [],
       extensionFilter: [],
       checkedOutFilter: 'all',
       
@@ -1951,7 +1951,7 @@ export const usePDMStore = create<PDMState>()(
           set({ sortColumn: column, sortDirection: 'asc' })
         }
       },
-      setStateFilter: (stateFilter) => set({ stateFilter }),
+      setWorkflowStateFilter: (workflowStateFilter) => set({ workflowStateFilter }),
       setExtensionFilter: (extensionFilter) => set({ extensionFilter }),
       setCheckedOutFilter: (checkedOutFilter) => set({ checkedOutFilter }),
       
@@ -2674,7 +2674,7 @@ export const usePDMStore = create<PDMState>()(
       },
       
       getVisibleFiles: () => {
-        const { files, expandedFolders, stateFilter, extensionFilter, searchQuery } = get()
+        const { files, expandedFolders, workflowStateFilter, extensionFilter, searchQuery } = get()
         
         let visible = files.filter(file => {
           // Check if parent folder is expanded
@@ -2702,10 +2702,10 @@ export const usePDMStore = create<PDMState>()(
           )
         }
         
-        // Apply state filter
-        if (stateFilter.length > 0) {
+        // Apply workflow state filter
+        if (workflowStateFilter.length > 0) {
           visible = visible.filter(f => 
-            f.isDirectory || !f.pdmData?.state || stateFilter.includes(f.pdmData.state)
+            f.isDirectory || !f.pdmData?.workflow_state_id || workflowStateFilter.includes(f.pdmData.workflow_state_id)
           )
         }
         

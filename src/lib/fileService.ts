@@ -9,7 +9,7 @@
 import { supabase } from './supabase'
 import { uploadFile, downloadFile } from './storage'
 import { getNextRevision, getFileType } from '../types/pdm'
-import type { PDMFile, FileState, FileVersion } from '../types/pdm'
+import type { PDMFile, FileVersion } from '../types/pdm'
 
 /**
  * Check out a file for editing
@@ -90,7 +90,6 @@ export async function checkinFile(
   options: {
     comment?: string
     incrementRevision?: boolean
-    newState?: FileState
   } = {}
 ): Promise<{ success: boolean; file?: PDMFile; version?: FileVersion; error?: string; machineMismatchWarning?: string | null }> {
   // Get current file info
@@ -144,7 +143,7 @@ export async function checkinFile(
       content_hash: hash,
       file_size: size,
       comment: options.comment || null,
-      state: options.newState || file.state,
+      workflow_state_id: file.workflow_state_id,
       created_by: userId
     })
     .select()
@@ -162,9 +161,6 @@ export async function checkinFile(
       revision: newRevision,
       content_hash: hash,
       file_size: size,
-      state: options.newState || file.state,
-      state_changed_at: options.newState ? new Date().toISOString() : file.state_changed_at,
-      state_changed_by: options.newState ? userId : file.state_changed_by,
       checked_out_by: null,
       checked_out_at: null,
       lock_message: null,
@@ -438,12 +434,13 @@ export async function rollbackToVersion(
 }
 
 /**
- * Change file state (WIP -> In Review -> Released -> Obsolete)
+ * Transition file to a new workflow state
+ * State changes are now managed through workflow transitions
  */
-export async function changeFileState(
+export async function transitionFileState(
   fileId: string,
   userId: string,
-  newState: FileState,
+  targetStateId: string,
   options: {
     incrementRevision?: boolean
     comment?: string
@@ -452,7 +449,7 @@ export async function changeFileState(
   // Get current file
   const { data: file, error: fetchError } = await supabase
     .from('files')
-    .select('*')
+    .select('*, workflow_state:workflow_states(*)')
     .eq('id', fileId)
     .single()
   
@@ -460,31 +457,27 @@ export async function changeFileState(
     return { success: false, error: fetchError.message }
   }
   
-  // Validate state transition
-  const validTransitions: Record<FileState, FileState[]> = {
-    'not_tracked': ['wip', 'in_review', 'released', 'obsolete'], // Can transition to any tracked state
-    'wip': ['not_tracked', 'in_review', 'obsolete'],
-    'in_review': ['not_tracked', 'wip', 'released', 'obsolete'],
-    'released': ['not_tracked', 'obsolete', 'wip'], // Can go back to WIP for new revision
-    'obsolete': ['not_tracked', 'wip'] // Can resurrect
+  // Get the target state
+  const { data: targetState, error: targetError } = await supabase
+    .from('workflow_states')
+    .select('*')
+    .eq('id', targetStateId)
+    .single()
+  
+  if (targetError || !targetState) {
+    return { success: false, error: 'Target state not found' }
   }
   
-  if (!validTransitions[file.state]?.includes(newState)) {
-    return { 
-      success: false, 
-      error: `Cannot transition from ${file.state} to ${newState}` 
-    }
-  }
-  
-  // If releasing, typically increment revision
-  const newRevision = options.incrementRevision 
+  // Calculate new revision if auto-increment is enabled on target state
+  const shouldIncrementRevision = options.incrementRevision || targetState.auto_increment_revision
+  const newRevision = shouldIncrementRevision 
     ? getNextRevision(file.revision, 'letter')
     : file.revision
   
   const { data: updated, error: updateError } = await supabase
     .from('files')
     .update({
-      state: newState,
+      workflow_state_id: targetStateId,
       state_changed_at: new Date().toISOString(),
       state_changed_by: userId,
       revision: newRevision,
@@ -492,7 +485,7 @@ export async function changeFileState(
       updated_by: userId
     })
     .eq('id', fileId)
-    .select()
+    .select('*, workflow_state:workflow_states(*)')
     .single()
   
   if (updateError) {

@@ -40,11 +40,6 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ===========================================
 
 DO $$ BEGIN
-  CREATE TYPE file_state AS ENUM ('not_tracked', 'wip', 'in_review', 'released', 'obsolete');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
   CREATE TYPE file_type AS ENUM ('part', 'assembly', 'drawing', 'document', 'other');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
@@ -473,8 +468,8 @@ CREATE TABLE IF NOT EXISTS files (
   content_hash TEXT,                 -- Points to file in Supabase Storage
   file_size BIGINT DEFAULT 0,
   
-  -- State management
-  state file_state DEFAULT 'not_tracked',
+  -- State management (references workflow_states)
+  workflow_state_id UUID REFERENCES workflow_states(id),
   state_changed_at TIMESTAMPTZ DEFAULT NOW(),
   state_changed_by UUID REFERENCES users(id),
   
@@ -563,7 +558,7 @@ CREATE TABLE IF NOT EXISTS file_versions (
   file_size BIGINT DEFAULT 0,
   
   -- Metadata at time of version
-  state file_state NOT NULL,
+  workflow_state_id UUID REFERENCES workflow_states(id),
   comment TEXT,
   
   -- Who/when
@@ -2022,12 +2017,6 @@ CREATE POLICY "Users can delete their notifications"
 -- WORKFLOW SYSTEM
 -- ===========================================
 
--- Workflow state type enum
-DO $$ BEGIN
-  CREATE TYPE workflow_state_type AS ENUM ('initial', 'intermediate', 'final', 'rejected');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
 -- Workflow gate type enum
 DO $$ BEGIN
   CREATE TYPE gate_type AS ENUM ('approval', 'checklist', 'condition', 'notification');
@@ -2049,6 +2038,18 @@ END $$;
 -- Transition line style enum
 DO $$ BEGIN
   CREATE TYPE transition_line_style AS ENUM ('solid', 'dashed', 'dotted');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Transition path type enum (how the line is drawn)
+DO $$ BEGIN
+  CREATE TYPE transition_path_type AS ENUM ('straight', 'spline', 'elbow');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Transition arrow head position enum
+DO $$ BEGIN
+  CREATE TYPE transition_arrow_head AS ENUM ('end', 'start', 'both', 'none');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -2084,7 +2085,11 @@ CREATE TABLE IF NOT EXISTS workflow_states (
   name TEXT NOT NULL,
   label TEXT,                              -- Display label (defaults to name)
   description TEXT,
-  color TEXT DEFAULT '#6B7280',            -- Hex color for visual display
+  color TEXT DEFAULT '#6B7280',            -- Hex color for visual display (fill)
+  fill_opacity DECIMAL(3,2) DEFAULT 1.0,   -- Fill opacity (0.0-1.0)
+  border_color TEXT,                       -- Border color (null = same as fill)
+  border_opacity DECIMAL(3,2) DEFAULT 1.0, -- Border opacity (0.0-1.0)
+  border_thickness INTEGER DEFAULT 2,       -- Border thickness in px (1-6)
   icon TEXT DEFAULT 'circle',              -- Icon name for visual display
   
   -- Position on canvas
@@ -2092,8 +2097,6 @@ CREATE TABLE IF NOT EXISTS workflow_states (
   position_y INTEGER DEFAULT 0,
   
   -- State configuration
-  state_type workflow_state_type DEFAULT 'intermediate',
-  maps_to_file_state file_state DEFAULT 'wip',   -- Which file_state this maps to
   is_editable BOOLEAN DEFAULT true,        -- Can files be edited in this state?
   requires_checkout BOOLEAN DEFAULT true,  -- Must checkout to edit?
   auto_increment_revision BOOLEAN DEFAULT false,  -- Auto-bump revision on transition
@@ -2102,8 +2105,13 @@ CREATE TABLE IF NOT EXISTS workflow_states (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- MIGRATIONS: Add styling columns to workflow_states
+DO $$ BEGIN ALTER TABLE workflow_states ADD COLUMN fill_opacity DECIMAL(3,2) DEFAULT 1.0; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE workflow_states ADD COLUMN border_color TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE workflow_states ADD COLUMN border_opacity DECIMAL(3,2) DEFAULT 1.0; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE workflow_states ADD COLUMN border_thickness INTEGER DEFAULT 2; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
 CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_id ON workflow_states(workflow_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_states_state_type ON workflow_states(state_type);
 
 -- Workflow transitions (connections between states)
 CREATE TABLE IF NOT EXISTS workflow_transitions (
@@ -2119,6 +2127,9 @@ CREATE TABLE IF NOT EXISTS workflow_transitions (
   -- Visual styling
   line_style transition_line_style DEFAULT 'solid',
   line_color TEXT,
+  line_path_type transition_path_type DEFAULT 'spline',  -- straight, spline (curved), elbow
+  line_arrow_head transition_arrow_head DEFAULT 'end',   -- which end has arrow
+  line_thickness INTEGER DEFAULT 2,                      -- stroke width in px (1-6)
   
   -- Permissions
   allowed_roles user_role[] DEFAULT '{admin,engineer}'::user_role[],
@@ -2396,20 +2407,20 @@ BEGIN
   RETURNING id INTO v_workflow_id;
   
   -- Create states
-  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, state_type, maps_to_file_state, is_editable, requires_checkout, sort_order)
-  VALUES (v_workflow_id, 'WIP', 'Work In Progress', '#EAB308', 'pencil', 100, 200, 'initial', 'wip', true, true, 1)
+  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, is_editable, requires_checkout, sort_order)
+  VALUES (v_workflow_id, 'WIP', 'Work In Progress', '#EAB308', 'pencil', 100, 200, true, true, 1)
   RETURNING id INTO v_wip_state_id;
   
-  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, state_type, maps_to_file_state, is_editable, requires_checkout, sort_order)
-  VALUES (v_workflow_id, 'In Review', 'In Review', '#3B82F6', 'eye', 350, 200, 'intermediate', 'in_review', false, false, 2)
+  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, is_editable, requires_checkout, sort_order)
+  VALUES (v_workflow_id, 'In Review', 'In Review', '#3B82F6', 'eye', 350, 200, false, false, 2)
   RETURNING id INTO v_review_state_id;
   
-  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, state_type, maps_to_file_state, is_editable, requires_checkout, auto_increment_revision, sort_order)
-  VALUES (v_workflow_id, 'Released', 'Released', '#22C55E', 'check-circle', 600, 200, 'final', 'released', false, false, true, 3)
+  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, is_editable, requires_checkout, auto_increment_revision, sort_order)
+  VALUES (v_workflow_id, 'Released', 'Released', '#22C55E', 'check-circle', 600, 200, false, false, true, 3)
   RETURNING id INTO v_released_state_id;
   
-  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, state_type, maps_to_file_state, is_editable, requires_checkout, sort_order)
-  VALUES (v_workflow_id, 'Obsolete', 'Obsolete', '#6B7280', 'archive', 600, 350, 'rejected', 'obsolete', false, false, 4)
+  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, is_editable, requires_checkout, sort_order)
+  VALUES (v_workflow_id, 'Obsolete', 'Obsolete', '#6B7280', 'archive', 600, 350, false, false, 4)
   RETURNING id INTO v_obsolete_state_id;
   
   -- Create transitions

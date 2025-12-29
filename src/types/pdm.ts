@@ -1,8 +1,5 @@
 // PDM Types for SolidWorks and CAD file management
 
-// File states following engineering lifecycle
-export type FileState = 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
-
 // Revision follows engineering convention (A, B, C... then AA, AB, etc.)
 export type RevisionScheme = 'letter' | 'numeric'
 
@@ -59,8 +56,17 @@ export interface PDMFile {
   revision: string            // A, B, C or 01, 02, 03
   version: number             // Auto-incrementing save version
   
-  // State management
-  state: FileState
+  // State management (references workflow_states)
+  workflow_state_id: string | null
+  workflow_state?: {
+    id: string
+    name: string
+    label: string | null
+    color: string
+    icon: string
+    is_editable: boolean
+    requires_checkout: boolean
+  } | null
   state_changed_at: string
   state_changed_by: string | null
   
@@ -191,7 +197,7 @@ export interface FileOperationResult {
 export interface FileFilter {
   search?: string
   file_types?: PDMFile['file_type'][]
-  states?: FileState[]
+  workflow_state_ids?: string[]
   extensions?: string[]
   checked_out_only?: boolean
   checked_out_by_me?: boolean
@@ -402,35 +408,6 @@ export function formatFileSize(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
-}
-
-// State display info
-export const STATE_INFO: Record<FileState, { label: string; color: string; description: string }> = {
-  not_tracked: {
-    label: 'Not Tracked',
-    color: 'plm-fg-muted',
-    description: 'File is not being tracked in the PDM system'
-  },
-  wip: {
-    label: 'Work in Progress',
-    color: 'plm-wip',
-    description: 'File is being actively worked on'
-  },
-  in_review: {
-    label: 'In Review',
-    color: 'plm-info',
-    description: 'File is pending approval for release'
-  },
-  released: {
-    label: 'Released',
-    color: 'plm-released',
-    description: 'File is approved for production use'
-  },
-  obsolete: {
-    label: 'Obsolete',
-    color: 'plm-inactive',
-    description: 'File is no longer active'
-  }
 }
 
 // Get initials from a name (1-2 characters)

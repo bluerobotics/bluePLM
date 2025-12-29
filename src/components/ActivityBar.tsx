@@ -45,26 +45,27 @@ interface ActivityItemProps {
   children?: ModuleDefinition[]
   depth?: number
   onHoverWithChildren?: (moduleId: ModuleId | null, rect: DOMRect | null) => void
+  isComingSoon?: boolean
 }
 
-function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren }: ActivityItemProps) {
+function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren, isComingSoon = false }: ActivityItemProps) {
   const { activeView, setActiveView, activityBarMode } = usePDMStore()
   const isExpanded = useContext(ExpandedContext)
   const sidebarRect = useContext(SidebarRectContext)
   const [showTooltip, setShowTooltip] = useState(false)
   const [showSubmenu, setShowSubmenu] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const isActive = activeView === view
+  const isActive = activeView === view && !isComingSoon
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Show chevron in collapsed mode only (not in hover mode)
-  const showCollapsedChevron = !isExpanded && activityBarMode === 'collapsed' && hasChildren && children && children.length > 0
+  // Show chevron in collapsed mode only (not in hover mode) - not for coming soon items
+  const showCollapsedChevron = !isExpanded && activityBarMode === 'collapsed' && hasChildren && children && children.length > 0 && !isComingSoon
 
   const handleMouseEnter = () => {
-    if (!isExpanded && !hasChildren) setShowTooltip(true)
+    if (!isExpanded && (!hasChildren || isComingSoon)) setShowTooltip(true)
     
-    if (hasChildren && children && children.length > 0) {
+    if (hasChildren && children && children.length > 0 && !isComingSoon) {
       // Clear any pending close timeout
       if (submenuTimeoutRef.current) {
         clearTimeout(submenuTimeoutRef.current)
@@ -91,11 +92,28 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
     }, 200)
   }
 
+  // Close submenu immediately when sidebar collapses to prevent icon drift
+  useEffect(() => {
+    if (!isExpanded) {
+      if (submenuTimeoutRef.current) {
+        clearTimeout(submenuTimeoutRef.current)
+        submenuTimeoutRef.current = null
+      }
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+        hoverTimeoutRef.current = null
+      }
+      setShowSubmenu(false)
+      setShowTooltip(false)
+    }
+  }, [isExpanded])
+
   return (
     <div className="py-1 px-[6px]">
       <button
         ref={buttonRef}
         onClick={() => {
+          if (isComingSoon) return // Don't navigate for coming soon items
           // If has children, clicking still navigates to the main view
           logNavigation(view, { title })
           setActiveView(view)
@@ -103,16 +121,19 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className={`relative h-11 w-full flex items-center gap-3 px-[9px] rounded-lg transition-colors overflow-hidden ${
-          isActive
+          isComingSoon
+            ? 'opacity-40 cursor-not-allowed'
+            : isActive
             ? 'text-plm-accent bg-plm-highlight'
             : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight'
         }`}
+        title={isComingSoon ? 'Coming Soon' : undefined}
       >
-        {/* Tooltip for collapsed state (only if no children) */}
-        {showTooltip && !isExpanded && !hasChildren && (
+        {/* Tooltip for collapsed state (only if no children or coming soon) */}
+        {showTooltip && !isExpanded && (!hasChildren || isComingSoon) && (
           <div className="absolute left-full ml-3 z-50 pointer-events-none">
             <div className="px-2.5 py-1.5 bg-plm-fg text-plm-bg text-sm font-medium rounded whitespace-nowrap">
-              {title}
+              {isComingSoon ? `${title.replace(' (soon)', '')} - Coming Soon` : title}
             </div>
           </div>
         )}
@@ -135,11 +156,11 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
         )}
         {isExpanded && (
           <>
-            <span className="text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1 text-left">
+            <span className={`text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1 text-left ${isComingSoon ? 'italic' : ''}`}>
               {title}
             </span>
-            {/* Chevron for items with children */}
-            {hasChildren && children && children.length > 0 && (
+            {/* Chevron for items with children - not for coming soon items */}
+            {hasChildren && children && children.length > 0 && !isComingSoon && (
               <ChevronRight 
                 size={14} 
                 className={`flex-shrink-0 text-plm-fg-dim transition-transform duration-200 ${showSubmenu ? 'translate-x-0.5' : ''}`}
@@ -228,6 +249,23 @@ function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter,
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
     }
   }, [])
+  
+  // Close immediately when sidebar collapses to prevent icon drift
+  useEffect(() => {
+    if (!isExpanded) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+        hoverTimeoutRef.current = null
+      }
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current)
+        closeTimeoutRef.current = null
+      }
+      setHoveredChild(null)
+      setChildRect(null)
+      onMouseLeave()
+    }
+  }, [isExpanded, onMouseLeave])
   
   // Measure content height after render
   useEffect(() => {
@@ -346,31 +384,32 @@ function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter,
                   {/* Item button - styled like ActivityItem */}
                   <button
                     onClick={() => {
+                      if (isComingSoon) return // Don't navigate for coming soon items
                       logNavigation(child.id, { title: childTitle })
                       setActiveView(child.id as SidebarView)
                     }}
                     className={`relative w-full h-11 flex items-center gap-3 px-[15px] transition-colors group ${
-                      isActive
+                      isComingSoon
+                        ? 'opacity-40 cursor-not-allowed'
+                        : isActive
                         ? 'text-plm-fg bg-plm-highlight border-l-2 border-plm-accent'
                         : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight border-l-2 border-transparent'
-                    }`}
+                    } ${!isComingSoon && !isActive ? 'border-l-2 border-transparent' : ''}`}
+                    title={isComingSoon ? 'Coming Soon' : undefined}
                   >
                     {/* Icon */}
-                    <div className="w-[22px] h-[22px] flex items-center justify-center flex-shrink-0 relative">
-                      {getModuleIcon(child.icon, 22, customIconColor)}
-                      {/* Under Development indicator - orange dot on icon */}
-                      {isComingSoon && (
-                        <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-500 rounded-full" title="Under Development" />
-                      )}
+                    <div className="w-[22px] h-[22px] flex items-center justify-center flex-shrink-0">
+                      {getModuleIcon(child.icon, 22, isComingSoon ? undefined : customIconColor)}
                     </div>
                     
                     {/* Title - only show when expanded */}
                       {isExpanded && (
                       <>
-                        <span className="text-[15px] font-medium whitespace-nowrap flex-1 text-left pr-2">
+                        <span className={`text-[15px] font-medium whitespace-nowrap flex-1 text-left pr-2 ${isComingSoon ? 'italic' : ''}`}>
                           {childTitle}
+                          {isComingSoon && <span className="text-[10px] ml-1.5 not-italic">(soon)</span>}
                         </span>
-                        {hasGrandchildren && (
+                        {hasGrandchildren && !isComingSoon && (
                           <ChevronRight 
                             size={14} 
                             className={`flex-shrink-0 text-plm-fg-dim transition-transform duration-200 ${hoveredChild === child.id ? 'translate-x-0.5' : ''}`}
@@ -856,25 +895,19 @@ export function ActivityBar() {
                     // Find visible index for this module for divider positioning
                     const visibleIndex = visibleModules.indexOf(moduleId)
                     
-                    // Create icon with optional coming soon indicator
-                    const iconWithIndicator = (
-                      <div className="relative">
-                        {getModuleIcon(module.icon, 22, customIconColor)}
-                        {isComingSoon && (
-                          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-500 rounded-full" title="Under Development" />
-                        )}
-                      </div>
-                    )
+                    // Create icon - no indicator needed, entire item will be greyed out
+                    const iconElement = getModuleIcon(module.icon, 22, isComingSoon ? undefined : customIconColor)
                     
                     return (
                       <div key={moduleId}>
                         <ActivityItem
-                          icon={iconWithIndicator}
+                          icon={iconElement}
                           view={moduleId as SidebarView}
-                          title={title}
+                          title={isComingSoon ? `${title} (soon)` : title}
                           badge={badge}
                           hasChildren={moduleHasChildren}
                           children={childModules}
+                          isComingSoon={isComingSoon}
                         />
                         {visibleIndex >= 0 && getDividerAfterVisibleIndex.has(visibleIndex) && <SectionDivider />}
                       </div>

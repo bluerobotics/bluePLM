@@ -2,6 +2,21 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.15.0] - 2025-12-28
+
+### Added
+- **History item navigation**: Click any history entry to reveal and select the file in the file browser
+- **Workflow snap settings**: New magnet button in workflow canvas toolbar with configurable snapping options
+  - **Snap to Grid**: States snap to grid intersections when dragged (configurable grid size 10-100px)
+  - **Snap to Alignment**: States auto-align horizontally/vertically with other states (configurable snap distance 5-30px)
+  - Blue dashed guide lines appear during drag when alignment is detected
+  - Settings persist per workflow in localStorage
+
+### Fixed
+- **Sidebar submenu animation**: Fixed submenu icons drifting left and lingering when hovering off menu items with submenus
+
+---
+
 ## [2.14.2] - 2025-12-28
 
 ### Fixed

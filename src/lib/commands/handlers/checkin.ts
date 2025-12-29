@@ -247,7 +247,7 @@ function getFileContext(file: LocalFile): Record<string, unknown> {
     localHash: file.localHash?.substring(0, 12),
     serverHash: file.pdmData?.content_hash?.substring(0, 12),
     version: file.pdmData?.version,
-    state: file.pdmData?.state,
+    workflowState: file.pdmData?.workflow_state?.name,
     hasPendingMetadata: !!file.pendingMetadata
   }
 }

@@ -192,7 +192,8 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
           return file.pdmData?.checked_out_user?.full_name?.toLowerCase().includes(term) || 
                  file.pdmData?.checked_out_user?.email?.toLowerCase().includes(term)
         case 'state':
-          return file.pdmData?.state?.toLowerCase().includes(term)
+          return file.pdmData?.workflow_state?.name?.toLowerCase().includes(term) ||
+                 file.pdmData?.workflow_state?.label?.toLowerCase().includes(term)
         case 'eco':
           // ECO search would need async lookup - for now match on file metadata
           return file.name.toLowerCase().includes(term) || 
@@ -387,18 +388,16 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     inputRef.current?.focus()
   }
 
-  // Get icon for file state
-  const getStateIcon = (state?: string) => {
-    switch (state?.toLowerCase()) {
-      case 'released':
-        return <CheckCircle size={12} className="text-plm-success" />
-      case 'wip':
-        return <Circle size={12} className="text-plm-warning" />
-      case 'in review':
-        return <AlertCircle size={12} className="text-plm-info" />
-      default:
-        return null
-    }
+  // Get workflow state indicator
+  const getStateIndicator = (workflowState?: { name: string; label: string | null; color: string }) => {
+    if (!workflowState) return null
+    return (
+      <span 
+        className="w-2 h-2 rounded-full" 
+        style={{ backgroundColor: workflowState.color }}
+        title={workflowState.label || workflowState.name}
+      />
+    )
   }
 
   const currentFilter = FILTER_OPTIONS.find(f => f.id === parsedQuery.filter) || FILTER_OPTIONS[0]
@@ -559,7 +558,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
                         {file.pdmData?.part_number && (
                           <span className="text-xs text-plm-accent font-mono">{file.pdmData.part_number}</span>
                         )}
-                        {getStateIcon(file.pdmData?.state)}
+                        {getStateIndicator(file.pdmData?.workflow_state)}
                       </div>
                       <div className="text-xs text-plm-fg-muted truncate">{file.relativePath}</div>
                     </div>

@@ -121,7 +121,6 @@ DROP TYPE IF EXISTS transition_line_style CASCADE;
 DROP TYPE IF EXISTS reviewer_type CASCADE;
 DROP TYPE IF EXISTS approval_mode CASCADE;
 DROP TYPE IF EXISTS gate_type CASCADE;
-DROP TYPE IF EXISTS workflow_state_type CASCADE;
 DROP TYPE IF EXISTS notification_type CASCADE;
 DROP TYPE IF EXISTS review_status CASCADE;
 DROP TYPE IF EXISTS eco_status CASCADE;
@@ -132,7 +131,6 @@ DROP TYPE IF EXISTS revision_scheme CASCADE;
 DROP TYPE IF EXISTS user_role CASCADE;
 DROP TYPE IF EXISTS reference_type CASCADE;
 DROP TYPE IF EXISTS file_type CASCADE;
-DROP TYPE IF EXISTS file_state CASCADE;
 
 -- ===========================================
 -- DROP FUNCTIONS

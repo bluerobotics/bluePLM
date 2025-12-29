@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { FileText, User, Clock, ArrowUp, ArrowDown, Trash2, Edit, RefreshCw, FolderPlus, MoveRight, X, FolderOpen, RotateCcw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { FileText, User, Clock, ArrowUp, ArrowDown, Trash2, Edit, RefreshCw, FolderPlus, MoveRight, X, FolderOpen, RotateCcw, ExternalLink } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { getRecentActivity } from '../../lib/supabase'
 import { formatDistanceToNow } from 'date-fns'
@@ -29,9 +29,40 @@ const ACTION_INFO: Record<string, { icon: React.ReactNode; label: string; color:
 }
 
 export function HistoryView() {
-  const { organization, isVaultConnected, historyFolderFilter, setHistoryFolderFilter } = usePDMStore()
+  const { 
+    organization, 
+    isVaultConnected, 
+    historyFolderFilter, 
+    setHistoryFolderFilter,
+    files,
+    setCurrentFolder,
+    setSelectedFiles,
+    addToast
+  } = usePDMStore()
   const [activity, setActivity] = useState<ActivityEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Navigate to file in file browser (click on history item)
+  const handleNavigateToFile = useCallback((filePath: string | undefined) => {
+    if (!filePath) {
+      addToast('error', 'File path not available')
+      return
+    }
+    
+    // Get the parent folder path
+    const pathParts = filePath.replace(/\\/g, '/').split('/')
+    pathParts.pop() // Remove filename, we only need the parent folder
+    const parentFolder = pathParts.join('/')
+    
+    // Find the full local path
+    const fullPath = files.find(f => f.relativePath.replace(/\\/g, '/') === filePath)?.path
+    
+    // Navigate to folder and select file in file browser pane
+    setCurrentFolder(parentFolder)
+    if (fullPath) {
+      setSelectedFiles([fullPath])
+    }
+  }, [files, setCurrentFolder, setSelectedFiles, addToast])
 
   // Load vault-wide activity
   useEffect(() => {
@@ -128,10 +159,15 @@ export function HistoryView() {
               color: 'text-plm-fg-muted' 
             }
             
+            const filePath = entry.file?.file_path
+            const canNavigate = !!filePath
+            
             return (
               <div
                 key={entry.id}
-                className="p-2 bg-plm-bg-light rounded border border-plm-border hover:border-plm-border-light transition-colors"
+                onClick={() => canNavigate && handleNavigateToFile(filePath)}
+                className={`group p-2 bg-plm-bg-light rounded border border-plm-border hover:border-plm-border-light transition-colors ${canNavigate ? 'cursor-pointer hover:bg-plm-bg-hover' : ''}`}
+                title={canNavigate ? `Click to reveal in Explorer: ${filePath}` : undefined}
               >
                 <div className="flex items-start gap-2">
                   <span className={`mt-0.5 ${actionInfo.color}`}>
@@ -159,6 +195,11 @@ export function HistoryView() {
                         <Clock size={10} />
                         {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
                       </span>
+                      {canNavigate && (
+                        <span className="flex items-center gap-1 text-plm-accent opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ExternalLink size={10} />
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

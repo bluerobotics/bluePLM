@@ -22,6 +22,7 @@ import { StagedCheckinConflictDialog } from './components/StagedCheckinConflictD
 import type { StagedCheckin } from './stores/pdmStore'
 import { MissingStorageFilesContainer } from './components/MissingStorageFilesDialog'
 import { GoogleDrivePanel } from './components/GoogleDrivePanel'
+import { WorkflowsView } from './components/sidebar/WorkflowsView'
 import { ChristmasEffects } from './components/ChristmasEffects'
 import { HalloweenEffects } from './components/HalloweenEffects'
 import { WeatherEffects } from './components/WeatherEffects'
@@ -2421,7 +2422,7 @@ function App() {
       <div className="flex-1 flex overflow-hidden min-h-0">
         {!showWelcome && <ActivityBar />}
 
-        {sidebarVisible && !showWelcome && (
+        {sidebarVisible && !showWelcome && activeView !== 'workflows' && (
           <>
             <Sidebar 
               onOpenVault={handleOpenVault}
@@ -2460,6 +2461,9 @@ function App() {
           ) : activeView === 'google-drive' ? (
             /* Google Drive View - replaces entire main content area */
             <GoogleDrivePanel />
+          ) : activeView === 'workflows' ? (
+            /* Workflows View - replaces entire main content area (full screen) */
+            <WorkflowsView />
           ) : (
             <>
               {/* File Browser */}
@@ -2489,7 +2493,7 @@ function App() {
         </div>
 
         {/* Right Panel */}
-        {rightPanelVisible && rightPanelTabs.length > 0 && !showWelcome && (
+        {rightPanelVisible && rightPanelTabs.length > 0 && !showWelcome && activeView !== 'workflows' && (
           <>
             <div
               className="w-1.5 bg-plm-border hover:bg-plm-accent cursor-col-resize transition-colors flex-shrink-0 relative"

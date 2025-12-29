@@ -56,7 +56,7 @@ import {
   Monitor
 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
-import { getFileIconType, formatFileSize, STATE_INFO, getInitials } from '../types/pdm'
+import { getFileIconType, formatFileSize, getInitials } from '../types/pdm'
 // Shared file/folder components - use FileIcon for files with thumbnail support
 import { FileIcon } from './shared/FileItemComponents'
 import { logFileAction, logContextMenu, logDragDrop } from '../lib/userActionLogger'
@@ -804,61 +804,18 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, is
         )}
       </div>
       
-      {/* State badge for synced files - clickable to edit */}
-      {file.pdmData?.state && iconSize >= 80 && (
-        <div className="relative mt-1" ref={stateDropdownRef}>
-          <div 
-            className={`state-badge ${file.pdmData.state.replace('_', '-')} ${file.pdmData?.id ? 'cursor-pointer hover:ring-1 hover:ring-plm-accent' : ''}`}
-            style={{ fontSize: Math.max(8, Math.min(10, iconSize / 10)) }}
-            onClick={(e) => {
-              if (file.pdmData?.id && onStateChange) {
-                e.stopPropagation()
-                e.preventDefault()
-                setShowStateDropdown(!showStateDropdown)
-              }
-            }}
-            onMouseDown={(e) => {
-              if (file.pdmData?.id) {
-                e.stopPropagation()
-              }
-            }}
-            title={file.pdmData?.id ? 'Click to change state' : 'Sync file first'}
-          >
-            {STATE_INFO[file.pdmData.state]?.label || file.pdmData.state}
-          </div>
-          
-          {/* State dropdown */}
-          {showStateDropdown && file.pdmData?.id && onStateChange && (
-            <div 
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-plm-bg border border-plm-border rounded shadow-lg py-1 min-w-[120px]"
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              {(['not_tracked', 'wip', 'in_review', 'released', 'obsolete'] as const).map((stateOption) => (
-                <div
-                  key={stateOption}
-                  className={`px-3 py-1 text-xs cursor-pointer hover:bg-plm-bg-light flex items-center gap-2 ${file.pdmData?.state === stateOption ? 'bg-plm-accent/20' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onStateChange(file, stateOption)
-                    setShowStateDropdown(false)
-                  }}
-                >
-                  <span 
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ 
-                      backgroundColor: stateOption === 'not_tracked' ? '#6b7280' :
-                                      stateOption === 'wip' ? '#f59e0b' :
-                                      stateOption === 'in_review' ? '#3b82f6' :
-                                      stateOption === 'released' ? '#10b981' :
-                                      '#ef4444'
-                    }}
-                  />
-                  {STATE_INFO[stateOption].label}
-                </div>
-              ))}
-            </div>
-          )}
+      {/* State badge for synced files */}
+      {file.pdmData?.workflow_state && iconSize >= 80 && (
+        <div 
+          className="mt-1 px-1.5 py-0.5 rounded text-center"
+          style={{ 
+            fontSize: Math.max(8, Math.min(10, iconSize / 10)),
+            backgroundColor: file.pdmData.workflow_state.color + '30',
+            color: file.pdmData.workflow_state.color
+          }}
+          title={file.pdmData.workflow_state.label || file.pdmData.workflow_state.name}
+        >
+          {file.pdmData.workflow_state.label || file.pdmData.workflow_state.name}
         </div>
       )}
     </div>
@@ -875,7 +832,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, is
     if (prev.diffStatus !== next.diffStatus) return false
     if (prev.pdmData?.checked_out_by !== next.pdmData?.checked_out_by) return false
     if (prev.pdmData?.version !== next.pdmData?.version) return false
-    if (prev.pdmData?.state !== next.pdmData?.state) return false
+    if (prev.pdmData?.workflow_state_id !== next.pdmData?.workflow_state_id) return false
     if (prev.localHash !== next.localHash) return false
   }
   if (prevProps.iconSize !== nextProps.iconSize) return false
@@ -2354,21 +2311,15 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       case 'revision':
         currentValue = file.pdmData?.revision || 'A'
         break
-      case 'state':
-        currentValue = file.pdmData?.state || 'not_tracked'
-        break
     }
     
     setEditingCell({ path: file.path, column })
     setEditValue(currentValue)
     
-    // Focus the input after render (except for state dropdown)
-    if (column !== 'state') {
-      setTimeout(() => {
-        inlineEditInputRef.current?.focus()
-        inlineEditInputRef.current?.select()
-      }, 0)
-    }
+    setTimeout(() => {
+      inlineEditInputRef.current?.focus()
+      inlineEditInputRef.current?.select()
+    }, 0)
   }
   
   const handleSaveCellEdit = async () => {
@@ -2405,9 +2356,6 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           ? file.pendingMetadata.revision 
           : (file.pdmData?.revision || 'A')
         break
-      case 'state':
-        currentValue = file.pdmData?.state || 'not_tracked'
-        break
     }
     
     if (trimmedValue === currentValue) {
@@ -2416,27 +2364,9 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       return
     }
     
-    // For state changes, sync to server immediately
-    if (editingCell.column === 'state') {
-      const updates = { state: trimmedValue as 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete' }
-      try {
-        const result = await updateFileMetadata(file.pdmData.id, user.id, updates)
-        
-        if (result.success && result.file) {
-          updateFileInStore(file.path, {
-            pdmData: { ...file.pdmData, ...result.file }
-          })
-          addToast('success', 'State updated')
-        } else {
-          addToast('error', result.error || 'Failed to update state')
-        }
-      } catch (err) {
-        addToast('error', `Failed to update state: ${err instanceof Error ? err.message : String(err)}`)
-      }
-    } else {
-      // For item number, description, revision - save locally only (syncs on check-in)
-      const pendingUpdates: { part_number?: string | null; description?: string | null; revision?: string } = {}
-      switch (editingCell.column) {
+    // For item number, description, revision - save locally only (syncs on check-in)
+    const pendingUpdates: { part_number?: string | null; description?: string | null; revision?: string } = {}
+    switch (editingCell.column) {
         case 'itemNumber':
           pendingUpdates.part_number = trimmedValue || null
           break
@@ -2450,11 +2380,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           }
           pendingUpdates.revision = trimmedValue.toUpperCase()
           break
-      }
-      
-      // Update locally - will sync on check-in
-      updatePendingMetadata(file.path, pendingUpdates)
     }
+    
+    // Update locally - will sync on check-in
+    updatePendingMetadata(file.path, pendingUpdates)
     
     setEditingCell(null)
     setEditValue('')
@@ -2535,7 +2464,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     if (failed > 0) {
       addToast('warning', `Updated state for ${succeeded}/${syncedFiles.length} files`)
     } else {
-      addToast('success', `Changed ${succeeded} file${succeeded > 1 ? 's' : ''} to ${STATE_INFO[newState as keyof typeof STATE_INFO]?.label || newState}`)
+      addToast('success', `Changed ${succeeded} file${succeeded > 1 ? 's' : ''} to ${newState}`)
     }
   }
 
@@ -4077,73 +4006,21 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         )
       case 'state':
         if (file.isDirectory) return null
-        const state = file.pdmData?.state || 'not_tracked'
-        const stateInfo = STATE_INFO[state]
-        // State can be changed without checkout - just needs to be synced
-        const canEditState = !!file.pdmData?.id
-        const isEditingState = editingCell?.path === file.path && editingCell?.column === 'state'
-        
-        if (isEditingState && canEditState) {
-          return (
-            <select
-              ref={(el: HTMLSelectElement | null) => {
-                // Auto-open dropdown when element mounts
-                if (el) {
-                  el.focus()
-                  // Use showPicker if available (modern browsers), otherwise simulate click
-                  if ('showPicker' in el) {
-                    try {
-                      (el as any).showPicker()
-                    } catch {
-                      // showPicker may fail in some contexts, fall back to click
-                      (el as HTMLSelectElement).click()
-                    }
-                  } else {
-                    (el as HTMLSelectElement).click()
-                  }
-                }
-              }}
-              value={editValue}
-              onChange={(e) => {
-                e.stopPropagation()
-                handleStateChange(file, e.target.value)
-              }}
-              onBlur={() => {
-                // Small delay to allow onChange to fire first
-                setTimeout(() => handleCancelCellEdit(), 100)
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
-            >
-              <option value="not_tracked">Not Tracked</option>
-              <option value="wip">Work in Progress</option>
-              <option value="in_review">In Review</option>
-              <option value="released">Released</option>
-              <option value="obsolete">Obsolete</option>
-            </select>
-          )
+        const workflowState = file.pdmData?.workflow_state
+        // State changes should be done via workflow transitions
+        if (!workflowState) {
+          return <span className="text-plm-fg-muted text-xs">—</span>
         }
-        
         return (
           <span 
-            className={`state-badge ${state.replace('_', '-')} ${canEditState ? 'cursor-pointer hover:ring-1 hover:ring-plm-accent' : 'opacity-60'}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              if (canEditState) {
-                handleStartCellEdit(file, 'state')
-              }
+            className="px-2 py-0.5 rounded text-xs font-medium"
+            style={{ 
+              backgroundColor: workflowState.color + '30',
+              color: workflowState.color
             }}
-            onMouseDown={(e) => {
-              // Prevent row selection on mousedown
-              if (canEditState) {
-                e.stopPropagation()
-              }
-            }}
-            title={canEditState ? 'Click to change state' : 'File not synced'}
+            title={`${workflowState.label || workflowState.name}${workflowState.is_editable ? ' (editable)' : ' (locked)'}`}
           >
-            {stateInfo?.label || state}
+            {workflowState.label || workflowState.name}
           </span>
         )
       case 'revision':
@@ -5805,12 +5682,19 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                         }, 150)
                       }}
                     >
+                      {/* TODO: Replace with workflow transitions */}
                       {(['wip', 'in_review', 'released', 'obsolete'] as const).map((stateOption) => {
                         const stateColors: Record<string, string> = {
                           wip: 'var(--plm-wip)',
                           in_review: 'var(--plm-in-review)',
                           released: 'var(--plm-released)',
                           obsolete: 'var(--plm-obsolete)'
+                        }
+                        const stateLabels: Record<string, string> = {
+                          wip: 'Work in Progress',
+                          in_review: 'In Review',
+                          released: 'Released',
+                          obsolete: 'Obsolete'
                         }
                         return (
                           <div 
@@ -5827,7 +5711,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                               className="w-2 h-2 rounded-full flex-shrink-0"
                               style={{ backgroundColor: stateColors[stateOption] }}
                             />
-                            {STATE_INFO[stateOption].label}
+                            {stateLabels[stateOption]}
                           </div>
                         )
                       })}
