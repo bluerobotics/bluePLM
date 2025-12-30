@@ -63,6 +63,13 @@ const TEAM_COLORS = [
   '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#64748b', '#78716c'
 ]
 
+// Icon options for workflow roles
+const WORKFLOW_ROLE_ICONS = [
+  'BadgeCheck', 'Shield', 'ShieldCheck', 'UserCheck', 'Star', 'Crown',
+  'Award', 'Medal', 'Key', 'Lock', 'ClipboardCheck', 'FileCheck',
+  'CheckCircle', 'CircleCheck', 'Verified', 'Stamp', 'Signature', 'Fingerprint'
+]
+
 interface WorkflowRoleBasic {
   id: string
   name: string
@@ -196,6 +203,15 @@ export function TeamMembersSettings() {
   const [showUnassignedUsers, setShowUnassignedUsers] = useState(true)
   const [showPendingMembers, setShowPendingMembers] = useState(true)
   
+  // Pending member editing
+  const [editingPendingMember, setEditingPendingMember] = useState<PendingMember | null>(null)
+  const [pendingMemberForm, setPendingMemberForm] = useState<{
+    full_name: string
+    role: string
+    team_ids: string[]
+  }>({ full_name: '', role: 'viewer', team_ids: [] })
+  const [isSavingPendingMember, setIsSavingPendingMember] = useState(false)
+  
   // Load data on mount
   useEffect(() => {
     if (organization) {
@@ -295,6 +311,51 @@ export function TeamMembersSettings() {
     } catch (err) {
       console.error('Failed to load pending members:', err)
     }
+  }
+  
+  const openEditPendingMember = (pm: PendingMember) => {
+    setEditingPendingMember(pm)
+    setPendingMemberForm({
+      full_name: pm.full_name || '',
+      role: pm.role,
+      team_ids: pm.team_ids || []
+    })
+  }
+  
+  const handleSavePendingMember = async () => {
+    if (!editingPendingMember) return
+    
+    setIsSavingPendingMember(true)
+    try {
+      const { error } = await supabase
+        .from('pending_org_members')
+        .update({
+          full_name: pendingMemberForm.full_name || null,
+          role: pendingMemberForm.role,
+          team_ids: pendingMemberForm.team_ids
+        })
+        .eq('id', editingPendingMember.id)
+      
+      if (error) throw error
+      
+      addToast('success', `Updated pending member ${editingPendingMember.email}`)
+      setEditingPendingMember(null)
+      loadPendingMembers()
+    } catch (err) {
+      console.error('Failed to update pending member:', err)
+      addToast('error', 'Failed to update pending member')
+    } finally {
+      setIsSavingPendingMember(false)
+    }
+  }
+  
+  const togglePendingMemberTeam = (teamId: string) => {
+    setPendingMemberForm(prev => ({
+      ...prev,
+      team_ids: prev.team_ids.includes(teamId)
+        ? prev.team_ids.filter(id => id !== teamId)
+        : [...prev.team_ids, teamId]
+    }))
   }
   
   const loadTeams = async () => {
@@ -1326,21 +1387,30 @@ See you on the team!`
                         }`}>
                           {pm.role.charAt(0).toUpperCase() + pm.role.slice(1)}
                         </div>
-                        <button
-                          onClick={async () => {
-                            try {
-                              await supabase.from('pending_org_members').delete().eq('id', pm.id)
-                              addToast('success', `Removed pending member ${pm.email}`)
-                              loadPendingMembers()
-                            } catch {
-                              addToast('error', 'Failed to remove pending member')
-                            }
-                          }}
-                          className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded opacity-0 group-hover:opacity-100 transition-all"
-                          title="Remove pending member"
-                        >
-                          <X size={14} />
-                        </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            onClick={() => openEditPendingMember(pm)}
+                            className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded"
+                            title="Edit pending member"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await supabase.from('pending_org_members').delete().eq('id', pm.id)
+                                addToast('success', `Removed pending member ${pm.email}`)
+                                loadPendingMembers()
+                              } catch {
+                                addToast('error', 'Failed to remove pending member')
+                              }
+                            }}
+                            className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded"
+                            title="Remove pending member"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1401,6 +1471,125 @@ See you on the team!`
                 className="btn bg-plm-error text-white hover:bg-plm-error/90"
               >
                 {isSavingTeam ? 'Deleting...' : 'Delete Team'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Pending Member Dialog */}
+      {editingPendingMember && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setEditingPendingMember(null)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-plm-fg flex items-center gap-2">
+                <Pencil size={18} className="text-plm-accent" />
+                Edit Pending Member
+              </h3>
+              <button
+                onClick={() => setEditingPendingMember(null)}
+                className="p-1 text-plm-fg-muted hover:text-plm-fg rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Email (read-only) */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-1">Email</label>
+                <div className="px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg-muted">
+                  {editingPendingMember.email}
+                </div>
+              </div>
+              
+              {/* Full Name */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={pendingMemberForm.full_name}
+                  onChange={e => setPendingMemberForm(prev => ({ ...prev, full_name: e.target.value }))}
+                  placeholder="Enter name"
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted focus:border-plm-accent focus:outline-none"
+                />
+              </div>
+              
+              {/* Role */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-1">Role</label>
+                <select
+                  value={pendingMemberForm.role}
+                  onChange={e => setPendingMemberForm(prev => ({ ...prev, role: e.target.value }))}
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:border-plm-accent focus:outline-none"
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="engineer">Engineer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              
+              {/* Teams */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-2">Pre-assigned Teams</label>
+                <div className="space-y-1 max-h-48 overflow-y-auto border border-plm-border rounded-lg p-2 bg-plm-bg">
+                  {teams.length === 0 ? (
+                    <div className="text-sm text-plm-fg-muted p-2">No teams available</div>
+                  ) : (
+                    teams.map(team => {
+                      const TeamIcon = (LucideIcons as any)[team.icon] || Users
+                      const isSelected = pendingMemberForm.team_ids.includes(team.id)
+                      return (
+                        <button
+                          key={team.id}
+                          onClick={() => togglePendingMemberTeam(team.id)}
+                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                            isSelected 
+                              ? 'bg-plm-accent/10 border border-plm-accent/30' 
+                              : 'hover:bg-plm-highlight border border-transparent'
+                          }`}
+                        >
+                          <div
+                            className={`w-6 h-6 rounded flex items-center justify-center ${
+                              isSelected ? 'bg-plm-accent text-white' : 'bg-plm-fg-muted/10'
+                            }`}
+                            style={isSelected ? {} : { color: team.color }}
+                          >
+                            <TeamIcon size={14} />
+                          </div>
+                          <span className="flex-1 text-left text-sm text-plm-fg">{team.name}</span>
+                          {isSelected && <Check size={14} className="text-plm-accent" />}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+                <p className="text-xs text-plm-fg-muted mt-1">
+                  User will be automatically added to selected teams when they sign in.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 justify-end mt-6">
+              <button
+                onClick={() => setEditingPendingMember(null)}
+                className="btn btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSavePendingMember}
+                disabled={isSavingPendingMember}
+                className="btn btn-primary flex items-center gap-2"
+              >
+                {isSavingPendingMember ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </button>
             </div>
           </div>
@@ -2053,24 +2242,29 @@ function WorkflowRolesModal({
                         >
                           <EditIcon size={16} />
                         </div>
-                        <select
-                          value={editIcon}
-                          onChange={e => setEditIcon(e.target.value)}
-                          className="flex-1 px-2 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg text-sm focus:outline-none focus:border-plm-accent"
-                        >
-                          <option value="badge-check">Badge Check</option>
-                          <option value="shield">Shield</option>
-                          <option value="shield-check">Shield Check</option>
-                          <option value="user-check">User Check</option>
-                          <option value="star">Star</option>
-                          <option value="crown">Crown</option>
-                          <option value="award">Award</option>
-                          <option value="medal">Medal</option>
-                          <option value="key">Key</option>
-                          <option value="lock">Lock</option>
-                          <option value="clipboard-check">Clipboard Check</option>
-                          <option value="file-check">File Check</option>
-                        </select>
+                      </div>
+                      {/* Icon picker grid */}
+                      <div className="grid grid-cols-6 gap-1.5">
+                        {WORKFLOW_ROLE_ICONS.map(iconName => {
+                          const IconComponent = (LucideIcons as any)[iconName] || Shield
+                          const isSelected = editIcon === iconName
+                          return (
+                            <button
+                              key={iconName}
+                              type="button"
+                              onClick={() => setEditIcon(iconName)}
+                              className={`p-2 rounded-lg border transition-colors ${
+                                isSelected
+                                  ? 'border-plm-accent bg-plm-accent/20'
+                                  : 'border-plm-border bg-plm-bg hover:border-plm-fg-muted'
+                              }`}
+                              title={iconName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                              style={isSelected ? { color: editColor } : {}}
+                            >
+                              <IconComponent size={16} className={isSelected ? '' : 'text-plm-fg-muted'} />
+                            </button>
+                          )
+                        })}
                       </div>
                       <div className="flex gap-2">
                         <button

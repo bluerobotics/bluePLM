@@ -357,6 +357,8 @@ function App() {
             if (!userData.org_id) {
               console.log('[Auth] Updating user org_id in store:', (org as any).id)
               setUser({ ...userData, org_id: (org as any).id })
+              // Update analytics user with org_id
+              setAnalyticsUser(userData.id, (org as any).id)
             }
             
             // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
@@ -456,6 +458,8 @@ function App() {
               if (currentUser && !currentUser.org_id) {
                 console.log('[Auth] Updating user org_id in store:', (org as any).id)
                 setUser({ ...currentUser, org_id: (org as any).id })
+                // Update analytics user with org_id
+                setAnalyticsUser(currentUser.id, (org as any).id)
               }
               
               // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
