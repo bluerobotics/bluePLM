@@ -178,6 +178,7 @@ export function ContributionHistory() {
           .eq('org_id', organization.id)
           .gte('created_at', oneYearAgo.toISOString())
           .order('created_at', { ascending: false })
+          .limit(5000) // Limit for heatmap visualization, count query gets accurate total
         
         if (activityError) {
           console.error('Error loading activities:', activityError)
@@ -278,11 +279,29 @@ export function ContributionHistory() {
         
         setActivityData(dataMap)
         
-        // Calculate total contributions
-        let total = 0
-        dataMap.forEach(day => {
-          total += day.count
-        })
+        // Get accurate total count (separate query to avoid limit issues)
+        const { count: activityCount } = await client
+          .from('activity')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('org_id', organization.id)
+          .gte('created_at', oneYearAgo.toISOString())
+        
+        const { count: reviewResponseCount } = await client
+          .from('review_responses')
+          .select('id', { count: 'exact', head: true })
+          .eq('reviewer_id', user.id)
+          .gte('responded_at', oneYearAgo.toISOString())
+          .not('responded_at', 'is', null)
+        
+        const { count: reviewRequestCount } = await client
+          .from('reviews')
+          .select('id', { count: 'exact', head: true })
+          .eq('requested_by', user.id)
+          .eq('org_id', organization.id)
+          .gte('created_at', oneYearAgo.toISOString())
+        
+        const total = (activityCount || 0) + (reviewResponseCount || 0) + (reviewRequestCount || 0)
         setTotalContributions(total)
         
         // Build recent activity list (last 20 items)

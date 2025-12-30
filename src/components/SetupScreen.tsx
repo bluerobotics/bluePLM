@@ -10,6 +10,7 @@ import {
 import { reconfigureSupabase } from '../lib/supabase'
 import { LanguageSelector } from './LanguageSelector'
 import { useTranslation } from '../lib/i18n'
+import { copyToClipboard } from '../lib/clipboard'
 
 interface SetupScreenProps {
   onConfigured: () => void
@@ -145,12 +146,12 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
   const handleCopyCode = async () => {
     if (!generatedCode) return
     
-    try {
-      await navigator.clipboard.writeText(generatedCode)
+    const result = await copyToClipboard(generatedCode)
+    if (result.success) {
       setCodeCopied(true)
       setTimeout(() => setCodeCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy:', err)
+    } else {
+      console.error('Failed to copy:', result.error)
     }
   }
   

@@ -35,6 +35,7 @@ import {
   FileDown
 } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
+import { copyToClipboard } from '../lib/clipboard'
 
 // ============================================
 // Types
@@ -496,9 +497,11 @@ const LogEntryRow = memo(function LogEntryRow({ entry, isExpanded, onToggle, sea
   }, [searchQuery])
   
   const copyEntry = useCallback(async () => {
-    await navigator.clipboard.writeText(entry.raw)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    const result = await copyToClipboard(entry.raw)
+    if (result.success) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
   }, [entry.raw])
   
   const handleToggle = useCallback(() => {
@@ -1072,10 +1075,12 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
   
   const copyAllFiltered = async () => {
     const content = filteredEntries.map(e => e.raw).join('\n')
-    await navigator.clipboard.writeText(content)
-    setCopied(true)
-    addToast('success', `Copied ${filteredEntries.length} log entries`)
-    setTimeout(() => setCopied(false), 2000)
+    const result = await copyToClipboard(content)
+    if (result.success) {
+      setCopied(true)
+      addToast('success', `Copied ${filteredEntries.length} log entries`)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
   
   const exportLogs = async () => {

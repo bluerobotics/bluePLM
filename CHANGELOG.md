@@ -2,6 +2,49 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.16.0] - 2025-12-29
+
+### Added
+- **Remove from team**: Inline button in Team Members settings to remove users from specific teams (warning color) alongside existing "Remove from organization" (error color) for clear differentiation
+- **Job Titles**: Display-only labels for users (e.g., "Quality Engineer", "Project Manager")
+  - Inline title selector on each user row in Members & Teams
+  - Admins can click to assign any user a job title from a dropdown
+  - "Create new title..." option directly in the dropdown - no separate settings page needed
+  - Database tables: `job_titles`, `user_job_titles`
+- **Default Permission Teams**: New organizations get Viewers/Engineers/Admins teams with pre-configured permissions
+- **Delete Account**: Users can permanently delete their own account from Settings → Account → Delete Account
+  - Type-name confirmation required (must type your full name to confirm)
+  - Removes organization association, team memberships, vault access, and active sessions
+  - Releases any file checkouts held by the user
+  - Preserves activity history and file versions for audit purposes
+
+### Changed
+- **Permissions model simplified**: Removed role selection from create user dialog and user rows - all permissions now flow through team membership
+- **Create User dialog**: Now includes vault access restrictions and optional invite email
+  - Leave vaults unchecked for full access, or select specific vaults to restrict the new user
+  - "Send invite email" option (requires API server) automatically emails the user to sign up
+- **Email domain auto-matching removed**: Users no longer auto-join orgs based on email domain. Join methods:
+  - Pre-created accounts (pending_org_members) - admin adds user email, they auto-join on signup
+  - Organization code - user enters code to join
+  - `create_default_permission_teams()` function bootstraps orgs with proper access levels
+  - ALL permissions now flow through teams (simplified model)
+  - Viewers: read-only access to modules
+  - Engineers: create/edit access to engineering modules
+  - Admins: full administrative access to all modules and settings
+
+### Improved
+- **Network error handling**: Better resilience for unstable or lost connections
+  - Automatic retry with exponential backoff (up to 3 attempts) for downloads, uploads, and get-latest operations
+  - User-friendly error messages ("Unable to connect to server" instead of "Failed to fetch")
+  - Detects 15+ network error patterns including `Failed to fetch`, `ECONNRESET`, `ETIMEDOUT`, timeouts, etc.
+
+### Fixed
+- **Clipboard operations**: Fixed "Write permission denied" error when copying to clipboard in packaged app
+  - Created centralized clipboard utility that uses Electron's native clipboard API (more reliable than browser API)
+  - Updated all 13 components to use the new utility with proper fallbacks
+
+---
+
 ## [2.15.0] - 2025-12-28
 
 ### Added

@@ -130,7 +130,7 @@ export function TeamsSettings() {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, full_name, avatar_url, role')
+        .select('id, email, full_name, avatar_url, job_title, role')
         .eq('org_id', organization.id)
         .order('full_name')
       
@@ -870,6 +870,7 @@ function TeamMembersDialog({
             email,
             full_name,
             avatar_url,
+            job_title,
             role
           )
         `)
@@ -1059,7 +1060,12 @@ function TeamMembersDialog({
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-plm-fg truncate">{member.user?.full_name || member.user?.email}</div>
+                    <div className="text-sm text-plm-fg truncate flex items-center gap-2">
+                      {member.user?.full_name || member.user?.email}
+                      {member.user?.job_title && (
+                        <span className="text-xs text-plm-fg-muted">• {member.user.job_title}</span>
+                      )}
+                    </div>
                     <div className="text-xs text-plm-fg-muted truncate">{member.user?.email}</div>
                   </div>
                   {member.is_team_admin && (

@@ -24,6 +24,7 @@ import {
 import * as LucideIcons from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase, getCurrentConfig, updateUserRole, removeUserFromOrg, getOrgVaultAccess, setUserVaultAccess } from '../../lib/supabase'
+import { copyToClipboard } from '../../lib/clipboard'
 import { generateOrgCode } from '../../lib/supabaseConfig'
 import { getInitials } from '../../types/pdm'
 import { UserProfileModal } from './UserProfileModal'
@@ -112,7 +113,7 @@ export function MembersSettings() {
       // Load users
       const { data: usersData, error } = await supabase
         .from('users')
-        .select('id, email, full_name, avatar_url, role, last_sign_in')
+        .select('id, email, full_name, avatar_url, job_title, role, last_sign_in')
         .eq('org_id', organization.id)
         .order('full_name')
       
@@ -223,12 +224,12 @@ See you on the team!`
   
   const handleCopyInvite = async () => {
     const message = generateInviteMessage()
-    try {
-      await navigator.clipboard.writeText(message)
+    const result = await copyToClipboard(message)
+    if (result.success) {
       setInviteCopied(true)
       setTimeout(() => setInviteCopied(false), 2000)
       addToast('success', 'Invite copied! Paste it in an email to send.')
-    } catch (err) {
+    } else {
       addToast('error', 'Failed to copy invite')
     }
   }
@@ -467,12 +468,12 @@ See you on the team!`
                 </div>
                 <button
                   onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(orgCode)
+                    const result = await copyToClipboard(orgCode)
+                    if (result.success) {
                       setCodeCopied(true)
                       setTimeout(() => setCodeCopied(false), 2000)
-                    } catch (err) {
-                      console.error('Failed to copy:', err)
+                    } else {
+                      console.error('Failed to copy:', result.error)
                     }
                   }}
                   className="absolute top-2 right-2 p-1.5 hover:bg-plm-highlight rounded transition-colors"
@@ -569,6 +570,9 @@ See you on the team!`
                   <div className="flex-1 min-w-0">
                     <div className="text-base text-plm-fg truncate flex items-center gap-2">
                       {orgUser.full_name || orgUser.email}
+                      {orgUser.job_title && (
+                        <span className="text-sm text-plm-fg-muted">• {orgUser.job_title}</span>
+                      )}
                       {isCurrentUser && (
                         <span className="text-sm text-plm-fg-dim">(you)</span>
                       )}

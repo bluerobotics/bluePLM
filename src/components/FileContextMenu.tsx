@@ -55,6 +55,7 @@ import {
   addFileToECO,
   isMachineOnline
 } from '../lib/supabase'
+import { copyToClipboard } from '../lib/clipboard'
 
 interface FileContextMenuProps {
   x: number
@@ -700,10 +701,10 @@ export function FileContextMenu({
     if (error) {
       addToast('error', error)
     } else if (link) {
-      try {
-        await navigator.clipboard.writeText(link.downloadUrl)
+      const result = await copyToClipboard(link.downloadUrl)
+      if (result.success) {
         addToast('success', 'Share link copied! (expires in 7 days)')
-      } catch {
+      } else {
         // If clipboard fails, show the link in a prompt
         setGeneratedShareLink(link.downloadUrl)
         setShowShareModal(true)
@@ -717,12 +718,12 @@ export function FileContextMenu({
   const handleCopyShareLink = async () => {
     if (!generatedShareLink) return
     
-    try {
-      await navigator.clipboard.writeText(generatedShareLink)
+    const result = await copyToClipboard(generatedShareLink)
+    if (result.success) {
       setCopiedLink(true)
       addToast('success', 'Link copied to clipboard!')
       setTimeout(() => setCopiedLink(false), 2000)
-    } catch {
+    } else {
       addToast('error', 'Failed to copy link')
     }
   }

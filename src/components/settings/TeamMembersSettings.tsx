@@ -16,8 +16,6 @@ import {
   Search,
   Copy,
   Crown,
-  Wrench,
-  Eye,
   Lock,
   UserMinus,
   RefreshCw,
@@ -40,7 +38,8 @@ import {
   ALL_RESOURCES
 } from '../../types/permissions'
 import { usePDMStore } from '../../stores/pdmStore'
-import { supabase, getCurrentConfig, updateUserRole, removeUserFromOrg, getOrgVaultAccess, setUserVaultAccess } from '../../lib/supabase'
+import { supabase, getCurrentConfig, removeUserFromOrg, getOrgVaultAccess, setUserVaultAccess } from '../../lib/supabase'
+import { copyToClipboard } from '../../lib/clipboard'
 import { generateOrgCode } from '../../lib/supabaseConfig'
 import { getInitials } from '../../types/pdm'
 import { UserProfileModal } from './UserProfileModal'
@@ -72,6 +71,7 @@ interface OrgUser {
   role: string
   last_sign_in: string | null
   teams?: { id: string; name: string; color: string; icon: string }[]
+  job_title?: { id: string; name: string; color: string; icon: string } | null
 }
 
 interface Vault {
@@ -103,7 +103,7 @@ interface PendingMember {
 }
 
 export function TeamMembersSettings() {
-  const { user, organization, addToast, getEffectiveRole } = usePDMStore()
+  const { user, organization, addToast, getEffectiveRole, apiServerUrl } = usePDMStore()
   
   const isAdmin = getEffectiveRole() === 'admin'
   
@@ -139,10 +139,18 @@ export function TeamMembersSettings() {
   const [showInviteDialog, setShowInviteDialog] = useState(false)
   const [showCreateUserDialog, setShowCreateUserDialog] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
-  const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null)
   const [removingUser, setRemovingUser] = useState<OrgUser | null>(null)
   const [isRemoving, setIsRemoving] = useState(false)
-  const [roleDropdownOpen, setRoleDropdownOpen] = useState<string | null>(null)
+  
+  // Job titles state
+  const [jobTitles, setJobTitles] = useState<{ id: string; name: string; color: string; icon: string }[]>([])
+  const [titleDropdownOpen, setTitleDropdownOpen] = useState<string | null>(null)
+  const [changingTitleUserId, setChangingTitleUserId] = useState<string | null>(null)
+  const [showCreateTitleDialog, setShowCreateTitleDialog] = useState(false)
+  const [pendingTitleForUser, setPendingTitleForUser] = useState<OrgUser | null>(null)
+  const [newTitleName, setNewTitleName] = useState('')
+  const [newTitleColor, setNewTitleColor] = useState('#3b82f6')
+  const [isCreatingTitle, setIsCreatingTitle] = useState(false)
   
   // User vault access state
   const [vaultAccessMap, setVaultAccessMap] = useState<Record<string, string[]>>({})
@@ -160,6 +168,9 @@ export function TeamMembersSettings() {
   
   // User profile modal
   const [viewingUserId, setViewingUserId] = useState<string | null>(null)
+  
+  // Add to team modal
+  const [addToTeamUser, setAddToTeamUser] = useState<OrgUser | null>(null)
   
   // Org code state
   const [showOrgCode, setShowOrgCode] = useState(false)
@@ -187,10 +198,28 @@ export function TeamMembersSettings() {
         loadOrgVaults(),
         loadVaultAccess(),
         loadTeamVaultAccess(),
-        loadPendingMembers()
+        loadPendingMembers(),
+        loadJobTitles()
       ])
     } finally {
       setIsLoading(false)
+    }
+  }
+  
+  const loadJobTitles = async () => {
+    if (!organization) return
+    
+    try {
+      const { data, error } = await supabase
+        .from('job_titles')
+        .select('id, name, color, icon')
+        .eq('org_id', organization.id)
+        .order('name')
+      
+      if (error) throw error
+      setJobTitles(data || [])
+    } catch (err) {
+      console.error('Failed to load job titles:', err)
     }
   }
   
@@ -247,7 +276,7 @@ export function TeamMembersSettings() {
     try {
       const { data: usersData, error } = await supabase
         .from('users')
-        .select('id, email, full_name, avatar_url, role, last_sign_in')
+        .select('id, email, full_name, avatar_url, job_title, role, last_sign_in')
         .eq('org_id', organization.id)
         .order('full_name')
       
@@ -262,16 +291,27 @@ export function TeamMembersSettings() {
         `)
         .in('user_id', (usersData || []).map(u => u.id))
       
-      // Map teams to users
-      const usersWithTeams = (usersData || []).map(user => {
+      // Load job title assignments for all users
+      const { data: titleAssignmentsData } = await supabase
+        .from('user_job_titles')
+        .select(`
+          user_id,
+          title:job_titles(id, name, color, icon)
+        `)
+        .in('user_id', (usersData || []).map(u => u.id))
+      
+      // Map teams and job_title to users
+      const usersWithTeamsAndTitles = (usersData || []).map(user => {
         const userMemberships = (membershipsData || []).filter(m => m.user_id === user.id)
+        const userTitleAssignment = (titleAssignmentsData || []).find(t => t.user_id === user.id)
         return {
           ...user,
-          teams: userMemberships.map(m => m.team).filter(Boolean) as { id: string; name: string; color: string; icon: string }[]
+          teams: userMemberships.map(m => m.team).filter(Boolean) as { id: string; name: string; color: string; icon: string }[],
+          job_title: userTitleAssignment?.title as { id: string; name: string; color: string; icon: string } | null
         }
       })
       
-      setOrgUsers(usersWithTeams)
+      setOrgUsers(usersWithTeamsAndTitles)
     } catch (err) {
       console.error('Failed to load org users:', err)
     }
@@ -579,38 +619,13 @@ See you on the team!`
   
   const handleCopyInvite = async () => {
     const message = generateInviteMessage()
-    try {
-      await navigator.clipboard.writeText(message)
+    const result = await copyToClipboard(message)
+    if (result.success) {
       setInviteCopied(true)
       setTimeout(() => setInviteCopied(false), 2000)
       addToast('success', 'Invite copied! Paste it in an email to send.')
-    } catch {
+    } else {
       addToast('error', 'Failed to copy invite')
-    }
-  }
-  
-  const handleChangeRole = async (targetUser: OrgUser, newRole: 'admin' | 'engineer' | 'viewer') => {
-    if (!organization || targetUser.role === newRole) {
-      setRoleDropdownOpen(null)
-      return
-    }
-    
-    setChangingRoleUserId(targetUser.id)
-    try {
-      const result = await updateUserRole(targetUser.id, newRole, organization.id)
-      if (result.success) {
-        addToast('success', `Changed ${targetUser.full_name || targetUser.email}'s role to ${newRole}`)
-        setOrgUsers(orgUsers.map(u => 
-          u.id === targetUser.id ? { ...u, role: newRole } : u
-        ))
-      } else {
-        addToast('error', result.error || 'Failed to change role')
-      }
-    } catch {
-      addToast('error', 'Failed to change role')
-    } finally {
-      setChangingRoleUserId(null)
-      setRoleDropdownOpen(null)
     }
   }
   
@@ -631,6 +646,120 @@ See you on the team!`
       addToast('error', 'Failed to remove user')
     } finally {
       setIsRemoving(false)
+    }
+  }
+  
+  const handleRemoveFromTeam = async (targetUser: OrgUser, teamId: string, teamName: string) => {
+    try {
+      const { error } = await supabase
+        .from('team_members')
+        .delete()
+        .eq('user_id', targetUser.id)
+        .eq('team_id', teamId)
+      
+      if (error) throw error
+      
+      addToast('success', `Removed ${targetUser.full_name || targetUser.email} from ${teamName}`)
+      await loadOrgUsers()
+      await loadTeams()
+    } catch {
+      addToast('error', 'Failed to remove from team')
+    }
+  }
+  
+  const handleChangeJobTitle = async (targetUser: OrgUser, titleId: string | null) => {
+    setChangingTitleUserId(targetUser.id)
+    setTitleDropdownOpen(null)
+    
+    try {
+      if (titleId) {
+        // Upsert the title assignment
+        const { error } = await supabase
+          .from('user_job_titles')
+          .upsert({
+            user_id: targetUser.id,
+            title_id: titleId,
+            assigned_by: user?.id
+          }, { onConflict: 'user_id' })
+        
+        if (error) throw error
+        
+        const titleName = jobTitles.find(t => t.id === titleId)?.name || 'title'
+        addToast('success', `Set ${targetUser.full_name || targetUser.email}'s title to ${titleName}`)
+      } else {
+        // Remove title
+        const { error } = await supabase
+          .from('user_job_titles')
+          .delete()
+          .eq('user_id', targetUser.id)
+        
+        if (error) throw error
+        addToast('success', `Removed ${targetUser.full_name || targetUser.email}'s job title`)
+      }
+      
+      await loadOrgUsers()
+    } catch {
+      addToast('error', 'Failed to change job title')
+    } finally {
+      setChangingTitleUserId(null)
+    }
+  }
+  
+  const openCreateTitleDialog = (targetUser: OrgUser) => {
+    setPendingTitleForUser(targetUser)
+    setNewTitleName('')
+    setNewTitleColor('#3b82f6')
+    setShowCreateTitleDialog(true)
+    setTitleDropdownOpen(null)
+  }
+  
+  const handleCreateTitle = async () => {
+    if (!organization || !user || !newTitleName.trim()) return
+    
+    setIsCreatingTitle(true)
+    try {
+      // Create the title
+      const { data, error } = await supabase
+        .from('job_titles')
+        .insert({
+          org_id: organization.id,
+          name: newTitleName.trim(),
+          color: newTitleColor,
+          icon: 'User',
+          created_by: user.id
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      // If we have a pending user, assign the title to them
+      if (pendingTitleForUser && data) {
+        await supabase
+          .from('user_job_titles')
+          .upsert({
+            user_id: pendingTitleForUser.id,
+            title_id: data.id,
+            assigned_by: user.id
+          }, { onConflict: 'user_id' })
+        
+        addToast('success', `Created "${newTitleName}" and assigned to ${pendingTitleForUser.full_name || pendingTitleForUser.email}`)
+      } else {
+        addToast('success', `Created job title "${newTitleName}"`)
+      }
+      
+      setShowCreateTitleDialog(false)
+      setPendingTitleForUser(null)
+      await loadJobTitles()
+      await loadOrgUsers()
+    } catch (err: any) {
+      if (err.code === '23505') {
+        addToast('error', 'A job title with this name already exists')
+      } else {
+        addToast('error', 'Failed to create job title')
+      }
+    } finally {
+      setIsCreatingTitle(false)
     }
   }
   
@@ -683,15 +812,6 @@ See you on the team!`
       addToast('error', 'Failed to update vault access')
     } finally {
       setIsSavingVaultAccess(false)
-    }
-  }
-  
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'admin': return Shield
-      case 'engineer': return Wrench
-      case 'viewer': return Eye
-      default: return Eye
     }
   }
   
@@ -796,9 +916,11 @@ See you on the team!`
               </code>
               <button
                 onClick={async () => {
-                  await navigator.clipboard.writeText(orgCode)
-                  setCodeCopied(true)
-                  setTimeout(() => setCodeCopied(false), 2000)
+                  const result = await copyToClipboard(orgCode)
+                  if (result.success) {
+                    setCodeCopied(true)
+                    setTimeout(() => setCodeCopied(false), 2000)
+                  }
                 }}
                 className="btn btn-ghost btn-sm"
               >
@@ -991,16 +1113,18 @@ See you on the team!`
                                     user={member}
                                     isAdmin={isAdmin}
                                     isCurrentUser={member.id === user?.id}
-                                    getRoleIcon={getRoleIcon}
                                     onViewProfile={() => setViewingUserId(member.id)}
-                                    onChangeRole={handleChangeRole}
                                     onRemove={() => setRemovingUser(member)}
+                                    onRemoveFromTeam={() => handleRemoveFromTeam(member, team.id, team.name)}
                                     onVaultAccess={() => openVaultAccessEditor(member)}
-                                    roleDropdownOpen={roleDropdownOpen}
-                                    setRoleDropdownOpen={setRoleDropdownOpen}
-                                    changingRoleUserId={changingRoleUserId}
                                     vaultAccessCount={getUserVaultAccessCount(member.id)}
                                     compact
+                                    jobTitles={jobTitles}
+                                    titleDropdownOpen={titleDropdownOpen}
+                                    setTitleDropdownOpen={setTitleDropdownOpen}
+                                    onChangeJobTitle={handleChangeJobTitle}
+                                    changingTitleUserId={changingTitleUserId}
+                                    onCreateTitle={openCreateTitleDialog}
                                   />
                                 ))}
                               </div>
@@ -1057,32 +1181,19 @@ See you on the team!`
                           user={u}
                           isAdmin={isAdmin}
                           isCurrentUser={u.id === user?.id}
-                          getRoleIcon={getRoleIcon}
                           onViewProfile={() => setViewingUserId(u.id)}
-                          onChangeRole={handleChangeRole}
                           onRemove={() => setRemovingUser(u)}
                           onVaultAccess={() => openVaultAccessEditor(u)}
                           onPermissions={isAdmin ? () => setEditingPermissionsUser(u) : undefined}
-                          roleDropdownOpen={roleDropdownOpen}
-                          setRoleDropdownOpen={setRoleDropdownOpen}
-                          changingRoleUserId={changingRoleUserId}
                           vaultAccessCount={getUserVaultAccessCount(u.id)}
                           showAddToTeam={isAdmin && teams.length > 0}
-                          teams={teams}
-                          onAddToTeam={async (teamId) => {
-                            try {
-                              await supabase.from('team_members').insert({
-                                team_id: teamId,
-                                user_id: u.id,
-                                added_by: user?.id
-                              })
-                              addToast('success', `Added ${u.full_name || u.email} to team`)
-                              loadOrgUsers()
-                              loadTeams()
-                            } catch (err) {
-                              addToast('error', 'Failed to add user to team')
-                            }
-                          }}
+                          onOpenAddToTeamModal={() => setAddToTeamUser(u)}
+                          jobTitles={jobTitles}
+                          titleDropdownOpen={titleDropdownOpen}
+                          setTitleDropdownOpen={setTitleDropdownOpen}
+                          onChangeJobTitle={handleChangeJobTitle}
+                          changingTitleUserId={changingTitleUserId}
+                          onCreateTitle={openCreateTitleDialog}
                         />
                       ))}
                     </div>
@@ -1345,6 +1456,10 @@ See you on the team!`
           teams={teams}
           orgId={organization.id}
           currentUserId={user?.id}
+          currentUserName={user?.full_name || user?.email}
+          orgName={organization.name}
+          vaults={orgVaults}
+          apiUrl={apiServerUrl}
         />
       )}
 
@@ -1430,6 +1545,68 @@ See you on the team!`
         />
       )}
 
+      {/* Create Job Title Dialog */}
+      {showCreateTitleDialog && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowCreateTitleDialog(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Create Job Title</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Title Name</label>
+                <input
+                  type="text"
+                  value={newTitleName}
+                  onChange={e => setNewTitleName(e.target.value)}
+                  placeholder="e.g., Quality Engineer"
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Color</label>
+                <div className="flex flex-wrap gap-1">
+                  {['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#14b8a6', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#64748b'].map(color => (
+                    <button
+                      key={color}
+                      onClick={() => setNewTitleColor(color)}
+                      className={`w-6 h-6 rounded ${newTitleColor === color ? 'ring-2 ring-offset-2 ring-offset-plm-bg-light ring-plm-accent' : ''}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              {pendingTitleForUser && (
+                <p className="text-sm text-plm-fg-muted">
+                  Will assign to: <strong className="text-plm-fg">{pendingTitleForUser.full_name || pendingTitleForUser.email}</strong>
+                </p>
+              )}
+            </div>
+            
+            <div className="flex gap-2 justify-end mt-6">
+              <button 
+                onClick={() => {
+                  setShowCreateTitleDialog(false)
+                  setPendingTitleForUser(null)
+                }} 
+                className="btn btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTitle}
+                disabled={isCreatingTitle || !newTitleName.trim()}
+                className="btn btn-primary"
+              >
+                {isCreatingTitle ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invite Dialog */}
       {showInviteDialog && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowInviteDialog(false)}>
@@ -1461,6 +1638,74 @@ See you on the team!`
           onClose={() => setViewingUserId(null)}
         />
       )}
+
+      {/* Add to Team Modal */}
+      {addToTeamUser && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setAddToTeamUser(null)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-2">Add to Team</h3>
+            <p className="text-sm text-plm-fg-muted mb-4">
+              Select a team for <strong>{addToTeamUser.full_name || addToTeamUser.email}</strong>
+            </p>
+            
+            {teams.length === 0 ? (
+              <div className="text-center py-4 text-sm text-plm-fg-muted bg-plm-bg rounded-lg border border-plm-border">
+                No teams available. Create a team first.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {teams.map(team => {
+                  const TeamIcon = (LucideIcons as any)[team.icon] || Users
+                  return (
+                    <button
+                      key={team.id}
+                      onClick={async () => {
+                        try {
+                          await supabase.from('team_members').insert({
+                            team_id: team.id,
+                            user_id: addToTeamUser.id,
+                            added_by: user?.id
+                          })
+                          addToast('success', `Added ${addToTeamUser.full_name || addToTeamUser.email} to ${team.name}`)
+                          loadOrgUsers()
+                          loadTeams()
+                          setAddToTeamUser(null)
+                        } catch (err) {
+                          addToast('error', 'Failed to add user to team')
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-plm-bg border border-plm-border hover:border-plm-accent hover:bg-plm-highlight transition-colors text-left"
+                    >
+                      <div
+                        className="p-2 rounded-lg"
+                        style={{ backgroundColor: `${team.color}15`, color: team.color }}
+                      >
+                        <TeamIcon size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-plm-fg truncate">{team.name}</div>
+                        {team.description && (
+                          <div className="text-xs text-plm-fg-muted truncate">{team.description}</div>
+                        )}
+                      </div>
+                      <div className="text-xs text-plm-fg-dim flex items-center gap-1">
+                        <Users size={12} />
+                        {team.member_count}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setAddToTeamUser(null)} className="btn btn-ghost">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1470,41 +1715,41 @@ function UserRow({
   user,
   isAdmin,
   isCurrentUser,
-  getRoleIcon,
   onViewProfile,
-  onChangeRole,
   onRemove,
+  onRemoveFromTeam,
   onVaultAccess,
   onPermissions,
-  roleDropdownOpen,
-  setRoleDropdownOpen,
-  changingRoleUserId,
   vaultAccessCount,
   compact,
   showAddToTeam,
-  teams,
-  onAddToTeam
+  onOpenAddToTeamModal,
+  jobTitles,
+  titleDropdownOpen,
+  setTitleDropdownOpen,
+  onChangeJobTitle,
+  changingTitleUserId,
+  onCreateTitle
 }: {
   user: OrgUser
   isAdmin: boolean
   isCurrentUser: boolean
-  getRoleIcon: (role: string) => any
   onViewProfile: () => void
-  onChangeRole: (user: OrgUser, role: 'admin' | 'engineer' | 'viewer') => void
   onRemove: () => void
+  onRemoveFromTeam?: () => void
   onVaultAccess: () => void
   onPermissions?: () => void
-  roleDropdownOpen: string | null
-  setRoleDropdownOpen: (id: string | null) => void
-  changingRoleUserId: string | null
   vaultAccessCount: number
   compact?: boolean
   showAddToTeam?: boolean
-  teams?: TeamWithDetails[]
-  onAddToTeam?: (teamId: string) => void
+  onOpenAddToTeamModal?: () => void
+  jobTitles?: { id: string; name: string; color: string; icon: string }[]
+  titleDropdownOpen?: string | null
+  setTitleDropdownOpen?: (id: string | null) => void
+  onChangeJobTitle?: (user: OrgUser, titleId: string | null) => void
+  changingTitleUserId?: string | null
+  onCreateTitle?: (user: OrgUser) => void
 }) {
-  const [showAddTeamDropdown, setShowAddTeamDropdown] = useState(false)
-  const RoleIcon = getRoleIcon(user.role)
   const canManage = isAdmin && !isCurrentUser
   
   return (
@@ -1531,7 +1776,7 @@ function UserRow({
               <span className="text-xs text-plm-fg-dim">(you)</span>
             )}
           </div>
-          <div className={`${compact ? 'text-xs' : 'text-sm'} text-plm-fg-muted truncate flex items-center gap-2`}>
+          <div className={`${compact ? 'text-xs' : 'text-sm'} text-plm-fg-muted truncate flex items-center gap-2 flex-wrap`}>
             <span className="truncate">{user.email}</span>
             {user.role !== 'admin' && vaultAccessCount > 0 && (
               <span className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-fg-muted/10 rounded text-plm-fg-dim">
@@ -1543,98 +1788,113 @@ function UserRow({
         </div>
       </button>
       
-      {/* Role badge/dropdown */}
-      <div className="relative">
-        {canManage ? (
-          <>
-            <button
-              onClick={() => setRoleDropdownOpen(roleDropdownOpen === user.id ? null : user.id)}
-              disabled={changingRoleUserId === user.id}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
-                user.role === 'admin' ? 'bg-plm-accent/20 text-plm-accent' :
-                user.role === 'engineer' ? 'bg-plm-success/20 text-plm-success' :
-                'bg-plm-fg-muted/20 text-plm-fg-muted'
-              } hover:opacity-80`}
-            >
-              {changingRoleUserId === user.id ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <RoleIcon size={12} />
-              )}
-              {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-              <ChevronDown size={12} />
-            </button>
-            
-            {roleDropdownOpen === user.id && (
-              <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[120px]">
-                {(['viewer', 'engineer', 'admin'] as const).map(role => (
+      {/* Job title badge/dropdown */}
+      {jobTitles && jobTitles.length > 0 && setTitleDropdownOpen && onChangeJobTitle && (
+        <div className="relative">
+          {canManage ? (
+            <>
+              <button
+                onClick={() => setTitleDropdownOpen(titleDropdownOpen === user.id ? null : user.id)}
+                disabled={changingTitleUserId === user.id}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors hover:opacity-80 ${
+                  user.job_title 
+                    ? '' 
+                    : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
+                }`}
+                style={user.job_title ? { backgroundColor: `${user.job_title.color}15`, color: user.job_title.color } : {}}
+              >
+                {changingTitleUserId === user.id ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : user.job_title ? (
+                  (() => {
+                    const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Users
+                    return <TitleIcon size={12} />
+                  })()
+                ) : (
+                  <Users size={12} />
+                )}
+                {user.job_title?.name || 'No title'}
+                <ChevronDown size={12} />
+              </button>
+              
+              {titleDropdownOpen === user.id && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[160px] max-h-60 overflow-y-auto">
+                  {/* Clear option */}
                   <button
-                    key={role}
-                    onClick={() => onChangeRole(user, role)}
+                    onClick={() => onChangeJobTitle(user, null)}
                     className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors hover:bg-plm-highlight ${
-                      user.role === role ? 'text-plm-accent' : 'text-plm-fg'
+                      !user.job_title ? 'text-plm-accent' : 'text-plm-fg-muted'
                     }`}
                   >
-                    {role === 'admin' && <Shield size={14} />}
-                    {role === 'engineer' && <Wrench size={14} />}
-                    {role === 'viewer' && <Eye size={14} />}
-                    {role.charAt(0).toUpperCase() + role.slice(1)}
-                    {user.role === role && <Check size={14} className="ml-auto" />}
+                    <X size={14} />
+                    No title
+                    {!user.job_title && <Check size={14} className="ml-auto" />}
                   </button>
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs ${
-            user.role === 'admin' ? 'bg-plm-accent/20 text-plm-accent' :
-            user.role === 'engineer' ? 'bg-plm-success/20 text-plm-success' :
-            'bg-plm-fg-muted/20 text-plm-fg-muted'
-          }`}>
-            <RoleIcon size={12} />
-            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-          </div>
-        )}
-      </div>
+                  <div className="border-t border-plm-border my-1" />
+                  {jobTitles.map(title => {
+                    const TitleIcon = (LucideIcons as any)[title.icon] || Users
+                    const isSelected = user.job_title?.id === title.id
+                    return (
+                      <button
+                        key={title.id}
+                        onClick={() => onChangeJobTitle(user, title.id)}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors hover:bg-plm-highlight ${
+                          isSelected ? 'text-plm-accent' : 'text-plm-fg'
+                        }`}
+                      >
+                        <div
+                          className="p-1 rounded"
+                          style={{ backgroundColor: `${title.color}15`, color: title.color }}
+                        >
+                          <TitleIcon size={12} />
+                        </div>
+                        <span className="truncate">{title.name}</span>
+                        {isSelected && <Check size={14} className="ml-auto flex-shrink-0" />}
+                      </button>
+                    )
+                  })}
+                  {/* Create new option */}
+                  {onCreateTitle && (
+                    <>
+                      <div className="border-t border-plm-border my-1" />
+                      <button
+                        onClick={() => onCreateTitle(user)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors hover:bg-plm-highlight text-plm-accent"
+                      >
+                        <Plus size={14} />
+                        Create new title...
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          ) : user.job_title ? (
+            <div
+              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
+              style={{ backgroundColor: `${user.job_title.color}15`, color: user.job_title.color }}
+            >
+              {(() => {
+                const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Users
+                return <TitleIcon size={12} />
+              })()}
+              {user.job_title.name}
+            </div>
+          ) : null}
+        </div>
+      )}
       
       {/* Action buttons */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {/* Add to team button */}
-        {showAddToTeam && teams && onAddToTeam && (
-          <div className="relative">
-            <button
-              onClick={() => setShowAddTeamDropdown(!showAddTeamDropdown)}
-              className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
-              title="Add to team"
-            >
-              <UserPlus size={14} />
-            </button>
-            {showAddTeamDropdown && (
-              <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[160px]">
-                {teams.map(team => {
-                  const TeamIcon = (LucideIcons as any)[team.icon] || Users
-                  return (
-                    <button
-                      key={team.id}
-                      onClick={() => {
-                        onAddToTeam(team.id)
-                        setShowAddTeamDropdown(false)
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-plm-highlight transition-colors"
-                    >
-                      <div
-                        className="p-1 rounded"
-                        style={{ backgroundColor: `${team.color}15`, color: team.color }}
-                      >
-                        <TeamIcon size={12} />
-                      </div>
-                      <span className="text-plm-fg truncate">{team.name}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+        {showAddToTeam && onOpenAddToTeamModal && (
+          <button
+            onClick={onOpenAddToTeamModal}
+            className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
+            title="Add to team"
+          >
+            <UserPlus size={14} />
+          </button>
         )}
         
         {/* Individual permissions button (for unassigned users) */}
@@ -1659,7 +1919,18 @@ function UserRow({
           </button>
         )}
         
-        {/* Remove button */}
+        {/* Remove from team button */}
+        {canManage && onRemoveFromTeam && (
+          <button
+            onClick={onRemoveFromTeam}
+            className="p-1.5 text-plm-fg-muted hover:text-plm-warning hover:bg-plm-warning/10 rounded transition-colors"
+            title="Remove from team"
+          >
+            <X size={14} />
+          </button>
+        )}
+        
+        {/* Remove from organization button */}
         {canManage && (
           <button
             onClick={onRemove}
@@ -2406,20 +2677,30 @@ function CreateUserDialog({
   onCreated,
   teams,
   orgId,
-  currentUserId
+  currentUserId,
+  currentUserName,
+  orgName,
+  vaults,
+  apiUrl
 }: {
   onClose: () => void
   onCreated: () => void
   teams: TeamWithDetails[]
   orgId: string
   currentUserId?: string
+  currentUserName?: string
+  orgName?: string
+  vaults: { id: string; name: string; description?: string }[]
+  apiUrl?: string | null
 }) {
   const { addToast } = usePDMStore()
+  const [showEmailPreview, setShowEmailPreview] = useState(false)
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
-  const [role, setRole] = useState<'admin' | 'engineer' | 'viewer'>('engineer')
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([])
+  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([])
   const [notes, setNotes] = useState('')
+  const [sendInviteEmail, setSendInviteEmail] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -2429,14 +2710,57 @@ function CreateUserDialog({
     
     setIsSaving(true)
     try {
+      // If we have API URL and want to send invite, use API endpoint
+      if (sendInviteEmail && apiUrl) {
+        // Get current session token
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          addToast('error', 'Session expired, please log in again')
+          return
+        }
+        
+        const response = await fetch(`${apiUrl}/auth/invite`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            email: email.toLowerCase().trim(),
+            full_name: fullName.trim() || undefined,
+            team_ids: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
+            vault_ids: selectedVaultIds.length > 0 ? selectedVaultIds : undefined,
+            notes: notes.trim() || undefined
+          })
+        })
+        
+        const result = await response.json()
+        
+        if (!response.ok) {
+          if (response.status === 409) {
+            addToast('error', 'A user with this email already exists or is pending')
+          } else {
+            throw new Error(result.message || 'Failed to invite user')
+          }
+          return
+        }
+        
+        addToast('success', result.message || `Invite sent to ${email}`)
+        onCreated()
+        onClose()
+        return
+      }
+      
+      // Otherwise just create pending member without email
       const { error } = await supabase
         .from('pending_org_members')
         .insert({
           org_id: orgId,
           email: email.toLowerCase().trim(),
           full_name: fullName.trim() || null,
-          role,
+          role: 'viewer',  // Default role, permissions come from teams
           team_ids: selectedTeamIds,
+          vault_ids: selectedVaultIds,
           notes: notes.trim() || null,
           created_by: currentUserId
         })
@@ -2466,6 +2790,14 @@ function CreateUserDialog({
       current.includes(teamId)
         ? current.filter(id => id !== teamId)
         : [...current, teamId]
+    )
+  }
+  
+  const toggleVault = (vaultId: string) => {
+    setSelectedVaultIds(current =>
+      current.includes(vaultId)
+        ? current.filter(id => id !== vaultId)
+        : [...current, vaultId]
     )
   }
   
@@ -2513,31 +2845,6 @@ function CreateUserDialog({
             />
           </div>
           
-          {/* Role */}
-          <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Role</label>
-            <div className="flex gap-2">
-              {(['viewer', 'engineer', 'admin'] as const).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRole(r)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
-                    role === r
-                      ? r === 'admin' ? 'bg-plm-accent/20 border-plm-accent text-plm-accent' :
-                        r === 'engineer' ? 'bg-plm-success/20 border-plm-success text-plm-success' :
-                        'bg-plm-fg-muted/20 border-plm-fg-muted text-plm-fg'
-                      : 'border-plm-border text-plm-fg-muted hover:border-plm-fg-muted'
-                  }`}
-                >
-                  {r === 'admin' && <Shield size={14} />}
-                  {r === 'engineer' && <Wrench size={14} />}
-                  {r === 'viewer' && <Eye size={14} />}
-                  {r.charAt(0).toUpperCase() + r.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-          
           {/* Teams */}
           {teams.length > 0 && (
             <div>
@@ -2573,6 +2880,117 @@ function CreateUserDialog({
               </p>
             </div>
           )}
+          
+          {/* Vault Access */}
+          {vaults.length > 0 && (
+            <div>
+              <label className="block text-sm text-plm-fg-muted mb-1.5">Vault Access</label>
+              <div className={`p-3 rounded-lg border mb-2 ${
+                selectedVaultIds.length === 0
+                  ? 'bg-plm-success/10 border-plm-success/30'
+                  : 'bg-plm-warning/10 border-plm-warning/30'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Database size={16} className={selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'} />
+                  <span className={`text-sm ${selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'}`}>
+                    {selectedVaultIds.length === 0 
+                      ? 'All vaults (no restrictions)' 
+                      : `Restricted to ${selectedVaultIds.length} of ${vaults.length} vaults`}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
+                {vaults.map(vault => {
+                  const isSelected = selectedVaultIds.includes(vault.id)
+                  return (
+                    <label
+                      key={vault.id}
+                      className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-plm-highlight transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleVault(vault.id)}
+                        className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                      />
+                      <Database size={14} className="text-plm-fg-muted" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-plm-fg">{vault.name}</span>
+                        {vault.description && (
+                          <span className="text-xs text-plm-fg-dim ml-2">{vault.description}</span>
+                        )}
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-plm-fg-dim mt-1">
+                Leave all unchecked for full access. Check specific vaults to restrict access.
+              </p>
+            </div>
+          )}
+          
+          {/* Send Invite Email */}
+          <div className="pt-2 border-t border-plm-border">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sendInviteEmail}
+                  onChange={e => setSendInviteEmail(e.target.checked)}
+                  disabled={!apiUrl}
+                  className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-50"
+                />
+                <div className="flex items-center gap-2">
+                  <Mail size={16} className={sendInviteEmail && apiUrl ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+                  <span className={`text-sm ${sendInviteEmail && apiUrl ? 'text-plm-fg' : 'text-plm-fg-muted'}`}>
+                    Send invite email
+                  </span>
+                </div>
+              </label>
+              {apiUrl && sendInviteEmail && (
+                <button
+                  type="button"
+                  onClick={() => setShowEmailPreview(!showEmailPreview)}
+                  className="text-xs text-plm-accent hover:text-plm-accent/80 transition-colors"
+                >
+                  {showEmailPreview ? 'Hide preview' : 'Preview email'}
+                </button>
+              )}
+            </div>
+            {!apiUrl && (
+              <p className="text-xs text-plm-fg-dim mt-1.5 ml-7">
+                Configure API URL in Settings → REST API to enable invite emails
+              </p>
+            )}
+            
+            {/* Email Preview */}
+            {apiUrl && sendInviteEmail && showEmailPreview && (
+              <div className="mt-3 ml-7 p-4 bg-white border border-plm-border rounded-lg text-sm">
+                <div className="text-gray-500 text-xs mb-3 pb-2 border-b border-gray-200">
+                  <div><strong>To:</strong> {email || 'user@example.com'}</div>
+                  <div><strong>From:</strong> BluePLM &lt;noreply@blueplm.app&gt;</div>
+                  <div><strong>Subject:</strong> You've been invited to {orgName || 'an organization'}</div>
+                </div>
+                <div className="text-gray-800 space-y-3">
+                  <p>Hi{fullName ? ` ${fullName}` : ''},</p>
+                  <p>
+                    <strong>{currentUserName || 'A team member'}</strong> has invited you to join{' '}
+                    <strong>{orgName || 'their organization'}</strong> on BluePLM.
+                  </p>
+                  <p>BluePLM is a Product Data Management system for engineering teams.</p>
+                  <div className="my-4">
+                    <span className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
+                      Accept Invitation
+                    </span>
+                  </div>
+                  <p className="text-gray-500 text-xs">
+                    If you didn't expect this invitation, you can ignore this email.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
           
           {/* Notes */}
           <div>

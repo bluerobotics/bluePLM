@@ -60,6 +60,7 @@ import { getFileIconType, formatFileSize, getInitials } from '../types/pdm'
 // Shared file/folder components - use FileIcon for files with thumbnail support
 import { FileIcon } from './shared/FileItemComponents'
 import { logFileAction, logContextMenu, logDragDrop } from '../lib/userActionLogger'
+import { copyToClipboard } from '../lib/clipboard'
 import { 
   supabase,
   updateFileMetadata, 
@@ -2036,10 +2037,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     if (error) {
       addToast('error', error)
     } else if (link) {
-      try {
-        await navigator.clipboard.writeText(link.downloadUrl)
+      const result = await copyToClipboard(link.downloadUrl)
+      if (result.success) {
         addToast('success', 'Share link copied! (expires in 7 days)')
-      } catch {
+      } else {
         // If clipboard fails, show the link in a prompt
         setGeneratedShareLink(link.downloadUrl)
         setShareFile(file)
@@ -2053,12 +2054,12 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const handleCopyShareLink = async () => {
     if (!generatedShareLink) return
     
-    try {
-      await navigator.clipboard.writeText(generatedShareLink)
+    const result = await copyToClipboard(generatedShareLink)
+    if (result.success) {
       setCopiedLink(true)
       addToast('success', 'Link copied to clipboard!')
       setTimeout(() => setCopiedLink(false), 2000)
-    } catch {
+    } else {
       addToast('error', 'Failed to copy link')
     }
   }
@@ -4460,12 +4461,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         {/* Path actions - right side of crumb bar */}
         <div className="flex items-center gap-0.5">
           <button
-            onClick={() => {
+            onClick={async () => {
               const fullPath = currentPath 
                 ? buildFullPath(vaultPath!, currentPath)
                 : vaultPath || ''
-              navigator.clipboard.writeText(fullPath)
-              addToast('success', 'Path copied to clipboard')
+              const result = await copyToClipboard(fullPath)
+              if (result.success) {
+                addToast('success', 'Path copied to clipboard')
+              }
             }}
             className="p-1.5 rounded-md text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
             title="Copy current path"
@@ -5296,8 +5299,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     className="context-menu-item"
                     onClick={async () => {
                       const paths = contextFiles.map(f => f.path).join('\n')
-                      await navigator.clipboard.writeText(paths)
-                      addToast('success', `Copied ${contextFiles.length > 1 ? contextFiles.length + ' paths' : 'path'} to clipboard`)
+                      const result = await copyToClipboard(paths)
+                      if (result.success) {
+                        addToast('success', `Copied ${contextFiles.length > 1 ? contextFiles.length + ' paths' : 'path'} to clipboard`)
+                      }
                       setContextMenu(null)
                     }}
                   >

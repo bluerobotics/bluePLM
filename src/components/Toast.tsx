@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { X, AlertCircle, CheckCircle, Info, AlertTriangle, Copy, Check, Loader2, Download, RefreshCw, ArrowDownToLine } from 'lucide-react'
 import { usePDMStore, ToastMessage, ToastType } from '../stores/pdmStore'
+import { copyToClipboard } from '../lib/clipboard'
 
 export function Toast() {
   const { toasts, removeToast, dismissUpdateToast } = usePDMStore()
@@ -238,24 +239,12 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
   }
 
   const handleCopy = async () => {
-    try {
-      // Use Electron clipboard API (more reliable than navigator.clipboard in Electron)
-      if (window.electronAPI?.copyToClipboard) {
-        const result = await window.electronAPI.copyToClipboard(toast.message)
-        if (result.success) {
-          setCopied(true)
-          setTimeout(() => setCopied(false), 2000)
-        } else {
-          console.error('Failed to copy via Electron:', result.error)
-        }
-      } else {
-        // Fallback for non-Electron environments (e.g., browser development)
-        await navigator.clipboard.writeText(toast.message)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      }
-    } catch (err) {
-      console.error('Failed to copy:', err)
+    const result = await copyToClipboard(toast.message)
+    if (result.success) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } else {
+      console.error('Failed to copy:', result.error)
     }
   }
 

@@ -259,6 +259,11 @@ export function AccountSettings() {
             <div className="text-xl font-medium text-plm-fg truncate">
               {user.full_name || 'No name'}
             </div>
+            {user.job_title && (
+              <div className="text-base text-plm-fg-muted">
+                {user.job_title}
+              </div>
+            )}
             <div className="text-base text-plm-fg-muted truncate flex items-center gap-1.5">
               <Mail size={16} />
               {user.email}

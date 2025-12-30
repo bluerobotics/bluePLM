@@ -230,6 +230,47 @@ export interface TeamPermission {
 }
 
 // ===========================================
+// JOB TITLES (Display-only, NO permissions)
+// ===========================================
+// Job titles are labels for users. ALL permissions come from TEAMS.
+
+export interface JobTitle {
+  id: string
+  org_id: string
+  name: string
+  description: string | null
+  color: string
+  icon: string
+  is_system: boolean
+  created_at: string
+  created_by: string | null
+  updated_at: string
+  updated_by: string | null
+  // Computed/joined
+  user_count?: number
+}
+
+export interface UserJobTitle {
+  id: string
+  user_id: string
+  title_id: string
+  assigned_at: string
+  assigned_by: string | null
+  // Joined
+  title?: JobTitle
+}
+
+// Default job titles for new orgs
+export const DEFAULT_JOB_TITLES: Omit<JobTitle, 'id' | 'org_id' | 'created_at' | 'created_by' | 'updated_at' | 'updated_by'>[] = [
+  { name: 'Design Engineer', description: 'CAD and product design', color: '#3b82f6', icon: 'PenTool', is_system: true },
+  { name: 'Quality Engineer', description: 'Quality assurance and control', color: '#f59e0b', icon: 'ShieldCheck', is_system: true },
+  { name: 'Manufacturing Engineer', description: 'Production and process engineering', color: '#ec4899', icon: 'Factory', is_system: true },
+  { name: 'Purchasing Agent', description: 'Procurement and supplier management', color: '#14b8a6', icon: 'ShoppingCart', is_system: true },
+  { name: 'Project Manager', description: 'Project oversight and coordination', color: '#8b5cf6', icon: 'Briefcase', is_system: true },
+  { name: 'Document Controller', description: 'Release and document management', color: '#06b6d4', icon: 'FileCheck', is_system: true },
+]
+
+// ===========================================
 // PERMISSION PRESETS
 // ===========================================
 

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
+import { copyToClipboard } from '../../lib/clipboard'
 import type { Webhook, WebhookDelivery, WebhookEvent, WebhookTriggerFilter } from '../../types/database'
 
 // Cast supabase client to bypass known v2 type inference issues
@@ -322,12 +323,12 @@ export function WebhooksSettings() {
   }
   
   const handleCopySecret = async () => {
-    try {
-      await navigator.clipboard.writeText(formData.secret)
+    const result = await copyToClipboard(formData.secret)
+    if (result.success) {
       setSecretCopied(true)
       setTimeout(() => setSecretCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy:', err)
+    } else {
+      console.error('Failed to copy:', result.error)
     }
   }
   

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase, getCurrentConfig, isSupabaseConfigured } from '../../lib/supabase'
+import { copyToClipboard } from '../../lib/clipboard'
 import { getSchemaVersion, EXPECTED_SCHEMA_VERSION, type SchemaVersionInfo } from '../../lib/schemaVersion'
 
 // Cast supabase client to bypass known v2 type inference issues
@@ -444,23 +445,23 @@ export function SupabaseSettings() {
   
   const handleCopyKey = async () => {
     if (!config?.anonKey || !isAdmin) return
-    try {
-      await navigator.clipboard.writeText(config.anonKey)
+    const result = await copyToClipboard(config.anonKey)
+    if (result.success) {
       setKeyCopied(true)
       setTimeout(() => setKeyCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy key:', err)
+    } else {
+      console.error('Failed to copy key:', result.error)
     }
   }
   
   const handleCopyUrl = async () => {
     if (!config?.url) return
-    try {
-      await navigator.clipboard.writeText(config.url)
+    const result = await copyToClipboard(config.url)
+    if (result.success) {
       setUrlCopied(true)
       setTimeout(() => setUrlCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy URL:', err)
+    } else {
+      console.error('Failed to copy URL:', result.error)
     }
   }
   

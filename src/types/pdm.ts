@@ -167,6 +167,7 @@ export interface User {
   email: string
   full_name: string | null
   avatar_url: string | null
+  job_title: string | null
   org_id: string | null
   role: 'admin' | 'engineer' | 'viewer'
   created_at: string

@@ -14,8 +14,13 @@
 // @ts-nocheck - TODO: Fix Supabase type inference issues
 
 import { supabase } from './supabase'
+import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from './network'
 
 const BUCKET_NAME = 'vault'
+
+// Retry configuration for storage operations
+const MAX_RETRY_ATTEMPTS = 3
+const RETRY_BASE_DELAY_MS = 1000
 
 // Comprehensive logging helper for storage operations
 interface StorageLogContext {
@@ -151,28 +156,66 @@ export async function uploadFile(
     
     logStorageOperation('debug', 'Uploading to storage', ctx)
     
-    // Upload to storage
-    const { error, data } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(storagePath, blob, {
-        cacheControl: '31536000', // Cache for 1 year (content-addressed = immutable)
-        upsert: false // Don't overwrite (shouldn't happen with content-addressing)
-      })
+    // Upload to storage with retry logic for network errors
+    let lastError: Error | null = null
+    let uploadData: { path: string } | null = null
     
-    if (error) {
-      // Ignore "already exists" errors (race condition)
-      if (!error.message.includes('already exists')) {
-        logStorageOperation('error', 'Upload failed', ctx, {
-          message: error.message,
-          statusCode: (error as any).statusCode,
-          error: (error as any).error,
-          details: error
+    for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+      const { error, data } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(storagePath, blob, {
+          cacheControl: '31536000', // Cache for 1 year (content-addressed = immutable)
+          upsert: false // Don't overwrite (shouldn't happen with content-addressing)
         })
-        return { hash: '', size: 0, error: `Upload failed: ${error.message}` }
+      
+      if (!error) {
+        uploadData = data
+        lastError = null
+        break // Success
       }
-      logStorageOperation('debug', 'File already exists (race condition)', ctx)
-    } else {
-      logStorageOperation('info', 'Upload successful', { ...ctx, uploadedPath: data?.path })
+      
+      // Ignore "already exists" errors (race condition / deduplication)
+      if (error.message.includes('already exists')) {
+        logStorageOperation('debug', 'File already exists (race condition)', ctx)
+        lastError = null
+        break
+      }
+      
+      lastError = error as Error
+      
+      // Check if error is retryable
+      if (isRetryableError(error.message) && attempt < MAX_RETRY_ATTEMPTS) {
+        const delayMs = getBackoffDelay(attempt, RETRY_BASE_DELAY_MS)
+        logStorageOperation('warn', 'Upload failed (network issue), retrying...', {
+          ...ctx,
+          operation: 'upload-retry'
+        }, {
+          message: error.message,
+          attempt,
+          maxAttempts: MAX_RETRY_ATTEMPTS,
+          retryDelayMs: Math.round(delayMs)
+        })
+        await sleep(delayMs)
+      } else {
+        // Not retryable or max attempts reached
+        break
+      }
+    }
+    
+    if (lastError) {
+      const userMessage = getNetworkErrorMessage(lastError)
+      logStorageOperation('error', 'Upload failed after retries', ctx, {
+        message: lastError.message,
+        userMessage,
+        statusCode: (lastError as any).statusCode,
+        error: (lastError as any).error,
+        details: lastError
+      })
+      return { hash: '', size: 0, error: `Upload failed: ${userMessage}` }
+    }
+    
+    if (uploadData) {
+      logStorageOperation('info', 'Upload successful', { ...ctx, uploadedPath: uploadData?.path })
     }
     
     return { hash, size: blob.size }
@@ -213,14 +256,53 @@ export async function downloadFile(
     
     logStorageOperation('debug', 'Starting download', ctx)
     
+    // Helper to attempt download with retry for network errors
+    const attemptDownload = async (path: string): Promise<{ data: Blob | null; error: Error | null }> => {
+      let lastError: Error | null = null
+      
+      for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+        const { data, error } = await supabase.storage
+          .from(BUCKET_NAME)
+          .download(path)
+        
+        if (!error && data) {
+          return { data, error: null }
+        }
+        
+        lastError = error as Error
+        
+        // Check if error is retryable (network issue, not 404/403)
+        const statusCode = (error as any)?.statusCode
+        const isNotFound = statusCode === 404 || statusCode === 403 || statusCode === 400
+        
+        if (!isNotFound && isRetryableError(error?.message || '') && attempt < MAX_RETRY_ATTEMPTS) {
+          const delayMs = getBackoffDelay(attempt, RETRY_BASE_DELAY_MS)
+          logStorageOperation('warn', 'Download failed (network issue), retrying...', {
+            ...ctx,
+            path,
+            operation: 'download-retry'
+          }, {
+            message: error?.message,
+            attempt,
+            maxAttempts: MAX_RETRY_ATTEMPTS,
+            retryDelayMs: Math.round(delayMs)
+          })
+          await sleep(delayMs)
+        } else {
+          // Not retryable (404, 403, etc.) or max attempts reached
+          break
+        }
+      }
+      
+      return { data: null, error: lastError }
+    }
+    
     // Try old flat structure first (most existing files use this)
     const flatPath = `${orgId}/${hash}`
     ctx.path = flatPath
     logStorageOperation('debug', 'Trying flat path', ctx)
     
-    let { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .download(flatPath)
+    let { data, error } = await attemptDownload(flatPath)
     
     // If not found, try new subdirectory structure
     if (error) {
@@ -234,9 +316,7 @@ export async function downloadFile(
       const storagePath = getStoragePath(orgId, hash)
       ctx.path = storagePath
       
-      const result = await supabase.storage
-        .from(BUCKET_NAME)
-        .download(storagePath)
+      const result = await attemptDownload(storagePath)
       
       if (!result.error && result.data) {
         logStorageOperation('info', 'Downloaded from subdirectory path', { ...ctx, fileSize: result.data.size })
@@ -259,15 +339,21 @@ export async function downloadFile(
       
       logStorageOperation('error', 'Download failed - file not found in storage', ctx, combinedError)
       
-      // Provide more helpful error message
+      // Provide more helpful error message based on status code or network error
       const statusCode = (error as any).statusCode || (result.error as any)?.statusCode
-      let errorMsg = `File not found in storage (hash: ${hash.substring(0, 8)}...)`
-      if (statusCode === 404) {
+      let errorMsg: string
+      
+      // Check if it was a network error
+      if (isRetryableError(error?.message || '') || isRetryableError(result.error?.message || '')) {
+        errorMsg = getNetworkErrorMessage(result.error || error)
+      } else if (statusCode === 404) {
         errorMsg = `File not found in cloud storage. It may have been deleted or the hash is incorrect. Hash: ${hash.substring(0, 12)}...`
       } else if (statusCode === 403) {
         errorMsg = `Access denied to storage. Check storage bucket permissions. Hash: ${hash.substring(0, 12)}...`
       } else if (statusCode === 400) {
         errorMsg = `Invalid storage request. Hash: ${hash.substring(0, 12)}... Error: ${error.message}`
+      } else {
+        errorMsg = `File not found in storage (hash: ${hash.substring(0, 8)}...)`
       }
       
       return { data: null, error: errorMsg }

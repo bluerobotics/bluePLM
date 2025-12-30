@@ -10,6 +10,7 @@ import { getCloudOnlyFilesFromSelection, buildFullPath, getParentDir } from '../
 import { ProgressTracker } from '../executor'
 import { getDownloadUrl } from '../../storage'
 import type { LocalFile } from '../../../stores/pdmStore'
+import { isRetryableError, getNetworkErrorMessage, getBackoffDelay } from '../../network'
 
 // Concurrency limit for parallel downloads
 // Too many concurrent downloads can overwhelm network/Supabase rate limits
@@ -358,26 +359,24 @@ export const downloadCommand: Command<DownloadParams> = {
         const downloadResult = await window.electronAPI?.downloadUrl(url, fullPath)
         if (!downloadResult?.success) {
           const errorMsg = downloadResult?.error || 'Unknown error writing to disk'
-          const isRetryable = errorMsg.includes('timed out') || 
-                              errorMsg.includes('ECONNRESET') || 
-                              errorMsg.includes('ETIMEDOUT') ||
-                              errorMsg.includes('socket hang up') ||
-                              errorMsg.includes('Connection')
           
-          // Retry on timeout/connection errors
-          if (isRetryable && attempt < MAX_RETRY_ATTEMPTS) {
-            const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1)
-            logDownload('warn', 'Download failed, retrying...', {
+          // Retry on network/connectivity errors
+          if (isRetryableError(errorMsg) && attempt < MAX_RETRY_ATTEMPTS) {
+            const delayMs = getBackoffDelay(attempt, RETRY_BASE_DELAY_MS)
+            logDownload('warn', 'Download failed (network issue), retrying...', {
               operationId,
               fileName: file.name,
               attempt,
               maxAttempts: MAX_RETRY_ATTEMPTS,
               error: errorMsg,
-              retryDelayMs: delayMs
+              retryDelayMs: Math.round(delayMs)
             })
             await sleep(delayMs)
             return downloadWithRetry(file, attempt + 1)
           }
+          
+          // Use user-friendly message for network errors
+          const userMessage = getNetworkErrorMessage(errorMsg)
           
           logDownload('error', 'File download failed', {
             operationId,
@@ -388,7 +387,7 @@ export const downloadCommand: Command<DownloadParams> = {
             attempt,
             willRetry: false
           })
-          return { success: false, error: `${file.name}: Download failed - ${errorMsg}` }
+          return { success: false, error: `${file.name}: ${userMessage}` }
         }
         
         // Set read-only
@@ -417,36 +416,34 @@ export const downloadCommand: Command<DownloadParams> = {
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err)
         
-        // Retry on exceptions that look like network errors
-        const isRetryable = errorMsg.includes('timed out') || 
-                            errorMsg.includes('ECONNRESET') || 
-                            errorMsg.includes('ETIMEDOUT') ||
-                            errorMsg.includes('socket hang up') ||
-                            errorMsg.includes('Connection')
-        
-        if (isRetryable && attempt < MAX_RETRY_ATTEMPTS) {
-          const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1)
-          logDownload('warn', 'Download exception, retrying...', {
+        // Retry on network/connectivity errors
+        if (isRetryableError(err) && attempt < MAX_RETRY_ATTEMPTS) {
+          const delayMs = getBackoffDelay(attempt, RETRY_BASE_DELAY_MS)
+          logDownload('warn', 'Download exception (network issue), retrying...', {
             operationId,
             fileName: file.name,
             attempt,
             maxAttempts: MAX_RETRY_ATTEMPTS,
             error: errorMsg,
-            retryDelayMs: delayMs
+            retryDelayMs: Math.round(delayMs)
           })
           await sleep(delayMs)
           return downloadWithRetry(file, attempt + 1)
         }
+        
+        // Use user-friendly message for network errors
+        const userMessage = getNetworkErrorMessage(err)
         
         logDownload('error', 'Download exception', {
           operationId,
           ...fileCtx,
           fullPath,
           error: errorMsg,
+          userMessage,
           stack: err instanceof Error ? err.stack : undefined,
           attempt
         })
-        return { success: false, error: `${file.name}: ${errorMsg}` }
+        return { success: false, error: `${file.name}: ${userMessage}` }
       }
     }
     

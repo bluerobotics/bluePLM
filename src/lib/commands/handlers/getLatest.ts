@@ -10,6 +10,11 @@ import { buildFullPath, getFilesInFolder } from '../types'
 import { ProgressTracker } from '../executor'
 import { getDownloadUrl } from '../../storage'
 import { usePDMStore, MissingStorageFile } from '../../../stores/pdmStore'
+import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
+
+// Retry configuration
+const MAX_RETRY_ATTEMPTS = 3
+const RETRY_BASE_DELAY_MS = 1000
 
 export interface GetLatestParams {
   files: LocalFile[]
@@ -253,24 +258,55 @@ export const getLatestCommand: Command<GetLatestParams> = {
           })
         }
         
-        // Download and overwrite the local file
-        logGetLatest('debug', 'Downloading file', {
-          operationId,
-          fileName: file.name,
-          fullPath
-        })
+        // Download and overwrite the local file with retry logic
+        let downloadResult: { success: boolean; error?: string; size?: number; hash?: string } | undefined
+        let lastDownloadError: string | undefined
         
-        const downloadResult = await window.electronAPI?.downloadUrl(url, fullPath)
+        for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+          logGetLatest('debug', 'Downloading file', {
+            operationId,
+            fileName: file.name,
+            fullPath,
+            attempt
+          })
+          
+          downloadResult = await window.electronAPI?.downloadUrl(url, fullPath)
+          
+          if (downloadResult?.success) {
+            break // Success, exit retry loop
+          }
+          
+          lastDownloadError = downloadResult?.error || 'unknown error'
+          
+          // Check if error is retryable
+          if (isRetryableError(lastDownloadError) && attempt < MAX_RETRY_ATTEMPTS) {
+            const delayMs = getBackoffDelay(attempt, RETRY_BASE_DELAY_MS)
+            logGetLatest('warn', 'Download failed (network issue), retrying...', {
+              operationId,
+              fileName: file.name,
+              attempt,
+              maxAttempts: MAX_RETRY_ATTEMPTS,
+              error: lastDownloadError,
+              retryDelayMs: Math.round(delayMs)
+            })
+            await sleep(delayMs)
+          } else {
+            // Not retryable or max attempts reached
+            break
+          }
+        }
+        
         if (!downloadResult?.success) {
-          logGetLatest('error', 'Download failed', {
+          const userMessage = getNetworkErrorMessage(lastDownloadError || 'unknown error')
+          logGetLatest('error', 'Download failed after retries', {
             operationId,
             ...fileCtx,
             fullPath,
-            downloadError: downloadResult?.error,
-            downloadResult
+            downloadError: lastDownloadError,
+            userMessage
           })
           progress.update()
-          return { success: false, error: `${file.name}: Download failed - ${downloadResult?.error || 'unknown error'}` }
+          return { success: false, error: `${file.name}: ${userMessage}` }
         }
         
         logGetLatest('debug', 'Download succeeded, setting read-only', {

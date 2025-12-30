@@ -1353,6 +1353,118 @@ export async function buildServer(): Promise<FastifyInstance> {
       expires_at: data.session!.expires_at
     }
   })
+  
+  // Invite user by email (admin only)
+  fastify.post('/auth/invite', {
+    schema: {
+      description: 'Invite a user by email. Requires admin role. Creates pending org member and sends invite email.',
+      tags: ['Auth'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['email'],
+        properties: {
+          email: { type: 'string', format: 'email' },
+          full_name: { type: 'string' },
+          team_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+          vault_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+          notes: { type: 'string' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            pending_member_id: { type: 'string' }
+          }
+        }
+      }
+    },
+    preHandler: fastify.authenticate
+  }, async (request, reply) => {
+    const user = request.user!
+    
+    // Check admin permission
+    if (user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Forbidden', message: 'Admin role required' })
+    }
+    
+    if (!SUPABASE_SERVICE_KEY) {
+      return reply.code(500).send({ error: 'Configuration error', message: 'Service key not configured' })
+    }
+    
+    const { email, full_name, team_ids, vault_ids, notes } = request.body as {
+      email: string
+      full_name?: string
+      team_ids?: string[]
+      vault_ids?: string[]
+      notes?: string
+    }
+    
+    const normalizedEmail = email.toLowerCase().trim()
+    
+    // Create admin client for invite
+    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+    
+    // Create pending org member record
+    const { data: pendingMember, error: pendingError } = await adminClient
+      .from('pending_org_members')
+      .insert({
+        org_id: user.org_id,
+        email: normalizedEmail,
+        full_name: full_name || null,
+        role: 'viewer',
+        team_ids: team_ids || [],
+        vault_ids: vault_ids || [],
+        notes: notes || null,
+        created_by: user.id
+      })
+      .select('id')
+      .single()
+    
+    if (pendingError) {
+      if (pendingError.code === '23505') {
+        return reply.code(409).send({ error: 'Conflict', message: 'User with this email already exists or is pending' })
+      }
+      throw pendingError
+    }
+    
+    // Get organization name for invite email
+    const { data: org } = await adminClient
+      .from('organizations')
+      .select('name')
+      .eq('id', user.org_id)
+      .single()
+    
+    // Send invite email using Supabase Auth
+    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
+      data: {
+        org_name: org?.name || 'your organization',
+        invited_by: user.full_name || user.email
+      },
+      redirectTo: `${process.env.APP_URL || 'https://blueplm.app'}/login`
+    })
+    
+    if (inviteError) {
+      // Still return success if pending member was created - user can sign up manually
+      fastify.log.warn({ email: normalizedEmail, error: inviteError }, 'Failed to send invite email, but pending member created')
+      return {
+        success: true,
+        message: `User added but invite email failed: ${inviteError.message}. They can still sign up manually.`,
+        pending_member_id: pendingMember.id
+      }
+    }
+    
+    return {
+      success: true,
+      message: `Invite email sent to ${normalizedEmail}`,
+      pending_member_id: pendingMember.id
+    }
+  })
 
   // ============================================
   // Vault Routes

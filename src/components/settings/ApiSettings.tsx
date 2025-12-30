@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
+import { copyToClipboard } from '../../lib/clipboard'
 
 // Cast supabase client to bypass known v2 type inference issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -238,12 +239,12 @@ export function ApiSettings() {
   
   const handleCopyToken = async () => {
     if (!apiToken) return
-    try {
-      await navigator.clipboard.writeText(apiToken)
+    const result = await copyToClipboard(apiToken)
+    if (result.success) {
       setTokenCopied(true)
       setTimeout(() => setTokenCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy token:', err)
+    } else {
+      console.error('Failed to copy token:', result.error)
     }
   }
   

@@ -28,6 +28,7 @@ export type SettingsTab =
   | 'logs' 
   | 'dev-tools'
   | 'about'
+  | 'delete-account'
 
 // Keybinding action identifiers
 export type KeybindingAction = 

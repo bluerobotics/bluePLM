@@ -758,7 +758,7 @@ const defaultColumns: ColumnConfig[] = [
   { id: 'itemNumber', label: 'Item Number', width: 120, visible: true, sortable: true },
   { id: 'description', label: 'Description', width: 200, visible: true, sortable: true },
   { id: 'revision', label: 'Rev', width: 50, visible: true, sortable: true },
-  { id: 'state', label: 'State', width: 90, visible: true, sortable: true },
+  { id: 'state', label: 'State', width: 130, visible: true, sortable: true },
   { id: 'ecoTags', label: 'ECOs', width: 120, visible: true, sortable: true },
   { id: 'extension', label: 'Type', width: 70, visible: true, sortable: true },
   { id: 'size', label: 'Size', width: 80, visible: true, sortable: true },

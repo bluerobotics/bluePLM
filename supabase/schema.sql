@@ -356,39 +356,36 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL UNIQUE,
   full_name TEXT,
   avatar_url TEXT,
+  job_title TEXT,
   org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
   role user_role DEFAULT 'engineer',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   last_sign_in TIMESTAMPTZ
 );
 
+-- Add job_title column if it doesn't exist (for existing databases)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'job_title') THEN
+    ALTER TABLE users ADD COLUMN job_title TEXT;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_users_org_id ON users(org_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- ===========================================
--- AUTO-SET USER ORG_ID TRIGGER
+-- AUTO-SET USER ORG_ID TRIGGER (DISABLED)
 -- ===========================================
--- Automatically sets org_id based on email domain when a user is created/updated
+-- Previously auto-assigned org_id based on email domain.
+-- Now org_id comes from: pending_org_members (pre-created accounts) or org code entry.
+-- This trigger is kept as a no-op for backwards compatibility.
 
 CREATE OR REPLACE FUNCTION auto_set_user_org_id_func()
 RETURNS TRIGGER AS $$
-DECLARE
-  matching_org_id UUID;
 BEGIN
-  -- Only run if org_id is NULL
-  IF NEW.org_id IS NULL THEN
-    -- Find organization by email domain
-    SELECT o.id INTO matching_org_id
-    FROM organizations o
-    WHERE SPLIT_PART(NEW.email, '@', 2) = ANY(o.email_domains)
-    LIMIT 1;
-    
-    -- If found, set it
-    IF matching_org_id IS NOT NULL THEN
-      NEW.org_id := matching_org_id;
-    END IF;
-  END IF;
-  
+  -- No-op: org_id is set by claim_pending_membership or org code entry
+  -- Email domain auto-matching has been removed to avoid conflicts
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -402,14 +399,14 @@ CREATE TRIGGER auto_set_user_org_id
 -- ===========================================
 -- ENSURE USER ORG_ID RPC
 -- ===========================================
--- RPC function the app calls on boot to ensure user has correct org_id
+-- RPC function the app calls on boot to check user's org_id status.
+-- No longer auto-assigns based on email domain - org comes from pending_org_members or org code.
 
 CREATE OR REPLACE FUNCTION ensure_user_org_id()
 RETURNS JSON AS $$
 DECLARE
   current_user_id UUID;
   current_org_id UUID;
-  matching_org_id UUID;
   user_email TEXT;
 BEGIN
   current_user_id := auth.uid();
@@ -423,36 +420,20 @@ BEGIN
   FROM users
   WHERE id = current_user_id;
   
-  -- Find matching org by email domain
-  SELECT o.id INTO matching_org_id
-  FROM organizations o
-  WHERE SPLIT_PART(user_email, '@', 2) = ANY(o.email_domains)
-  LIMIT 1;
-  
-  -- If user has wrong or NULL org_id, fix it
-  IF matching_org_id IS NOT NULL AND (current_org_id IS NULL OR current_org_id != matching_org_id) THEN
-    UPDATE users
-    SET org_id = matching_org_id
-    WHERE id = current_user_id;
-    
-    -- Also fix their sessions
-    UPDATE user_sessions
-    SET org_id = matching_org_id
-    WHERE user_id = current_user_id
-      AND (org_id IS NULL OR org_id != matching_org_id);
-    
+  -- If user has an org_id, return success
+  IF current_org_id IS NOT NULL THEN
     RETURN json_build_object(
-      'success', true, 
-      'fixed', true,
-      'previous_org_id', current_org_id,
-      'new_org_id', matching_org_id
+      'success', true,
+      'has_org', true,
+      'org_id', current_org_id
     );
   END IF;
   
+  -- User has no org - they need to enter an org code or be pre-created
   RETURN json_build_object(
     'success', true,
-    'fixed', false,
-    'org_id', current_org_id
+    'has_org', false,
+    'message', 'User needs to join an organization via org code'
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -909,24 +890,15 @@ CREATE POLICY "Users can log activity"
 -- FUNCTIONS & TRIGGERS
 -- ===========================================
 
--- Function to auto-assign user to org based on email domain
+-- Function to create user profile on auth signup
 -- NOTE: Must use public. prefix for tables since trigger runs in auth schema context
+-- org_id is set by claim_pending_membership trigger or via org code entry (not email domain)
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
-DECLARE
-  user_domain TEXT;
-  matching_org_id UUID;
 BEGIN
-  -- Extract domain from email
-  user_domain := split_part(NEW.email, '@', 2);
-  
-  -- Find org with matching domain (explicit public schema)
-  SELECT id INTO matching_org_id
-  FROM public.organizations
-  WHERE user_domain = ANY(email_domains)
-  LIMIT 1;
-  
-  -- Insert user profile with conflict handling
+  -- Insert user profile with NULL org_id
+  -- org_id will be set by claim_pending_membership trigger if there's a pending membership
+  -- otherwise user will need to enter an org code
   -- Note: Google OAuth stores avatar as 'picture', not 'avatar_url'
   INSERT INTO public.users (id, email, full_name, avatar_url, org_id)
   VALUES (
@@ -934,7 +906,7 @@ BEGIN
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', NEW.raw_user_meta_data->>'picture'),
-    matching_org_id
+    NULL  -- org_id set by claim_pending_membership or org code entry
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
@@ -1128,15 +1100,15 @@ END $$;
 
 -- Note: Google OAuth stores avatar as 'picture', not 'avatar_url'
 -- IDEMPOTENT: Uses ON CONFLICT to handle both id and email conflicts
+-- org_id is set to NULL - users will need to enter org code or be pre-created via pending_org_members
 INSERT INTO users (id, email, full_name, avatar_url, org_id)
 SELECT 
   au.id,
   au.email,
   COALESCE(au.raw_user_meta_data->>'full_name', au.raw_user_meta_data->>'name'),
   COALESCE(au.raw_user_meta_data->>'avatar_url', au.raw_user_meta_data->>'picture'),
-  o.id
+  NULL  -- No email domain auto-matching
 FROM auth.users au
-LEFT JOIN organizations o ON split_part(au.email, '@', 2) = ANY(o.email_domains)
 WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = au.id)
   AND NOT EXISTS (SELECT 1 FROM users u WHERE u.email = au.email)
 ON CONFLICT (id) DO NOTHING;
@@ -5432,6 +5404,216 @@ COMMENT ON FUNCTION get_user_permissions IS 'Returns all effective permissions f
 COMMENT ON FUNCTION user_has_permission IS 'Checks if a user has a specific permission on a resource.';
 
 -- ===========================================
+-- JOB TITLES (Optional labels, NO permissions)
+-- ===========================================
+-- Job titles are display-only labels for users (e.g., "Quality Engineer", "Project Manager").
+-- ALL permissions come from TEAMS, not job titles.
+
+CREATE TABLE IF NOT EXISTS job_titles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Title identity
+  name TEXT NOT NULL,
+  description TEXT,
+  color TEXT DEFAULT '#6b7280',
+  icon TEXT DEFAULT 'User',
+  
+  -- Built-in titles cannot be deleted
+  is_system BOOLEAN DEFAULT FALSE,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  UNIQUE(org_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_titles_org_id ON job_titles(org_id);
+
+-- User-to-title assignment (users can have one job title)
+CREATE TABLE IF NOT EXISTS user_job_titles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title_id UUID NOT NULL REFERENCES job_titles(id) ON DELETE CASCADE,
+  
+  -- Assignment metadata
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  assigned_by UUID REFERENCES users(id),
+  
+  UNIQUE(user_id)  -- One title per user
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_job_titles_user_id ON user_job_titles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_job_titles_title_id ON user_job_titles(title_id);
+
+-- RLS for job_titles
+ALTER TABLE job_titles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view job titles" ON job_titles;
+CREATE POLICY "Users can view job titles"
+  ON job_titles FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+DROP POLICY IF EXISTS "Admins can manage job titles" ON job_titles;
+CREATE POLICY "Admins can manage job titles"
+  ON job_titles FOR ALL
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- RLS for user_job_titles
+ALTER TABLE user_job_titles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view title assignments" ON user_job_titles;
+CREATE POLICY "Users can view title assignments"
+  ON user_job_titles FOR SELECT
+  USING (title_id IN (SELECT id FROM job_titles WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+
+DROP POLICY IF EXISTS "Admins can manage title assignments" ON user_job_titles;
+CREATE POLICY "Admins can manage title assignments"
+  ON user_job_titles FOR ALL
+  USING (title_id IN (SELECT id FROM job_titles WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
+
+-- Function to create default job titles for an org
+CREATE OR REPLACE FUNCTION create_default_job_titles(p_org_id UUID, p_created_by UUID DEFAULT NULL)
+RETURNS VOID AS $$
+BEGIN
+  INSERT INTO job_titles (org_id, name, description, color, icon, is_system, created_by) VALUES
+    (p_org_id, 'Design Engineer', 'CAD and product design', '#3b82f6', 'PenTool', TRUE, p_created_by),
+    (p_org_id, 'Quality Engineer', 'Quality assurance and control', '#f59e0b', 'ShieldCheck', TRUE, p_created_by),
+    (p_org_id, 'Manufacturing Engineer', 'Production and process engineering', '#ec4899', 'Factory', TRUE, p_created_by),
+    (p_org_id, 'Purchasing Agent', 'Procurement and supplier management', '#14b8a6', 'ShoppingCart', TRUE, p_created_by),
+    (p_org_id, 'Project Manager', 'Project oversight and coordination', '#8b5cf6', 'Briefcase', TRUE, p_created_by),
+    (p_org_id, 'Document Controller', 'Release and document management', '#06b6d4', 'FileCheck', TRUE, p_created_by)
+  ON CONFLICT (org_id, name) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ===========================================
+-- DEFAULT PERMISSION TEAMS
+-- ===========================================
+-- Creates Viewers, Engineers, and Admins teams with appropriate permissions.
+-- ALL permissions flow through teams.
+
+CREATE OR REPLACE FUNCTION create_default_permission_teams(p_org_id UUID, p_created_by UUID DEFAULT NULL)
+RETURNS VOID AS $$
+DECLARE
+  v_viewers_id UUID;
+  v_engineers_id UUID;
+  v_admins_id UUID;
+BEGIN
+  -- Create Viewers team
+  INSERT INTO teams (org_id, name, description, color, icon, is_system, created_by)
+  VALUES (p_org_id, 'Viewers', 'Read-only access to all modules', '#64748b', 'Eye', TRUE, p_created_by)
+  ON CONFLICT (org_id, name) DO UPDATE SET updated_at = NOW()
+  RETURNING id INTO v_viewers_id;
+  
+  -- Create Engineers team
+  INSERT INTO teams (org_id, name, description, color, icon, is_system, created_by)
+  VALUES (p_org_id, 'Engineers', 'Create and edit access to engineering modules', '#3b82f6', 'Wrench', TRUE, p_created_by)
+  ON CONFLICT (org_id, name) DO UPDATE SET updated_at = NOW()
+  RETURNING id INTO v_engineers_id;
+  
+  -- Create Admins team
+  INSERT INTO teams (org_id, name, description, color, icon, is_system, created_by)
+  VALUES (p_org_id, 'Admins', 'Full administrative access to all modules and settings', '#22c55e', 'Shield', TRUE, p_created_by)
+  ON CONFLICT (org_id, name) DO UPDATE SET updated_at = NOW()
+  RETURNING id INTO v_admins_id;
+  
+  -- Get team IDs if they already existed (ON CONFLICT doesn't return id)
+  IF v_viewers_id IS NULL THEN
+    SELECT id INTO v_viewers_id FROM teams WHERE org_id = p_org_id AND name = 'Viewers';
+  END IF;
+  IF v_engineers_id IS NULL THEN
+    SELECT id INTO v_engineers_id FROM teams WHERE org_id = p_org_id AND name = 'Engineers';
+  END IF;
+  IF v_admins_id IS NULL THEN
+    SELECT id INTO v_admins_id FROM teams WHERE org_id = p_org_id AND name = 'Admins';
+  END IF;
+  
+  -- Viewers permissions: view on all modules
+  INSERT INTO team_permissions (team_id, resource, actions, granted_by) VALUES
+    (v_viewers_id, 'module:explorer', '{view}', p_created_by),
+    (v_viewers_id, 'module:pending', '{view}', p_created_by),
+    (v_viewers_id, 'module:history', '{view}', p_created_by),
+    (v_viewers_id, 'module:items', '{view}', p_created_by),
+    (v_viewers_id, 'module:boms', '{view}', p_created_by),
+    (v_viewers_id, 'module:products', '{view}', p_created_by),
+    (v_viewers_id, 'module:ecr', '{view}', p_created_by),
+    (v_viewers_id, 'module:eco', '{view}', p_created_by),
+    (v_viewers_id, 'module:reviews', '{view}', p_created_by),
+    (v_viewers_id, 'module:settings', '{view}', p_created_by)
+  ON CONFLICT (team_id, resource) DO NOTHING;
+  
+  -- Engineers permissions: view + create + edit on engineering modules
+  INSERT INTO team_permissions (team_id, resource, actions, granted_by) VALUES
+    (v_engineers_id, 'module:explorer', '{view,create,edit,delete}', p_created_by),
+    (v_engineers_id, 'module:pending', '{view,create,edit,delete}', p_created_by),
+    (v_engineers_id, 'module:history', '{view}', p_created_by),
+    (v_engineers_id, 'module:workflows', '{view,edit}', p_created_by),
+    (v_engineers_id, 'module:trash', '{view,delete}', p_created_by),
+    (v_engineers_id, 'module:items', '{view,create,edit}', p_created_by),
+    (v_engineers_id, 'module:boms', '{view,create,edit}', p_created_by),
+    (v_engineers_id, 'module:products', '{view,create,edit}', p_created_by),
+    (v_engineers_id, 'module:ecr', '{view,create,edit}', p_created_by),
+    (v_engineers_id, 'module:eco', '{view,create,edit}', p_created_by),
+    (v_engineers_id, 'module:reviews', '{view,create,edit}', p_created_by),
+    (v_engineers_id, 'module:deviations', '{view,create,edit}', p_created_by),
+    (v_engineers_id, 'module:settings', '{view,edit}', p_created_by)
+  ON CONFLICT (team_id, resource) DO NOTHING;
+  
+  -- Admins permissions: full admin on everything
+  INSERT INTO team_permissions (team_id, resource, actions, granted_by) VALUES
+    (v_admins_id, 'module:explorer', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:pending', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:history', '{view,admin}', p_created_by),
+    (v_admins_id, 'module:workflows', '{view,edit,admin}', p_created_by),
+    (v_admins_id, 'module:trash', '{view,delete,admin}', p_created_by),
+    (v_admins_id, 'module:items', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:boms', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:products', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:ecr', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:eco', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:reviews', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:deviations', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'module:settings', '{view,edit,admin}', p_created_by),
+    (v_admins_id, 'module:terminal', '{view,admin}', p_created_by),
+    (v_admins_id, 'system:users', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'system:teams', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'system:permissions', '{view,edit,admin}', p_created_by),
+    (v_admins_id, 'system:org-settings', '{view,edit,admin}', p_created_by),
+    (v_admins_id, 'system:vaults', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'system:backups', '{view,edit,admin}', p_created_by),
+    (v_admins_id, 'system:webhooks', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'system:workflows', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'system:metadata', '{view,create,edit,delete,admin}', p_created_by),
+    (v_admins_id, 'system:integrations', '{view,edit,admin}', p_created_by),
+    (v_admins_id, 'system:recovery-codes', '{view,create,delete,admin}', p_created_by),
+    (v_admins_id, 'system:impersonation', '{admin}', p_created_by)
+  ON CONFLICT (team_id, resource) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION create_default_job_titles TO authenticated;
+GRANT EXECUTE ON FUNCTION create_default_permission_teams TO authenticated;
+
+-- Enable realtime for job titles
+ALTER TABLE job_titles REPLICA IDENTITY FULL;
+ALTER TABLE user_job_titles REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE job_titles; EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE user_job_titles; EXCEPTION WHEN duplicate_object THEN NULL; END;
+END $$;
+
+COMMENT ON TABLE job_titles IS 'Job titles are display-only labels for users. Permissions come from teams.';
+COMMENT ON TABLE user_job_titles IS 'Assignment of job titles to users (one title per user).';
+COMMENT ON FUNCTION create_default_job_titles IS 'Creates common job titles for an organization.';
+COMMENT ON FUNCTION create_default_permission_teams IS 'Creates Viewers/Engineers/Admins teams with appropriate permissions.';
+
+-- ===========================================
 -- TEAM MODULE DEFAULTS
 -- ===========================================
 -- Allows setting default module configuration per team.
@@ -5820,10 +6002,13 @@ CREATE TABLE IF NOT EXISTS pending_org_members (
   -- User identity (email is the key)
   email TEXT NOT NULL,
   full_name TEXT,
-  role user_role DEFAULT 'engineer',
+  role user_role DEFAULT 'viewer',  -- Default to viewer, permissions come from teams
   
   -- Pre-assigned teams (will be added on first login)
   team_ids UUID[] DEFAULT '{}',
+  
+  -- Vault access restrictions (empty = all vaults, array = restricted)
+  vault_ids UUID[] DEFAULT '{}',
   
   -- Metadata
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -5839,6 +6024,9 @@ CREATE TABLE IF NOT EXISTS pending_org_members (
 
 CREATE INDEX IF NOT EXISTS idx_pending_org_members_org_id ON pending_org_members(org_id);
 CREATE INDEX IF NOT EXISTS idx_pending_org_members_email ON pending_org_members(email);
+
+-- Add vault_ids column if it doesn't exist (for existing databases)
+ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS vault_ids UUID[] DEFAULT '{}';
 
 -- RLS for pending_org_members
 ALTER TABLE pending_org_members ENABLE ROW LEVEL SECURITY;
@@ -5892,12 +6080,13 @@ CREATE TRIGGER claim_pending_membership_trigger
   FOR EACH ROW
   EXECUTE FUNCTION claim_pending_membership();
 
--- Function to add team memberships after user is created (called separately)
+-- Function to add team memberships and vault access after user is created
 CREATE OR REPLACE FUNCTION apply_pending_team_memberships(p_user_id UUID)
 RETURNS void AS $$
 DECLARE
   pending RECORD;
   team_id UUID;
+  vault_id UUID;
 BEGIN
   -- Find the claimed pending membership
   SELECT * INTO pending
@@ -5905,14 +6094,26 @@ BEGIN
   WHERE claimed_by = p_user_id
   LIMIT 1;
   
-  IF FOUND AND pending.team_ids IS NOT NULL THEN
+  IF FOUND THEN
     -- Add user to each pre-assigned team
-    FOREACH team_id IN ARRAY pending.team_ids
-    LOOP
-      INSERT INTO team_members (team_id, user_id, added_by)
-      VALUES (team_id, p_user_id, pending.created_by)
-      ON CONFLICT (team_id, user_id) DO NOTHING;
-    END LOOP;
+    IF pending.team_ids IS NOT NULL THEN
+      FOREACH team_id IN ARRAY pending.team_ids
+      LOOP
+        INSERT INTO team_members (team_id, user_id, added_by)
+        VALUES (team_id, p_user_id, pending.created_by)
+        ON CONFLICT (team_id, user_id) DO NOTHING;
+      END LOOP;
+    END IF;
+    
+    -- Apply vault access restrictions (if any vaults specified, restrict to those)
+    IF pending.vault_ids IS NOT NULL AND array_length(pending.vault_ids, 1) > 0 THEN
+      FOREACH vault_id IN ARRAY pending.vault_ids
+      LOOP
+        INSERT INTO vault_access (vault_id, user_id, granted_by)
+        VALUES (vault_id, p_user_id, pending.created_by)
+        ON CONFLICT (vault_id, user_id) DO NOTHING;
+      END LOOP;
+    END IF;
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -7675,6 +7876,98 @@ BEGIN
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workflow_history; EXCEPTION WHEN duplicate_object THEN NULL; END;
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE file_state_entries; EXCEPTION WHEN duplicate_object THEN NULL; END;
 END $$;
+
+-- ===========================================
+-- DELETE USER ACCOUNT
+-- ===========================================
+-- Allows users to delete their own account.
+-- This removes:
+-- - Organization association
+-- - Team memberships
+-- - Vault access
+-- - Active sessions
+-- - File checkout locks
+-- - Notification preferences
+-- But preserves audit data (activity logs, file versions they created)
+
+CREATE OR REPLACE FUNCTION delete_user_account()
+RETURNS JSON AS $$
+DECLARE
+  current_user_id UUID;
+  user_org_id UUID;
+  user_email TEXT;
+BEGIN
+  current_user_id := auth.uid();
+  
+  IF current_user_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+  
+  -- Get user info before deletion
+  SELECT org_id, email INTO user_org_id, user_email
+  FROM users
+  WHERE id = current_user_id;
+  
+  IF user_email IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'User not found');
+  END IF;
+  
+  -- Release any file checkouts
+  UPDATE files
+  SET 
+    checked_out_by = NULL,
+    checked_out_at = NULL,
+    checked_out_by_machine_id = NULL,
+    checked_out_by_machine_name = NULL,
+    lock_message = NULL
+  WHERE checked_out_by = current_user_id;
+  
+  -- Delete vault access
+  DELETE FROM vault_access WHERE user_id = current_user_id;
+  
+  -- Delete team memberships
+  DELETE FROM team_members WHERE user_id = current_user_id;
+  
+  -- Delete active sessions
+  DELETE FROM user_sessions WHERE user_id = current_user_id;
+  
+  -- Delete notifications
+  DELETE FROM notifications WHERE user_id = current_user_id;
+  
+  -- Delete user preferences/settings (if stored separately)
+  -- Note: Module preferences are stored in users table, will be deleted with user
+  
+  -- Clear pending org member claims (if any)
+  UPDATE pending_org_members
+  SET claimed_at = NULL, claimed_by = NULL
+  WHERE claimed_by = current_user_id;
+  
+  -- Finally, delete the user record (this cascades to auth.users)
+  -- The users table has ON DELETE CASCADE from auth.users,
+  -- but we can't delete auth.users directly from a function.
+  -- Instead, we'll remove the org association and mark for deletion.
+  -- The auth.users deletion should be handled by Supabase Admin API from the app.
+  
+  -- For now, we'll remove org association and all data, 
+  -- effectively "soft deleting" the user from the organization
+  UPDATE users
+  SET 
+    org_id = NULL,
+    role = 'viewer',
+    full_name = '[Deleted User]',
+    avatar_url = NULL
+  WHERE id = current_user_id;
+  
+  RETURN json_build_object(
+    'success', true,
+    'message', 'Account data deleted successfully',
+    'user_id', current_user_id,
+    'email', user_email
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+COMMENT ON FUNCTION delete_user_account IS 'Allows users to delete their own account and remove all organizational associations while preserving audit history.';
 
 -- ===========================================
 -- COMMENTS

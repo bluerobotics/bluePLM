@@ -320,7 +320,7 @@ function App() {
           if (profileError) {
             console.log('[Auth] Error fetching profile:', profileError)
           }
-          const userProfile = profile as { full_name?: string; avatar_url?: string; org_id?: string; role?: string; last_sign_in?: string } | null
+          const userProfile = profile as { full_name?: string; avatar_url?: string; job_title?: string; org_id?: string; role?: string; last_sign_in?: string } | null
           
           // Set user from profile (includes role) or fallback to session data
           // Note: Google OAuth stores avatar as 'picture' in user_metadata, not 'avatar_url'
@@ -329,6 +329,7 @@ function App() {
             email: session.user.email || '',
             full_name: userProfile?.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
             avatar_url: userProfile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+            job_title: userProfile?.job_title || null,
             org_id: userProfile?.org_id || null,
             role: (userProfile?.role || 'engineer') as 'admin' | 'engineer' | 'viewer',
             created_at: session.user.created_at,
@@ -400,7 +401,7 @@ function App() {
             const { profile, error: profileError } = await getUserProfile(session.user.id)
             console.log('[Auth] Profile fetch result:', { hasProfile: !!profile, error: profileError?.message })
             
-            const userProfile = profile as { full_name?: string; avatar_url?: string; org_id?: string; role?: string; last_sign_in?: string } | null
+            const userProfile = profile as { full_name?: string; avatar_url?: string; job_title?: string; org_id?: string; role?: string; last_sign_in?: string } | null
             
             // Set user from profile (includes role) or fallback to session data
             // Note: Google OAuth stores avatar as 'picture' in user_metadata, not 'avatar_url'
@@ -409,6 +410,7 @@ function App() {
               email: session.user.email || '',
               full_name: userProfile?.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
               avatar_url: userProfile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+              job_title: userProfile?.job_title || null,
               org_id: userProfile?.org_id || null,
               role: (userProfile?.role || 'engineer') as 'admin' | 'engineer' | 'viewer',
               created_at: session.user.created_at,

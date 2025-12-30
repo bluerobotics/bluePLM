@@ -24,6 +24,7 @@ const settingsSections: SettingsSection[] = [
       { id: 'preferences', label: 'Preferences' },
       { id: 'keybindings', label: 'Keybindings' },
       { id: 'modules', label: 'Modules' },
+      { id: 'delete-account', label: 'Delete Account' },
     ]
   },
   {

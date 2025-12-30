@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 import { AlertOctagon, Copy, RefreshCw, ChevronDown, ChevronUp, Bug } from 'lucide-react'
+import { copyToClipboard } from '../lib/clipboard'
 
 interface Props {
   children: ReactNode
@@ -66,32 +67,12 @@ Component Stack:
 ${errorInfo?.componentStack || 'No component stack available'}
 `
     
-    try {
-      // Try Electron clipboard API first (more reliable)
-      if (window.electronAPI?.copyToClipboard) {
-        const result = await window.electronAPI.copyToClipboard(logContent)
-        if (result.success) {
-          this.setState({ copied: true })
-          setTimeout(() => this.setState({ copied: false }), 2000)
-          return
-        }
-      }
-      
-      // Fallback to navigator.clipboard
-      await navigator.clipboard.writeText(logContent)
+    const result = await copyToClipboard(logContent)
+    if (result.success) {
       this.setState({ copied: true })
       setTimeout(() => this.setState({ copied: false }), 2000)
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err)
-      // Last resort: select text for manual copy
-      const textArea = document.createElement('textarea')
-      textArea.value = logContent
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textArea)
-      this.setState({ copied: true })
-      setTimeout(() => this.setState({ copied: false }), 2000)
+    } else {
+      console.error('Failed to copy to clipboard:', result.error)
     }
   }
 

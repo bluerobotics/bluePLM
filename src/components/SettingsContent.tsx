@@ -25,7 +25,8 @@ import {
   DevToolsSettings,
   AboutSettings,
   SupabaseSettings,
-  RecoveryCodeSettings
+  RecoveryCodeSettings,
+  DeleteAccountSettings
 } from './settings'
 import type { SettingsTab } from '../types/settings'
 
@@ -90,6 +91,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <DevToolsSettings />
       case 'about':
         return <AboutSettings />
+      case 'delete-account':
+        return <DeleteAccountSettings />
       default:
         return <ProfileSettings />
     }

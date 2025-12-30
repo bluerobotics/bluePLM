@@ -21,6 +21,7 @@ import {
   deleteAdminRecoveryCode,
   type AdminRecoveryCode 
 } from '../../lib/supabase'
+import { copyToClipboard } from '../../lib/clipboard'
 
 export function RecoveryCodeSettings() {
   const { user, organization, addToast, getEffectiveRole } = usePDMStore()
@@ -97,11 +98,11 @@ export function RecoveryCodeSettings() {
   const handleCopyCode = async () => {
     if (!generatedCode) return
     
-    try {
-      await navigator.clipboard.writeText(generatedCode)
+    const result = await copyToClipboard(generatedCode)
+    if (result.success) {
       setCodeCopied(true)
       setTimeout(() => setCodeCopied(false), 2000)
-    } catch {
+    } else {
       addToast('error', 'Failed to copy code')
     }
   }

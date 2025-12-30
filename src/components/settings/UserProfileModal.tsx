@@ -37,6 +37,7 @@ interface UserData {
   email: string
   full_name: string | null
   avatar_url: string | null
+  job_title: string | null
   role: string
   last_sign_in: string | null
 }
@@ -190,7 +191,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         // Load user info
         const { data: user, error: userError } = await client
           .from('users')
-          .select('id, email, full_name, avatar_url, role, last_sign_in')
+          .select('id, email, full_name, avatar_url, job_title, role, last_sign_in')
           .eq('id', userId)
           .single()
         
@@ -200,7 +201,19 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
           setUserData(user)
         }
         
-        // Load activity
+        // Load activity count (separate query for accurate total)
+        const { count: activityCount } = await client
+          .from('activity')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('org_id', organization.id)
+          .gte('created_at', oneYearAgo.toISOString())
+        
+        if (activityCount !== null) {
+          setTotalContributions(activityCount)
+        }
+        
+        // Load activity for heatmap and recent list (limited for performance)
         const { data: activities, error: activityError } = await client
           .from('activity')
           .select('id, action, created_at, details')
@@ -208,10 +221,10 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
           .eq('org_id', organization.id)
           .gte('created_at', oneYearAgo.toISOString())
           .order('created_at', { ascending: false })
+          .limit(5000) // Enough for heatmap visualization
         
         if (!activityError && activities) {
           const dataMap = new Map<string, DayData>()
-          let total = 0
           
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const fileActivities: ActivityRecord[] = activities.map((a: any) => ({
@@ -225,12 +238,10 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
             const date = activity.created_at.split('T')[0]
             const existing = dataMap.get(date) || { date, count: 0 }
             existing.count++
-            total++
             dataMap.set(date, existing)
           })
           
           setActivityData(dataMap)
-          setTotalContributions(total)
           setRecentActivity(fileActivities.slice(0, 15))
         }
         
@@ -400,6 +411,11 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
                   <div className="text-2xl font-medium text-plm-fg">
                     {userData.full_name || 'No name'}
                   </div>
+                  {userData.job_title && (
+                    <div className="text-base text-plm-fg-muted mt-0.5">
+                      {userData.job_title}
+                    </div>
+                  )}
                   <div className="text-base text-plm-fg-muted flex items-center gap-1.5 mt-1">
                     <Mail size={16} />
                     {userData.email}

@@ -503,7 +503,7 @@ export function WorkflowRolesSettings() {
                         No members assigned to this role
                       </p>
                     ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                         {role.assignments.map(assignment => (
                           <div
                             key={assignment.id}
@@ -521,7 +521,7 @@ export function WorkflowRolesSettings() {
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm truncate">
+                              <div className="text-sm">
                                 {assignment.user?.full_name || assignment.user?.email}
                               </div>
                             </div>
