@@ -17,7 +17,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../../stores/pdmStore'
-import { supabase } from '../../lib/supabase'
+import { supabase, getAccessibleVaults } from '../../lib/supabase'
 
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
@@ -35,7 +35,7 @@ interface Vault {
   name: string
   slug: string
   description: string | null
-  storage_bucket: string
+  storage_bucket?: string  // Only used when creating vaults, not needed for display
   is_default: boolean
   created_at: string
 }
@@ -90,29 +90,30 @@ export function VaultsSettings() {
     }
   }, [])
   
-  // Load data on mount
+  // Load data on mount or when user changes
   useEffect(() => {
-    if (organization) {
+    if (organization && user) {
       loadOrgVaults()
     }
-  }, [organization])
+  }, [organization, user?.id])
   
   const loadOrgVaults = async () => {
-    if (!organization) return
+    if (!organization || !user) return
     
     setIsLoadingVaults(true)
     try {
-      const { data, error } = await supabase
-        .from('vaults')
-        .select('*')
-        .eq('org_id', organization.id)
-        .order('is_default', { ascending: false })
-        .order('name')
+      // Load vaults filtered by user's access permissions
+      // Admins see all vaults, non-admins only see vaults they have access to
+      const { vaults, error } = await getAccessibleVaults(
+        user.id,
+        organization.id,
+        getEffectiveRole()
+      )
       
       if (error) {
         console.error('Failed to load org vaults:', error)
       } else {
-        setOrgVaults(data || [])
+        setOrgVaults(vaults || [])
       }
     } catch (err) {
       console.error('Failed to load org vaults:', err)

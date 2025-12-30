@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Database, Link, User, Truck, Mail, Phone, ArrowLeft, Eye, EyeOff, RotateCw, X } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
-import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase } from '../lib/supabase'
+import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase, getAccessibleVaults } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
 import { logClick, logAuth } from '../lib/userActionLogger'
 import { LogViewer } from './LogViewer'
@@ -156,30 +156,28 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
   // Load organization vaults with stats
   useEffect(() => {
     const loadOrgVaults = async () => {
-      if (!organization?.id) {
-        uiLog('debug', 'No organization ID, skipping vault load')
+      if (!organization?.id || !user?.id) {
+        uiLog('debug', 'No organization ID or user ID, skipping vault load')
         return
       }
       
-      uiLog('info', 'Loading vaults for organization', { orgId: organization.id, orgName: organization.name })
+      uiLog('info', 'Loading accessible vaults for user', { orgId: organization.id, orgName: organization.name, userId: user.id, role: user.role })
       setIsLoadingVaults(true)
       try {
-        // Load vaults
-        const { data: vaultsData, error: vaultsError } = await supabase
-          .from('vaults')
-          .select('id, name, slug, description, is_default')
-          .eq('org_id', organization.id)
-          .order('is_default', { ascending: false })
-          .order('name')
+        // Load vaults filtered by user's access permissions
+        const { vaults: vaultsData, error: vaultsError } = await getAccessibleVaults(
+          user.id,
+          organization.id,
+          getEffectiveRole()
+        )
         
-        uiLog('info', 'Vaults query result', { 
+        uiLog('info', 'Accessible vaults query result', { 
           count: vaultsData?.length || 0, 
-          error: vaultsError?.message,
-          errorCode: vaultsError?.code 
+          error: vaultsError
         })
         
         if (vaultsError || !vaultsData) {
-          uiLog('error', 'Error loading vaults', { error: vaultsError })
+          uiLog('error', 'Error loading accessible vaults', { error: vaultsError })
           return
         }
         
@@ -308,7 +306,7 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
     }
     
     loadOrgVaults()
-  }, [organization?.id, vaultsRefreshKey, platform]) // Refresh when vaultsRefreshKey changes
+  }, [organization?.id, user?.id, vaultsRefreshKey, platform]) // Refresh when vaultsRefreshKey changes or user changes
 
   const cancelSignIn = () => {
     uiLog('info', 'Sign in canceled by user')

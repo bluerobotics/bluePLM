@@ -2711,7 +2711,10 @@ function UserRow({
   userWorkflowRoleIds?: string[]
   onEditWorkflowRoles?: (user: OrgUser) => void
 }) {
-  const canManage = isAdmin && !isCurrentUser
+  // Admins can manage settings for everyone including themselves
+  const canManage = isAdmin
+  // But can't remove themselves from org
+  const canRemove = isAdmin && !isCurrentUser
   
   return (
     <div className={`flex items-center gap-3 ${compact ? 'py-2 px-1' : 'p-3'} rounded-lg hover:bg-plm-highlight transition-colors group`}>
@@ -2929,7 +2932,7 @@ function UserRow({
         )}
         
         {/* Remove from team button */}
-        {canManage && onRemoveFromTeam && (
+        {canRemove && onRemoveFromTeam && (
           <button
             onClick={onRemoveFromTeam}
             className="p-1.5 text-plm-fg-muted hover:text-plm-warning hover:bg-plm-warning/10 rounded transition-colors"
@@ -2940,7 +2943,7 @@ function UserRow({
         )}
         
         {/* Remove from organization button */}
-        {canManage && (
+        {canRemove && (
           <button
             onClick={onRemove}
             className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"

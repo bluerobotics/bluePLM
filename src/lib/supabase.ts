@@ -2254,6 +2254,79 @@ export async function checkVaultAccess(
   return { hasAccess: (data?.length || 0) > 0 }
 }
 
+/**
+ * Get the effective vault access for a user (combining team + individual permissions)
+ * Uses the PostgreSQL get_user_vault_access function
+ * Returns empty array if user has no restrictions (can access all vaults)
+ */
+export async function getEffectiveUserVaultAccess(userId: string): Promise<{ vaultIds: string[]; error?: string }> {
+  const client = getSupabaseClient()
+  
+  const { data, error } = await client.rpc('get_user_vault_access', { p_user_id: userId })
+  
+  if (error) {
+    return { vaultIds: [], error: error.message }
+  }
+  
+  return { vaultIds: data?.map((r: { vault_id: string }) => r.vault_id) || [] }
+}
+
+/**
+ * Get accessible vaults for a user in their organization
+ * - Admins see all vaults
+ * - If user has no vault restrictions (empty result from get_user_vault_access), they see all vaults
+ * - Otherwise, only returns vaults they have been granted access to
+ */
+export async function getAccessibleVaults(
+  userId: string,
+  orgId: string,
+  userRole: string
+): Promise<{ 
+  vaults: Array<{ id: string; name: string; slug: string; description: string | null; is_default: boolean; created_at: string }>;
+  error?: string 
+}> {
+  const client = getSupabaseClient()
+  
+  // Get all vaults for the org first
+  const { data: allVaults, error: vaultsError } = await client
+    .from('vaults')
+    .select('id, name, slug, description, is_default, created_at')
+    .eq('org_id', orgId)
+    .order('is_default', { ascending: false })
+    .order('name')
+  
+  if (vaultsError) {
+    return { vaults: [], error: vaultsError.message }
+  }
+  
+  if (!allVaults || allVaults.length === 0) {
+    return { vaults: [] }
+  }
+  
+  // Admins always see all vaults
+  if (userRole === 'admin') {
+    return { vaults: allVaults }
+  }
+  
+  // Get user's effective vault access (from teams + individual)
+  const { vaultIds: accessibleVaultIds, error: accessError } = await getEffectiveUserVaultAccess(userId)
+  
+  if (accessError) {
+    return { vaults: [], error: accessError }
+  }
+  
+  // If no restrictions exist for this user, they can see all vaults
+  if (accessibleVaultIds.length === 0) {
+    return { vaults: allVaults }
+  }
+  
+  // Filter vaults to only those the user has access to
+  const accessibleVaultIdSet = new Set(accessibleVaultIds)
+  const filteredVaults = allVaults.filter(v => accessibleVaultIdSet.has(v.id))
+  
+  return { vaults: filteredVaults }
+}
+
 // ============================================
 // Teams & Permissions (Permission checking)
 // ============================================

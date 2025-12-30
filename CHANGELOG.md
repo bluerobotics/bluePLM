@@ -5,6 +5,12 @@ All notable changes to BluePLM will be documented in this file.
 ## [2.16.0] - 2025-12-29
 
 ### Added
+- **Vault access enforcement in UI**: Non-admin users now only see vaults they have been granted access to
+  - Uses combined team + individual vault access (via `get_user_vault_access` database function)
+  - Welcome screen, vault settings, and vault validation all respect user permissions
+  - Admins continue to see all vaults for management purposes
+  - If a user's vault access is revoked, disconnects them from that vault automatically
+  - Fixes: users on shared computers could previously see all organization vaults regardless of their permissions
 - **Remove from team**: Inline button in Team Members settings to remove users from specific teams (warning color) alongside existing "Remove from organization" (error color) for clear differentiation
 - **Job Titles**: Display-only labels for users (e.g., "Quality Engineer", "Project Manager")
   - Inline title selector on each user row in Members & Teams

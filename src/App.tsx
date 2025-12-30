@@ -4,7 +4,7 @@ import { setAnalyticsUser, clearAnalyticsUser } from '@/lib/analytics'
 import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 import type { SettingsTab } from './types/settings'
-import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId } from './lib/supabase'
+import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId, getAccessibleVaults } from './lib/supabase'
 import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, unsubscribeAll } from './lib/realtime'
 import { getBackupStatus, isThisDesignatedMachine, updateHeartbeat } from './lib/backup'
 import { MenuBar } from './components/MenuBar'
@@ -244,6 +244,7 @@ function App() {
     setApiServerUrl,
     stagedCheckins,
     unstageCheckin,
+    getEffectiveRole,
   } = usePDMStore()
   
   // Get current vault ID (from activeVaultId or first connected vault)
@@ -508,27 +509,28 @@ function App() {
   }, [organization?.settings?.api_url, apiServerUrl, setApiServerUrl])
 
   // Validate connected vault IDs after organization loads
-  // This cleans up stale vaults that no longer exist on the server
+  // This cleans up stale vaults that no longer exist on the server or that user lost access to
   useEffect(() => {
     const validateVaults = async () => {
-      if (!organization || connectedVaults.length === 0) return
+      if (!organization || !user || connectedVaults.length === 0) return
       
-      console.log('[VaultValidation] Checking', connectedVaults.length, 'connected vaults against server')
+      console.log('[VaultValidation] Checking', connectedVaults.length, 'connected vaults against accessible vaults')
       
       try {
-        // Fetch vault IDs from server
-        const { data: serverVaults, error } = await supabase
-          .from('vaults')
-          .select('id, name, slug')
-          .eq('org_id', organization.id)
+        // Fetch vaults the user has access to (filters by permissions)
+        const { vaults: serverVaults, error } = await getAccessibleVaults(
+          user.id,
+          organization.id,
+          getEffectiveRole()
+        )
         
         if (error) {
-          console.error('[VaultValidation] Failed to fetch server vaults:', error)
+          console.error('[VaultValidation] Failed to fetch accessible vaults:', error)
           return
         }
         
-        const serverVaultIds = new Set((serverVaults || []).map((v: any) => v.id))
-        console.log('[VaultValidation] Server has', serverVaultIds.size, 'vaults:', Array.from(serverVaultIds))
+        const serverVaultIds = new Set((serverVaults || []).map((v) => v.id))
+        console.log('[VaultValidation] User has access to', serverVaultIds.size, 'vaults:', Array.from(serverVaultIds))
         
         // Find stale vaults (connected but not on server)
         const staleVaults = connectedVaults.filter(cv => !serverVaultIds.has(cv.id))
@@ -560,7 +562,7 @@ function App() {
     }
     
     validateVaults()
-  }, [organization, connectedVaults, currentVaultId, setVaultConnected, setVaultPath])
+  }, [organization, user?.id, connectedVaults, currentVaultId, setVaultConnected, setVaultPath])
 
   // Track if we've already shown the schema warning this session (prevent duplicate toasts)
   const schemaCheckDoneRef = useRef(false)
