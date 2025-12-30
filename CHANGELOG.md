@@ -5,6 +5,18 @@ All notable changes to BluePLM will be documented in this file.
 ## [2.16.0] - 2025-12-29
 
 ### Added
+- **Members settings redesign**: Reorganized with tabbed navigation for Users, Teams, Roles, and Titles
+  - **Users tab** (default): All members with their team badges, workflow roles, and job titles inline
+  - **Teams tab**: Create/edit/delete teams, manage members, permissions, and vault access
+  - **Roles tab**: Manage workflow roles with user assignments, create/edit/delete with color and icon pickers
+  - **Titles tab**: Manage job titles with user assignments, create/edit/delete with color and icon pickers
+  - Each tab has its own search bar that filters the current view
+  - Unified modal styling across all management dialogs
+- **Enhanced job title management**: Job title selector modal with inline edit/delete capabilities
+  - Edit title name, color, and icon directly from the selection modal
+  - Delete titles with confirmation (removes from all assigned users)
+  - Changes automatically propagate to all users with that title
+- **User profile modal improvements**: Now displays teams, workflow roles, and job title with colored badges
 - **Vault access enforcement in UI**: Non-admin users now only see vaults they have been granted access to
   - Uses combined team + individual vault access (via `get_user_vault_access` database function)
   - Welcome screen, vault settings, and vault validation all respect user permissions
