@@ -292,6 +292,48 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     setPermissions(allPerms)
   }
   
+  // Toggle a specific action across ALL resources
+  const toggleAllForAction = (action: PermissionAction) => {
+    if (!isAdmin) return
+    
+    // Check if all applicable resources have this action
+    const allHave = ALL_RESOURCES
+      .filter(r => r.applicableActions.includes(action))
+      .every(r => (permissions[r.id] || []).includes(action))
+    
+    setPermissions(prev => {
+      const updated = { ...prev }
+      for (const resource of ALL_RESOURCES) {
+        if (!resource.applicableActions.includes(action)) continue
+        const current = updated[resource.id] || []
+        if (allHave) {
+          // Remove from all
+          updated[resource.id] = current.filter(a => a !== action)
+        } else {
+          // Add to all
+          if (!current.includes(action)) {
+            updated[resource.id] = [...current, action]
+          }
+        }
+      }
+      return updated
+    })
+  }
+  
+  // Check if all applicable resources have a specific action
+  const allHaveAction = (action: PermissionAction): boolean => {
+    return ALL_RESOURCES
+      .filter(r => r.applicableActions.includes(action))
+      .every(r => (permissions[r.id] || []).includes(action))
+  }
+  
+  // Check if some (but not all) applicable resources have a specific action
+  const someHaveAction = (action: PermissionAction): boolean => {
+    const applicable = ALL_RESOURCES.filter(r => r.applicableActions.includes(action))
+    const withAction = applicable.filter(r => (permissions[r.id] || []).includes(action))
+    return withAction.length > 0 && withAction.length < applicable.length
+  }
+  
   // Filter resources by search
   const filterResources = (resources: string[]): string[] => {
     if (!searchQuery) return resources
@@ -334,8 +376,8 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
   const IconComponent = (LucideIcons as any)[team.icon] || Users
   
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center overflow-hidden" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-6xl h-[90vh] mx-4 flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-hidden" onClick={onClose}>
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-6xl h-[90vh] mx-4 flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
           <div
@@ -459,6 +501,71 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               className="w-full pl-9 pr-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
             />
           </div>
+          
+          {/* Quick column toggles */}
+          {isAdmin && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-plm-fg-muted mr-1">Toggle All:</span>
+              {PERMISSION_ACTIONS.map(action => {
+                const allHave = allHaveAction(action)
+                const someHave = someHaveAction(action)
+                
+                const checkedClass = 
+                  action === 'view' ? 'bg-blue-500/35 text-blue-300 border-blue-400/70' :
+                  action === 'create' ? 'bg-green-500/35 text-green-300 border-green-400/70' :
+                  action === 'edit' ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70' :
+                  action === 'delete' ? 'bg-red-500/35 text-red-300 border-red-400/70' :
+                  'bg-purple-500/35 text-purple-300 border-purple-400/70'
+                
+                const partialClass = 
+                  action === 'view' ? 'bg-blue-500/15 text-blue-400/60 border-blue-400/40' :
+                  action === 'create' ? 'bg-green-500/15 text-green-400/60 border-green-400/40' :
+                  action === 'edit' ? 'bg-yellow-500/15 text-yellow-400/60 border-yellow-400/40' :
+                  action === 'delete' ? 'bg-red-500/15 text-red-400/60 border-red-400/40' :
+                  'bg-purple-500/15 text-purple-400/60 border-purple-400/40'
+                
+                const uncheckedClass = 
+                  action === 'view' ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15' :
+                  action === 'create' ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15' :
+                  action === 'edit' ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15' :
+                  action === 'delete' ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15' :
+                  'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15'
+                
+                return (
+                  <button
+                    key={action}
+                    onClick={() => toggleAllForAction(action)}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all ${
+                      allHave ? checkedClass : someHave ? partialClass : uncheckedClass
+                    }`}
+                    title={`${allHave ? 'Remove' : 'Grant'} ${PERMISSION_ACTION_LABELS[action]} for all resources`}
+                  >
+                    {allHave ? <Check size={12} /> : someHave ? <Minus size={12} /> : <span className="text-[9px] font-medium">{action.charAt(0).toUpperCase()}</span>}
+                  </button>
+                )
+              })}
+              
+              {/* Select All / Clear All button */}
+              <div className="ml-2 flex items-center gap-1 border-l border-plm-border pl-2">
+                <button
+                  onClick={grantAll}
+                  className="px-2 py-1.5 text-xs rounded-lg border border-plm-accent/30 bg-plm-accent/10 text-plm-accent hover:bg-plm-accent/20 transition-colors flex items-center gap-1"
+                  title="Grant all permissions to all resources"
+                >
+                  <Check size={12} />
+                  All
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="px-2 py-1.5 text-xs rounded-lg border border-plm-border bg-plm-bg text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors flex items-center gap-1"
+                  title="Clear all permissions"
+                >
+                  <X size={12} />
+                  None
+                </button>
+              </div>
+            </div>
+          )}
           
           {/* Action legend */}
           <div className="flex items-center gap-4 ml-auto text-xs text-plm-fg-muted">
@@ -586,7 +693,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                             <div
                               key={resourceId}
                               className={`flex items-center gap-3 px-4 py-2.5 hover:bg-plm-highlight/30 transition-colors ${
-                                idx !== filteredResources.length - 1 ? 'border-b border-plm-border/50' : ''
+                                idx !== filteredResources.length - 1 ? 'border-b border-plm-border/20' : ''
                               }`}
                             >
                               {/* Resource icon */}

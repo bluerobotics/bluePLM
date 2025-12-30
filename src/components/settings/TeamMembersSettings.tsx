@@ -2809,6 +2809,16 @@ function UserRow({
                 {vaultAccessCount}
               </span>
             )}
+            {/* Teams count badge - only show in users section (not in team member rows) */}
+            {!compact && (user.teams || []).length > 0 && (
+              <span 
+                className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-accent/10 rounded text-plm-accent text-[11px] cursor-help"
+                title={(user.teams || []).map(t => t.name).join(', ')}
+              >
+                <Users size={10} />
+                {(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
         </div>
       </button>
@@ -2909,44 +2919,25 @@ function UserRow({
         </div>
       )}
       
-      {/* Workflow roles badges */}
+      {/* Workflow roles badge */}
       {workflowRoles && workflowRoles.length > 0 && (
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex items-center">
           {userWorkflowRoleIds && userWorkflowRoleIds.length > 0 ? (
-            <>
-              {userWorkflowRoleIds.map(roleId => {
-                const role = workflowRoles.find(r => r.id === roleId)
-                if (!role) return null
-                const RoleIcon = (LucideIcons as any)[role.icon] || Shield
-                return (
-                  <button
-                    key={role.id}
-                    onClick={() => onEditWorkflowRoles?.(user)}
-                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs whitespace-nowrap transition-colors ${
-                      canManage ? 'hover:ring-1 hover:ring-plm-accent cursor-pointer' : 'cursor-default'
-                    }`}
-                    style={{ backgroundColor: `${role.color}15`, color: role.color }}
-                    title={canManage ? `Edit workflow roles` : role.description || role.name}
-                  >
-                    <RoleIcon size={10} />
-                    <span>{role.name}</span>
-                  </button>
-                )
-              })}
-              {canManage && onEditWorkflowRoles && (
-                <button
-                  onClick={() => onEditWorkflowRoles(user)}
-                  className="p-1 text-plm-fg-dim hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
-                  title="Edit workflow roles"
-                >
-                  <Pencil size={10} />
-                </button>
-              )}
-            </>
+            <button
+              onClick={() => onEditWorkflowRoles?.(user)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-purple-500/10 text-purple-400 ${
+                canManage ? 'hover:ring-1 hover:ring-purple-400 cursor-pointer' : 'cursor-default'
+              }`}
+              title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
+            >
+              <Shield size={12} />
+              <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
+              {canManage && <ChevronDown size={12} />}
+            </button>
           ) : canManage && onEditWorkflowRoles ? (
             <button
               onClick={() => onEditWorkflowRoles(user)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border hover:border-plm-accent hover:text-plm-accent transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border hover:border-purple-400 hover:text-purple-400 transition-colors"
               title="Add workflow roles"
             >
               <Shield size={12} />
@@ -3561,8 +3552,8 @@ function UserPermissionsDialog({
     : ALL_RESOURCES
   
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center overflow-hidden" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-4xl h-[85vh] mx-4 flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-hidden" onClick={onClose}>
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-4xl h-[85vh] mx-4 flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
           <div className="p-2.5 rounded-lg bg-purple-500/20 text-purple-400">
@@ -3597,13 +3588,13 @@ function UserPermissionsDialog({
         </div>
         
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 bg-plm-bg-light">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="animate-spin text-plm-fg-muted" size={32} />
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-0">
               {filteredResources.map(resource => {
                 const ResourceIcon = (LucideIcons as any)[resource.icon] || Shield
                 const currentActions = permissions[resource.id] || []
@@ -3611,7 +3602,7 @@ function UserPermissionsDialog({
                 return (
                   <div
                     key={resource.id}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-plm-highlight/30 transition-colors"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-plm-highlight/30 transition-colors"
                   >
                     <div className="w-8 h-8 rounded-lg bg-plm-bg-secondary flex items-center justify-center text-plm-fg-muted flex-shrink-0">
                       <ResourceIcon size={16} />
