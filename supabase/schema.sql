@@ -423,7 +423,7 @@ BEGIN
   -- If user has an org_id, return success
   IF current_org_id IS NOT NULL THEN
     RETURN json_build_object(
-      'success', true,
+      'success', true, 
       'has_org', true,
       'org_id', current_org_id
     );
@@ -6035,6 +6035,9 @@ CREATE INDEX IF NOT EXISTS idx_pending_org_members_email ON pending_org_members(
 -- Add vault_ids column if it doesn't exist (for existing databases)
 ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS vault_ids UUID[] DEFAULT '{}';
 
+-- Add workflow_role_ids column if it doesn't exist (for existing databases)
+ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS workflow_role_ids UUID[] DEFAULT '{}';
+
 -- RLS for pending_org_members
 ALTER TABLE pending_org_members ENABLE ROW LEVEL SECURITY;
 
@@ -6087,13 +6090,14 @@ CREATE TRIGGER claim_pending_membership_trigger
   FOR EACH ROW
   EXECUTE FUNCTION claim_pending_membership();
 
--- Function to add team memberships and vault access after user is created
+-- Function to add team memberships, vault access, and workflow roles after user is created
 CREATE OR REPLACE FUNCTION apply_pending_team_memberships(p_user_id UUID)
 RETURNS void AS $$
 DECLARE
   pending RECORD;
   team_id UUID;
   vault_id UUID;
+  role_id UUID;
 BEGIN
   -- Find the claimed pending membership
   SELECT * INTO pending
@@ -6119,6 +6123,16 @@ BEGIN
         INSERT INTO vault_access (vault_id, user_id, granted_by)
         VALUES (vault_id, p_user_id, pending.created_by)
         ON CONFLICT (vault_id, user_id) DO NOTHING;
+      END LOOP;
+    END IF;
+    
+    -- Apply workflow role assignments
+    IF pending.workflow_role_ids IS NOT NULL AND array_length(pending.workflow_role_ids, 1) > 0 THEN
+      FOREACH role_id IN ARRAY pending.workflow_role_ids
+      LOOP
+        INSERT INTO workflow_role_members (role_id, user_id, assigned_by)
+        VALUES (role_id, p_user_id, pending.created_by)
+        ON CONFLICT (role_id, user_id) DO NOTHING;
       END LOOP;
     END IF;
   END IF;

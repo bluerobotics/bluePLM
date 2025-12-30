@@ -65,9 +65,36 @@ const TEAM_COLORS = [
 
 // Icon options for workflow roles
 const WORKFLOW_ROLE_ICONS = [
-  'BadgeCheck', 'Shield', 'ShieldCheck', 'UserCheck', 'Star', 'Crown',
-  'Award', 'Medal', 'Key', 'Lock', 'ClipboardCheck', 'FileCheck',
-  'CheckCircle', 'CircleCheck', 'Verified', 'Stamp', 'Signature', 'Fingerprint'
+  // Badges & Verification
+  'BadgeCheck', 'Badge', 'BadgeAlert', 'BadgeDollarSign', 'BadgePercent',
+  'Shield', 'ShieldCheck', 'ShieldAlert', 'ShieldOff', 'ShieldQuestion',
+  'CheckCircle', 'CheckCircle2', 'CircleCheck', 'CircleCheckBig', 'Verified',
+  // People & Roles
+  'User', 'UserCheck', 'UserCog', 'UserPlus', 'Users', 'UsersRound',
+  'UserRound', 'UserRoundCheck', 'UserRoundCog', 'Contact', 'ContactRound',
+  // Awards & Achievement
+  'Award', 'Medal', 'Trophy', 'Star', 'Crown', 'Gem', 'Diamond',
+  'Sparkles', 'Zap', 'Flame', 'Heart', 'ThumbsUp',
+  // Security & Access
+  'Key', 'KeyRound', 'Lock', 'LockKeyhole', 'Unlock', 'Eye', 'EyeOff',
+  'Fingerprint', 'ScanFace', 'Scan', 'QrCode',
+  // Documents & Files
+  'FileCheck', 'FileCheck2', 'FileBadge', 'FileBadge2', 'FileKey', 'FileKey2',
+  'ClipboardCheck', 'ClipboardList', 'ClipboardSignature', 'Stamp', 'Signature',
+  // Tools & Settings
+  'Settings', 'Settings2', 'Cog', 'Wrench', 'Hammer', 'PenTool', 'Pencil',
+  'Ruler', 'Compass', 'Calculator',
+  // Communication
+  'MessageCircle', 'MessageSquare', 'Mail', 'Send', 'Bell', 'Megaphone',
+  // Business
+  'Briefcase', 'Building', 'Building2', 'Factory', 'Landmark', 'Store',
+  'DollarSign', 'Wallet', 'CreditCard', 'Receipt', 'Package',
+  // Science & Engineering
+  'Atom', 'FlaskConical', 'Microscope', 'Dna', 'Cpu', 'CircuitBoard',
+  'Lightbulb', 'Rocket', 'Plane', 'Car', 'Truck',
+  // Nature & Misc
+  'Leaf', 'TreeDeciduous', 'Mountain', 'Sun', 'Moon', 'Cloud', 'Umbrella',
+  'Anchor', 'Globe', 'Map', 'Navigation', 'Target', 'Crosshair'
 ]
 
 interface WorkflowRoleBasic {
@@ -112,6 +139,7 @@ interface PendingMember {
   full_name: string | null
   role: string
   team_ids: string[]
+  workflow_role_ids: string[]
   created_at: string
   created_by: string | null
   notes: string | null
@@ -209,7 +237,8 @@ export function TeamMembersSettings() {
     full_name: string
     role: string
     team_ids: string[]
-  }>({ full_name: '', role: 'viewer', team_ids: [] })
+    workflow_role_ids: string[]
+  }>({ full_name: '', role: 'viewer', team_ids: [], workflow_role_ids: [] })
   const [isSavingPendingMember, setIsSavingPendingMember] = useState(false)
   
   // Load data on mount
@@ -318,7 +347,8 @@ export function TeamMembersSettings() {
     setPendingMemberForm({
       full_name: pm.full_name || '',
       role: pm.role,
-      team_ids: pm.team_ids || []
+      team_ids: pm.team_ids || [],
+      workflow_role_ids: pm.workflow_role_ids || []
     })
   }
   
@@ -332,7 +362,8 @@ export function TeamMembersSettings() {
         .update({
           full_name: pendingMemberForm.full_name || null,
           role: pendingMemberForm.role,
-          team_ids: pendingMemberForm.team_ids
+          team_ids: pendingMemberForm.team_ids,
+          workflow_role_ids: pendingMemberForm.workflow_role_ids
         })
         .eq('id', editingPendingMember.id)
       
@@ -355,6 +386,15 @@ export function TeamMembersSettings() {
       team_ids: prev.team_ids.includes(teamId)
         ? prev.team_ids.filter(id => id !== teamId)
         : [...prev.team_ids, teamId]
+    }))
+  }
+  
+  const togglePendingMemberWorkflowRole = (roleId: string) => {
+    setPendingMemberForm(prev => ({
+      ...prev,
+      workflow_role_ids: prev.workflow_role_ids.includes(roleId)
+        ? prev.workflow_role_ids.filter(id => id !== roleId)
+        : [...prev.workflow_role_ids, roleId]
     }))
   }
   
@@ -2244,27 +2284,29 @@ function WorkflowRolesModal({
                         </div>
                       </div>
                       {/* Icon picker grid */}
-                      <div className="grid grid-cols-6 gap-1.5">
-                        {WORKFLOW_ROLE_ICONS.map(iconName => {
-                          const IconComponent = (LucideIcons as any)[iconName] || Shield
-                          const isSelected = editIcon === iconName
-                          return (
-                            <button
-                              key={iconName}
-                              type="button"
-                              onClick={() => setEditIcon(iconName)}
-                              className={`p-2 rounded-lg border transition-colors ${
-                                isSelected
-                                  ? 'border-plm-accent bg-plm-accent/20'
-                                  : 'border-plm-border bg-plm-bg hover:border-plm-fg-muted'
-                              }`}
-                              title={iconName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                              style={isSelected ? { color: editColor } : {}}
-                            >
-                              <IconComponent size={16} className={isSelected ? '' : 'text-plm-fg-muted'} />
-                            </button>
-                          )
-                        })}
+                      <div className="max-h-32 overflow-y-auto border border-plm-border rounded-lg p-2 bg-plm-bg-light">
+                        <div className="grid grid-cols-8 gap-1">
+                          {WORKFLOW_ROLE_ICONS.map(iconName => {
+                            const IconComponent = (LucideIcons as any)[iconName] || Shield
+                            const isSelected = editIcon === iconName
+                            return (
+                              <button
+                                key={iconName}
+                                type="button"
+                                onClick={() => setEditIcon(iconName)}
+                                className={`p-1.5 rounded border transition-colors ${
+                                  isSelected
+                                    ? 'border-plm-accent bg-plm-accent/20'
+                                    : 'border-transparent hover:border-plm-border hover:bg-plm-bg'
+                                }`}
+                                title={iconName.replace(/([A-Z])/g, ' $1').trim()}
+                                style={isSelected ? { color: editColor } : {}}
+                              >
+                                <IconComponent size={14} className={isSelected ? '' : 'text-plm-fg-muted'} />
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -2368,27 +2410,29 @@ function WorkflowRolesModal({
                 })()}
               </div>
               {/* Icon picker grid */}
-              <div className="grid grid-cols-6 gap-1.5">
-                {WORKFLOW_ROLE_ICONS.map(iconName => {
-                  const IconComponent = (LucideIcons as any)[iconName] || Shield
-                  const isSelected = newRoleIcon === iconName
-                  return (
-                    <button
-                      key={iconName}
-                      type="button"
-                      onClick={() => setNewRoleIcon(iconName)}
-                      className={`p-2 rounded-lg border transition-colors ${
-                        isSelected
-                          ? 'border-plm-accent bg-plm-accent/20'
-                          : 'border-plm-border bg-plm-bg-light hover:border-plm-fg-muted'
-                      }`}
-                      title={iconName.replace(/([A-Z])/g, ' $1').trim()}
-                      style={isSelected ? { color: newRoleColor } : {}}
-                    >
-                      <IconComponent size={16} className={isSelected ? '' : 'text-plm-fg-muted'} />
-                    </button>
-                  )
-                })}
+              <div className="max-h-32 overflow-y-auto border border-plm-border rounded-lg p-2 bg-plm-bg-light">
+                <div className="grid grid-cols-8 gap-1">
+                  {WORKFLOW_ROLE_ICONS.map(iconName => {
+                    const IconComponent = (LucideIcons as any)[iconName] || Shield
+                    const isSelected = newRoleIcon === iconName
+                    return (
+                      <button
+                        key={iconName}
+                        type="button"
+                        onClick={() => setNewRoleIcon(iconName)}
+                        className={`p-1.5 rounded border transition-colors ${
+                          isSelected
+                            ? 'border-plm-accent bg-plm-accent/20'
+                            : 'border-transparent hover:border-plm-border hover:bg-plm-bg'
+                        }`}
+                        title={iconName.replace(/([A-Z])/g, ' $1').trim()}
+                        style={isSelected ? { color: newRoleColor } : {}}
+                      >
+                        <IconComponent size={14} className={isSelected ? '' : 'text-plm-fg-muted'} />
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <button
                 onClick={handleCreateRole}

@@ -29,6 +29,11 @@ All notable changes to BluePLM will be documented in this file.
   - Badges show up to 2 roles with "+N" for more
   - Used for workflow gate approvals and state permissions
   - Removed separate "Workflow Roles" settings page (now integrated into Members & Teams)
+- **Sentry user identification**: Error reports now include hashed user/org IDs for better issue tracking
+  - See "Users Affected" counts on Sentry issues
+  - Filter by user in Discover queries
+  - Privacy-preserving: IDs are hashed before transmission
+  - Respects user consent (only active if Usage Statistics enabled)
 
 ### Changed
 - **Permissions model simplified**: Removed role selection from create user dialog and user rows - all permissions now flow through team membership
