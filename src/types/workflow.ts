@@ -307,9 +307,8 @@ export interface WorkflowTransition {
   line_arrow_head: TransitionArrowHead | null
   line_thickness: number | null
   
-  // Permissions (legacy - use workflow_state_permissions instead)
-  allowed_roles: UserRole[]
-  allowed_workflow_roles: string[]  // Workflow role IDs that can execute this transition
+  // Permissions (workflow roles that can execute this transition)
+  allowed_workflow_roles: string[]
   
   // Requirements
   comment_required: boolean
@@ -904,7 +903,6 @@ export interface CreateTransitionForm {
   description: string
   line_style: TransitionLineStyle
   comment_required: boolean
-  allowed_roles: UserRole[]
 }
 
 export interface CreateApprovalForm {

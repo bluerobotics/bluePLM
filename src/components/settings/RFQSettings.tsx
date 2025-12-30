@@ -1,5 +1,5 @@
 // @ts-nocheck - Supabase type inference issues with new columns
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   Loader2, 
   FileText,
@@ -40,8 +40,11 @@ export function RFQSettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<RFQSettingsData>(DEFAULT_RFQ_SETTINGS)
+  
+  // Track if we're currently saving to avoid overwriting with stale realtime data
+  const savingRef = useRef(false)
 
-  // Load current settings
+  // Load current settings on mount
   useEffect(() => {
     if (!organization?.id) return
 
@@ -66,12 +69,28 @@ export function RFQSettings() {
 
     loadSettings()
   }, [organization?.id])
+  
+  // Sync with realtime organization changes (when another admin updates settings)
+  useEffect(() => {
+    // Skip if we're currently saving (to avoid overwriting our own changes)
+    if (savingRef.current) return
+    // Skip if still loading initial data
+    if (loading) return
+    
+    // Get rfq_settings from the organization object (updated via realtime)
+    const realtimeSettings = (organization as any)?.rfq_settings
+    if (realtimeSettings) {
+      console.log('[RFQSettings] Syncing with realtime org settings')
+      setSettings({ ...DEFAULT_RFQ_SETTINGS, ...realtimeSettings })
+    }
+  }, [(organization as any)?.rfq_settings])
 
   // Save settings
   const handleSave = async () => {
     if (!organization?.id) return
 
     setSaving(true)
+    savingRef.current = true
     try {
       const { error } = await supabase
         .from('organizations')
@@ -85,6 +104,8 @@ export function RFQSettings() {
       addToast('error', 'Failed to save RFQ settings')
     } finally {
       setSaving(false)
+      // Small delay before allowing realtime sync again to let the update propagate
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
 

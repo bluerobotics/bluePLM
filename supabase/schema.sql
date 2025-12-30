@@ -2182,9 +2182,8 @@ CREATE TABLE IF NOT EXISTS workflow_transitions (
   line_arrow_head transition_arrow_head DEFAULT 'end',   -- which end has arrow
   line_thickness INTEGER DEFAULT 2,                      -- stroke width in px (1-6)
   
-  -- Permissions
-  allowed_roles user_role[] DEFAULT '{admin,engineer}'::user_role[],
-  allowed_workflow_roles UUID[] DEFAULT '{}',  -- Workflow roles that can execute this transition
+  -- Permissions (workflow roles that can execute this transition)
+  allowed_workflow_roles UUID[] DEFAULT '{}',
   
   -- Auto-transition conditions (optional)
   auto_conditions JSONB,
@@ -2511,11 +2510,7 @@ RETURNS TABLE (
 ) AS $$
 DECLARE
   v_current_state_id UUID;
-  v_user_role user_role;
 BEGIN
-  -- Get user's role
-  SELECT role INTO v_user_role FROM users WHERE id = p_user_id;
-  
   -- Get file's current workflow state
   SELECT fwa.current_state_id INTO v_current_state_id
   FROM file_workflow_assignments fwa
@@ -2527,6 +2522,7 @@ BEGIN
   END IF;
   
   -- Return available transitions
+  -- Permission check is done at application level using allowed_workflow_roles
   RETURN QUERY
   SELECT 
     wt.id AS transition_id,
@@ -2535,7 +2531,7 @@ BEGIN
     ws.name AS to_state_name,
     ws.color AS to_state_color,
     EXISTS(SELECT 1 FROM workflow_gates wg WHERE wg.transition_id = wt.id) AS has_gates,
-    v_user_role = ANY(wt.allowed_roles) AS user_can_transition
+    true AS user_can_transition  -- Permission check done at app level
   FROM workflow_transitions wt
   JOIN workflow_states ws ON wt.to_state_id = ws.id
   WHERE wt.from_state_id = v_current_state_id;
@@ -5460,7 +5456,20 @@ CREATE POLICY "Users can view job titles"
 DROP POLICY IF EXISTS "Admins can manage job titles" ON job_titles;
 CREATE POLICY "Admins can manage job titles"
   ON job_titles FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (
+    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    AND (
+      -- Check if user has admin role OR is in Administrators team
+      EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+      OR EXISTS (
+        SELECT 1 FROM team_members tm
+        JOIN teams t ON t.id = tm.team_id
+        WHERE tm.user_id = auth.uid()
+        AND t.name = 'Administrators'
+        AND t.org_id = job_titles.org_id
+      )
+    )
+  );
 
 -- RLS for user_job_titles
 ALTER TABLE user_job_titles ENABLE ROW LEVEL SECURITY;
@@ -5473,7 +5482,21 @@ CREATE POLICY "Users can view title assignments"
 DROP POLICY IF EXISTS "Admins can manage title assignments" ON user_job_titles;
 CREATE POLICY "Admins can manage title assignments"
   ON user_job_titles FOR ALL
-  USING (title_id IN (SELECT id FROM job_titles WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
+  USING (
+    title_id IN (SELECT id FROM job_titles WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+    AND (
+      -- Check if user has admin role OR is in Administrators team
+      EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+      OR EXISTS (
+        SELECT 1 FROM team_members tm
+        JOIN teams t ON t.id = tm.team_id
+        JOIN job_titles jt ON jt.id = user_job_titles.title_id
+        WHERE tm.user_id = auth.uid()
+        AND t.name = 'Administrators'
+        AND t.org_id = jt.org_id
+      )
+    )
+  );
 
 -- Function to create default job titles for an org
 CREATE OR REPLACE FUNCTION create_default_job_titles(p_org_id UUID, p_created_by UUID DEFAULT NULL)
@@ -7111,7 +7134,28 @@ DO $$ BEGIN
   ALTER TABLE workflow_transitions ADD COLUMN allowed_workflow_roles UUID[] DEFAULT '{}';
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
-COMMENT ON COLUMN workflow_transitions.allowed_workflow_roles IS 'Array of workflow_role IDs that can execute this transition. Empty = no workflow role requirement (use allowed_roles only).';
+COMMENT ON COLUMN workflow_transitions.allowed_workflow_roles IS 'Array of workflow_role IDs that can execute this transition. Empty = any user can execute.';
+
+-- Add visual styling columns to workflow_transitions (for path type, arrow, and thickness)
+DO $$ BEGIN
+  ALTER TABLE workflow_transitions ADD COLUMN line_path_type transition_path_type DEFAULT 'spline';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE workflow_transitions ADD COLUMN line_arrow_head transition_arrow_head DEFAULT 'end';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE workflow_transitions ADD COLUMN line_thickness INTEGER DEFAULT 2;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE workflow_transitions ADD COLUMN line_color TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
 
 -- Add file pattern conditions to workflow_templates
 DO $$ BEGIN
@@ -8073,6 +8117,61 @@ COMMENT ON FUNCTION handle_new_organization IS 'Creates default teams (Viewers, 
 -- EXCEPTION WHEN duplicate_object THEN NULL;
 -- END $$;
 --
+-- =====================================================================
+-- Remove defunct allowed_roles from workflow_transitions (2024-12-29)
+-- Now using allowed_workflow_roles instead for workflow role-based permissions
+-- =====================================================================
+
+-- Drop the allowed_roles column (system roles are defunct for transitions)
+DO $$ BEGIN
+  ALTER TABLE workflow_transitions DROP COLUMN IF EXISTS allowed_roles;
+EXCEPTION WHEN undefined_column THEN NULL;
+END $$;
+
+-- Update get_available_transitions function to remove allowed_roles reference
+CREATE OR REPLACE FUNCTION get_available_transitions(
+  p_file_id UUID,
+  p_user_id UUID
+)
+RETURNS TABLE (
+  transition_id UUID,
+  transition_name TEXT,
+  to_state_id UUID,
+  to_state_name TEXT,
+  to_state_color TEXT,
+  has_gates BOOLEAN,
+  user_can_transition BOOLEAN
+) AS $$
+DECLARE
+  v_current_state_id UUID;
+BEGIN
+  -- Get file's current workflow state
+  SELECT fwa.current_state_id INTO v_current_state_id
+  FROM file_workflow_assignments fwa
+  WHERE fwa.file_id = p_file_id;
+  
+  -- If no workflow assigned, return empty
+  IF v_current_state_id IS NULL THEN
+    RETURN;
+  END IF;
+  
+  -- Return available transitions
+  -- Permission check is done at application level using allowed_workflow_roles
+  RETURN QUERY
+  SELECT 
+    wt.id AS transition_id,
+    wt.name AS transition_name,
+    ws.id AS to_state_id,
+    ws.name AS to_state_name,
+    ws.color AS to_state_color,
+    EXISTS(SELECT 1 FROM workflow_gates wg WHERE wg.transition_id = wt.id) AS has_gates,
+    true AS user_can_transition  -- Permission check done at app level
+  FROM workflow_transitions wt
+  JOIN workflow_states ws ON wt.to_state_id = ws.id
+  WHERE wt.from_state_id = v_current_state_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ===================================================================== 
 -- END OF SCHEMA
 -- =====================================================================

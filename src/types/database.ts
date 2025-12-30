@@ -693,7 +693,7 @@ export interface Database {
           description: string | null
           line_style: 'solid' | 'dashed' | 'dotted'
           line_color: string | null
-          allowed_roles: ('admin' | 'engineer' | 'viewer')[]
+          allowed_workflow_roles: string[]
           auto_conditions: Record<string, unknown> | null
           created_at: string
         }
@@ -706,7 +706,7 @@ export interface Database {
           description?: string | null
           line_style?: 'solid' | 'dashed' | 'dotted'
           line_color?: string | null
-          allowed_roles?: ('admin' | 'engineer' | 'viewer')[]
+          allowed_workflow_roles?: string[]
           auto_conditions?: Record<string, unknown> | null
           created_at?: string
         }
@@ -719,7 +719,7 @@ export interface Database {
           description?: string | null
           line_style?: 'solid' | 'dashed' | 'dotted'
           line_color?: string | null
-          allowed_roles?: ('admin' | 'engineer' | 'viewer')[]
+          allowed_workflow_roles?: string[]
           auto_conditions?: Record<string, unknown> | null
           created_at?: string
         }

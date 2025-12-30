@@ -986,11 +986,10 @@ export function WorkflowsView() {
           name: t.name,
           description: t.description,
           line_style: t.line_style,
-          path_type: t.path_type,
-          arrow_head: t.arrow_head,
+          line_path_type: t.line_path_type,
+          line_arrow_head: t.line_arrow_head,
           line_thickness: t.line_thickness,
-          color: t.color,
-          label_position: t.label_position,
+          line_color: t.line_color,
         }
       })
     }
@@ -1094,11 +1093,11 @@ export function WorkflowsView() {
               name: transData.name,
               description: transData.description,
               line_style: transData.line_style || 'solid',
-              path_type: transData.path_type || 'straight',
-              arrow_head: transData.arrow_head || 'end',
-              line_thickness: transData.line_thickness || 'normal',
-              color: transData.color,
-              label_position: transData.label_position || 50,
+              // Support both old (path_type) and new (line_path_type) export formats
+              line_path_type: transData.line_path_type || transData.path_type || 'spline',
+              line_arrow_head: transData.line_arrow_head || transData.arrow_head || 'end',
+              line_thickness: transData.line_thickness || 2,
+              line_color: transData.line_color || transData.color,
             })
             .select()
             .single()
@@ -1220,9 +1219,7 @@ export function WorkflowsView() {
         workflow_id: selectedWorkflow.id,
         from_state_id: transitionStartId,
         to_state_id: toStateId,
-        name: 'New Transition',
         line_style: 'solid',
-        allowed_roles: ['admin', 'engineer'],
       }
       
       const { data, error } = await supabase
@@ -3379,6 +3376,10 @@ export function WorkflowsView() {
           className="cursor-pointer"
           onMouseEnter={() => setHoveredTransitionId(transition.id)}
           onMouseLeave={() => setHoveredTransitionId(null)}
+          onMouseDown={(e) => {
+            // Stop mouseDown from bubbling to canvas (which would close toolbar)
+            e.stopPropagation()
+          }}
           onClick={(e) => {
             e.stopPropagation()
             setSelectedTransitionId(transition.id)
@@ -3539,10 +3540,18 @@ export function WorkflowsView() {
             transform={`translate(${labelX}, ${labelY})`}
             className="cursor-pointer"
             style={{ pointerEvents: 'all' }}
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation()
               setSelectedTransitionId(transition.id)
               setSelectedStateId(null)
+              // Show floating toolbar
+              setFloatingToolbar({
+                canvasX: lineCenterX,
+                canvasY: lineMinY,
+                type: 'transition',
+                targetId: transition.id
+              })
             }}
           >
             <rect
@@ -3573,10 +3582,18 @@ export function WorkflowsView() {
           <g 
             transform={`translate(${gateX}, ${gateY})`}
             className="cursor-pointer"
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation()
               setSelectedTransitionId(transition.id)
               setSelectedStateId(null)
+              // Show floating toolbar
+              setFloatingToolbar({
+                canvasX: lineCenterX,
+                canvasY: lineMinY,
+                type: 'transition',
+                targetId: transition.id
+              })
             }}
           >
             <circle 
@@ -4870,6 +4887,39 @@ export function WorkflowsView() {
               Delete control point
             </button>
           )}
+          
+          {/* Divider */}
+          <div className="h-px bg-plm-border my-1" />
+          
+          {/* Edit transition option */}
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm hover:bg-plm-bg flex items-center gap-2"
+            onClick={() => {
+              const transition = transitions.find(t => t.id === waypointContextMenu.transitionId)
+              if (transition) {
+                setEditingTransition(transition)
+                setShowEditTransition(true)
+              }
+              setWaypointContextMenu(null)
+            }}
+          >
+            <Edit3 size={14} />
+            Edit Transition...
+          </button>
+          
+          {/* Delete transition option (admin only) */}
+          {isAdmin && (
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm hover:bg-plm-bg flex items-center gap-2 text-red-400 hover:text-red-300"
+              onClick={() => {
+                deleteTransition(waypointContextMenu.transitionId)
+                setWaypointContextMenu(null)
+              }}
+            >
+              <Trash2 size={14} />
+              Delete Transition
+            </button>
+          )}
         </div>
       )}
       
@@ -4903,10 +4953,11 @@ export function WorkflowsView() {
               }
             } else {
               try {
-                await supabase
+                const { error } = await supabase
                   .from('workflow_transitions')
                   .update({ line_color: color })
                   .eq('id', floatingToolbar.targetId)
+                if (error) throw error
                 setTransitions(transitions.map(t => 
                   t.id === floatingToolbar.targetId ? { ...t, line_color: color } : t
                 ))
@@ -4918,10 +4969,11 @@ export function WorkflowsView() {
           onLineStyleChange={async (style: TransitionLineStyle) => {
             if (floatingToolbar.type === 'transition') {
               try {
-                await supabase
+                const { error } = await supabase
                   .from('workflow_transitions')
                   .update({ line_style: style })
                   .eq('id', floatingToolbar.targetId)
+                if (error) throw error
                 setTransitions(transitions.map(t => 
                   t.id === floatingToolbar.targetId ? { ...t, line_style: style } : t
                 ))
@@ -4933,10 +4985,11 @@ export function WorkflowsView() {
           onPathTypeChange={async (pathType: TransitionPathType) => {
             if (floatingToolbar.type === 'transition') {
               try {
-                await supabase
+                const { error } = await supabase
                   .from('workflow_transitions')
                   .update({ line_path_type: pathType })
                   .eq('id', floatingToolbar.targetId)
+                if (error) throw error
                 setTransitions(transitions.map(t => 
                   t.id === floatingToolbar.targetId ? { ...t, line_path_type: pathType } : t
                 ))
@@ -4973,10 +5026,11 @@ export function WorkflowsView() {
           onArrowHeadChange={async (arrowHead: TransitionArrowHead) => {
             if (floatingToolbar.type === 'transition') {
               try {
-                await supabase
+                const { error } = await supabase
                   .from('workflow_transitions')
                   .update({ line_arrow_head: arrowHead })
                   .eq('id', floatingToolbar.targetId)
+                if (error) throw error
                 setTransitions(transitions.map(t => 
                   t.id === floatingToolbar.targetId ? { ...t, line_arrow_head: arrowHead } : t
                 ))
@@ -4988,10 +5042,11 @@ export function WorkflowsView() {
           onThicknessChange={async (thickness: TransitionLineThickness) => {
             if (floatingToolbar.type === 'transition') {
               try {
-                await supabase
+                const { error } = await supabase
                   .from('workflow_transitions')
                   .update({ line_thickness: thickness })
                   .eq('id', floatingToolbar.targetId)
+                if (error) throw error
                 setTransitions(transitions.map(t => 
                   t.id === floatingToolbar.targetId ? { ...t, line_thickness: thickness } : t
                 ))
@@ -6810,7 +6865,6 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
   const [name, setName] = useState(transition.name || '')
   const [description, setDescription] = useState(transition.description || '')
   const [lineStyle, setLineStyle] = useState(transition.line_style)
-  const [allowedRoles, setAllowedRoles] = useState<UserRole[]>(transition.allowed_roles)
   const [allowedWorkflowRoles, setAllowedWorkflowRoles] = useState<string[]>(transition.allowed_workflow_roles || [])
   
   // Load workflow roles
@@ -6840,14 +6894,6 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
     }
     loadRoles()
   }, [organization])
-  
-  const toggleRole = (role: UserRole) => {
-    if (allowedRoles.includes(role)) {
-      setAllowedRoles(allowedRoles.filter(r => r !== role))
-    } else {
-      setAllowedRoles([...allowedRoles, role])
-    }
-  }
   
   const toggleWorkflowRole = (roleId: string) => {
     if (allowedWorkflowRoles.includes(roleId)) {
@@ -6896,23 +6942,6 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
                 >
                   {style}
                 </button>
-              ))}
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-xs text-plm-fg-muted mb-1">Allowed System Roles</label>
-            <div className="flex gap-2">
-              {(['admin', 'engineer', 'viewer'] as UserRole[]).map(role => (
-                <label key={role} className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={allowedRoles.includes(role)}
-                    onChange={() => toggleRole(role)}
-                    className="rounded"
-                  />
-                  <span className="text-sm capitalize">{role}</span>
-                </label>
               ))}
             </div>
           </div>
@@ -6988,7 +7017,6 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
               name: name || null,
               description: description || null,
               line_style: lineStyle,
-              allowed_roles: allowedRoles,
               allowed_workflow_roles: allowedWorkflowRoles,
             })}
             className="px-3 py-1.5 text-sm bg-plm-accent hover:bg-plm-accent-hover text-white rounded"

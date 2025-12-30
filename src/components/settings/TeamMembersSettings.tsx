@@ -30,7 +30,8 @@ import {
   Settings2,
   Clock,
   UserCheck,
-  Minus
+  Minus,
+  Briefcase
 } from 'lucide-react'
 import {
   PERMISSION_ACTIONS,
@@ -240,7 +241,7 @@ export function TeamMembersSettings() {
   const isAdmin = getEffectiveRole() === 'admin'
   
   // Active tab state - 'teams' or 'users'
-  const [activeTab, setActiveTab] = useState<'teams' | 'users'>('teams')
+  const [activeTab, setActiveTab] = useState<'users' | 'teams' | 'roles' | 'titles'>('users')
   
   // Data state
   const [teams, setTeams] = useState<TeamWithDetails[]>([])
@@ -281,13 +282,25 @@ export function TeamMembersSettings() {
   
   // Job titles state
   const [jobTitles, setJobTitles] = useState<{ id: string; name: string; color: string; icon: string }[]>([])
-  const [titleDropdownOpen, setTitleDropdownOpen] = useState<string | null>(null)
-  const [changingTitleUserId, setChangingTitleUserId] = useState<string | null>(null)
   const [showCreateTitleDialog, setShowCreateTitleDialog] = useState(false)
   const [pendingTitleForUser, setPendingTitleForUser] = useState<OrgUser | null>(null)
   const [newTitleName, setNewTitleName] = useState('')
   const [newTitleColor, setNewTitleColor] = useState('#3b82f6')
+  const [newTitleIcon, setNewTitleIcon] = useState('Briefcase')
   const [isCreatingTitle, setIsCreatingTitle] = useState(false)
+  const [jobTitleSearchQuery, setJobTitleSearchQuery] = useState('')
+  
+  // Edit team from manage modal
+  const [editingTeamFromManage, setEditingTeamFromManage] = useState<{ id: string; name: string; color: string; icon: string; description?: string } | null>(null)
+  
+  // Workflow role management
+  const [showCreateWorkflowRoleDialog, setShowCreateWorkflowRoleDialog] = useState(false)
+  const [showEditWorkflowRoleDialog, setShowEditWorkflowRoleDialog] = useState(false)
+  const [editingWorkflowRole, setEditingWorkflowRole] = useState<WorkflowRoleBasic | null>(null)
+  const [workflowRoleFormData, setWorkflowRoleFormData] = useState({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+  const [isSavingWorkflowRole, setIsSavingWorkflowRole] = useState(false)
+  const [editingJobTitle, setEditingJobTitle] = useState<{ id: string; name: string; color: string; icon: string } | null>(null)
+  const [editingJobTitleUser, setEditingJobTitleUser] = useState<OrgUser | null>(null)
   
   // Workflow roles state
   const [workflowRoles, setWorkflowRoles] = useState<WorkflowRoleBasic[]>([])
@@ -340,7 +353,7 @@ export function TeamMembersSettings() {
   
   // Listen for navigation events to switch inner tab
   useEffect(() => {
-    const handleSwitchTab = (e: CustomEvent<'teams' | 'users'>) => {
+    const handleSwitchTab = (e: CustomEvent<'users' | 'teams' | 'roles' | 'titles'>) => {
       setActiveTab(e.detail)
     }
     window.addEventListener('navigate-team-members-tab', handleSwitchTab as EventListener)
@@ -883,6 +896,150 @@ export function TeamMembersSettings() {
     setShowEditTeamDialog(true)
   }
   
+  // Delete team directly (from manage modal)
+  const handleDeleteTeamDirect = async (team: { id: string; name: string }) => {
+    if (team.name === 'Administrators') {
+      addToast('error', 'Cannot delete the Administrators team')
+      return
+    }
+    
+    if (!confirm(`Delete "${team.name}"? All members will be removed from this team.`)) return
+    
+    try {
+      const { error } = await supabase
+        .from('teams')
+        .delete()
+        .eq('id', team.id)
+      
+      if (error) throw error
+      
+      addToast('success', `Team "${team.name}" deleted`)
+      loadTeams()
+      loadOrgUsers()
+    } catch {
+      addToast('error', 'Failed to delete team')
+    }
+  }
+  
+  // Edit team from manage modal
+  const handleUpdateTeamFromManage = async () => {
+    if (!editingTeamFromManage) return
+    
+    setIsSavingTeam(true)
+    try {
+      const { error } = await supabase
+        .from('teams')
+        .update({
+          name: teamFormData.name,
+          description: teamFormData.description,
+          color: teamFormData.color,
+          icon: teamFormData.icon
+        })
+        .eq('id', editingTeamFromManage.id)
+      
+      if (error) throw error
+      
+      addToast('success', `Team "${teamFormData.name}" updated`)
+      setShowEditTeamDialog(false)
+      setEditingTeamFromManage(null)
+      loadTeams()
+      loadOrgUsers()
+    } catch (err: any) {
+      if (err.code === '23505') {
+        addToast('error', 'A team with this name already exists')
+      } else {
+        addToast('error', 'Failed to update team')
+      }
+    } finally {
+      setIsSavingTeam(false)
+    }
+  }
+  
+  // Workflow role management functions
+  const handleCreateWorkflowRole = async () => {
+    if (!workflowRoleFormData.name.trim() || !organization) return
+    
+    setIsSavingWorkflowRole(true)
+    try {
+      const { error } = await supabase
+        .from('workflow_roles')
+        .insert({
+          name: workflowRoleFormData.name.trim(),
+          color: workflowRoleFormData.color,
+          icon: workflowRoleFormData.icon,
+          description: workflowRoleFormData.description || null,
+          org_id: organization.id
+        })
+      
+      if (error) throw error
+      
+      addToast('success', `Created workflow role "${workflowRoleFormData.name}"`)
+      setShowCreateWorkflowRoleDialog(false)
+      setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+      loadWorkflowRoles()
+    } catch (err: any) {
+      if (err.code === '23505') {
+        addToast('error', 'A workflow role with this name already exists')
+      } else {
+        addToast('error', 'Failed to create workflow role')
+      }
+    } finally {
+      setIsSavingWorkflowRole(false)
+    }
+  }
+  
+  const handleUpdateWorkflowRole = async () => {
+    if (!editingWorkflowRole || !workflowRoleFormData.name.trim()) return
+    
+    setIsSavingWorkflowRole(true)
+    try {
+      const { error } = await supabase
+        .from('workflow_roles')
+        .update({
+          name: workflowRoleFormData.name.trim(),
+          color: workflowRoleFormData.color,
+          icon: workflowRoleFormData.icon,
+          description: workflowRoleFormData.description || null
+        })
+        .eq('id', editingWorkflowRole.id)
+      
+      if (error) throw error
+      
+      addToast('success', `Updated workflow role "${workflowRoleFormData.name}"`)
+      setShowEditWorkflowRoleDialog(false)
+      setEditingWorkflowRole(null)
+      setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+      loadWorkflowRoles()
+    } catch (err: any) {
+      if (err.code === '23505') {
+        addToast('error', 'A workflow role with this name already exists')
+      } else {
+        addToast('error', 'Failed to update workflow role')
+      }
+    } finally {
+      setIsSavingWorkflowRole(false)
+    }
+  }
+  
+  const handleDeleteWorkflowRole = async (role: { id: string; name: string }) => {
+    if (!confirm(`Delete "${role.name}"? Users with this role will have it removed.`)) return
+    
+    try {
+      const { error } = await supabase
+        .from('workflow_roles')
+        .delete()
+        .eq('id', role.id)
+      
+      if (error) throw error
+      
+      addToast('success', `Deleted workflow role "${role.name}"`)
+      loadWorkflowRoles()
+      loadUserWorkflowRoles()
+    } catch {
+      addToast('error', 'Failed to delete workflow role')
+    }
+  }
+  
   // Team vault access
   const openTeamVaultAccessDialog = (team: TeamWithDetails) => {
     setSelectedTeam(team)
@@ -977,9 +1134,6 @@ export function TeamMembersSettings() {
   }
   
   const handleChangeJobTitle = async (targetUser: OrgUser, titleId: string | null) => {
-    setChangingTitleUserId(targetUser.id)
-    setTitleDropdownOpen(null)
-    
     try {
       if (titleId) {
         // Upsert the title assignment
@@ -1009,8 +1163,6 @@ export function TeamMembersSettings() {
       await loadOrgUsers()
     } catch {
       addToast('error', 'Failed to change job title')
-    } finally {
-      setChangingTitleUserId(null)
     }
   }
   
@@ -1019,7 +1171,6 @@ export function TeamMembersSettings() {
     setNewTitleName('')
     setNewTitleColor('#3b82f6')
     setShowCreateTitleDialog(true)
-    setTitleDropdownOpen(null)
   }
   
   const handleCreateTitle = async () => {
@@ -1034,7 +1185,7 @@ export function TeamMembersSettings() {
           org_id: organization.id,
           name: newTitleName.trim(),
           color: newTitleColor,
-          icon: 'User',
+          icon: newTitleIcon,
           created_by: user.id
         })
         .select()
@@ -1059,6 +1210,7 @@ export function TeamMembersSettings() {
       
       setShowCreateTitleDialog(false)
       setPendingTitleForUser(null)
+      setEditingJobTitle(null)
       await loadJobTitles()
       await loadOrgUsers()
     } catch (err: any) {
@@ -1070,6 +1222,124 @@ export function TeamMembersSettings() {
     } finally {
       setIsCreatingTitle(false)
     }
+  }
+  
+  const handleUpdateJobTitle = async () => {
+    if (!editingJobTitle || !newTitleName.trim()) return
+    
+    setIsCreatingTitle(true)
+    try {
+      const { error } = await supabase
+        .from('job_titles')
+        .update({
+          name: newTitleName.trim(),
+          color: newTitleColor,
+          icon: newTitleIcon
+        })
+        .eq('id', editingJobTitle.id)
+      
+      if (error) throw error
+      
+      addToast('success', `Updated "${newTitleName}"`)
+      setEditingJobTitle(null)
+      setShowCreateTitleDialog(false)
+      await loadJobTitles()
+      await loadOrgUsers()
+    } catch (err: any) {
+      if (err.code === '23505') {
+        addToast('error', 'A job title with this name already exists')
+      } else {
+        addToast('error', 'Failed to update job title')
+      }
+    } finally {
+      setIsCreatingTitle(false)
+    }
+  }
+  
+  const handleDeleteJobTitle = async (title: { id: string; name: string }) => {
+    if (!confirm(`Delete "${title.name}"? Users with this title will have it removed.`)) return
+    
+    try {
+      const { error } = await supabase
+        .from('job_titles')
+        .delete()
+        .eq('id', title.id)
+      
+      if (error) throw error
+      
+      addToast('success', `Deleted "${title.name}"`)
+      await loadJobTitles()
+      await loadOrgUsers()
+    } catch {
+      addToast('error', 'Failed to delete job title')
+    }
+  }
+  
+  // Direct update/delete functions for inline modal editing
+  const updateJobTitleDirect = async (titleId: string, name: string, color: string, icon: string) => {
+    try {
+      const { error } = await supabase
+        .from('job_titles')
+        .update({ name, color, icon })
+        .eq('id', titleId)
+      
+      if (error) throw error
+      
+      addToast('success', `Updated "${name}"`)
+      await loadJobTitles()
+      await loadOrgUsers()
+    } catch (err: any) {
+      if (err.code === '23505') {
+        addToast('error', 'A job title with this name already exists')
+      } else {
+        addToast('error', 'Failed to update job title')
+      }
+      throw err
+    }
+  }
+  
+  const deleteJobTitleDirect = async (titleId: string) => {
+    const title = jobTitles.find(t => t.id === titleId)
+    if (!title) return
+    
+    if (!confirm(`Delete "${title.name}"? Users with this title will have it removed.`)) {
+      throw new Error('Cancelled')
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('job_titles')
+        .delete()
+        .eq('id', titleId)
+      
+      if (error) throw error
+      
+      addToast('success', `Deleted "${title.name}"`)
+      await loadJobTitles()
+      await loadOrgUsers()
+    } catch (err: any) {
+      if (err.message !== 'Cancelled') {
+        addToast('error', 'Failed to delete job title')
+      }
+      throw err
+    }
+  }
+  
+  const openEditJobTitle = (title: { id: string; name: string; color: string; icon: string }) => {
+    setEditingJobTitle(title)
+    setNewTitleName(title.name)
+    setNewTitleColor(title.color)
+    setNewTitleIcon(title.icon)
+    setShowCreateTitleDialog(true)
+  }
+  
+  const openCreateJobTitle = () => {
+    setEditingJobTitle(null)
+    setNewTitleName('')
+    setNewTitleColor('#3b82f6')
+    setNewTitleIcon('Briefcase')
+    setPendingTitleForUser(null)
+    setShowCreateTitleDialog(true)
   }
   
   // User vault access
@@ -1154,7 +1424,10 @@ export function TeamMembersSettings() {
             Members
           </h2>
           <p className="text-sm text-plm-fg-muted mt-1">
-            {activeTab === 'teams' ? 'Organize members into teams and manage permissions' : 'Manage individual users in your organization'}
+            {activeTab === 'users' ? 'Manage individual users in your organization' :
+             activeTab === 'teams' ? 'Organize members into teams and manage permissions' : 
+             activeTab === 'roles' ? 'Define workflow roles for approvals and reviews' :
+             'Manage job titles for your organization'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1167,26 +1440,14 @@ export function TeamMembersSettings() {
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
           {isAdmin && (
-            <>
-              <button
-                onClick={() => {
-                  resetTeamForm()
-                  setShowCreateTeamDialog(true)
-                }}
-                className="btn btn-ghost btn-sm flex items-center gap-2"
-              >
-                <Plus size={14} />
-                Create Team
-              </button>
-              <button
-                onClick={() => setShowCreateUserDialog(true)}
-                className="btn btn-primary btn-sm flex items-center gap-1"
-                title="Add user"
-              >
-                <UserPlus size={14} />
-                Add User
-              </button>
-            </>
+            <button
+              onClick={() => setShowCreateUserDialog(true)}
+              className="btn btn-primary btn-sm flex items-center gap-1"
+              title="Add user"
+            >
+              <UserPlus size={14} />
+              Add User
+            </button>
           )}
         </div>
       </div>
@@ -1239,6 +1500,24 @@ export function TeamMembersSettings() {
       {/* Tab Navigation */}
       <div className="flex gap-1 p-1 bg-plm-bg-secondary rounded-lg w-fit">
         <button
+          onClick={() => setActiveTab('users')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+            activeTab === 'users'
+              ? 'bg-plm-bg text-plm-fg shadow-sm'
+              : 'text-plm-fg-muted hover:text-plm-fg'
+          }`}
+        >
+          <UsersRound size={16} />
+          Users
+          {orgUsers.length > 0 && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              activeTab === 'users' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+            }`}>
+              {orgUsers.length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setActiveTab('teams')}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
             activeTab === 'teams'
@@ -1257,20 +1536,38 @@ export function TeamMembersSettings() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('users')}
+          onClick={() => setActiveTab('roles')}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-            activeTab === 'users'
+            activeTab === 'roles'
               ? 'bg-plm-bg text-plm-fg shadow-sm'
               : 'text-plm-fg-muted hover:text-plm-fg'
           }`}
         >
-          <UsersRound size={16} />
-          Users
-          {orgUsers.length > 0 && (
+          <Shield size={16} />
+          Roles
+          {workflowRoles.length > 0 && (
             <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-              activeTab === 'users' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+              activeTab === 'roles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
             }`}>
-              {orgUsers.length}
+              {workflowRoles.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('titles')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+            activeTab === 'titles'
+              ? 'bg-plm-bg text-plm-fg shadow-sm'
+              : 'text-plm-fg-muted hover:text-plm-fg'
+          }`}
+        >
+          <Briefcase size={16} />
+          Titles
+          {jobTitles.length > 0 && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              activeTab === 'titles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+            }`}>
+              {jobTitles.length}
             </span>
           )}
         </button>
@@ -1283,7 +1580,12 @@ export function TeamMembersSettings() {
           type="text"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder={activeTab === 'teams' ? "Search teams..." : "Search users..."}
+          placeholder={
+            activeTab === 'users' ? "Search users..." :
+            activeTab === 'teams' ? "Search teams..." : 
+            activeTab === 'roles' ? "Search roles..." :
+            "Search titles..."
+          }
           className="w-full pl-10 pr-4 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
         />
       </div>
@@ -1467,12 +1769,7 @@ export function TeamMembersSettings() {
                                     onVaultAccess={() => openVaultAccessEditor(member)}
                                     onPermissions={isAdmin ? () => setEditingPermissionsUser(member) : undefined}
                                     vaultAccessCount={getUserVaultAccessCount(member.id)}
-                                    jobTitles={jobTitles}
-                                    titleDropdownOpen={titleDropdownOpen}
-                                    setTitleDropdownOpen={setTitleDropdownOpen}
-                                    onChangeJobTitle={handleChangeJobTitle}
-                                    changingTitleUserId={changingTitleUserId}
-                                    onCreateTitle={openCreateTitleDialog}
+                                    onEditJobTitle={isAdmin ? setEditingJobTitleUser : undefined}
                                     workflowRoles={workflowRoles}
                                     userWorkflowRoleIds={userWorkflowRoleAssignments[member.id]}
                                     onEditWorkflowRoles={setEditingWorkflowRolesUser}
@@ -1530,12 +1827,7 @@ export function TeamMembersSettings() {
                       vaultAccessCount={getUserVaultAccessCount(u.id)}
                       showAddToTeam={isAdmin && teams.length > 0}
                       onOpenAddToTeamModal={() => setAddToTeamUser(u)}
-                      jobTitles={jobTitles}
-                      titleDropdownOpen={titleDropdownOpen}
-                      setTitleDropdownOpen={setTitleDropdownOpen}
-                      onChangeJobTitle={handleChangeJobTitle}
-                      changingTitleUserId={changingTitleUserId}
-                      onCreateTitle={openCreateTitleDialog}
+                      onEditJobTitle={isAdmin ? setEditingJobTitleUser : undefined}
                       workflowRoles={workflowRoles}
                       userWorkflowRoleIds={userWorkflowRoleAssignments[u.id]}
                       onEditWorkflowRoles={setEditingWorkflowRolesUser}
@@ -1661,6 +1953,276 @@ export function TeamMembersSettings() {
             </div>
           )}
           </>
+          )}
+
+          {/* Roles Tab Content */}
+          {activeTab === 'roles' && (
+            <div className="space-y-3">
+              {/* Add Role button */}
+              {isAdmin && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowCreateWorkflowRoleDialog(true)}
+                    className="btn btn-primary btn-sm flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    Add Role
+                  </button>
+                </div>
+              )}
+              
+              {workflowRoles.filter(r => 
+                !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase())
+              ).length === 0 ? (
+                <div className="text-center py-8 border border-dashed border-plm-border rounded-lg">
+                  <Shield size={36} className="mx-auto text-plm-fg-muted mb-3 opacity-50" />
+                  <p className="text-sm text-plm-fg-muted mb-4">
+                    {searchQuery ? 'No matching workflow roles' : 'No workflow roles yet'}
+                  </p>
+                  {isAdmin && !searchQuery && (
+                    <button
+                      onClick={() => setShowCreateWorkflowRoleDialog(true)}
+                      className="btn btn-primary btn-sm"
+                    >
+                      <Plus size={14} className="mr-1" />
+                      Create First Role
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="border border-plm-border rounded-lg overflow-hidden bg-plm-bg/50">
+                  <div className="divide-y divide-plm-border/50">
+                    {workflowRoles
+                      .filter(r => !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map(role => {
+                        const RoleIcon = (LucideIcons as any)[role.icon] || Shield
+                        const usersWithRole = orgUsers.filter(u => 
+                          userWorkflowRoleAssignments[u.id]?.includes(role.id)
+                        )
+                        
+                        return (
+                          <div
+                            key={role.id}
+                            className="flex items-center gap-3 p-3 hover:bg-plm-highlight/30 transition-colors group"
+                          >
+                            {/* Role icon */}
+                            <div
+                              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: `${role.color}15`, color: role.color }}
+                            >
+                              <RoleIcon size={20} />
+                            </div>
+                            
+                            {/* Role info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-plm-fg">{role.name}</div>
+                              <div className="text-xs text-plm-fg-muted">
+                                {usersWithRole.length} user{usersWithRole.length !== 1 ? 's' : ''}
+                                {role.description && ` • ${role.description}`}
+                              </div>
+                            </div>
+                            
+                            {/* Users with this role */}
+                            {usersWithRole.length > 0 && (
+                              <div className="flex -space-x-2 flex-shrink-0">
+                                {usersWithRole.slice(0, 4).map(u => (
+                                  u.avatar_url ? (
+                                    <img
+                                      key={u.id}
+                                      src={u.avatar_url}
+                                      alt={u.full_name || u.email}
+                                      className="w-7 h-7 rounded-full border-2 border-plm-bg-light"
+                                      title={u.full_name || u.email}
+                                    />
+                                  ) : (
+                                    <div
+                                      key={u.id}
+                                      className="w-7 h-7 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light"
+                                      title={u.full_name || u.email}
+                                    >
+                                      {getInitials(u.full_name || u.email)}
+                                    </div>
+                                  )
+                                ))}
+                                {usersWithRole.length > 4 && (
+                                  <div className="w-7 h-7 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light">
+                                    +{usersWithRole.length - 4}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Actions */}
+                            {isAdmin && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    setEditingWorkflowRole(role)
+                                    setWorkflowRoleFormData({
+                                      name: role.name,
+                                      color: role.color,
+                                      icon: role.icon,
+                                      description: role.description || ''
+                                    })
+                                    setShowEditWorkflowRoleDialog(true)
+                                  }}
+                                  className="p-1.5 text-plm-fg-muted hover:text-purple-400 hover:bg-purple-500/10 rounded transition-colors"
+                                  title="Edit role"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteWorkflowRole(role)}
+                                  className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
+                                  title="Delete role"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Info footer */}
+              <p className="text-xs text-plm-fg-muted">
+                Workflow roles define responsibilities in workflows (e.g., approvers, reviewers). 
+                Editing a role updates it for all assigned users.
+              </p>
+            </div>
+          )}
+
+          {/* Titles Tab Content */}
+          {activeTab === 'titles' && (
+            <div className="space-y-3">
+              {/* Add Title button */}
+              {isAdmin && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={openCreateJobTitle}
+                    className="btn btn-primary btn-sm flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    Add Title
+                  </button>
+                </div>
+              )}
+              
+              {jobTitles.filter(t => 
+                !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase())
+              ).length === 0 ? (
+                <div className="text-center py-8 border border-dashed border-plm-border rounded-lg">
+                  <Briefcase size={36} className="mx-auto text-plm-fg-muted mb-3 opacity-50" />
+                  <p className="text-sm text-plm-fg-muted mb-4">
+                    {searchQuery ? 'No matching job titles' : 'No job titles yet'}
+                  </p>
+                  {isAdmin && !searchQuery && (
+                    <button
+                      onClick={openCreateJobTitle}
+                      className="btn btn-primary btn-sm"
+                    >
+                      <Plus size={14} className="mr-1" />
+                      Create First Title
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="border border-plm-border rounded-lg overflow-hidden bg-plm-bg/50">
+                  <div className="divide-y divide-plm-border/50">
+                    {jobTitles
+                      .filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map(title => {
+                        const TitleIcon = (LucideIcons as any)[title.icon] || Briefcase
+                        const usersWithTitle = orgUsers.filter(u => u.job_title?.id === title.id)
+                        
+                        return (
+                          <div
+                            key={title.id}
+                            className="flex items-center gap-3 p-3 hover:bg-plm-highlight/30 transition-colors group"
+                          >
+                            {/* Title icon */}
+                            <div
+                              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: `${title.color}15`, color: title.color }}
+                            >
+                              <TitleIcon size={20} />
+                            </div>
+                            
+                            {/* Title info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-plm-fg">{title.name}</div>
+                              <div className="text-xs text-plm-fg-muted">
+                                {usersWithTitle.length} user{usersWithTitle.length !== 1 ? 's' : ''}
+                              </div>
+                            </div>
+                            
+                            {/* Users with this title */}
+                            {usersWithTitle.length > 0 && (
+                              <div className="flex -space-x-2 flex-shrink-0">
+                                {usersWithTitle.slice(0, 4).map(u => (
+                                  u.avatar_url ? (
+                                    <img
+                                      key={u.id}
+                                      src={u.avatar_url}
+                                      alt={u.full_name || u.email}
+                                      className="w-7 h-7 rounded-full border-2 border-plm-bg-light"
+                                      title={u.full_name || u.email}
+                                    />
+                                  ) : (
+                                    <div
+                                      key={u.id}
+                                      className="w-7 h-7 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light"
+                                      title={u.full_name || u.email}
+                                    >
+                                      {getInitials(u.full_name || u.email)}
+                                    </div>
+                                  )
+                                ))}
+                                {usersWithTitle.length > 4 && (
+                                  <div className="w-7 h-7 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light">
+                                    +{usersWithTitle.length - 4}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Actions */}
+                            {isAdmin && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    openEditJobTitle(title)
+                                  }}
+                                  className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
+                                  title="Edit title"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteJobTitle(title)}
+                                  className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
+                                  title="Delete title"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Info footer */}
+              <p className="text-xs text-plm-fg-muted">
+                Job titles are display-only labels. Editing a title updates it for all users who have it assigned.
+                All permissions come from teams.
+              </p>
+            </div>
           )}
 
         </div>
@@ -2144,11 +2706,296 @@ export function TeamMembersSettings() {
         />
       )}
 
-      {/* Create Job Title Dialog */}
-      {showCreateTitleDialog && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowCreateTitleDialog(false)}>
+      {/* Job Titles Modal */}
+      {/* Create Workflow Role Dialog */}
+      {showCreateWorkflowRoleDialog && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center" onClick={() => {
+          setShowCreateWorkflowRoleDialog(false)
+          setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+        }}>
           <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-medium text-plm-fg mb-4">Create Job Title</h3>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Create Workflow Role</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Role Name</label>
+                <input
+                  type="text"
+                  value={workflowRoleFormData.name}
+                  onChange={e => setWorkflowRoleFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Design Lead"
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Description (optional)</label>
+                <input
+                  type="text"
+                  value={workflowRoleFormData.description}
+                  onChange={e => setWorkflowRoleFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="e.g., Leads design reviews"
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Color</label>
+                <div className="flex flex-wrap gap-1">
+                  {['#8b5cf6', '#6366f1', '#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#64748b'].map(color => (
+                    <button
+                      key={color}
+                      onClick={() => setWorkflowRoleFormData(prev => ({ ...prev, color }))}
+                      className={`w-6 h-6 rounded ${workflowRoleFormData.color === color ? 'ring-2 ring-offset-2 ring-offset-plm-bg-light ring-plm-accent' : ''}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Icon</label>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 bg-plm-bg rounded-lg border border-plm-border">
+                  {WORKFLOW_ROLE_ICONS.map(iconName => {
+                    const IconComp = (LucideIcons as any)[iconName] || Shield
+                    return (
+                      <button
+                        key={iconName}
+                        onClick={() => setWorkflowRoleFormData(prev => ({ ...prev, icon: iconName }))}
+                        className={`p-1.5 rounded ${workflowRoleFormData.icon === iconName ? 'bg-plm-accent/20 text-plm-accent' : 'text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg'}`}
+                        title={iconName}
+                      >
+                        <IconComp size={16} />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 justify-end mt-6">
+              <button 
+                onClick={() => {
+                  setShowCreateWorkflowRoleDialog(false)
+                  setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+                }} 
+                className="btn btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateWorkflowRole}
+                disabled={isSavingWorkflowRole || !workflowRoleFormData.name.trim()}
+                className="btn btn-primary"
+              >
+                {isSavingWorkflowRole ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Workflow Role Dialog */}
+      {showEditWorkflowRoleDialog && editingWorkflowRole && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center" onClick={() => {
+          setShowEditWorkflowRoleDialog(false)
+          setEditingWorkflowRole(null)
+          setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+        }}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Edit Workflow Role</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Role Name</label>
+                <input
+                  type="text"
+                  value={workflowRoleFormData.name}
+                  onChange={e => setWorkflowRoleFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Design Lead"
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Description (optional)</label>
+                <input
+                  type="text"
+                  value={workflowRoleFormData.description}
+                  onChange={e => setWorkflowRoleFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="e.g., Leads design reviews"
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Color</label>
+                <div className="flex flex-wrap gap-1">
+                  {['#8b5cf6', '#6366f1', '#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#64748b'].map(color => (
+                    <button
+                      key={color}
+                      onClick={() => setWorkflowRoleFormData(prev => ({ ...prev, color }))}
+                      className={`w-6 h-6 rounded ${workflowRoleFormData.color === color ? 'ring-2 ring-offset-2 ring-offset-plm-bg-light ring-plm-accent' : ''}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Icon</label>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 bg-plm-bg rounded-lg border border-plm-border">
+                  {WORKFLOW_ROLE_ICONS.map(iconName => {
+                    const IconComp = (LucideIcons as any)[iconName] || Shield
+                    return (
+                      <button
+                        key={iconName}
+                        onClick={() => setWorkflowRoleFormData(prev => ({ ...prev, icon: iconName }))}
+                        className={`p-1.5 rounded ${workflowRoleFormData.icon === iconName ? 'bg-plm-accent/20 text-plm-accent' : 'text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg'}`}
+                        title={iconName}
+                      >
+                        <IconComp size={16} />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              
+              <p className="text-xs text-plm-fg-muted bg-plm-bg p-2 rounded">
+                Changes will update for all users with this role.
+              </p>
+            </div>
+            
+            <div className="flex gap-2 justify-end mt-6">
+              <button 
+                onClick={() => {
+                  setShowEditWorkflowRoleDialog(false)
+                  setEditingWorkflowRole(null)
+                  setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+                }} 
+                className="btn btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateWorkflowRole}
+                disabled={isSavingWorkflowRole || !workflowRoleFormData.name.trim()}
+                className="btn btn-primary"
+              >
+                {isSavingWorkflowRole ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Team Dialog (from Manage Teams) */}
+      {showEditTeamDialog && editingTeamFromManage && !selectedTeam && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center" onClick={() => {
+          setShowEditTeamDialog(false)
+          setEditingTeamFromManage(null)
+        }}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Edit Team</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Team Name</label>
+                <input
+                  type="text"
+                  value={teamFormData.name}
+                  onChange={e => setTeamFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Engineering"
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                  autoFocus
+                  disabled={editingTeamFromManage.name === 'Administrators'}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Description (optional)</label>
+                <input
+                  type="text"
+                  value={teamFormData.description}
+                  onChange={e => setTeamFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="e.g., Core engineering team"
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Color</label>
+                <div className="flex flex-wrap gap-1">
+                  {['#3b82f6', '#6366f1', '#8b5cf6', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#64748b'].map(color => (
+                    <button
+                      key={color}
+                      onClick={() => setTeamFormData(prev => ({ ...prev, color }))}
+                      className={`w-6 h-6 rounded ${teamFormData.color === color ? 'ring-2 ring-offset-2 ring-offset-plm-bg-light ring-plm-accent' : ''}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Icon</label>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 bg-plm-bg rounded-lg border border-plm-border">
+                  {TEAM_ICONS.map(iconName => {
+                    const IconComp = (LucideIcons as any)[iconName] || Users
+                    return (
+                      <button
+                        key={iconName}
+                        onClick={() => setTeamFormData(prev => ({ ...prev, icon: iconName }))}
+                        className={`p-1.5 rounded ${teamFormData.icon === iconName ? 'bg-plm-accent/20 text-plm-accent' : 'text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg'}`}
+                        title={iconName}
+                      >
+                        <IconComp size={16} />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              
+              <p className="text-xs text-plm-fg-muted bg-plm-bg p-2 rounded">
+                Changes will update for all team members.
+              </p>
+            </div>
+            
+            <div className="flex gap-2 justify-end mt-6">
+              <button 
+                onClick={() => {
+                  setShowEditTeamDialog(false)
+                  setEditingTeamFromManage(null)
+                }} 
+                className="btn btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateTeamFromManage}
+                disabled={isSavingTeam || !teamFormData.name.trim()}
+                className="btn btn-primary"
+              >
+                {isSavingTeam ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create/Edit Job Title Dialog */}
+      {showCreateTitleDialog && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center" onClick={() => {
+          setShowCreateTitleDialog(false)
+          setEditingJobTitle(null)
+          setPendingTitleForUser(null)
+        }}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">
+              {editingJobTitle ? 'Edit Job Title' : 'Create Job Title'}
+            </h3>
             
             <div className="space-y-4">
               <div>
@@ -2177,9 +3024,34 @@ export function TeamMembersSettings() {
                 </div>
               </div>
               
+              <div>
+                <label className="block text-sm font-medium text-plm-fg mb-1">Icon</label>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 bg-plm-bg rounded-lg border border-plm-border">
+                  {['Briefcase', 'User', 'Users', 'Wrench', 'PenTool', 'ShieldCheck', 'Factory', 'ShoppingCart', 'FileCheck', 'Settings', 'Code', 'Beaker', 'Microscope', 'Truck', 'Package', 'Clipboard', 'Calculator', 'Headphones', 'MessageSquare', 'Star'].map(iconName => {
+                    const IconComp = (LucideIcons as any)[iconName] || Briefcase
+                    return (
+                      <button
+                        key={iconName}
+                        onClick={() => setNewTitleIcon(iconName)}
+                        className={`p-1.5 rounded ${newTitleIcon === iconName ? 'bg-plm-accent/20 text-plm-accent' : 'text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg'}`}
+                        title={iconName}
+                      >
+                        <IconComp size={16} />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              
               {pendingTitleForUser && (
                 <p className="text-sm text-plm-fg-muted">
                   Will assign to: <strong className="text-plm-fg">{pendingTitleForUser.full_name || pendingTitleForUser.email}</strong>
+                </p>
+              )}
+              
+              {editingJobTitle && (
+                <p className="text-xs text-plm-fg-muted bg-plm-bg p-2 rounded">
+                  Changes will update for all users with this title.
                 </p>
               )}
             </div>
@@ -2188,6 +3060,7 @@ export function TeamMembersSettings() {
               <button 
                 onClick={() => {
                   setShowCreateTitleDialog(false)
+                  setEditingJobTitle(null)
                   setPendingTitleForUser(null)
                 }} 
                 className="btn btn-ghost"
@@ -2195,11 +3068,11 @@ export function TeamMembersSettings() {
                 Cancel
               </button>
               <button
-                onClick={handleCreateTitle}
+                onClick={editingJobTitle ? handleUpdateJobTitle : handleCreateTitle}
                 disabled={isCreatingTitle || !newTitleName.trim()}
                 className="btn btn-primary"
               >
-                {isCreatingTitle ? 'Creating...' : 'Create'}
+                {isCreatingTitle ? 'Saving...' : editingJobTitle ? 'Save Changes' : 'Create'}
               </button>
             </div>
           </div>
@@ -2430,6 +3303,27 @@ export function TeamMembersSettings() {
           }}
         />
       )}
+
+      {/* User Job Title Modal */}
+      {editingJobTitleUser && (
+        <UserJobTitleModal
+          user={editingJobTitleUser}
+          jobTitles={jobTitles}
+          onClose={() => setEditingJobTitleUser(null)}
+          onSelectTitle={async (titleId) => {
+            await handleChangeJobTitle(editingJobTitleUser, titleId)
+            setEditingJobTitleUser(null)
+          }}
+          onCreateTitle={() => {
+            setPendingTitleForUser(editingJobTitleUser)
+            setEditingJobTitleUser(null)
+            openCreateJobTitle()
+          }}
+          onUpdateTitle={updateJobTitleDirect}
+          onDeleteTitle={deleteJobTitleDirect}
+          isAdmin={isAdmin}
+        />
+      )}
     </div>
   )
 }
@@ -2461,6 +3355,7 @@ function WorkflowRolesModal({
   const [newRoleColor, setNewRoleColor] = useState('#6B7280')
   const [newRoleIcon, setNewRoleIcon] = useState('badge-check')
   const [isCreating, setIsCreating] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   
   // Edit state
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
@@ -2537,24 +3432,57 @@ function WorkflowRolesModal({
   
   const hasChanges = JSON.stringify([...selectedRoleIds].sort()) !== JSON.stringify([...userRoleIds].sort())
   
+  const filteredRoles = workflowRoles.filter(r =>
+    !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-start gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-purple-500/20 text-purple-400">
-            <Shield size={20} />
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-plm-border">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-purple-500/10">
+              <Shield size={20} className="text-purple-400" />
           </div>
           <div>
             <h3 className="text-lg font-medium text-plm-fg">Workflow Roles</h3>
-            <p className="text-sm text-plm-fg-muted">
-              Assign workflow roles to <strong>{user.full_name || user.email}</strong>
+              <p className="text-xs text-plm-fg-muted truncate max-w-[200px]">
+                {user.full_name || user.email}
             </p>
+          </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        
+        {/* Search */}
+        <div className="p-4 border-b border-plm-border">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search roles..."
+              className="w-full pl-9 pr-3 py-2 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              autoFocus
+            />
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-          {workflowRoles.length === 0 && !showCreateForm ? (
-            <div className="text-center py-8 text-sm text-plm-fg-muted">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {filteredRoles.length === 0 && !showCreateForm ? (
+            <div className="text-center py-6 text-sm text-plm-fg-muted">
+              {searchQuery ? (
+                `No roles match "${searchQuery}"`
+              ) : (
+                <>
               <Shield size={32} className="mx-auto mb-2 opacity-50" />
               <p>No workflow roles defined yet.</p>
               <button
@@ -2563,10 +3491,12 @@ function WorkflowRolesModal({
               >
                 Create the first workflow role
               </button>
+                </>
+              )}
             </div>
           ) : (
             <>
-              {workflowRoles.map(role => {
+              {filteredRoles.map(role => {
                 const RoleIcon = (LucideIcons as any)[role.icon] || Shield
                 const isSelected = selectedRoleIds.includes(role.id)
                 const isEditing = editingRoleId === role.id
@@ -2613,21 +3543,21 @@ function WorkflowRolesModal({
                         <div className="grid grid-cols-8 gap-1">
                           {WORKFLOW_ROLE_ICONS.map(iconName => {
                             const IconComponent = (LucideIcons as any)[iconName] || Shield
-                            const isSelected = editIcon === iconName
+                            const isIconSelected = editIcon === iconName
                             return (
                               <button
                                 key={iconName}
                                 type="button"
                                 onClick={() => setEditIcon(iconName)}
                                 className={`p-1.5 rounded border transition-colors ${
-                                  isSelected
+                                  isIconSelected
                                     ? 'border-plm-accent bg-plm-accent/20'
                                     : 'border-transparent hover:border-plm-border hover:bg-plm-bg'
                                 }`}
                                 title={iconName.replace(/([A-Z])/g, ' $1').trim()}
-                                style={isSelected ? { color: editColor } : {}}
+                                style={isIconSelected ? { color: editColor } : {}}
                               >
-                                <IconComponent size={14} className={isSelected ? '' : 'text-plm-fg-muted'} />
+                                <IconComponent size={14} className={isIconSelected ? '' : 'text-plm-fg-muted'} />
                               </button>
                             )
                           })}
@@ -2655,40 +3585,42 @@ function WorkflowRolesModal({
                 }
                 
                 return (
-                  <div
+                  <button
                     key={role.id}
-                    className={`group flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    onClick={() => toggleRole(role.id)}
+                    className={`w-full group flex items-center gap-3 p-3 rounded-lg border transition-colors ${
                       isSelected
                         ? 'border-plm-accent bg-plm-accent/10'
-                        : 'border-plm-border bg-plm-bg hover:border-plm-fg-muted'
+                        : 'border-plm-border hover:border-plm-fg-muted hover:bg-plm-highlight'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleRole(role.id)}
-                      className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent cursor-pointer"
-                    />
                     <div
-                      className="p-2 rounded-lg"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: `${role.color}20`, color: role.color }}
                     >
                       <RoleIcon size={16} />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 text-left">
                       <div className="text-sm font-medium text-plm-fg">{role.name}</div>
                       {role.description && (
                         <div className="text-xs text-plm-fg-muted truncate">{role.description}</div>
                       )}
                     </div>
-                    <button
-                      onClick={() => startEditing(role)}
+                    <div
+                      onClick={e => { e.stopPropagation(); startEditing(role) }}
                       className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors opacity-0 group-hover:opacity-100"
                       title="Edit role"
                     >
                       <Pencil size={12} />
-                    </button>
                   </div>
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      isSelected
+                        ? 'border-plm-accent bg-plm-accent'
+                        : 'border-plm-fg-muted'
+                    }`}>
+                      {isSelected && <Check size={12} className="text-white" />}
+                    </div>
+                  </button>
                 )
               })}
             </>
@@ -2739,21 +3671,21 @@ function WorkflowRolesModal({
                 <div className="grid grid-cols-8 gap-1">
                   {WORKFLOW_ROLE_ICONS.map(iconName => {
                     const IconComponent = (LucideIcons as any)[iconName] || Shield
-                    const isSelected = newRoleIcon === iconName
+                    const isIconSelected = newRoleIcon === iconName
                     return (
                       <button
                         key={iconName}
                         type="button"
                         onClick={() => setNewRoleIcon(iconName)}
                         className={`p-1.5 rounded border transition-colors ${
-                          isSelected
+                          isIconSelected
                             ? 'border-plm-accent bg-plm-accent/20'
                             : 'border-transparent hover:border-plm-border hover:bg-plm-bg'
                         }`}
                         title={iconName.replace(/([A-Z])/g, ' $1').trim()}
-                        style={isSelected ? { color: newRoleColor } : {}}
+                        style={isIconSelected ? { color: newRoleColor } : {}}
                       >
-                        <IconComponent size={14} className={isSelected ? '' : 'text-plm-fg-muted'} />
+                        <IconComponent size={14} className={isIconSelected ? '' : 'text-plm-fg-muted'} />
                       </button>
                     )
                   })}
@@ -2768,7 +3700,7 @@ function WorkflowRolesModal({
                 Create Role
               </button>
             </div>
-          ) : workflowRoles.length > 0 && (
+          ) : filteredRoles.length > 0 && !searchQuery && (
             <button
               onClick={() => setShowCreateForm(true)}
               className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-plm-border text-plm-fg-muted hover:border-plm-accent hover:text-plm-accent transition-colors"
@@ -2779,7 +3711,8 @@ function WorkflowRolesModal({
           )}
         </div>
         
-        <div className="flex gap-2 justify-end pt-4 border-t border-plm-border">
+        {/* Footer */}
+        <div className="flex gap-2 justify-end p-4 border-t border-plm-border">
           <button onClick={onClose} className="btn btn-ghost">Cancel</button>
           <button
             onClick={handleSave}
@@ -2787,7 +3720,7 @@ function WorkflowRolesModal({
             className="btn btn-primary flex items-center gap-2"
           >
             {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            Save Changes
+            Save
           </button>
         </div>
       </div>
@@ -2811,6 +3744,7 @@ function UserTeamsModal({
 }) {
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(userTeamIds)
   const [isSaving, setIsSaving] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   
   const toggleTeam = (teamId: string) => {
     setSelectedTeamIds(prev =>
@@ -2831,30 +3765,57 @@ function UserTeamsModal({
   
   const hasChanges = JSON.stringify([...selectedTeamIds].sort()) !== JSON.stringify([...userTeamIds].sort())
   
+  const filteredTeams = allTeams.filter(t =>
+    !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-start gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-plm-accent/20 text-plm-accent">
-            <Users size={20} />
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-plm-border">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-plm-accent/10">
+              <Users size={20} className="text-plm-accent" />
           </div>
           <div>
             <h3 className="text-lg font-medium text-plm-fg">Teams</h3>
-            <p className="text-sm text-plm-fg-muted">
-              Manage team membership for <strong>{user.full_name || user.email}</strong>
+              <p className="text-xs text-plm-fg-muted truncate max-w-[200px]">
+                {user.full_name || user.email}
             </p>
+          </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        
+        {/* Search */}
+        <div className="p-4 border-b border-plm-border">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search teams..."
+              className="w-full pl-9 pr-3 py-2 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              autoFocus
+            />
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-          {allTeams.length === 0 ? (
-            <div className="text-center py-8 text-sm text-plm-fg-muted">
-              <Users size={32} className="mx-auto mb-2 opacity-50" />
-              <p>No teams available.</p>
-              <p className="text-xs mt-1">Create teams in the Teams tab first.</p>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {filteredTeams.length === 0 ? (
+            <div className="text-center py-6 text-sm text-plm-fg-muted">
+              {searchQuery ? `No teams match "${searchQuery}"` : 'No teams available'}
             </div>
           ) : (
-            allTeams.map(team => {
+            filteredTeams.map(team => {
               const TeamIcon = (LucideIcons as any)[team.icon] || Users
               const isSelected = selectedTeamIds.includes(team.id)
               
@@ -2888,7 +3849,8 @@ function UserTeamsModal({
           )}
         </div>
         
-        <div className="flex gap-2 justify-end pt-4 border-t border-plm-border">
+        {/* Footer */}
+        <div className="flex gap-2 justify-end p-4 border-t border-plm-border">
           <button onClick={onClose} className="btn btn-ghost">Cancel</button>
           <button
             onClick={handleSave}
@@ -2896,7 +3858,329 @@ function UserTeamsModal({
             className="btn btn-primary flex items-center gap-2"
           >
             {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            Save Changes
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// User Job Title Modal Component
+function UserJobTitleModal({
+  user,
+  jobTitles,
+  onClose,
+  onSelectTitle,
+  onCreateTitle,
+  onUpdateTitle,
+  onDeleteTitle,
+  isAdmin
+}: {
+  user: OrgUser
+  jobTitles: { id: string; name: string; color: string; icon: string }[]
+  onClose: () => void
+  onSelectTitle: (titleId: string | null) => Promise<void>
+  onCreateTitle: () => void
+  onUpdateTitle?: (titleId: string, name: string, color: string, icon: string) => Promise<void>
+  onDeleteTitle?: (titleId: string) => Promise<void>
+  isAdmin?: boolean
+}) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [selectedTitleId, setSelectedTitleId] = useState<string | null>(user.job_title?.id || null)
+  
+  // Edit state
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editColor, setEditColor] = useState('')
+  const [editIcon, setEditIcon] = useState('')
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [deletingTitleId, setDeletingTitleId] = useState<string | null>(null)
+  
+  const filteredTitles = jobTitles.filter(t =>
+    !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      await onSelectTitle(selectedTitleId)
+      onClose()
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const startEditing = (title: { id: string; name: string; color: string; icon: string }) => {
+    setEditingTitleId(title.id)
+    setEditName(title.name)
+    setEditColor(title.color)
+    setEditIcon(title.icon)
+  }
+  
+  const cancelEditing = () => {
+    setEditingTitleId(null)
+    setEditName('')
+    setEditColor('')
+    setEditIcon('')
+  }
+  
+  const handleUpdateTitle = async () => {
+    if (!editingTitleId || !editName.trim() || !onUpdateTitle) return
+    setIsUpdating(true)
+    try {
+      await onUpdateTitle(editingTitleId, editName.trim(), editColor, editIcon)
+      cancelEditing()
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+  
+  const handleDeleteTitle = async (titleId: string) => {
+    if (!onDeleteTitle) return
+    setDeletingTitleId(titleId)
+    try {
+      await onDeleteTitle(titleId)
+      // If the deleted title was selected, clear selection
+      if (selectedTitleId === titleId) {
+        setSelectedTitleId(null)
+      }
+    } finally {
+      setDeletingTitleId(null)
+    }
+  }
+  
+  const hasChanges = selectedTitleId !== (user.job_title?.id || null)
+  
+  // Icon options for job titles
+  const JOB_TITLE_ICONS = [
+    'Briefcase', 'User', 'UserCheck', 'Users', 'Crown', 'Star', 'Award', 'Trophy',
+    'Target', 'Zap', 'Rocket', 'Code', 'Palette', 'PenTool', 'Wrench', 'Settings',
+    'Database', 'Server', 'Shield', 'Lock', 'Key', 'Eye', 'Search', 'FileText',
+    'Clipboard', 'Calendar', 'Clock', 'Timer', 'Gauge', 'BarChart', 'LineChart', 'PieChart',
+    'DollarSign', 'CreditCard', 'ShoppingCart', 'Package', 'Truck', 'Globe', 'Map', 'Navigation',
+    'Phone', 'Mail', 'MessageSquare', 'Headphones', 'Mic', 'Video', 'Camera', 'Image',
+    'Layers', 'Grid', 'Layout', 'Columns', 'Sidebar', 'Monitor', 'Smartphone', 'Tablet',
+    'Cpu', 'HardDrive', 'Wifi', 'Bluetooth', 'Battery', 'Power', 'Plug', 'Activity'
+  ]
+  
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-plm-border">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-plm-accent/10">
+              <Briefcase size={20} className="text-plm-accent" />
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-plm-fg">Job Title</h3>
+              <p className="text-xs text-plm-fg-muted truncate max-w-[200px]">
+                {user.full_name || user.email}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        
+        {/* Search */}
+        <div className="p-4 border-b border-plm-border">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search job titles..."
+              className="w-full pl-9 pr-3 py-2 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              autoFocus
+            />
+          </div>
+        </div>
+        
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {/* No title option */}
+          <button
+            onClick={() => setSelectedTitleId(null)}
+            className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+              selectedTitleId === null
+                ? 'border-plm-accent bg-plm-accent/10'
+                : 'border-plm-border hover:border-plm-fg-muted hover:bg-plm-highlight'
+            }`}
+          >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-plm-fg-muted/10 text-plm-fg-muted">
+              <X size={16} />
+            </div>
+            <span className="flex-1 text-left text-sm text-plm-fg-muted">No title</span>
+            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+              selectedTitleId === null
+                ? 'border-plm-accent bg-plm-accent'
+                : 'border-plm-fg-muted'
+            }`}>
+              {selectedTitleId === null && <Check size={12} className="text-white" />}
+            </div>
+          </button>
+          
+          {filteredTitles.length === 0 && searchQuery ? (
+            <div className="text-center py-6 text-sm text-plm-fg-muted">
+              No titles match "{searchQuery}"
+            </div>
+          ) : (
+            filteredTitles.map(title => {
+              const TitleIcon = (LucideIcons as any)[title.icon] || Briefcase
+              const isSelected = selectedTitleId === title.id
+              const isEditing = editingTitleId === title.id
+              const isDeleting = deletingTitleId === title.id
+              
+              if (isEditing && isAdmin) {
+                const EditIcon = (LucideIcons as any)[editIcon] || Briefcase
+                return (
+                  <div key={title.id} className="p-3 rounded-lg border border-plm-accent bg-plm-accent/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-plm-fg">Edit Job Title</span>
+                      <button
+                        onClick={cancelEditing}
+                        className="p-1 text-plm-fg-muted hover:text-plm-fg"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      placeholder="Title name"
+                      className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg text-sm placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={editColor}
+                        onChange={e => setEditColor(e.target.value)}
+                        className="w-10 h-10 rounded border border-plm-border cursor-pointer"
+                        title="Title color"
+                      />
+                      <div
+                        className="p-2 rounded-lg"
+                        style={{ backgroundColor: `${editColor}20`, color: editColor }}
+                      >
+                        <EditIcon size={16} />
+                      </div>
+                    </div>
+                    {/* Icon picker grid */}
+                    <div className="max-h-32 overflow-y-auto border border-plm-border rounded-lg p-2 bg-plm-bg-light">
+                      <div className="grid grid-cols-8 gap-1">
+                        {JOB_TITLE_ICONS.map(iconName => {
+                          const IconComponent = (LucideIcons as any)[iconName] || Briefcase
+                          const isIconSelected = editIcon === iconName
+                          return (
+                            <button
+                              key={iconName}
+                              type="button"
+                              onClick={() => setEditIcon(iconName)}
+                              className={`p-1.5 rounded border transition-colors ${
+                                isIconSelected
+                                  ? 'border-plm-accent bg-plm-accent/20'
+                                  : 'border-transparent hover:border-plm-border hover:bg-plm-bg'
+                              }`}
+                              title={iconName.replace(/([A-Z])/g, ' $1').trim()}
+                              style={isIconSelected ? { color: editColor } : {}}
+                            >
+                              <IconComponent size={14} className={isIconSelected ? '' : 'text-plm-fg-muted'} />
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleDeleteTitle(title.id)}
+                        disabled={isDeleting}
+                        className="btn btn-ghost btn-sm text-plm-error hover:bg-plm-error/10"
+                      >
+                        {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      </button>
+                      <button
+                        onClick={handleUpdateTitle}
+                        disabled={isUpdating || !editName.trim()}
+                        className="flex-1 btn btn-primary btn-sm flex items-center justify-center gap-2"
+                      >
+                        {isUpdating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+              
+              return (
+                <button
+                  key={title.id}
+                  onClick={() => setSelectedTitleId(title.id)}
+                  className={`w-full group flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    isSelected
+                      ? 'border-plm-accent bg-plm-accent/10'
+                      : 'border-plm-border hover:border-plm-fg-muted hover:bg-plm-highlight'
+                  }`}
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: `${title.color}20`, color: title.color }}
+                  >
+                    <TitleIcon size={16} />
+                  </div>
+                  <span className="flex-1 text-left text-sm text-plm-fg font-medium">{title.name}</span>
+                  {isAdmin && onUpdateTitle && (
+                    <div
+                      onClick={e => { e.stopPropagation(); startEditing(title) }}
+                      className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                      title="Edit title"
+                    >
+                      <Pencil size={12} />
+                    </div>
+                  )}
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    isSelected
+                      ? 'border-plm-accent bg-plm-accent'
+                      : 'border-plm-fg-muted'
+                  }`}>
+                    {isSelected && <Check size={12} className="text-white" />}
+                  </div>
+                </button>
+              )
+            })
+          )}
+          
+          {/* Create new option */}
+          {!searchQuery && (
+            <button
+              onClick={onCreateTitle}
+              className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-plm-border text-plm-accent hover:border-plm-accent hover:bg-plm-accent/5 transition-colors"
+            >
+              <Plus size={14} />
+              Create new job title
+            </button>
+          )}
+        </div>
+        
+        {/* Footer */}
+        <div className="flex gap-2 justify-end p-4 border-t border-plm-border">
+          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving || !hasChanges}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Save
           </button>
         </div>
       </div>
@@ -2918,12 +4202,7 @@ function UserRow({
   compact,
   showAddToTeam,
   onOpenAddToTeamModal,
-  jobTitles,
-  titleDropdownOpen,
-  setTitleDropdownOpen,
-  onChangeJobTitle,
-  changingTitleUserId,
-  onCreateTitle,
+  onEditJobTitle,
   workflowRoles,
   userWorkflowRoleIds,
   onEditWorkflowRoles,
@@ -2942,12 +4221,7 @@ function UserRow({
   compact?: boolean
   showAddToTeam?: boolean
   onOpenAddToTeamModal?: () => void
-  jobTitles?: { id: string; name: string; color: string; icon: string }[]
-  titleDropdownOpen?: string | null
-  setTitleDropdownOpen?: (id: string | null) => void
-  onChangeJobTitle?: (user: OrgUser, titleId: string | null) => void
-  changingTitleUserId?: string | null
-  onCreateTitle?: (user: OrgUser) => void
+  onEditJobTitle?: (user: OrgUser) => void
   workflowRoles?: WorkflowRoleBasic[]
   userWorkflowRoleIds?: string[]
   onEditWorkflowRoles?: (user: OrgUser) => void
@@ -2993,100 +4267,40 @@ function UserRow({
         </div>
       </button>
       
-      {/* Job title badge/dropdown */}
-      {jobTitles && jobTitles.length > 0 && setTitleDropdownOpen && onChangeJobTitle && (
-        <div className="relative">
-          {canManage ? (
-            <>
+      {/* Job title badge */}
+      {(user.job_title || (canManage && onEditJobTitle)) && (
+        canManage && onEditJobTitle ? (
               <button
-                onClick={() => setTitleDropdownOpen(titleDropdownOpen === user.id ? null : user.id)}
-                disabled={changingTitleUserId === user.id}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors hover:opacity-80 ${
+            onClick={() => onEditJobTitle(user)}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
                   user.job_title 
-                    ? '' 
-                    : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
+                ? 'hover:ring-1 hover:ring-current' 
+                : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border hover:border-plm-accent hover:text-plm-accent'
                 }`}
                 style={user.job_title ? { backgroundColor: `${user.job_title.color}15`, color: user.job_title.color } : {}}
               >
-                {changingTitleUserId === user.id ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : user.job_title ? (
+            {user.job_title ? (
                   (() => {
-                    const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Users
+                const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Briefcase
                     return <TitleIcon size={12} />
                   })()
                 ) : (
-                  <Users size={12} />
+              <Briefcase size={12} />
                 )}
                 {user.job_title?.name || 'No title'}
-                <ChevronDown size={12} />
               </button>
-              
-              {titleDropdownOpen === user.id && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[160px] max-h-60 overflow-y-auto">
-                  {/* Clear option */}
-                  <button
-                    onClick={() => onChangeJobTitle(user, null)}
-                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors hover:bg-plm-highlight ${
-                      !user.job_title ? 'text-plm-accent' : 'text-plm-fg-muted'
-                    }`}
-                  >
-                    <X size={14} />
-                    No title
-                    {!user.job_title && <Check size={14} className="ml-auto" />}
-                  </button>
-                  <div className="border-t border-plm-border my-1" />
-                  {jobTitles.map(title => {
-                    const TitleIcon = (LucideIcons as any)[title.icon] || Users
-                    const isSelected = user.job_title?.id === title.id
-                    return (
-                      <button
-                        key={title.id}
-                        onClick={() => onChangeJobTitle(user, title.id)}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors hover:bg-plm-highlight ${
-                          isSelected ? 'text-plm-accent' : 'text-plm-fg'
-                        }`}
-                      >
-                        <div
-                          className="p-1 rounded"
-                          style={{ backgroundColor: `${title.color}15`, color: title.color }}
-                        >
-                          <TitleIcon size={12} />
-                        </div>
-                        <span className="truncate">{title.name}</span>
-                        {isSelected && <Check size={14} className="ml-auto flex-shrink-0" />}
-                      </button>
-                    )
-                  })}
-                  {/* Create new option */}
-                  {onCreateTitle && (
-                    <>
-                      <div className="border-t border-plm-border my-1" />
-                      <button
-                        onClick={() => onCreateTitle(user)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors hover:bg-plm-highlight text-plm-accent"
-                      >
-                        <Plus size={14} />
-                        Create new title...
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </>
           ) : user.job_title ? (
             <div
               className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
               style={{ backgroundColor: `${user.job_title.color}15`, color: user.job_title.color }}
             >
               {(() => {
-                const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Users
+              const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Briefcase
                 return <TitleIcon size={12} />
               })()}
               {user.job_title.name}
             </div>
-          ) : null}
-        </div>
+        ) : null
       )}
       
       {/* Teams and Roles badges - side by side */}

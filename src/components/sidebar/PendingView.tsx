@@ -270,7 +270,7 @@ interface PendingViewProps {
 }
 
 export function PendingView({ onRefresh }: PendingViewProps) {
-  const { files, user, setActiveView, setCurrentFolder, toggleFolder, expandedFolders } = usePDMStore()
+  const { files, user, setActiveView, setCurrentFolder, toggleFolder, expandedFolders, hideSolidworksTempFiles } = usePDMStore()
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [selectedAddedFiles, setSelectedAddedFiles] = useState<Set<string>>(new Set())
   const [selectedOthersFiles, setSelectedOthersFiles] = useState<Set<string>>(new Set())
@@ -308,12 +308,17 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     const checkedOut = files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by)
     const myCheckedOut = checkedOut.filter(f => f.pdmData?.checked_out_by === user?.id)
     const othersCheckedOut = checkedOut.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id)
-    const added = files.filter(f => !f.isDirectory && f.diffStatus === 'added')
+    // Filter added files, excluding SolidWorks temp files (~$) when setting is enabled
+    const added = files.filter(f => 
+      !f.isDirectory && 
+      f.diffStatus === 'added' &&
+      !(hideSolidworksTempFiles && f.name.startsWith('~$'))
+    )
     const deletedRemote = files.filter(f => !f.isDirectory && f.diffStatus === 'deleted_remote')
     const synced = files.filter(f => !f.isDirectory && f.pdmData).length
     
     return { checkedOutFiles: checkedOut, myCheckedOutFiles: myCheckedOut, othersCheckedOutFiles: othersCheckedOut, addedFiles: added, deletedRemoteFiles: deletedRemote, syncedFilesCount: synced }
-  }, [files, user?.id])
+  }, [files, user?.id, hideSolidworksTempFiles])
   
   // Stable callbacks for row components
   const toggleSelect = useCallback((path: string) => {

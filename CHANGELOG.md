@@ -40,6 +40,11 @@ All notable changes to BluePLM will be documented in this file.
   - Filter by user in Discover queries
   - Privacy-preserving: IDs are hashed before transmission
   - Respects user consent (only active if Usage Statistics enabled)
+- **Realtime admin settings sync**: All admin settings now instantly sync to all connected users via Supabase Realtime
+  - RFQ settings, serialization settings, company profile, Google Drive, and all org settings update live
+  - No refresh needed - changes appear immediately for all users in the organization
+  - Toast notification shows "Organization settings updated by an admin" when changes are received
+  - Prevents race conditions with save-tracking refs during active edits
 
 ### Changed
 - **Permissions model simplified**: Removed role selection from create user dialog and user rows - all permissions now flow through team membership
@@ -68,6 +73,8 @@ All notable changes to BluePLM will be documented in this file.
 - **Contribution count accuracy**: Profile "X contributions in the last year" now shows accurate count
   - Previously capped at 1000 due to Supabase query limit
   - Now uses separate COUNT query for accurate totals (even 10,000+)
+- **Pending view excluded files**: SolidWorks temp files (`~$...`) no longer appear in Pending section
+  - Added `hideSolidworksTempFiles` filter to PendingView to match FileBrowser and ExplorerView behavior
 
 ---
 

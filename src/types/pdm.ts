@@ -142,6 +142,55 @@ export interface Organization {
   // Company profile
   logo_url?: string | null           // Signed URL for logo (may expire)
   logo_storage_path?: string | null  // Path in Supabase storage bucket
+  // Company contact info
+  phone?: string | null
+  website?: string | null
+  contact_email?: string | null
+  // Company address (legacy single address)
+  address_line1?: string | null
+  address_line2?: string | null
+  city?: string | null
+  state?: string | null
+  postal_code?: string | null
+  country?: string | null
+  // Google Drive integration
+  google_drive_enabled?: boolean
+  google_drive_client_id?: string | null
+  google_drive_client_secret?: string | null
+  // RFQ settings
+  rfq_settings?: RFQSettings | null
+  // Serialization settings
+  serialization_settings?: SerializationSettings | null
+  // Module defaults for organization members
+  module_defaults?: Record<string, unknown> | null
+}
+
+// RFQ template settings
+export interface RFQSettings {
+  default_payment_terms: string
+  default_incoterms: string
+  default_valid_days: number
+  show_company_logo: boolean
+  show_revision_column: boolean
+  show_material_column: boolean
+  show_finish_column: boolean
+  show_notes_column: boolean
+  terms_and_conditions: string
+  footer_text: string
+}
+
+// Serialization settings for sequential item numbers
+export interface SerializationSettings {
+  enabled: boolean
+  prefix: string
+  suffix: string
+  padding_digits: number
+  letter_count: number
+  current_counter: number
+  use_letters_before_numbers: boolean
+  letter_prefix: string
+  keepout_zones: Array<{ start: number; end_num: number; description: string }>
+  auto_apply_extensions: string[]
 }
 
 export interface OrgSettings {

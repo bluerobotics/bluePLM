@@ -1,5 +1,5 @@
 // @ts-nocheck - Supabase type inference issues with new columns
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   Upload, 
   Loader2, 
@@ -71,6 +71,9 @@ export function CompanyProfileSettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  
+  // Track if we're currently saving to avoid overwriting with stale realtime data
+  const savingRef = useRef(false)
   
   const [profile, setProfile] = useState<CompanyProfile>({
     logo_url: null,
@@ -186,6 +189,48 @@ export function CompanyProfileSettings() {
 
     loadAddresses()
   }, [organization?.id])
+  
+  // Sync with realtime organization changes (when another admin updates settings)
+  useEffect(() => {
+    // Skip if we're currently saving (to avoid overwriting our own changes)
+    if (savingRef.current) return
+    // Skip if still loading initial data
+    if (loading) return
+    
+    // Sync company profile fields from realtime organization object
+    const org = organization as any
+    if (org) {
+      console.log('[CompanyProfile] Syncing with realtime org settings')
+      
+      // Only update if there are actual changes from the store
+      setProfile(prev => ({
+        logo_url: org.logo_url ?? prev.logo_url,
+        logo_storage_path: org.logo_storage_path ?? prev.logo_storage_path,
+        phone: org.phone ?? prev.phone,
+        website: org.website ?? prev.website,
+        contact_email: org.contact_email ?? prev.contact_email
+      }))
+      
+      // Sync email domains
+      if (org.email_domains) {
+        setEmailDomains(org.email_domains)
+      }
+      
+      // Sync enforce_email_domain from settings
+      if (org.settings?.enforce_email_domain !== undefined) {
+        setEnforceEmailDomain(org.settings.enforce_email_domain)
+      }
+    }
+  }, [
+    loading,
+    (organization as any)?.logo_url,
+    (organization as any)?.logo_storage_path,
+    (organization as any)?.phone,
+    (organization as any)?.website,
+    (organization as any)?.contact_email,
+    (organization as any)?.email_domains,
+    (organization as any)?.settings?.enforce_email_domain
+  ])
 
   // Handle logo upload
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -295,6 +340,7 @@ export function CompanyProfileSettings() {
     if (!organization?.id) return
 
     setSaving(true)
+    savingRef.current = true
     try {
       // Use RPC function (direct updates not allowed due to RLS)
       const { error } = await supabase.rpc('update_org_branding', {
@@ -311,6 +357,8 @@ export function CompanyProfileSettings() {
       addToast('error', 'Failed to save contact information')
     } finally {
       setSaving(false)
+      // Small delay before allowing realtime sync again to let the update propagate
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
 
@@ -560,6 +608,7 @@ export function CompanyProfileSettings() {
     }
     
     setSavingDomains(true)
+    savingRef.current = true
     const newDomains = [...emailDomains, domain]
     
     try {
@@ -578,6 +627,7 @@ export function CompanyProfileSettings() {
       addToast('error', 'Failed to add domain')
     } finally {
       setSavingDomains(false)
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
 
@@ -874,6 +924,7 @@ export function CompanyProfileSettings() {
             onClick={async () => {
               const newValue = !enforceEmailDomain
               setEnforceEmailDomain(newValue)
+              savingRef.current = true
               
               try {
                 // Fetch current settings from database first to avoid overwriting other fields
@@ -897,6 +948,8 @@ export function CompanyProfileSettings() {
                 console.error('Failed to update setting:', err)
                 setEnforceEmailDomain(!newValue) // Revert
                 addToast('error', 'Failed to update setting')
+              } finally {
+                setTimeout(() => { savingRef.current = false }, 1000)
               }
             }}
             className={`relative w-11 h-6 rounded-full transition-colors ${
@@ -931,6 +984,7 @@ export function CompanyProfileSettings() {
                     onClick={async () => {
                       const newDomains = emailDomains.filter((_, i) => i !== idx)
                       setEmailDomains(newDomains)
+                      savingRef.current = true
                       
                       try {
                         const { error } = await supabase
@@ -944,6 +998,8 @@ export function CompanyProfileSettings() {
                         console.error('Failed to remove domain:', err)
                         setEmailDomains(emailDomains) // Revert
                         addToast('error', 'Failed to remove domain')
+                      } finally {
+                        setTimeout(() => { savingRef.current = false }, 1000)
                       }
                     }}
                     className="p-0.5 hover:bg-plm-error/20 rounded text-plm-fg-muted hover:text-plm-error transition-colors"

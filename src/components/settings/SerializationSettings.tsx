@@ -1,5 +1,5 @@
 // @ts-nocheck - Supabase type inference issues with new columns
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { 
   Loader2, 
   Hash,
@@ -74,6 +74,9 @@ export function SerializationSettings() {
   const [previewNumber, setPreviewNumber] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   
+  // Track if we're currently saving to avoid overwriting with stale realtime data
+  const savingRef = useRef(false)
+  
   // New keepout zone form
   const [newKeepout, setNewKeepout] = useState({ start: '', end: '', description: '' })
   const [showKeepoutForm, setShowKeepoutForm] = useState(false)
@@ -106,7 +109,7 @@ export function SerializationSettings() {
     return serial
   }, [settings])
 
-  // Load current settings
+  // Load current settings on mount
   useEffect(() => {
     if (!organization?.id) return
 
@@ -138,6 +141,26 @@ export function SerializationSettings() {
 
     loadSettings()
   }, [organization?.id])
+  
+  // Sync with realtime organization changes (when another admin updates settings)
+  useEffect(() => {
+    // Skip if we're currently saving (to avoid overwriting our own changes)
+    if (savingRef.current) return
+    // Skip if still loading initial data
+    if (loading) return
+    
+    // Get serialization_settings from the organization object (updated via realtime)
+    const realtimeSettings = (organization as any)?.serialization_settings
+    if (realtimeSettings) {
+      console.log('[SerializationSettings] Syncing with realtime org settings')
+      setSettings({
+        ...DEFAULT_SERIALIZATION_SETTINGS,
+        ...realtimeSettings,
+        keepout_zones: realtimeSettings.keepout_zones || [],
+        auto_apply_extensions: realtimeSettings.auto_apply_extensions || []
+      })
+    }
+  }, [(organization as any)?.serialization_settings])
 
   // Fetch preview from server
   const fetchPreview = async () => {
@@ -164,6 +187,7 @@ export function SerializationSettings() {
     if (!organization?.id) return
 
     setSaving(true)
+    savingRef.current = true
     try {
       const { error } = await supabase
         .from('organizations')
@@ -180,6 +204,8 @@ export function SerializationSettings() {
       addToast('error', 'Failed to save serialization settings')
     } finally {
       setSaving(false)
+      // Small delay before allowing realtime sync again to let the update propagate
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
 

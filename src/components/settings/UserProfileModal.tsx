@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
+import * as LucideIcons from 'lucide-react'
 import { 
   X, 
   Mail, 
   Shield, 
-  Wrench, 
-  Eye,
+  Users,
   Activity, 
   FileCheck, 
   FilePlus, 
@@ -37,9 +37,10 @@ interface UserData {
   email: string
   full_name: string | null
   avatar_url: string | null
-  job_title: string | null
-  role: string
   last_sign_in: string | null
+  teams: { id: string; name: string; color: string; icon: string }[]
+  workflow_roles: { id: string; name: string; color: string }[]
+  job_title: { id: string; name: string; color: string; icon: string } | null
 }
 
 interface DayData {
@@ -191,14 +192,38 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         // Load user info
         const { data: user, error: userError } = await client
           .from('users')
-          .select('id, email, full_name, avatar_url, job_title, role, last_sign_in')
+          .select('id, email, full_name, avatar_url, last_sign_in')
           .eq('id', userId)
           .single()
         
         if (userError) {
           console.error('Error loading user:', userError)
         } else {
-          setUserData(user)
+          // Load teams
+          const { data: membershipsData } = await client
+            .from('team_members')
+            .select('team:teams(id, name, color, icon)')
+            .eq('user_id', userId)
+          
+          // Load workflow roles
+          const { data: rolesData } = await client
+            .from('user_workflow_roles')
+            .select('role:workflow_roles(id, name, color)')
+            .eq('user_id', userId)
+          
+          // Load job title
+          const { data: titleData } = await client
+            .from('user_job_titles')
+            .select('title:job_titles(id, name, color, icon)')
+            .eq('user_id', userId)
+            .single()
+          
+          setUserData({
+            ...user,
+            teams: (membershipsData || []).map(m => m.team).filter(Boolean) as { id: string; name: string; color: string; icon: string }[],
+            workflow_roles: (rolesData || []).map(r => r.role).filter(Boolean) as { id: string; name: string; color: string }[],
+            job_title: titleData?.title as { id: string; name: string; color: string; icon: string } | null
+          })
         }
         
         // Load activity count (separate query for accurate total)
@@ -289,14 +314,6 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
     return max
   }, [activityData])
   
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'admin': return <Shield size={14} className="text-plm-accent" />
-      case 'engineer': return <Wrench size={14} className="text-plm-success" />
-      case 'viewer': return <Eye size={14} className="text-plm-fg-muted" />
-      default: return <Eye size={14} className="text-plm-fg-muted" />
-    }
-  }
   
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -391,38 +408,82 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
           ) : (
             <>
               {/* User Info */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-start gap-4">
                 {userData.avatar_url ? (
                   <img 
                     src={userData.avatar_url} 
                     alt={userData.full_name || userData.email}
-                    className="w-20 h-20 rounded-full"
+                    className="w-20 h-20 rounded-full flex-shrink-0"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       target.style.display = 'none'
                     }}
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-plm-accent flex items-center justify-center text-2xl text-white font-semibold">
+                  <div className="w-20 h-20 rounded-full bg-plm-accent flex items-center justify-center text-2xl text-white font-semibold flex-shrink-0">
                     {getInitials(userData.full_name || userData.email)}
                   </div>
                 )}
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="text-2xl font-medium text-plm-fg">
                     {userData.full_name || 'No name'}
                   </div>
-                  {userData.job_title && (
-                    <div className="text-base text-plm-fg-muted mt-0.5">
-                      {userData.job_title}
-                    </div>
-                  )}
                   <div className="text-base text-plm-fg-muted flex items-center gap-1.5 mt-1">
                     <Mail size={16} />
                     {userData.email}
                   </div>
-                  <div className="flex items-center gap-1.5 mt-2">
-                    {getRoleIcon(userData.role)}
-                    <span className="text-sm text-plm-fg-dim capitalize">{userData.role}</span>
+                  
+                  {/* Job Title */}
+                  {userData.job_title && (
+                    <div className="mt-3">
+                      {(() => {
+                        const TitleIcon = (LucideIcons as any)[userData.job_title.icon] || Users
+                        return (
+                          <div
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm"
+                            style={{ backgroundColor: `${userData.job_title.color}15`, color: userData.job_title.color }}
+                          >
+                            <TitleIcon size={14} />
+                            {userData.job_title.name}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
+                  
+                  {/* Teams & Workflow Roles */}
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                    {/* Teams */}
+                    {userData.teams.length > 0 && userData.teams.map(team => {
+                      const TeamIcon = (LucideIcons as any)[team.icon] || Users
+                      return (
+                        <div
+                          key={team.id}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
+                          style={{ backgroundColor: `${team.color}15`, color: team.color }}
+                        >
+                          <TeamIcon size={12} />
+                          {team.name}
+                        </div>
+                      )
+                    })}
+                    
+                    {/* Workflow Roles */}
+                    {userData.workflow_roles.length > 0 && userData.workflow_roles.map(role => (
+                      <div
+                        key={role.id}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
+                        style={{ backgroundColor: `${role.color}15`, color: role.color }}
+                      >
+                        <Shield size={12} />
+                        {role.name}
+                      </div>
+                    ))}
+                    
+                    {/* No teams or roles message */}
+                    {userData.teams.length === 0 && userData.workflow_roles.length === 0 && (
+                      <span className="text-sm text-plm-fg-muted">No teams or roles assigned</span>
+                    )}
                   </div>
                 </div>
               </div>

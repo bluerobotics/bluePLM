@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { HardDrive, Loader2, Check, Eye, EyeOff, Puzzle } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
@@ -13,6 +13,9 @@ export function GoogleDriveSettings() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
+  
+  // Track if we're currently saving to avoid overwriting with stale realtime data
+  const savingRef = useRef(false)
   
   useEffect(() => {
     loadSettings()
@@ -45,10 +48,39 @@ export function GoogleDriveSettings() {
     }
   }
   
+  // Sync with realtime organization changes (when another admin updates settings)
+  useEffect(() => {
+    // Skip if we're currently saving (to avoid overwriting our own changes)
+    if (savingRef.current) return
+    // Skip if still loading initial data
+    if (isLoading) return
+    
+    // Sync Google Drive fields from realtime organization object
+    const org = organization as any
+    if (org) {
+      if (org.google_drive_enabled !== undefined) {
+        console.log('[GoogleDriveSettings] Syncing with realtime org settings')
+        setEnabled(org.google_drive_enabled)
+      }
+      if (org.google_drive_client_id !== undefined) {
+        setClientId(org.google_drive_client_id || '')
+      }
+      if (org.google_drive_client_secret !== undefined) {
+        setClientSecret(org.google_drive_client_secret || '')
+      }
+    }
+  }, [
+    isLoading,
+    (organization as any)?.google_drive_enabled,
+    (organization as any)?.google_drive_client_id,
+    (organization as any)?.google_drive_client_secret
+  ])
+  
   const saveSettings = async () => {
     if (!organization?.id || !isAdmin) return
     
     setIsSaving(true)
+    savingRef.current = true
     try {
       const { error } = await (supabase.rpc as any)('update_google_drive_settings', {
         p_org_id: organization.id,
@@ -69,6 +101,8 @@ export function GoogleDriveSettings() {
       addToast('error', 'Failed to save Google Drive settings')
     } finally {
       setIsSaving(false)
+      // Small delay before allowing realtime sync again to let the update propagate
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
 

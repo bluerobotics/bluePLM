@@ -2084,32 +2084,72 @@ function App() {
       const newSettings = (newOrg?.settings || {}) as unknown as Record<string, unknown>
       const oldSettings = (oldOrg?.settings || {}) as unknown as Record<string, unknown>
       
-      // Integration keys in the settings JSONB
-      const settingsIntegrationKeys = [
+      // All keys in the settings JSONB that admins can modify
+      const settingsKeys = [
         'solidworks_dm_license_key',
         'api_url',
         'slack_enabled',
         'slack_webhook_url',
         'odoo_url',
-        'odoo_api_key'
+        'odoo_api_key',
+        'require_checkout',
+        'auto_increment_part_numbers',
+        'part_number_prefix',
+        'part_number_digits',
+        'allowed_extensions',
+        'require_description',
+        'require_approval_for_release',
+        'max_file_size_mb',
+        'enforce_email_domain',
+        'column_defaults'
       ]
       
-      const changedSettingsKeys = settingsIntegrationKeys.filter(
+      const changedSettingsKeys = settingsKeys.filter(
         key => JSON.stringify(newSettings[key]) !== JSON.stringify(oldSettings[key])
       )
       
-      // Integration fields directly on the organization table
-      const orgIntegrationFields = [
+      // All admin-modifiable fields directly on the organization table
+      const orgAdminFields = [
+        // Google Drive integration
         'google_drive_enabled',
         'google_drive_client_id',
-        'google_drive_client_secret'
+        'google_drive_client_secret',
+        // Company profile
+        'logo_url',
+        'logo_storage_path',
+        'phone',
+        'website',
+        'contact_email',
+        // Address fields
+        'address_line1',
+        'address_line2',
+        'city',
+        'state',
+        'postal_code',
+        'country',
+        // Domain settings
+        'email_domains',
+        'revision_scheme',
+        'name',
+        'slug'
       ] as const
       
-      const changedOrgFields = orgIntegrationFields.filter(
-        key => (newOrg as any)?.[key] !== (oldOrg as any)?.[key]
+      const changedOrgFields = orgAdminFields.filter(
+        key => JSON.stringify((newOrg as any)?.[key]) !== JSON.stringify((oldOrg as any)?.[key])
       )
       
-      const allChangedIntegrations = [...changedSettingsKeys, ...changedOrgFields]
+      // Check JSONB columns for admin settings
+      const jsonbAdminFields = [
+        'rfq_settings',
+        'serialization_settings',
+        'module_defaults'
+      ] as const
+      
+      const changedJsonbFields = jsonbAdminFields.filter(
+        key => JSON.stringify((newOrg as any)?.[key]) !== JSON.stringify((oldOrg as any)?.[key])
+      )
+      
+      const allChangedFields = [...changedSettingsKeys, ...changedOrgFields, ...changedJsonbFields]
       
       // Log api_url changes specifically for debugging sync issues
       if (changedSettingsKeys.includes('api_url')) {
@@ -2118,11 +2158,12 @@ function App() {
       
       // Update the organization in the store
       // This triggers the sync useEffect in App.tsx to update apiServerUrl
+      // Also triggers re-render in all components that use organization from store
       setOrganization(newOrg)
       
-      // Show toast if integration settings changed
-      if (allChangedIntegrations.length > 0) {
-        console.log('[Realtime] Integration settings updated:', allChangedIntegrations)
+      // Show toast if any admin settings changed
+      if (allChangedFields.length > 0) {
+        console.log('[Realtime] Organization settings updated:', allChangedFields)
         addToast('info', 'Organization settings updated by an admin')
       }
     })
