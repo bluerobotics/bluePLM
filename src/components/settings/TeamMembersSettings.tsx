@@ -227,6 +227,7 @@ interface PendingMember {
   role: string
   team_ids: string[]
   workflow_role_ids: string[]
+  vault_ids: string[]
   created_at: string
   created_by: string | null
   notes: string | null
@@ -237,6 +238,9 @@ export function TeamMembersSettings() {
   const { user, organization, addToast, getEffectiveRole, apiServerUrl } = usePDMStore()
   
   const isAdmin = getEffectiveRole() === 'admin'
+  
+  // Active tab state - 'teams' or 'users'
+  const [activeTab, setActiveTab] = useState<'teams' | 'users'>('teams')
   
   // Data state
   const [teams, setTeams] = useState<TeamWithDetails[]>([])
@@ -325,7 +329,8 @@ export function TeamMembersSettings() {
     role: string
     team_ids: string[]
     workflow_role_ids: string[]
-  }>({ full_name: '', role: 'viewer', team_ids: [], workflow_role_ids: [] })
+    vault_ids: string[]
+  }>({ full_name: '', role: 'viewer', team_ids: [], workflow_role_ids: [], vault_ids: [] })
   const [isSavingPendingMember, setIsSavingPendingMember] = useState(false)
   
   // Load data on mount
@@ -435,7 +440,8 @@ export function TeamMembersSettings() {
       full_name: pm.full_name || '',
       role: pm.role,
       team_ids: pm.team_ids || [],
-      workflow_role_ids: pm.workflow_role_ids || []
+      workflow_role_ids: pm.workflow_role_ids || [],
+      vault_ids: pm.vault_ids || []
     })
   }
   
@@ -450,7 +456,8 @@ export function TeamMembersSettings() {
           full_name: pendingMemberForm.full_name || null,
           role: pendingMemberForm.role,
           team_ids: pendingMemberForm.team_ids,
-          workflow_role_ids: pendingMemberForm.workflow_role_ids
+          workflow_role_ids: pendingMemberForm.workflow_role_ids,
+          vault_ids: pendingMemberForm.vault_ids
         })
         .eq('id', editingPendingMember.id)
       
@@ -482,6 +489,15 @@ export function TeamMembersSettings() {
       workflow_role_ids: prev.workflow_role_ids.includes(roleId)
         ? prev.workflow_role_ids.filter(id => id !== roleId)
         : [...prev.workflow_role_ids, roleId]
+    }))
+  }
+  
+  const togglePendingMemberVault = (vaultId: string) => {
+    setPendingMemberForm(prev => ({
+      ...prev,
+      vault_ids: prev.vault_ids.includes(vaultId)
+        ? prev.vault_ids.filter(id => id !== vaultId)
+        : [...prev.vault_ids, vaultId]
     }))
   }
   
@@ -1086,15 +1102,10 @@ See you on the team!`
         <div>
           <h2 className="text-xl font-semibold text-plm-fg flex items-center gap-2">
             <UsersRound size={22} />
-            Members & Teams
-            {orgUsers.length > 0 && (
-              <span className="text-sm font-normal text-plm-fg-muted bg-plm-bg-secondary px-2 py-0.5 rounded-full">
-                {orgUsers.length} {orgUsers.length === 1 ? 'member' : 'members'}
-              </span>
-            )}
+            Members
           </h2>
           <p className="text-sm text-plm-fg-muted mt-1">
-            Organize members into teams and manage permissions
+            {activeTab === 'teams' ? 'Organize members into teams and manage permissions' : 'Manage individual users in your organization'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1106,7 +1117,7 @@ See you on the team!`
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
-          {isAdmin && (
+          {isAdmin && activeTab === 'users' && (
             <>
               <button
                 onClick={() => setShowInviteDialog(true)}
@@ -1118,25 +1129,67 @@ See you on the team!`
               </button>
               <button
                 onClick={() => setShowCreateUserDialog(true)}
-                className="btn btn-ghost btn-sm flex items-center gap-1"
+                className="btn btn-primary btn-sm flex items-center gap-1"
                 title="Pre-create user account"
               >
                 <UserPlus size={14} />
                 Add User
               </button>
-              <button
-                onClick={() => {
-                  resetTeamForm()
-                  setShowCreateTeamDialog(true)
-                }}
-                className="btn btn-primary btn-sm flex items-center gap-2"
-              >
-                <Plus size={16} />
-                Create Team
-              </button>
             </>
           )}
+          {isAdmin && activeTab === 'teams' && (
+            <button
+              onClick={() => {
+                resetTeamForm()
+                setShowCreateTeamDialog(true)
+              }}
+              className="btn btn-primary btn-sm flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Create Team
+            </button>
+          )}
         </div>
+      </div>
+      
+      {/* Tab Navigation */}
+      <div className="flex gap-1 p-1 bg-plm-bg-secondary rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab('teams')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+            activeTab === 'teams'
+              ? 'bg-plm-bg text-plm-fg shadow-sm'
+              : 'text-plm-fg-muted hover:text-plm-fg'
+          }`}
+        >
+          <Users size={16} />
+          Teams
+          {teams.length > 0 && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              activeTab === 'teams' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+            }`}>
+              {teams.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+            activeTab === 'users'
+              ? 'bg-plm-bg text-plm-fg shadow-sm'
+              : 'text-plm-fg-muted hover:text-plm-fg'
+          }`}
+        >
+          <UsersRound size={16} />
+          Users
+          {orgUsers.length > 0 && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              activeTab === 'users' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+            }`}>
+              {orgUsers.length}
+            </span>
+          )}
+        </button>
       </div>
       
       {/* Search */}
@@ -1146,7 +1199,7 @@ See you on the team!`
           type="text"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search teams or members..."
+          placeholder={activeTab === 'teams' ? "Search teams..." : "Search users..."}
           className="w-full pl-10 pr-4 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
         />
       </div>
@@ -1762,6 +1815,58 @@ See you on the team!`
                 </div>
                 <p className="text-xs text-plm-fg-muted mt-1">
                   User will be automatically added to selected teams when they sign in.
+                </p>
+              </div>
+              
+              {/* Vault Access */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-2">Vault Access</label>
+                <div className={`p-3 rounded-lg border mb-2 ${
+                  pendingMemberForm.vault_ids.length === 0
+                    ? 'bg-plm-success/10 border-plm-success/30'
+                    : 'bg-plm-bg border-plm-border'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Database size={16} className={pendingMemberForm.vault_ids.length === 0 ? 'text-plm-success' : 'text-plm-fg-muted'} />
+                    <span className={`text-sm ${pendingMemberForm.vault_ids.length === 0 ? 'text-plm-success' : 'text-plm-fg-muted'}`}>
+                      {pendingMemberForm.vault_ids.length === 0 
+                        ? 'All vaults (no restrictions)' 
+                        : `${pendingMemberForm.vault_ids.length} of ${orgVaults.length} vaults selected`}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-1 max-h-36 overflow-y-auto border border-plm-border rounded-lg p-2 bg-plm-bg">
+                  {orgVaults.length === 0 ? (
+                    <div className="text-sm text-plm-fg-muted p-2">No vaults available</div>
+                  ) : (
+                    orgVaults.map(vault => {
+                      const isSelected = pendingMemberForm.vault_ids.includes(vault.id)
+                      return (
+                        <button
+                          key={vault.id}
+                          onClick={() => togglePendingMemberVault(vault.id)}
+                          className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                            isSelected 
+                              ? 'bg-plm-accent/10 border border-plm-accent/30' 
+                              : 'hover:bg-plm-highlight border border-transparent'
+                          }`}
+                        >
+                          <div
+                            className={`w-6 h-6 rounded flex items-center justify-center ${
+                              isSelected ? 'bg-plm-accent text-white' : 'bg-plm-fg-muted/10 text-plm-fg-muted'
+                            }`}
+                          >
+                            <Folder size={14} />
+                          </div>
+                          <span className="flex-1 text-left text-sm text-plm-fg">{vault.name}</span>
+                          {isSelected && <Check size={14} className="text-plm-accent" />}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+                <p className="text-xs text-plm-fg-muted mt-1">
+                  Leave empty for access to all vaults, or select specific vaults to restrict access.
                 </p>
               </div>
             </div>
