@@ -4365,10 +4365,14 @@ export function WorkflowsView() {
           {isAdmin && (
             <button
               onClick={() => {
-                // Navigate to workflow roles settings
+                // Navigate to workflow roles settings (users tab)
                 const { setActiveView } = usePDMStore.getState()
                 setActiveView('settings')
                 window.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'team-members' }))
+                // Switch to users tab after a brief delay to ensure component mounts
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('navigate-team-members-tab', { detail: 'users' }))
+                }, 50)
               }}
               className="flex items-center gap-1 px-2 py-1 hover:bg-plm-bg rounded text-xs text-plm-fg-muted hover:text-plm-fg"
               title="Manage workflow roles (approval authorities)"
@@ -6700,6 +6704,9 @@ function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps) {
                     const { setActiveView } = usePDMStore.getState()
                     setActiveView('settings')
                     window.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'team-members' }))
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('navigate-team-members-tab', { detail: 'users' }))
+                    }, 50)
                     onClose()
                   }}
                   className="text-plm-accent hover:underline"
@@ -6926,6 +6933,9 @@ function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDia
                     const { setActiveView } = usePDMStore.getState()
                     setActiveView('settings')
                     window.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'team-members' }))
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('navigate-team-members-tab', { detail: 'users' }))
+                    }, 50)
                     onClose()
                   }}
                   className="text-plm-accent hover:underline"

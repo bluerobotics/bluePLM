@@ -314,6 +314,9 @@ export function TeamMembersSettings() {
   // Add to team modal
   const [addToTeamUser, setAddToTeamUser] = useState<OrgUser | null>(null)
   
+  // Edit user teams modal
+  const [editingTeamsUser, setEditingTeamsUser] = useState<OrgUser | null>(null)
+  
   // Org code state
   const [showOrgCode, setShowOrgCode] = useState(false)
   const [orgCode, setOrgCode] = useState<string | null>(null)
@@ -334,6 +337,15 @@ export function TeamMembersSettings() {
   }>({ full_name: '', team_ids: [], workflow_role_ids: [], vault_ids: [] })
   const [isSavingPendingMember, setIsSavingPendingMember] = useState(false)
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null)
+  
+  // Listen for navigation events to switch inner tab
+  useEffect(() => {
+    const handleSwitchTab = (e: CustomEvent<'teams' | 'users'>) => {
+      setActiveTab(e.detail)
+    }
+    window.addEventListener('navigate-team-members-tab', handleSwitchTab as EventListener)
+    return () => window.removeEventListener('navigate-team-members-tab', handleSwitchTab as EventListener)
+  }, [])
   
   // Load data on mount
   useEffect(() => {
@@ -1436,13 +1448,13 @@ export function TeamMembersSettings() {
                           )}
                           
                           {/* Team Members List */}
-                          <div className="p-3">
+                          <div>
                             {teamMembers.length === 0 ? (
                               <p className="text-sm text-plm-fg-muted text-center py-4">
                                 No members in this team
                               </p>
                             ) : (
-                              <div className="space-y-1">
+                              <div className="divide-y divide-plm-border/50">
                                 {teamMembers.map(member => (
                                   <UserRow
                                     key={member.id}
@@ -1453,8 +1465,8 @@ export function TeamMembersSettings() {
                                     onRemove={() => setRemovingUser(member)}
                                     onRemoveFromTeam={() => handleRemoveFromTeam(member, team.id, team.name)}
                                     onVaultAccess={() => openVaultAccessEditor(member)}
+                                    onPermissions={isAdmin ? () => setEditingPermissionsUser(member) : undefined}
                                     vaultAccessCount={getUserVaultAccessCount(member.id)}
-                                    compact
                                     jobTitles={jobTitles}
                                     titleDropdownOpen={titleDropdownOpen}
                                     setTitleDropdownOpen={setTitleDropdownOpen}
@@ -1464,6 +1476,8 @@ export function TeamMembersSettings() {
                                     workflowRoles={workflowRoles}
                                     userWorkflowRoleIds={userWorkflowRoleAssignments[member.id]}
                                     onEditWorkflowRoles={setEditingWorkflowRolesUser}
+                                    teams={teams}
+                                    onEditTeams={setEditingTeamsUser}
                                   />
                                 ))}
                               </div>
@@ -1525,6 +1539,8 @@ export function TeamMembersSettings() {
                       workflowRoles={workflowRoles}
                       userWorkflowRoleIds={userWorkflowRoleAssignments[u.id]}
                       onEditWorkflowRoles={setEditingWorkflowRolesUser}
+                      teams={teams}
+                      onEditTeams={setEditingTeamsUser}
                     />
                   ))}
                 </div>
@@ -2363,6 +2379,57 @@ export function TeamMembersSettings() {
           }}
         />
       )}
+
+      {/* User Teams Modal */}
+      {editingTeamsUser && (
+        <UserTeamsModal
+          user={editingTeamsUser}
+          allTeams={teams}
+          userTeamIds={(editingTeamsUser.teams || []).map(t => t.id)}
+          onClose={() => setEditingTeamsUser(null)}
+          onSave={async (teamIds) => {
+            if (!user) return
+            try {
+              // Get current team memberships
+              const currentTeamIds = (editingTeamsUser.teams || []).map(t => t.id)
+              
+              // Teams to add (in teamIds but not in currentTeamIds)
+              const toAdd = teamIds.filter(id => !currentTeamIds.includes(id))
+              
+              // Teams to remove (in currentTeamIds but not in teamIds)
+              const toRemove = currentTeamIds.filter(id => !teamIds.includes(id))
+              
+              // Remove from teams
+              for (const teamId of toRemove) {
+                await supabase
+                  .from('team_members')
+                  .delete()
+                  .eq('user_id', editingTeamsUser.id)
+                  .eq('team_id', teamId)
+              }
+              
+              // Add to teams
+              for (const teamId of toAdd) {
+                await supabase
+                  .from('team_members')
+                  .insert({
+                    team_id: teamId,
+                    user_id: editingTeamsUser.id,
+                    added_by: user.id
+                  })
+              }
+              
+              addToast('success', `Updated teams for ${editingTeamsUser.full_name || editingTeamsUser.email}`)
+              loadOrgUsers()
+              loadTeams()
+              setEditingTeamsUser(null)
+            } catch (err) {
+              console.error('Failed to update teams:', err)
+              addToast('error', 'Failed to update teams')
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -2728,6 +2795,115 @@ function WorkflowRolesModal({
   )
 }
 
+// User Teams Modal Component
+function UserTeamsModal({
+  user,
+  allTeams,
+  userTeamIds,
+  onClose,
+  onSave
+}: {
+  user: OrgUser
+  allTeams: { id: string; name: string; color: string; icon: string }[]
+  userTeamIds: string[]
+  onClose: () => void
+  onSave: (teamIds: string[]) => Promise<void>
+}) {
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(userTeamIds)
+  const [isSaving, setIsSaving] = useState(false)
+  
+  const toggleTeam = (teamId: string) => {
+    setSelectedTeamIds(prev =>
+      prev.includes(teamId)
+        ? prev.filter(id => id !== teamId)
+        : [...prev, teamId]
+    )
+  }
+  
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      await onSave(selectedTeamIds)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const hasChanges = JSON.stringify([...selectedTeamIds].sort()) !== JSON.stringify([...userTeamIds].sort())
+  
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-4">
+          <div className="p-2 rounded-lg bg-plm-accent/20 text-plm-accent">
+            <Users size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-medium text-plm-fg">Teams</h3>
+            <p className="text-sm text-plm-fg-muted">
+              Manage team membership for <strong>{user.full_name || user.email}</strong>
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+          {allTeams.length === 0 ? (
+            <div className="text-center py-8 text-sm text-plm-fg-muted">
+              <Users size={32} className="mx-auto mb-2 opacity-50" />
+              <p>No teams available.</p>
+              <p className="text-xs mt-1">Create teams in the Teams tab first.</p>
+            </div>
+          ) : (
+            allTeams.map(team => {
+              const TeamIcon = (LucideIcons as any)[team.icon] || Users
+              const isSelected = selectedTeamIds.includes(team.id)
+              
+              return (
+                <button
+                  key={team.id}
+                  onClick={() => toggleTeam(team.id)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    isSelected
+                      ? 'border-plm-accent bg-plm-accent/10'
+                      : 'border-plm-border hover:border-plm-fg-muted hover:bg-plm-highlight'
+                  }`}
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: `${team.color}20`, color: team.color }}
+                  >
+                    <TeamIcon size={16} />
+                  </div>
+                  <span className="flex-1 text-left text-sm text-plm-fg font-medium">{team.name}</span>
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                    isSelected
+                      ? 'border-plm-accent bg-plm-accent'
+                      : 'border-plm-fg-muted'
+                  }`}>
+                    {isSelected && <Check size={12} className="text-white" />}
+                  </div>
+                </button>
+              )
+            })
+          )}
+        </div>
+        
+        <div className="flex gap-2 justify-end pt-4 border-t border-plm-border">
+          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving || !hasChanges}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // User Row Component
 function UserRow({
   user,
@@ -2750,7 +2926,9 @@ function UserRow({
   onCreateTitle,
   workflowRoles,
   userWorkflowRoleIds,
-  onEditWorkflowRoles
+  onEditWorkflowRoles,
+  teams,
+  onEditTeams
 }: {
   user: OrgUser
   isAdmin: boolean
@@ -2773,6 +2951,8 @@ function UserRow({
   workflowRoles?: WorkflowRoleBasic[]
   userWorkflowRoleIds?: string[]
   onEditWorkflowRoles?: (user: OrgUser) => void
+  teams?: { id: string; name: string; color: string; icon: string }[]
+  onEditTeams?: (user: OrgUser) => void
 }) {
   // Admins can manage settings for everyone including themselves
   const canManage = isAdmin
@@ -2807,16 +2987,6 @@ function UserRow({
               <span className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-fg-muted/10 rounded text-plm-fg-dim">
                 <Lock size={10} />
                 {vaultAccessCount}
-              </span>
-            )}
-            {/* Teams count badge - only show in users section (not in team member rows) */}
-            {!compact && (user.teams || []).length > 0 && (
-              <span 
-                className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-accent/10 rounded text-plm-accent text-[11px] cursor-help"
-                title={(user.teams || []).map(t => t.name).join(', ')}
-              >
-                <Users size={10} />
-                {(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -2919,8 +3089,67 @@ function UserRow({
         </div>
       )}
       
-      {/* Workflow roles badge */}
-      {workflowRoles && workflowRoles.length > 0 && (
+      {/* Teams and Roles badges - side by side */}
+      {!compact && (
+        <div className="flex items-center gap-1.5">
+          {/* Teams badge */}
+          {teams && teams.length > 0 && (user.teams || []).length > 0 ? (
+            <button
+              onClick={() => onEditTeams?.(user)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-plm-accent/10 text-plm-accent ${
+                canManage ? 'hover:ring-1 hover:ring-plm-accent cursor-pointer' : 'cursor-default'
+              }`}
+              title={(user.teams || []).map(t => t.name).join(', ')}
+            >
+              <Users size={12} />
+              <span>{(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}</span>
+              {canManage && <ChevronDown size={12} />}
+            </button>
+          ) : teams && teams.length > 0 && canManage && onEditTeams ? (
+            <button
+              onClick={() => onEditTeams(user)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border hover:border-plm-accent hover:text-plm-accent transition-colors"
+              title="Add to teams"
+            >
+              <Users size={12} />
+              No teams
+              <ChevronDown size={12} />
+            </button>
+          ) : null}
+          
+          {/* Workflow roles badge */}
+          {workflowRoles && workflowRoles.length > 0 && (
+            <>
+              {userWorkflowRoleIds && userWorkflowRoleIds.length > 0 ? (
+                <button
+                  onClick={() => onEditWorkflowRoles?.(user)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-purple-500/10 text-purple-400 ${
+                    canManage ? 'hover:ring-1 hover:ring-purple-400 cursor-pointer' : 'cursor-default'
+                  }`}
+                  title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
+                >
+                  <Shield size={12} />
+                  <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
+                  {canManage && <ChevronDown size={12} />}
+                </button>
+              ) : canManage && onEditWorkflowRoles ? (
+                <button
+                  onClick={() => onEditWorkflowRoles(user)}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border hover:border-purple-400 hover:text-purple-400 transition-colors"
+                  title="Add workflow roles"
+                >
+                  <Shield size={12} />
+                  No roles
+                  <ChevronDown size={12} />
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
+      
+      {/* Workflow roles badge - compact mode (team member rows) */}
+      {compact && workflowRoles && workflowRoles.length > 0 && (
         <div className="flex items-center">
           {userWorkflowRoleIds && userWorkflowRoleIds.length > 0 ? (
             <button
