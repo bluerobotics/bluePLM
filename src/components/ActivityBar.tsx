@@ -303,7 +303,18 @@ function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter,
   }
   
   const handleChildMouseEnter = (childId: ModuleId, e: React.MouseEvent) => {
-    const childModules = getChildModules(childId, moduleConfig).filter(c => isModuleVisible(c.id, moduleConfig))
+    const allChildren = getChildModules(childId, moduleConfig)
+    const childModules = allChildren.filter(c => isModuleVisible(c.id, moduleConfig))
+    // Debug: always log for production-analytics
+    if (childId === 'production-analytics' || allChildren.length > 0) {
+      console.log(`[DEBUG] handleChildMouseEnter(${childId}):`, {
+        allChildrenCount: allChildren.length,
+        allChildrenIds: allChildren.map(c => c.id),
+        visibleCount: childModules.length,
+        visibleIds: childModules.map(c => c.id),
+        moduleParents: Object.entries(moduleConfig.moduleParents || {}).filter(([_k, v]) => v === childId)
+      })
+    }
     if (childModules.length > 0) {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current)
@@ -318,7 +329,7 @@ function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter,
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredChild(null)
       setChildRect(null)
-    }, 200)
+    }, 400) // Increased delay to give time to reach nested submenu
   }
   
   const handlePanelMouseEnter = () => {
@@ -336,10 +347,10 @@ function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter,
   const handlePanelMouseLeave = () => {
     setHoveredChild(null)
     setChildRect(null)
-    // Small delay before calling parent's onMouseLeave
+    // Delay before calling parent's onMouseLeave to allow moving to nested panels
     closeTimeoutRef.current = setTimeout(() => {
       onMouseLeave()
-    }, 100)
+    }, 300)
   }
   
   return (
@@ -437,7 +448,7 @@ function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter,
                         // Delay close to allow moving back to parent
                         hoverTimeoutRef.current = setTimeout(() => {
                           setHoveredChild(null)
-                        }, 150)
+                        }, 400)
                       }}
                     />
                   )}

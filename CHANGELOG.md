@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.16.7] - 2025-12-30
+
+### Fixed
+- **Schema version mismatch**: Updated app to expect schema v3 (was incorrectly set to v1, causing "database newer than app" warnings)
+
+---
+
 ## [2.16.6] - 2025-12-30
 
 ### Added

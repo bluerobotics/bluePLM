@@ -538,6 +538,7 @@ export const MODULES: ModuleDefinition[] = [
     group: 'production-analytics',
     icon: 'TrendingUp',
     defaultEnabled: true,
+    implemented: false,
   },
   {
     id: 'error-codes',
@@ -545,6 +546,7 @@ export const MODULES: ModuleDefinition[] = [
     group: 'production-analytics',
     icon: 'AlertOctagon',
     defaultEnabled: true,
+    implemented: false,
   },
   {
     id: 'downtime',
@@ -552,6 +554,7 @@ export const MODULES: ModuleDefinition[] = [
     group: 'production-analytics',
     icon: 'Clock',
     defaultEnabled: true,
+    implemented: false,
   },
   {
     id: 'oee',
@@ -559,6 +562,7 @@ export const MODULES: ModuleDefinition[] = [
     group: 'production-analytics',
     icon: 'Gauge',
     defaultEnabled: true,
+    implemented: false,
   },
   {
     id: 'scrap-tracking',
@@ -566,6 +570,7 @@ export const MODULES: ModuleDefinition[] = [
     group: 'production-analytics',
     icon: 'Trash',
     defaultEnabled: true,
+    implemented: false,
   },
 
   // ============================================

@@ -7,6 +7,8 @@
  * 
  * VERSION HISTORY:
  * - Version 1: Initial schema version tracking (v2.15.0)
+ * - Version 2: Added workflow_roles, job_titles, pending_org_members, vault_users (v2.16.0)
+ * - Version 3: Added auth_providers to organizations for SSO control (v2.16.6)
  * 
  * When making schema changes:
  * 1. Increment EXPECTED_SCHEMA_VERSION here
@@ -19,7 +21,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 1
+export const EXPECTED_SCHEMA_VERSION = 3
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -28,6 +30,8 @@ export const MINIMUM_COMPATIBLE_VERSION = 1
 // Human-readable descriptions for each version
 export const VERSION_DESCRIPTIONS: Record<number, string> = {
   1: 'Initial schema version tracking',
+  2: 'Added workflow roles, job titles, pending org members, vault users',
+  3: 'Added auth providers for SSO control',
 }
 
 export interface SchemaVersionInfo {
