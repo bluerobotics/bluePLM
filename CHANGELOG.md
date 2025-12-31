@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.20.3] - 2025-12-31
+
+### Fixed
+- **In-app update crashing on macOS**: Fixed auto-update install crashing on Mac. Replaced problematic `quitAndInstall` with `app.relaunch()` + `app.exit()` which is more reliable on macOS
+
+---
+
 ## [2.20.2] - 2025-12-31
 
 ### Fixed

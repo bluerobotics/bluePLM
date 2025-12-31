@@ -5875,17 +5875,37 @@ ipcMain.handle('updater:install', () => {
   log('Installing update and restarting...')
   
   // Use setImmediate to ensure IPC response is sent before we quit
-  // On macOS, quitAndInstall may not always quit the app properly with DMG packages
   setImmediate(() => {
-    autoUpdater.quitAndInstall(false, true)
-    
-    // On macOS, explicitly quit the app if quitAndInstall doesn't do it
-    // This fixes the hanging spinner issue on Mac
-    if (process.platform === 'darwin') {
-      setTimeout(() => {
-        log('[Update] Force quitting app for macOS update...')
+    try {
+      if (process.platform === 'darwin') {
+        // On macOS, quitAndInstall often crashes or hangs with DMG/ZIP packages
+        // Use a more reliable approach: relaunch the app and then exit
+        log('[Update] macOS: Using app.relaunch + app.exit for update installation')
+        
+        // Tell electron-updater to install on next launch (don't quit now)
+        // The update is already downloaded and will be applied on restart
+        autoUpdater.autoInstallOnAppQuit = true
+        
+        // Relaunch the app - this schedules the app to restart after exit
+        app.relaunch()
+        
+        // Force exit (not quit, which can be prevented by event handlers)
+        // This allows the updater to apply the update before the app restarts
+        app.exit(0)
+      } else {
+        // On Windows/Linux, quitAndInstall works reliably
+        autoUpdater.quitAndInstall(false, true)
+      }
+    } catch (err) {
+      logError('[Update] quitAndInstall failed, trying fallback', { error: String(err) })
+      // Fallback: try to at least quit the app so user can restart manually
+      try {
+        app.relaunch()
+        app.exit(0)
+      } catch (fallbackErr) {
+        logError('[Update] Fallback also failed', { error: String(fallbackErr) })
         app.quit()
-      }, 1000)
+      }
     }
   })
   
