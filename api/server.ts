@@ -1514,7 +1514,20 @@ export async function buildServer(): Promise<FastifyInstance> {
     const orgCodeChunks = orgCodeBase64.match(/.{1,4}/g) || []
     const orgCode = 'PDM-' + orgCodeChunks.join('-')
     
-    // Send invite email using Supabase Auth
+    // If user already has an auth account (e.g., was previously in org and removed),
+    // we can't send an invite email (Supabase doesn't allow it for existing users)
+    // Return the org code so admin can share it directly
+    if (existingAuthUser) {
+      return {
+        success: true,
+        message: `${normalizedEmail} already has an account. Share this org code with them to rejoin:`,
+        pending_member_id: pendingMemberId,
+        org_code: orgCode,
+        existing_user: true
+      }
+    }
+    
+    // Send invite email using Supabase Auth (only for NEW users)
     // Include org code in email data so it can be displayed in the email template
     // Redirect to downloads page after confirmation
     const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
@@ -1531,9 +1544,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       fastify.log.warn({ email: normalizedEmail, error: inviteError }, 'Failed to send invite email, but pending member created')
       return {
         success: true,
-        message: resend 
-          ? `Failed to resend invite: ${inviteError.message}` 
-          : `User added but invite email failed: ${inviteError.message}. They can still sign up manually.`,
+        message: `Invite created for ${normalizedEmail}. Email delivery failed but they can sign in manually.`,
         pending_member_id: pendingMemberId
       }
     }

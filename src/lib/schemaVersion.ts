@@ -21,7 +21,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 12
+export const EXPECTED_SCHEMA_VERSION = 17
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -41,6 +41,11 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   10: 'join_org_by_slug creates user record if trigger hasn\'t fired (fixes org code race condition)',
   11: 'Case-insensitive email matching for pending_org_members (fixes invite flow with different email case)',
   12: 'Block user feature and regenerate org code (security features)',
+  13: 'Fixed invite org assignment - handle_new_user includes org_id in UPDATE',
+  14: 'Robust enum creation using pg_type check',
+  15: 'Fixed workflow role assignment table name',
+  16: 'Simplified default teams: Administrators (mandatory) + New Users (deletable)',
+  17: 'admin_remove_user RPC fully removes user from org and auth.users',
 }
 
 export interface SchemaVersionInfo {

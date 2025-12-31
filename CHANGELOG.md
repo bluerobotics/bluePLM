@@ -2,6 +2,25 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.19.1] - 2025-12-31
+
+### Changed
+- **Admin remove user fully deletes**: Removing a user from the organization now fully deletes them from `auth.users`, allowing clean re-invites without "user already registered" errors
+- **Schema version**: Bumped to v17
+
+---
+
+## [2.19.0] - 2025-12-31
+
+### Fixed
+- **Multi-vault display bug on sign-in**: Fixed issue where the second vault would show the first vault's files until manually selecting each vault. Root cause was the working directory not updating when `activeVaultId` changed, and stale closure issues in the auto-connect flow
+- **Invited users can't see teams/roles**: Fixed critical bug where `handle_new_user` didn't include `org_id` in the `ON CONFLICT UPDATE` clause, so returning users with pending invites never had their org assigned
+
+### Changed
+- **Schema version**: Bumped to v13
+
+---
+
 ## [2.18.3] - 2025-12-31
 
 ### Added

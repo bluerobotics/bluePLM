@@ -55,6 +55,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 --  10 = join_org_by_slug creates user record if trigger hasn't fired (fixes race condition)
 --  11 = Case-insensitive email matching for pending_org_members (fixes invite flow with different email case)
 --  12 = Block user feature and regenerate org code (security features)
+--  13 = Fixed invite org assignment - handle_new_user now includes org_id in ON CONFLICT UPDATE
+--  14 = More robust enum creation using pg_type check
+--  15 = Fixed workflow_role_members -> user_workflow_roles table name in apply_pending_team_memberships
+--  16 = Simplified default teams: only Administrators (mandatory) and New Users (deletable)
+--  17 = admin_remove_user RPC fully removes user from org and auth.users
 -- ===========================================
 
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -67,24 +72,15 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version if table is empty (new installations get latest version)
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 12, 'Block user feature and regenerate org code', NOW(), 'migration')
+VALUES (1, 17, 'admin_remove_user RPC fully removes user from org and auth.users', NOW(), 'migration')
 ON CONFLICT (id) DO NOTHING;
 
--- Upgrade from v11 to v12: Block user feature
-UPDATE schema_version SET
-  version = 12,
-  description = 'Block user feature and regenerate org code',
-  applied_at = NOW(),
-  applied_by = 'migration'
-WHERE version = 11;
-
--- Upgrade from v10 to v12 (skip v11 for those who missed it)
-UPDATE schema_version SET
-  version = 12,
-  description = 'Block user feature and regenerate org code',
-  applied_at = NOW(),
-  applied_by = 'migration'
-WHERE version = 10;
+-- Update existing installations to latest version
+UPDATE schema_version SET 
+  version = 17, 
+  description = 'admin_remove_user RPC fully removes user from org and auth.users', 
+  applied_at = NOW() 
+WHERE id = 1 AND version < 17;
 
 -- Upgrade existing installations to v10
 UPDATE schema_version 
@@ -123,32 +119,38 @@ CREATE POLICY "Service role can update schema version"
   USING (auth.role() = 'service_role');
 
 -- ===========================================
--- ENUMS (idempotent - wrapped in exception handlers)
+-- ENUMS (idempotent - uses pg_type check)
 -- ===========================================
+-- Using explicit IF NOT EXISTS check for better reliability
 
 DO $$ BEGIN
-  CREATE TYPE file_type AS ENUM ('part', 'assembly', 'drawing', 'document', 'other');
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'file_type') THEN
+    CREATE TYPE file_type AS ENUM ('part', 'assembly', 'drawing', 'document', 'other');
+  END IF;
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE reference_type AS ENUM ('component', 'drawing_view', 'derived', 'copy');
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'reference_type') THEN
+    CREATE TYPE reference_type AS ENUM ('component', 'drawing_view', 'derived', 'copy');
+  END IF;
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE user_role AS ENUM ('admin', 'engineer', 'viewer');
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+    CREATE TYPE user_role AS ENUM ('admin', 'engineer', 'viewer');
+  END IF;
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE revision_scheme AS ENUM ('letter', 'numeric');
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'revision_scheme') THEN
+    CREATE TYPE revision_scheme AS ENUM ('letter', 'numeric');
+  END IF;
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE activity_action AS ENUM ('checkout', 'checkin', 'create', 'delete', 'restore', 'state_change', 'revision_change', 'rename', 'move', 'rollback', 'roll_forward');
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'activity_action') THEN
+    CREATE TYPE activity_action AS ENUM ('checkout', 'checkin', 'create', 'delete', 'restore', 'state_change', 'revision_change', 'rename', 'move', 'rollback', 'roll_forward');
+  END IF;
 END $$;
 
 -- ===========================================
@@ -1262,23 +1264,53 @@ CREATE POLICY "Users can log activity"
 -- org_id is set by claim_pending_membership trigger or via org code entry (not email domain)
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  pending RECORD;
+  pending_org UUID;
+  pending_role TEXT;  -- Use TEXT to avoid enum dependency issues
 BEGIN
-  -- Insert user profile with NULL org_id
-  -- org_id will be set by claim_pending_membership trigger if there's a pending membership
-  -- otherwise user will need to enter an org code
+  -- Check for pending membership FIRST (before creating user record)
+  -- This allows us to set org_id on INSERT rather than relying on trigger timing
+  SELECT * INTO pending
+  FROM pending_org_members
+  WHERE LOWER(email) = LOWER(NEW.email)
+    AND claimed_at IS NULL
+  LIMIT 1;
+  
+  IF FOUND THEN
+    pending_org := pending.org_id;
+    pending_role := pending.role::TEXT;
+  ELSE
+    pending_org := NULL;
+    pending_role := 'engineer';
+  END IF;
+  
+  -- Insert user profile with org_id from pending membership (if any)
   -- Note: Google OAuth stores avatar as 'picture', not 'avatar_url'
-  INSERT INTO public.users (id, email, full_name, avatar_url, org_id)
+  INSERT INTO public.users (id, email, full_name, avatar_url, org_id, role)
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', NEW.raw_user_meta_data->>'picture'),
-    NULL  -- org_id set by claim_pending_membership or org code entry
+    pending_org,
+    pending_role::user_role  -- Cast back to enum for the insert
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
     full_name = COALESCE(EXCLUDED.full_name, public.users.full_name),
-    avatar_url = COALESCE(EXCLUDED.avatar_url, public.users.avatar_url);
+    avatar_url = COALESCE(EXCLUDED.avatar_url, public.users.avatar_url),
+    -- Only update org_id if user doesn't have one yet and we found a pending membership
+    org_id = CASE 
+      WHEN public.users.org_id IS NULL AND EXCLUDED.org_id IS NOT NULL 
+      THEN EXCLUDED.org_id 
+      ELSE public.users.org_id 
+    END,
+    role = CASE 
+      WHEN public.users.org_id IS NULL AND EXCLUDED.org_id IS NOT NULL 
+      THEN EXCLUDED.role 
+      ELSE public.users.role 
+    END;
   
   RETURN NEW;
 EXCEPTION WHEN unique_violation THEN
@@ -5891,49 +5923,31 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ===========================================
 -- DEFAULT PERMISSION TEAMS
 -- ===========================================
--- Creates Viewers, Engineers, and Administrators teams with appropriate permissions.
--- ALL permissions flow through teams.
+-- Creates only the essential default teams:
+-- 1. Administrators - mandatory, cannot be deleted (is_system = TRUE)
+-- 2. New Users - default team for org code signups, CAN be deleted (is_system = FALSE)
+-- Admins should create their own teams (e.g., Engineers, Viewers, etc.)
 
 CREATE OR REPLACE FUNCTION create_default_permission_teams(p_org_id UUID, p_created_by UUID DEFAULT NULL)
 RETURNS VOID AS $$
 DECLARE
-  v_viewers_id UUID;
-  v_engineers_id UUID;
   v_admins_id UUID;
   v_new_users_id UUID;
 BEGIN
-  -- Create Viewers team
-  INSERT INTO teams (org_id, name, description, color, icon, is_system, created_by)
-  VALUES (p_org_id, 'Viewers', 'Read-only access to all modules', '#64748b', 'Eye', TRUE, p_created_by)
-  ON CONFLICT (org_id, name) DO UPDATE SET updated_at = NOW()
-  RETURNING id INTO v_viewers_id;
-  
-  -- Create Engineers team
-  INSERT INTO teams (org_id, name, description, color, icon, is_system, created_by)
-  VALUES (p_org_id, 'Engineers', 'Create and edit access to engineering modules', '#3b82f6', 'Wrench', TRUE, p_created_by)
-  ON CONFLICT (org_id, name) DO UPDATE SET updated_at = NOW()
-  RETURNING id INTO v_engineers_id;
-  
   -- Create Administrators team (mandatory, cannot be deleted)
   INSERT INTO teams (org_id, name, description, color, icon, is_system, created_by)
-  VALUES (p_org_id, 'Administrators', 'Full administrative access to all modules and settings', '#22c55e', 'Shield', TRUE, p_created_by)
+  VALUES (p_org_id, 'Administrators', 'Full administrative access to all modules and settings', '#eab308', 'Star', TRUE, p_created_by)
   ON CONFLICT (org_id, name) DO UPDATE SET updated_at = NOW()
   RETURNING id INTO v_admins_id;
   
   -- Create New Users team - default team for users joining via org code (not via invite)
-  -- Has same permissions as Engineers so new users can start working immediately
+  -- is_system = FALSE so admins CAN delete this team if they want
   INSERT INTO teams (org_id, name, description, color, icon, is_system, created_by)
-  VALUES (p_org_id, 'New Users', 'Default team for new members joining via organization code. Same permissions as Engineers.', '#f59e0b', 'UserPlus', TRUE, p_created_by)
+  VALUES (p_org_id, 'New Users', 'Default team for new members joining via organization code', '#f59e0b', 'UserPlus', FALSE, p_created_by)
   ON CONFLICT (org_id, name) DO UPDATE SET updated_at = NOW()
   RETURNING id INTO v_new_users_id;
   
   -- Get team IDs if they already existed (ON CONFLICT doesn't return id)
-  IF v_viewers_id IS NULL THEN
-    SELECT id INTO v_viewers_id FROM teams WHERE org_id = p_org_id AND name = 'Viewers';
-  END IF;
-  IF v_engineers_id IS NULL THEN
-    SELECT id INTO v_engineers_id FROM teams WHERE org_id = p_org_id AND name = 'Engineers';
-  END IF;
   IF v_admins_id IS NULL THEN
     SELECT id INTO v_admins_id FROM teams WHERE org_id = p_org_id AND name = 'Administrators';
   END IF;
@@ -5951,55 +5965,20 @@ BEGIN
     ON CONFLICT (team_id, user_id) DO NOTHING;
   END IF;
   
-  -- Viewers permissions: view on all modules
+  -- New Users permissions: basic access to work with files
+  -- Admins can customize these permissions or create more restrictive/permissive teams
   INSERT INTO team_permissions (team_id, resource, actions, granted_by) VALUES
-    (v_viewers_id, 'module:explorer', '{view}', p_created_by),
-    (v_viewers_id, 'module:pending', '{view}', p_created_by),
-    (v_viewers_id, 'module:history', '{view}', p_created_by),
-    (v_viewers_id, 'module:items', '{view}', p_created_by),
-    (v_viewers_id, 'module:boms', '{view}', p_created_by),
-    (v_viewers_id, 'module:products', '{view}', p_created_by),
-    (v_viewers_id, 'module:ecr', '{view}', p_created_by),
-    (v_viewers_id, 'module:eco', '{view}', p_created_by),
-    (v_viewers_id, 'module:reviews', '{view}', p_created_by),
-    (v_viewers_id, 'module:settings', '{view}', p_created_by)
-  ON CONFLICT (team_id, resource) DO NOTHING;
-  
-  -- Engineers permissions: view + create + edit on engineering modules
-  INSERT INTO team_permissions (team_id, resource, actions, granted_by) VALUES
-    (v_engineers_id, 'module:explorer', '{view,create,edit,delete}', p_created_by),
-    (v_engineers_id, 'module:pending', '{view,create,edit,delete}', p_created_by),
-    (v_engineers_id, 'module:history', '{view}', p_created_by),
-    (v_engineers_id, 'module:workflows', '{view,edit}', p_created_by),
-    (v_engineers_id, 'module:trash', '{view,delete}', p_created_by),
-    (v_engineers_id, 'module:items', '{view,create,edit}', p_created_by),
-    (v_engineers_id, 'module:boms', '{view,create,edit}', p_created_by),
-    (v_engineers_id, 'module:products', '{view,create,edit}', p_created_by),
-    (v_engineers_id, 'module:ecr', '{view,create,edit}', p_created_by),
-    (v_engineers_id, 'module:eco', '{view,create,edit}', p_created_by),
-    (v_engineers_id, 'module:reviews', '{view,create,edit}', p_created_by),
-    (v_engineers_id, 'module:deviations', '{view,create,edit}', p_created_by),
-    (v_engineers_id, 'module:settings', '{view,edit}', p_created_by)
-  ON CONFLICT (team_id, resource) DO NOTHING;
-  
-  -- New Users permissions: same as Engineers (so new users can work immediately)
-  INSERT INTO team_permissions (team_id, resource, actions, granted_by) VALUES
-    (v_new_users_id, 'module:explorer', '{view,create,edit,delete}', p_created_by),
-    (v_new_users_id, 'module:pending', '{view,create,edit,delete}', p_created_by),
+    (v_new_users_id, 'module:explorer', '{view,create,edit}', p_created_by),
+    (v_new_users_id, 'module:pending', '{view,create,edit}', p_created_by),
     (v_new_users_id, 'module:history', '{view}', p_created_by),
-    (v_new_users_id, 'module:workflows', '{view,edit}', p_created_by),
-    (v_new_users_id, 'module:trash', '{view,delete}', p_created_by),
     (v_new_users_id, 'module:items', '{view,create,edit}', p_created_by),
     (v_new_users_id, 'module:boms', '{view,create,edit}', p_created_by),
-    (v_new_users_id, 'module:products', '{view,create,edit}', p_created_by),
-    (v_new_users_id, 'module:ecr', '{view,create,edit}', p_created_by),
-    (v_new_users_id, 'module:eco', '{view,create,edit}', p_created_by),
-    (v_new_users_id, 'module:reviews', '{view,create,edit}', p_created_by),
-    (v_new_users_id, 'module:deviations', '{view,create,edit}', p_created_by),
-    (v_new_users_id, 'module:settings', '{view,edit}', p_created_by)
+    (v_new_users_id, 'module:products', '{view}', p_created_by),
+    (v_new_users_id, 'module:reviews', '{view,create}', p_created_by),
+    (v_new_users_id, 'module:settings', '{view}', p_created_by)
   ON CONFLICT (team_id, resource) DO NOTHING;
   
-  -- Admins permissions: full admin on everything
+  -- Administrators permissions: full admin on everything
   INSERT INTO team_permissions (team_id, resource, actions, granted_by) VALUES
     (v_admins_id, 'module:explorer', '{view,create,edit,delete,admin}', p_created_by),
     (v_admins_id, 'module:pending', '{view,create,edit,delete,admin}', p_created_by),
@@ -6047,7 +6026,7 @@ END $$;
 COMMENT ON TABLE job_titles IS 'Job titles are display-only labels for users. Permissions come from teams.';
 COMMENT ON TABLE user_job_titles IS 'Assignment of job titles to users (one title per user).';
 COMMENT ON FUNCTION create_default_job_titles IS 'Creates common job titles for an organization.';
-COMMENT ON FUNCTION create_default_permission_teams IS 'Creates Viewers/Engineers/Administrators/New Users teams with appropriate permissions. Sets New Users as the default team for org code joiners.';
+COMMENT ON FUNCTION create_default_permission_teams IS 'Creates Administrators (mandatory) and New Users (deletable) teams. Admins should create their own custom teams.';
 
 -- ===========================================
 -- TEAM MODULE DEFAULTS
@@ -6603,9 +6582,9 @@ BEGIN
     IF pending.workflow_role_ids IS NOT NULL AND array_length(pending.workflow_role_ids, 1) > 0 THEN
       FOREACH v_role_id IN ARRAY pending.workflow_role_ids
       LOOP
-        INSERT INTO workflow_role_members (role_id, user_id, assigned_by)
+        INSERT INTO user_workflow_roles (workflow_role_id, user_id, assigned_by)
         VALUES (v_role_id, p_user_id, pending.created_by)
-        ON CONFLICT (role_id, user_id) DO NOTHING;
+        ON CONFLICT (user_id, workflow_role_id) DO NOTHING;
       END LOOP;
     END IF;
   ELSE
@@ -8496,6 +8475,110 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 COMMENT ON FUNCTION delete_user_account IS 'Permanently deletes user account from both public.users and auth.users. Cleans up all associated data while preserving audit history (activity logs show [Deleted User]).';
+
+-- ===========================================
+-- ADMIN REMOVE USER (Admin-only function to remove a user from org)
+-- ===========================================
+-- Unlike delete_user_account (self-delete), this allows admins to remove other users.
+-- Fully removes the user from both public.users and auth.users.
+
+CREATE OR REPLACE FUNCTION admin_remove_user(p_user_email TEXT)
+RETURNS JSON AS $$
+DECLARE
+  admin_user_id UUID;
+  admin_org_id UUID;
+  admin_role user_role;
+  target_user_id UUID;
+  target_org_id UUID;
+BEGIN
+  admin_user_id := auth.uid();
+  
+  IF admin_user_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+  
+  -- Get admin's org and role
+  SELECT org_id, role INTO admin_org_id, admin_role
+  FROM users
+  WHERE id = admin_user_id;
+  
+  IF admin_org_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'You are not a member of any organization');
+  END IF;
+  
+  IF admin_role != 'admin' THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can remove users');
+  END IF;
+  
+  -- Find target user by email (case-insensitive)
+  SELECT id, org_id INTO target_user_id, target_org_id
+  FROM users
+  WHERE LOWER(email) = LOWER(p_user_email);
+  
+  IF target_user_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'User not found');
+  END IF;
+  
+  IF target_org_id != admin_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'User is not in your organization');
+  END IF;
+  
+  IF target_user_id = admin_user_id THEN
+    RETURN json_build_object('success', false, 'error', 'Cannot remove yourself. Use delete_user_account instead.');
+  END IF;
+  
+  -- Release any file checkouts
+  UPDATE files
+  SET 
+    checked_out_by = NULL,
+    checked_out_at = NULL,
+    checked_out_by_machine_id = NULL,
+    checked_out_by_machine_name = NULL,
+    lock_message = NULL
+  WHERE checked_out_by = target_user_id;
+  
+  -- Delete vault access
+  DELETE FROM vault_access WHERE user_id = target_user_id;
+  
+  -- Delete team memberships
+  DELETE FROM team_members WHERE user_id = target_user_id;
+  
+  -- Delete workflow role assignments
+  DELETE FROM user_workflow_roles WHERE user_id = target_user_id;
+  
+  -- Delete active sessions
+  DELETE FROM user_sessions WHERE user_id = target_user_id;
+  
+  -- Delete notifications
+  DELETE FROM notifications WHERE user_id = target_user_id;
+  
+  -- Delete pending org members for this email (allows re-inviting)
+  DELETE FROM pending_org_members
+  WHERE org_id = admin_org_id AND LOWER(email) = LOWER(p_user_email);
+  
+  -- Delete the user from public.users
+  DELETE FROM public.users WHERE id = target_user_id;
+  
+  -- Delete from auth.users - this is the REAL delete
+  DELETE FROM auth.users WHERE id = target_user_id;
+  
+  RETURN json_build_object(
+    'success', true,
+    'message', 'User removed from organization',
+    'email', p_user_email
+  );
+EXCEPTION WHEN OTHERS THEN
+  RETURN json_build_object(
+    'success', false,
+    'error', SQLERRM,
+    'detail', SQLSTATE
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION admin_remove_user(TEXT) TO authenticated;
+
+COMMENT ON FUNCTION admin_remove_user IS 'Admin-only function to fully remove a user from the organization and auth.users. Allows re-inviting them later.';
 
 -- ===========================================
 -- COMMENTS

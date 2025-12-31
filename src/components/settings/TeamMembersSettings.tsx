@@ -15,7 +15,7 @@ import {
   Check,
   Search,
   Copy,
-  Crown,
+  Star,
   Lock,
   UserMinus,
   RefreshCw,
@@ -1626,7 +1626,7 @@ export function TeamMembersSettings() {
                               </span>
                             )}
                             {team.is_system && (
-                              <Crown size={12} className="text-yellow-500" />
+                              <Star size={12} className="text-yellow-500 fill-yellow-500" />
                             )}
                           </div>
                           <div className="text-xs text-plm-fg-muted flex items-center gap-3">
@@ -1717,8 +1717,8 @@ export function TeamMembersSettings() {
                               )}
                               {team.is_system && (
                                 <span className="text-xs text-plm-fg-muted flex items-center gap-1 ml-auto">
-                                  <Crown size={12} className="text-yellow-500" />
-                                  System team (cannot be deleted)
+                                  <Star size={12} className="text-yellow-500 fill-yellow-500" />
+                                  Required
                                 </span>
                               )}
                             </div>
@@ -5146,7 +5146,13 @@ function CreateUserDialog({
           return
         }
         
-        addToast('success', result.message || `Invite sent to ${email}`)
+        // If user already has an account, copy org code to clipboard
+        if (result.existing_user && result.org_code) {
+          await copyToClipboard(result.org_code)
+          addToast('success', `${result.message} (copied to clipboard)`)
+        } else {
+          addToast('success', result.message || `Invite sent to ${email}`)
+        }
         onCreated()
         onClose()
         return

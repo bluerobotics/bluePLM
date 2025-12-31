@@ -2197,14 +2197,14 @@ export async function updateUserRole(
  */
 export async function removeUserFromOrg(
   targetUserId: string,
-  adminOrgId: string
+  _adminOrgId: string
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
   
-  // Verify target user is in same org
+  // Get target user's email for the RPC call
   const { data: targetUser, error: fetchError } = await client
     .from('users')
-    .select('id, org_id, email')
+    .select('email')
     .eq('id', targetUserId)
     .single()
   
@@ -2212,26 +2212,20 @@ export async function removeUserFromOrg(
     return { success: false, error: 'User not found' }
   }
   
-  if (targetUser.org_id !== adminOrgId) {
-    return { success: false, error: 'User is not in your organization' }
-  }
-  
-  // Delete any pending_org_members entries for this user's email in this org
-  // This allows the user to be re-invited later without constraint violations
-  await client
-    .from('pending_org_members')
-    .delete()
-    .eq('org_id', adminOrgId)
-    .ilike('email', targetUser.email)
-  
-  // Remove from org by setting org_id to null
-  const { error } = await client
-    .from('users')
-    .update({ org_id: null, role: 'engineer' }) // Reset to default role
-    .eq('id', targetUserId)
+  // Call admin_remove_user RPC which fully removes the user from org AND auth.users
+  // This allows them to be cleanly re-invited later
+  const { data, error } = await client.rpc('admin_remove_user', {
+    p_user_email: targetUser.email
+  })
   
   if (error) {
     return { success: false, error: error.message }
+  }
+  
+  const result = data as { success: boolean; error?: string; message?: string }
+  
+  if (!result.success) {
+    return { success: false, error: result.error || 'Failed to remove user' }
   }
   
   return { success: true }
