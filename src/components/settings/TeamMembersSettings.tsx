@@ -4107,17 +4107,25 @@ function UserRow({
         <div className="flex items-center gap-1.5">
           {/* Teams badge */}
           {teams && teams.length > 0 && (user.teams || []).length > 0 ? (
-            <button
-              onClick={() => onEditTeams?.(user)}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-plm-accent/10 text-plm-accent ${
-                canManage ? 'hover:ring-1 hover:ring-plm-accent cursor-pointer' : 'cursor-default'
-              }`}
-              title={(user.teams || []).map(t => t.name).join(', ')}
-            >
-              <Users size={12} />
-              <span>{(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}</span>
-              {canManage && <ChevronDown size={12} />}
-            </button>
+            canManage && onEditTeams ? (
+              <button
+                onClick={() => onEditTeams(user)}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-plm-accent/10 text-plm-accent hover:ring-1 hover:ring-plm-accent cursor-pointer"
+                title={(user.teams || []).map(t => t.name).join(', ')}
+              >
+                <Users size={12} />
+                <span>{(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}</span>
+                <ChevronDown size={12} />
+              </button>
+            ) : (
+              <span
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap bg-plm-accent/10 text-plm-accent"
+                title={(user.teams || []).map(t => t.name).join(', ')}
+              >
+                <Users size={12} />
+                <span>{(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}</span>
+              </span>
+            )
           ) : teams && teams.length > 0 && canManage && onEditTeams ? (
             <button
               onClick={() => onEditTeams(user)}
@@ -4139,17 +4147,25 @@ function UserRow({
           {workflowRoles && workflowRoles.length > 0 && (
             <>
               {userWorkflowRoleIds && userWorkflowRoleIds.length > 0 ? (
-                <button
-                  onClick={() => onEditWorkflowRoles?.(user)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-purple-500/10 text-purple-400 ${
-                    canManage ? 'hover:ring-1 hover:ring-purple-400 cursor-pointer' : 'cursor-default'
-                  }`}
-                  title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
-                >
-                  <Shield size={12} />
-                  <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
-                  {canManage && <ChevronDown size={12} />}
-                </button>
+                canManage && onEditWorkflowRoles ? (
+                  <button
+                    onClick={() => onEditWorkflowRoles(user)}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-purple-500/10 text-purple-400 hover:ring-1 hover:ring-purple-400 cursor-pointer"
+                    title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
+                  >
+                    <Shield size={12} />
+                    <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
+                    <ChevronDown size={12} />
+                  </button>
+                ) : (
+                  <span
+                    className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap bg-purple-500/10 text-purple-400"
+                    title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
+                  >
+                    <Shield size={12} />
+                    <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
+                  </span>
+                )
               ) : canManage && onEditWorkflowRoles ? (
                 <button
                   onClick={() => onEditWorkflowRoles(user)}
@@ -4170,17 +4186,25 @@ function UserRow({
       {compact && workflowRoles && workflowRoles.length > 0 && (
         <div className="flex items-center">
           {userWorkflowRoleIds && userWorkflowRoleIds.length > 0 ? (
-            <button
-              onClick={() => onEditWorkflowRoles?.(user)}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-purple-500/10 text-purple-400 ${
-                canManage ? 'hover:ring-1 hover:ring-purple-400 cursor-pointer' : 'cursor-default'
-              }`}
-              title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
-            >
-              <Shield size={12} />
-              <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
-              {canManage && <ChevronDown size={12} />}
-            </button>
+            canManage && onEditWorkflowRoles ? (
+              <button
+                onClick={() => onEditWorkflowRoles(user)}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-purple-500/10 text-purple-400 hover:ring-1 hover:ring-purple-400 cursor-pointer"
+                title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
+              >
+                <Shield size={12} />
+                <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
+                <ChevronDown size={12} />
+              </button>
+            ) : (
+              <span
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap bg-purple-500/10 text-purple-400"
+                title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
+              >
+                <Shield size={12} />
+                <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
+              </span>
+            )
           ) : canManage && onEditWorkflowRoles ? (
             <button
               onClick={() => onEditWorkflowRoles(user)}

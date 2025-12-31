@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.18.1] - 2025-12-31
+
+### Fixed
+- **Non-admin inline edit buttons**: Team and workflow role badges are now non-interactive for non-admins (previously appeared clickable but saves would silently fail)
+
+---
+
 ## [2.18.0] - 2025-12-31
 
 ### Added
