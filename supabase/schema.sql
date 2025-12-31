@@ -6258,6 +6258,7 @@ CREATE TRIGGER claim_pending_membership_trigger
   EXECUTE FUNCTION claim_pending_membership();
 
 -- Function to add team memberships, vault access, and workflow roles after user is created
+-- If no teams specified in invite, adds user to org's default_new_user_team_id (if configured)
 CREATE OR REPLACE FUNCTION apply_pending_team_memberships(p_user_id UUID)
 RETURNS void AS $$
 DECLARE
@@ -6266,9 +6267,11 @@ DECLARE
   vault_id UUID;
   role_id UUID;
   user_email TEXT;
+  user_org_id UUID;
+  default_team UUID;
 BEGIN
-  -- Get the user's email to find their pending membership
-  SELECT email INTO user_email FROM users WHERE id = p_user_id;
+  -- Get the user's email and org_id to find their pending membership
+  SELECT email, org_id INTO user_email, user_org_id FROM users WHERE id = p_user_id;
   
   -- Find the pending membership by email (not claimed_by, since that's set here)
   SELECT * INTO pending
@@ -6282,14 +6285,27 @@ BEGIN
     UPDATE pending_org_members
     SET claimed_at = NOW(), claimed_by = p_user_id
     WHERE id = pending.id;
-    -- Add user to each pre-assigned team
-    IF pending.team_ids IS NOT NULL THEN
+    
+    -- Add user to pre-assigned teams, OR to default team if none specified
+    IF pending.team_ids IS NOT NULL AND array_length(pending.team_ids, 1) > 0 THEN
+      -- Invited with specific teams - add to those
       FOREACH team_id IN ARRAY pending.team_ids
       LOOP
         INSERT INTO team_members (team_id, user_id, added_by)
         VALUES (team_id, p_user_id, pending.created_by)
         ON CONFLICT (team_id, user_id) DO NOTHING;
       END LOOP;
+    ELSE
+      -- No teams specified - add to org's default team (if configured)
+      SELECT default_new_user_team_id INTO default_team
+      FROM organizations
+      WHERE id = pending.org_id;
+      
+      IF default_team IS NOT NULL THEN
+        INSERT INTO team_members (team_id, user_id, added_by)
+        VALUES (default_team, p_user_id, pending.created_by)
+        ON CONFLICT (team_id, user_id) DO NOTHING;
+      END IF;
     END IF;
     
     -- Apply vault access restrictions (if any vaults specified, restrict to those)
@@ -6310,6 +6326,20 @@ BEGIN
         VALUES (role_id, p_user_id, pending.created_by)
         ON CONFLICT (role_id, user_id) DO NOTHING;
       END LOOP;
+    END IF;
+  ELSE
+    -- No pending invite - user joined via org code
+    -- They should already be in default team from join_org_by_slug, but ensure it here as fallback
+    IF user_org_id IS NOT NULL THEN
+      SELECT default_new_user_team_id INTO default_team
+      FROM organizations
+      WHERE id = user_org_id;
+      
+      IF default_team IS NOT NULL THEN
+        INSERT INTO team_members (team_id, user_id, added_by)
+        VALUES (default_team, p_user_id, NULL)
+        ON CONFLICT (team_id, user_id) DO NOTHING;
+      END IF;
     END IF;
   END IF;
 END;
