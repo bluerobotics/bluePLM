@@ -528,35 +528,53 @@ export function setCurrentAccessToken(token: string | null) {
   currentAccessToken = token
 }
 
-export async function getUserProfile(userId: string) {
+export async function getUserProfile(userId: string, options?: { maxRetries?: number }) {
   authLog('debug', 'getUserProfile called', { userId: userId?.substring(0, 8) + '...', hasToken: !!currentAccessToken })
   
   // Use raw fetch - Supabase client methods hang
-  try {
-    const url = currentConfig?.url || import.meta.env.VITE_SUPABASE_URL
-    const key = currentConfig?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY
-    const accessToken = currentAccessToken || key
-    
-    authLog('debug', 'Fetching profile...')
-    
-    const response = await fetch(`${url}/rest/v1/users?select=id,email,role,org_id,full_name,avatar_url&id=eq.${userId}`, {
-      headers: {
-        'apikey': key,
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
+  const url = currentConfig?.url || import.meta.env.VITE_SUPABASE_URL
+  const key = currentConfig?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY
+  const accessToken = currentAccessToken || key
+  
+  // Retry logic: new users may not have public.users record yet (trigger race condition)
+  const maxRetries = options?.maxRetries ?? 3
+  const retryDelays = [500, 1000, 2000] // ms
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      authLog('debug', 'Fetching profile...', { attempt: attempt + 1 })
+      
+      const response = await fetch(`${url}/rest/v1/users?select=id,email,role,org_id,full_name,avatar_url&id=eq.${userId}`, {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const data = await response.json()
+      authLog('debug', 'Profile fetch result', { status: response.status, hasData: data?.length > 0, attempt: attempt + 1 })
+      
+      if (data && data.length > 0) {
+        return { profile: data[0], error: null }
       }
-    })
-    const data = await response.json()
-    authLog('debug', 'Profile fetch result', { status: response.status, hasData: data?.length > 0 })
-    
-    if (data && data.length > 0) {
-      return { profile: data[0], error: null }
+      
+      // User not found - might be a new user where trigger hasn't run yet
+      if (attempt < maxRetries) {
+        authLog('info', 'User not found, retrying...', { attempt: attempt + 1, nextDelayMs: retryDelays[attempt] })
+        await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
+      }
+    } catch (err) {
+      authLog('error', 'getUserProfile failed', { error: String(err), attempt: attempt + 1 })
+      if (attempt === maxRetries) {
+        return { profile: null, error: err as Error }
+      }
+      await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
     }
-    return { profile: null, error: new Error('User not found') }
-  } catch (err) {
-    authLog('error', 'getUserProfile failed', { error: String(err) })
-    return { profile: null, error: err as Error }
   }
+  
+  // After all retries, user still not found
+  authLog('warn', 'User not found after retries - new user needs profile creation')
+  return { profile: null, error: new Error('User not found - profile may still be creating') }
 }
 
 export async function getOrganization(orgId: string) {
@@ -584,7 +602,7 @@ export async function getOrganization(orgId: string) {
   }
 }
 
-// Find and link organization by email domain, or fetch existing org
+// Find and link organization by email domain, pending membership, or fetch existing org
 export async function linkUserToOrganization(userId: string, userEmail: string) {
   authLog('info', 'linkUserToOrganization called', { userId: userId?.substring(0, 8) + '...', email: userEmail })
   
@@ -594,16 +612,27 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
   const accessToken = currentAccessToken || key
   
   try {
-    // First, check if user already has an org_id
-    const userResponse = await fetch(`${url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
-      headers: {
-        'apikey': key,
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
+    // First, check if user already has an org_id (with retry for new users)
+    let userProfile: { org_id?: string } | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const userResponse = await fetch(`${url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const userData = await userResponse.json()
+      userProfile = userData?.[0] || null
+      
+      if (userProfile) break
+      
+      // User record might not exist yet (trigger still running), wait and retry
+      if (attempt < 2) {
+        authLog('info', 'User record not found, waiting for trigger...', { attempt: attempt + 1 })
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
-    })
-    const userData = await userResponse.json()
-    const userProfile = userData?.[0]
+    }
     
     authLog('info', 'User profile lookup result', { 
       hasProfile: !!userProfile, 
@@ -689,8 +718,73 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
       return { org: matchingOrg, error: null }
     }
     
-    authLog('warn', 'No organization found for domain', { domain })
-    return { org: null, error: new Error(`No organization found for @${domain}`) }
+    authLog('info', 'No org found by domain, checking pending_org_members...', { domain })
+    
+    // Check pending_org_members for this email (in case trigger didn't run)
+    const pendingResponse = await fetch(
+      `${url}/rest/v1/pending_org_members?select=org_id,role&email=eq.${encodeURIComponent(userEmail.toLowerCase())}&claimed_at=is.null&limit=1`, 
+      {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    const pendingData = await pendingResponse.json()
+    const pendingMember = pendingData?.[0]
+    
+    if (pendingMember?.org_id) {
+      authLog('info', 'Found pending membership, linking user to org', { orgId: pendingMember.org_id?.substring(0, 8) + '...' })
+      
+      // Fetch the organization
+      const orgResponse = await fetch(`${url}/rest/v1/organizations?select=*&id=eq.${pendingMember.org_id}`, {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const orgData = await orgResponse.json()
+      const pendingOrg = orgData?.[0]
+      
+      if (pendingOrg) {
+        // Update user's org_id and role
+        try {
+          await fetch(`${url}/rest/v1/users?id=eq.${userId}`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': key,
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({ org_id: pendingOrg.id, role: pendingMember.role || 'viewer' })
+          })
+          authLog('info', 'Updated user org_id from pending membership')
+          
+          // Mark pending membership as claimed
+          await fetch(`${url}/rest/v1/pending_org_members?email=eq.${encodeURIComponent(userEmail.toLowerCase())}&claimed_at=is.null`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': key,
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({ claimed_at: new Date().toISOString(), claimed_by: userId })
+          })
+          authLog('info', 'Marked pending membership as claimed')
+        } catch (updateErr) {
+          authLog('warn', 'Error updating user from pending membership', { error: String(updateErr) })
+        }
+        
+        return { org: pendingOrg, error: null }
+      }
+    }
+    
+    authLog('warn', 'No organization found for domain or pending membership', { domain })
+    return { org: null, error: new Error(`No organization found for @${domain}. If you were invited, please contact your administrator.`) }
   } catch (err) {
     authLog('error', 'linkUserToOrganization failed', { error: String(err) })
     return { org: null, error: err as Error }
@@ -4242,7 +4336,7 @@ let heartbeatInterval: NodeJS.Timeout | null = null
 export async function registerDeviceSession(
   userId: string,
   orgId: string | null
-): Promise<{ success: boolean; session?: UserSession; error?: string }> {
+): Promise<{ success: boolean; session?: UserSession; error?: string; isNewUser?: boolean }> {
   const client = getSupabaseClient()
   
   // Get machine info
@@ -4259,31 +4353,55 @@ export async function registerDeviceSession(
     machineName
   })
   
-  // Upsert the session
-  const { data, error } = await client
-    .from('user_sessions')
-    .upsert({
-      user_id: userId,
-      org_id: orgId,
-      machine_id: machineId,
-      machine_name: machineName,
-      platform,
-      app_version: appVersion,
-      last_seen: new Date().toISOString(),
-      is_active: true
-    }, {
-      onConflict: 'user_id,machine_id'
-    })
-    .select()
-    .single()
+  // Retry logic for new users (user record might not exist yet due to trigger timing)
+  const maxRetries = 3
+  const retryDelays = [1000, 2000, 3000]
   
-  if (error) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const { data, error } = await client
+      .from('user_sessions')
+      .upsert({
+        user_id: userId,
+        org_id: orgId,
+        machine_id: machineId,
+        machine_name: machineName,
+        platform,
+        app_version: appVersion,
+        last_seen: new Date().toISOString(),
+        is_active: true
+      }, {
+        onConflict: 'user_id,machine_id'
+      })
+      .select()
+      .single()
+    
+    if (!error) {
+      console.log('[Session] Device registered:', machineName, 'org_id in session:', data?.org_id || 'NULL')
+      return { success: true, session: data }
+    }
+    
+    // Check if it's a foreign key constraint error (user doesn't exist yet)
+    if (error.message?.includes('foreign key constraint') || error.code === '23503') {
+      if (attempt < maxRetries - 1) {
+        console.log('[Session] User record not ready yet, retrying...', { attempt: attempt + 1, delayMs: retryDelays[attempt] })
+        await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
+        continue
+      }
+      // After all retries, return a helpful error
+      console.error('[Session] Failed to register session - user record not created:', error.message)
+      return { 
+        success: false, 
+        error: 'Your account is still being set up. Please wait a moment and try again.',
+        isNewUser: true
+      }
+    }
+    
+    // Other errors, don't retry
     console.error('[Session] Failed to register device:', error.message)
     return { success: false, error: error.message }
   }
   
-  console.log('[Session] Device registered:', machineName, 'org_id in session:', data?.org_id || 'NULL')
-  return { success: true, session: data }
+  return { success: false, error: 'Failed to register session after retries' }
 }
 
 /**

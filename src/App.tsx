@@ -469,6 +469,8 @@ function App() {
               console.log('[Auth] No organization found:', orgError)
               if (connectingTimeout) clearTimeout(connectingTimeout)
               setIsConnecting(false)
+              // Show a toast with helpful message
+              addToast('warning', orgError?.message || 'No organization found. Please enter an organization code or contact your administrator.')
             }
           } catch (err) {
             console.error('[Auth] Error in auth state handler:', err)

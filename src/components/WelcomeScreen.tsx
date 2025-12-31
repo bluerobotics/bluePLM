@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Database, Link, User, Truck, Mail, Phone, ArrowLeft, Eye, EyeOff, RotateCw, X } from 'lucide-react'
+import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Database, Link, User, Truck, Mail, Phone, ArrowLeft, Eye, EyeOff, RotateCw, X, AlertTriangle, LogOut } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase, getAccessibleVaults } from '../lib/supabase'
 import { getInitials } from '../types/pdm'
@@ -1389,6 +1389,115 @@ export function WelcomeScreen({ onOpenRecentVault }: WelcomeScreenProps) {
           {/* Footer */}
           <div className="text-center mt-12 text-xs text-plm-fg-muted">
             {t('welcome.madeWith')}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ============================================
+  // NO ORGANIZATION SCREEN (signed in but not linked to any org)
+  // ============================================
+  if (user && !organization && !isOfflineMode) {
+    const handleSignOutAndRetry = async () => {
+      uiLog('info', 'User signing out to retry with different account')
+      const { signOut: supabaseSignOut } = await import('../lib/supabase')
+      await supabaseSignOut()
+    }
+
+    return (
+      <div className="flex-1 flex items-center justify-center bg-plm-bg overflow-auto">
+        <div className="max-w-md w-full p-8">
+          {/* Logo and Title */}
+          <div className="text-center mb-8">
+            <div className="flex justify-center items-center gap-3 mb-4">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-plm-warning">
+                <path 
+                  d="M12 2L2 7L12 12L22 7L12 2Z" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                />
+                <path 
+                  d="M2 17L12 22L22 17" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                />
+                <path 
+                  d="M2 12L12 17L22 12" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <h1 className="text-2xl font-bold text-plm-fg">{t('welcome.title')}</h1>
+            </div>
+          </div>
+
+          {/* User Info */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-bg-light border border-plm-border rounded-full mb-4">
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="w-5 h-5 rounded-full" />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold">
+                  {getInitials(user.full_name || user.email)}
+                </div>
+              )}
+              <span className="text-sm text-plm-fg-dim">
+                {user.full_name || user.email}
+              </span>
+            </div>
+          </div>
+
+          {/* Warning Card */}
+          <div className="bg-plm-warning/10 border border-plm-warning/30 rounded-xl p-6 mb-6">
+            <div className="flex gap-4">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-plm-warning" />
+              </div>
+              <div>
+                <h3 className="text-plm-fg font-semibold mb-2">{t('welcome.noOrgTitle', 'No Organization Found')}</h3>
+                <p className="text-sm text-plm-fg-muted">
+                  {t('welcome.noOrgDesc', 'Your account isn\'t linked to any organization. This can happen if:')}
+                </p>
+                <ul className="text-sm text-plm-fg-muted mt-2 space-y-1 list-disc list-inside">
+                  <li>{t('welcome.noOrgReason1', 'You haven\'t been invited yet')}</li>
+                  <li>{t('welcome.noOrgReason2', 'You signed in with a different email than the invite')}</li>
+                  <li>{t('welcome.noOrgReason3', 'The invite hasn\'t been processed yet')}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="space-y-3">
+            <button
+              onClick={handleSignOutAndRetry}
+              className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <LogOut size={18} />
+              {t('welcome.signOutAndRetry', 'Sign Out & Try Different Account')}
+            </button>
+            
+            <button
+              onClick={handleOfflineMode}
+              className="w-full py-3 bg-plm-bg-light border border-plm-border hover:bg-plm-bg-light/80 text-plm-fg font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <WifiOff size={18} />
+              {t('welcome.workOffline')}
+            </button>
+          </div>
+
+          {/* Help Text */}
+          <div className="mt-6 p-4 bg-plm-bg-light border border-plm-border rounded-lg">
+            <p className="text-xs text-plm-fg-muted text-center">
+              {t('welcome.noOrgHelp', 'If you were invited, please check your email for the invite link and make sure to sign in with the same email address that received the invitation. Contact your administrator if you need help.')}
+            </p>
           </div>
         </div>
       </div>

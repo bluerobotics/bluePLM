@@ -2,6 +2,19 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.16.10] - 2025-12-30
+
+### Fixed
+- **New user auth race condition**: Added retry logic when fetching user profile (handles trigger timing)
+- **Invited users not linked to org**: Now checks `pending_org_members` directly if trigger didn't run
+- **Session registration fails for new users**: Added retry logic with helpful error message
+- **Stuck spinners**: Users now see proper "No Organization Found" screen with helpful guidance
+
+### Changed
+- **Invite email button**: Links directly to blueplm.io/downloads instead of auth confirmation URL
+
+---
+
 ## [2.16.9] - 2025-12-30
 
 ### Added
