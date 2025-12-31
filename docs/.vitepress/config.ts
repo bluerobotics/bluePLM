@@ -9,7 +9,7 @@ export default defineConfig({
       {
         text: 'Getting Started',
         items: [
-          { text: 'Introduction', link: '/getting-started' },
+          { text: 'Introduction', link: '/' },
           { text: 'Admin Setup', link: '/admin-setup' },
           { text: 'User Setup', link: '/user-setup' },
         ]
