@@ -41,6 +41,12 @@ import {
   hasPermission
 } from '../../types/permissions'
 
+interface Vault {
+  id: string
+  name: string
+  slug: string
+}
+
 interface PermissionsEditorProps {
   team: Team
   onClose: () => void
@@ -122,11 +128,45 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
   const [showPresets, setShowPresets] = useState(false)
   const [presets, setPresets] = useState<PermissionPreset[]>([])
   
-  // Load permissions
+  // Vault scope state
+  const [vaults, setVaults] = useState<Vault[]>([])
+  const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null) // null = "All Vaults"
+  const [vaultsLoading, setVaultsLoading] = useState(true)
+  
+  // Load vaults for this org
+  useEffect(() => {
+    const loadVaults = async () => {
+      try {
+        const { data: orgData } = await supabase
+          .from('teams')
+          .select('org_id')
+          .eq('id', team.id)
+          .single()
+        
+        if (!orgData) return
+        
+        const { data, error } = await supabase
+          .from('vaults')
+          .select('id, name, slug')
+          .eq('org_id', orgData.org_id)
+          .order('name')
+        
+        if (error) throw error
+        setVaults(data || [])
+      } catch (err) {
+        console.error('Failed to load vaults:', err)
+      } finally {
+        setVaultsLoading(false)
+      }
+    }
+    loadVaults()
+  }, [team.id])
+  
+  // Load permissions when team or vault selection changes
   useEffect(() => {
     loadPermissions()
     loadPresets()
-  }, [team.id])
+  }, [team.id, selectedVaultId])
   
   // Track changes
   useEffect(() => {
@@ -137,10 +177,21 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
   const loadPermissions = async () => {
     setIsLoading(true)
     try {
-      const { data, error } = await supabase
+      // Build query - filter by vault_id (null for "All Vaults", specific ID for vault-specific)
+      let query = supabase
         .from('team_permissions')
         .select('*')
         .eq('team_id', team.id)
+      
+      if (selectedVaultId === null) {
+        // "All Vaults" - only load global permissions (vault_id IS NULL)
+        query = query.is('vault_id', null)
+      } else {
+        // Specific vault - load vault-specific permissions
+        query = query.eq('vault_id', selectedVaultId)
+      }
+      
+      const { data, error } = await query
       
       if (error) throw error
       
@@ -187,11 +238,21 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     
     setIsSaving(true)
     try {
-      // Delete existing permissions
-      await supabase
+      // Delete existing permissions for this vault scope only
+      let deleteQuery = supabase
         .from('team_permissions')
         .delete()
         .eq('team_id', team.id)
+      
+      if (selectedVaultId === null) {
+        // Delete only global permissions (vault_id IS NULL)
+        deleteQuery = deleteQuery.is('vault_id', null)
+      } else {
+        // Delete only vault-specific permissions
+        deleteQuery = deleteQuery.eq('vault_id', selectedVaultId)
+      }
+      
+      await deleteQuery
       
       // Insert new permissions (only those with at least one action)
       const newPerms = Object.entries(permissions)
@@ -199,6 +260,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         .map(([resource, actions]) => ({
           team_id: team.id,
           resource,
+          vault_id: selectedVaultId, // null for "All Vaults", UUID for specific vault
           actions,
           granted_by: userId
         }))
@@ -213,7 +275,10 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       
       setOriginalPermissions({ ...permissions })
       setHasChanges(false)
-      addToast('success', 'Permissions saved successfully')
+      const vaultName = selectedVaultId 
+        ? vaults.find(v => v.id === selectedVaultId)?.name || 'selected vault'
+        : 'all vaults'
+      addToast('success', `Permissions saved for ${vaultName}`)
     } catch (err) {
       console.error('Failed to save permissions:', err)
       addToast('error', 'Failed to save permissions')
@@ -394,6 +459,27 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             <p className="text-sm text-plm-fg-muted">
               Configure what this team can access and do
             </p>
+          </div>
+          
+          {/* Vault scope selector */}
+          <div className="flex items-center gap-2">
+            <Database size={16} className="text-plm-fg-muted" />
+            <select
+              value={selectedVaultId || 'all'}
+              onChange={(e) => {
+                const value = e.target.value
+                setSelectedVaultId(value === 'all' ? null : value)
+              }}
+              disabled={vaultsLoading}
+              className="px-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent min-w-[160px]"
+            >
+              <option value="all">All Vaults (Global)</option>
+              {vaults.map(vault => (
+                <option key={vault.id} value={vault.id}>
+                  {vault.name}
+                </option>
+              ))}
+            </select>
           </div>
           
           {/* Action buttons */}
@@ -808,6 +894,12 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               <Shield size={14} />
               <span>
                 {Object.entries(permissions).filter(([_, a]) => a.length > 0).length} resources with permissions
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Database size={14} />
+              <span>
+                Editing: {selectedVaultId ? vaults.find(v => v.id === selectedVaultId)?.name || 'Vault' : 'All Vaults (Global)'}
               </span>
             </div>
             {hasChanges && (

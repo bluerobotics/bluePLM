@@ -4672,24 +4672,65 @@ function UserPermissionsDialog({
   onClose: () => void
   currentUserId?: string
 }) {
-  const { addToast } = usePDMStore()
+  const { addToast, organization } = usePDMStore()
   const [permissions, setPermissions] = useState<Record<string, PermissionAction[]>>({})
   const [originalPermissions, setOriginalPermissions] = useState<Record<string, PermissionAction[]>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   
+  // Vault scope state
+  const [vaults, setVaults] = useState<Vault[]>([])
+  const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null) // null = "All Vaults"
+  const [vaultsLoading, setVaultsLoading] = useState(true)
+  
+  // Load vaults for this org
+  useEffect(() => {
+    const loadVaults = async () => {
+      if (!organization?.id) {
+        setVaultsLoading(false)
+        return
+      }
+      try {
+        const { data, error } = await supabase
+          .from('vaults')
+          .select('id, name, slug')
+          .eq('org_id', organization.id)
+          .order('name')
+        
+        if (error) throw error
+        setVaults(data || [])
+      } catch (err) {
+        console.error('Failed to load vaults:', err)
+      } finally {
+        setVaultsLoading(false)
+      }
+    }
+    loadVaults()
+  }, [organization?.id])
+  
   useEffect(() => {
     loadPermissions()
-  }, [user.id])
+  }, [user.id, selectedVaultId])
   
   const loadPermissions = async () => {
     setIsLoading(true)
     try {
-      const { data, error } = await supabase
+      // Build query - filter by vault_id
+      let query = supabase
         .from('user_permissions')
         .select('*')
         .eq('user_id', user.id)
+      
+      if (selectedVaultId === null) {
+        // "All Vaults" - only load global permissions
+        query = query.is('vault_id', null)
+      } else {
+        // Specific vault
+        query = query.eq('vault_id', selectedVaultId)
+      }
+      
+      const { data, error } = await query
       
       if (error) throw error
       
@@ -4712,8 +4753,19 @@ function UserPermissionsDialog({
     
     setIsSaving(true)
     try {
-      // Delete existing permissions
-      await supabase.from('user_permissions').delete().eq('user_id', user.id)
+      // Delete existing permissions for this vault scope
+      let deleteQuery = supabase
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', user.id)
+      
+      if (selectedVaultId === null) {
+        deleteQuery = deleteQuery.is('vault_id', null)
+      } else {
+        deleteQuery = deleteQuery.eq('vault_id', selectedVaultId)
+      }
+      
+      await deleteQuery
       
       // Insert new permissions
       const newPerms = Object.entries(permissions)
@@ -4721,6 +4773,7 @@ function UserPermissionsDialog({
         .map(([resource, actions]) => ({
           user_id: user.id,
           resource,
+          vault_id: selectedVaultId,
           actions,
           granted_by: currentUserId
         }))
@@ -4730,7 +4783,10 @@ function UserPermissionsDialog({
         if (error) throw error
       }
       
-      addToast('success', `Permissions saved for ${user.full_name || user.email}`)
+      const vaultName = selectedVaultId 
+        ? vaults.find(v => v.id === selectedVaultId)?.name || 'selected vault'
+        : 'all vaults'
+      addToast('success', `Permissions saved for ${user.full_name || user.email} on ${vaultName}`)
       onClose()
     } catch (err) {
       console.error('Failed to save permissions:', err)
@@ -4779,6 +4835,28 @@ function UserPermissionsDialog({
               These permissions are added to any team permissions (union of all)
             </p>
           </div>
+          
+          {/* Vault scope selector */}
+          <div className="flex items-center gap-2">
+            <Database size={16} className="text-plm-fg-muted" />
+            <select
+              value={selectedVaultId || 'all'}
+              onChange={(e) => {
+                const value = e.target.value
+                setSelectedVaultId(value === 'all' ? null : value)
+              }}
+              disabled={vaultsLoading}
+              className="px-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent min-w-[160px]"
+            >
+              <option value="all">All Vaults (Global)</option>
+              {vaults.map(vault => (
+                <option key={vault.id} value={vault.id}>
+                  {vault.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
           <button onClick={onClose} className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg">
             <X size={18} />
           </button>

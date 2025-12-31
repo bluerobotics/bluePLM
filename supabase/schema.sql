@@ -62,6 +62,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 --  17 = admin_remove_user RPC fully removes user from org and auth.users
 --  18 = Fix invited users being added to New Users team when they have specific teams
 --  19 = ensure_user_org_id creates user record if trigger failed (fixes invite after account deletion)
+--  20 = Per-vault permissions: vault_id column on team_permissions and user_permissions
 -- ===========================================
 
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -74,15 +75,15 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version if table is empty (new installations get latest version)
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 19, 'ensure_user_org_id creates user if trigger failed', NOW(), 'migration')
+VALUES (1, 20, 'Per-vault permissions', NOW(), 'migration')
 ON CONFLICT (id) DO NOTHING;
 
 -- Update existing installations to latest version
 UPDATE schema_version SET 
-  version = 19, 
-  description = 'ensure_user_org_id creates user if trigger failed (fixes invite after account deletion)', 
+  version = 20, 
+  description = 'Per-vault permissions: vault_id column on team_permissions and user_permissions', 
   applied_at = NOW() 
-WHERE id = 1 AND version < 19;
+WHERE id = 1 AND version < 20;
 
 -- Upgrade existing installations to v10
 UPDATE schema_version 
@@ -5687,6 +5688,10 @@ CREATE TABLE IF NOT EXISTS team_permissions (
   -- Resource identification (flexible string-based)
   resource TEXT NOT NULL,              -- e.g., 'module:explorer', 'system:users', 'vault:uuid'
   
+  -- Vault scoping (NULL = all vaults, UUID = specific vault only)
+  -- NOTE: This column is added via migration for existing tables (see migration section below)
+  -- vault_id UUID REFERENCES vaults(id) ON DELETE CASCADE,
+  
   -- Permissions granted
   actions permission_action[] DEFAULT '{}',
   
@@ -5694,12 +5699,10 @@ CREATE TABLE IF NOT EXISTS team_permissions (
   granted_at TIMESTAMPTZ DEFAULT NOW(),
   granted_by UUID REFERENCES users(id),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id),
-  
-  -- Prevent duplicate resource permissions per team
-  UNIQUE(team_id, resource)
+  updated_by UUID REFERENCES users(id)
 );
 
+-- Basic indexes (vault_id index created in migration section after column is added)
 CREATE INDEX IF NOT EXISTS idx_team_permissions_team_id ON team_permissions(team_id);
 CREATE INDEX IF NOT EXISTS idx_team_permissions_resource ON team_permissions(resource);
 
@@ -5790,30 +5793,45 @@ CREATE POLICY "Admins can manage permission presets"
   ON permission_presets FOR ALL
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
--- Function to get effective permissions for a user
-CREATE OR REPLACE FUNCTION get_user_permissions(p_user_id UUID)
+-- Function to get effective permissions for a user (vault-scoped)
+-- p_vault_id: NULL to get global permissions only, UUID to get permissions for that vault (includes global + vault-specific)
+-- Drop old single-parameter version if it exists
+DROP FUNCTION IF EXISTS get_user_permissions(UUID);
+CREATE OR REPLACE FUNCTION get_user_permissions(p_user_id UUID, p_vault_id UUID DEFAULT NULL)
 RETURNS TABLE (
   resource TEXT,
+  vault_id UUID,
   actions permission_action[]
 ) AS $$
 BEGIN
   RETURN QUERY
   SELECT 
     tp.resource,
+    tp.vault_id,
     array_agg(DISTINCT a) AS actions
   FROM team_members tm
   JOIN team_permissions tp ON tm.team_id = tp.team_id
   CROSS JOIN unnest(tp.actions) AS a
   WHERE tm.user_id = p_user_id
-  GROUP BY tp.resource;
+    AND (
+      -- If p_vault_id is NULL, only return global (vault_id IS NULL) permissions
+      -- If p_vault_id is set, return global + vault-specific permissions
+      (p_vault_id IS NULL AND tp.vault_id IS NULL) OR
+      (p_vault_id IS NOT NULL AND (tp.vault_id IS NULL OR tp.vault_id = p_vault_id))
+    )
+  GROUP BY tp.resource, tp.vault_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to check if user has specific permission
+-- Function to check if user has specific permission (vault-scoped)
+-- p_vault_id: NULL checks global permissions only, UUID checks vault-specific + global
+-- Drop old 3-parameter version if it exists
+DROP FUNCTION IF EXISTS user_has_permission(UUID, TEXT, permission_action);
 CREATE OR REPLACE FUNCTION user_has_permission(
   p_user_id UUID,
   p_resource TEXT,
-  p_action permission_action
+  p_action permission_action,
+  p_vault_id UUID DEFAULT NULL
 ) RETURNS BOOLEAN AS $$
 DECLARE
   v_has_permission BOOLEAN := false;
@@ -5827,7 +5845,7 @@ BEGIN
     RETURN true;
   END IF;
   
-  -- Check team-based permissions
+  -- Check team-based permissions (vault-scoped)
   SELECT EXISTS(
     SELECT 1
     FROM team_members tm
@@ -5835,15 +5853,19 @@ BEGIN
     WHERE tm.user_id = p_user_id
       AND tp.resource = p_resource
       AND p_action = ANY(tp.actions)
+      AND (
+        -- Global permission OR vault-specific permission
+        tp.vault_id IS NULL OR tp.vault_id = p_vault_id
+      )
   ) INTO v_has_permission;
   
   RETURN v_has_permission;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant execute permissions
-GRANT EXECUTE ON FUNCTION get_user_permissions TO authenticated;
-GRANT EXECUTE ON FUNCTION user_has_permission TO authenticated;
+-- Grant execute permissions (specify full signature)
+GRANT EXECUTE ON FUNCTION get_user_permissions(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION user_has_permission(UUID, TEXT, permission_action, UUID) TO authenticated;
 
 -- Enable realtime for teams
 ALTER TABLE teams REPLICA IDENTITY FULL;
@@ -5864,8 +5886,8 @@ COMMENT ON TABLE teams IS 'Teams are groups of users for permission management.'
 COMMENT ON TABLE team_members IS 'Junction table linking users to teams.';
 COMMENT ON TABLE team_permissions IS 'Permissions granted to teams for specific resources.';
 COMMENT ON TABLE permission_presets IS 'Templates for common permission configurations.';
-COMMENT ON FUNCTION get_user_permissions IS 'Returns all effective permissions for a user across all their teams.';
-COMMENT ON FUNCTION user_has_permission IS 'Checks if a user has a specific permission on a resource.';
+COMMENT ON FUNCTION get_user_permissions(UUID, UUID) IS 'Returns all effective permissions for a user across all their teams, optionally scoped to a vault.';
+COMMENT ON FUNCTION user_has_permission(UUID, TEXT, permission_action, UUID) IS 'Checks if a user has a specific permission on a resource, optionally scoped to a vault.';
 
 -- ===========================================
 -- JOB TITLES (Optional labels, NO permissions)
@@ -6318,6 +6340,10 @@ CREATE TABLE IF NOT EXISTS user_permissions (
   -- Resource identification (flexible string-based, same as team_permissions)
   resource TEXT NOT NULL,              -- e.g., 'module:explorer', 'system:users', 'vault:uuid'
   
+  -- Vault scoping (NULL = all vaults, UUID = specific vault only)
+  -- NOTE: This column is added via migration for existing tables (see migration section below)
+  -- vault_id UUID REFERENCES vaults(id) ON DELETE CASCADE,
+  
   -- Permissions granted
   actions permission_action[] DEFAULT '{}',
   
@@ -6325,12 +6351,10 @@ CREATE TABLE IF NOT EXISTS user_permissions (
   granted_at TIMESTAMPTZ DEFAULT NOW(),
   granted_by UUID REFERENCES users(id),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id),
-  
-  -- Prevent duplicate resource permissions per user
-  UNIQUE(user_id, resource)
+  updated_by UUID REFERENCES users(id)
 );
 
+-- Basic indexes (vault_id index created in migration section after column is added)
 CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_permissions_resource ON user_permissions(resource);
 
@@ -6348,49 +6372,68 @@ CREATE POLICY "Admins can manage user permissions"
   ON user_permissions FOR ALL
   USING (user_id IN (SELECT id FROM users WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
 
--- Update get_user_permissions to include both team and individual permissions
-CREATE OR REPLACE FUNCTION get_user_permissions(p_user_id UUID)
+-- Update get_user_permissions to include both team and individual permissions (vault-scoped)
+-- p_vault_id: NULL to get global permissions only, UUID to get permissions for that vault (includes global + vault-specific)
+-- Drop old single-parameter version if it exists (in case first DROP didn't run)
+DROP FUNCTION IF EXISTS get_user_permissions(UUID);
+CREATE OR REPLACE FUNCTION get_user_permissions(p_user_id UUID, p_vault_id UUID DEFAULT NULL)
 RETURNS TABLE (
   resource TEXT,
+  vault_id UUID,
   actions permission_action[]
 ) AS $$
 BEGIN
   RETURN QUERY
   WITH team_perms AS (
-    -- Team-based permissions
+    -- Team-based permissions (vault-scoped)
     SELECT 
       tp.resource,
+      tp.vault_id,
       unnest(tp.actions) AS action
     FROM team_members tm
     JOIN team_permissions tp ON tm.team_id = tp.team_id
     WHERE tm.user_id = p_user_id
+      AND (
+        (p_vault_id IS NULL AND tp.vault_id IS NULL) OR
+        (p_vault_id IS NOT NULL AND (tp.vault_id IS NULL OR tp.vault_id = p_vault_id))
+      )
   ),
   user_perms AS (
-    -- Individual user permissions
+    -- Individual user permissions (vault-scoped)
     SELECT 
       up.resource,
+      up.vault_id,
       unnest(up.actions) AS action
     FROM user_permissions up
     WHERE up.user_id = p_user_id
+      AND (
+        (p_vault_id IS NULL AND up.vault_id IS NULL) OR
+        (p_vault_id IS NOT NULL AND (up.vault_id IS NULL OR up.vault_id = p_vault_id))
+      )
   ),
   combined AS (
-    SELECT resource, action FROM team_perms
+    SELECT resource, vault_id, action FROM team_perms
     UNION
-    SELECT resource, action FROM user_perms
+    SELECT resource, vault_id, action FROM user_perms
   )
   SELECT 
     c.resource,
+    c.vault_id,
     array_agg(DISTINCT c.action) AS actions
   FROM combined c
-  GROUP BY c.resource;
+  GROUP BY c.resource, c.vault_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Update user_has_permission to check both team and individual permissions
+-- Update user_has_permission to check both team and individual permissions (vault-scoped)
+-- p_vault_id: NULL checks global permissions only, UUID checks vault-specific + global
+-- Drop old 3-parameter version if it exists (in case first DROP didn't run)
+DROP FUNCTION IF EXISTS user_has_permission(UUID, TEXT, permission_action);
 CREATE OR REPLACE FUNCTION user_has_permission(
   p_user_id UUID,
   p_resource TEXT,
-  p_action permission_action
+  p_action permission_action,
+  p_vault_id UUID DEFAULT NULL
 ) RETURNS BOOLEAN AS $$
 DECLARE
   v_has_permission BOOLEAN := false;
@@ -6404,7 +6447,7 @@ BEGIN
     RETURN true;
   END IF;
   
-  -- Check team-based permissions
+  -- Check team-based permissions (vault-scoped)
   SELECT EXISTS(
     SELECT 1
     FROM team_members tm
@@ -6412,19 +6455,21 @@ BEGIN
     WHERE tm.user_id = p_user_id
       AND tp.resource = p_resource
       AND p_action = ANY(tp.actions)
+      AND (tp.vault_id IS NULL OR tp.vault_id = p_vault_id)
   ) INTO v_has_permission;
   
   IF v_has_permission THEN
     RETURN true;
   END IF;
   
-  -- Check individual user permissions
+  -- Check individual user permissions (vault-scoped)
   SELECT EXISTS(
     SELECT 1
     FROM user_permissions up
     WHERE up.user_id = p_user_id
       AND up.resource = p_resource
       AND p_action = ANY(up.actions)
+      AND (up.vault_id IS NULL OR up.vault_id = p_vault_id)
   ) INTO v_has_permission;
   
   RETURN v_has_permission;
@@ -8879,6 +8924,60 @@ DO $$
 BEGIN
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE color_swatches; EXCEPTION WHEN duplicate_object THEN NULL; END;
 END $$;
+
+-- =====================================================================
+-- MIGRATION: Add vault_id column to permission tables
+-- Existing permissions (vault_id = NULL) will apply to ALL vaults (backward compatible)
+-- This migration runs for both new installations and existing databases
+-- =====================================================================
+
+-- Add vault_id to team_permissions if not exists
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'team_permissions' AND column_name = 'vault_id'
+  ) THEN
+    ALTER TABLE team_permissions ADD COLUMN vault_id UUID REFERENCES vaults(id) ON DELETE CASCADE;
+    RAISE NOTICE 'Added vault_id column to team_permissions';
+  END IF;
+END $$;
+
+-- Create/update indexes for team_permissions vault_id
+CREATE INDEX IF NOT EXISTS idx_team_permissions_vault_id ON team_permissions(vault_id);
+
+-- Drop old unique constraint if it exists (without vault_id)
+-- It's a table constraint, not just an index, so use ALTER TABLE
+ALTER TABLE team_permissions DROP CONSTRAINT IF EXISTS team_permissions_team_id_resource_key;
+
+-- Create new unique index with vault_id (idempotent - will succeed even if already exists)
+DROP INDEX IF EXISTS idx_team_permissions_unique;
+CREATE UNIQUE INDEX idx_team_permissions_unique 
+  ON team_permissions(team_id, resource, COALESCE(vault_id, '00000000-0000-0000-0000-000000000000'::uuid));
+
+-- Add vault_id to user_permissions if not exists
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'user_permissions' AND column_name = 'vault_id'
+  ) THEN
+    ALTER TABLE user_permissions ADD COLUMN vault_id UUID REFERENCES vaults(id) ON DELETE CASCADE;
+    RAISE NOTICE 'Added vault_id column to user_permissions';
+  END IF;
+END $$;
+
+-- Create/update indexes for user_permissions vault_id
+CREATE INDEX IF NOT EXISTS idx_user_permissions_vault_id ON user_permissions(vault_id);
+
+-- Drop old unique constraint if it exists (without vault_id)
+-- It's a table constraint, not just an index, so use ALTER TABLE
+ALTER TABLE user_permissions DROP CONSTRAINT IF EXISTS user_permissions_user_id_resource_key;
+
+-- Create new unique index with vault_id (idempotent - will succeed even if already exists)
+DROP INDEX IF EXISTS idx_user_permissions_unique;
+CREATE UNIQUE INDEX idx_user_permissions_unique 
+  ON user_permissions(user_id, resource, COALESCE(vault_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 -- =====================================================================
 -- MIGRATION: Create default teams for existing organizations

@@ -2,6 +2,17 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.20.0] - 2025-12-31
+
+### Added
+- **Per-vault permissions**: Teams and individual users can now have different permission levels per vault. Set "All Vaults (Global)" for org-wide permissions, or select a specific vault for vault-scoped permissions. Example: Engineering team can have admin on Production vault but view-only on Archive vault
+
+### Changed
+- **Schema version**: Bumped to v20
+- **Permission functions**: `get_user_permissions` and `user_has_permission` now accept optional `vault_id` parameter for vault-scoped checks
+
+---
+
 ## [2.19.3] - 2025-12-31
 
 ### Fixed

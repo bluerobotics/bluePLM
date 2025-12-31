@@ -222,6 +222,19 @@ export interface TeamPermission {
   id: string
   team_id: string
   resource: string
+  vault_id: string | null  // NULL = all vaults, UUID = specific vault only
+  actions: PermissionAction[]
+  granted_at: string
+  granted_by: string | null
+  updated_at: string
+  updated_by: string | null
+}
+
+export interface UserPermission {
+  id: string
+  user_id: string
+  resource: string
+  vault_id: string | null  // NULL = all vaults, UUID = specific vault only
   actions: PermissionAction[]
   granted_at: string
   granted_by: string | null
