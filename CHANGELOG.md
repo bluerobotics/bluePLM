@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.20.1] - 2025-12-31
+
+### Fixed
+- **Pending users showing in main list**: Users who haven't signed in yet (still pending) now only appear in "Pending Members" section, not duplicated in the main user list
+
+---
+
 ## [2.20.0] - 2025-12-31
 
 ### Added
