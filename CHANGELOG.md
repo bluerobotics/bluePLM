@@ -2,6 +2,17 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.17.2] - 2025-12-31
+
+### Added
+- **Default Team for New Users UI**: Admins can now select which team new users are added to in Settings → Team Members → Teams tab
+- **Invited users without teams get default team**: Users invited without specific team assignments are now added to the default team (if configured)
+
+### Fixed
+- **Schema migration for existing orgs**: Running schema now creates default teams for existing organizations that don't have them
+
+---
+
 ## [2.17.1] - 2025-12-31
 
 ### Fixed
