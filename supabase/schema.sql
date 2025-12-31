@@ -6092,11 +6092,13 @@ CREATE POLICY "Admins can manage pending members"
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Function to claim pending membership on user creation/login
+-- NOTE: This is a BEFORE INSERT trigger, so we can modify NEW but cannot reference 
+-- the new user ID in foreign keys yet. The claimed_at/claimed_by update happens
+-- in apply_pending_team_memberships which runs AFTER INSERT.
 CREATE OR REPLACE FUNCTION claim_pending_membership()
 RETURNS TRIGGER AS $$
 DECLARE
   pending RECORD;
-  team_id UUID;
 BEGIN
   -- Find any pending membership for this email
   SELECT * INTO pending
@@ -6112,11 +6114,8 @@ BEGIN
     IF pending.full_name IS NOT NULL AND NEW.full_name IS NULL THEN
       NEW.full_name := pending.full_name;
     END IF;
-    
-    -- Mark as claimed (we'll add team memberships after insert)
-    UPDATE pending_org_members
-    SET claimed_at = NOW(), claimed_by = NEW.id
-    WHERE id = pending.id;
+    -- NOTE: Don't update pending_org_members here - user doesn't exist yet!
+    -- The claimed_at/claimed_by is set in apply_pending_team_memberships (AFTER INSERT)
   END IF;
   
   RETURN NEW;
@@ -6138,14 +6137,23 @@ DECLARE
   team_id UUID;
   vault_id UUID;
   role_id UUID;
+  user_email TEXT;
 BEGIN
-  -- Find the claimed pending membership
+  -- Get the user's email to find their pending membership
+  SELECT email INTO user_email FROM users WHERE id = p_user_id;
+  
+  -- Find the pending membership by email (not claimed_by, since that's set here)
   SELECT * INTO pending
   FROM pending_org_members
-  WHERE claimed_by = p_user_id
+  WHERE email = user_email
+    AND claimed_at IS NULL
   LIMIT 1;
   
   IF FOUND THEN
+    -- Mark as claimed NOW (user exists, so foreign key is satisfied)
+    UPDATE pending_org_members
+    SET claimed_at = NOW(), claimed_by = p_user_id
+    WHERE id = pending.id;
     -- Add user to each pre-assigned team
     IF pending.team_ids IS NOT NULL THEN
       FOREACH team_id IN ARRAY pending.team_ids
