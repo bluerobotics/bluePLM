@@ -21,7 +21,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 17
+export const EXPECTED_SCHEMA_VERSION = 18
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -46,6 +46,7 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   15: 'Fixed workflow role assignment table name',
   16: 'Simplified default teams: Administrators (mandatory) + New Users (deletable)',
   17: 'admin_remove_user RPC fully removes user from org and auth.users',
+  18: 'Fix invited users being added to New Users team when they have specific teams',
 }
 
 export interface SchemaVersionInfo {

@@ -2,6 +2,16 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.19.2] - 2025-12-31
+
+### Fixed
+- **Invited users added to wrong team**: Fixed bug where users invited with specific teams (e.g., "Doris") were also incorrectly added to "New Users" team. Now only adds to default team if user has no team memberships yet
+
+### Changed
+- **Schema version**: Bumped to v18
+
+---
+
 ## [2.19.1] - 2025-12-31
 
 ### Changed

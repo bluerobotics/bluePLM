@@ -60,6 +60,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 --  15 = Fixed workflow_role_members -> user_workflow_roles table name in apply_pending_team_memberships
 --  16 = Simplified default teams: only Administrators (mandatory) and New Users (deletable)
 --  17 = admin_remove_user RPC fully removes user from org and auth.users
+--  18 = Fix invited users being added to New Users team when they have specific teams
 -- ===========================================
 
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -72,15 +73,15 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version if table is empty (new installations get latest version)
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 17, 'admin_remove_user RPC fully removes user from org and auth.users', NOW(), 'migration')
+VALUES (1, 18, 'Fix invited users being added to New Users when they have specific teams', NOW(), 'migration')
 ON CONFLICT (id) DO NOTHING;
 
 -- Update existing installations to latest version
 UPDATE schema_version SET 
-  version = 17, 
-  description = 'admin_remove_user RPC fully removes user from org and auth.users', 
+  version = 18, 
+  description = 'Fix invited users being added to New Users when they have specific teams', 
   applied_at = NOW() 
-WHERE id = 1 AND version < 17;
+WHERE id = 1 AND version < 18;
 
 -- Upgrade existing installations to v10
 UPDATE schema_version 
@@ -6588,9 +6589,15 @@ BEGIN
       END LOOP;
     END IF;
   ELSE
-    -- No pending invite - user joined via org code
-    -- They should already be in default team from join_org_by_slug, but ensure it here as fallback
-    IF user_org_id IS NOT NULL THEN
+    -- No pending invite found - either:
+    -- 1. User joined via org code (not invite)
+    -- 2. Pending invite was already claimed (by a previous trigger run)
+    -- Only add to default team if user has NO team memberships yet
+    IF user_org_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM team_members tm
+      JOIN teams t ON t.id = tm.team_id
+      WHERE tm.user_id = p_user_id AND t.org_id = user_org_id
+    ) THEN
       SELECT default_new_user_team_id INTO default_team
       FROM organizations
       WHERE id = user_org_id;
