@@ -47,6 +47,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 --   2 = Added workflow_roles, job_titles, pending_org_members, vault_users (v2.16.0)
 --   3 = Added auth_providers to organizations for SSO control (v2.16.6)
 --   4 = delete_user_account now performs hard delete from auth.users (v2.16.11)
+--   5 = on_auth_user_created trigger fires on INSERT OR UPDATE (fixes invited user flow)
 -- ===========================================
 
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -59,15 +60,15 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version if table is empty (new installations get latest version)
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 4, 'delete_user_account hard delete', NOW(), 'migration')
+VALUES (1, 5, 'on_auth_user_created fires on INSERT OR UPDATE', NOW(), 'migration')
 ON CONFLICT (id) DO NOTHING;
 
--- Upgrade existing installations to v4
+-- Upgrade existing installations to v5
 UPDATE schema_version 
-SET version = 4, 
-    description = 'delete_user_account hard delete',
+SET version = 5, 
+    description = 'on_auth_user_created fires on INSERT OR UPDATE',
     applied_at = NOW()
-WHERE version < 4;
+WHERE version < 5;
 
 -- Function to update schema version (for use in migrations)
 CREATE OR REPLACE FUNCTION update_schema_version(
@@ -943,10 +944,12 @@ WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger for new user signup
+-- Trigger for new user signup (fires on INSERT and UPDATE)
+-- INSERT: New user signs up directly (Google, email, etc.)
+-- UPDATE: User was invited first (inviteUserByEmail creates auth.users), then signs in
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
+  AFTER INSERT OR UPDATE ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 -- Function to log activity automatically

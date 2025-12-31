@@ -21,7 +21,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 4
+export const EXPECTED_SCHEMA_VERSION = 5
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -33,6 +33,7 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   2: 'Added workflow roles, job titles, pending org members, vault users',
   3: 'Added auth providers for SSO control',
   4: 'delete_user_account now performs hard delete from auth.users',
+  5: 'on_auth_user_created trigger fires on INSERT OR UPDATE (fixes invited user flow)',
 }
 
 export interface SchemaVersionInfo {
