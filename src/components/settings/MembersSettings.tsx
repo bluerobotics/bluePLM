@@ -122,6 +122,19 @@ export function MembersSettings() {
         return
       }
       
+      // Load pending org members (unclaimed) to filter them out from the user list
+      // Users who haven't actually signed in yet should only appear in "Pending Members"
+      const { data: pendingData } = await supabase
+        .from('pending_org_members')
+        .select('email')
+        .eq('org_id', organization.id)
+        .is('claimed_at', null)
+      
+      const pendingEmails = new Set((pendingData || []).map(p => p.email.toLowerCase()))
+      
+      // Filter out users who are still pending (have unclaimed pending_org_members record)
+      const activeUsers = (usersData || []).filter(u => !pendingEmails.has(u.email.toLowerCase()))
+      
       // Load team memberships for all users
       const { data: membershipsData } = await supabase
         .from('team_members')
@@ -129,10 +142,10 @@ export function MembersSettings() {
           user_id,
           team:teams(id, name, color, icon)
         `)
-        .in('user_id', (usersData || []).map(u => u.id))
+        .in('user_id', activeUsers.map(u => u.id))
       
       // Map teams to users
-      const usersWithTeams = (usersData || []).map(user => {
+      const usersWithTeams = activeUsers.map(user => {
         const userMemberships = (membershipsData || []).filter(m => m.user_id === user.id)
         return {
           ...user,
