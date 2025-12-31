@@ -2,9 +2,11 @@
 
 BluePLM is a desktop application for managing engineering files across teams. It uses Supabase as its cloud backend for authentication, file storage, and real-time sync.
 
+**Website:** [blueplm.io](https://blueplm.io) • **GitHub:** [bluerobotics/bluePLM](https://github.com/bluerobotics/bluePLM)
+
 ## How It Works
 
-1. **Admin** sets up a Supabase project and configures BluePLM
+1. **Admin** creates a Supabase project and configures BluePLM
 2. Admin generates an **Organization Code** to share with the team
 3. **Team members** download BluePLM and enter the code to connect
 4. Everyone signs in with Google, email, or phone
@@ -14,12 +16,19 @@ BluePLM is a desktop application for managing engineering files across teams. It
 
 When you first open BluePLM, you'll go through:
 
-1. **Language selection** - Choose your preferred language
-2. **Usage statistics** - Opt in/out of anonymous analytics
+1. **Language selection** — Choose your preferred language
+2. **Usage statistics** — Opt in/out of anonymous analytics
 
 Then you'll see the **Setup Screen** where you choose your role.
 
-## Next Steps
+## Get Started
 
-- **Admins**: [Admin Setup Guide](/admin-setup) - Configure Supabase and create the organization
-- **Team Members**: [User Setup Guide](/user-setup) - Join an existing organization
+- **Setting up for your team?** → [Admin Setup Guide](/admin-setup)
+- **Joining an existing organization?** → [User Setup Guide](/user-setup)
+
+## Learn More
+
+- [Explorer Interface](/source-files/explorer) — Navigate and manage files
+- [Understanding Vaults](/source-files/vaults) — File organization
+- [Settings Overview](/settings/) — Configuration options
+- [Integrations](/settings/integrations) — SolidWorks, Google Drive, Odoo
