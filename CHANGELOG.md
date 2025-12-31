@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [2.20.2] - 2025-12-31
+
+### Fixed
+- **Pending users showing in main list**: Fixed in both MembersSettings and TeamMembersSettings views - users who haven't signed in yet now only appear in "Pending Members" section
+
+---
+
 ## [2.20.1] - 2025-12-31
 
 ### Fixed

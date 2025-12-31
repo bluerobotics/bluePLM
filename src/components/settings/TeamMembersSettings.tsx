@@ -483,26 +483,39 @@ export function TeamMembersSettings() {
       
       if (error) throw error
       
-      // Load team memberships for all users
+      // Load pending org members (unclaimed) to filter them out from the user list
+      // Users who haven't actually signed in yet should only appear in "Pending Members"
+      const { data: pendingData } = await supabase
+        .from('pending_org_members')
+        .select('email')
+        .eq('org_id', organization.id)
+        .is('claimed_at', null)
+      
+      const pendingEmails = new Set((pendingData || []).map(p => p.email.toLowerCase()))
+      
+      // Filter out users who are still pending (have unclaimed pending_org_members record)
+      const activeUsers = (usersData || []).filter(u => !pendingEmails.has(u.email.toLowerCase()))
+      
+      // Load team memberships for active users only
       const { data: membershipsData } = await supabase
         .from('team_members')
         .select(`
           user_id,
           team:teams(id, name, color, icon)
         `)
-        .in('user_id', (usersData || []).map(u => u.id))
+        .in('user_id', activeUsers.map(u => u.id))
       
-      // Load job title assignments for all users
+      // Load job title assignments for active users only
       const { data: titleAssignmentsData } = await supabase
         .from('user_job_titles')
         .select(`
           user_id,
           title:job_titles(id, name, color, icon)
         `)
-        .in('user_id', (usersData || []).map(u => u.id))
+        .in('user_id', activeUsers.map(u => u.id))
       
       // Map teams and job_title to users
-      const usersWithTeamsAndTitles = (usersData || []).map(user => {
+      const usersWithTeamsAndTitles = activeUsers.map(user => {
         const userMemberships = (membershipsData || []).filter(m => m.user_id === user.id)
         const userTitleAssignment = (titleAssignmentsData || []).find(t => t.user_id === user.id)
         return {
