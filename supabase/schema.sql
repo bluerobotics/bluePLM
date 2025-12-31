@@ -46,6 +46,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 --   1 = Initial schema version tracking (v2.15.0)
 --   2 = Added workflow_roles, job_titles, pending_org_members, vault_users (v2.16.0)
 --   3 = Added auth_providers to organizations for SSO control (v2.16.6)
+--   4 = delete_user_account now performs hard delete from auth.users (v2.16.11)
 -- ===========================================
 
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -58,15 +59,15 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version if table is empty (new installations get latest version)
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 3, 'auth_providers for SSO control', NOW(), 'migration')
+VALUES (1, 4, 'delete_user_account hard delete', NOW(), 'migration')
 ON CONFLICT (id) DO NOTHING;
 
--- Upgrade existing v1/v2 installations to v3
+-- Upgrade existing installations to v4
 UPDATE schema_version 
-SET version = 3, 
-    description = 'auth_providers for SSO control',
+SET version = 4, 
+    description = 'delete_user_account hard delete',
     applied_at = NOW()
-WHERE version < 3;
+WHERE version < 4;
 
 -- Function to update schema version (for use in migrations)
 CREATE OR REPLACE FUNCTION update_schema_version(
@@ -8024,40 +8025,35 @@ BEGIN
   -- Delete notifications
   DELETE FROM notifications WHERE user_id = current_user_id;
   
-  -- Delete user preferences/settings (if stored separately)
-  -- Note: Module preferences are stored in users table, will be deleted with user
-  
-  -- Clear pending org member claims (if any)
+  -- Clear pending org member claims (allows re-inviting with same email)
   UPDATE pending_org_members
   SET claimed_at = NULL, claimed_by = NULL
   WHERE claimed_by = current_user_id;
   
-  -- Finally, delete the user record (this cascades to auth.users)
-  -- The users table has ON DELETE CASCADE from auth.users,
-  -- but we can't delete auth.users directly from a function.
-  -- Instead, we'll remove the org association and mark for deletion.
-  -- The auth.users deletion should be handled by Supabase Admin API from the app.
+  -- Delete the user from public.users first (required due to FK order)
+  DELETE FROM public.users WHERE id = current_user_id;
   
-  -- For now, we'll remove org association and all data, 
-  -- effectively "soft deleting" the user from the organization
-  UPDATE users
-  SET 
-    org_id = NULL,
-    role = 'viewer',
-    full_name = '[Deleted User]',
-    avatar_url = NULL
-  WHERE id = current_user_id;
+  -- Delete from auth.users - this is the REAL delete
+  -- SECURITY DEFINER allows this function to run with elevated privileges
+  DELETE FROM auth.users WHERE id = current_user_id;
   
   RETURN json_build_object(
     'success', true,
-    'message', 'Account data deleted successfully',
+    'message', 'Account deleted permanently',
     'user_id', current_user_id,
     'email', user_email
+  );
+EXCEPTION WHEN OTHERS THEN
+  -- If deletion fails, return error details
+  RETURN json_build_object(
+    'success', false,
+    'error', SQLERRM,
+    'detail', SQLSTATE
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-COMMENT ON FUNCTION delete_user_account IS 'Allows users to delete their own account and remove all organizational associations while preserving audit history.';
+COMMENT ON FUNCTION delete_user_account IS 'Permanently deletes user account from both public.users and auth.users. Cleans up all associated data while preserving audit history (activity logs show [Deleted User]).';
 
 -- ===========================================
 -- COMMENTS
