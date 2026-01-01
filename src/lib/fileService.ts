@@ -416,17 +416,27 @@ export async function rollbackToVersion(
   // The server will be updated on check-in
   
   // Log activity (this is just for history, doesn't change file state on server)
+  // Fire-and-forget to avoid blocking the rollback operation
   const isRollback = targetVersion < file.version
-  await supabase.from('activity').insert({
-    org_id: file.org_id,
-    file_id: fileId,
-    user_id: userId,
-    action: isRollback ? 'rollback' : 'roll_forward',
-    details: { 
-      from_version: file.version, 
-      to_version: targetVersion,
-      comment: comment || null
-    }
+  import('./supabase').then(({ getCurrentUserEmail }) => {
+    getCurrentUserEmail().then(userEmail => {
+      supabase.from('activity').insert({
+        org_id: file.org_id,
+        file_id: fileId,
+        user_id: userId,
+        user_email: userEmail,
+        action: isRollback ? 'rollback' : 'roll_forward',
+        details: { 
+          from_version: file.version, 
+          to_version: targetVersion,
+          comment: comment || null
+        }
+      }).then(({ error: activityError }) => {
+        if (activityError) {
+          console.warn('[Rollback] Failed to log activity:', activityError.message)
+        }
+      })
+    })
   })
   
   // Return the target version info so caller can download content
@@ -493,65 +503,5 @@ export async function transitionFileState(
   }
   
   return { success: true, file: updated }
-}
-
-/**
- * Get where-used (which assemblies use this part)
- */
-export async function getWhereUsed(fileId: string): Promise<{
-  references: Array<{
-    parentFile: PDMFile
-    referenceType: string
-    quantity: number
-  }>
-  error?: string
-}> {
-  const { data, error } = await supabase
-    .from('file_references')
-    .select('*, parent:files!parent_file_id(*)')
-    .eq('child_file_id', fileId)
-  
-  if (error) {
-    return { references: [], error: error.message }
-  }
-  
-  return {
-    references: data?.map(r => ({
-      parentFile: r.parent,
-      referenceType: r.reference_type,
-      quantity: r.quantity
-    })) || []
-  }
-}
-
-/**
- * Get contains (BOM - what parts are in this assembly)
- */
-export async function getContains(fileId: string): Promise<{
-  references: Array<{
-    childFile: PDMFile
-    referenceType: string
-    quantity: number
-    configuration?: string
-  }>
-  error?: string
-}> {
-  const { data, error } = await supabase
-    .from('file_references')
-    .select('*, child:files!child_file_id(*)')
-    .eq('parent_file_id', fileId)
-  
-  if (error) {
-    return { references: [], error: error.message }
-  }
-  
-  return {
-    references: data?.map(r => ({
-      childFile: r.child,
-      referenceType: r.reference_type,
-      quantity: r.quantity,
-      configuration: r.configuration
-    })) || []
-  }
 }
 

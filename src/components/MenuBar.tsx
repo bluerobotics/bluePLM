@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { registerModule, unregisterModule } from '@/lib/telemetry'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { LogOut, ChevronDown, Building2, Search, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, Settings, WifiOff, Wifi, PanelLeft, PanelBottom, PanelRight, SlidersHorizontal, Gauge, Users, Activity, User, Layers } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
 import { CommandSearch } from './CommandSearch'
 import { signInWithGoogle, signOut, isSupabaseConfigured, getActiveSessions, endRemoteSession, UserSession, supabase } from '../lib/supabase'
-import { getInitials } from '../types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '../types/pdm'
 import { logAuth } from '../lib/userActionLogger'
 import { SystemStats } from './SystemStats'
 import { OnlineUsersIndicator } from './OnlineUsersIndicator'
@@ -90,14 +89,17 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     topbarConfig,
     setTopbarConfig,
     tabsEnabled,
-    setTabsEnabled
+    setTabsEnabled,
+    getEffectiveVaultIds
   } = usePDMStore()
   
-  // Register module for telemetry tracking
-  useEffect(() => {
-    registerModule('MenuBar')
-    return () => unregisterModule('MenuBar')
-  }, [])
+  // Filter vaults based on impersonated user's access
+  const effectiveVaultIds = getEffectiveVaultIds()
+  const visibleVaults = useMemo(() => {
+    if (effectiveVaultIds.length === 0) return connectedVaults
+    return connectedVaults.filter(v => effectiveVaultIds.includes(v.id))
+  }, [connectedVaults, effectiveVaultIds])
+  
   // appVersion may be used in future UI updates
   const [, setAppVersion] = useState('')
   const [isSigningIn, setIsSigningIn] = useState(false)
@@ -405,32 +407,32 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           )}
           
           {/* Separator */}
-          {!minimal && connectedVaults.length > 0 && <div className="w-px h-4 bg-plm-border mx-1" />}
+          {!minimal && visibleVaults.length > 0 && <div className="w-px h-4 bg-plm-border mx-1" />}
           
           {/* Vault Dropdown */}
-          {!minimal && connectedVaults.length > 0 && (
+          {!minimal && visibleVaults.length > 0 && (
             <div className="relative" ref={vaultDropdownRef}>
               <button
                 onClick={() => setShowVaultDropdown(!showVaultDropdown)}
                 className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-plm-bg-lighter transition-colors text-sm"
-                title={connectedVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
+                title={visibleVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
               >
                 <Database size={14} className="text-plm-fg-muted" />
                 {showVaultName && (
                   <span className="text-plm-fg max-w-[140px] truncate">
-                    {connectedVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
+                    {visibleVaults.find(v => v.id === activeVaultId)?.name || 'Select Vault'}
                   </span>
                 )}
-                {connectedVaults.length > 1 && (
+                {visibleVaults.length > 1 && (
                   <ChevronDown size={12} className={`text-plm-fg-muted transition-transform ${showVaultDropdown ? 'rotate-180' : ''}`} />
                 )}
               </button>
               
               {/* Vault Dropdown Menu */}
-              {showVaultDropdown && connectedVaults.length > 1 && (
+              {showVaultDropdown && visibleVaults.length > 1 && (
                 <div className="absolute left-0 top-full mt-1 w-56 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl overflow-hidden z-50">
                   <div className="py-1">
-                    {connectedVaults.map(vault => (
+                    {visibleVaults.map(vault => (
                       <button
                         key={vault.id}
                         onClick={() => {
@@ -791,12 +793,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
               }`}
               title={user.full_name || user.email}
             >
-              {user.avatar_url ? (
+              {getEffectiveAvatarUrl(user) ? (
                 <>
                   <img 
-                    src={user.avatar_url} 
+                    src={getEffectiveAvatarUrl(user) || ''} 
                     alt={user.full_name || user.email}
-                    className={showUserNameFinal ? 'w-7 h-7 rounded-full' : 'w-6 h-6 rounded-full'}
+                    className={showUserNameFinal ? 'w-7 h-7 rounded-full object-cover' : 'w-6 h-6 rounded-full object-cover'}
+                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       target.style.display = 'none'
@@ -832,12 +835,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                 {/* User Info Header */}
                 <div className="px-4 py-3 border-b border-plm-border">
                   <div className="flex items-center gap-3">
-                    {user.avatar_url ? (
+                    {getEffectiveAvatarUrl(user) ? (
                       <>
                         <img 
-                          src={user.avatar_url} 
+                          src={getEffectiveAvatarUrl(user) || ''} 
                           alt={user.full_name || user.email}
-                          className="w-10 h-10 rounded-full"
+                          className="w-10 h-10 rounded-full object-cover"
+                          referrerPolicy="no-referrer"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement
                             target.style.display = 'none'

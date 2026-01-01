@@ -2,6 +2,67 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.0.0] - 2026-01-01
+
+### Added
+- **Custom profile picture uploads**: Users can now upload their own profile picture in Settings > Profile. Supports PNG, JPG, and WebP up to 2MB. Custom pictures override Google avatar
+- **Log viewer multi-select**: Select multiple log entries with checkboxes and copy them with their full content (including expanded JSON data). Use Shift+click for range selection
+- **Refresh Metadata on folders**: Right-click any folder to refresh SolidWorks metadata for all SW files inside. Shows count of files that will be processed (e.g., "Refresh Metadata (15 files)")
+- **Refresh Metadata on vault**: Right-click the vault header in the sidebar to refresh SolidWorks metadata for all SW files in the entire vault
+- **Tab number support in serialization**: Part numbers can now include variant/tab suffixes (e.g., BR101101-104). Configure in Settings → Serialization with custom separator and digit padding. The SolidWorks datacard shows separate Base # and Tab # input fields when enabled
+- **Detect highest serial number**: Admins can scan all vault files to find the highest used serial number and set the counter accordingly. Accessible via "Scan Vault" button in Settings → Serialization
+- **Per-configuration tab numbers**: Parts and assemblies with multiple SolidWorks configurations can now have different tab numbers per configuration while sharing the same base number. For example, a part with 3 configs could be: BR-12345-001 (Default), BR-12345-002 (Machined), BR-12345-003 (Anodized). The datacard shows separate "Base #" (shared) and "Tab #" (per-config) fields with a live preview of the full part number
+
+### Changed
+- **Log viewer toolbar redesigned**: Reorganized into a compact two-row layout. Level filters now show counts inline, related controls are grouped visually, and selection controls only appear when items are selected
+- **Electron upgraded to v39**: Major upgrade from Electron 34 to 39, bringing Chromium 142, Node.js 22, and V8 14.2
+- **Supporting packages upgraded**: electron-builder 26, electron-updater 6.7.3, vite-plugin-electron 0.29.0
+- **SolidWorks datacard UI redesigned**: Cleaner 3-column layout with preview (left), editable properties (center), and export buttons (right). Configuration tabs only appear when multiple configs exist. Removed redundant "Start Service" buttons - service status is now a subtle indicator dot (users manage the service in Settings → Integrations)
+
+### Fixed
+- **Avatar images not loading**: Fixed Google-hosted avatar images failing to load in Chromium 142 by adding `referrerPolicy="no-referrer"` to all avatar image elements
+- **Security vulnerability in systeminformation**: Updated systeminformation to fix command injection vulnerability on Windows (CVE-2024-xxxxx)
+- **Slow checkout operations**: Fixed checkout taking 10-20+ seconds by eliminating redundant IPC calls. Machine info and SolidWorks service status are now fetched once per batch instead of per-file. Also fixed 400 errors on activity logging by adding missing `user_email` field, and made activity logging fire-and-forget to avoid blocking operations
+- **SolidWorks drawing revision not syncing**: Fixed "Refresh Metadata" not extracting Revision property from drawing files (.slddrw). The Document Manager API was failing due to incorrect COM interop parameter types - changed `out object` to `out SwDmCustomInfoType` for `GetCustomProperty` calls
+- **File browser not remembering folder**: Fixed file browser resetting to vault root on app restart. The current folder path is now persisted and restored when reopening the app
+- **SolidWorks datacard not showing PDM metadata**: Fixed datacard fields (Item #, Description, Revision) not populating with values from the database. Fields now properly load from pdmData and pendingMetadata, matching what displays inline in the file browser
+
+### Removed
+- **Unused components**: Removed `StatusBar.tsx` and `SolidWorksPreviewPanel.tsx` (dead code)
+- **Unused npm dependencies**: Removed @tanstack/react-query, @tanstack/react-table, and clsx (never imported)
+- **Duplicate utility functions**: Consolidated 9 copies of `buildFullPath` and 6 copies of `formatBytes` into shared `src/lib/utils.ts`
+
+---
+
+## [2.21.0] - 2025-12-31
+
+### Added
+- **User "last online" tracking**: Users now have a "last online" timestamp visible in member lists and user profiles. Shows relative time (e.g., "5m ago", "Online now") with a clock icon on its own line for cleaner layout
+- **Real-time last online sync**: The "last online" timestamp now updates every 30 seconds via heartbeat, so it stays in sync with the online indicator in the top right
+- **Team module defaults in Members & Teams**: Each team now has a "Modules" button to configure which modules are enabled by default for team members. If a user is in multiple teams, they get the union of all enabled modules (if any team enables a module, it's enabled)
+- **Full module configuration per team**: Team module defaults now use the same full editor as Settings > Modules. Teams can have their own module order, custom groups, dividers, sub-menus (parent-child relationships), and icon colors - not just enable/disable toggles
+
+### Fixed
+- **Auth provider settings not respected on sign-in**: Sign-in screen now respects organization's auth provider settings. If admin disables email/phone sign-in, those options are hidden from the sign-in screen
+- **User simulation not respecting team restrictions**: When simulating a user (admin feature), the sidebar now correctly shows only modules enabled for the simulated user's teams, and vaults are filtered based on the team's vault access. This works for both active and pending users
+- **Backups failing due to stale repository locks**: Backups now automatically clear stale locks before starting and before applying retention policy. Previously, if a backup was interrupted, subsequent backups would fail with "repository is already locked" error
+
+### Changed
+- **Members & Teams UI improvements**: Teams and users in the Members & Teams settings now have a cleaner look with subtle ring borders, hover highlights, and colored left borders on team headers. Expanded teams have a prominent drop shadow effect on all sides to visually "pop out" from surrounding content
+- **Team-based permissions architecture**: Admin status is now determined by membership in the "Administrators" team instead of the legacy `role` column. All permissions flow through the team system. The `role` column is deprecated but retained for backward compatibility
+- **Lazy loading for modules**: All sidebar views and settings panels are now lazy loaded using React.lazy(). Disabled modules are never loaded into memory, and views are only loaded when navigated to. This significantly reduces memory usage for users who don't need all features
+- **Group toggles in Modules settings**: Custom groups can now be toggled on/off. Disabling a group hides all modules within it from the sidebar
+- **"In Development" modules can be toggled**: Modules marked as "In Development" (previously "Coming Soon") can now be enabled/disabled. They appear slightly greyed out in settings and show an "In Dev" badge in the sidebar
+- **Inline vault selector for Source Files permissions**: In both "View Net Permissions" modal and team permissions editor, the vault selector is now inline within the Source Files section instead of a global dropdown. Only Source Files permissions are vault-specific; other modules show global permissions
+- **Schema version**: Bumped to v24
+
+### Removed
+- **Performance Processes tab**: Removed the non-functional "Processes" tab from Performance settings. Module memory tracking was causing performance issues and has been replaced with lazy loading instead
+- **Role impersonation from dev tools**: Removed the deprecated Admin/Engineer/Viewer role impersonation feature. User impersonation (simulating a specific user's permissions) remains available for admins
+- **Deprecated TeamsSettings and MembersSettings**: Removed the orphaned separate Teams and Members settings pages. All team/member management now goes through the unified "Members & Teams" settings tab
+
+---
+
 ## [2.20.3] - 2025-12-31
 
 ### Fixed

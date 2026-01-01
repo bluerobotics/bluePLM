@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Cpu, MemoryStick, HardDrive, ArrowDown, ArrowUp, Activity, Box } from 'lucide-react'
+import { formatBytes, formatSpeed } from '../lib/utils'
 
 interface SystemStats {
   cpu: { usage: number; cores: number[] }
@@ -12,22 +13,6 @@ interface SystemStats {
 interface SystemStatsProps {
   condensed?: boolean
   forceExpanded?: boolean  // Override internal collapsed state
-}
-
-// Format bytes to human readable
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-}
-
-// Format network speed
-function formatSpeed(bytesPerSec: number): string {
-  if (bytesPerSec < 1024) return `${bytesPerSec} B/s`
-  if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`
-  return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
 }
 
 // Tiny progress bar component (kept for future use)

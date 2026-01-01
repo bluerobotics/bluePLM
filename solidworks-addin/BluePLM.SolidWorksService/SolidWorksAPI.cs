@@ -366,13 +366,18 @@ namespace BluePLM.SolidWorksService
                 var fileProps = ReadCustomProperties(doc, null);
                 var configProps = new Dictionary<string, Dictionary<string, string>>();
 
-                // Get configuration-specific properties
-                var configNames = (string[])doc.GetConfigurationNames();
+                // Get configuration-specific properties (drawings may not have configurations)
+                var configNamesObj = doc.GetConfigurationNames();
+                var configNames = configNamesObj as string[] ?? Array.Empty<string>();
                 foreach (var config in configNames)
                 {
                     if (configuration == null || config == configuration)
                     {
-                        configProps[config] = ReadCustomProperties(doc, config);
+                        try
+                        {
+                            configProps[config] = ReadCustomProperties(doc, config);
+                        }
+                        catch { } // Ignore errors reading config properties
                     }
                 }
 
@@ -465,10 +470,14 @@ namespace BluePLM.SolidWorksService
 
             try
             {
-                var ext = doc.Extension;
+                var ext = doc?.Extension;
+                if (ext == null) return props;
+                
                 var manager = string.IsNullOrEmpty(configuration)
                     ? ext.CustomPropertyManager[""]
                     : ext.CustomPropertyManager[configuration];
+
+                if (manager == null) return props;
 
                 object names = null!;
                 object types = null!;

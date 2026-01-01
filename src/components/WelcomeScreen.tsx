@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Database, Link, User, Truck, Mail, Phone, ArrowLeft, Eye, EyeOff, RotateCw, X, AlertTriangle, LogOut, Trash2 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '../stores/pdmStore'
-import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase, getAccessibleVaults, signOut as supabaseSignOut } from '../lib/supabase'
-import { clearConfig } from '../lib/supabaseConfig'
-import { getInitials } from '../types/pdm'
+import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase, getAccessibleVaults, signOut as supabaseSignOut, getOrgAuthProviders, type AuthProviders } from '../lib/supabase'
+import { clearConfig, loadConfig } from '../lib/supabaseConfig'
+import { getInitials, getEffectiveAvatarUrl } from '../types/pdm'
 import { logClick, logAuth } from '../lib/userActionLogger'
 import { LogViewer } from './LogViewer'
 import { LanguageSelector } from './LanguageSelector'
@@ -110,6 +110,9 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
   const [connectingVaultId, setConnectingVaultId] = useState<string | null>(null)
   const [platform, setPlatform] = useState<string>('win32')
+  
+  // Auth providers settings (fetched from org settings for sign-in screen)
+  const [orgAuthProviders, setOrgAuthProviders] = useState<AuthProviders | null>(null)
 
   // Get platform on mount
   useEffect(() => {
@@ -117,6 +120,52 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       window.electronAPI.getPlatform().then(setPlatform)
     }
   }, [])
+
+  // Fetch org auth providers on mount (for pre-login sign-in method visibility)
+  useEffect(() => {
+    const fetchAuthProviders = async () => {
+      const config = loadConfig()
+      if (config?.orgSlug) {
+        uiLog('info', 'Fetching auth providers for org', { orgSlug: config.orgSlug })
+        const providers = await getOrgAuthProviders(config.orgSlug)
+        if (providers) {
+          uiLog('info', 'Auth providers loaded', { providers })
+          setOrgAuthProviders(providers)
+        }
+      }
+    }
+    fetchAuthProviders()
+  }, [])
+
+  // Auto-select an enabled auth method when providers are loaded
+  // This handles cases where Google is disabled but authMethod defaults to 'google'
+  useEffect(() => {
+    if (!orgAuthProviders) return
+    
+    const isUser = accountType === 'user'
+    const providers = isUser ? orgAuthProviders.users : orgAuthProviders.suppliers
+    
+    // If current method is disabled, switch to an enabled one
+    if (authMethod === 'google' && providers?.google === false) {
+      if (providers?.email !== false) {
+        setAuthMethod('email')
+      } else if (providers?.phone !== false) {
+        setAuthMethod('phone')
+      }
+    } else if (authMethod === 'email' && providers?.email === false) {
+      if (providers?.google !== false && isUser) {
+        setAuthMethod('google')
+      } else if (providers?.phone !== false) {
+        setAuthMethod('phone')
+      }
+    } else if (authMethod === 'phone' && providers?.phone === false) {
+      if (providers?.google !== false && isUser) {
+        setAuthMethod('google')
+      } else if (providers?.email !== false) {
+        setAuthMethod('email')
+      }
+    }
+  }, [orgAuthProviders, accountType, authMethod])
 
   // Log user/org state changes for debugging
   useEffect(() => {
@@ -781,22 +830,22 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           <Loader2 size={40} className="animate-spin text-plm-accent mx-auto mb-4" />
           <p className="text-plm-fg-muted">{t('welcome.connectingToOrg')}</p>
           
-          {/* Cancel button - allows users to escape if connection hangs */}
-          <button
-            onClick={handleCancelConnecting}
-            className="mt-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors underline"
-          >
-            {t('common.cancel')}
-          </button>
-          
-          {/* Start Fresh option - always visible on connecting screen */}
-          <button
-            onClick={handleStartFresh}
-            className="mt-3 inline-flex items-center justify-center gap-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-          >
-            <Trash2 size={14} />
-            {t('welcome.startFresh', 'Clear saved data & start fresh')}
-          </button>
+          {/* Cancel / Start Fresh options */}
+          <div className="mt-8 flex flex-col items-center gap-2">
+            <button
+              onClick={handleCancelConnecting}
+              className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors underline"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={handleStartFresh}
+              className="inline-flex items-center gap-1.5 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+            >
+              <Trash2 size={14} />
+              {t('welcome.startFresh', 'Clear saved data & start fresh')}
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -924,8 +973,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 </p>
               </div>
 
-              {/* Google OAuth (default) */}
-              {authMethod === 'google' && (
+              {/* Google OAuth (default) - only show if Google is enabled */}
+              {authMethod === 'google' && orgAuthProviders?.users?.google !== false && (
                 <>
                   {/* Error message for Google sign-in */}
                   {authError && !isSigningIn && (
@@ -972,53 +1021,60 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                     )}
                   </div>
 
-                  <div className="relative my-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-plm-border"></div>
-                    </div>
-                    <div className="relative flex justify-center text-xs">
-                      <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
-                    </div>
-                  </div>
+                  {/* Only show Email/Password option if email or phone is enabled */}
+                  {(orgAuthProviders?.users?.email !== false || orgAuthProviders?.users?.phone !== false) && (
+                    <>
+                      <div className="relative my-4">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-plm-border"></div>
+                        </div>
+                        <div className="relative flex justify-center text-xs">
+                          <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
+                        </div>
+                      </div>
 
-                  <button
-                    onClick={() => setAuthMethod('email')}
-                    className="w-full btn btn-secondary gap-3 justify-center py-3"
-                  >
-                    <Mail size={18} />
-                    {t('welcome.useEmailPassword')}
-                  </button>
+                      <button
+                        onClick={() => setAuthMethod(orgAuthProviders?.users?.email !== false ? 'email' : 'phone')}
+                        className="w-full btn btn-secondary gap-3 justify-center py-3"
+                      >
+                        <Mail size={18} />
+                        {t('welcome.useEmailPassword')}
+                      </button>
+                    </>
+                  )}
                 </>
               )}
 
               {/* Email/Phone Auth */}
               {authMethod !== 'google' && (
                 <>
-                  {/* Auth Method Tabs */}
-                  <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
-                    <button
-                      onClick={() => { setAuthMethod('email'); setIsOtpSent(false) }}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                        authMethod === 'email' 
-                          ? 'bg-plm-bg text-plm-fg shadow-sm' 
-                          : 'text-plm-fg-muted hover:text-plm-fg'
-                      }`}
-                    >
-                      <Mail size={16} />
-                      {t('welcome.email')}
-                    </button>
-                    <button
-                      onClick={() => { setAuthMethod('phone'); setIsNewAccount(false) }}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                        authMethod === 'phone' 
-                          ? 'bg-plm-bg text-plm-fg shadow-sm' 
-                          : 'text-plm-fg-muted hover:text-plm-fg'
-                      }`}
-                    >
-                      <Phone size={16} />
-                      {t('welcome.phone')}
-                    </button>
-                  </div>
+                  {/* Auth Method Tabs - only show if both are enabled, otherwise just show the enabled one */}
+                  {orgAuthProviders?.users?.email !== false && orgAuthProviders?.users?.phone !== false && (
+                    <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
+                      <button
+                        onClick={() => { setAuthMethod('email'); setIsOtpSent(false) }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                          authMethod === 'email' 
+                            ? 'bg-plm-bg text-plm-fg shadow-sm' 
+                            : 'text-plm-fg-muted hover:text-plm-fg'
+                        }`}
+                      >
+                        <Mail size={16} />
+                        {t('welcome.email')}
+                      </button>
+                      <button
+                        onClick={() => { setAuthMethod('phone'); setIsNewAccount(false) }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                          authMethod === 'phone' 
+                            ? 'bg-plm-bg text-plm-fg shadow-sm' 
+                            : 'text-plm-fg-muted hover:text-plm-fg'
+                        }`}
+                      >
+                        <Phone size={16} />
+                        {t('welcome.phone')}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Error Message */}
                   {authError && (
@@ -1027,8 +1083,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                     </div>
                   )}
 
-                  {/* Email Auth Form */}
-                  {authMethod === 'email' && (
+                  {/* Email Auth Form - only show if email auth is enabled */}
+                  {authMethod === 'email' && orgAuthProviders?.users?.email !== false && (
                     <div className="space-y-4">
                       {isNewAccount && (
                         <div>
@@ -1138,8 +1194,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                     </div>
                   )}
 
-                  {/* Phone Auth Form */}
-                  {authMethod === 'phone' && (
+                  {/* Phone Auth Form - only show if phone auth is enabled */}
+                  {authMethod === 'phone' && orgAuthProviders?.users?.phone !== false && (
                     <div className="space-y-4">
                       {!isOtpSent ? (
                         <>
@@ -1274,31 +1330,33 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 </p>
               </div>
 
-              {/* Auth Method Tabs */}
-              <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
-                <button
-                  onClick={() => { setAuthMethod('email'); setIsOtpSent(false) }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                    authMethod === 'email' 
-                      ? 'bg-plm-bg text-plm-fg shadow-sm' 
-                      : 'text-plm-fg-muted hover:text-plm-fg'
-                  }`}
-                >
-                  <Mail size={16} />
-                  {t('welcome.email')}
-                </button>
-                <button
-                  onClick={() => { setAuthMethod('phone'); setIsNewAccount(false) }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                    authMethod === 'phone' 
-                      ? 'bg-plm-bg text-plm-fg shadow-sm' 
-                      : 'text-plm-fg-muted hover:text-plm-fg'
-                  }`}
-                >
-                  <Phone size={16} />
-                  {t('welcome.phone')}
-                </button>
-              </div>
+              {/* Auth Method Tabs - only show if both email and phone are enabled for suppliers */}
+              {orgAuthProviders?.suppliers?.email !== false && orgAuthProviders?.suppliers?.phone !== false && (
+                <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
+                  <button
+                    onClick={() => { setAuthMethod('email'); setIsOtpSent(false) }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      authMethod === 'email' 
+                        ? 'bg-plm-bg text-plm-fg shadow-sm' 
+                        : 'text-plm-fg-muted hover:text-plm-fg'
+                    }`}
+                  >
+                    <Mail size={16} />
+                    {t('welcome.email')}
+                  </button>
+                  <button
+                    onClick={() => { setAuthMethod('phone'); setIsNewAccount(false) }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      authMethod === 'phone' 
+                        ? 'bg-plm-bg text-plm-fg shadow-sm' 
+                        : 'text-plm-fg-muted hover:text-plm-fg'
+                    }`}
+                  >
+                    <Phone size={16} />
+                    {t('welcome.phone')}
+                  </button>
+                </div>
+              )}
 
               {/* Error Message */}
               {authError && (
@@ -1307,8 +1365,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 </div>
               )}
 
-              {/* Email Auth Form */}
-              {authMethod === 'email' && (
+              {/* Email Auth Form - only show if email auth is enabled for suppliers */}
+              {authMethod === 'email' && orgAuthProviders?.suppliers?.email !== false && (
                 <div className="space-y-4">
                   {isNewAccount && (
                     <div>
@@ -1418,8 +1476,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 </div>
               )}
 
-              {/* Phone Auth Form */}
-              {authMethod === 'phone' && (
+              {/* Phone Auth Form - only show if phone auth is enabled for suppliers */}
+              {authMethod === 'phone' && orgAuthProviders?.suppliers?.phone !== false && (
                 <div className="space-y-4">
                   {!isOtpSent ? (
                     <>
@@ -1576,8 +1634,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           {/* User Info */}
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-bg-light border border-plm-border rounded-full mb-4">
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="w-5 h-5 rounded-full" />
+              {getEffectiveAvatarUrl(user) ? (
+                <img src={getEffectiveAvatarUrl(user) || ''} alt="" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
               ) : (
                 <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold">
                   {getInitials(user.full_name || user.email)}
@@ -1682,12 +1740,13 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             </div>
           ) : user && (
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-bg-light border border-plm-border rounded-full">
-              {user.avatar_url ? (
+              {getEffectiveAvatarUrl(user) ? (
                 <>
                   <img 
-                    src={user.avatar_url} 
+                    src={getEffectiveAvatarUrl(user) || ''} 
                     alt="" 
-                    className="w-5 h-5 rounded-full"
+                    className="w-5 h-5 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       target.style.display = 'none'

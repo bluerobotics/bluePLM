@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Users, Monitor, Laptop } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
 import { getOrgOnlineUsers, subscribeToOrgOnlineUsers, OnlineUser } from '../lib/supabase'
-import { getInitials } from '../types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '../types/pdm'
 import { UserProfileModal } from './settings/UserProfileModal'
 
 interface OnlineUsersIndicatorProps {
@@ -164,11 +164,12 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
                     >
                       {/* Avatar with online indicator */}
                       <div className="relative flex-shrink-0">
-                        {onlineUser.avatar_url ? (
+                        {getEffectiveAvatarUrl(onlineUser) ? (
                           <img 
-                            src={onlineUser.avatar_url} 
+                            src={getEffectiveAvatarUrl(onlineUser) || ''} 
                             alt={onlineUser.full_name || onlineUser.email}
-                            className="w-8 h-8 rounded-full"
+                            className="w-8 h-8 rounded-full object-cover"
+                            referrerPolicy="no-referrer"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement
                               target.style.display = 'none'
@@ -176,7 +177,7 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
                             }}
                           />
                         ) : null}
-                        <div className={`w-8 h-8 rounded-full bg-plm-accent flex items-center justify-center text-xs text-white font-semibold ${onlineUser.avatar_url ? 'hidden' : ''}`}>
+                        <div className={`w-8 h-8 rounded-full bg-plm-accent flex items-center justify-center text-xs text-white font-semibold ${getEffectiveAvatarUrl(onlineUser) ? 'hidden' : ''}`}>
                           {getInitials(onlineUser.full_name || onlineUser.email)}
                         </div>
                         

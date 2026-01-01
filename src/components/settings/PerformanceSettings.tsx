@@ -1,21 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Activity, Gauge, Cpu, MemoryStick, Wifi, Box, RefreshCw, Trash2, ExternalLink } from 'lucide-react'
-import { telemetry, TelemetrySnapshot, TelemetryConfig, getModules, ModuleMemory } from '@/lib/telemetry'
+import { Gauge, Cpu, MemoryStick, Wifi, Box, Trash2, ExternalLink } from 'lucide-react'
+import { telemetry, TelemetrySnapshot, TelemetryConfig } from '@/lib/telemetry'
 import { TelemetryDashboard } from '../TelemetryGraph'
-import { ProcessView } from '../ModuleTracker'
-
-// Format bytes to human readable
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
+import { formatBytes } from '@/lib/utils'
 
 export function PerformanceSettings() {
-  const [activeSection, setActiveSection] = useState<'telemetry' | 'processes'>('telemetry')
-  const [modules, setModules] = useState<ModuleMemory[]>([])
   const [config, setConfig] = useState<TelemetryConfig>(telemetry.getConfig())
   const [latestSnapshot, setLatestSnapshot] = useState<TelemetrySnapshot | null>(null)
   
@@ -23,21 +12,16 @@ export function PerformanceSettings() {
   useEffect(() => {
     telemetry.loadConfig()
     setConfig(telemetry.getConfig())
-    setModules(getModules())
     
     // Subscribe to telemetry for live stats (only updates when telemetry is enabled)
     const unsubscribe = telemetry.subscribe((snapshot) => {
       setLatestSnapshot(snapshot)
-      // Only update modules when processes tab is active to avoid unnecessary work
-      if (activeSection === 'processes') {
-        setModules(getModules())
-      }
     })
     
     return () => {
       unsubscribe()
     }
-  }, [activeSection])
+  }, [])
   
   const handlePopOut = () => {
     window.electronAPI?.openPerformanceWindow?.()
@@ -101,61 +85,8 @@ export function PerformanceSettings() {
         />
       </div>
       
-      {/* Section Tabs */}
-      <div className="flex items-center gap-2 border-b border-plm-border">
-        <button
-          onClick={() => setActiveSection('telemetry')}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeSection === 'telemetry'
-              ? 'text-plm-accent border-plm-accent'
-              : 'text-plm-fg-muted border-transparent hover:text-plm-fg'
-          }`}
-        >
-          <Activity size={16} />
-          Telemetry Logs
-        </button>
-        <button
-          onClick={() => setActiveSection('processes')}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeSection === 'processes'
-              ? 'text-plm-accent border-plm-accent'
-              : 'text-plm-fg-muted border-transparent hover:text-plm-fg'
-          }`}
-        >
-          <Box size={16} />
-          Processes
-          <span className="px-1.5 py-0.5 text-[10px] bg-plm-bg-lighter rounded">
-            {modules.length}
-          </span>
-        </button>
-      </div>
-      
-      {/* Section Content */}
-      {activeSection === 'telemetry' && (
-        <div className="space-y-4">
-          <TelemetryDashboard />
-        </div>
-      )}
-      
-      {activeSection === 'processes' && (
-        <div className="space-y-4">
-          {/* Refresh and info */}
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-plm-fg-muted">
-              Track memory usage per app module. Add <code className="px-1 py-0.5 bg-plm-bg rounded text-plm-accent">useModuleTracker('name')</code> to components.
-            </p>
-            <button
-              onClick={() => setModules(getModules())}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg rounded hover:bg-plm-bg-lighter transition-colors"
-            >
-              <RefreshCw size={12} />
-              Refresh
-            </button>
-          </div>
-          
-          <ProcessView modules={modules} />
-        </div>
-      )}
+      {/* Telemetry Dashboard */}
+      <TelemetryDashboard />
       
       {/* Configuration Section */}
       <div className="pt-4 border-t border-plm-border">

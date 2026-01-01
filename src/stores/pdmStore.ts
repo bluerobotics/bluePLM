@@ -5,15 +5,7 @@ import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider, OrderListIt
 import { getDefaultModuleConfig, MODULES, MODULE_GROUPS, isModuleVisible, extractFromCombinedList } from '../types/modules'
 import type { KeybindingAction, KeybindingsConfig, Keybinding } from '../types/settings'
 import { supabase } from '../lib/supabase'
-
-// Build full path using the correct separator for the platform
-function buildFullPath(vaultPath: string, relativePath: string): string {
-  // Detect platform from vaultPath - macOS/Linux use /, Windows uses \
-  const isWindows = vaultPath.includes('\\')
-  const sep = isWindows ? '\\' : '/'
-  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
-  return `${vaultPath}${sep}${normalizedRelative}`
-}
+import { buildFullPath } from '../lib/utils'
 
 export type SidebarView = 
   // Source Files
@@ -138,6 +130,12 @@ export interface PendingMetadata {
   part_number?: string | null
   description?: string | null
   revision?: string
+  // Per-configuration tab numbers (config name -> tab number string)
+  // Base number is shared (stored in part_number), tabs vary per config
+  config_tabs?: Record<string, string>
+  // Per-configuration descriptions (config name -> description string)
+  // For parts/assemblies with multiple configurations
+  config_descriptions?: Record<string, string>
 }
 
 // Local file info from filesystem
@@ -234,6 +232,19 @@ export interface ColorSwatch {
   createdAt: string          // ISO timestamp
 }
 
+// Impersonated user context - full context for viewing as another user
+export interface ImpersonatedUser {
+  id: string
+  email: string
+  full_name: string | null
+  avatar_url: string | null
+  role: 'admin' | 'engineer' | 'viewer'
+  teams: Array<{ id: string; name: string; color: string; icon: string }>
+  permissions: Record<string, string[]>  // resource -> actions
+  vaultIds: string[]  // Accessible vault IDs (empty = all vaults)
+  moduleConfig?: ModuleConfig  // User's effective module config (from team defaults)
+}
+
 interface PDMState {
   // Auth & Org
   user: User | null
@@ -242,8 +253,8 @@ interface PDMState {
   isOfflineMode: boolean
   isConnecting: boolean  // True after sign-in while loading organization
   
-  // Role impersonation (dev tools, non-persisted)
-  impersonatedRole: 'admin' | 'engineer' | 'viewer' | null
+  // User impersonation (admin feature - view as another user)
+  impersonatedUser: ImpersonatedUser | null
   
   // Teams & Permissions
   userTeams: Array<{ id: string; name: string; color: string; icon: string }> | null
@@ -271,6 +282,8 @@ interface PDMState {
   selectedFiles: string[] // paths
   expandedFolders: Set<string>
   currentFolder: string
+  // Persisted pending metadata (survives app restart for checked-out files)
+  persistedPendingMetadata: Record<string, PendingMetadata>
   sortColumn: string
   sortDirection: 'asc' | 'desc'
   
@@ -284,7 +297,6 @@ interface PDMState {
   // Filter
   workflowStateFilter: string[]  // workflow_state_id[]
   extensionFilter: string[]
-  checkedOutFilter: 'all' | 'mine' | 'others'
   
   // Layout
   sidebarVisible: boolean
@@ -465,6 +477,7 @@ interface PDMState {
   setLogSharingEnabled: (enabled: boolean) => void
   
   // Actions - Module Configuration
+  setModuleConfig: (config: ModuleConfig) => void
   setModuleEnabled: (moduleId: ModuleId, enabled: boolean) => void
   setGroupEnabled: (groupId: ModuleGroupId, enabled: boolean) => void
   setModuleOrder: (order: ModuleId[]) => void
@@ -512,9 +525,15 @@ interface PDMState {
   setIsConnecting: (connecting: boolean) => void
   signOut: () => void
   
-  // Actions - Role Impersonation (dev tools)
-  setImpersonatedRole: (role: 'admin' | 'engineer' | 'viewer' | null) => void
-  getEffectiveRole: () => 'admin' | 'engineer' | 'viewer'
+  // Get effective role (considering user impersonation)
+  getEffectiveRole: () => string
+  
+  // Actions - User Impersonation (admin feature)
+  startUserImpersonation: (userId: string, customUser?: { id: string; email: string; full_name: string | null; role: string; teams?: { id: string; name: string; color: string; icon: string }[]; workflow_roles?: { id: string; name: string; color: string; icon: string }[] }) => Promise<void>
+  stopUserImpersonation: () => void
+  getImpersonatedUser: () => ImpersonatedUser | null
+  getEffectiveVaultIds: () => string[]  // Returns impersonated user's vault access or empty for all
+  getEffectiveModuleConfig: () => ModuleConfig  // Returns impersonated user's module config or regular config
   
   // Actions - Teams & Permissions
   loadUserPermissions: () => Promise<void>
@@ -643,7 +662,6 @@ interface PDMState {
   toggleSort: (column: string) => void
   setWorkflowStateFilter: (stateIds: string[]) => void
   setExtensionFilter: (extensions: string[]) => void
-  setCheckedOutFilter: (filter: 'all' | 'mine' | 'others') => void
   
   // Actions - Layout
   toggleSidebar: () => void
@@ -793,7 +811,7 @@ export const usePDMStore = create<PDMState>()(
       isAuthenticated: false,
       isOfflineMode: false,
       isConnecting: false,
-      impersonatedRole: null,
+      impersonatedUser: null,
       
       // Teams & Permissions
       userTeams: null,
@@ -819,6 +837,7 @@ export const usePDMStore = create<PDMState>()(
       selectedFiles: [],
       expandedFolders: new Set<string>(),
       currentFolder: '',
+      persistedPendingMetadata: {},
       sortColumn: 'name',
       sortDirection: 'asc',
       
@@ -830,7 +849,6 @@ export const usePDMStore = create<PDMState>()(
       
       workflowStateFilter: [],
       extensionFilter: [],
-      checkedOutFilter: 'all',
       
       sidebarVisible: true,
       sidebarWidth: 280,
@@ -1053,6 +1071,8 @@ export const usePDMStore = create<PDMState>()(
       setLogSharingEnabled: (logSharingEnabled) => set({ logSharingEnabled }),
       
       // Actions - Module Configuration
+      setModuleConfig: (config) => set({ moduleConfig: config }),
+      
       setModuleEnabled: (moduleId, enabled) => {
         set(state => {
           const newEnabledModules = { ...state.moduleConfig.enabledModules, [moduleId]: enabled }
@@ -1415,13 +1435,192 @@ export const usePDMStore = create<PDMState>()(
       setOrganization: (organization) => set({ organization, isConnecting: false }),  // Clear connecting state when org loads
       setOfflineMode: (isOfflineMode) => set({ isOfflineMode }),
       setIsConnecting: (isConnecting) => set({ isConnecting }),
-      signOut: () => set({ user: null, organization: null, isAuthenticated: false, isOfflineMode: false, isConnecting: false, impersonatedRole: null }),
+      signOut: () => set({ user: null, organization: null, isAuthenticated: false, isOfflineMode: false, isConnecting: false, impersonatedUser: null }),
       
-      // Actions - Role Impersonation (dev tools, session only)
-      setImpersonatedRole: (impersonatedRole) => set({ impersonatedRole }),
+      // Get effective role (considering user impersonation)
       getEffectiveRole: () => {
-        const { user, impersonatedRole } = get()
-        return impersonatedRole ?? user?.role ?? 'viewer'
+        const { user, impersonatedUser } = get()
+        if (impersonatedUser) return impersonatedUser.role
+        return user?.role ?? 'member'
+      },
+      
+      // Actions - User Impersonation (admin feature)
+      startUserImpersonation: async (targetUserId: string, customUser?: { id: string; email: string; full_name: string | null; role: string; teams?: { id: string; name: string; color: string; icon: string }[]; workflow_roles?: { id: string; name: string; color: string; icon: string }[] }) => {
+        const { user, addToast } = get()
+        
+        // Only real admins can impersonate
+        if (user?.role !== 'admin') {
+          addToast('error', 'Only admins can impersonate users')
+          return
+        }
+        
+        // Can't impersonate yourself
+        if (user.id === targetUserId) {
+          addToast('error', 'Cannot impersonate yourself')
+          return
+        }
+        
+        // If a custom user is provided (e.g., pending member), use that directly
+        if (customUser) {
+          // For pending members, we need to load their team permissions, module config, and vault access
+          const teamIds = (customUser.teams || []).map(t => t.id)
+          let permissions: Record<string, string[]> = {}
+          let moduleConfig: ModuleConfig | undefined
+          let vaultIds: string[] = []
+          
+          if (teamIds.length > 0) {
+            const { supabase } = await import('../lib/supabase')
+            
+            // Load team vault access
+            const { data: vaultAccessData } = await (supabase as any)
+              .from('team_vault_access')
+              .select('vault_id')
+              .in('team_id', teamIds)
+            
+            if (vaultAccessData && vaultAccessData.length > 0) {
+              vaultIds = [...new Set((vaultAccessData as Array<{ vault_id: string }>).map(v => v.vault_id))]
+            }
+            
+            // Load team permissions
+            const { data: permsData } = await supabase
+              .from('team_permissions')
+              .select('resource, actions')
+              .in('team_id', teamIds)
+            
+            // Merge permissions from all teams
+            for (const perm of (permsData || []) as { resource: string; actions: string[] }[]) {
+              if (!permissions[perm.resource]) {
+                permissions[perm.resource] = []
+              }
+              for (const action of perm.actions) {
+                if (!permissions[perm.resource].includes(action)) {
+                  permissions[perm.resource].push(action)
+                }
+              }
+            }
+            
+            // Load team module defaults and merge (union of enabled modules)
+            const { data: teamsData } = await (supabase as any)
+              .from('teams')
+              .select('id, module_defaults')
+              .in('id', teamIds)
+            
+            if (teamsData && teamsData.length > 0) {
+              const { moduleConfig: defaultConfig } = get()
+              const mergedEnabledModules: Record<string, boolean> = {}
+              const mergedEnabledGroups: Record<string, boolean> = {}
+              let firstTeamConfig: ModuleConfig | null = null
+              
+              for (const team of teamsData as Array<{ id: string; module_defaults: any }>) {
+                const defaults = team.module_defaults
+                if (!defaults) continue
+                
+                // Use first team's config as base for order, dividers, etc.
+                if (!firstTeamConfig) {
+                  firstTeamConfig = {
+                    enabledModules: defaults.enabled_modules || {},
+                    enabledGroups: defaults.enabled_groups || {},
+                    moduleOrder: defaults.module_order || defaultConfig.moduleOrder,
+                    dividers: defaults.dividers || [],
+                    moduleParents: defaults.module_parents || {},
+                    moduleIconColors: defaults.module_icon_colors || {},
+                    customGroups: defaults.custom_groups || []
+                  } as ModuleConfig
+                }
+                
+                // Union enabled modules (if ANY team enables a module, it's enabled)
+                for (const [moduleId, enabled] of Object.entries(defaults.enabled_modules || {})) {
+                  if (enabled) {
+                    mergedEnabledModules[moduleId] = true
+                  } else if (mergedEnabledModules[moduleId] === undefined) {
+                    mergedEnabledModules[moduleId] = false
+                  }
+                }
+                
+                // Union enabled groups
+                for (const [groupId, enabled] of Object.entries(defaults.enabled_groups || {})) {
+                  if (enabled) {
+                    mergedEnabledGroups[groupId] = true
+                  } else if (mergedEnabledGroups[groupId] === undefined) {
+                    mergedEnabledGroups[groupId] = false
+                  }
+                }
+              }
+              
+              if (firstTeamConfig) {
+                moduleConfig = {
+                  ...firstTeamConfig,
+                  enabledModules: mergedEnabledModules as Record<ModuleId, boolean>,
+                  enabledGroups: mergedEnabledGroups as Record<ModuleGroupId, boolean>
+                }
+              }
+            }
+          }
+          
+          const impersonatedUser: ImpersonatedUser = {
+            id: customUser.id,
+            email: customUser.email,
+            full_name: customUser.full_name,
+            avatar_url: null,
+            role: customUser.role as 'admin' | 'engineer' | 'viewer',
+            teams: customUser.teams || [],
+            permissions,
+            vaultIds, // Load vault access from team_vault_access based on assigned teams
+            moduleConfig
+          }
+          
+          set({ impersonatedUser })
+          
+          addToast('info', `Now viewing as ${customUser.full_name || customUser.email} (pending)`)
+          return
+        }
+        
+        try {
+          const { loadImpersonatedUserContext } = await import('../lib/supabase')
+          const result = await loadImpersonatedUserContext(targetUserId)
+          
+          if (result.error || !result.user) {
+            addToast('error', result.error || 'Failed to load user context')
+            return
+          }
+          
+          set({ impersonatedUser: result.user })
+          
+          addToast('info', `Now viewing as ${result.user.full_name || result.user.email}`)
+        } catch (err) {
+          console.error('Failed to start user impersonation:', err)
+          addToast('error', 'Failed to start impersonation')
+        }
+      },
+      
+      stopUserImpersonation: () => {
+        const { impersonatedUser, addToast } = get()
+        if (impersonatedUser) {
+          set({ impersonatedUser: null })
+          addToast('info', 'Stopped viewing as another user')
+        }
+      },
+      
+      getImpersonatedUser: () => get().impersonatedUser,
+      
+      getEffectiveVaultIds: () => {
+        const { impersonatedUser } = get()
+        // If impersonating, return impersonated user's vault access
+        if (impersonatedUser) {
+          return impersonatedUser.vaultIds
+        }
+        // For real user, return empty (means all vaults - actual filtering happens in supabase)
+        return []
+      },
+      
+      getEffectiveModuleConfig: () => {
+        const { impersonatedUser, moduleConfig } = get()
+        // If impersonating and user has a module config, use it
+        if (impersonatedUser?.moduleConfig) {
+          return impersonatedUser.moduleConfig
+        }
+        // Otherwise use the real user's module config
+        return moduleConfig
       },
       
       // Actions - Teams & Permissions
@@ -1453,11 +1652,20 @@ export const usePDMStore = create<PDMState>()(
       },
       
       hasPermission: (resource: string, action: string) => {
-        const { user, impersonatedRole, userPermissions } = get()
-        const effectiveRole = impersonatedRole ?? user?.role ?? 'viewer'
+        const { user, impersonatedUser, userPermissions } = get()
+        
+        // If impersonating a user, use their permissions
+        if (impersonatedUser) {
+          // Impersonated admin gets full access
+          if (impersonatedUser.role === 'admin') {
+            return true
+          }
+          const resourcePerms = impersonatedUser.permissions[resource] || []
+          return resourcePerms.includes(action) || resourcePerms.includes('admin')
+        }
         
         // Admins always have full access
-        if (effectiveRole === 'admin') {
+        if (user?.role === 'admin') {
           return true
         }
         
@@ -1882,7 +2090,27 @@ export const usePDMStore = create<PDMState>()(
       },
       
       // Actions - Files
-      setFiles: (files) => set({ files }),
+      setFiles: (files) => {
+        // Restore any persisted pending metadata to the files
+        const { persistedPendingMetadata } = get()
+        const filesWithRestoredMetadata = files.map(f => {
+          const persisted = persistedPendingMetadata[f.path]
+          if (persisted) {
+            // Restore pending metadata and mark as modified if it's a synced file
+            // This ensures the version display shows correctly (e.g., 7/6 instead of 6/6)
+            return { 
+              ...f, 
+              pendingMetadata: persisted,
+              // Only set to 'modified' if it has pdmData (synced) and isn't already in a special state
+              diffStatus: f.pdmData && !['outdated', 'deleted', 'deleted_remote'].includes(f.diffStatus || '') 
+                ? 'modified' as const
+                : f.diffStatus
+            }
+          }
+          return f
+        })
+        set({ files: filesWithRestoredMetadata })
+      },
       setServerFiles: (serverFiles) => set({ serverFiles }),
       setServerFolderPaths: (serverFolderPaths) => set({ serverFolderPaths }),
       updateFileInStore: (path, updates) => {
@@ -1912,37 +2140,76 @@ export const usePDMStore = create<PDMState>()(
         }))
       },
       updatePendingMetadata: (path, metadata) => {
-        set(state => ({
-          files: state.files.map(f => {
-            if (f.path === path) {
-              // Merge with existing pending metadata
-              const existingPending = f.pendingMetadata || {}
-              const newPending = { ...existingPending, ...metadata }
-              // Also update the pdmData to show the changes immediately in UI
-              const updatedPdmData = f.pdmData ? {
-                ...f.pdmData,
-                part_number: metadata.part_number !== undefined ? metadata.part_number : f.pdmData.part_number,
-                description: metadata.description !== undefined ? metadata.description : f.pdmData.description,
-                revision: metadata.revision !== undefined ? metadata.revision : f.pdmData.revision,
-              } : f.pdmData
-              return { 
-                ...f, 
-                pendingMetadata: newPending,
-                pdmData: updatedPdmData,
-                // Mark as modified if it has pdmData (synced file)
-                diffStatus: f.pdmData ? 'modified' : f.diffStatus
-              }
+        set(state => {
+          // Calculate new pending metadata
+          const file = state.files.find(f => f.path === path)
+          const existingPending = file?.pendingMetadata || state.persistedPendingMetadata[path] || {}
+          
+          // Handle config_tabs merge specially (per-config tab numbers)
+          let newConfigTabs = existingPending.config_tabs
+          if (metadata.config_tabs) {
+            newConfigTabs = {
+              ...(existingPending.config_tabs || {}),
+              ...metadata.config_tabs
             }
-            return f
-          })
-        }))
+          }
+          
+          // Handle config_descriptions merge specially (per-config descriptions)
+          let newConfigDescriptions = existingPending.config_descriptions
+          if (metadata.config_descriptions) {
+            newConfigDescriptions = {
+              ...(existingPending.config_descriptions || {}),
+              ...metadata.config_descriptions
+            }
+          }
+          
+          const newPending = { 
+            ...existingPending, 
+            ...metadata,
+            config_tabs: newConfigTabs,
+            config_descriptions: newConfigDescriptions
+          }
+          
+          return {
+            // Update file in files array
+            files: state.files.map(f => {
+              if (f.path === path) {
+                // Also update the pdmData to show the changes immediately in UI
+                const updatedPdmData = f.pdmData ? {
+                  ...f.pdmData,
+                  part_number: metadata.part_number !== undefined ? metadata.part_number : f.pdmData.part_number,
+                  description: metadata.description !== undefined ? metadata.description : f.pdmData.description,
+                  revision: metadata.revision !== undefined ? metadata.revision : f.pdmData.revision,
+                } : f.pdmData
+                return { 
+                  ...f, 
+                  pendingMetadata: newPending,
+                  pdmData: updatedPdmData,
+                  // Mark as modified if it has pdmData (synced file)
+                  diffStatus: f.pdmData ? 'modified' : f.diffStatus
+                }
+              }
+              return f
+            }),
+            // Also persist for app restart survival
+            persistedPendingMetadata: {
+              ...state.persistedPendingMetadata,
+              [path]: newPending
+            }
+          }
+        })
       },
       clearPendingMetadata: (path) => {
-        set(state => ({
-          files: state.files.map(f => 
-            f.path === path ? { ...f, pendingMetadata: undefined } : f
-          )
-        }))
+        set(state => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [path]: _, ...remainingPersisted } = state.persistedPendingMetadata
+          return {
+            files: state.files.map(f => 
+              f.path === path ? { ...f, pendingMetadata: undefined } : f
+            ),
+            persistedPendingMetadata: remainingPersisted
+          }
+        })
       },
       renameFileInStore: (oldPath, newPath, newNameOrRelPath, isMove = false) => {
         const { files, selectedFiles } = get()
@@ -2162,7 +2429,6 @@ export const usePDMStore = create<PDMState>()(
       },
       setWorkflowStateFilter: (workflowStateFilter) => set({ workflowStateFilter }),
       setExtensionFilter: (extensionFilter) => set({ extensionFilter }),
-      setCheckedOutFilter: (checkedOutFilter) => set({ checkedOutFilter }),
       
       // Actions - Layout
       toggleSidebar: () => {
@@ -2209,10 +2475,11 @@ export const usePDMStore = create<PDMState>()(
       setTabsEnabled: (enabled) => set({ tabsEnabled: enabled }),
       
       addTab: (folderPath, title) => {
-        const { currentFolder, sidebarVisible, detailsPanelVisible, rightPanelVisible } = get()
+        const { currentFolder, sidebarVisible, detailsPanelVisible, rightPanelVisible, connectedVaults, activeVaultId } = get()
         const id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
         const folder = folderPath ?? currentFolder
-        const folderName = folder ? folder.split(/[/\\]/).pop() || 'Root' : 'Explorer'
+        const activeVault = connectedVaults.find(v => v.id === activeVaultId)
+        const folderName = folder ? folder.split(/[/\\]/).pop() || 'Root' : (activeVault?.name || 'Explorer')
         
         const newTab: Tab = {
           id,
@@ -2365,8 +2632,9 @@ export const usePDMStore = create<PDMState>()(
       },
       
       updateTabFolder: (tabId, folderPath) => {
-        const { tabs } = get()
-        const folderName = folderPath ? folderPath.split(/[/\\]/).pop() || 'Root' : 'Explorer'
+        const { tabs, connectedVaults, activeVaultId } = get()
+        const activeVault = connectedVaults.find(v => v.id === activeVaultId)
+        const folderName = folderPath ? folderPath.split(/[/\\]/).pop() || 'Root' : (activeVault?.name || 'Explorer')
         set({
           tabs: tabs.map(t => 
             t.id === tabId ? { ...t, folderPath, title: folderName } : t
@@ -2384,10 +2652,11 @@ export const usePDMStore = create<PDMState>()(
       },
       
       syncCurrentTabWithState: () => {
-        const { activeTabId, tabs, currentFolder, sidebarVisible, detailsPanelVisible, rightPanelVisible } = get()
+        const { activeTabId, tabs, currentFolder, sidebarVisible, detailsPanelVisible, rightPanelVisible, connectedVaults, activeVaultId } = get()
         if (!activeTabId) return
         
-        const folderName = currentFolder ? currentFolder.split(/[/\\]/).pop() || 'Root' : 'Explorer'
+        const activeVault = connectedVaults.find(v => v.id === activeVaultId)
+        const folderName = currentFolder ? currentFolder.split(/[/\\]/).pop() || 'Root' : (activeVault?.name || 'Explorer')
         set({
           tabs: tabs.map(t => 
             t.id === activeTabId ? {
@@ -3045,11 +3314,12 @@ export const usePDMStore = create<PDMState>()(
         rightPanelWidth: state.rightPanelWidth,
         rightPanelTabs: state.rightPanelTabs,
         bottomPanelTabOrder: state.bottomPanelTabOrder,
-        // Tabs
+        // Tabs and navigation
         tabs: state.tabs,
         activeTabId: state.activeTabId,
         tabGroups: state.tabGroups,
         tabsEnabled: state.tabsEnabled,
+        currentFolder: state.currentFolder,
         columns: state.columns,
         expandedFolders: Array.from(state.expandedFolders),
         ignorePatterns: state.ignorePatterns,
@@ -3059,6 +3329,7 @@ export const usePDMStore = create<PDMState>()(
         terminalHistory: state.terminalHistory.slice(0, 100),  // Keep last 100
         moduleConfig: state.moduleConfig,
         recentSearches: state.recentSearches.slice(0, 20),  // Keep last 20
+        persistedPendingMetadata: state.persistedPendingMetadata,  // Survive app restart
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Record<string, unknown>
@@ -3171,12 +3442,31 @@ export const usePDMStore = create<PDMState>()(
           }),
           // Ensure ignorePatterns has a default
           ignorePatterns: (persisted.ignorePatterns as Record<string, string[]>) || {},
+          // Restore persisted pending metadata
+          persistedPendingMetadata: (persisted.persistedPendingMetadata as Record<string, PendingMetadata>) || {},
           // Staged check-ins (offline mode)
           stagedCheckins: (persisted.stagedCheckins as StagedCheckin[]) || [],
           // Terminal settings
           terminalVisible: (persisted.terminalVisible as boolean) || false,
           terminalHeight: (persisted.terminalHeight as number) || 250,
           terminalHistory: (persisted.terminalHistory as string[]) || [],
+          // Restore current folder - from persisted state or from active tab
+          currentFolder: (() => {
+            // First try to restore directly persisted currentFolder
+            if (persisted.currentFolder && typeof persisted.currentFolder === 'string') {
+              return persisted.currentFolder
+            }
+            // Fallback: try to get from active tab
+            const persistedTabs = persisted.tabs as Tab[] | undefined
+            const persistedActiveTabId = persisted.activeTabId as string | undefined
+            if (persistedTabs && persistedActiveTabId) {
+              const activeTab = persistedTabs.find(t => t.id === persistedActiveTabId)
+              if (activeTab?.folderPath) {
+                return activeTab.folderPath
+              }
+            }
+            return ''
+          })(),
           // Module configuration - merge with defaults to handle new modules
           moduleConfig: (() => {
             const persistedConfig = persisted.moduleConfig as ModuleConfig | undefined
@@ -3277,7 +3567,7 @@ export const usePDMStore = create<PDMState>()(
             if (!persistedTabs || persistedTabs.length === 0) {
               return [{
                 id: 'default-tab',
-                title: 'Explorer',
+                title: activeVault?.name || 'Explorer',
                 folderPath: '',
                 panelState: { sidebarVisible: true, detailsPanelVisible: true, rightPanelVisible: false }
               }]

@@ -25,7 +25,7 @@ export interface CommandContext {
   user: User | null
   organization: Organization | null
   isOfflineMode: boolean
-  getEffectiveRole: () => 'admin' | 'engineer' | 'viewer'
+  getEffectiveRole: () => string
   
   // Vault info
   vaultPath: string | null
@@ -271,7 +271,10 @@ export function getSyncedFilesFromSelection(files: LocalFile[], selection: Local
       )
       result.push(...syncedInFolder)
     } else if (item.pdmData?.id && item.diffStatus !== 'cloud') {
-      result.push(item)
+      // Look up fresh file from files array to get current pendingMetadata
+      // (selection may have stale reference without latest metadata edits)
+      const freshFile = files.find(f => f.path === item.path)
+      result.push(freshFile || item)
     }
   }
   
@@ -292,7 +295,9 @@ export function getUnsyncedFilesFromSelection(files: LocalFile[], selection: Loc
       )
       result.push(...unsyncedInFolder)
     } else if (!item.pdmData || item.diffStatus === 'added' || item.diffStatus === 'deleted_remote') {
-      result.push(item)
+      // Look up fresh file from files array (selection may have stale reference)
+      const freshFile = files.find(f => f.path === item.path)
+      result.push(freshFile || item)
     }
   }
   
@@ -309,7 +314,9 @@ export function getCloudOnlyFilesFromSelection(files: LocalFile[], selection: Lo
       const cloudOnly = filesInFolder.filter(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
       result.push(...cloudOnly)
     } else if ((item.diffStatus === 'cloud' || item.diffStatus === 'cloud_new') && item.pdmData) {
-      result.push(item)
+      // Look up fresh file from files array (selection may have stale reference)
+      const freshFile = files.find(f => f.path === item.path)
+      result.push(freshFile || item)
     }
   }
   
@@ -317,31 +324,6 @@ export function getCloudOnlyFilesFromSelection(files: LocalFile[], selection: Lo
 }
 
 // Format bytes to human readable
-export function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${bytes} B`
-}
-
-// Format speed
-export function formatSpeed(bytesPerSec: number): string {
-  if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
-  if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`
-  return `${bytesPerSec.toFixed(0)} B/s`
-}
-
-// Build full path from vault path and relative path
-export function buildFullPath(vaultPath: string, relativePath: string): string {
-  const isWindows = vaultPath.includes('\\')
-  const sep = isWindows ? '\\' : '/'
-  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
-  return `${vaultPath}${sep}${normalizedRelative}`
-}
-
-// Get parent directory from a path
-export function getParentDir(fullPath: string): string {
-  const lastSlash = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'))
-  return lastSlash > 0 ? fullPath.substring(0, lastSlash) : fullPath
-}
+// Re-export shared utility functions for backwards compatibility
+export { formatBytes, formatSpeed, buildFullPath, getParentDir } from '../utils'
 

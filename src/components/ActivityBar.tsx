@@ -2,7 +2,6 @@ import * as LucideIcons from 'lucide-react'
 import { Package, PanelLeft, ChevronRight } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { usePDMStore, SidebarView } from '../stores/pdmStore'
-import { registerModule, unregisterModule } from '@/lib/telemetry'
 import { getUnreadNotificationCount, getPendingReviewsForUser } from '../lib/supabase'
 import { useTranslation } from '../lib/i18n'
 import { logNavigation, logSettings } from '../lib/userActionLogger'
@@ -46,9 +45,10 @@ interface ActivityItemProps {
   depth?: number
   onHoverWithChildren?: (moduleId: ModuleId | null, rect: DOMRect | null) => void
   isComingSoon?: boolean
+  inDevBadge?: boolean
 }
 
-function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren, isComingSoon = false }: ActivityItemProps) {
+function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren, isComingSoon = false, inDevBadge = false }: ActivityItemProps) {
   const { activeView, setActiveView, activityBarMode } = usePDMStore()
   const isExpanded = useContext(ExpandedContext)
   const sidebarRect = useContext(SidebarRectContext)
@@ -127,13 +127,13 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
             ? 'text-plm-accent bg-plm-highlight'
             : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight'
         }`}
-        title={isComingSoon ? 'Coming Soon' : undefined}
+        title={isComingSoon ? 'In Development' : undefined}
       >
         {/* Tooltip for collapsed state (only if no children or coming soon) */}
         {showTooltip && !isExpanded && (!hasChildren || isComingSoon) && (
           <div className="absolute left-full ml-3 z-50 pointer-events-none">
             <div className="px-2.5 py-1.5 bg-plm-fg text-plm-bg text-sm font-medium rounded whitespace-nowrap">
-              {isComingSoon ? `${title.replace(' (soon)', '')} - Coming Soon` : title}
+              {isComingSoon ? `${title} - In Development` : title}
             </div>
           </div>
         )}
@@ -158,6 +158,7 @@ function ActivityItem({ icon, view, title, badge, hasChildren, children, depth =
           <>
             <span className={`text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1 text-left ${isComingSoon ? 'italic' : ''}`}>
               {title}
+              {inDevBadge && <span className="text-[9px] ml-1.5 not-italic px-1 py-0.5 rounded bg-plm-warning/20 text-plm-warning">In Dev</span>}
             </span>
             {/* Chevron for items with children - not for coming soon items */}
             {hasChildren && children && children.length > 0 && !isComingSoon && (
@@ -208,7 +209,8 @@ interface CascadingSidebarProps {
 }
 
 function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter, onMouseLeave }: CascadingSidebarProps) {
-  const { activeView, setActiveView, moduleConfig } = usePDMStore()
+  const { activeView, setActiveView, getEffectiveModuleConfig } = usePDMStore()
+  const moduleConfig = getEffectiveModuleConfig()
   const { t } = useTranslation()
   const isExpanded = useContext(ExpandedContext)
   const [hoveredChild, setHoveredChild] = useState<ModuleId | null>(null)
@@ -406,7 +408,7 @@ function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter,
                         ? 'text-plm-fg bg-plm-highlight border-l-2 border-plm-accent'
                         : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight border-l-2 border-transparent'
                     } ${!isComingSoon && !isActive ? 'border-l-2 border-transparent' : ''}`}
-                    title={isComingSoon ? 'Coming Soon' : undefined}
+                    title={isComingSoon ? 'In Development' : undefined}
                   >
                     {/* Icon */}
                     <div className="w-[22px] h-[22px] flex items-center justify-center flex-shrink-0">
@@ -414,11 +416,11 @@ function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter,
                     </div>
                     
                     {/* Title - only show when expanded */}
-                      {isExpanded && (
+                        {isExpanded && (
                       <>
                         <span className={`text-[15px] font-medium whitespace-nowrap flex-1 text-left pr-2 ${isComingSoon ? 'italic' : ''}`}>
                           {childTitle}
-                          {isComingSoon && <span className="text-[10px] ml-1.5 not-italic">(soon)</span>}
+                          {isComingSoon && <span className="text-[9px] ml-1.5 not-italic px-1 py-0.5 rounded bg-plm-warning/20 text-plm-warning">In Dev</span>}
                         </span>
                         {hasGrandchildren && !isComingSoon && (
                           <ChevronRight 
@@ -651,14 +653,12 @@ export function ActivityBar() {
     setUnreadNotificationCount,
     setPendingReviewCount,
     activityBarMode,
-    moduleConfig
+    getEffectiveModuleConfig
   } = usePDMStore()
   
-  // Register module for telemetry tracking
-  useEffect(() => {
-    registerModule('ActivityBar')
-    return () => unregisterModule('ActivityBar')
-  }, [])
+  // Use effective module config (considers impersonation)
+  const moduleConfig = getEffectiveModuleConfig()
+  
   const { t } = useTranslation()
   
   const [isHovering, setIsHovering] = useState(false)
@@ -914,11 +914,12 @@ export function ActivityBar() {
                         <ActivityItem
                           icon={iconElement}
                           view={moduleId as SidebarView}
-                          title={isComingSoon ? `${title} (soon)` : title}
+                          title={title}
                           badge={badge}
                           hasChildren={moduleHasChildren}
                           children={childModules}
                           isComingSoon={isComingSoon}
+                          inDevBadge={isComingSoon}
                         />
                         {visibleIndex >= 0 && getDividerAfterVisibleIndex.has(visibleIndex) && <SectionDivider />}
                       </div>

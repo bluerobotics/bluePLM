@@ -357,6 +357,7 @@ export function CheckoutAvatars({
               src={u.avatar_url}
               alt={u.name}
               className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
               onError={(e) => {
                 const target = e.target as HTMLImageElement
                 target.style.display = 'none'
@@ -472,6 +473,7 @@ export function StatusIcon({ file, userId, size = 12 }: StatusIconProps) {
             src={avatarUrl} 
             alt={displayName}
             className="w-full h-full rounded-full object-cover"
+            referrerPolicy="no-referrer"
             onError={(e) => {
               const target = e.target as HTMLImageElement
               target.style.display = 'none'

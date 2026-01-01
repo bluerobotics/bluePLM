@@ -7,7 +7,27 @@ Personal settings for your BluePLM account.
 Update your user profile:
 - **Full Name** - How you appear to other users
 - **Email** - Your sign-in email
-- **Avatar** - Profile picture (from Google or uploaded)
+- **Profile Picture** - Custom avatar that appears throughout the app
+
+### Profile Picture
+
+Your profile picture is displayed across BluePLM - in comments, file checkout indicators, team lists, and the navigation bar.
+
+**Priority order:**
+1. Custom uploaded picture (you can upload your own)
+2. Google/OAuth picture (from your Google account if signed in with Google)
+3. Initials (generated from your name/email)
+
+**To upload a custom profile picture:**
+1. Go to Settings → Profile
+2. Hover over your current avatar
+3. Click the camera icon
+4. Select an image (PNG, JPG, or WebP, max 2MB)
+
+**To remove your custom picture:**
+1. Hover over your avatar
+2. Click the X button that appears
+3. Your avatar will revert to your Google picture or initials
 
 ## Preferences
 

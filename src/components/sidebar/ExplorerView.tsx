@@ -44,15 +44,7 @@ import {
 import { executeCommand } from '../../lib/commands'
 import { usePDMStore, LocalFile, ConnectedVault } from '../../stores/pdmStore'
 import { FileContextMenu } from '../FileContextMenu'
-
-// Build full path using the correct separator for the platform
-function buildFullPath(vaultPath: string, relativePath: string): string {
-  // Detect platform from vaultPath - macOS/Linux use /, Windows uses \
-  const isWindows = vaultPath.includes('\\')
-  const sep = isWindows ? '\\' : '/'
-  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
-  return `${vaultPath}${sep}${normalizedRelative}`
-}
+import { buildFullPath } from '../../lib/utils'
 
 interface ExplorerViewProps {
   onOpenVault: () => void
@@ -106,7 +98,19 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     stageCheckin,
     unstageCheckin,
     getStagedCheckin,
+    getEffectiveVaultIds,
+    impersonatedUser,
   } = usePDMStore()
+  
+  // Filter connected vaults based on impersonated user's access
+  // When impersonating a user with vault restrictions, only show vaults they can access
+  const effectiveVaultIds = getEffectiveVaultIds()
+  const visibleVaults = useMemo(() => {
+    // Empty array means full access (admins, or not impersonating)
+    if (effectiveVaultIds.length === 0) return connectedVaults
+    // Filter to only vaults the impersonated user can access
+    return connectedVaults.filter(v => effectiveVaultIds.includes(v.id))
+  }, [connectedVaults, effectiveVaultIds])
   
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: LocalFile } | null>(null)
   const [vaultContextMenu, setVaultContextMenu] = useState<{ x: number; y: number; vault: ConnectedVault } | null>(null)
@@ -1811,6 +1815,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                         src={user.avatar_url} 
                         alt={user?.full_name || user?.email?.split('@')[0] || 'You'}
                         className="w-5 h-5 rounded-full object-cover ring-2 ring-plm-accent"
+                        referrerPolicy="no-referrer"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement
                           target.style.display = 'none'
@@ -1836,6 +1841,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                         src={checkedOutUser.avatar_url} 
                         alt={checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'User'}
                         className="w-5 h-5 rounded-full object-cover"
+                        referrerPolicy="no-referrer"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement
                           target.style.display = 'none'
@@ -2115,8 +2121,23 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     )
   }
 
-  // If no vaults connected, show the old vault connection UI
-  if (connectedVaults.length === 0) {
+  // If no vaults connected (or no visible vaults when impersonating), show connection UI
+  if (visibleVaults.length === 0) {
+    // If impersonating and there are connected vaults but none visible, show a message
+    if (impersonatedUser && connectedVaults.length > 0) {
+      return (
+        <div className="py-8 px-4 text-center">
+          <div className="text-4xl mb-3">🔒</div>
+          <h3 className="text-base font-medium text-plm-fg mb-2">No Vault Access</h3>
+          <p className="text-sm text-plm-fg-muted">
+            {impersonatedUser.full_name || impersonatedUser.email} does not have access to any of your connected vaults.
+          </p>
+          <p className="text-xs text-plm-fg-dim mt-4">
+            {connectedVaults.length} vault{connectedVaults.length !== 1 ? 's' : ''} connected but hidden due to access restrictions
+          </p>
+        </div>
+      )
+    }
     // Fall back to legacy single vault mode if available
     if (isVaultConnected && vaultPath) {
       const displayName = vaultPath.split(/[/\\]/).pop() || 'vault'
@@ -2654,6 +2675,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                                     src={user.avatar_url} 
                                     alt={user?.full_name || user?.email?.split('@')[0] || 'You'}
                                     className="w-5 h-5 rounded-full object-cover ring-2 ring-plm-accent"
+                                    referrerPolicy="no-referrer"
                                     onError={(e) => {
                                       const target = e.target as HTMLImageElement
                                       target.style.display = 'none'
@@ -2700,7 +2722,14 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
       
       {/* Vault list */}
       <div className="flex-1 overflow-y-auto">
-        {connectedVaults.map(vault => renderVaultSection(vault))}
+        {visibleVaults.map(vault => renderVaultSection(vault))}
+        
+        {/* Show message when impersonating user with limited vault access */}
+        {impersonatedUser && effectiveVaultIds.length > 0 && connectedVaults.length > visibleVaults.length && (
+          <div className="px-3 py-2 text-xs text-plm-fg-dim italic border-t border-plm-border mt-2">
+            {connectedVaults.length - visibleVaults.length} vault{connectedVaults.length - visibleVaults.length !== 1 ? 's' : ''} hidden (no access as {impersonatedUser.full_name || impersonatedUser.email})
+          </div>
+        )}
       </div>
       
       {/* Context Menu */}
@@ -2750,6 +2779,31 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               <RefreshCw size={14} />
               Refresh
             </button>
+            {/* Refresh SW Metadata for all SW files in vault */}
+            {(() => {
+              const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+              const swFilesInVault = files.filter(f => 
+                !f.isDirectory && 
+                swExtensions.includes(f.extension.toLowerCase()) &&
+                f.pdmData?.id // Must be synced
+              )
+              
+              if (swFilesInVault.length > 0) {
+                return (
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
+                    onClick={() => {
+                      setVaultContextMenu(null)
+                      executeCommand('sync-sw-metadata', { files: swFilesInVault }, { onRefresh })
+                    }}
+                  >
+                    <RefreshCw size={14} className="text-plm-accent" />
+                    Refresh SW Metadata ({swFilesInVault.length})
+                  </button>
+                )
+              }
+              return null
+            })()}
             <button
               className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
               onClick={() => {

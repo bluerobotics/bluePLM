@@ -214,6 +214,96 @@ async function extractSolidWorksMetadata(
   }
 }
 
+/**
+ * Write pending metadata back to SolidWorks file before check-in
+ * This syncs datacard changes to the actual file properties
+ */
+async function writeSolidWorksMetadata(
+  fullPath: string,
+  extension: string,
+  pendingMetadata: PendingMetadata | undefined
+): Promise<boolean> {
+  // Only process SolidWorks files with pending changes
+  if (!SW_EXTENSIONS.includes(extension.toLowerCase()) || !pendingMetadata) {
+    return true // Nothing to write
+  }
+  
+  // Check if SolidWorks service is available
+  const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+  if (!status?.data?.running) {
+    console.debug('[Checkin] SolidWorks service not running, skipping metadata write-back')
+    return true // Continue without writing (not a failure)
+  }
+  
+  try {
+    const { part_number, description, revision, config_tabs, config_descriptions } = pendingMetadata
+    
+    // Build file-level properties to write
+    const fileProps: Record<string, string> = {}
+    if (part_number) fileProps['Number'] = part_number
+    if (description) fileProps['Description'] = description
+    if (revision) fileProps['Revision'] = revision
+    
+    // Write file-level properties if any
+    if (Object.keys(fileProps).length > 0) {
+      console.debug('[Checkin] Writing file-level properties:', Object.keys(fileProps))
+      const result = await window.electronAPI?.solidworks?.setProperties?.(fullPath, fileProps)
+      if (!result?.success) {
+        console.warn('[Checkin] Failed to write file-level properties:', result?.error)
+      }
+    }
+    
+    // Write per-configuration properties (tabs and descriptions)
+    const hasConfigTabs = config_tabs && Object.keys(config_tabs).length > 0
+    const hasConfigDescs = config_descriptions && Object.keys(config_descriptions).length > 0
+    
+    if (hasConfigTabs || hasConfigDescs) {
+      // Get all configuration names to write to
+      const configNames = new Set<string>()
+      if (config_tabs) Object.keys(config_tabs).forEach(k => configNames.add(k))
+      if (config_descriptions) Object.keys(config_descriptions).forEach(k => configNames.add(k))
+      
+      // Get serialization settings to combine base + tab into full part number
+      const { getSerializationSettings, combineBaseAndTab } = await import('../../serialization')
+      const orgId = (await import('../../../stores/pdmStore')).usePDMStore.getState().organization?.id
+      const serSettings = orgId ? await getSerializationSettings(orgId) : null
+      
+      for (const configName of configNames) {
+        const configProps: Record<string, string> = {}
+        
+        // If we have a tab number for this config, combine with base for full part number
+        const tabNum = config_tabs?.[configName]
+        if (tabNum && part_number && serSettings) {
+          // part_number is the base number, combine with config's tab
+          const fullPartNumber = combineBaseAndTab(part_number, tabNum, serSettings)
+          if (fullPartNumber) {
+            configProps['Number'] = fullPartNumber
+          }
+        }
+        
+        // Per-config description
+        const configDesc = config_descriptions?.[configName]
+        if (configDesc) {
+          configProps['Description'] = configDesc
+        }
+        
+        if (Object.keys(configProps).length > 0) {
+          console.debug(`[Checkin] Writing properties to config "${configName}":`, Object.keys(configProps))
+          const result = await window.electronAPI?.solidworks?.setProperties?.(fullPath, configProps, configName)
+          if (!result?.success) {
+            console.warn(`[Checkin] Failed to write properties to config "${configName}":`, result?.error)
+          }
+        }
+      }
+    }
+    
+    return true
+  } catch (err) {
+    console.warn('[Checkin] Failed to write SolidWorks metadata:', err)
+    return false // Non-fatal, continue with check-in
+  }
+}
+
 // Detailed logging for checkin operations
 function logCheckin(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
   const timestamp = new Date().toISOString()
@@ -401,6 +491,27 @@ export const checkinCommand: Command<CheckinParams> = {
             }
           } catch {
             // SW service not available - continue with regular checkin
+          }
+        }
+        
+        // Write pending metadata back to SolidWorks file (syncs datacard → file)
+        // Must happen BEFORE reading hash since it modifies the file
+        if (file.pendingMetadata && SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
+          logCheckin('debug', 'Writing pending metadata to SolidWorks file', {
+            operationId,
+            fileName: file.name,
+            hasPartNumber: !!file.pendingMetadata.part_number,
+            hasDescription: !!file.pendingMetadata.description,
+            hasConfigTabs: !!(file.pendingMetadata.config_tabs && Object.keys(file.pendingMetadata.config_tabs).length > 0),
+            hasConfigDescs: !!(file.pendingMetadata.config_descriptions && Object.keys(file.pendingMetadata.config_descriptions).length > 0)
+          })
+          
+          const writeSuccess = await writeSolidWorksMetadata(file.path, file.extension, file.pendingMetadata)
+          if (writeSuccess) {
+            logCheckin('info', 'Successfully wrote metadata to SolidWorks file', {
+              operationId,
+              fileName: file.name
+            })
           }
         }
         

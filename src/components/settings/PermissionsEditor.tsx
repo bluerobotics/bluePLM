@@ -24,7 +24,8 @@ import {
   LayoutGrid,
   Wand2,
   Copy,
-  AlertTriangle
+  AlertTriangle,
+  Folder
 } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
 import { supabase } from '../../lib/supabase'
@@ -128,10 +129,15 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
   const [showPresets, setShowPresets] = useState(false)
   const [presets, setPresets] = useState<PermissionPreset[]>([])
   
-  // Vault scope state
+  // Vault scope state - only for source files
   const [vaults, setVaults] = useState<Vault[]>([])
-  const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null) // null = "All Vaults"
+  const [selectedSourceFilesVaultId, setSelectedSourceFilesVaultId] = useState<string | null>(null) // null = "All Vaults"
+  const [sourceFilesPermsByVault, setSourceFilesPermsByVault] = useState<Record<string, Record<string, PermissionAction[]>>>({})
+  const [originalSourceFilesPermsByVault, setOriginalSourceFilesPermsByVault] = useState<Record<string, Record<string, PermissionAction[]>>>({})
   const [vaultsLoading, setVaultsLoading] = useState(true)
+  
+  // Source files resources
+  const sourceFilesResources = ['module:explorer', 'module:pending', 'module:history', 'module:workflows', 'module:trash']
   
   // Load vaults for this org
   useEffect(() => {
@@ -162,46 +168,81 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     loadVaults()
   }, [team.id])
   
-  // Load permissions when team or vault selection changes
+  // Load permissions when team changes
   useEffect(() => {
     loadPermissions()
     loadPresets()
-  }, [team.id, selectedVaultId])
+  }, [team.id])
   
-  // Track changes
+  // Track changes - check both global and source files permissions
   useEffect(() => {
-    const changed = JSON.stringify(permissions) !== JSON.stringify(originalPermissions)
-    setHasChanges(changed)
-  }, [permissions, originalPermissions])
+    const globalChanged = JSON.stringify(permissions) !== JSON.stringify(originalPermissions)
+    const sourceFilesChanged = JSON.stringify(sourceFilesPermsByVault) !== JSON.stringify(originalSourceFilesPermsByVault)
+    setHasChanges(globalChanged || sourceFilesChanged)
+  }, [permissions, originalPermissions, sourceFilesPermsByVault, originalSourceFilesPermsByVault])
   
   const loadPermissions = async () => {
     setIsLoading(true)
     try {
-      // Build query - filter by vault_id (null for "All Vaults", specific ID for vault-specific)
-      let query = supabase
+      // Load global permissions (vault_id IS NULL) for non-source-files resources
+      const { data: globalData, error: globalError } = await supabase
         .from('team_permissions')
         .select('*')
         .eq('team_id', team.id)
+        .is('vault_id', null)
       
-      if (selectedVaultId === null) {
-        // "All Vaults" - only load global permissions (vault_id IS NULL)
-        query = query.is('vault_id', null)
-      } else {
-        // Specific vault - load vault-specific permissions
-        query = query.eq('vault_id', selectedVaultId)
+      if (globalError) throw globalError
+      
+      const globalPermsMap: Record<string, PermissionAction[]> = {}
+      for (const perm of globalData || []) {
+        // Only include non-source-files resources in global permissions
+        if (!sourceFilesResources.includes(perm.resource)) {
+          globalPermsMap[perm.resource] = perm.actions as PermissionAction[]
+        }
       }
       
-      const { data, error } = await query
+      setPermissions(globalPermsMap)
+      setOriginalPermissions(globalPermsMap)
       
-      if (error) throw error
+      // Load source files permissions per vault
+      const { data: vaultPermsData, error: vaultError } = await supabase
+        .from('team_permissions')
+        .select('*')
+        .eq('team_id', team.id)
+        .not('vault_id', 'is', null)
       
-      const permsMap: Record<string, PermissionAction[]> = {}
-      for (const perm of data || []) {
-        permsMap[perm.resource] = perm.actions as PermissionAction[]
+      if (vaultError) throw vaultError
+      
+      // Also load "All Vaults" source files permissions (vault_id IS NULL)
+      const { data: allVaultsSourceFiles } = await supabase
+        .from('team_permissions')
+        .select('*')
+        .eq('team_id', team.id)
+        .is('vault_id', null)
+        .in('resource', sourceFilesResources)
+      
+      const vaultPermsMap: Record<string, Record<string, PermissionAction[]>> = {}
+      
+      // Initialize "all" vaults entry
+      vaultPermsMap['all'] = {}
+      for (const perm of allVaultsSourceFiles || []) {
+        if (sourceFilesResources.includes(perm.resource)) {
+          vaultPermsMap['all'][perm.resource] = perm.actions as PermissionAction[]
+        }
       }
       
-      setPermissions(permsMap)
-      setOriginalPermissions(permsMap)
+      // Group by vault_id
+      for (const perm of vaultPermsData || []) {
+        if (sourceFilesResources.includes(perm.resource)) {
+          if (!vaultPermsMap[perm.vault_id]) {
+            vaultPermsMap[perm.vault_id] = {}
+          }
+          vaultPermsMap[perm.vault_id][perm.resource] = perm.actions as PermissionAction[]
+        }
+      }
+      
+      setSourceFilesPermsByVault(vaultPermsMap)
+      setOriginalSourceFilesPermsByVault(JSON.parse(JSON.stringify(vaultPermsMap)))
     } catch (err) {
       console.error('Failed to load permissions:', err)
       addToast('error', 'Failed to load permissions')
@@ -238,47 +279,55 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     
     setIsSaving(true)
     try {
-      // Delete existing permissions for this vault scope only
-      let deleteQuery = supabase
+      // Delete all existing permissions for this team
+      await supabase
         .from('team_permissions')
         .delete()
         .eq('team_id', team.id)
       
-      if (selectedVaultId === null) {
-        // Delete only global permissions (vault_id IS NULL)
-        deleteQuery = deleteQuery.is('vault_id', null)
-      } else {
-        // Delete only vault-specific permissions
-        deleteQuery = deleteQuery.eq('vault_id', selectedVaultId)
+      const allNewPerms: any[] = []
+      
+      // Add global permissions (non-source-files with vault_id = null)
+      for (const [resource, actions] of Object.entries(permissions)) {
+        if (actions.length > 0 && !sourceFilesResources.includes(resource)) {
+          allNewPerms.push({
+            team_id: team.id,
+            resource,
+            vault_id: null,
+            actions,
+            granted_by: userId
+          })
+        }
       }
       
-      await deleteQuery
+      // Add source files permissions per vault
+      for (const [vaultKey, vaultPerms] of Object.entries(sourceFilesPermsByVault)) {
+        const vaultId = vaultKey === 'all' ? null : vaultKey
+        for (const [resource, actions] of Object.entries(vaultPerms)) {
+          if (actions.length > 0 && sourceFilesResources.includes(resource)) {
+            allNewPerms.push({
+              team_id: team.id,
+              resource,
+              vault_id: vaultId,
+              actions,
+              granted_by: userId
+            })
+          }
+        }
+      }
       
-      // Insert new permissions (only those with at least one action)
-      const newPerms = Object.entries(permissions)
-        .filter(([_, actions]) => actions.length > 0)
-        .map(([resource, actions]) => ({
-          team_id: team.id,
-          resource,
-          vault_id: selectedVaultId, // null for "All Vaults", UUID for specific vault
-          actions,
-          granted_by: userId
-        }))
-      
-      if (newPerms.length > 0) {
+      if (allNewPerms.length > 0) {
         const { error } = await supabase
           .from('team_permissions')
-          .insert(newPerms)
+          .insert(allNewPerms)
         
         if (error) throw error
       }
       
       setOriginalPermissions({ ...permissions })
+      setOriginalSourceFilesPermsByVault(JSON.parse(JSON.stringify(sourceFilesPermsByVault)))
       setHasChanges(false)
-      const vaultName = selectedVaultId 
-        ? vaults.find(v => v.id === selectedVaultId)?.name || 'selected vault'
-        : 'all vaults'
-      addToast('success', `Permissions saved for ${vaultName}`)
+      addToast('success', 'Permissions saved')
     } catch (err) {
       console.error('Failed to save permissions:', err)
       addToast('error', 'Failed to save permissions')
@@ -287,17 +336,49 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     }
   }
   
+  // Get the current vault key for source files
+  const getSourceFilesVaultKey = () => selectedSourceFilesVaultId || 'all'
+  
+  // Get permissions for a resource (handles source files vs others)
+  const getResourcePermissions = (resourceId: string): PermissionAction[] => {
+    if (sourceFilesResources.includes(resourceId)) {
+      const vaultKey = getSourceFilesVaultKey()
+      return sourceFilesPermsByVault[vaultKey]?.[resourceId] || []
+    }
+    return permissions[resourceId] || []
+  }
+  
   const toggleAction = (resourceId: string, action: PermissionAction) => {
     if (!isAdmin) return
     
-    setPermissions(prev => {
-      const current = prev[resourceId] || []
-      if (current.includes(action)) {
-        return { ...prev, [resourceId]: current.filter(a => a !== action) }
-      } else {
-        return { ...prev, [resourceId]: [...current, action] }
-      }
-    })
+    if (sourceFilesResources.includes(resourceId)) {
+      // Handle source files - update vault-specific permissions
+      const vaultKey = getSourceFilesVaultKey()
+      setSourceFilesPermsByVault(prev => {
+        const vaultPerms = prev[vaultKey] || {}
+        const current = vaultPerms[resourceId] || []
+        const newActions = current.includes(action)
+          ? current.filter(a => a !== action)
+          : [...current, action]
+        return {
+          ...prev,
+          [vaultKey]: {
+            ...vaultPerms,
+            [resourceId]: newActions
+          }
+        }
+      })
+    } else {
+      // Handle non-source files - update global permissions
+      setPermissions(prev => {
+        const current = prev[resourceId] || []
+        if (current.includes(action)) {
+          return { ...prev, [resourceId]: current.filter(a => a !== action) }
+        } else {
+          return { ...prev, [resourceId]: [...current, action] }
+        }
+      })
+    }
   }
   
   const toggleAllInGroup = (groupId: string, action: PermissionAction) => {
@@ -306,95 +387,146 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     const group = RESOURCE_GROUPS.find(g => g.id === groupId)
     if (!group) return
     
-    // Check if all resources in group have this action
-    const allHave = group.resources.every(r => (permissions[r] || []).includes(action))
-    
-    setPermissions(prev => {
-      const updated = { ...prev }
-      for (const resourceId of group.resources) {
-        const current = updated[resourceId] || []
-        if (allHave) {
-          // Remove from all
-          updated[resourceId] = current.filter(a => a !== action)
-        } else {
-          // Add to all
-          if (!current.includes(action)) {
+    if (groupId === 'source-files') {
+      // Handle source files group
+      const vaultKey = getSourceFilesVaultKey()
+      const allHave = group.resources.every(r => (sourceFilesPermsByVault[vaultKey]?.[r] || []).includes(action))
+      
+      setSourceFilesPermsByVault(prev => {
+        const vaultPerms = prev[vaultKey] || {}
+        const updated = { ...vaultPerms }
+        for (const resourceId of group.resources) {
+          const current = updated[resourceId] || []
+          if (allHave) {
+            updated[resourceId] = current.filter(a => a !== action)
+          } else if (!current.includes(action)) {
             updated[resourceId] = [...current, action]
           }
         }
-      }
-      return updated
-    })
+        return { ...prev, [vaultKey]: updated }
+      })
+    } else {
+      // Handle non-source files groups
+      const allHave = group.resources.every(r => (permissions[r] || []).includes(action))
+      
+      setPermissions(prev => {
+        const updated = { ...prev }
+        for (const resourceId of group.resources) {
+          const current = updated[resourceId] || []
+          if (allHave) {
+            updated[resourceId] = current.filter(a => a !== action)
+          } else if (!current.includes(action)) {
+            updated[resourceId] = [...current, action]
+          }
+        }
+        return updated
+      })
+    }
   }
   
   const setAllActions = (resourceId: string, actions: PermissionAction[]) => {
     if (!isAdmin) return
-    setPermissions(prev => ({ ...prev, [resourceId]: actions }))
+    
+    if (sourceFilesResources.includes(resourceId)) {
+      const vaultKey = getSourceFilesVaultKey()
+      setSourceFilesPermsByVault(prev => ({
+        ...prev,
+        [vaultKey]: {
+          ...prev[vaultKey],
+          [resourceId]: actions
+        }
+      }))
+    } else {
+      setPermissions(prev => ({ ...prev, [resourceId]: actions }))
+    }
   }
   
   const applyPreset = (preset: PermissionPreset) => {
     if (!isAdmin) return
-    setPermissions(preset.permissions)
+    // Split preset into source files and other permissions
+    const globalPerms: Record<string, PermissionAction[]> = {}
+    const sfPerms: Record<string, PermissionAction[]> = {}
+    
+    for (const [resource, actions] of Object.entries(preset.permissions)) {
+      if (sourceFilesResources.includes(resource)) {
+        sfPerms[resource] = actions
+      } else {
+        globalPerms[resource] = actions
+      }
+    }
+    
+    setPermissions(globalPerms)
+    // Apply source files to "all" vault context
+    setSourceFilesPermsByVault(prev => ({ ...prev, all: sfPerms }))
     setShowPresets(false)
     addToast('success', `Applied "${preset.name}" preset`)
   }
   
   const resetToOriginal = () => {
     setPermissions({ ...originalPermissions })
+    setSourceFilesPermsByVault(JSON.parse(JSON.stringify(originalSourceFilesPermsByVault)))
   }
   
   const clearAll = () => {
     if (!isAdmin) return
     setPermissions({})
+    setSourceFilesPermsByVault({})
   }
   
   const grantAll = () => {
     if (!isAdmin) return
-    const allPerms: Record<string, PermissionAction[]> = {}
+    const globalPerms: Record<string, PermissionAction[]> = {}
+    const sfPerms: Record<string, PermissionAction[]> = {}
+    
     for (const resource of ALL_RESOURCES) {
-      allPerms[resource.id] = [...resource.applicableActions]
+      if (sourceFilesResources.includes(resource.id)) {
+        sfPerms[resource.id] = [...resource.applicableActions]
+      } else {
+        globalPerms[resource.id] = [...resource.applicableActions]
+      }
     }
-    setPermissions(allPerms)
+    
+    setPermissions(globalPerms)
+    setSourceFilesPermsByVault({ all: sfPerms })
   }
   
-  // Toggle a specific action across ALL resources
+  // Toggle a specific action across ALL resources (excluding source files which are vault-specific)
   const toggleAllForAction = (action: PermissionAction) => {
     if (!isAdmin) return
     
-    // Check if all applicable resources have this action
-    const allHave = ALL_RESOURCES
+    // Only toggle non-source-files resources
+    const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
+    const allHave = nonSfResources
       .filter(r => r.applicableActions.includes(action))
       .every(r => (permissions[r.id] || []).includes(action))
     
     setPermissions(prev => {
       const updated = { ...prev }
-      for (const resource of ALL_RESOURCES) {
+      for (const resource of nonSfResources) {
         if (!resource.applicableActions.includes(action)) continue
         const current = updated[resource.id] || []
         if (allHave) {
-          // Remove from all
           updated[resource.id] = current.filter(a => a !== action)
-        } else {
-          // Add to all
-          if (!current.includes(action)) {
-            updated[resource.id] = [...current, action]
-          }
+        } else if (!current.includes(action)) {
+          updated[resource.id] = [...current, action]
         }
       }
       return updated
     })
   }
   
-  // Check if all applicable resources have a specific action
+  // Check if all applicable resources have a specific action (excluding source files which are vault-specific)
   const allHaveAction = (action: PermissionAction): boolean => {
-    return ALL_RESOURCES
+    const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
+    return nonSfResources
       .filter(r => r.applicableActions.includes(action))
       .every(r => (permissions[r.id] || []).includes(action))
   }
   
-  // Check if some (but not all) applicable resources have a specific action
+  // Check if some (but not all) applicable resources have a specific action (excluding source files)
   const someHaveAction = (action: PermissionAction): boolean => {
-    const applicable = ALL_RESOURCES.filter(r => r.applicableActions.includes(action))
+    const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
+    const applicable = nonSfResources.filter(r => r.applicableActions.includes(action))
     const withAction = applicable.filter(r => (permissions[r.id] || []).includes(action))
     return withAction.length > 0 && withAction.length < applicable.length
   }
@@ -419,7 +551,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     
     let withPerms = 0
     for (const resourceId of group.resources) {
-      if ((permissions[resourceId] || []).length > 0) {
+      if (getResourcePermissions(resourceId).length > 0) {
         withPerms++
       }
     }
@@ -459,27 +591,6 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             <p className="text-sm text-plm-fg-muted">
               Configure what this team can access and do
             </p>
-          </div>
-          
-          {/* Vault scope selector */}
-          <div className="flex items-center gap-2">
-            <Database size={16} className="text-plm-fg-muted" />
-            <select
-              value={selectedVaultId || 'all'}
-              onChange={(e) => {
-                const value = e.target.value
-                setSelectedVaultId(value === 'all' ? null : value)
-              }}
-              disabled={vaultsLoading}
-              className="px-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent min-w-[160px]"
-            >
-              <option value="all">All Vaults (Global)</option>
-              {vaults.map(vault => (
-                <option key={vault.id} value={vault.id}>
-                  {vault.name}
-                </option>
-              ))}
-            </select>
           </div>
           
           {/* Action buttons */}
@@ -707,7 +818,10 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-plm-fg">{group.name}</div>
                           <div className="text-xs text-plm-fg-muted">
-                            {stats.withPerms} of {stats.total} resources configured
+                            {group.id === 'source-files'
+                              ? `${vaults.length} vault${vaults.length !== 1 ? 's' : ''} • ${stats.withPerms} of ${stats.total} configured`
+                              : `${stats.withPerms} of ${stats.total} resources configured`
+                            }
                           </div>
                         </div>
                         {isExpanded ? (
@@ -721,8 +835,8 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                       {isAdmin && (
                         <div className="flex items-center gap-1 flex-shrink-0">
                           {PERMISSION_ACTIONS.map(action => {
-                            const allHave = group.resources.every(r => (permissions[r] || []).includes(action))
-                            const someHave = group.resources.some(r => (permissions[r] || []).includes(action))
+                            const allHave = group.resources.every(r => getResourcePermissions(r).includes(action))
+                            const someHave = group.resources.some(r => getResourcePermissions(r).includes(action))
                             
                             // Match the styling from child buttons
                             const checkedClass = 
@@ -768,12 +882,44 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                     {/* Group resources */}
                     {isExpanded && (
                       <div className="border-t border-plm-border">
+                        {/* Vault tabs for source-files group */}
+                        {group.id === 'source-files' && vaults.length > 0 && (
+                          <div className="px-4 py-2 border-b border-plm-border bg-plm-bg/50 flex items-center gap-1 flex-wrap">
+                            <span className="text-xs text-plm-fg-muted mr-1">Vault:</span>
+                            <button
+                              onClick={() => setSelectedSourceFilesVaultId(null)}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                                selectedSourceFilesVaultId === null
+                                  ? 'bg-plm-accent text-white'
+                                  : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight border border-plm-border'
+                              }`}
+                            >
+                              <Database size={11} />
+                              All
+                            </button>
+                            {vaults.map(vault => (
+                              <button
+                                key={vault.id}
+                                onClick={() => setSelectedSourceFilesVaultId(vault.id)}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                                  selectedSourceFilesVaultId === vault.id
+                                    ? 'bg-plm-accent text-white'
+                                    : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight border border-plm-border'
+                                }`}
+                              >
+                                <Folder size={11} />
+                                {vault.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        
                         {filteredResources.map((resourceId, idx) => {
                           const resource = ALL_RESOURCES.find(r => r.id === resourceId)
                           if (!resource) return null
                           
                           const ResourceIcon = (LucideIcons as any)[resource.icon] || Shield
-                          const currentActions = permissions[resourceId] || []
+                          const currentActions = getResourcePermissions(resourceId)
                           
                           return (
                             <div
@@ -893,13 +1039,11 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             <div className="flex items-center gap-1.5">
               <Shield size={14} />
               <span>
-                {Object.entries(permissions).filter(([_, a]) => a.length > 0).length} resources with permissions
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Database size={14} />
-              <span>
-                Editing: {selectedVaultId ? vaults.find(v => v.id === selectedVaultId)?.name || 'Vault' : 'All Vaults (Global)'}
+                {Object.entries(permissions).filter(([_, a]) => a.length > 0).length + 
+                  Object.values(sourceFilesPermsByVault).reduce((sum, vaultPerms) => 
+                    sum + Object.values(vaultPerms).filter(a => a.length > 0).length, 0
+                  )
+                } resources configured
               </span>
             </div>
             {hasChanges && (

@@ -95,46 +95,6 @@ class CircularBuffer<T> {
   }
 }
 
-// Module memory tracking registry
-const moduleRegistry = new Map<string, ModuleMemory>()
-
-// Register a module for memory tracking
-export function registerModule(name: string): void {
-  if (!moduleRegistry.has(name)) {
-    moduleRegistry.set(name, {
-      name,
-      heapUsed: 0,
-      instances: 0,
-      lastUpdate: Date.now()
-    })
-  }
-  const mod = moduleRegistry.get(name)!
-  mod.instances++
-  mod.lastUpdate = Date.now()
-}
-
-// Unregister a module instance
-export function unregisterModule(name: string): void {
-  const mod = moduleRegistry.get(name)
-  if (mod) {
-    mod.instances = Math.max(0, mod.instances - 1)
-    mod.lastUpdate = Date.now()
-  }
-}
-
-// Update module memory usage (call periodically from components)
-export function updateModuleMemory(name: string, heapUsed: number): void {
-  const mod = moduleRegistry.get(name)
-  if (mod) {
-    mod.heapUsed = heapUsed
-    mod.lastUpdate = Date.now()
-  }
-}
-
-// Get all registered modules
-export function getModules(): ModuleMemory[] {
-  return Array.from(moduleRegistry.values())
-}
 
 // Telemetry service singleton
 class TelemetryService {
@@ -319,7 +279,7 @@ class TelemetryService {
         app: { heapUsed: 0, heapTotal: 0, rss: 0 }
       },
       network: this.cachedSystemStats?.network ?? { rxSpeed: 0, txSpeed: 0 },
-      modules: Object.fromEntries(moduleRegistry)
+      modules: {} // Module tracking removed - using lazy loading instead
     }
     
     this.buffer.push(snapshot)
@@ -337,12 +297,6 @@ class TelemetryService {
 
 // Export singleton
 export const telemetry = new TelemetryService()
-
-// React hook for module memory tracking
-export function useModuleTracker(_moduleName: string): void {
-  // This will be imported and used in components
-  // Implementation in the component file to avoid circular deps
-}
 
 // Export for external FPS access (faster updates)
 export function getFps(): number {

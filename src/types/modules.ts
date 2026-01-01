@@ -930,6 +930,15 @@ export function isModuleVisible(
     }
   }
   
+  // Check if custom group parent is enabled (if module is in a custom group)
+  const customParentId = config.moduleParents?.[moduleId]
+  if (customParentId && customParentId.startsWith('group-')) {
+    const customGroup = config.customGroups?.find(g => g.id === customParentId)
+    if (customGroup && customGroup.enabled === false) {
+      return false
+    }
+  }
+  
   // Check if module itself is enabled
   if (!config.enabledModules[moduleId]) {
     return false

@@ -105,6 +105,7 @@ export interface Database {
           role: 'admin' | 'engineer' | 'viewer'
           created_at: string
           last_sign_in: string | null
+          last_online: string | null
         }
         Insert: {
           id: string
@@ -115,6 +116,7 @@ export interface Database {
           role?: 'admin' | 'engineer' | 'viewer'
           created_at?: string
           last_sign_in?: string | null
+          last_online?: string | null
         }
         Update: {
           id?: string
@@ -125,6 +127,7 @@ export interface Database {
           role?: 'admin' | 'engineer' | 'viewer'
           created_at?: string
           last_sign_in?: string | null
+          last_online?: string | null
         }
       }
       files: {
@@ -2096,3 +2099,169 @@ export interface Notification {
   }
 }
 
+// =====================================================================
+// Process Templates (Phase-Gate Checklists)
+// =====================================================================
+
+export type ChecklistItemStatus = 'not_started' | 'in_progress' | 'complete' | 'blocked' | 'na'
+
+export interface ProcessTemplate {
+  id: string
+  org_id: string
+  name: string
+  description: string | null
+  is_default: boolean
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_by: string | null
+  updated_at: string
+  // Joined fields
+  phases?: ProcessTemplatePhase[]
+}
+
+export interface ProcessTemplatePhase {
+  id: string
+  template_id: string
+  name: string
+  description: string | null
+  gate_name: string | null
+  gate_description: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+  // Joined fields
+  items?: ProcessTemplateItem[]
+}
+
+export interface ProcessTemplateItem {
+  id: string
+  phase_id: string
+  uid: string | null
+  doc_number: string | null
+  name: string
+  description: string | null
+  required_for_gate: boolean
+  default_accountable: string | null
+  default_responsible: string | null
+  default_consulted: string | null
+  default_informed: string | null
+  default_duration_days: number | null
+  default_offset_days: number | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EcoChecklistItem {
+  id: string
+  eco_id: string
+  template_item_id: string | null
+  phase_name: string
+  phase_sort_order: number
+  uid: string | null
+  doc_number: string | null
+  name: string
+  description: string | null
+  required_for_gate: boolean
+  gate_name: string | null
+  // RACI - User assignments
+  accountable_user_id: string | null
+  responsible_user_id: string | null
+  consulted_user_ids: string[]
+  informed_user_ids: string[]
+  // RACI - Text (for display/defaults)
+  accountable_text: string | null
+  responsible_text: string | null
+  consulted_text: string | null
+  informed_text: string | null
+  // Status and timeline
+  status: ChecklistItemStatus
+  target_date: string | null
+  started_at: string | null
+  completed_at: string | null
+  completed_by: string | null
+  // Links
+  link_url: string | null
+  link_file_id: string | null
+  notes: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+  updated_by: string | null
+  // Joined fields
+  accountable_user?: {
+    id: string
+    email: string
+    full_name: string | null
+    avatar_url: string | null
+  }
+  responsible_user?: {
+    id: string
+    email: string
+    full_name: string | null
+    avatar_url: string | null
+  }
+  link_file?: {
+    id: string
+    file_name: string
+    file_path: string
+  }
+}
+
+export interface EcoGateApproval {
+  id: string
+  eco_id: string
+  gate_name: string
+  phase_name: string | null
+  is_approved: boolean
+  approved_at: string | null
+  approved_by: string | null
+  notes: string | null
+  created_at: string
+  // Joined fields
+  approver?: {
+    id: string
+    email: string
+    full_name: string | null
+    avatar_url: string | null
+  }
+}
+
+export type EcoChecklistAction = 
+  | 'item_added'
+  | 'item_removed'
+  | 'status_changed'
+  | 'assigned'
+  | 'unassigned'
+  | 'target_date_changed'
+  | 'gate_approved'
+  | 'gate_unapproved'
+  | 'notes_updated'
+  | 'link_added'
+  | 'link_removed'
+
+export interface EcoChecklistActivity {
+  id: string
+  eco_id: string
+  checklist_item_id: string | null
+  gate_approval_id: string | null
+  action: EcoChecklistAction
+  old_value: string | null
+  new_value: string | null
+  notes: string | null
+  performed_by: string | null
+  performed_at: string
+  // Joined fields
+  performer?: {
+    id: string
+    email: string
+    full_name: string | null
+    avatar_url: string | null
+  }
+  checklist_item?: {
+    id: string
+    name: string
+    uid: string | null
+  }
+}

@@ -588,12 +588,91 @@ namespace BluePLM.SolidWorksService
             object? doc = null;
             try
             {
+                Console.Error.WriteLine($"[DM] Opening document: {filePath}");
                 doc = OpenDocument(filePath!, out var openError);
                 if (doc == null)
+                {
+                    Console.Error.WriteLine($"[DM] Failed to open document, error code: {openError}");
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
+                }
+                Console.Error.WriteLine($"[DM] Document opened successfully");
 
                 dynamic dynDoc = doc;
+                
+                // Log document type
+                var ext = Path.GetExtension(filePath).ToLowerInvariant();
+                Console.Error.WriteLine($"[DM] File extension: {ext}");
+                
                 var fileProps = ReadProperties(dynDoc, null);
+                Console.Error.WriteLine($"[DM] Read {fileProps.Count} file-level properties");
+                
+                // For drawings with no file-level properties, try additional methods
+                if (ext == ".slddrw" && fileProps.Count == 0)
+                {
+                    Console.Error.WriteLine($"[DM] Drawing has no file-level properties, trying alternative methods...");
+                    
+                    // Try to list all available methods on the document object
+                    try
+                    {
+                        var docType = ((object)dynDoc).GetType();
+                        var methods = docType.GetMethods().Select(m => m.Name).Distinct().OrderBy(n => n).ToArray();
+                        Console.Error.WriteLine($"[DM] Document object type: {docType.Name}");
+                        Console.Error.WriteLine($"[DM] Available methods containing 'Property': {string.Join(", ", methods.Where(m => m.ToLower().Contains("property")))}");
+                        Console.Error.WriteLine($"[DM] Available methods containing 'Custom': {string.Join(", ", methods.Where(m => m.ToLower().Contains("custom")))}");
+                    }
+                    catch (Exception typeEx)
+                    {
+                        Console.Error.WriteLine($"[DM] Error inspecting type: {typeEx.Message}");
+                    }
+                    
+                    // Try GetCustomProperty2 if available (newer interface)
+                    try
+                    {
+                        Console.Error.WriteLine($"[DM] Trying GetCustomProperty2 for known property names...");
+                        string[] knownProps = { "Revision", "Rev", "Description", "Number", "PartNumber", "Part Number", "DrawnBy" };
+                        foreach (var propName in knownProps)
+                        {
+                            try
+                            {
+                                object propType = null!;
+                                object propValue = null!;
+                                object resolved = null!;
+                                
+                                // Try GetCustomProperty first
+                                try
+                                {
+                                    string val = dynDoc.GetCustomProperty(propName, out propType);
+                                    if (!string.IsNullOrEmpty(val))
+                                    {
+                                        Console.Error.WriteLine($"[DM] Found via GetCustomProperty: '{propName}' = '{val}'");
+                                        fileProps[propName] = val;
+                                    }
+                                }
+                                catch { }
+                                
+                                // Try GetCustomProperty2 (returns value and resolved value)
+                                try
+                                {
+                                    var result = dynDoc.GetCustomProperty2(propName, out propType, out propValue, out resolved);
+                                    var valStr = propValue?.ToString() ?? resolved?.ToString();
+                                    if (!string.IsNullOrEmpty(valStr))
+                                    {
+                                        Console.Error.WriteLine($"[DM] Found via GetCustomProperty2: '{propName}' = '{valStr}'");
+                                        if (!fileProps.ContainsKey(propName))
+                                            fileProps[propName] = valStr;
+                                    }
+                                }
+                                catch { }
+                            }
+                            catch { }
+                        }
+                    }
+                    catch (Exception propEx)
+                    {
+                        Console.Error.WriteLine($"[DM] Error trying known properties: {propEx.Message}");
+                    }
+                }
+                
                 var configNames = GetConfigurationNames(dynDoc);
                 var configProps = new Dictionary<string, Dictionary<string, string>>();
                 
@@ -639,37 +718,317 @@ namespace BluePLM.SolidWorksService
             {
                 if (string.IsNullOrEmpty(configuration))
                 {
-                    var propNames = (string[]?)doc.GetCustomPropertyNames();
-                    if (propNames != null)
+                    // Try to get property count first to verify the interface works
+                    int propCount = 0;
+                    try
                     {
+                        propCount = doc.GetCustomPropertyCount();
+                        Console.Error.WriteLine($"[DM] GetCustomPropertyCount: {propCount}");
+                    }
+                    catch (Exception countEx)
+                    {
+                        Console.Error.WriteLine($"[DM] GetCustomPropertyCount exception: {countEx.Message}");
+                    }
+                    
+                    // Try GetCustomPropertyNames
+                    object? propNamesObj = null;
+                    try
+                    {
+                        propNamesObj = doc.GetCustomPropertyNames();
+                        Console.Error.WriteLine($"[DM] GetCustomPropertyNames returned: {(propNamesObj == null ? "null" : propNamesObj.GetType().Name)}");
+                    }
+                    catch (Exception namesEx)
+                    {
+                        Console.Error.WriteLine($"[DM] GetCustomPropertyNames exception: {namesEx.Message}");
+                    }
+                    
+                    var propNames = propNamesObj as string[];
+                    if (propNames != null && propNames.Length > 0)
+                    {
+                        Console.Error.WriteLine($"[DM] Found {propNames.Length} property names: {string.Join(", ", propNames)}");
+                        
+                        // Get the SwDmCustomInfoType enum type for proper COM interop
+                        var customInfoType = GetDmType("SwDmCustomInfoType");
+                        
                         foreach (var name in propNames)
                         {
-                            object propType;
-                            string value = doc.GetCustomProperty(name, out propType);
-                            props[name] = value ?? "";
+                            try
+                            {
+                                string? value = null;
+                                
+                                // Method 1: Use reflection to call GetCustomProperty with proper enum type
+                                if (customInfoType != null)
+                                {
+                                    try
+                                    {
+                                        var docType = ((object)doc).GetType();
+                                        var getMethod = docType.GetMethod("ISwDMDocument_GetCustomProperty") ??
+                                                       docType.GetMethod("GetCustomProperty");
+                                        
+                                        if (getMethod != null)
+                                        {
+                                            var enumDefault = Enum.ToObject(customInfoType, 0);
+                                            var parameters = new object[] { name, enumDefault };
+                                            value = getMethod.Invoke(doc, parameters)?.ToString();
+                                        }
+                                    }
+                                    catch { }
+                                }
+                                
+                                // Method 2: Try using dynamic with the correct parameter order
+                                if (string.IsNullOrEmpty(value))
+                                {
+                                    try
+                                    {
+                                        // Some COM objects accept the out param differently
+                                        var result = ((object)doc).GetType().InvokeMember(
+                                            "GetCustomProperty",
+                                            System.Reflection.BindingFlags.InvokeMethod,
+                                            null,
+                                            doc,
+                                            new object[] { name, 0 }
+                                        );
+                                        value = result?.ToString();
+                                    }
+                                    catch { }
+                                }
+                                
+                                // Method 3: Try the resolved value directly
+                                if (string.IsNullOrEmpty(value))
+                                {
+                                    try
+                                    {
+                                        // Try GetCustomPropertyValue if available
+                                        value = doc.GetCustomPropertyValue(name);
+                                    }
+                                    catch { }
+                                }
+                                
+                                if (!string.IsNullOrEmpty(value))
+                                {
+                                    Console.Error.WriteLine($"[DM] Property '{name}' = '{value}'");
+                                    props[name] = value;
+                                }
+                                else
+                                {
+                                    Console.Error.WriteLine($"[DM] Property '{name}' returned empty/null");
+                                }
+                            }
+                            catch (Exception propEx)
+                            {
+                                Console.Error.WriteLine($"[DM] Error reading property '{name}': {propEx.Message}");
+                            }
                         }
+                    }
+                    else if (propCount > 0)
+                    {
+                        // We have properties but GetCustomPropertyNames returned empty
+                        // Try iterating by index using GetCustomPropertyByIndex (if available)
+                        Console.Error.WriteLine($"[DM] Trying GetCustomPropertyByIndex for {propCount} properties...");
+                        for (int i = 0; i < propCount; i++)
+                        {
+                            try
+                            {
+                                object propName = null!;
+                                object propType = null!;
+                                object propValue = null!;
+                                string? name = null;
+                                string? value = null;
+                                
+                                // Try different methods to get property by index
+                                try
+                                {
+                                    var result = doc.GetCustomPropertyByIndex(i, out propName, out propType, out propValue);
+                                    name = propName?.ToString();
+                                    value = propValue?.ToString();
+                                }
+                                catch
+                                {
+                                    // Try alternative: GetCustomPropertyName and then GetCustomProperty
+                                    try
+                                    {
+                                        name = doc.GetCustomPropertyName(i);
+                                        if (!string.IsNullOrEmpty(name))
+                                        {
+                                            value = doc.GetCustomProperty(name, out propType);
+                                        }
+                                    }
+                                    catch { }
+                                }
+                                
+                                if (!string.IsNullOrEmpty(name))
+                                {
+                                    Console.Error.WriteLine($"[DM] Property[{i}] '{name}' = '{value}'");
+                                    props[name] = value ?? "";
+                                }
+                            }
+                            catch (Exception indexEx)
+                            {
+                                Console.Error.WriteLine($"[DM] Error reading property at index {i}: {indexEx.Message}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"[DM] No properties found at file level");
                     }
                 }
                 else
                 {
-                    var configMgr = doc.ConfigurationManager;
-                    var config = configMgr.GetConfigurationByName(configuration);
-                    if (config != null)
+                    Console.Error.WriteLine($"[DM] Reading config-level properties for: {configuration}");
+                    try
                     {
-                        var propNames = (string[]?)config.GetCustomPropertyNames();
-                        if (propNames != null)
+                        var configMgr = doc.ConfigurationManager;
+                        if (configMgr == null)
                         {
-                            foreach (var name in propNames)
+                            Console.Error.WriteLine($"[DM] ConfigurationManager is null");
+                            return props;
+                        }
+                        
+                        var config = configMgr.GetConfigurationByName(configuration);
+                        if (config != null)
+                        {
+                            var propNames = (string[]?)config.GetCustomPropertyNames();
+                            if (propNames != null)
                             {
-                                object propType;
-                                string value = config.GetCustomProperty(name, out propType);
-                                props[name] = value ?? "";
+                                Console.Error.WriteLine($"[DM] Config '{configuration}' has {propNames.Length} properties");
+                                foreach (var name in propNames)
+                                {
+                                    object propType = null!;
+                                    string value = config.GetCustomProperty(name, out propType);
+                                    props[name] = value ?? "";
+                                }
                             }
                         }
+                        else
+                        {
+                            Console.Error.WriteLine($"[DM] Configuration '{configuration}' not found");
+                        }
+                    }
+                    catch (Exception configEx)
+                    {
+                        Console.Error.WriteLine($"[DM] Error reading config properties: {configEx.Message}");
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DM] ReadProperties exception: {ex.Message}");
+            }
+
+            return props;
+        }
+
+        /// <summary>
+        /// Read custom properties from the drawing's referenced model.
+        /// Drawing properties are often actually stored on the referenced part/assembly,
+        /// not on the drawing file itself. This is by design in SolidWorks.
+        /// </summary>
+        private Dictionary<string, string> ReadDrawingReferencedModelProperties(dynamic doc, string drawingPath)
+        {
+            var props = new Dictionary<string, string>();
+
+            try
+            {
+                Console.Error.WriteLine($"[DM] Attempting to read properties from drawing's referenced model...");
+                
+                // Get external references (the models this drawing references)
+                try
+                {
+                    // Create search options to find parts and assemblies
+                    var searchOptType = GetDmType("SwDMSearchOption");
+                    if (searchOptType != null)
+                    {
+                        var searchOpt = Activator.CreateInstance(searchOptType);
+                        if (searchOpt != null)
+                        {
+                            dynamic dynSearchOpt = searchOpt;
+                            dynSearchOpt.SearchFilters = 3; // swDmSearchForPart | swDmSearchForAssembly
+                            
+                            var references = (string[]?)doc.GetAllExternalReferences(searchOpt);
+                            
+                            if (references != null && references.Length > 0)
+                            {
+                                Console.Error.WriteLine($"[DM] Drawing references {references.Length} models");
+                                
+                                // The first reference is typically the main model for the drawing
+                                var primaryModelPath = references[0];
+                                Console.Error.WriteLine($"[DM] Primary referenced model: {Path.GetFileName(primaryModelPath)}");
+                                
+                                // Check if the file exists and try to read its properties
+                                if (File.Exists(primaryModelPath))
+                                {
+                                    // Open the referenced model to read its properties
+                                    var modelDoc = OpenDocument(primaryModelPath, out var modelOpenError);
+                                    if (modelDoc != null)
+                                    {
+                                        try
+                                        {
+                                            Console.Error.WriteLine($"[DM] Opened referenced model, reading properties...");
+                                            dynamic dynModelDoc = modelDoc;
+                                            
+                                            // Read file-level properties
+                                            props = ReadProperties(dynModelDoc, null);
+                                            Console.Error.WriteLine($"[DM] Read {props.Count} properties from referenced model");
+                                            
+                                            // If no file-level properties, try default configuration
+                                            if (props.Count == 0)
+                                            {
+                                                try
+                                                {
+                                                    var configMgr = dynModelDoc.ConfigurationManager;
+                                                    if (configMgr != null)
+                                                    {
+                                                        var activeConfig = configMgr.GetActiveConfigurationName();
+                                                        if (!string.IsNullOrEmpty(activeConfig))
+                                                        {
+                                                            Console.Error.WriteLine($"[DM] Trying active config: {activeConfig}");
+                                                            props = ReadProperties(dynModelDoc, activeConfig);
+                                                            Console.Error.WriteLine($"[DM] Read {props.Count} config properties from referenced model");
+                                                        }
+                                                    }
+                                                }
+                                                catch (Exception configEx)
+                                                {
+                                                    Console.Error.WriteLine($"[DM] Error reading config properties: {configEx.Message}");
+                                                }
+                                            }
+                                        }
+                                        finally
+                                        {
+                                            try { ((dynamic)modelDoc).CloseDoc(); } catch { }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.Error.WriteLine($"[DM] Failed to open referenced model, error: {modelOpenError}");
+                                    }
+                                }
+                                else
+                                {
+                                    Console.Error.WriteLine($"[DM] Referenced model file not found: {primaryModelPath}");
+                                }
+                            }
+                            else
+                            {
+                                Console.Error.WriteLine($"[DM] No external references found in drawing");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"[DM] SwDMSearchOption type not found");
+                    }
+                }
+                catch (Exception refEx)
+                {
+                    Console.Error.WriteLine($"[DM] Error getting external references: {refEx.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DM] ReadDrawingReferencedModelProperties failed: {ex.Message}");
+            }
 
             return props;
         }

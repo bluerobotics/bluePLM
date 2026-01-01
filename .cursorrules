@@ -18,6 +18,8 @@
 
 ⚠️ **ALWAYS run typecheck before pushing a tag.** Run `npm run typecheck` to verify no TypeScript errors before creating and pushing a git tag.
 
+⚠️ **ALWAYS use Cursor's built-in tools for file operations.** Use `read_file`, `write`, `search_replace`, `grep`, `list_dir`, and `glob_file_search` instead of PowerShell/terminal commands like `cat`, `echo`, `sed`, `Get-Content`, `Set-Content`, etc. Terminal commands for file operations often fail or get stuck in loops. Reserve terminal commands for actual system operations (git, npm, build scripts).
+
 ## Tech Stack
 Frontend: React 19, TypeScript, Zustand, Tailwind CSS, Vite
 Backend: Supabase (PostgreSQL, Auth, Storage, Realtime)
@@ -164,6 +166,7 @@ supabase/ - Database migrations and schema.sql
 ❌ Inline styles (use Tailwind)
 ❌ Unnecessary abstractions
 ❌ Mutate Zustand state directly (use `set`)
+❌ PowerShell/terminal commands for file operations (use Cursor tools: `read_file`, `write`, `search_replace`, `grep`)
 
 ## Project-Specific Choices
 - Zustand over Redux (single store pattern)

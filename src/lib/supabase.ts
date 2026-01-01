@@ -1,6 +1,7 @@
 // @ts-nocheck - Supabase type inference with Database generics has known issues in v2.x
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
+import type { ModuleConfig as ModuleConfigType } from '../types/modules'
 import { loadConfig, type SupabaseConfig } from './supabaseConfig'
 
 // ============================================
@@ -501,6 +502,9 @@ export async function signOut() {
     await endDeviceSession(user.id)
   }
   
+  // Clear cached user email
+  clearCachedUserEmail()
+  
   const { error } = await client.auth.signOut()
   return { error }
 }
@@ -515,6 +519,28 @@ export async function getCurrentSession() {
   const client = getSupabaseClient()
   const { data: { session }, error } = await client.auth.getSession()
   return { session, error }
+}
+
+// Cache for current user email (avoids repeated auth calls)
+let cachedUserEmail: string | null = null
+
+/**
+ * Get the current user's email from session (cached for performance).
+ * Falls back to empty string if unavailable.
+ */
+export async function getCurrentUserEmail(): Promise<string> {
+  if (cachedUserEmail) return cachedUserEmail
+  
+  const { session } = await getCurrentSession()
+  cachedUserEmail = session?.user?.email || ''
+  return cachedUserEmail
+}
+
+/**
+ * Clear cached user email (call on logout)
+ */
+export function clearCachedUserEmail() {
+  cachedUserEmail = null
 }
 
 // ============================================
@@ -544,7 +570,7 @@ export async function getUserProfile(userId: string, options?: { maxRetries?: nu
     try {
       authLog('debug', 'Fetching profile...', { attempt: attempt + 1 })
       
-      const response = await fetch(`${url}/rest/v1/users?select=id,email,role,org_id,full_name,avatar_url&id=eq.${userId}`, {
+      const response = await fetch(`${url}/rest/v1/users?select=id,email,role,org_id,full_name,avatar_url,custom_avatar_url&id=eq.${userId}`, {
         headers: {
           'apikey': key,
           'Authorization': `Bearer ${accessToken}`,
@@ -599,6 +625,42 @@ export async function getOrganization(orgId: string) {
     return { org: null, error: new Error('Organization not found') }
   } catch (err) {
     return { org: null, error: err as Error }
+  }
+}
+
+// Auth provider settings type
+export interface AuthProviders {
+  users: { google: boolean; email: boolean; phone: boolean }
+  suppliers: { google: boolean; email: boolean; phone: boolean }
+}
+
+// Get organization auth providers by slug (works without authentication)
+// Used by the sign-in screen to determine which sign-in methods to show
+export async function getOrgAuthProviders(orgSlug: string): Promise<AuthProviders | null> {
+  try {
+    const url = currentConfig?.url || import.meta.env.VITE_SUPABASE_URL
+    const key = currentConfig?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY
+    
+    const response = await fetch(`${url}/rest/v1/rpc/get_org_auth_providers`, {
+      method: 'POST',
+      headers: {
+        'apikey': key,
+        'Authorization': `Bearer ${key}`, // Use anon key for unauthenticated access
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ p_org_slug: orgSlug })
+    })
+    
+    if (!response.ok) {
+      console.warn('[Supabase] Failed to fetch auth providers:', response.status)
+      return null
+    }
+    
+    const data = await response.json()
+    return data as AuthProviders
+  } catch (err) {
+    console.warn('[Supabase] Error fetching auth providers:', err)
+    return null
   }
 }
 
@@ -1706,13 +1768,27 @@ function getFileTypeFromExtension(ext: string): 'part' | 'assembly' | 'drawing' 
 // Check Out / Check In Operations
 // ============================================
 
-export async function checkoutFile(fileId: string, userId: string, message?: string) {
+export async function checkoutFile(
+  fileId: string, 
+  userId: string, 
+  userEmail: string,
+  options?: {
+    message?: string
+    // Pre-computed values to avoid redundant IPC calls in batch operations
+    machineId?: string
+    machineName?: string
+  }
+) {
   const client = getSupabaseClient()
   
-  // Get machine ID and name for tracking
-  const { getMachineId, getMachineName } = await import('./backup')
-  const machineId = await getMachineId()
-  const machineName = await getMachineName()
+  // Use pre-computed values if provided, otherwise fetch (for single-file calls)
+  let machineId = options?.machineId
+  let machineName = options?.machineName
+  if (!machineId || !machineName) {
+    const { getMachineId, getMachineName } = await import('./backup')
+    machineId = machineId || await getMachineId()
+    machineName = machineName || await getMachineName()
+  }
   
   // First check if file is already checked out (simple query without join)
   const { data: file, error: fetchError } = await client
@@ -1745,7 +1821,7 @@ export async function checkoutFile(fileId: string, userId: string, message?: str
     .update({
       checked_out_by: userId,
       checked_out_at: new Date().toISOString(),
-      lock_message: message || null,
+      lock_message: options?.message || null,
       checked_out_by_machine_id: machineId,
       checked_out_by_machine_name: machineName,
       updated_by: userId,
@@ -1759,13 +1835,18 @@ export async function checkoutFile(fileId: string, userId: string, message?: str
     return { success: false, error: error.message }
   }
   
-  // Log activity
-  await client.from('activity').insert({
+  // Log activity (fire-and-forget to avoid blocking checkout)
+  client.from('activity').insert({
     org_id: data.org_id,
     file_id: fileId,
     user_id: userId,
+    user_email: userEmail,
     action: 'checkout',
-    details: message ? { message } : {}
+    details: options?.message ? { message: options.message } : {}
+  }).then(({ error: activityError }) => {
+    if (activityError) {
+      console.warn('[Checkout] Failed to log activity:', activityError.message)
+    }
   })
   
   return { success: true, file: data, error: null }
@@ -1784,6 +1865,8 @@ export async function checkinFile(
       part_number?: string | null
       description?: string | null
       revision?: string
+      config_tabs?: Record<string, string>  // Per-configuration tab numbers
+      config_descriptions?: Record<string, string>  // Per-configuration descriptions
     }
   }
 ): Promise<{ success: boolean; file?: any; error?: string | null; contentChanged?: boolean; metadataChanged?: boolean; machineMismatchWarning?: string | null }> {
@@ -1839,7 +1922,9 @@ export async function checkinFile(
   const hasPendingMetadata = options?.pendingMetadata && (
     options.pendingMetadata.part_number !== undefined ||
     options.pendingMetadata.description !== undefined ||
-    options.pendingMetadata.revision !== undefined
+    options.pendingMetadata.revision !== undefined ||
+    options.pendingMetadata.config_tabs !== undefined ||
+    options.pendingMetadata.config_descriptions !== undefined
   )
   
   if (hasPendingMetadata && options?.pendingMetadata) {
@@ -1851,6 +1936,15 @@ export async function checkinFile(
     }
     if (options.pendingMetadata.revision !== undefined) {
       updateData.revision = options.pendingMetadata.revision
+    }
+    // Save per-configuration data to custom_properties
+    if (options.pendingMetadata.config_tabs !== undefined || options.pendingMetadata.config_descriptions !== undefined) {
+      const existingCustomProps = (file.custom_properties || {}) as Record<string, unknown>
+      updateData.custom_properties = {
+        ...existingCustomProps,
+        ...(options.pendingMetadata.config_tabs !== undefined && { _config_tabs: options.pendingMetadata.config_tabs }),
+        ...(options.pendingMetadata.config_descriptions !== undefined && { _config_descriptions: options.pendingMetadata.config_descriptions })
+      }
     }
   }
   
@@ -1893,14 +1987,21 @@ export async function checkinFile(
       comment: options?.comment || null
     })
     
-    // Log revision change activity if revision changed
+    // Log revision change activity if revision changed (fire-and-forget)
     if (options?.pendingMetadata?.revision && options.pendingMetadata.revision !== file.revision) {
-      await client.from('activity').insert({
-        org_id: file.org_id,
-        file_id: fileId,
-        user_id: userId,
-        action: 'revision_change',
-        details: { from: file.revision, to: options.pendingMetadata.revision }
+      getCurrentUserEmail().then(userEmail => {
+        client.from('activity').insert({
+          org_id: file.org_id,
+          file_id: fileId,
+          user_id: userId,
+          user_email: userEmail,
+          action: 'revision_change',
+          details: { from: file.revision, to: options.pendingMetadata.revision }
+        }).then(({ error: activityError }) => {
+          if (activityError) {
+            console.warn('[Checkin] Failed to log revision change activity:', activityError.message)
+          }
+        })
       })
     }
   }
@@ -1917,17 +2018,24 @@ export async function checkinFile(
     return { success: false, error: error.message }
   }
   
-  // Log activity
-  await client.from('activity').insert({
-    org_id: data.org_id,
-    file_id: fileId,
-    user_id: userId,
-    action: 'checkin',
-    details: { 
-      ...(options?.comment ? { comment: options.comment } : {}),
-      contentChanged,
-      metadataChanged
-    }
+  // Log activity (fire-and-forget to avoid blocking checkin)
+  getCurrentUserEmail().then(userEmail => {
+    client.from('activity').insert({
+      org_id: data.org_id,
+      file_id: fileId,
+      user_id: userId,
+      user_email: userEmail,
+      action: 'checkin',
+      details: { 
+        ...(options?.comment ? { comment: options.comment } : {}),
+        contentChanged,
+        metadataChanged
+      }
+    }).then(({ error: activityError }) => {
+      if (activityError) {
+        console.warn('[Checkin] Failed to log activity:', activityError.message)
+      }
+    })
   })
   
   return { success: true, file: data, error: null, contentChanged, metadataChanged, machineMismatchWarning }
@@ -2037,16 +2145,24 @@ export async function syncSolidWorksFileMetadata(
   if (revisionChanged) changedFields.push('revision')
   if (customPropsChanged) changedFields.push('custom_properties')
   
-  await client.from('activity').insert({
-    org_id: file.org_id,
-    file_id: fileId,
-    user_id: userId,
-    action: 'checkin',
-    details: { 
-      metadataSync: true,
-      changedFields,
-      source: 'solidworks'
-    }
+  // Log activity (fire-and-forget)
+  getCurrentUserEmail().then(userEmail => {
+    client.from('activity').insert({
+      org_id: file.org_id,
+      file_id: fileId,
+      user_id: userId,
+      user_email: userEmail,
+      action: 'checkin',
+      details: { 
+        metadataSync: true,
+        changedFields,
+        source: 'solidworks'
+      }
+    }).then(({ error: activityError }) => {
+      if (activityError) {
+        console.warn('[SyncMetadata] Failed to log activity:', activityError.message)
+      }
+    })
   })
   
   return { success: true, file: data, error: null }
@@ -2160,16 +2276,23 @@ export async function adminForceDiscardCheckout(
     return { success: false, error: error.message }
   }
   
-  // Log activity
-  await client.from('activity').insert({
-    org_id: file.org_id,
-    file_id: fileId,
-    user_id: adminUserId,
-    action: 'admin_force_discard',
-    details: { 
-      discarded_user_id: file.checked_out_by,
-      discarded_user_name: checkedOutUser?.full_name || checkedOutUser?.email || 'Unknown'
-    }
+  // Log activity (fire-and-forget)
+  getCurrentUserEmail().then(userEmail => {
+    client.from('activity').insert({
+      org_id: file.org_id,
+      file_id: fileId,
+      user_id: adminUserId,
+      user_email: userEmail,
+      action: 'admin_force_discard',
+      details: { 
+        discarded_user_id: file.checked_out_by,
+        discarded_user_name: checkedOutUser?.full_name || checkedOutUser?.email || 'Unknown'
+      }
+    }).then(({ error: activityError }) => {
+      if (activityError) {
+        console.warn('[ForceRelease] Failed to log activity:', activityError.message)
+      }
+    })
   })
   
   return { success: true, file: data }
@@ -2701,6 +2824,89 @@ export async function getUserPermissions(
 }
 
 /**
+ * Load full context for impersonating a user (admin feature)
+ * Returns user info, teams, permissions, vault access, and module config
+ */
+export async function loadImpersonatedUserContext(
+  targetUserId: string
+): Promise<{ 
+  user: {
+    id: string
+    email: string
+    full_name: string | null
+    avatar_url: string | null
+    role: 'admin' | 'engineer' | 'viewer'
+    teams: Array<{ id: string; name: string; color: string; icon: string }>
+    permissions: Record<string, string[]>
+    vaultIds: string[]
+    moduleConfig?: ModuleConfigType
+  } | null
+  error?: string 
+}> {
+  const client = getSupabaseClient()
+  
+  // 1. Get the target user's basic info
+  const { data: userData, error: userError } = await client
+    .from('users')
+    .select('id, email, full_name, avatar_url, role')
+    .eq('id', targetUserId)
+    .single()
+  
+  if (userError || !userData) {
+    return { user: null, error: userError?.message || 'User not found' }
+  }
+  
+  // 2. Get user's teams
+  const { teams } = await getUserTeams(targetUserId)
+  
+  // 3. Get user's permissions
+  const { permissions } = await getUserPermissions(
+    targetUserId, 
+    userData.role as 'admin' | 'engineer' | 'viewer'
+  )
+  
+  // 4. Get user's vault access
+  const { vaultIds } = await getEffectiveUserVaultAccess(targetUserId)
+  
+  // 5. Get user's effective module config (from their team defaults)
+  let moduleConfig: ModuleConfigType | undefined
+  
+  try {
+    const { data: moduleData, error: moduleError } = await (client.rpc as any)('get_user_module_defaults', {
+      p_user_id: targetUserId
+    })
+    
+    if (!moduleError && moduleData) {
+      moduleConfig = {
+        enabledModules: moduleData.enabled_modules || {},
+        enabledGroups: moduleData.enabled_groups || {},
+        moduleOrder: moduleData.module_order || [],
+        dividers: moduleData.dividers || [],
+        moduleParents: moduleData.module_parents || {},
+        moduleIconColors: moduleData.module_icon_colors || {},
+        customGroups: moduleData.custom_groups || []
+      } as ModuleConfigType
+    }
+  } catch (err) {
+    console.warn('Failed to load module defaults for impersonated user:', err)
+  }
+  
+  return {
+    user: {
+      id: userData.id,
+      email: userData.email,
+      full_name: userData.full_name,
+      avatar_url: userData.avatar_url,
+      role: userData.role as 'admin' | 'engineer' | 'viewer',
+      teams: teams || [],
+      permissions: permissions || {},
+      vaultIds: vaultIds || [],
+      moduleConfig
+    }
+  }
+}
+
+/**
  * Check if a user has a specific permission on a resource
  * This is the main function to use for permission checks in the UI
  */
@@ -2862,16 +3068,23 @@ export async function updateFileMetadata(
     return { success: false, error: error.message }
   }
   
-  // Log state change activity
-  await client.from('activity').insert({
-    org_id: file.org_id,
-    file_id: fileId,
-    user_id: userId,
-    action: 'state_change',
-    details: {
-      old_state_id: file.workflow_state_id,
-      new_state_id: updates.workflow_state_id
-    }
+  // Log state change activity (fire-and-forget)
+  getCurrentUserEmail().then(userEmail => {
+    client.from('activity').insert({
+      org_id: file.org_id,
+      file_id: fileId,
+      user_id: userId,
+      user_email: userEmail,
+      action: 'state_change',
+      details: {
+        old_state_id: file.workflow_state_id,
+        new_state_id: updates.workflow_state_id
+      }
+    }).then(({ error: activityError }) => {
+      if (activityError) {
+        console.warn('[StateChange] Failed to log activity:', activityError.message)
+      }
+    })
   })
   
   return { success: true, file: data, error: null }
@@ -4736,6 +4949,17 @@ export async function sendSessionHeartbeat(userId: string, orgId?: string | null
     console.error('[Session] Heartbeat failed:', error.message)
   }
   
+  // Also update last_online in users table (throttled - only if more than 1 min since last update)
+  // This keeps "last online" in sync with actual activity
+  try {
+    await client
+      .from('users')
+      .update({ last_online: new Date().toISOString() })
+      .eq('id', userId)
+  } catch (err) {
+    // Silently ignore - last_online is non-critical
+  }
+  
   return true
 }
 
@@ -4914,6 +5138,7 @@ export interface OnlineUser {
   email: string
   full_name: string | null
   avatar_url: string | null
+  custom_avatar_url: string | null
   role: string
   machine_name: string
   platform: string | null
@@ -4965,6 +5190,7 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
         email,
         full_name,
         avatar_url,
+        custom_avatar_url,
         role
       )
     `)
@@ -4987,6 +5213,7 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
     email: session.users.email,
     full_name: session.users.full_name,
     avatar_url: session.users.avatar_url,
+    custom_avatar_url: session.users.custom_avatar_url,
     role: session.users.role,
     machine_name: session.machine_name,
     platform: session.platform,
@@ -5286,4 +5513,30 @@ export async function useAdminRecoveryCode(
   }
   
   return result
+}
+
+// ============================================
+// User Activity Tracking
+// ============================================
+
+/**
+ * Update the user's last_online timestamp.
+ * Called when user is active in the app.
+ */
+export async function updateLastOnline(): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  
+  try {
+    const { data, error } = await client.rpc('update_last_online')
+    
+    if (error) {
+      console.error('[LastOnline] Failed to update:', error.message)
+      return { success: false, error: error.message }
+    }
+    
+    return { success: true }
+  } catch (err) {
+    console.error('[LastOnline] Error updating:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
 }

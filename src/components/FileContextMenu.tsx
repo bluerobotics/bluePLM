@@ -749,11 +749,8 @@ export function FileContextMenu({
     executeCommand('sync-sw-metadata', { files: contextFiles }, { onRefresh })
   }
   
-  // Check if any files are SolidWorks files
+  // Get synced SolidWorks files (works for both files and folders)
   const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
-  const hasSolidWorksFiles = contextFiles.some(f => 
-    !f.isDirectory && SW_EXTENSIONS.includes(f.extension.toLowerCase())
-  )
   const syncedSolidWorksFiles = syncedFilesInSelection.filter(f => 
     SW_EXTENSIONS.includes(f.extension.toLowerCase())
   )
@@ -1152,15 +1149,15 @@ export function FileContextMenu({
           </div>
         )}
         
-        {/* Sync SolidWorks Metadata - for synced SW files */}
-        {hasSolidWorksFiles && syncedSolidWorksFiles.length > 0 && (
+        {/* Sync SolidWorks Metadata - for synced SW files (works for folders too) */}
+        {syncedSolidWorksFiles.length > 0 && (
           <div 
             className="context-menu-item"
             onClick={handleSyncSwMetadata}
-            title="Extract metadata (part number, description) from SolidWorks file properties and update the database"
+            title="Extract metadata (part number, description, revision) from SolidWorks file properties and update the database"
           >
             <RefreshCw size={14} className="text-plm-accent" />
-            Sync SolidWorks Metadata {syncedSolidWorksFiles.length > 1 ? `(${syncedSolidWorksFiles.length})` : ''}
+            Refresh Metadata {syncedSolidWorksFiles.length > 1 ? `(${syncedSolidWorksFiles.length} files)` : ''}
           </div>
         )}
         
@@ -1709,6 +1706,7 @@ export function FileContextMenu({
                           src={orgUser.avatar_url} 
                           alt="" 
                           className="w-6 h-6 rounded-full"
+                          referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div className="w-6 h-6 rounded-full bg-plm-accent/20 flex items-center justify-center">
@@ -1943,6 +1941,7 @@ export function FileContextMenu({
                           src={orgUser.avatar_url} 
                           alt="" 
                           className="w-6 h-6 rounded-full"
+                          referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div className="w-6 h-6 rounded-full bg-plm-accent/20 flex items-center justify-center">

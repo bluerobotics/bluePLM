@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { usePDMStore, ThemeMode, Language } from '../../stores/pdmStore'
 import { signOut, getSupabaseClient, endRemoteSession } from '../../lib/supabase'
-import { getInitials } from '../../types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '../../types/pdm'
 import { getMachineId } from '../../lib/backup'
 import { useTranslation } from '../../lib/i18n'
 import { ContributionHistory } from './ContributionHistory'
@@ -234,12 +234,13 @@ export function AccountSettings() {
           Profile
         </h2>
         <div className="flex items-center gap-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
-          {user.avatar_url ? (
+          {getEffectiveAvatarUrl(user) ? (
             <>
               <img 
-                src={user.avatar_url} 
+                src={getEffectiveAvatarUrl(user) || ''} 
                 alt={user.full_name || user.email}
-                className="w-16 h-16 rounded-full"
+                className="w-16 h-16 rounded-full object-cover"
+                referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
                   target.style.display = 'none'

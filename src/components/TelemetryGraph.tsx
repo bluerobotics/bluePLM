@@ -1,28 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { telemetry, TelemetrySnapshot } from '@/lib/telemetry'
 import { Play, Pause, Trash2, Settings2 } from 'lucide-react'
+import { formatBytes, formatSpeed } from '@/lib/utils'
 
 interface TelemetryGraphProps {
   metric: 'fps' | 'cpu' | 'memory' | 'network' | 'appMemory'
   height?: number
   showControls?: boolean
   color?: string
-}
-
-// Format bytes to human readable
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
-
-// Format speed
-function formatSpeed(bytesPerSec: number): string {
-  if (bytesPerSec < 1024) return `${bytesPerSec} B/s`
-  if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`
-  return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`
 }
 
 const METRIC_CONFIG = {

@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, memo } from 'react'
-import { registerModule, unregisterModule } from '@/lib/telemetry'
 import { 
   ChevronUp, 
   ChevronDown,
@@ -92,6 +91,7 @@ import {
 import { executeCommand } from '../lib/commands'
 import { CrumbBar } from './CrumbBar'
 import { getSyncedFilesFromSelection } from '../lib/commands/types'
+import { buildFullPath } from '../lib/utils'
 import { format } from 'date-fns'
 import { useTranslation } from '../lib/i18n'
 
@@ -109,15 +109,6 @@ const columnTranslationKeys: Record<string, string> = {
   extension: 'fileBrowser.extension',
   size: 'fileBrowser.size',
   modifiedTime: 'fileBrowser.modified',
-}
-
-// Build full path using the correct separator for the platform
-function buildFullPath(vaultPath: string, relativePath: string): string {
-  // Detect platform from vaultPath - macOS/Linux use /, Windows uses \
-  const isWindows = vaultPath.includes('\\')
-  const sep = isWindows ? '\\' : '/'
-  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
-  return `${vaultPath}${sep}${normalizedRelative}`
 }
 
 interface FileBrowserProps {
@@ -509,6 +500,7 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, is
                           alt={u.name}
                           className="rounded-full bg-plm-bg object-cover"
                           style={{ width: avatarSize, height: avatarSize }}
+                          referrerPolicy="no-referrer"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement
                             target.style.display = 'none'
@@ -906,11 +898,6 @@ const ListRowIcon = memo(function ListRowIcon({ file, size, isProcessing, folder
 export function FileBrowser({ onRefresh }: FileBrowserProps) {
   const { t } = useTranslation()
   
-  // Register module for telemetry tracking
-  useEffect(() => {
-    registerModule('FileBrowser')
-    return () => unregisterModule('FileBrowser')
-  }, [])
   const {
     files,
     selectedFiles,
@@ -3949,6 +3936,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                             src={u.avatar_url} 
                             alt={u.name}
                             className="w-5 h-5 rounded-full bg-plm-bg object-cover"
+                            referrerPolicy="no-referrer"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement
                               target.style.display = 'none'
@@ -4218,6 +4206,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                     src={checkoutAvatarUrl} 
                     alt={checkoutName}
                     className="w-5 h-5 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       // Hide broken image and show fallback
                       const target = e.target as HTMLImageElement
@@ -4290,6 +4279,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   alt={displayName}
                   title={tooltipName}
                   className="w-5 h-5 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement
                     target.style.display = 'none'
@@ -5754,19 +5744,54 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 Properties
               </div>
               
-              {/* Refresh Metadata - for synced SolidWorks files */}
-              {!isFolder && isSynced && ['.sldprt', '.sldasm', '.slddrw'].includes(firstFile.extension.toLowerCase()) && (
-                <div 
-                  className="context-menu-item"
-                  onClick={() => {
-                    setContextMenu(null)
-                    executeCommand('sync-sw-metadata', { files: multiSelect ? contextFiles : [firstFile] }, { onRefresh })
-                  }}
-                >
-                  <RefreshCw size={14} className="text-plm-accent" />
-                  Refresh Metadata
-                </div>
-              )}
+              {/* Refresh Metadata - for synced SolidWorks files OR folders containing SW files */}
+              {(() => {
+                const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+                
+                // For individual files: check if it's a synced SW file
+                if (!isFolder && isSynced && swExtensions.includes(firstFile.extension.toLowerCase())) {
+                  return (
+                    <div 
+                      className="context-menu-item"
+                      onClick={() => {
+                        setContextMenu(null)
+                        executeCommand('sync-sw-metadata', { files: multiSelect ? contextFiles : [firstFile] }, { onRefresh })
+                      }}
+                    >
+                      <RefreshCw size={14} className="text-plm-accent" />
+                      Refresh Metadata
+                    </div>
+                  )
+                }
+                
+                // For folders: find all synced SW files in the folder
+                if (isFolder && !multiSelect) {
+                  const folderPath = firstFile.relativePath
+                  const swFilesInFolder = files.filter(f => 
+                    !f.isDirectory && 
+                    f.relativePath.startsWith(folderPath + '/') &&
+                    swExtensions.includes(f.extension.toLowerCase()) &&
+                    f.pdmData?.id // Must be synced
+                  )
+                  
+                  if (swFilesInFolder.length > 0) {
+                    return (
+                      <div 
+                        className="context-menu-item"
+                        onClick={() => {
+                          setContextMenu(null)
+                          executeCommand('sync-sw-metadata', { files: swFilesInFolder }, { onRefresh })
+                        }}
+                      >
+                        <RefreshCw size={14} className="text-plm-accent" />
+                        Refresh Metadata ({swFilesInFolder.length} files)
+                      </div>
+                    )
+                  }
+                }
+                
+                return null
+              })()}
               
               {/* Request Review - for synced files (not folders) */}
               {!multiSelect && !isFolder && isSynced && firstFile.pdmData?.id && (

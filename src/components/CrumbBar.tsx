@@ -1,14 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronUp, Home, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react'
-
-// Build full path using the correct separator for the platform
-function buildFullPath(vaultPath: string, relativePath: string): string {
-  if (!relativePath) return vaultPath
-  const isWindows = vaultPath.includes('\\')
-  const sep = isWindows ? '\\' : '/'
-  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
-  return `${vaultPath}${sep}${normalizedRelative}`
-}
+import { buildFullPath } from '../lib/utils'
 
 // Parse a full path back to relative path
 function parsePathToRelative(fullPath: string, vaultPath: string): string {

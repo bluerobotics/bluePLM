@@ -30,20 +30,13 @@ import { usePDMStore } from '@/stores/pdmStore'
 import type { RFQ, RFQItem, RFQStatus, RFQSupplier } from '@/types/rfq'
 import { getRFQStatusInfo, formatCurrency } from '@/types/rfq'
 import { generateRFQPdf, type OrgBranding } from '@/lib/rfqPdf'
+import { buildFullPath } from '@/lib/utils'
+import { getInitials } from '@/types/pdm'
 
 // Supabase client with any type to bypass strict typing for new tables
 // These tables are defined in rfq_migration.sql but not yet in database.ts
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
-
-// Helper to get initials from name or email
-function getInitials(name: string): string {
-  const parts = name.split(/[\s@]+/).filter(p => p.length > 0)
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length > 2 ? parts.length - 2 : 1][0]).toUpperCase()
-  }
-  return (parts[0]?.[0] || '?').toUpperCase()
-}
 
 // RFQ List View
 function RFQListView({ 
@@ -217,6 +210,7 @@ function RFQListView({
                           src={creatorUser.avatar_url} 
                           alt={creatorName}
                           className="w-6 h-6 rounded-full ring-1 ring-plm-border object-cover"
+                          referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div className="w-6 h-6 rounded-full ring-1 ring-plm-border bg-plm-accent/20 text-plm-accent flex items-center justify-center text-[10px] font-medium">
@@ -282,14 +276,6 @@ interface OrgAddress {
 }
 
 // RFQ Detail View
-// Build full path using the correct separator for the platform
-function buildFullPath(vaultPath: string, relativePath: string): string {
-  const isWindows = vaultPath.includes('\\')
-  const sep = isWindows ? '\\' : '/'
-  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
-  return `${vaultPath}${sep}${normalizedRelative}`
-}
-
 function RFQDetailView({ 
   rfq, 
   onBack,

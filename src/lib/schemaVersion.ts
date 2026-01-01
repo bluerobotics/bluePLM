@@ -21,7 +21,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 20
+export const EXPECTED_SCHEMA_VERSION = 25
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -49,6 +49,12 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   18: 'Fix invited users being added to New Users team when they have specific teams',
   19: 'ensure_user_org_id creates user record if trigger failed (fixes invite after account deletion)',
   20: 'Per-vault permissions: vault_id column on team_permissions and user_permissions',
+  21: 'Added last_online column to users table for activity tracking',
+  22: 'get_org_auth_providers RPC for pre-login auth method visibility',
+  23: 'Team-based permissions: admin = Administrators team membership, role column deprecated',
+  24: 'Team module defaults use UNION logic: users in multiple teams get all enabled modules from all teams',
+  25: 'Added custom_avatar_url column for user profile pictures',
+  // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 
 export interface SchemaVersionInfo {

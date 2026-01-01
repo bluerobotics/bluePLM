@@ -11,10 +11,13 @@ import {
   RefreshCw,
   Info,
   FileBox,
-  Layers
+  Layers,
+  Search,
+  SplitSquareHorizontal
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
+import { detectHighestSerialNumber } from '@/lib/serialization'
 
 interface KeepoutZone {
   start: number
@@ -33,6 +36,13 @@ interface SerializationSettingsData {
   letter_prefix: string
   keepout_zones: KeepoutZone[]
   auto_apply_extensions: string[]
+  // Tab number settings
+  tab_enabled: boolean
+  tab_separator: string
+  tab_padding_digits: number
+  tab_required: boolean
+  // Auto-format settings
+  auto_pad_numbers: boolean
 }
 
 // Common CAD file extensions for quick selection
@@ -62,7 +72,14 @@ const DEFAULT_SERIALIZATION_SETTINGS: SerializationSettingsData = {
   use_letters_before_numbers: false,
   letter_prefix: '',
   keepout_zones: [],
-  auto_apply_extensions: []
+  auto_apply_extensions: [],
+  // Tab number settings
+  tab_enabled: false,
+  tab_separator: '-',
+  tab_padding_digits: 3,
+  tab_required: false,
+  // Auto-format settings
+  auto_pad_numbers: true
 }
 
 export function SerializationSettings() {
@@ -83,6 +100,14 @@ export function SerializationSettings() {
   
   // Custom extension input
   const [customExtension, setCustomExtension] = useState('')
+  
+  // Detect highest serial number
+  const [detecting, setDetecting] = useState(false)
+  const [detectedResult, setDetectedResult] = useState<{
+    highestCounter: number
+    highestPartNumber: string
+    totalScanned: number
+  } | null>(null)
 
   // Generate a live preview of what the serial number will look like
   const livePreview = useMemo(() => {
@@ -104,7 +129,34 @@ export function SerializationSettings() {
     }
     
     serial += String(nextNumber).padStart(settings.padding_digits, '0')
+    
+    // Add tab number example if enabled
+    if (settings.tab_enabled) {
+      serial += settings.tab_separator + '001'.padStart(settings.tab_padding_digits, '0')
+    }
+    
     serial += settings.suffix
+    
+    return serial
+  }, [settings])
+  
+  // Generate base-only preview (without tab)
+  const basePreview = useMemo(() => {
+    if (!settings.enabled) return ''
+    
+    let nextNumber = settings.current_counter + 1
+    
+    for (const zone of settings.keepout_zones) {
+      if (nextNumber >= zone.start && nextNumber <= zone.end_num) {
+        nextNumber = zone.end_num + 1
+      }
+    }
+    
+    let serial = settings.prefix
+    if (settings.letter_prefix) {
+      serial += settings.letter_prefix
+    }
+    serial += String(nextNumber).padStart(settings.padding_digits, '0')
     
     return serial
   }, [settings])
@@ -281,6 +333,37 @@ export function SerializationSettings() {
       updateSetting('auto_apply_extensions', [...current, normalizedExt])
     }
     setCustomExtension('')
+  }
+  
+  // Detect highest serial number in vault
+  const handleDetectHighest = async () => {
+    if (!organization?.id) return
+    
+    setDetecting(true)
+    setDetectedResult(null)
+    try {
+      const result = await detectHighestSerialNumber(organization.id)
+      setDetectedResult(result)
+      
+      if (result && result.highestCounter > 0) {
+        addToast('success', `Found highest: ${result.highestPartNumber} (counter: ${result.highestCounter})`)
+      } else if (result) {
+        addToast('info', `Scanned ${result.totalScanned} files, no matching serial numbers found`)
+      }
+    } catch (err) {
+      console.error('Failed to detect highest serial:', err)
+      addToast('error', 'Failed to scan files')
+    } finally {
+      setDetecting(false)
+    }
+  }
+  
+  // Apply detected counter value
+  const applyDetectedCounter = () => {
+    if (detectedResult && detectedResult.highestCounter > 0) {
+      updateSetting('current_counter', detectedResult.highestCounter)
+      addToast('success', `Counter set to ${detectedResult.highestCounter}`)
+    }
   }
 
   if (!organization) {
@@ -568,7 +651,190 @@ export function SerializationSettings() {
               Changing this value can cause duplicate or skipped numbers. Use with caution.
             </p>
           )}
+          
+          {/* Detect Highest Serial Number */}
+          {isAdmin && settings.enabled && (
+            <div className="mt-4 p-3 bg-plm-highlight/50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-plm-fg font-medium">Detect Highest Used Number</div>
+                  <div className="text-xs text-plm-fg-muted mt-0.5">
+                    Scan vault files to find the highest serial number in use
+                  </div>
+                </div>
+                <button
+                  onClick={handleDetectHighest}
+                  disabled={detecting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-plm-bg hover:bg-plm-bg-light border border-plm-border text-plm-fg rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {detecting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Search size={14} />
+                  )}
+                  Scan Vault
+                </button>
+              </div>
+              
+              {detectedResult && (
+                <div className="mt-3 p-2 bg-plm-bg rounded border border-plm-border">
+                  <div className="text-xs text-plm-fg-muted">
+                    Scanned <span className="font-medium text-plm-fg">{detectedResult.totalScanned}</span> files
+                  </div>
+                  {detectedResult.highestCounter > 0 ? (
+                    <div className="flex items-center justify-between mt-2">
+                      <div>
+                        <div className="text-sm text-plm-fg">
+                          Highest found: <span className="font-mono font-medium text-plm-accent">{detectedResult.highestPartNumber}</span>
+                        </div>
+                        <div className="text-xs text-plm-fg-muted">
+                          Counter value: {detectedResult.highestCounter}
+                        </div>
+                      </div>
+                      <button
+                        onClick={applyDetectedCounter}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-plm-accent hover:bg-plm-accent-hover text-white rounded transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-plm-fg-muted mt-1">
+                      No matching serial numbers found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Tab Number Settings */}
+      <div className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <SplitSquareHorizontal size={18} className="text-plm-accent" />
+            <div>
+              <h3 className="text-base font-medium text-plm-fg">Tab Numbers</h3>
+              <p className="text-xs text-plm-fg-muted mt-0.5">
+                Add variant suffixes to base numbers (e.g., BR101101<span className="text-plm-accent">-104</span>)
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => isAdmin && settings.enabled && updateSetting('tab_enabled', !settings.tab_enabled)}
+            disabled={!isAdmin || !settings.enabled}
+            className={`relative w-11 h-6 rounded-full transition-colors ${
+              settings.tab_enabled ? 'bg-plm-accent' : 'bg-plm-border'
+            } ${(!isAdmin || !settings.enabled) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span 
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                settings.tab_enabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        {settings.tab_enabled && (
+          <div className="grid grid-cols-2 gap-4">
+            {/* Tab Separator */}
+            <div>
+              <label className="text-sm text-plm-fg-muted block mb-1">Tab Separator</label>
+              <input
+                type="text"
+                value={settings.tab_separator}
+                onChange={(e) => updateSetting('tab_separator', e.target.value)}
+                placeholder="-"
+                maxLength={3}
+                disabled={!isAdmin || !settings.enabled}
+                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono"
+              />
+              <p className="text-xs text-plm-fg-muted mt-1">Character(s) between base and tab (e.g., "-")</p>
+            </div>
+
+            {/* Tab Digits */}
+            <div>
+              <label className="text-sm text-plm-fg-muted block mb-1">Tab Digits</label>
+              <select
+                value={settings.tab_padding_digits}
+                onChange={(e) => updateSetting('tab_padding_digits', parseInt(e.target.value))}
+                disabled={!isAdmin || !settings.enabled}
+                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <option value={1}>1 digit (1-9)</option>
+                <option value={2}>2 digits (01-99)</option>
+                <option value={3}>3 digits (001-999)</option>
+                <option value={4}>4 digits (0001-9999)</option>
+              </select>
+              <p className="text-xs text-plm-fg-muted mt-1">Zero-padding for the tab number</p>
+            </div>
+
+            {/* Auto-pad Numbers */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.auto_pad_numbers}
+                  onChange={(e) => updateSetting('auto_pad_numbers', e.target.checked)}
+                  disabled={!isAdmin || !settings.enabled}
+                  className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
+                />
+                <span className="text-sm text-plm-fg">Auto-pad with zeros</span>
+              </label>
+              <p className="text-xs text-plm-fg-muted mt-1 ml-6">
+                "1" → "001" on blur
+              </p>
+            </div>
+
+            {/* Tab Required */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.tab_required}
+                  onChange={(e) => updateSetting('tab_required', e.target.checked)}
+                  disabled={!isAdmin || !settings.enabled}
+                  className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
+                />
+                <span className="text-sm text-plm-fg">Tab required</span>
+              </label>
+              <p className="text-xs text-plm-fg-muted mt-1 ml-6">
+                {settings.tab_required ? 'Tab must be specified' : 'Tab is optional'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {settings.tab_enabled && (
+          <div className="mt-4 p-3 bg-plm-highlight/50 rounded-lg space-y-2">
+            <div>
+              <div className="text-xs text-plm-fg-muted mb-1">Example with tab:</div>
+              <div className="flex items-center gap-2">
+                <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
+                  {basePreview}{settings.tab_separator}{'1'.padStart(settings.tab_padding_digits, '0')}{settings.suffix}
+                </code>
+                <span className="text-xs text-plm-fg-muted">→</span>
+                <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
+                  {basePreview}{settings.tab_separator}{'2'.padStart(settings.tab_padding_digits, '0')}{settings.suffix}
+                </code>
+                <span className="text-xs text-plm-fg-muted">→</span>
+                <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
+                  {basePreview}{settings.tab_separator}{'3'.padStart(settings.tab_padding_digits, '0')}{settings.suffix}
+                </code>
+              </div>
+            </div>
+            {!settings.tab_required && (
+              <div>
+                <div className="text-xs text-plm-fg-muted mb-1">Base only (no tab):</div>
+                <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
+                  {basePreview}{settings.suffix}
+                </code>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Keepout Zones */}

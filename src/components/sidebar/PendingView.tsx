@@ -94,6 +94,7 @@ const FileRow = memo(function FileRow({
               src={avatarUrl} 
               alt={userName}
               className="w-5 h-5 rounded-full bg-plm-bg object-cover"
+              referrerPolicy="no-referrer"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none'
                 const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement

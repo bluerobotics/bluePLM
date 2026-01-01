@@ -16,12 +16,13 @@ import {
   ArrowRight,
   RefreshCw,
   ShoppingCart,
-  Loader2
+  Loader2,
+  Clock
 } from 'lucide-react'
 
 import { usePDMStore } from '../../stores/pdmStore'
 import { getSupabaseClient } from '../../lib/supabase'
-import { getInitials } from '../../types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '../../types/pdm'
 
 // Get supabase client with any type cast for queries with type inference issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,7 +38,9 @@ interface UserData {
   email: string
   full_name: string | null
   avatar_url: string | null
+  custom_avatar_url: string | null
   last_sign_in: string | null
+  last_online: string | null
   teams: { id: string; name: string; color: string; icon: string }[]
   workflow_roles: { id: string; name: string; color: string }[]
   job_title: { id: string; name: string; color: string; icon: string } | null
@@ -192,7 +195,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         // Load user info
         const { data: user, error: userError } = await client
           .from('users')
-          .select('id, email, full_name, avatar_url, last_sign_in')
+          .select('id, email, full_name, avatar_url, custom_avatar_url, last_sign_in, last_online')
           .eq('id', userId)
           .single()
         
@@ -409,11 +412,12 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
             <>
               {/* User Info */}
               <div className="flex items-start gap-4">
-                {userData.avatar_url ? (
+                {getEffectiveAvatarUrl(userData) ? (
                   <img 
-                    src={userData.avatar_url} 
+                    src={getEffectiveAvatarUrl(userData) || ''} 
                     alt={userData.full_name || userData.email}
-                    className="w-20 h-20 rounded-full flex-shrink-0"
+                    className="w-20 h-20 rounded-full flex-shrink-0 object-cover"
+                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       target.style.display = 'none'
@@ -432,6 +436,14 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
                     <Mail size={16} />
                     {userData.email}
                   </div>
+                  
+                  {/* Last Online */}
+                  {userData.last_online && (
+                    <div className="text-sm text-plm-fg-dim flex items-center gap-1.5 mt-1">
+                      <Clock size={14} />
+                      Last online {formatRelativeTime(userData.last_online)}
+                    </div>
+                  )}
                   
                   {/* Job Title */}
                   {userData.job_title && (

@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
-import { Mail, Loader2, ShoppingCart, GitBranch, Key, Shield, AlertTriangle, Check, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Mail, Loader2, ShoppingCart, GitBranch, Key, Shield, AlertTriangle, Check, RefreshCw, Camera, X } from 'lucide-react'
 import { usePDMStore } from '../../stores/pdmStore'
-import { getSupabaseClient, useAdminRecoveryCode } from '../../lib/supabase'
-import { getInitials } from '../../types/pdm'
+import { getSupabaseClient, useAdminRecoveryCode, supabase } from '../../lib/supabase'
+import { getInitials, getEffectiveAvatarUrl } from '../../types/pdm'
 import { ContributionHistory } from './ContributionHistory'
 
 // Get supabase client with any type cast for queries with type inference issues
@@ -35,11 +35,122 @@ export function ProfileSettings() {
   const [userECOs, setUserECOs] = useState<ECORecord[]>([])
   const [userRFQs, setUserRFQs] = useState<RFQRecord[]>([])
   
+  // Avatar upload state
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
   // Emergency recovery state
   const [showRecoveryInput, setShowRecoveryInput] = useState(false)
   const [recoveryCode, setRecoveryCode] = useState('')
   const [isSubmittingRecovery, setIsSubmittingRecovery] = useState(false)
   const [recoveryResult, setRecoveryResult] = useState<'success' | 'error' | null>(null)
+
+  // Get the effective avatar URL (custom > google > null)
+  const effectiveAvatarUrl = getEffectiveAvatarUrl(user)
+
+  // Handle avatar upload
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user || !organization?.id) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      addToast('error', 'Please select an image file')
+      return
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      addToast('error', 'Image must be less than 2MB')
+      return
+    }
+
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file)
+    setAvatarPreview(previewUrl)
+
+    setUploadingAvatar(true)
+    try {
+      // Upload to vault bucket under _assets/avatars folder
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+      const filePath = `${organization.id}/_assets/avatars/${user.id}.${ext}`
+      
+      const { error: uploadError } = await supabase.storage
+        .from('vault')
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      // Get a signed URL (valid for 1 year)
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('vault')
+        .createSignedUrl(filePath, 60 * 60 * 24 * 365) // 1 year
+
+      if (signedError) throw signedError
+
+      // Update user's custom avatar via RPC
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: updateError } = await (supabase as any).rpc('update_user_avatar', {
+        p_custom_avatar_url: signedData.signedUrl
+      })
+
+      if (updateError) {
+        console.error('[ProfileSettings] Avatar update error:', updateError)
+        throw updateError
+      }
+
+      // Update local user state
+      setUser({ ...user, custom_avatar_url: signedData.signedUrl })
+      setAvatarPreview(null) // Clear preview since we now have the real URL
+      addToast('success', 'Profile picture updated!')
+    } catch (err) {
+      console.error('Failed to upload avatar:', err)
+      addToast('error', 'Failed to upload profile picture')
+      setAvatarPreview(null) // Clear preview on error
+    } finally {
+      setUploadingAvatar(false)
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  // Remove custom avatar
+  const handleRemoveAvatar = async () => {
+    if (!user || !organization?.id) return
+
+    setUploadingAvatar(true)
+    try {
+      // Delete from storage if exists
+      const filePath = `${organization.id}/_assets/avatars/${user.id}`
+      // Try to delete common extensions
+      await Promise.allSettled([
+        supabase.storage.from('vault').remove([`${filePath}.png`]),
+        supabase.storage.from('vault').remove([`${filePath}.jpg`]),
+        supabase.storage.from('vault').remove([`${filePath}.jpeg`]),
+        supabase.storage.from('vault').remove([`${filePath}.webp`]),
+      ])
+
+      // Clear custom avatar URL via RPC
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: updateError } = await (supabase as any).rpc('update_user_avatar', {
+        p_custom_avatar_url: ''  // Empty string clears it
+      })
+
+      if (updateError) throw updateError
+
+      // Update local user state
+      setUser({ ...user, custom_avatar_url: null })
+      addToast('success', 'Custom profile picture removed')
+    } catch (err) {
+      console.error('Failed to remove avatar:', err)
+      addToast('error', 'Failed to remove profile picture')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
 
   // Load user's ECOs
   useEffect(() => {
@@ -222,28 +333,61 @@ export function ProfileSettings() {
         <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
           Profile
         </h2>
-        <div className="flex items-center gap-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
-          {user.avatar_url ? (
-            <>
+        <div className="flex items-start gap-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
+          {/* Avatar with upload controls */}
+          <div className="relative group">
+            {/* Avatar display (preview > custom > google > initials) */}
+            {avatarPreview || effectiveAvatarUrl ? (
               <img 
-                src={user.avatar_url} 
+                src={avatarPreview || effectiveAvatarUrl || ''}
                 alt={user.full_name || user.email}
-                className="w-16 h-16 rounded-full"
+                className="w-20 h-20 rounded-full object-cover border-2 border-plm-border"
+                referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
                   target.style.display = 'none'
                   target.nextElementSibling?.classList.remove('hidden')
                 }}
               />
-              <div className="w-16 h-16 rounded-full bg-plm-accent flex items-center justify-center text-xl text-white font-semibold hidden">
-                {getInitials(user.full_name || user.email)}
-              </div>
-            </>
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-plm-accent flex items-center justify-center text-xl text-white font-semibold">
+            ) : null}
+            <div className={`w-20 h-20 rounded-full bg-plm-accent flex items-center justify-center text-2xl text-white font-semibold ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}>
               {getInitials(user.full_name || user.email)}
             </div>
-          )}
+            
+            {/* Upload overlay (shows on hover) */}
+            <div 
+              className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploadingAvatar ? (
+                <Loader2 size={24} className="text-white animate-spin" />
+              ) : (
+                <Camera size={24} className="text-white" />
+              )}
+            </div>
+            
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              disabled={uploadingAvatar}
+              className="hidden"
+            />
+            
+            {/* Remove button (only if custom avatar exists) */}
+            {user.custom_avatar_url && !uploadingAvatar && (
+              <button
+                onClick={handleRemoveAvatar}
+                className="absolute -top-1 -right-1 p-1 bg-plm-error rounded-full text-white hover:bg-plm-error/80 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Remove custom picture"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          
           <div className="flex-1 min-w-0">
             <div className="text-xl font-medium text-plm-fg truncate">
               {user.full_name || 'No name'}
@@ -259,6 +403,19 @@ export function ProfileSettings() {
             </div>
             <div className="text-sm text-plm-fg-dim mt-1">
               Role: <span className="capitalize">{user.role}</span>
+            </div>
+            
+            {/* Avatar upload help text */}
+            <div className="mt-2 text-xs text-plm-fg-dim">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="text-plm-accent hover:underline disabled:opacity-50"
+              >
+                {uploadingAvatar ? 'Uploading...' : 'Upload profile picture'}
+              </button>
+              <span className="mx-1">•</span>
+              <span>PNG, JPG, or WebP, max 2MB</span>
             </div>
           </div>
         </div>

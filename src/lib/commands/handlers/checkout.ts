@@ -19,10 +19,12 @@ const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 /**
  * Extract metadata from SolidWorks file using the SW service
  * Returns null if service unavailable or extraction fails
+ * @param swServiceRunning - Pre-cached service status to avoid redundant IPC calls
  */
 async function extractSolidWorksMetadata(
   fullPath: string,
-  extension: string
+  extension: string,
+  swServiceRunning: boolean
 ): Promise<{
   part_number?: string | null
   description?: string | null
@@ -32,9 +34,8 @@ async function extractSolidWorksMetadata(
     return null
   }
   
-  // Check if SolidWorks service is available
-  const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
-  if (!status?.data?.running) {
+  // Use pre-cached service status
+  if (!swServiceRunning) {
     return null
   }
   
@@ -191,6 +192,22 @@ export const checkoutCommand: Command<CheckoutParams> = {
       selectedFileCount: files.length
     })
     
+    // Pre-fetch machine info ONCE before processing files (avoid redundant IPC calls)
+    const { getMachineId, getMachineName } = await import('../../backup')
+    const [machineId, machineName] = await Promise.all([
+      getMachineId(),
+      getMachineName()
+    ])
+    
+    // Pre-check SolidWorks service status ONCE (avoid checking for every file)
+    let swServiceRunning = false
+    try {
+      const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+      swServiceRunning = !!status?.data?.running
+    } catch {
+      // SW service not available
+    }
+    
     // Get files that can be checked out
     const syncedFiles = getSyncedFilesFromSelection(ctx.files, files)
     const filesToCheckout = syncedFiles.filter(f => !f.pdmData?.checked_out_by)
@@ -248,7 +265,10 @@ export const checkoutCommand: Command<CheckoutParams> = {
       try {
         logCheckout('debug', 'Checking out file', { operationId, ...fileCtx })
         
-        const result = await checkoutFile(file.pdmData!.id, user.id)
+        const result = await checkoutFile(file.pdmData!.id, user.id, user.email, {
+          machineId,
+          machineName
+        })
         
         if (result.success) {
           // Make file writable on file system
@@ -280,7 +300,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
           }
           
           // Auto-extract SolidWorks metadata on checkout
-          const swMetadata = await extractSolidWorksMetadata(file.path, file.extension)
+          const swMetadata = await extractSolidWorksMetadata(file.path, file.extension, swServiceRunning)
           if (swMetadata) {
             logCheckout('debug', 'Extracted SolidWorks metadata on checkout', {
               operationId,

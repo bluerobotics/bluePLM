@@ -1,29 +1,23 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { registerModule, unregisterModule } from '@/lib/telemetry'
+import { useEffect, useState, useCallback, useRef, lazy, Suspense } from 'react'
 import { setAnalyticsUser, clearAnalyticsUser } from '@/lib/analytics'
 import { usePDMStore } from './stores/pdmStore'
 import { SettingsContent } from './components/SettingsContent'
 import type { SettingsTab } from './types/settings'
-import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId, getAccessibleVaults } from './lib/supabase'
+import { supabase, getCurrentSession, isSupabaseConfigured, getFilesLightweight, getCheckedOutUsers, linkUserToOrganization, getUserProfile, setCurrentAccessToken, registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut, syncUserSessionsOrgId, getAccessibleVaults, updateLastOnline } from './lib/supabase'
 import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscribeToColorSwatches, subscribeToPermissions, unsubscribeAll } from './lib/realtime'
 import { getBackupStatus, isThisDesignatedMachine, updateHeartbeat } from './lib/backup'
 import { MenuBar } from './components/MenuBar'
 import { ActivityBar } from './components/ActivityBar'
 import { Sidebar } from './components/Sidebar'
-import { FileBrowser } from './components/FileBrowser'
-import { DetailsPanel } from './components/DetailsPanel'
 // StatusBar removed - zoom now in MenuBar
 import { WelcomeScreen } from './components/WelcomeScreen'
 import { SetupScreen } from './components/SetupScreen'
 import { OnboardingScreen } from './components/OnboardingScreen'
 import { Toast } from './components/Toast'
-import { RightPanel } from './components/RightPanel'
 import { OrphanedCheckoutsContainer } from './components/OrphanedCheckoutDialog'
 import { StagedCheckinConflictDialog } from './components/StagedCheckinConflictDialog'
 import type { StagedCheckin } from './stores/pdmStore'
 import { MissingStorageFilesContainer } from './components/MissingStorageFilesDialog'
-import { GoogleDrivePanel } from './components/GoogleDrivePanel'
-import { WorkflowsView } from './components/sidebar/WorkflowsView'
 import { ChristmasEffects } from './components/ChristmasEffects'
 import { HalloweenEffects } from './components/HalloweenEffects'
 import { WeatherEffects } from './components/WeatherEffects'
@@ -35,23 +29,33 @@ import { TabBar } from './components/TabBar'
 import { TabWindow, isTabWindowMode, parseTabWindowParams } from './components/TabWindow'
 import { executeTerminalCommand } from './lib/commands/parser'
 import { executeCommand } from './lib/commands'
+import { buildFullPath } from './lib/commands/types'
 import { logKeyboard, logUserAction } from './lib/userActionLogger'
 import { checkSchemaCompatibility } from './lib/schemaVersion'
 import { clearConfig } from './lib/supabaseConfig'
+import { Loader2 } from 'lucide-react'
+
+// Lazy loaded main content components - only loaded when their module is active
+// This saves memory when modules are disabled
+const FileBrowser = lazy(() => import('./components/FileBrowser').then(m => ({ default: m.FileBrowser })))
+const DetailsPanel = lazy(() => import('./components/DetailsPanel').then(m => ({ default: m.DetailsPanel })))
+const RightPanel = lazy(() => import('./components/RightPanel').then(m => ({ default: m.RightPanel })))
+const GoogleDrivePanel = lazy(() => import('./components/GoogleDrivePanel').then(m => ({ default: m.GoogleDrivePanel })))
+const WorkflowsView = lazy(() => import('./components/sidebar/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
+
+// Loading fallback for lazy-loaded components
+function ContentLoading() {
+  return (
+    <div className="flex-1 flex items-center justify-center bg-plm-bg">
+      <Loader2 size={24} className="animate-spin text-plm-fg-muted" />
+    </div>
+  )
+}
 
 // Check if we're in performance mode (pop-out window)
 function isPerformanceMode(): boolean {
   const params = new URLSearchParams(window.location.search)
   return params.get('mode') === 'performance'
-}
-
-// Build full path using the correct separator for the platform
-function buildFullPath(vaultPath: string, relativePath: string): string {
-  // Detect platform from vaultPath - macOS/Linux use /, Windows uses \
-  const isWindows = vaultPath.includes('\\')
-  const sep = isWindows ? '\\' : '/'
-  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
-  return `${vaultPath}${sep}${normalizedRelative}`
 }
 
 // Titlebar overlay colors for each theme
@@ -194,12 +198,6 @@ function App() {
   useTheme()
   useLanguage()
   
-  // Register App module for telemetry tracking
-  useEffect(() => {
-    registerModule('App')
-    return () => unregisterModule('App')
-  }, [])
-  
   // Log app startup
   useEffect(() => {
     logUserAction('navigation', 'App started', {
@@ -333,7 +331,7 @@ function App() {
           if (profileError) {
             console.log('[Auth] Error fetching profile:', profileError)
           }
-          const userProfile = profile as { full_name?: string; avatar_url?: string; job_title?: string; org_id?: string; role?: string; last_sign_in?: string } | null
+          const userProfile = profile as { full_name?: string; avatar_url?: string; custom_avatar_url?: string; job_title?: string; org_id?: string; role?: string; last_sign_in?: string } | null
           
           // Set user from profile (includes role) or fallback to session data
           // Note: Google OAuth stores avatar as 'picture' in user_metadata, not 'avatar_url'
@@ -342,6 +340,7 @@ function App() {
             email: session.user.email || '',
             full_name: userProfile?.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
             avatar_url: userProfile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+            custom_avatar_url: userProfile?.custom_avatar_url || null,
             job_title: userProfile?.job_title || null,
             org_id: userProfile?.org_id || null,
             role: (userProfile?.role || 'engineer') as 'admin' | 'engineer' | 'viewer',
@@ -351,6 +350,9 @@ function App() {
           setUser(userData)
           logUserAction('auth', 'User authenticated', { email: userData.email, role: userData.role })
           console.log('[Auth] User profile loaded:', { email: userData.email, role: userData.role })
+          
+          // Update last_online timestamp
+          updateLastOnline().catch(err => console.warn('[Auth] Failed to update last_online:', err))
           
           // Set user for Sentry analytics (uses hashed IDs for privacy)
           setAnalyticsUser(userData.id, userData.org_id || undefined)
@@ -419,7 +421,7 @@ function App() {
             const { profile, error: profileError } = await getUserProfile(session.user.id)
             console.log('[Auth] Profile fetch result:', { hasProfile: !!profile, error: profileError?.message })
             
-            const userProfile = profile as { full_name?: string; avatar_url?: string; job_title?: string; org_id?: string; role?: string; last_sign_in?: string } | null
+            const userProfile = profile as { full_name?: string; avatar_url?: string; custom_avatar_url?: string; job_title?: string; org_id?: string; role?: string; last_sign_in?: string } | null
             
             // Set user from profile (includes role) or fallback to session data
             // Note: Google OAuth stores avatar as 'picture' in user_metadata, not 'avatar_url'
@@ -428,6 +430,7 @@ function App() {
               email: session.user.email || '',
               full_name: userProfile?.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
               avatar_url: userProfile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+              custom_avatar_url: userProfile?.custom_avatar_url || null,
               job_title: userProfile?.job_title || null,
               org_id: userProfile?.org_id || null,
               role: (userProfile?.role || 'engineer') as 'admin' | 'engineer' | 'viewer',
@@ -435,6 +438,9 @@ function App() {
               last_sign_in: userProfile?.last_sign_in || null
             })
             console.log('[Auth] User set:', { email: session.user.email, role: userProfile?.role || 'engineer' })
+            
+            // Update last_online timestamp
+            updateLastOnline().catch(err => console.warn('[Auth] Failed to update last_online:', err))
             
             // Set user for Sentry analytics (uses hashed IDs for privacy)
             setAnalyticsUser(session.user.id, userProfile?.org_id || undefined)
@@ -2681,19 +2687,25 @@ function App() {
             /* Settings View - replaces entire main content area */
             <SettingsContent activeTab={settingsTab} />
           ) : activeView === 'google-drive' ? (
-            /* Google Drive View - replaces entire main content area */
-            <GoogleDrivePanel />
+            /* Google Drive View - replaces entire main content area (lazy loaded) */
+            <Suspense fallback={<ContentLoading />}>
+              <GoogleDrivePanel />
+            </Suspense>
           ) : activeView === 'workflows' ? (
-            /* Workflows View - replaces entire main content area (full screen) */
-            <WorkflowsView />
+            /* Workflows View - replaces entire main content area (full screen, lazy loaded) */
+            <Suspense fallback={<ContentLoading />}>
+              <WorkflowsView />
+            </Suspense>
           ) : (
             <>
-              {/* File Browser */}
+              {/* File Browser (lazy loaded) */}
               <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
-                <FileBrowser onRefresh={loadFiles} />
-          </div>
+                <Suspense fallback={<ContentLoading />}>
+                  <FileBrowser onRefresh={loadFiles} />
+                </Suspense>
+              </div>
 
-              {/* Details Panel */}
+              {/* Details Panel (lazy loaded) */}
               {detailsPanelVisible && (
                 <>
                   <div
@@ -2707,14 +2719,16 @@ function App() {
                     {/* Taller invisible hit area for easier grabbing - prevents file drag from taking over */}
                     <div className="absolute inset-x-0 -top-2 -bottom-2 cursor-row-resize" />
                   </div>
-          <DetailsPanel />
+                  <Suspense fallback={<ContentLoading />}>
+                    <DetailsPanel />
+                  </Suspense>
                 </>
               )}
             </>
           )}
         </div>
 
-        {/* Right Panel */}
+        {/* Right Panel (lazy loaded) */}
         {rightPanelVisible && rightPanelTabs.length > 0 && !showWelcome && activeView !== 'workflows' && (
           <>
             <div
@@ -2725,7 +2739,9 @@ function App() {
               <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
             </div>
             <div className={isResizingSidebar || isResizingRightPanel ? 'pointer-events-none' : ''}>
-              <RightPanel />
+              <Suspense fallback={<ContentLoading />}>
+                <RightPanel />
+              </Suspense>
             </div>
           </>
         )}

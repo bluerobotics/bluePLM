@@ -32,7 +32,9 @@ import {
   RotateCcw,
   Circle,
   FilePlus,
-  FileDown
+  FileDown,
+  CheckSquare,
+  Square
 } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
 import { copyToClipboard } from '../lib/clipboard'
@@ -481,9 +483,11 @@ interface LogEntryRowProps {
   isExpanded: boolean
   onToggle: (id: string) => void
   searchQuery: string
+  isSelected: boolean
+  onSelect: (id: string, shiftKey: boolean) => void
 }
 
-const LogEntryRow = memo(function LogEntryRow({ entry, isExpanded, onToggle, searchQuery }: LogEntryRowProps) {
+const LogEntryRow = memo(function LogEntryRow({ entry, isExpanded, onToggle, searchQuery, isSelected, onSelect }: LogEntryRowProps) {
   const [copied, setCopied] = useState(false)
   
   const highlightText = useCallback((text: string) => {
@@ -513,9 +517,15 @@ const LogEntryRow = memo(function LogEntryRow({ entry, isExpanded, onToggle, sea
     copyEntry()
   }, [copyEntry])
   
+  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onSelect(entry.id, e.shiftKey)
+  }, [onSelect, entry.id])
+  
   return (
     <div
       className={`group hover:bg-plm-highlight/50 transition-colors border-b border-white/[0.08] ${
+        isSelected ? 'bg-plm-accent/10 hover:bg-plm-accent/20' :
         entry.level === 'error' ? 'bg-plm-error/5' : 
         entry.level === 'warn' ? 'bg-plm-warning/5' : ''
       }`}
@@ -524,6 +534,22 @@ const LogEntryRow = memo(function LogEntryRow({ entry, isExpanded, onToggle, sea
         className="flex items-start gap-3 px-3 py-2 cursor-pointer"
         onClick={handleToggle}
       >
+        {/* Selection checkbox */}
+        <div 
+          className="mt-0.5 flex-shrink-0"
+          onClick={handleCheckboxClick}
+        >
+          <div 
+            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+              isSelected 
+                ? 'bg-plm-accent border-plm-accent' 
+                : 'border-plm-border hover:border-plm-fg-muted'
+            }`}
+          >
+            {isSelected && <Check size={10} className="text-plm-bg" />}
+          </div>
+        </div>
+        
         {/* Level icon */}
         <div className="mt-0.5 flex-shrink-0">
           <LevelIcon level={entry.level} />
@@ -592,6 +618,7 @@ const LogEntryRow = memo(function LogEntryRow({ entry, isExpanded, onToggle, sea
     prevProps.entry.message === nextProps.entry.message &&
     prevProps.entry.data === nextProps.entry.data &&
     prevProps.isExpanded === nextProps.isExpanded &&
+    prevProps.isSelected === nextProps.isSelected &&
     prevProps.searchQuery === nextProps.searchQuery
   )
 })
@@ -605,6 +632,8 @@ interface VirtualizedLogListProps {
   expandedEntries: Set<string>
   onToggle: (id: string) => void
   searchQuery: string
+  selectedEntries: Set<string>
+  onSelect: (id: string, shiftKey: boolean) => void
 }
 
 const ITEM_HEIGHT = 44 // Approximate height of each log entry row
@@ -614,7 +643,9 @@ const VirtualizedLogList = memo(function VirtualizedLogList({
   entries, 
   expandedEntries, 
   onToggle, 
-  searchQuery 
+  searchQuery,
+  selectedEntries,
+  onSelect
 }: VirtualizedLogListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -668,6 +699,8 @@ const VirtualizedLogList = memo(function VirtualizedLogList({
               isExpanded={expandedEntries.has(entry.id)}
               onToggle={onToggle}
               searchQuery={searchQuery}
+              isSelected={selectedEntries.has(entry.id)}
+              onSelect={onSelect}
             />
           ))}
         </div>
@@ -735,7 +768,10 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
   
   // UI state
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
+  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set())
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copiedSelected, setCopiedSelected] = useState(false)
   const [showFileList, setShowFileList] = useState(true)
   const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false)
   
@@ -970,6 +1006,9 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
     if (!silent) {
       setIsLoadingContent(true)
       setSelectedFile(file)
+      // Clear selection when switching files
+      setSelectedEntries(new Set())
+      setLastSelectedId(null)
     }
     
     try {
@@ -1045,6 +1084,76 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
     }
     return filtered
   }, [entries, levelFilter, timePeriod, searchQuery, newestFirst])
+  
+  // Handle entry selection with shift+click for range selection
+  const handleEntrySelect = useCallback((id: string, shiftKey: boolean) => {
+    setSelectedEntries(prev => {
+      const next = new Set(prev)
+      
+      if (shiftKey && lastSelectedId) {
+        // Range selection: select all entries between lastSelectedId and current id
+        const lastIndex = filteredEntries.findIndex(e => e.id === lastSelectedId)
+        const currentIndex = filteredEntries.findIndex(e => e.id === id)
+        
+        if (lastIndex !== -1 && currentIndex !== -1) {
+          const start = Math.min(lastIndex, currentIndex)
+          const end = Math.max(lastIndex, currentIndex)
+          
+          for (let i = start; i <= end; i++) {
+            next.add(filteredEntries[i].id)
+          }
+        }
+      } else {
+        // Toggle single selection
+        if (next.has(id)) {
+          next.delete(id)
+        } else {
+          next.add(id)
+        }
+      }
+      
+      return next
+    })
+    setLastSelectedId(id)
+  }, [lastSelectedId, filteredEntries])
+  
+  // Select all visible entries
+  const selectAllEntries = useCallback(() => {
+    setSelectedEntries(new Set(filteredEntries.map(e => e.id)))
+  }, [filteredEntries])
+  
+  // Deselect all entries
+  const deselectAllEntries = useCallback(() => {
+    setSelectedEntries(new Set())
+    setLastSelectedId(null)
+  }, [])
+  
+  // Copy selected entries with their full content (including expanded data)
+  const copySelectedEntries = useCallback(async () => {
+    const selectedList = filteredEntries.filter(e => selectedEntries.has(e.id))
+    if (selectedList.length === 0) return
+    
+    // Build content with both raw log line and formatted data
+    const content = selectedList.map(entry => {
+      let text = entry.raw
+      if (entry.data) {
+        try {
+          const formatted = JSON.stringify(JSON.parse(entry.data), null, 2)
+          text += '\n  Data: ' + formatted.split('\n').join('\n  ')
+        } catch {
+          text += '\n  Data: ' + entry.data
+        }
+      }
+      return text
+    }).join('\n\n')
+    
+    const result = await copyToClipboard(content)
+    if (result.success) {
+      setCopiedSelected(true)
+      addToast('success', `Copied ${selectedList.length} log entries with content`)
+      setTimeout(() => setCopiedSelected(false), 2000)
+    }
+  }, [filteredEntries, selectedEntries, addToast])
   
   // Create histogram
   const histogram = useMemo(() => {
@@ -1546,55 +1655,52 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
           {/* Log content area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Toolbar */}
-            <div className="p-3 border-b border-plm-border bg-plm-bg-light space-y-3">
-              {/* Main toolbar row */}
+            <div className="px-3 py-2 border-b border-plm-border bg-plm-bg-light space-y-2">
+              {/* Row 1: Filters & Search */}
               <div className="flex items-center gap-2">
-                {/* Title and file info */}
-                <div className="flex items-center gap-2 mr-2">
-                  <div className="p-1.5 bg-plm-accent/20 rounded-lg">
+                {/* File info */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="p-1 bg-plm-accent/20 rounded">
                     {selectedCrash ? (
-                      <Skull size={16} className="text-plm-error" />
+                      <Skull size={14} className="text-plm-error" />
                     ) : (
-                      <BarChart3 size={16} className="text-plm-accent" />
+                      <BarChart3 size={14} className="text-plm-accent" />
                     )}
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-plm-fg truncate max-w-[200px]">
-                      {selectedCrash?.name || selectedFile?.name || 'Select a file'}
-                    </div>
-                  </div>
+                  <span className="text-xs font-medium text-plm-fg truncate max-w-[140px]">
+                    {selectedCrash?.name || selectedFile?.name?.replace('blueplm-', '').replace('.log', '') || 'Select file'}
+                  </span>
                 </div>
                 
-                {/* Separator */}
-                <div className="w-px h-6 bg-plm-border" />
+                <div className="w-px h-5 bg-plm-border flex-shrink-0" />
                 
                 {/* Search */}
-                <div className="relative flex-1 max-w-xs">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                <div className="relative flex-1 min-w-[120px] max-w-[200px]">
+                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search logs..."
-                    className="w-full pl-9 pr-3 py-1.5 text-sm bg-plm-input border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent text-plm-fg placeholder:text-plm-fg-muted"
+                    placeholder="Search..."
+                    className="w-full pl-7 pr-2 py-1 text-xs bg-plm-input border border-plm-border rounded focus:outline-none focus:border-plm-accent text-plm-fg placeholder:text-plm-fg-muted"
                   />
                 </div>
                 
                 {/* Time period dropdown */}
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                   <button
                     onClick={() => setPeriodDropdownOpen(!periodDropdownOpen)}
-                    className="flex items-center gap-1.5 px-2 py-1.5 text-xs bg-plm-input border border-plm-border rounded-lg hover:border-plm-fg-muted transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-plm-input border border-plm-border rounded hover:border-plm-fg-muted transition-colors"
                   >
-                    <Clock size={12} className="text-plm-fg-muted" />
+                    <Clock size={11} className="text-plm-fg-muted" />
                     <span className="text-plm-fg">{timePeriods.find(p => p.value === timePeriod)?.label}</span>
-                    <ChevronDown size={12} className="text-plm-fg-muted" />
+                    <ChevronDown size={11} className="text-plm-fg-muted" />
                   </button>
                   
                   {periodDropdownOpen && (
                     <>
                       <div className="fixed inset-0" onClick={() => setPeriodDropdownOpen(false)} />
-                      <div className="absolute right-0 mt-1 w-40 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl z-20 overflow-hidden">
+                      <div className="absolute right-0 mt-1 w-36 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl z-20 overflow-hidden">
                         {timePeriods.map(period => (
                           <button
                             key={period.value}
@@ -1602,7 +1708,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                               setTimePeriod(period.value)
                               setPeriodDropdownOpen(false)
                             }}
-                            className={`w-full px-3 py-2 text-sm text-left hover:bg-plm-highlight transition-colors ${
+                            className={`w-full px-3 py-1.5 text-xs text-left hover:bg-plm-highlight transition-colors ${
                               timePeriod === period.value ? 'text-plm-accent bg-plm-highlight' : 'text-plm-fg'
                             }`}
                           >
@@ -1614,163 +1720,198 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                   )}
                 </div>
                 
-                {/* Level filters */}
-                <div className="flex items-center gap-0.5 px-1 py-0.5 bg-plm-input border border-plm-border rounded-lg">
-                  {(['error', 'warn', 'info', 'debug'] as LogLevel[]).map(level => (
-                    <button
-                      key={level}
-                      onClick={() => toggleLevel(level)}
-                      className={`flex items-center gap-1 px-1.5 py-1 rounded text-[10px] font-medium transition-colors ${
-                        levelFilter.has(level)
-                          ? level === 'error' ? 'bg-plm-error/20 text-plm-error' :
-                            level === 'warn' ? 'bg-plm-warning/20 text-plm-warning' :
-                            level === 'info' ? 'bg-plm-info/20 text-plm-info' :
-                            'bg-plm-fg-muted/20 text-plm-fg-muted'
-                          : 'text-plm-fg-dim opacity-50'
-                      }`}
-                    >
-                      <LevelIcon level={level} size={10} />
-                      <span className="uppercase hidden xl:inline">{level}</span>
-                    </button>
-                  ))}
+                {/* Level filters with integrated counts */}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {(['error', 'warn', 'info', 'debug'] as LogLevel[]).map(level => {
+                    const count = level === 'error' ? stats.error : 
+                                  level === 'warn' ? stats.warn : 
+                                  level === 'info' ? stats.info : stats.debug
+                    return (
+                      <button
+                        key={level}
+                        onClick={() => toggleLevel(level)}
+                        className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                          levelFilter.has(level)
+                            ? level === 'error' ? 'bg-plm-error/20 text-plm-error' :
+                              level === 'warn' ? 'bg-plm-warning/20 text-plm-warning' :
+                              level === 'info' ? 'bg-plm-info/20 text-plm-info' :
+                              'bg-plm-fg-muted/20 text-plm-fg-muted'
+                            : 'text-plm-fg-dim opacity-40'
+                        }`}
+                        title={`${level}: ${count}`}
+                      >
+                        <LevelIcon level={level} size={10} />
+                        {count > 0 && <span>{count}</span>}
+                      </button>
+                    )
+                  })}
                 </div>
                 
-                {/* Quick stats */}
-                <div className="flex items-center gap-2 text-[10px]">
-                  <span className="text-plm-error">{stats.error}</span>
-                  <span className="text-plm-warning">{stats.warn}</span>
-                  <span className="text-plm-info">{stats.info}</span>
-                  <span className="text-plm-fg-dim">{stats.total}</span>
-                </div>
+                <div className="flex-1" />
                 
-                {/* Separator */}
-                <div className="w-px h-6 bg-plm-border" />
-                
-                {/* Sort toggle */}
-                <button
-                  onClick={() => setNewestFirst(!newestFirst)}
-                  className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
-                  title={newestFirst ? 'Newest first' : 'Oldest first'}
-                >
-                  {newestFirst ? (
-                    <ArrowUpToLine size={14} className="text-plm-fg-muted" />
-                  ) : (
-                    <ArrowDownToLine size={14} className="text-plm-fg-muted" />
-                  )}
-                </button>
-                
-                {/* Auto-scroll toggle */}
-                <button
-                  onClick={() => setAutoScroll(!autoScroll)}
-                  className={`p-1.5 rounded transition-colors ${
-                    autoScroll ? 'bg-plm-accent/20 text-plm-accent' : 'hover:bg-plm-highlight text-plm-fg-muted'
-                  }`}
-                  title={autoScroll ? 'Auto-scroll enabled' : 'Auto-scroll disabled'}
-                >
-                  {autoScroll ? <Pin size={14} /> : <PinOff size={14} />}
-                </button>
-                
-                {/* Recording toggle - controls real-time updates + disk writing */}
-                <button
-                  onClick={toggleRecording}
-                  disabled={togglingRecording}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                    isRecording
-                      ? 'bg-plm-error/20 text-plm-error border border-plm-error/40'
-                      : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-plm-border hover:bg-plm-highlight'
-                  }`}
-                  title={isRecording ? 'Recording: real-time updates + saving to disk' : 'Paused: no updates, not saving to disk'}
-                >
-                  {togglingRecording ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Circle size={12} className={isRecording ? 'fill-current' : ''} />
-                  )}
-                  <span>{isRecording ? 'REC' : 'OFF'}</span>
-                  {isRecording && selectedFile?.isCurrentSession && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-plm-error animate-pulse" />
-                  )}
-                </button>
-                
-                {/* Separator */}
-                <div className="w-px h-6 bg-plm-border" />
-                
-                {/* Copy filtered */}
-                <button
-                  onClick={copyAllFiltered}
-                  className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
-                  title="Copy filtered logs"
-                >
-                  {copied ? (
-                    <Check size={14} className="text-plm-success" />
-                  ) : (
-                    <Copy size={14} className="text-plm-fg-muted" />
-                  )}
-                </button>
-                
-                {/* Export filtered logs */}
-                <button
-                  onClick={exportFilteredLogs}
-                  disabled={filteredEntries.length === 0}
-                  className="p-1.5 hover:bg-plm-highlight rounded transition-colors disabled:opacity-40"
-                  title={`Download filtered logs (${filteredEntries.length} entries)`}
-                >
-                  <FileDown size={14} className="text-plm-fg-muted" />
-                </button>
-                
-                {/* Start new log file */}
-                <button
-                  onClick={startNewLogFile}
-                  disabled={startingNewLog}
-                  className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
-                  title="Start new log file"
-                >
-                  {startingNewLog ? (
-                    <Loader2 size={14} className="animate-spin text-plm-fg-muted" />
-                  ) : (
-                    <FilePlus size={14} className="text-plm-fg-muted" />
-                  )}
-                </button>
-                
-                {/* Settings */}
-                <button
-                  onClick={() => setShowRetentionSettings(!showRetentionSettings)}
-                  className={`p-1.5 rounded transition-colors ${
-                    showRetentionSettings 
-                      ? 'bg-plm-accent/20 text-plm-accent' 
-                      : 'hover:bg-plm-highlight text-plm-fg-muted'
-                  }`}
-                  title="Retention settings"
-                >
-                  <Settings size={14} />
-                </button>
-                
-                {/* Open folder */}
-                <button
-                  onClick={() => window.electronAPI?.openLogsDir()}
-                  className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
-                  title="Open logs folder"
-                >
-                  <FolderOpen size={14} className="text-plm-fg-muted" />
-                </button>
-                
-                {/* Export all */}
-                <button
-                  onClick={exportLogs}
-                  className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
-                  title="Export all logs"
-                >
-                  <Download size={14} className="text-plm-fg-muted" />
-                </button>
+                {/* Total count */}
+                <span className="text-[10px] text-plm-fg-muted flex-shrink-0">{stats.total} total</span>
                 
                 {onClose && (
                   <button
                     onClick={onClose}
-                    className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
+                    className="p-1 hover:bg-plm-highlight rounded transition-colors flex-shrink-0"
                   >
                     <X size={14} className="text-plm-fg-muted" />
                   </button>
                 )}
+              </div>
+              
+              {/* Row 2: Controls & Actions */}
+              <div className="flex items-center gap-1.5">
+                {/* Recording toggle */}
+                <button
+                  onClick={toggleRecording}
+                  disabled={togglingRecording}
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                    isRecording
+                      ? 'bg-plm-error/20 text-plm-error'
+                      : 'bg-plm-fg-muted/10 text-plm-fg-muted'
+                  }`}
+                  title={isRecording ? 'Recording: real-time updates' : 'Paused'}
+                >
+                  {togglingRecording ? (
+                    <Loader2 size={10} className="animate-spin" />
+                  ) : (
+                    <Circle size={10} className={isRecording ? 'fill-current' : ''} />
+                  )}
+                  <span>{isRecording ? 'REC' : 'OFF'}</span>
+                </button>
+                
+                <div className="w-px h-4 bg-plm-border" />
+                
+                {/* View options group */}
+                <div className="flex items-center gap-0.5 bg-plm-input rounded px-0.5 py-0.5">
+                  <button
+                    onClick={() => setNewestFirst(!newestFirst)}
+                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                    title={newestFirst ? 'Newest first' : 'Oldest first'}
+                  >
+                    {newestFirst ? (
+                      <ArrowUpToLine size={12} className="text-plm-fg-muted" />
+                    ) : (
+                      <ArrowDownToLine size={12} className="text-plm-fg-muted" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setAutoScroll(!autoScroll)}
+                    className={`p-1 rounded transition-colors ${
+                      autoScroll ? 'bg-plm-accent/30 text-plm-accent' : 'hover:bg-plm-highlight text-plm-fg-muted'
+                    }`}
+                    title={autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'}
+                  >
+                    {autoScroll ? <Pin size={12} /> : <PinOff size={12} />}
+                  </button>
+                </div>
+                
+                <div className="w-px h-4 bg-plm-border" />
+                
+                {/* Selection controls */}
+                <button
+                  onClick={selectedEntries.size === filteredEntries.length ? deselectAllEntries : selectAllEntries}
+                  className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                  title={selectedEntries.size === filteredEntries.length ? 'Deselect all' : 'Select all'}
+                >
+                  {selectedEntries.size === filteredEntries.length && filteredEntries.length > 0 ? (
+                    <CheckSquare size={12} className="text-plm-accent" />
+                  ) : (
+                    <Square size={12} className="text-plm-fg-muted" />
+                  )}
+                </button>
+                
+                {selectedEntries.size > 0 && (
+                  <div className="flex items-center gap-1 bg-plm-accent/10 rounded px-1.5 py-0.5">
+                    <span className="text-[10px] text-plm-accent font-medium">
+                      {selectedEntries.size}
+                    </span>
+                    <button
+                      onClick={copySelectedEntries}
+                      className="p-0.5 hover:bg-plm-accent/20 rounded transition-colors"
+                      title="Copy selected with content"
+                    >
+                      {copiedSelected ? (
+                        <Check size={11} className="text-plm-accent" />
+                      ) : (
+                        <Copy size={11} className="text-plm-accent" />
+                      )}
+                    </button>
+                    <button
+                      onClick={deselectAllEntries}
+                      className="p-0.5 hover:bg-plm-accent/20 rounded transition-colors"
+                      title="Clear selection"
+                    >
+                      <X size={11} className="text-plm-accent" />
+                    </button>
+                  </div>
+                )}
+                
+                <div className="flex-1" />
+                
+                {/* Actions group */}
+                <div className="flex items-center gap-0.5 bg-plm-input rounded px-0.5 py-0.5">
+                  <button
+                    onClick={copyAllFiltered}
+                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                    title="Copy all filtered"
+                  >
+                    {copied ? (
+                      <Check size={12} className="text-plm-success" />
+                    ) : (
+                      <Copy size={12} className="text-plm-fg-muted" />
+                    )}
+                  </button>
+                  <button
+                    onClick={exportFilteredLogs}
+                    disabled={filteredEntries.length === 0}
+                    className="p-1 hover:bg-plm-highlight rounded transition-colors disabled:opacity-40"
+                    title="Export filtered"
+                  >
+                    <FileDown size={12} className="text-plm-fg-muted" />
+                  </button>
+                  <button
+                    onClick={startNewLogFile}
+                    disabled={startingNewLog}
+                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                    title="New log file"
+                  >
+                    {startingNewLog ? (
+                      <Loader2 size={12} className="animate-spin text-plm-fg-muted" />
+                    ) : (
+                      <FilePlus size={12} className="text-plm-fg-muted" />
+                    )}
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-0.5 bg-plm-input rounded px-0.5 py-0.5">
+                  <button
+                    onClick={() => setShowRetentionSettings(!showRetentionSettings)}
+                    className={`p-1 rounded transition-colors ${
+                      showRetentionSettings ? 'bg-plm-accent/30 text-plm-accent' : 'hover:bg-plm-highlight text-plm-fg-muted'
+                    }`}
+                    title="Retention settings"
+                  >
+                    <Settings size={12} />
+                  </button>
+                  <button
+                    onClick={() => window.electronAPI?.openLogsDir()}
+                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                    title="Open logs folder"
+                  >
+                    <FolderOpen size={12} className="text-plm-fg-muted" />
+                  </button>
+                  <button
+                    onClick={exportLogs}
+                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                    title="Export all logs"
+                  >
+                    <Download size={12} className="text-plm-fg-muted" />
+                  </button>
+                </div>
               </div>
               
               {/* Histogram */}
@@ -1839,6 +1980,8 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                   expandedEntries={expandedEntries}
                   onToggle={toggleEntry}
                   searchQuery={searchQuery}
+                  selectedEntries={selectedEntries}
+                  onSelect={handleEntrySelect}
                 />
               )}
             </div>
@@ -1846,6 +1989,11 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
             {/* Status bar */}
             <div className="px-3 py-1.5 border-t border-plm-border bg-plm-sidebar flex items-center gap-4 text-[11px] text-plm-fg-muted">
               <span>{filteredEntries.length} entries</span>
+              {selectedEntries.size > 0 && (
+                <span className="text-plm-accent">
+                  {selectedEntries.size} selected (Shift+click for range)
+                </span>
+              )}
               {searchQuery && <span>Filtered: &quot;{searchQuery}&quot;</span>}
               {selectedFile && (
                 <span className="ml-auto flex items-center gap-1">

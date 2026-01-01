@@ -6,8 +6,6 @@ export type SettingsTab =
   | 'keybindings'
   | 'modules'
   | 'vaults'
-  | 'members'
-  | 'teams'
   | 'team-members'
   | 'company-profile' 
   | 'auth-providers'

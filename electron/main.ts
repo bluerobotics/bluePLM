@@ -3738,18 +3738,19 @@ ipcMain.handle('fs:open-in-explorer', async (_, targetPath: string) => {
 })
 
 ipcMain.handle('fs:open-file', async (_, filePath: string) => {
-  // Use exec with 'start' command on Windows for faster file opening
-  // shell.openPath() can be slow due to Windows shell association lookup
-  if (process.platform === 'win32') {
-    const { exec } = require('child_process')
-    // Use 'start' with empty title ("") and quoted path for paths with spaces
-    // The empty title "" is needed because start treats the first quoted arg as window title
-    exec(`start "" "${filePath}"`, { windowsHide: true })
-  } else {
-    // On macOS/Linux, shell.openPath is fine
-    shell.openPath(filePath)
+  // Use shell.openPath for reliable file opening with default application
+  // This properly handles all path types and special characters
+  try {
+    const error = await shell.openPath(filePath)
+    if (error) {
+      console.error('[Main] Failed to open file:', filePath, error)
+      return { success: false, error }
+    }
+    return { success: true }
+  } catch (err) {
+    console.error('[Main] Error opening file:', filePath, err)
+    return { success: false, error: String(err) }
   }
-  return { success: true }
 })
 
 // Set file read-only attribute
@@ -5233,6 +5234,33 @@ ipcMain.handle('backup:run', async (event, config: {
       })
     }
     
+    // Remove any stale locks before proceeding
+    event.sender.send('backup:progress', { phase: 'Initializing', percent: 12, message: 'Checking for stale locks...' })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const unlock = spawn(resticCmd, ['-r', repo, 'unlock'], { env })
+        unlock.stderr.on('data', (data: Buffer) => {
+          log('restic unlock stderr: ' + data.toString())
+        })
+        unlock.on('close', (code: number) => {
+          if (code === 0) {
+            log('Repository unlocked (cleared any stale locks)')
+            resolve()
+          } else {
+            // Non-zero exit is okay - might mean no locks to remove
+            log('Unlock returned code ' + code + ' (likely no locks to remove)')
+            resolve()
+          }
+        })
+        unlock.on('error', (err) => {
+          log('Unlock command failed: ' + String(err))
+          resolve() // Don't fail the backup if unlock fails
+        })
+      })
+    } catch (err) {
+      log('Unlock step error (non-fatal): ' + String(err))
+    }
+    
     // Get the working directory (vault path) to backup
     const backupPath = config.vaultPath || workingDirectory
     if (!backupPath) {
@@ -5337,8 +5365,21 @@ ipcMain.handle('backup:run', async (event, config: {
     
     event.sender.send('backup:progress', { phase: 'Cleanup', percent: 85, message: 'Applying retention policy...' })
     
+    // Remove any stale locks before retention cleanup
+    try {
+      await new Promise<void>((resolve) => {
+        const unlock = spawn(resticCmd, ['-r', repo, 'unlock'], { env })
+        unlock.on('close', () => resolve())
+        unlock.on('error', () => resolve())
+      })
+    } catch {
+      // Ignore unlock errors
+    }
+    
     // Apply retention policy
     await new Promise<void>((resolve, reject) => {
+      let stderrOutput = ''
+      
       const forget = spawn(resticCmd, [
         '-r', repo,
         'forget',
@@ -5349,9 +5390,17 @@ ipcMain.handle('backup:run', async (event, config: {
         '--prune'
       ], { env })
       
+      forget.stderr.on('data', (data: Buffer) => {
+        stderrOutput += data.toString()
+        log('restic forget stderr: ' + data.toString())
+      })
+      
       forget.on('close', (code: number) => {
         if (code === 0) resolve()
-        else reject(new Error('Failed to apply retention policy'))
+        else {
+          logError('Retention policy failed', { exitCode: code, stderr: stderrOutput })
+          reject(new Error(`Failed to apply retention policy (exit code ${code}): ${stderrOutput.trim() || 'unknown error'}`))
+        }
       })
       forget.on('error', reject)
     })

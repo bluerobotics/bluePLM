@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -271,11 +272,50 @@ namespace BluePLM.SolidWorksService
             // Try Document Manager first (NO SW launch!)
             if (_dmApi != null && _dmApi.IsAvailable)
             {
+                Console.Error.WriteLine($"[Service] Trying Document Manager API for: {Path.GetFileName(filePath)}");
                 var result = _dmApi.GetCustomProperties(filePath, command["configuration"]?.ToString());
-                if (result.Success) return result;
+                
+                if (result.Success)
+                {
+                    // Check if we got actual properties
+                    bool hasProps = false;
+                    try
+                    {
+                        dynamic data = result.Data!;
+                        var fileProps = data.fileProperties as Dictionary<string, string>;
+                        hasProps = fileProps != null && fileProps.Count > 0;
+                        Console.Error.WriteLine($"[Service] DM returned {fileProps?.Count ?? 0} file properties");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[Service] Error checking DM result: {ex.Message}");
+                    }
+                    
+                    if (hasProps)
+                    {
+                        return result;
+                    }
+                    
+                    // For drawings with empty properties, try full SW API as fallback
+                    var ext = Path.GetExtension(filePath ?? "").ToLowerInvariant();
+                    if (ext == ".slddrw")
+                    {
+                        Console.Error.WriteLine($"[Service] DM returned empty for drawing, trying full SW API...");
+                    }
+                    else
+                    {
+                        // For parts/assemblies, empty properties may be valid
+                        return result;
+                    }
+                }
+                else
+                {
+                    Console.Error.WriteLine($"[Service] DM failed: {result.Error}");
+                }
             }
             
             // Fall back to full SW API (will launch SW - slower)
+            Console.Error.WriteLine($"[Service] Falling back to full SolidWorks API");
             return _swApi!.GetCustomProperties(filePath, command["configuration"]?.ToString());
         }
 

@@ -29,16 +29,9 @@ import {
   cancelReview
 } from '../../lib/supabase'
 import type { Review, Notification, ReviewStatus } from '../../types/database'
+import { buildFullPath } from '../../lib/utils'
 
 type ViewTab = 'notifications' | 'pending' | 'my-reviews'
-
-// Build full path using the correct separator for the platform
-function buildFullPath(vaultPath: string, relativePath: string): string {
-  const isWindows = vaultPath.includes('\\')
-  const sep = isWindows ? '\\' : '/'
-  const normalizedRelative = relativePath.replace(/[/\\]/g, sep)
-  return `${vaultPath}${sep}${normalizedRelative}`
-}
 
 // Avatar component for user display
 function UserAvatar({ user, size = 24 }: { user?: { email: string; full_name: string | null; avatar_url: string | null } | null; size?: number }) {
@@ -55,6 +48,7 @@ function UserAvatar({ user, size = 24 }: { user?: { email: string; full_name: st
         alt={user.full_name || user.email}
         className="rounded-full object-cover flex-shrink-0"
         style={{ width: size, height: size }}
+        referrerPolicy="no-referrer"
       />
     )
   }

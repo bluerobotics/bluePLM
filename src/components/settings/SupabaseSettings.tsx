@@ -27,6 +27,7 @@ import { usePDMStore } from '../../stores/pdmStore'
 import { supabase, getCurrentConfig, isSupabaseConfigured } from '../../lib/supabase'
 import { copyToClipboard } from '../../lib/clipboard'
 import { getSchemaVersion, EXPECTED_SCHEMA_VERSION, type SchemaVersionInfo } from '../../lib/schemaVersion'
+import { formatBytes } from '../../lib/utils'
 
 // Cast supabase client to bypass known v2 type inference issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1134,15 +1135,6 @@ function StatCard({
       )}
     </div>
   )
-}
-
-// Format bytes to human readable
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
 // Extract region from Supabase URL

@@ -237,12 +237,24 @@ export interface User {
   id: string
   email: string
   full_name: string | null
-  avatar_url: string | null
+  avatar_url: string | null          // Google/OAuth avatar URL (auto-populated)
+  custom_avatar_url: string | null   // User-uploaded custom avatar (takes priority)
   job_title: string | null
   org_id: string | null
   role: 'admin' | 'engineer' | 'viewer'
   created_at: string
   last_sign_in: string | null
+}
+
+/**
+ * Get the effective avatar URL for a user with priority:
+ * 1. Custom uploaded avatar (custom_avatar_url)
+ * 2. Google/OAuth avatar (avatar_url)
+ * 3. null (falls back to initials display)
+ */
+export function getEffectiveAvatarUrl(user: { custom_avatar_url?: string | null; avatar_url?: string | null } | null | undefined): string | null {
+  if (!user) return null
+  return user.custom_avatar_url || user.avatar_url || null
 }
 
 // Check-out request/lock

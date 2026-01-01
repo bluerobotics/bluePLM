@@ -14,6 +14,13 @@ export interface SerializationSettings {
   letter_prefix: string
   keepout_zones: KeepoutZone[]
   auto_apply_extensions: string[]
+  // Tab number settings
+  tab_enabled: boolean
+  tab_separator: string
+  tab_padding_digits: number
+  tab_required: boolean  // If false, tab is optional (base numbers can exist without tab)
+  // Auto-format settings
+  auto_pad_numbers: boolean  // Auto-add leading zeros when editing
 }
 
 export interface KeepoutZone {
@@ -32,7 +39,14 @@ const DEFAULT_SETTINGS: SerializationSettings = {
   use_letters_before_numbers: false,
   letter_prefix: '',
   keepout_zones: [],
-  auto_apply_extensions: []
+  auto_apply_extensions: [],
+  // Tab number settings
+  tab_enabled: false,
+  tab_separator: '-',
+  tab_padding_digits: 3,
+  tab_required: false,  // Default: tabs are optional
+  // Auto-format settings
+  auto_pad_numbers: true  // Default to auto-padding
 }
 
 /**
@@ -322,3 +336,247 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Format just the base number portion (without tab)
+ */
+export function formatBaseNumber(
+  settings: SerializationSettings,
+  counterOverride?: number
+): string {
+  if (!settings.enabled) return ''
+  
+  let counter = counterOverride ?? (settings.current_counter + 1)
+  
+  // Skip keepout zones
+  for (const zone of settings.keepout_zones) {
+    if (counter >= zone.start && counter <= zone.end_num) {
+      counter = zone.end_num + 1
+    }
+  }
+  
+  let serial = settings.prefix
+  
+  if (settings.letter_prefix) {
+    serial += settings.letter_prefix
+  }
+  
+  serial += String(counter).padStart(settings.padding_digits, '0')
+  // Note: suffix is NOT included in base - it would go after tab if needed
+  
+  return serial
+}
+
+/**
+ * Format a tab number with proper padding
+ */
+export function formatTabNumber(
+  settings: SerializationSettings,
+  tabNumber: number
+): string {
+  if (!settings.tab_enabled) return ''
+  return String(tabNumber).padStart(settings.tab_padding_digits, '0')
+}
+
+/**
+ * Auto-pad a tab value with leading zeros if it's purely numeric
+ * Used when user finishes editing a tab field
+ */
+export function autoPadTab(
+  value: string,
+  settings: SerializationSettings
+): string {
+  if (!value || !settings.auto_pad_numbers) return value
+  // Only pad if the value is purely numeric
+  if (/^\d+$/.test(value)) {
+    return value.padStart(settings.tab_padding_digits, '0')
+  }
+  // Non-numeric (like "XXX") - return as-is
+  return value
+}
+
+/**
+ * Combine base number and tab number into full part number
+ */
+export function combineBaseAndTab(
+  baseNumber: string,
+  tabNumber: string,
+  settings: SerializationSettings
+): string {
+  if (!baseNumber) return ''
+  if (!settings.tab_enabled || !tabNumber) {
+    return baseNumber + settings.suffix
+  }
+  return baseNumber + settings.tab_separator + tabNumber + settings.suffix
+}
+
+/**
+ * Parse a full part number into base and tab components
+ * Returns { base, tab } or null if can't parse
+ * 
+ * Handles cases where the separator character also appears in the base format
+ * by matching the expected base pattern (prefix + letter_prefix + digits)
+ */
+export function parsePartNumber(
+  partNumber: string,
+  settings: SerializationSettings
+): { base: string; tab: string } | null {
+  if (!partNumber) return null
+  
+  // Remove suffix first if present
+  let working = partNumber
+  if (settings.suffix && working.endsWith(settings.suffix)) {
+    working = working.slice(0, -settings.suffix.length)
+  }
+  
+  // If tab is not enabled, return the whole thing as base
+  if (!settings.tab_enabled || !settings.tab_separator) {
+    return { base: working, tab: '' }
+  }
+  
+  // Strategy: Find where the base ends and tab begins
+  // Base format is: prefix + letter_prefix + numeric_part
+  // Tab is: separator + numeric_part (with specific padding)
+  
+  // Build the expected base pattern
+  const basePattern = settings.prefix + (settings.letter_prefix || '')
+  
+  // Check if the part number starts with the expected base pattern
+  if (working.startsWith(basePattern)) {
+    // Find where the first numeric sequence after the prefix ends
+    const afterPrefix = working.slice(basePattern.length)
+    const numericMatch = afterPrefix.match(/^\d+/)
+    
+    if (numericMatch) {
+      const numericPart = numericMatch[0]
+      const potentialBase = basePattern + numericPart
+      const remainder = working.slice(potentialBase.length)
+      
+      // Check if remainder starts with separator followed by alphanumeric tab
+      // Tab can be digits (001) or letters (XXX for "all tabs")
+      if (remainder.startsWith(settings.tab_separator)) {
+        const potentialTab = remainder.slice(settings.tab_separator.length)
+        if (/^[A-Za-z0-9]+$/.test(potentialTab)) {
+          return { base: potentialBase, tab: potentialTab }
+        }
+      }
+      
+      // No valid tab found, return base as identified
+      return { base: potentialBase, tab: '' }
+    }
+  }
+  
+  // Fallback: Can't match expected base pattern
+  // Try the old logic with lastIndexOf for backwards compatibility
+  const sepIndex = working.lastIndexOf(settings.tab_separator)
+  if (sepIndex > 0) {
+    const base = working.slice(0, sepIndex)
+    const tab = working.slice(sepIndex + settings.tab_separator.length)
+    // Accept alphanumeric tabs (digits like 001 or letters like XXX)
+    if (/^[A-Za-z0-9]+$/.test(tab)) {
+      return { base, tab }
+    }
+  }
+  
+  // No tab found
+  return { base: working, tab: '' }
+}
+
+/**
+ * Extract the numeric counter value from a base number
+ * Returns the number or null if can't parse
+ */
+export function extractCounterFromBase(
+  baseNumber: string,
+  settings: SerializationSettings
+): number | null {
+  if (!baseNumber) return null
+  
+  let working = baseNumber
+  
+  // Remove prefix
+  if (settings.prefix && working.startsWith(settings.prefix)) {
+    working = working.slice(settings.prefix.length)
+  }
+  
+  // Remove letter prefix
+  if (settings.letter_prefix && working.startsWith(settings.letter_prefix)) {
+    working = working.slice(settings.letter_prefix.length)
+  }
+  
+  // What remains should be the numeric part
+  const match = working.match(/^(\d+)/)
+  if (match) {
+    return parseInt(match[1], 10)
+  }
+  
+  return null
+}
+
+/**
+ * Find the highest used serial number in a list of part numbers
+ * Useful for detecting where to start the counter
+ */
+export function findHighestSerialNumber(
+  partNumbers: string[],
+  settings: SerializationSettings
+): { highestCounter: number; highestPartNumber: string } | null {
+  let highestCounter = -1
+  let highestPartNumber = ''
+  
+  for (const pn of partNumbers) {
+    if (!pn) continue
+    
+    const parsed = parsePartNumber(pn, settings)
+    if (!parsed) continue
+    
+    const counter = extractCounterFromBase(parsed.base, settings)
+    if (counter !== null && counter > highestCounter) {
+      highestCounter = counter
+      highestPartNumber = pn
+    }
+  }
+  
+  if (highestCounter < 0) return null
+  return { highestCounter, highestPartNumber }
+}
+
+/**
+ * Scan organization files and find the highest used serial number
+ */
+export async function detectHighestSerialNumber(
+  orgId: string
+): Promise<{ highestCounter: number; highestPartNumber: string; totalScanned: number } | null> {
+  try {
+    const settings = await getSerializationSettings(orgId)
+    
+    // Fetch all part numbers from the organization
+    const { data, error } = await supabase
+      .from('files')
+      .select('part_number')
+      .eq('org_id', orgId)
+      .not('part_number', 'is', null)
+    
+    if (error) {
+      console.error('[Serialization] Failed to scan files:', error)
+      return null
+    }
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const partNumbers = ((data || []) as { part_number: string | null }[])
+      .map(f => f.part_number)
+      .filter(Boolean) as string[]
+    const result = findHighestSerialNumber(partNumbers, settings)
+    
+    if (!result) {
+      return { highestCounter: 0, highestPartNumber: '', totalScanned: partNumbers.length }
+    }
+    
+    return {
+      ...result,
+      totalScanned: partNumbers.length
+    }
+  } catch (err) {
+    console.error('[Serialization] Error detecting highest serial:', err)
+    return null
+  }
+}

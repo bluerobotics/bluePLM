@@ -31,7 +31,14 @@ import {
   Clock,
   UserCheck,
   Minus,
-  Briefcase
+  Briefcase,
+  MoreVertical,
+  User,
+  FileKey,
+  UserCog,
+  Eye,
+  Wrench,
+  LayoutGrid
 } from 'lucide-react'
 import {
   PERMISSION_ACTIONS,
@@ -42,10 +49,12 @@ import { usePDMStore } from '../../stores/pdmStore'
 import { supabase, getCurrentConfig, removeUserFromOrg, getOrgVaultAccess, setUserVaultAccess } from '../../lib/supabase'
 import { copyToClipboard } from '../../lib/clipboard'
 import { generateOrgCode } from '../../lib/supabaseConfig'
-import { getInitials } from '../../types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '../../types/pdm'
 import { UserProfileModal } from './UserProfileModal'
 import { PermissionsEditor } from './PermissionsEditor'
 import type { Team, TeamMember, TeamPermission, PermissionAction } from '../../types/permissions'
+import { MODULES, MODULE_GROUPS, type ModuleId, type ModuleGroupId, type ModuleConfig } from '../../types/modules'
+import { ModulesEditor } from './ModulesEditor'
 
 import { IconPicker, IconGridPicker, ICON_LIBRARY } from '../shared/IconPicker'
 import { ColorPickerDropdown, DEFAULT_PRESET_COLORS } from '../shared/ColorPicker'
@@ -68,8 +77,10 @@ interface OrgUser {
   email: string
   full_name: string | null
   avatar_url: string | null
+  custom_avatar_url: string | null
   role: string
   last_sign_in: string | null
+  last_online: string | null
   teams?: { id: string; name: string; color: string; icon: string }[]
   job_title?: { id: string; name: string; color: string; icon: string } | null
   workflow_roles?: WorkflowRoleBasic[]
@@ -89,6 +100,7 @@ interface TeamWithDetails extends Team {
   member_count: number
   permissions_count: number
   vault_access?: string[] // vault IDs
+  module_defaults?: Record<string, unknown> | null
 }
 
 interface PendingMember {
@@ -105,10 +117,28 @@ interface PendingMember {
   claimed_at: string | null
 }
 
+// Helper to format relative time for last online
+function formatLastOnline(dateStr: string | null): string | null {
+  if (!dateStr) return null
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+  
+  if (diffMins < 1) return 'Online now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 export function TeamMembersSettings() {
-  const { user, organization, setOrganization, addToast, getEffectiveRole, apiServerUrl } = usePDMStore()
+  const { user, organization, setOrganization, addToast, getEffectiveRole, apiServerUrl, startUserImpersonation, impersonatedUser, stopUserImpersonation } = usePDMStore()
   
   const isAdmin = getEffectiveRole() === 'admin'
+  const isRealAdmin = user?.role === 'admin'  // Real admin can always impersonate
   
   // Active tab state - 'teams' or 'users'
   const [activeTab, setActiveTab] = useState<'users' | 'teams' | 'roles' | 'titles'>('users')
@@ -130,6 +160,7 @@ export function TeamMembersSettings() {
   const [showTeamMembersDialog, setShowTeamMembersDialog] = useState(false)
   const [showTeamVaultAccessDialog, setShowTeamVaultAccessDialog] = useState(false)
   const [showPermissionsEditor, setShowPermissionsEditor] = useState(false)
+  const [showModulesDialog, setShowModulesDialog] = useState(false)
   
   // Team form state
   const [teamFormData, setTeamFormData] = useState({
@@ -153,6 +184,11 @@ export function TeamMembersSettings() {
   
   // Job titles state
   const [jobTitles, setJobTitles] = useState<{ id: string; name: string; color: string; icon: string }[]>([])
+  
+  // View permissions modal
+  const [viewingPermissionsUser, setViewingPermissionsUser] = useState<OrgUser | null>(null)
+  const [viewingPendingMemberPermissions, setViewingPendingMemberPermissions] = useState<PendingMember | null>(null)
+  const [pendingMemberDropdownOpen, setPendingMemberDropdownOpen] = useState<string | null>(null)
   const [showCreateTitleDialog, setShowCreateTitleDialog] = useState(false)
   const [pendingTitleForUser, setPendingTitleForUser] = useState<OrgUser | null>(null)
   const [newTitleName, setNewTitleName] = useState('')
@@ -477,7 +513,7 @@ export function TeamMembersSettings() {
     try {
       const { data: usersData, error } = await supabase
         .from('users')
-        .select('id, email, full_name, avatar_url, job_title, role, last_sign_in')
+        .select('id, email, full_name, avatar_url, custom_avatar_url, job_title, role, last_sign_in, last_online')
         .eq('org_id', organization.id)
         .order('full_name')
       
@@ -960,6 +996,12 @@ export function TeamMembersSettings() {
     setShowTeamVaultAccessDialog(true)
   }
   
+  // Team module defaults
+  const openModulesDialog = (team: TeamWithDetails) => {
+    setSelectedTeam(team)
+    setShowModulesDialog(true)
+  }
+  
   const handleSaveTeamVaultAccess = async () => {
     if (!selectedTeam || !user) return
     
@@ -1043,6 +1085,55 @@ export function TeamMembersSettings() {
       addToast('error', 'Failed to remove from team')
     } finally {
       setIsRemovingFromTeam(false)
+    }
+  }
+  
+  // Toggle team membership for a user (inline dropdown)
+  const handleToggleTeam = async (targetUser: OrgUser, teamId: string, isAdding: boolean) => {
+    try {
+      if (isAdding) {
+        const { error } = await supabase.from('team_members').insert({
+          team_id: teamId,
+          user_id: targetUser.id,
+          added_by: user?.id
+        })
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('team_members')
+          .delete()
+          .eq('user_id', targetUser.id)
+          .eq('team_id', teamId)
+        if (error) throw error
+      }
+      await loadOrgUsers()
+      await loadTeams()
+    } catch {
+      addToast('error', isAdding ? 'Failed to add to team' : 'Failed to remove from team')
+    }
+  }
+  
+  // Toggle workflow role for a user (inline dropdown)
+  const handleToggleWorkflowRole = async (targetUser: OrgUser, roleId: string, isAdding: boolean) => {
+    try {
+      if (isAdding) {
+        const { error } = await supabase.from('user_workflow_roles').insert({
+          user_id: targetUser.id,
+          workflow_role_id: roleId,
+          assigned_by: user?.id
+        })
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('user_workflow_roles')
+          .delete()
+          .eq('user_id', targetUser.id)
+          .eq('workflow_role_id', roleId)
+        if (error) throw error
+      }
+      await loadUserWorkflowRoles()
+    } catch {
+      addToast('error', isAdding ? 'Failed to add role' : 'Failed to remove role')
     }
   }
   
@@ -1253,6 +1344,59 @@ export function TeamMembersSettings() {
     setNewTitleIcon('Briefcase')
     setPendingTitleForUser(null)
     setShowCreateTitleDialog(true)
+  }
+  
+  // Convert pending member to OrgUser-like object for permissions modal
+  const pendingMemberToOrgUser = (pm: PendingMember): OrgUser => {
+    // Get team details for the pending member's teams
+    const memberTeams = teams
+      .filter(t => pm.team_ids.includes(t.id))
+      .map(t => ({ id: t.id, name: t.name, color: t.color, icon: t.icon }))
+    
+    // Get workflow role details
+    const memberWorkflowRoles = workflowRoles
+      .filter(r => pm.workflow_role_ids.includes(r.id))
+      .map(r => ({ id: r.id, name: r.name, color: r.color, icon: r.icon }))
+    
+    return {
+      id: pm.id,
+      email: pm.email,
+      full_name: pm.full_name,
+      role: pm.role,
+      avatar_url: null,
+      custom_avatar_url: null,
+      last_online: null,
+      teams: memberTeams,
+      workflow_roles: memberWorkflowRoles,
+      job_title: null
+    }
+  }
+  
+  // Get vault access count for a pending member (based on their teams)
+  const getPendingMemberVaultAccessCount = (pm: PendingMember) => {
+    // If explicit vault restrictions, use those
+    if (pm.vault_ids && pm.vault_ids.length > 0) {
+      return pm.vault_ids.length
+    }
+    
+    // Otherwise check team vault access
+    const teamVaultIds = new Set<string>()
+    let hasUnrestrictedTeam = false
+    
+    for (const teamId of pm.team_ids) {
+      const teamVaults = teamVaultAccessMap[teamId]
+      if (!teamVaults || teamVaults.length === 0) {
+        // Team has no restrictions = access to all vaults
+        hasUnrestrictedTeam = true
+      } else {
+        teamVaults.forEach(v => teamVaultIds.add(v))
+      }
+    }
+    
+    // If any team has no restrictions, user has access to all
+    if (hasUnrestrictedTeam) return 0
+    
+    return teamVaultIds.size
   }
   
   // User vault access
@@ -1606,7 +1750,7 @@ export function TeamMembersSettings() {
                 )}
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="rounded-lg bg-plm-bg/50 ring-1 ring-white/5 divide-y divide-white/10">
                 {filteredTeams.map(team => {
                   const IconComponent = (LucideIcons as any)[team.icon] || Users
                   const isExpanded = expandedTeams.has(team.id)
@@ -1616,11 +1760,21 @@ export function TeamMembersSettings() {
                   return (
                     <div
                       key={team.id}
-                      className="border border-plm-border rounded-lg overflow-hidden bg-plm-bg/50"
+                      className={`overflow-hidden transition-all first:rounded-t-lg last:rounded-b-lg ${
+                        isExpanded 
+                          ? 'bg-plm-bg/30 ring-1 ring-plm-accent/30 relative z-10 rounded-lg -mx-1 px-1' 
+                          : ''
+                      }`}
+                      style={isExpanded ? { boxShadow: '0 0 30px 8px rgba(0,0,0,0.5), 0 0 60px 15px rgba(0,0,0,0.3)' } : undefined}
                     >
                       {/* Team Header */}
                       <div
-                        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-plm-highlight/50 transition-colors"
+                        className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border-l-[3px] ${
+                          isExpanded 
+                            ? 'bg-plm-highlight/40' 
+                            : 'hover:bg-plm-highlight'
+                        }`}
+                        style={{ borderLeftColor: team.color }}
                         onClick={() => toggleTeamExpand(team.id)}
                       >
                         <div
@@ -1667,10 +1821,10 @@ export function TeamMembersSettings() {
                       
                       {/* Expanded Content */}
                       {isExpanded && (
-                        <div className="border-t border-plm-border">
+                        <div className="border-t border-white/10">
                           {/* Team Actions */}
                           {isAdmin && (
-                            <div className="p-3 bg-plm-bg/30 border-b border-plm-border flex flex-wrap gap-2">
+                            <div className="p-3 bg-plm-bg/30 border-b border-white/10 flex flex-wrap gap-2">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -1702,6 +1856,21 @@ export function TeamMembersSettings() {
                               >
                                 <Database size={14} />
                                 Vault Access
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openModulesDialog(team)
+                                }}
+                                className={`btn btn-ghost btn-sm flex items-center gap-1.5 ${
+                                  team.module_defaults ? 'text-green-400' : ''
+                                }`}
+                              >
+                                <LayoutGrid size={14} />
+                                Modules
+                                {team.module_defaults && (
+                                  <span className="text-[8px] uppercase tracking-wide opacity-75">✓</span>
+                                )}
                               </button>
                               {!team.is_system && (
                                 <>
@@ -1744,25 +1913,33 @@ export function TeamMembersSettings() {
                                 No members in this team
                               </p>
                             ) : (
-                              <div className="divide-y divide-plm-border/50">
+                              <div className="divide-y divide-white/10">
                                 {teamMembers.map(member => (
                                   <UserRow
                                     key={member.id}
                                     user={member}
                                     isAdmin={isAdmin}
+                                    isRealAdmin={isRealAdmin}
                                     isCurrentUser={member.id === user?.id}
                                     onViewProfile={() => setViewingUserId(member.id)}
                                     onRemove={() => setRemovingUser(member)}
                                     onRemoveFromTeam={() => handleRemoveFromTeam(member, team.id, team.name)}
                                     onVaultAccess={() => openVaultAccessEditor(member)}
                                     onPermissions={isAdmin ? () => setEditingPermissionsUser(member) : undefined}
+                                    onViewNetPermissions={() => setViewingPermissionsUser(member)}
+                                    onSimulatePermissions={() => startUserImpersonation(member.id)}
+                                    isSimulating={impersonatedUser?.id === member.id}
                                     vaultAccessCount={getUserVaultAccessCount(member.id)}
                                     onEditJobTitle={isAdmin ? setEditingJobTitleUser : undefined}
+                                    jobTitles={jobTitles}
+                                    onToggleJobTitle={isAdmin ? handleChangeJobTitle : undefined}
                                     workflowRoles={workflowRoles}
                                     userWorkflowRoleIds={userWorkflowRoleAssignments[member.id]}
                                     onEditWorkflowRoles={setEditingWorkflowRolesUser}
                                     teams={teams}
                                     onEditTeams={setEditingTeamsUser}
+                                    onToggleTeam={isAdmin ? handleToggleTeam : undefined}
+                                    onToggleWorkflowRole={isAdmin ? handleToggleWorkflowRole : undefined}
                                   />
                                 ))}
                               </div>
@@ -1800,27 +1977,33 @@ export function TeamMembersSettings() {
                 )}
               </div>
             ) : (
-              <div className="border border-plm-border rounded-lg overflow-hidden bg-plm-bg/50">
-                <div className="divide-y divide-plm-border/50">
+              <div className="rounded-lg overflow-hidden bg-plm-bg/50 ring-1 ring-white/5">
+                <div className="divide-y divide-white/10">
                   {filteredAllUsers.map(u => (
                     <UserRow
                       key={u.id}
                       user={u}
                       isAdmin={isAdmin}
+                      isRealAdmin={isRealAdmin}
                       isCurrentUser={u.id === user?.id}
                       onViewProfile={() => setViewingUserId(u.id)}
                       onRemove={() => setRemovingUser(u)}
                       onVaultAccess={() => openVaultAccessEditor(u)}
                       onPermissions={isAdmin ? () => setEditingPermissionsUser(u) : undefined}
+                      onViewNetPermissions={() => setViewingPermissionsUser(u)}
+                      onSimulatePermissions={() => startUserImpersonation(u.id)}
+                      isSimulating={impersonatedUser?.id === u.id}
                       vaultAccessCount={getUserVaultAccessCount(u.id)}
-                      showAddToTeam={isAdmin && teams.length > 0}
-                      onOpenAddToTeamModal={() => setAddToTeamUser(u)}
                       onEditJobTitle={isAdmin ? setEditingJobTitleUser : undefined}
+                      jobTitles={jobTitles}
+                      onToggleJobTitle={isAdmin ? handleChangeJobTitle : undefined}
                       workflowRoles={workflowRoles}
                       userWorkflowRoleIds={userWorkflowRoleAssignments[u.id]}
                       onEditWorkflowRoles={setEditingWorkflowRolesUser}
                       teams={teams}
                       onEditTeams={setEditingTeamsUser}
+                      onToggleTeam={isAdmin ? handleToggleTeam : undefined}
+                      onToggleWorkflowRole={isAdmin ? handleToggleWorkflowRole : undefined}
                     />
                   ))}
                 </div>
@@ -1932,6 +2115,68 @@ export function TeamMembersSettings() {
                           >
                             <X size={14} />
                           </button>
+                          
+                          {/* More actions dropdown */}
+                          <div className="relative">
+                            <button
+                              onClick={() => setPendingMemberDropdownOpen(pendingMemberDropdownOpen === pm.id ? null : pm.id)}
+                              className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded"
+                              title="More actions"
+                            >
+                              <MoreVertical size={14} />
+                            </button>
+                            
+                            {pendingMemberDropdownOpen === pm.id && (
+                              <>
+                                <div className="fixed inset-0 z-[100]" onClick={() => setPendingMemberDropdownOpen(null)} />
+                                <div 
+                                  className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[180px]"
+                                  ref={(el) => {
+                                    if (el) {
+                                      const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
+                                      if (btn) {
+                                        const rect = btn.getBoundingClientRect()
+                                        const menuHeight = el.offsetHeight
+                                        const spaceBelow = window.innerHeight - rect.bottom
+                                        
+                                        if (spaceBelow < menuHeight) {
+                                          el.style.bottom = `${window.innerHeight - rect.top + 4}px`
+                                          el.style.top = 'auto'
+                                        } else {
+                                          el.style.top = `${rect.bottom + 4}px`
+                                          el.style.bottom = 'auto'
+                                        }
+                                        el.style.right = `${window.innerWidth - rect.right}px`
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <button
+                                    onClick={() => {
+                                      setViewingPendingMemberPermissions(pm)
+                                      setPendingMemberDropdownOpen(null)
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                                  >
+                                    <Eye size={14} />
+                                    View Net Permissions
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      // Simulate pending member's permissions
+                                      const fakeUser = pendingMemberToOrgUser(pm)
+                                      startUserImpersonation(fakeUser.id, fakeUser)
+                                      setPendingMemberDropdownOpen(null)
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                                  >
+                                    <UserCog size={14} />
+                                    Simulate Permissions
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -2001,13 +2246,14 @@ export function TeamMembersSettings() {
                             {usersWithRole.length > 0 && (
                               <div className="flex -space-x-2 flex-shrink-0">
                                 {usersWithRole.slice(0, 4).map(u => (
-                                  u.avatar_url ? (
+                                  getEffectiveAvatarUrl(u) ? (
                                     <img
                                       key={u.id}
-                                      src={u.avatar_url}
+                                      src={getEffectiveAvatarUrl(u) || ''}
                                       alt={u.full_name || u.email}
-                                      className="w-7 h-7 rounded-full border-2 border-plm-bg-light"
+                                      className="w-7 h-7 rounded-full border-2 border-plm-bg-light object-cover"
                                       title={u.full_name || u.email}
+                                      referrerPolicy="no-referrer"
                                     />
                                   ) : (
                                     <div
@@ -2125,13 +2371,14 @@ export function TeamMembersSettings() {
                             {usersWithTitle.length > 0 && (
                               <div className="flex -space-x-2 flex-shrink-0">
                                 {usersWithTitle.slice(0, 4).map(u => (
-                                  u.avatar_url ? (
+                                  getEffectiveAvatarUrl(u) ? (
                                     <img
                                       key={u.id}
-                                      src={u.avatar_url}
+                                      src={getEffectiveAvatarUrl(u) || ''}
                                       alt={u.full_name || u.email}
-                                      className="w-7 h-7 rounded-full border-2 border-plm-bg-light"
+                                      className="w-7 h-7 rounded-full border-2 border-plm-bg-light object-cover"
                                       title={u.full_name || u.email}
+                                      referrerPolicy="no-referrer"
                                     />
                                   ) : (
                                     <div
@@ -2542,6 +2789,18 @@ export function TeamMembersSettings() {
           }}
           userId={user?.id}
           isAdmin={isAdmin}
+        />
+      )}
+
+      {/* Team Modules Dialog */}
+      {showModulesDialog && selectedTeam && (
+        <TeamModulesDialog
+          team={selectedTeam}
+          onClose={() => {
+            setShowModulesDialog(false)
+            setSelectedTeam(null)
+            loadTeams()
+          }}
         />
       )}
 
@@ -3041,6 +3300,28 @@ export function TeamMembersSettings() {
         <UserProfileModal
           userId={viewingUserId}
           onClose={() => setViewingUserId(null)}
+        />
+      )}
+      
+      {/* View Net Permissions Modal */}
+      {viewingPermissionsUser && (
+        <ViewNetPermissionsModal
+          user={viewingPermissionsUser}
+          vaultAccessCount={getUserVaultAccessCount(viewingPermissionsUser.id)}
+          orgVaults={orgVaults}
+          teams={teams}
+          onClose={() => setViewingPermissionsUser(null)}
+        />
+      )}
+      
+      {/* View Net Permissions Modal for Pending Member */}
+      {viewingPendingMemberPermissions && (
+        <ViewNetPermissionsModal
+          user={pendingMemberToOrgUser(viewingPendingMemberPermissions)}
+          vaultAccessCount={getPendingMemberVaultAccessCount(viewingPendingMemberPermissions)}
+          orgVaults={orgVaults}
+          teams={teams}
+          onClose={() => setViewingPendingMemberPermissions(null)}
         />
       )}
 
@@ -4004,56 +4285,80 @@ function UserJobTitleModal({
 function UserRow({
   user,
   isAdmin,
+  isRealAdmin,
   isCurrentUser,
   onViewProfile,
   onRemove,
   onRemoveFromTeam,
   onVaultAccess,
   onPermissions,
+  onViewNetPermissions,
+  onSimulatePermissions,
+  isSimulating,
   vaultAccessCount,
   compact,
-  showAddToTeam,
-  onOpenAddToTeamModal,
   onEditJobTitle,
+  jobTitles,
+  onToggleJobTitle,
   workflowRoles,
   userWorkflowRoleIds,
   onEditWorkflowRoles,
   teams,
-  onEditTeams
+  onEditTeams,
+  onToggleTeam,
+  onToggleWorkflowRole
 }: {
   user: OrgUser
   isAdmin: boolean
+  isRealAdmin?: boolean
   isCurrentUser: boolean
   onViewProfile: () => void
   onRemove: () => void
   onRemoveFromTeam?: () => void
   onVaultAccess: () => void
   onPermissions?: () => void
+  onViewNetPermissions?: () => void
+  onSimulatePermissions?: () => void
+  isSimulating?: boolean
   vaultAccessCount: number
   compact?: boolean
-  showAddToTeam?: boolean
-  onOpenAddToTeamModal?: () => void
   onEditJobTitle?: (user: OrgUser) => void
+  jobTitles?: { id: string; name: string; color: string; icon: string }[]
+  onToggleJobTitle?: (user: OrgUser, titleId: string | null) => Promise<void>
   workflowRoles?: WorkflowRoleBasic[]
   userWorkflowRoleIds?: string[]
   onEditWorkflowRoles?: (user: OrgUser) => void
   teams?: { id: string; name: string; color: string; icon: string }[]
   onEditTeams?: (user: OrgUser) => void
+  onToggleTeam?: (user: OrgUser, teamId: string, isAdding: boolean) => Promise<void>
+  onToggleWorkflowRole?: (user: OrgUser, roleId: string, isAdding: boolean) => Promise<void>
 }) {
+  const [actionDropdownOpen, setActionDropdownOpen] = useState(false)
+  const [titleDropdownOpen, setTitleDropdownOpen] = useState(false)
+  const [teamsDropdownOpen, setTeamsDropdownOpen] = useState(false)
+  const [rolesDropdownOpen, setRolesDropdownOpen] = useState(false)
+  const [togglingTitle, setTogglingTitle] = useState(false)
+  const [togglingTeam, setTogglingTeam] = useState<string | null>(null)
+  const [togglingRole, setTogglingRole] = useState<string | null>(null)
+  const [titleSearch, setTitleSearch] = useState('')
+  const [teamSearch, setTeamSearch] = useState('')
+  const [roleSearch, setRoleSearch] = useState('')
+  
   // Admins can manage settings for everyone including themselves
   const canManage = isAdmin
   
   return (
-    <div className={`flex items-center gap-3 ${compact ? 'py-2 px-1' : 'p-3'} rounded-lg hover:bg-plm-highlight transition-colors group`}>
+    <div className={`flex items-center gap-3 ${compact ? 'py-2 px-1' : 'p-3'} hover:bg-plm-highlight transition-colors group`}>
       <button
         onClick={onViewProfile}
         className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
       >
-        {user.avatar_url ? (
+        {getEffectiveAvatarUrl(user) ? (
           <img 
-            src={user.avatar_url} 
+            src={getEffectiveAvatarUrl(user) || ''} 
             alt=""
-            className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full`}
+            className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover`}
+            referrerPolicy="no-referrer"
           />
         ) : (
           <div className={`${compact ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'} rounded-full bg-plm-fg-muted/20 flex items-center justify-center font-medium`}>
@@ -4067,228 +4372,607 @@ function UserRow({
               <span className="text-xs text-plm-fg-dim">(you)</span>
             )}
           </div>
-          <div className={`${compact ? 'text-xs' : 'text-sm'} text-plm-fg-muted truncate flex items-center gap-2 flex-wrap`}>
-            <span className="truncate">{user.email}</span>
-            {user.role !== 'admin' && vaultAccessCount > 0 && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-fg-muted/10 rounded text-plm-fg-dim">
-                <Lock size={10} />
-                {vaultAccessCount}
-              </span>
-            )}
+          <div className={`${compact ? 'text-xs' : 'text-sm'} text-plm-fg-muted truncate`}>
+            {user.email}
           </div>
+          {/* Last online - on its own line */}
+          {!compact && formatLastOnline(user.last_online) && (
+            <div className="flex items-center gap-1 text-plm-fg-dim text-xs mt-0.5">
+              <Clock size={10} />
+              {formatLastOnline(user.last_online)}
+            </div>
+          )}
+          {/* Vault access badge */}
+          {user.role !== 'admin' && vaultAccessCount > 0 && (
+            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-fg-muted/10 rounded text-plm-fg-dim text-[11px] mt-0.5 w-fit">
+              <Lock size={10} />
+              {vaultAccessCount} vault{vaultAccessCount !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
       </button>
       
-      {/* Job title badge */}
-      {(user.job_title || (canManage && onEditJobTitle)) && (
-        canManage && onEditJobTitle ? (
-              <button
-            onClick={() => onEditJobTitle(user)}
+      {/* Job title dropdown */}
+      {jobTitles && jobTitles.length > 0 && (
+        <div className="relative">
+          <button
+            onClick={() => {
+              if (canManage && onToggleJobTitle) {
+                setTitleDropdownOpen(!titleDropdownOpen)
+                setTeamsDropdownOpen(false)
+                setRolesDropdownOpen(false)
+              }
+            }}
             className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
-                  user.job_title 
-                ? 'hover:ring-1 hover:ring-current' 
-                : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border hover:border-plm-accent hover:text-plm-accent'
-                }`}
-                style={user.job_title ? { backgroundColor: `${user.job_title.color}15`, color: user.job_title.color } : {}}
-              >
+              user.job_title 
+                ? '' 
+                : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
+            } ${canManage && onToggleJobTitle ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
+            style={user.job_title ? { backgroundColor: `${user.job_title.color}15`, color: user.job_title.color } : {}}
+            disabled={!canManage || !onToggleJobTitle}
+          >
             {user.job_title ? (
-                  (() => {
+              (() => {
                 const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Briefcase
-                    return <TitleIcon size={12} />
-                  })()
-                ) : (
-              <Briefcase size={12} />
-                )}
-                {user.job_title?.name || 'No title'}
-              </button>
-          ) : user.job_title ? (
-            <div
-              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
-              style={{ backgroundColor: `${user.job_title.color}15`, color: user.job_title.color }}
-            >
-              {(() => {
-              const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Briefcase
                 return <TitleIcon size={12} />
-              })()}
-              {user.job_title.name}
-            </div>
-        ) : null
-      )}
-      
-      {/* Teams and Roles badges - side by side */}
-      {!compact && (
-        <div className="flex items-center gap-1.5">
-          {/* Teams badge */}
-          {teams && teams.length > 0 && (user.teams || []).length > 0 ? (
-            canManage && onEditTeams ? (
-              <button
-                onClick={() => onEditTeams(user)}
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-plm-accent/10 text-plm-accent hover:ring-1 hover:ring-plm-accent cursor-pointer"
-                title={(user.teams || []).map(t => t.name).join(', ')}
-              >
-                <Users size={12} />
-                <span>{(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}</span>
-                <ChevronDown size={12} />
-              </button>
+              })()
             ) : (
-              <span
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap bg-plm-accent/10 text-plm-accent"
-                title={(user.teams || []).map(t => t.name).join(', ')}
-              >
-                <Users size={12} />
-                <span>{(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}</span>
-              </span>
-            )
-          ) : teams && teams.length > 0 && canManage && onEditTeams ? (
-            <button
-              onClick={() => onEditTeams(user)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-yellow-500/10 text-yellow-500 border border-dashed border-yellow-500/30 hover:border-yellow-500 hover:bg-yellow-500/20 transition-colors"
-              title="Unassigned - click to add to a team"
-            >
-              <UserX size={12} />
-              Unassigned
-              <ChevronDown size={12} />
-            </button>
-          ) : teams && teams.length > 0 ? (
-            <span className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-yellow-500/10 text-yellow-500">
-              <UserX size={12} />
-              Unassigned
-            </span>
-          ) : null}
+              <Briefcase size={12} />
+            )}
+            {user.job_title?.name || 'No title'}
+            {canManage && onToggleJobTitle && <ChevronDown size={12} />}
+          </button>
           
-          {/* Workflow roles badge */}
-          {workflowRoles && workflowRoles.length > 0 && (
+          {titleDropdownOpen && (
             <>
-              {userWorkflowRoleIds && userWorkflowRoleIds.length > 0 ? (
-                canManage && onEditWorkflowRoles ? (
-                  <button
-                    onClick={() => onEditWorkflowRoles(user)}
-                    className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-purple-500/10 text-purple-400 hover:ring-1 hover:ring-purple-400 cursor-pointer"
-                    title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
-                  >
-                    <Shield size={12} />
-                    <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
-                    <ChevronDown size={12} />
-                  </button>
-                ) : (
-                  <span
-                    className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap bg-purple-500/10 text-purple-400"
-                    title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
-                  >
-                    <Shield size={12} />
-                    <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
-                  </span>
-                )
-              ) : canManage && onEditWorkflowRoles ? (
-                <button
-                  onClick={() => onEditWorkflowRoles(user)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border hover:border-purple-400 hover:text-purple-400 transition-colors"
-                  title="Add workflow roles"
-                >
-                  <Shield size={12} />
-                  No roles
-                  <ChevronDown size={12} />
-                </button>
-              ) : null}
+              <div className="fixed inset-0 z-[100]" onClick={() => { setTitleDropdownOpen(false); setTitleSearch('') }} />
+              <div className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                style={{
+                  top: 'auto',
+                  left: 'auto',
+                }}
+                ref={(el) => {
+                  if (el) {
+                    const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
+                    if (btn) {
+                      const rect = btn.getBoundingClientRect()
+                      el.style.top = `${rect.bottom + 4}px`
+                      el.style.left = `${Math.min(rect.left, window.innerWidth - el.offsetWidth - 8)}px`
+                    }
+                  }
+                }}
+              >
+                <div className="px-2 py-1.5 border-b border-plm-border">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                    <input
+                      type="text"
+                      placeholder="Search titles..."
+                      value={titleSearch}
+                      onChange={(e) => setTitleSearch(e.target.value)}
+                      className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  {/* No title option */}
+                  {(!titleSearch || 'no title'.includes(titleSearch.toLowerCase())) && (
+                    <button
+                      onClick={async () => {
+                        if (!onToggleJobTitle || togglingTitle) return
+                        setTogglingTitle(true)
+                        await onToggleJobTitle(user, null)
+                        setTogglingTitle(false)
+                        setTitleDropdownOpen(false)
+                        setTitleSearch('')
+                      }}
+                      disabled={togglingTitle}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight ${
+                        !user.job_title ? 'text-plm-fg' : 'text-plm-fg-muted'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 bg-plm-fg-muted/20">
+                        <X size={12} className="text-plm-fg-muted" />
+                      </div>
+                      <span className="flex-1 truncate">No title</span>
+                      {!user.job_title && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                    </button>
+                  )}
+                  {jobTitles.filter(t => !titleSearch || t.name.toLowerCase().includes(titleSearch.toLowerCase())).map(title => {
+                    const TitleIcon = (LucideIcons as any)[title.icon] || Briefcase
+                    const isSelected = user.job_title?.id === title.id
+                    return (
+                      <button
+                        key={title.id}
+                        onClick={async () => {
+                          if (!onToggleJobTitle || togglingTitle) return
+                          setTogglingTitle(true)
+                          await onToggleJobTitle(user, title.id)
+                          setTogglingTitle(false)
+                          setTitleDropdownOpen(false)
+                          setTitleSearch('')
+                        }}
+                        disabled={togglingTitle}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                      >
+                        <div
+                          className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: `${title.color}20`, color: title.color }}
+                        >
+                          {togglingTitle && isSelected ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <TitleIcon size={12} />
+                          )}
+                        </div>
+                        <span className="flex-1 text-plm-fg truncate">{title.name}</span>
+                        {isSelected && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </>
           )}
         </div>
       )}
       
-      {/* Workflow roles badge - compact mode (team member rows) */}
-      {compact && workflowRoles && workflowRoles.length > 0 && (
-        <div className="flex items-center">
-          {userWorkflowRoleIds && userWorkflowRoleIds.length > 0 ? (
-            canManage && onEditWorkflowRoles ? (
+      {/* Teams and Roles badges - side by side */}
+      {!compact && (
+        <div className="flex items-center gap-1.5">
+          {/* Teams dropdown */}
+          {teams && teams.length > 0 && (
+            <div className="relative">
               <button
-                onClick={() => onEditWorkflowRoles(user)}
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors bg-purple-500/10 text-purple-400 hover:ring-1 hover:ring-purple-400 cursor-pointer"
-                title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
+                onClick={() => {
+                  if (canManage && onToggleTeam) {
+                    setTeamsDropdownOpen(!teamsDropdownOpen)
+                    setRolesDropdownOpen(false)
+                    setTitleDropdownOpen(false)
+                  }
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
+                  (user.teams || []).length > 0
+                    ? 'bg-plm-accent/10 text-plm-accent'
+                    : 'bg-yellow-500/10 text-yellow-500 border border-dashed border-yellow-500/30'
+                } ${canManage && onToggleTeam ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
+                title={(user.teams || []).map(t => t.name).join(', ') || 'No teams assigned'}
+                disabled={!canManage || !onToggleTeam}
               >
-                <Shield size={12} />
-                <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
-                <ChevronDown size={12} />
+                {(user.teams || []).length > 0 ? (
+                  <>
+                    <Users size={12} />
+                    <span>{(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}</span>
+                  </>
+                ) : (
+                  <>
+                    <UserX size={12} />
+                    <span>Unassigned</span>
+                  </>
+                )}
+                {canManage && onToggleTeam && <ChevronDown size={12} />}
               </button>
-            ) : (
-              <span
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap bg-purple-500/10 text-purple-400"
-                title={userWorkflowRoleIds.map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ')}
+              
+              {teamsDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-[100]" onClick={() => { setTeamsDropdownOpen(false); setTeamSearch('') }} />
+                  <div 
+                    className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                    ref={(el) => {
+                      if (el) {
+                        const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
+                        if (btn) {
+                          const rect = btn.getBoundingClientRect()
+                          el.style.top = `${rect.bottom + 4}px`
+                          el.style.left = `${Math.min(rect.left, window.innerWidth - el.offsetWidth - 8)}px`
+                        }
+                      }
+                    }}
+                  >
+                    <div className="px-2 py-1.5 border-b border-plm-border">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                        <input
+                          type="text"
+                          placeholder="Search teams..."
+                          value={teamSearch}
+                          onChange={(e) => setTeamSearch(e.target.value)}
+                          className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto flex-1">
+                      {teams.filter(t => !teamSearch || t.name.toLowerCase().includes(teamSearch.toLowerCase())).map(team => {
+                        const TeamIcon = (LucideIcons as any)[team.icon] || Users
+                        const isInTeam = (user.teams || []).some(t => t.id === team.id)
+                        const isToggling = togglingTeam === team.id
+                        return (
+                          <button
+                            key={team.id}
+                            onClick={async () => {
+                              if (!onToggleTeam || isToggling) return
+                              setTogglingTeam(team.id)
+                              await onToggleTeam(user, team.id, !isInTeam)
+                              setTogglingTeam(null)
+                            }}
+                            disabled={isToggling}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                          >
+                            <div
+                              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: `${team.color}20`, color: team.color }}
+                            >
+                              {isToggling ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <TeamIcon size={12} />
+                              )}
+                            </div>
+                            <span className="flex-1 text-plm-fg truncate">{team.name}</span>
+                            {isInTeam && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          
+          {/* Workflow roles dropdown */}
+          {workflowRoles && workflowRoles.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => {
+                  if (canManage && onToggleWorkflowRole) {
+                    setRolesDropdownOpen(!rolesDropdownOpen)
+                    setTeamsDropdownOpen(false)
+                    setTitleDropdownOpen(false)
+                  }
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
+                  (userWorkflowRoleIds || []).length > 0
+                    ? 'bg-purple-500/10 text-purple-400'
+                    : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
+                } ${canManage && onToggleWorkflowRole ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
+                title={(userWorkflowRoleIds || []).map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ') || 'No roles assigned'}
+                disabled={!canManage || !onToggleWorkflowRole}
               >
                 <Shield size={12} />
-                <span>{userWorkflowRoleIds.length} role{userWorkflowRoleIds.length !== 1 ? 's' : ''}</span>
-              </span>
-            )
-          ) : canManage && onEditWorkflowRoles ? (
-            <button
-              onClick={() => onEditWorkflowRoles(user)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border hover:border-purple-400 hover:text-purple-400 transition-colors"
-              title="Add workflow roles"
-            >
-              <Shield size={12} />
-              No roles
-              <ChevronDown size={12} />
-            </button>
-          ) : null}
+                <span>
+                  {(userWorkflowRoleIds || []).length > 0
+                    ? `${(userWorkflowRoleIds || []).length} role${(userWorkflowRoleIds || []).length !== 1 ? 's' : ''}`
+                    : 'No roles'}
+                </span>
+                {canManage && onToggleWorkflowRole && <ChevronDown size={12} />}
+              </button>
+              
+              {rolesDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-[100]" onClick={() => { setRolesDropdownOpen(false); setRoleSearch('') }} />
+                  <div 
+                    className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                    ref={(el) => {
+                      if (el) {
+                        const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
+                        if (btn) {
+                          const rect = btn.getBoundingClientRect()
+                          el.style.top = `${rect.bottom + 4}px`
+                          el.style.left = `${Math.min(rect.left, window.innerWidth - el.offsetWidth - 8)}px`
+                        }
+                      }
+                    }}
+                  >
+                    <div className="px-2 py-1.5 border-b border-plm-border">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                        <input
+                          type="text"
+                          placeholder="Search roles..."
+                          value={roleSearch}
+                          onChange={(e) => setRoleSearch(e.target.value)}
+                          className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto flex-1">
+                      {workflowRoles.filter(r => !roleSearch || r.name.toLowerCase().includes(roleSearch.toLowerCase())).map(role => {
+                        const RoleIcon = (LucideIcons as any)[role.icon] || Shield
+                        const hasRole = (userWorkflowRoleIds || []).includes(role.id)
+                        const isToggling = togglingRole === role.id
+                        return (
+                          <button
+                            key={role.id}
+                            onClick={async () => {
+                              if (!onToggleWorkflowRole || isToggling) return
+                              setTogglingRole(role.id)
+                              await onToggleWorkflowRole(user, role.id, !hasRole)
+                              setTogglingRole(null)
+                            }}
+                            disabled={isToggling}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                          >
+                            <div
+                              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: `${role.color}20`, color: role.color }}
+                            >
+                              {isToggling ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <RoleIcon size={12} />
+                              )}
+                            </div>
+                            <span className="flex-1 text-plm-fg truncate">{role.name}</span>
+                            {hasRole && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
       
-      {/* Action buttons */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {/* Add to team button */}
-        {showAddToTeam && onOpenAddToTeamModal && (
+      {/* Workflow roles dropdown - compact mode (team member rows) */}
+      {compact && workflowRoles && workflowRoles.length > 0 && (
+        <div className="relative">
           <button
-            onClick={onOpenAddToTeamModal}
-            className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
-            title="Add to team"
+            onClick={() => {
+              if (canManage && onToggleWorkflowRole) {
+                setRolesDropdownOpen(!rolesDropdownOpen)
+              }
+            }}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
+              (userWorkflowRoleIds || []).length > 0
+                ? 'bg-purple-500/10 text-purple-400'
+                : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
+            } ${canManage && onToggleWorkflowRole ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
+            title={(userWorkflowRoleIds || []).map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ') || 'No roles'}
+            disabled={!canManage || !onToggleWorkflowRole}
           >
-            <UserPlus size={14} />
+            <Shield size={12} />
+            <span>
+              {(userWorkflowRoleIds || []).length > 0
+                ? `${(userWorkflowRoleIds || []).length} role${(userWorkflowRoleIds || []).length !== 1 ? 's' : ''}`
+                : 'No roles'}
+            </span>
+            {canManage && onToggleWorkflowRole && <ChevronDown size={12} />}
           </button>
-        )}
-        
-        {/* Individual permissions button (for unassigned users) */}
-        {onPermissions && canManage && (
+          
+          {rolesDropdownOpen && (
+            <>
+              <div className="fixed inset-0 z-[100]" onClick={() => { setRolesDropdownOpen(false); setRoleSearch('') }} />
+              <div 
+                className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                ref={(el) => {
+                  if (el) {
+                    const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
+                    if (btn) {
+                      const rect = btn.getBoundingClientRect()
+                      el.style.top = `${rect.bottom + 4}px`
+                      el.style.left = `${Math.min(rect.left, window.innerWidth - el.offsetWidth - 8)}px`
+                    }
+                  }
+                }}
+              >
+                <div className="px-2 py-1.5 border-b border-plm-border">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                    <input
+                      type="text"
+                      placeholder="Search roles..."
+                      value={roleSearch}
+                      onChange={(e) => setRoleSearch(e.target.value)}
+                      className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  {workflowRoles.filter(r => !roleSearch || r.name.toLowerCase().includes(roleSearch.toLowerCase())).map(role => {
+                    const RoleIcon = (LucideIcons as any)[role.icon] || Shield
+                    const hasRole = (userWorkflowRoleIds || []).includes(role.id)
+                    const isToggling = togglingRole === role.id
+                    return (
+                      <button
+                        key={role.id}
+                        onClick={async () => {
+                          if (!onToggleWorkflowRole || isToggling) return
+                          setTogglingRole(role.id)
+                          await onToggleWorkflowRole(user, role.id, !hasRole)
+                          setTogglingRole(null)
+                        }}
+                        disabled={isToggling}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                      >
+                        <div
+                          className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: `${role.color}20`, color: role.color }}
+                        >
+                          {isToggling ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <RoleIcon size={12} />
+                          )}
+                        </div>
+                        <span className="flex-1 text-plm-fg truncate">{role.name}</span>
+                        {hasRole && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      
+      {/* Actions dropdown */}
+      {(canManage || isRealAdmin) && (
+        <div className="relative">
           <button
-            onClick={onPermissions}
-            className="p-1.5 text-plm-fg-muted hover:text-purple-400 hover:bg-purple-500/10 rounded transition-colors"
-            title="Individual permissions"
+            onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
+            className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
+            title="More actions"
           >
-            <Shield size={14} />
+            <MoreVertical size={16} />
           </button>
-        )}
-        
-        {/* Individual vault access button - only show in users section (not in team member rows) */}
-        {canManage && !compact && (
-          <button
-            onClick={onVaultAccess}
-            className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
-            title="Individual vault access"
-          >
-            <Lock size={14} />
-          </button>
-        )}
-        
-        {/* Remove from team button */}
-        {canManage && onRemoveFromTeam && (
-          <button
-            onClick={onRemoveFromTeam}
-            className="p-1.5 text-plm-fg-muted hover:text-plm-warning hover:bg-plm-warning/10 rounded transition-colors"
-            title="Remove from team"
-          >
-            <X size={14} />
-          </button>
-        )}
-        
-        {/* Remove from organization button */}
-        {canManage && (
-          <button
-            onClick={onRemove}
-            className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
-            title="Remove from organization"
-          >
-            <UserMinus size={14} />
-          </button>
-        )}
-      </div>
+          
+          {actionDropdownOpen && (
+            <>
+              {/* Backdrop to close dropdown */}
+              <div 
+                className="fixed inset-0 z-[100]" 
+                onClick={() => setActionDropdownOpen(false)}
+              />
+              
+              <div 
+                className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[200px]"
+                ref={(el) => {
+                  if (el) {
+                    const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
+                    if (btn) {
+                      const rect = btn.getBoundingClientRect()
+                      const menuHeight = el.offsetHeight
+                      const spaceBelow = window.innerHeight - rect.bottom
+                      const spaceAbove = rect.top
+                      
+                      // Position above if not enough space below
+                      if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+                        el.style.bottom = `${window.innerHeight - rect.top + 4}px`
+                        el.style.top = 'auto'
+                      } else {
+                        el.style.top = `${rect.bottom + 4}px`
+                        el.style.bottom = 'auto'
+                      }
+                      
+                      // Align right edge with button
+                      el.style.right = `${window.innerWidth - rect.right}px`
+                    }
+                  }
+                }}
+              >
+                {/* View Profile */}
+                <button
+                  onClick={() => {
+                    onViewProfile()
+                    setActionDropdownOpen(false)
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                >
+                  <User size={14} />
+                  View Profile
+                </button>
+                
+                {/* View Net Permissions */}
+                {onViewNetPermissions && (
+                  <button
+                    onClick={() => {
+                      onViewNetPermissions()
+                      setActionDropdownOpen(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                  >
+                    <FileKey size={14} />
+                    View Net Permissions
+                  </button>
+                )}
+                
+                {/* Simulate Permissions (impersonate) */}
+                {isRealAdmin && !isCurrentUser && onSimulatePermissions && (
+                  <button
+                    onClick={() => {
+                      onSimulatePermissions()
+                      setActionDropdownOpen(false)
+                    }}
+                    disabled={isSimulating}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
+                      isSimulating
+                        ? 'text-cyan-400 bg-cyan-400/10'
+                        : 'text-plm-fg hover:bg-plm-highlight'
+                    }`}
+                  >
+                    <UserCog size={14} />
+                    {isSimulating ? 'Currently Simulating' : 'Simulate Permissions'}
+                  </button>
+                )}
+                
+                {/* Divider */}
+                {canManage && <div className="my-1 border-t border-plm-border" />}
+                
+                {/* Individual permissions */}
+                {onPermissions && canManage && (
+                  <button
+                    onClick={() => {
+                      onPermissions()
+                      setActionDropdownOpen(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                  >
+                    <Shield size={14} />
+                    Individual Permissions
+                  </button>
+                )}
+                
+                {/* Individual vault access */}
+                {canManage && !compact && (
+                  <button
+                    onClick={() => {
+                      onVaultAccess()
+                      setActionDropdownOpen(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                  >
+                    <Database size={14} />
+                    Manage Vault Access
+                  </button>
+                )}
+                
+                {/* Remove from team */}
+                {canManage && onRemoveFromTeam && (
+                  <>
+                    <div className="my-1 border-t border-plm-border" />
+                    <button
+                      onClick={() => {
+                        onRemoveFromTeam()
+                        setActionDropdownOpen(false)
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-warning hover:bg-plm-warning/10 transition-colors"
+                    >
+                      <X size={14} />
+                      Remove from Team
+                    </button>
+                  </>
+                )}
+                
+                {/* Remove from organization */}
+                {canManage && !isCurrentUser && (
+                  <>
+                    {!onRemoveFromTeam && <div className="my-1 border-t border-plm-border" />}
+                    <button
+                      onClick={() => {
+                        onRemove()
+                        setActionDropdownOpen(false)
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-error hover:bg-plm-error/10 transition-colors"
+                    >
+                      <UserMinus size={14} />
+                      Remove from Organization
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -4476,7 +5160,7 @@ function TeamMembersDialog({
         .from('team_members')
         .select(`
           id, team_id, user_id, is_team_admin, added_at, added_by,
-          users!user_id (id, email, full_name, avatar_url, role)
+          users!user_id (id, email, full_name, avatar_url, custom_avatar_url, role)
         `)
         .eq('team_id', team.id)
         .order('added_at', { ascending: false })
@@ -4601,8 +5285,8 @@ function TeamMembersDialog({
                     disabled={isAdding}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-plm-highlight transition-colors text-left border-b border-plm-border/50 last:border-b-0"
                   >
-                    {u.avatar_url ? (
-                      <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                    {getEffectiveAvatarUrl(u) ? (
+                      <img src={getEffectiveAvatarUrl(u) || ''} alt="" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-xs font-medium">
                         {getInitials(u.full_name || u.email)}
@@ -4637,8 +5321,8 @@ function TeamMembersDialog({
             <div className="space-y-2">
               {members.map(member => (
                 <div key={member.id} className="flex items-center gap-3 p-3 bg-plm-bg rounded-lg group">
-                  {member.user?.avatar_url ? (
-                    <img src={member.user.avatar_url} alt="" className="w-10 h-10 rounded-full" />
+                  {getEffectiveAvatarUrl(member.user) ? (
+                    <img src={getEffectiveAvatarUrl(member.user) || ''} alt="" className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-sm font-medium">
                       {getInitials(member.user?.full_name || member.user?.email || '')}
@@ -5596,3 +6280,861 @@ function CreateUserDialog({
   )
 }
 
+// Resource groups for permissions display - matches PermissionsEditor
+const PERMISSION_RESOURCE_GROUPS: { id: string; name: string; icon: string; color: string; resources: string[] }[] = [
+  {
+    id: 'source-files',
+    name: 'Source Files',
+    icon: 'FolderTree',
+    color: '#3b82f6',
+    resources: ['module:explorer', 'module:pending', 'module:history', 'module:workflows', 'module:trash']
+  },
+  {
+    id: 'items',
+    name: 'Items & BOMs',
+    icon: 'Package',
+    color: '#8b5cf6',
+    resources: ['module:items', 'module:boms', 'module:products']
+  },
+  {
+    id: 'change-control',
+    name: 'Change Control',
+    icon: 'GitBranch',
+    color: '#f59e0b',
+    resources: ['module:ecr', 'module:eco', 'module:reviews', 'module:deviations', 'module:release-schedule', 'module:process']
+  },
+  {
+    id: 'supply-chain',
+    name: 'Supply Chain',
+    icon: 'Truck',
+    color: '#14b8a6',
+    resources: ['module:supplier-database', 'module:supplier-portal', 'module:purchase-requests', 'module:purchase-orders', 'module:invoices', 'module:shipping', 'module:receiving']
+  },
+  {
+    id: 'production',
+    name: 'Production',
+    icon: 'Factory',
+    color: '#ec4899',
+    resources: ['module:manufacturing-orders', 'module:travellers', 'module:work-instructions', 'module:production-schedule', 'module:routings', 'module:work-centers', 'module:process-flows', 'module:equipment', 'module:yield-tracking', 'module:error-codes', 'module:downtime', 'module:oee', 'module:scrap-tracking']
+  },
+  {
+    id: 'quality',
+    name: 'Quality',
+    icon: 'ShieldCheck',
+    color: '#22c55e',
+    resources: ['module:fai', 'module:ncr', 'module:imr', 'module:scar', 'module:capa', 'module:rma', 'module:certificates', 'module:calibration', 'module:quality-templates']
+  },
+  {
+    id: 'accounting',
+    name: 'Accounting',
+    icon: 'Calculator',
+    color: '#a855f7',
+    resources: ['module:accounts-payable', 'module:accounts-receivable', 'module:general-ledger', 'module:cost-tracking', 'module:budgets']
+  },
+  {
+    id: 'system',
+    name: 'System & Admin',
+    icon: 'Settings',
+    color: '#64748b',
+    resources: ['module:google-drive', 'module:terminal', 'module:settings', 'system:users', 'system:teams', 'system:permissions', 'system:org-settings', 'system:vaults', 'system:backups', 'system:webhooks', 'system:workflows', 'system:metadata', 'system:integrations', 'system:recovery-codes', 'system:impersonation']
+  }
+]
+
+// View Net Permissions Modal - shows user's effective permissions comprehensively
+function ViewNetPermissionsModal({
+  user,
+  vaultAccessCount,
+  orgVaults,
+  teams,
+  onClose
+}: {
+  user: OrgUser
+  vaultAccessCount: number
+  orgVaults: Vault[]
+  teams: TeamWithDetails[]
+  onClose: () => void
+}) {
+  const [isLoading, setIsLoading] = useState(true)
+  const [permissions, setPermissions] = useState<Record<string, PermissionAction[]>>({})
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedSourceFilesVaultId, setSelectedSourceFilesVaultId] = useState<string | null>(null)
+  const [userVaultIds, setUserVaultIds] = useState<string[]>([])
+  const [sourceFilesPermsByVault, setSourceFilesPermsByVault] = useState<Record<string, Record<string, PermissionAction[]>>>({})
+  
+  const isUserAdmin = user.role === 'admin'
+  const hasFullVaultAccess = vaultAccessCount === 0 || isUserAdmin
+  
+  // Get the list of vaults user has access to
+  const accessibleVaults = useMemo(() => {
+    if (hasFullVaultAccess) return orgVaults
+    return orgVaults.filter(v => userVaultIds.includes(v.id))
+  }, [hasFullVaultAccess, orgVaults, userVaultIds])
+  
+  // Source files resources
+  const sourceFilesResources = ['module:explorer', 'module:pending', 'module:history', 'module:workflows', 'module:trash']
+  
+  // Load user's vault access via their teams
+  useEffect(() => {
+    const loadVaultAccess = async () => {
+      const userTeamIds = (user.teams || []).map(t => t.id)
+      if (userTeamIds.length === 0) {
+        setUserVaultIds([])
+        return
+      }
+      
+      const { data } = await supabase
+        .from('team_vault_access')
+        .select('vault_id')
+        .in('team_id', userTeamIds)
+      
+      const vaultIds = [...new Set((data || []).map(d => d.vault_id))]
+      setUserVaultIds(vaultIds)
+    }
+    
+    loadVaultAccess()
+  }, [user.teams])
+  
+  // Load user's effective permissions from their teams
+  useEffect(() => {
+    const loadPermissions = async () => {
+      setIsLoading(true)
+      try {
+        const userTeamIds = (user.teams || []).map(t => t.id)
+        
+        if (userTeamIds.length === 0) {
+          setPermissions({})
+          setSourceFilesPermsByVault({})
+          setIsLoading(false)
+          return
+        }
+        
+        // Get all permissions from user's teams (for non-source-files resources)
+        const { data, error } = await supabase
+          .from('team_permissions')
+          .select('resource, actions')
+          .in('team_id', userTeamIds)
+        
+        if (error) throw error
+        
+        // Merge permissions - union of all actions for each resource
+        const mergedPerms: Record<string, Set<PermissionAction>> = {}
+        for (const perm of data || []) {
+          if (!mergedPerms[perm.resource]) {
+            mergedPerms[perm.resource] = new Set()
+          }
+          for (const action of (perm.actions as PermissionAction[])) {
+            mergedPerms[perm.resource].add(action)
+          }
+        }
+        
+        // Convert sets to arrays
+        const finalPerms: Record<string, PermissionAction[]> = {}
+        for (const [resource, actions] of Object.entries(mergedPerms)) {
+          finalPerms[resource] = Array.from(actions)
+        }
+        
+        setPermissions(finalPerms)
+        
+        // Now load source files permissions per vault
+        const vaultPerms: Record<string, Record<string, PermissionAction[]>> = {}
+        
+        // Get team vault access mapping
+        const { data: teamVaultData } = await supabase
+          .from('team_vault_access')
+          .select('team_id, vault_id')
+          .in('team_id', userTeamIds)
+        
+        const teamsByVault: Record<string, string[]> = {}
+        const teamsWithRestrictions = new Set<string>()
+        
+        for (const tv of teamVaultData || []) {
+          teamsWithRestrictions.add(tv.team_id)
+          if (!teamsByVault[tv.vault_id]) {
+            teamsByVault[tv.vault_id] = []
+          }
+          teamsByVault[tv.vault_id].push(tv.team_id)
+        }
+        
+        // Teams with no vault restrictions have access to all vaults
+        const unrestrictedTeams = userTeamIds.filter(id => !teamsWithRestrictions.has(id))
+        
+        // For each vault, calculate source file permissions
+        for (const vault of orgVaults) {
+          const teamsForVault = [...(teamsByVault[vault.id] || []), ...unrestrictedTeams]
+          
+          if (teamsForVault.length === 0) continue
+          
+          const vaultMergedPerms: Record<string, Set<PermissionAction>> = {}
+          
+          for (const perm of data || []) {
+            // Only include if team has vault access and resource is source-files related
+            const permTeamIds = userTeamIds // We already filtered by user's teams
+            if (sourceFilesResources.includes(perm.resource)) {
+              if (!vaultMergedPerms[perm.resource]) {
+                vaultMergedPerms[perm.resource] = new Set()
+              }
+              for (const action of (perm.actions as PermissionAction[])) {
+                vaultMergedPerms[perm.resource].add(action)
+              }
+            }
+          }
+          
+          // Get permissions specifically from teams with vault access
+          const { data: vaultTeamPerms } = await supabase
+            .from('team_permissions')
+            .select('resource, actions')
+            .in('team_id', teamsForVault)
+          
+          const vaultPermsObj: Record<string, PermissionAction[]> = {}
+          for (const perm of vaultTeamPerms || []) {
+            if (sourceFilesResources.includes(perm.resource)) {
+              if (!vaultPermsObj[perm.resource]) {
+                vaultPermsObj[perm.resource] = []
+              }
+              for (const action of (perm.actions as PermissionAction[])) {
+                if (!vaultPermsObj[perm.resource].includes(action)) {
+                  vaultPermsObj[perm.resource].push(action)
+                }
+              }
+            }
+          }
+          
+          vaultPerms[vault.id] = vaultPermsObj
+        }
+        
+        setSourceFilesPermsByVault(vaultPerms)
+      } catch (err) {
+        console.error('Failed to load permissions:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    loadPermissions()
+  }, [user.teams, orgVaults])
+  
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(groupId)) {
+        next.delete(groupId)
+      } else {
+        next.add(groupId)
+      }
+      return next
+    })
+  }
+  
+  const expandAll = () => {
+    setExpandedGroups(new Set(PERMISSION_RESOURCE_GROUPS.map(g => g.id)))
+  }
+  
+  const collapseAll = () => {
+    setExpandedGroups(new Set())
+  }
+  
+  // Count permissions in a group
+  const getGroupStats = (groupId: string) => {
+    const group = PERMISSION_RESOURCE_GROUPS.find(g => g.id === groupId)
+    if (!group) return { total: 0, withPerms: 0 }
+    
+    let withPerms = 0
+    for (const resourceId of group.resources) {
+      if ((permissions[resourceId] || []).length > 0) {
+        withPerms++
+      }
+    }
+    return { total: group.resources.length, withPerms }
+  }
+  
+  // Filter resources by search
+  const filterResources = (resources: string[]): string[] => {
+    if (!searchQuery) return resources
+    return resources.filter(resourceId => {
+      const resource = ALL_RESOURCES.find(r => r.id === resourceId)
+      if (!resource) return false
+      return (
+        resource.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        resource.description.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    })
+  }
+  
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-hidden" onClick={onClose}>
+      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-5xl h-[90vh] mx-4 flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
+          {getEffectiveAvatarUrl(user) ? (
+            <img 
+              src={getEffectiveAvatarUrl(user) || ''} 
+              alt={user.full_name || user.email}
+              className="w-12 h-12 rounded-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-lg font-medium text-plm-fg">
+              {(user.full_name || user.email).charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold text-plm-fg flex items-center gap-2">
+              {user.full_name || user.email}
+              <span className="text-sm font-normal text-plm-fg-muted">— Net Permissions</span>
+            </h2>
+            <p className="text-sm text-plm-fg-muted">{user.email}</p>
+          </div>
+          
+          <button
+            onClick={onClose}
+            className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        
+        {/* Overview row */}
+        <div className="p-4 border-b border-plm-border bg-plm-bg/50 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Admin badge (if admin) */}
+            {isUserAdmin && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-plm-accent/10">
+                <Shield size={16} className="text-plm-accent" />
+                <span className="text-sm font-medium text-plm-accent">Admin</span>
+              </div>
+            )}
+            
+            {/* Teams */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-plm-fg-muted mr-1">Teams:</span>
+              {(user.teams || []).length > 0 ? (
+                <>
+                  {(user.teams || []).map(team => {
+                    const TeamIcon = (LucideIcons as any)[team.icon] || UsersRound
+                    return (
+                      <div
+                        key={team.id}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                        style={{ backgroundColor: `${team.color}15`, color: team.color }}
+                        title={team.name}
+                      >
+                        <TeamIcon size={12} />
+                        {team.name}
+                      </div>
+                    )
+                  })}
+                </>
+              ) : (
+                <span className="text-xs text-plm-fg-muted flex items-center gap-1">
+                  <UserX size={12} />
+                  None
+                </span>
+              )}
+            </div>
+            
+            {/* Workflow roles */}
+            {(user.workflow_roles || []).length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-plm-fg-muted mr-1">Roles:</span>
+                {(user.workflow_roles || []).map(wfRole => {
+                  const WfRoleIcon = (LucideIcons as any)[wfRole.icon] || Shield
+                  return (
+                    <div
+                      key={wfRole.id}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                      style={{ backgroundColor: `${wfRole.color}15`, color: wfRole.color }}
+                    >
+                      <WfRoleIcon size={12} />
+                      {wfRole.name}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            
+            {/* Vault access summary */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-plm-fg-muted mr-1">Vaults:</span>
+              <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                hasFullVaultAccess ? 'bg-plm-success/10 text-plm-success' : 'bg-plm-accent/10 text-plm-accent'
+              }`}>
+                <Database size={12} />
+                {hasFullVaultAccess ? `All ${orgVaults.length}` : `${accessibleVaults.length} of ${orgVaults.length}`}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Toolbar */}
+        <div className="p-3 border-b border-plm-border flex items-center gap-3 flex-shrink-0 bg-plm-bg/30">
+          <div className="relative flex-1 max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search resources..."
+              className="w-full pl-9 pr-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+            />
+          </div>
+          
+          <div className="flex items-center gap-1">
+            <button
+              onClick={expandAll}
+              className="px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg rounded hover:bg-plm-highlight transition-colors"
+            >
+              Expand All
+            </button>
+            <button
+              onClick={collapseAll}
+              className="px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg rounded hover:bg-plm-highlight transition-colors"
+            >
+              Collapse All
+            </button>
+          </div>
+          
+          {/* Legend */}
+          <div className="flex items-center gap-4 ml-auto text-xs text-plm-fg-muted">
+            {PERMISSION_ACTIONS.map(action => (
+              <div key={action} className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${
+                  action === 'view' ? 'bg-blue-400' :
+                  action === 'create' ? 'bg-green-400' :
+                  action === 'edit' ? 'bg-yellow-400' :
+                  action === 'delete' ? 'bg-red-400' :
+                  'bg-purple-400'
+                }`} />
+                {PERMISSION_ACTION_LABELS[action]}
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="animate-spin text-plm-fg-muted" size={32} />
+            </div>
+          ) : isUserAdmin ? (
+            <div className="p-8 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-plm-accent/20 mb-4">
+                <Shield size={32} className="text-plm-accent" />
+              </div>
+              <h3 className="text-lg font-medium text-plm-fg mb-2">Full Admin Access</h3>
+              <p className="text-sm text-plm-fg-muted max-w-md mx-auto">
+                As an Admin, this user has full access to all resources and actions across the entire system.
+                Team permissions do not restrict admin users.
+              </p>
+            </div>
+          ) : (user.teams || []).length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-500/20 mb-4">
+                <UserX size={32} className="text-yellow-500" />
+              </div>
+              <h3 className="text-lg font-medium text-plm-fg mb-2">No Team Assignments</h3>
+              <p className="text-sm text-plm-fg-muted max-w-md mx-auto">
+                This user is not assigned to any teams and has no team-based permissions.
+                Add them to a team to grant permissions.
+              </p>
+            </div>
+          ) : (
+            <div className="p-4 space-y-2">
+              {PERMISSION_RESOURCE_GROUPS.map(group => {
+                const filteredResources = filterResources(group.resources)
+                if (filteredResources.length === 0) return null
+                
+                const isExpanded = expandedGroups.has(group.id)
+                const stats = getGroupStats(group.id)
+                const GroupIcon = (LucideIcons as any)[group.icon] || Settings2
+                
+                return (
+                  <div key={group.id} className="border border-plm-border rounded-xl overflow-hidden bg-plm-bg/30">
+                    {/* Group header */}
+                    <button
+                      onClick={() => toggleGroup(group.id)}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-plm-highlight/50 transition-colors text-left"
+                    >
+                      <div
+                        className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: `${group.color}15`, color: group.color }}
+                      >
+                        <GroupIcon size={16} />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-plm-fg">{group.name}</div>
+                        <div className="text-xs text-plm-fg-muted">
+                          {group.id === 'source-files' 
+                            ? `${accessibleVaults.length} vault${accessibleVaults.length !== 1 ? 's' : ''} accessible`
+                            : `${stats.withPerms} of ${stats.total} resources with permissions`
+                          }
+                        </div>
+                      </div>
+                      
+                      {isExpanded ? (
+                        <ChevronDown size={18} className="text-plm-fg-muted flex-shrink-0" />
+                      ) : (
+                        <ChevronRight size={18} className="text-plm-fg-muted flex-shrink-0" />
+                      )}
+                    </button>
+                    
+                    {/* Group resources */}
+                    {isExpanded && (
+                      <div className="border-t border-plm-border">
+                        {/* Vault tabs for source-files group */}
+                        {group.id === 'source-files' && accessibleVaults.length > 0 && (
+                          <div className="px-4 py-2 border-b border-plm-border bg-plm-bg/50 flex items-center gap-1 flex-wrap">
+                            <span className="text-xs text-plm-fg-muted mr-1">Vault:</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSelectedSourceFilesVaultId(null) }}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                                selectedSourceFilesVaultId === null
+                                  ? 'bg-plm-accent text-white'
+                                  : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight border border-plm-border'
+                              }`}
+                            >
+                              <Database size={11} />
+                              All
+                            </button>
+                            {accessibleVaults.map(vault => (
+                              <button
+                                key={vault.id}
+                                onClick={(e) => { e.stopPropagation(); setSelectedSourceFilesVaultId(vault.id) }}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                                  selectedSourceFilesVaultId === vault.id
+                                    ? 'bg-plm-accent text-white'
+                                    : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight border border-plm-border'
+                                }`}
+                              >
+                                <Folder size={11} />
+                                {vault.name}
+                              </button>
+                            ))}
+                            {!hasFullVaultAccess && accessibleVaults.length < orgVaults.length && (
+                              <span className="text-xs text-plm-fg-dim ml-1">
+                                ({orgVaults.length - accessibleVaults.length} restricted)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        
+                        {filteredResources.map((resourceId, idx) => {
+                          const resource = ALL_RESOURCES.find(r => r.id === resourceId)
+                          if (!resource) return null
+                          
+                          const ResourceIcon = (LucideIcons as any)[resource.icon] || Shield
+                          
+                          // For source-files, use vault-specific permissions
+                          let currentActions: PermissionAction[] = []
+                          if (group.id === 'source-files') {
+                            if (selectedSourceFilesVaultId) {
+                              currentActions = sourceFilesPermsByVault[selectedSourceFilesVaultId]?.[resourceId] || []
+                            } else {
+                              // "All" - merge permissions from all accessible vaults
+                              const mergedActions = new Set<PermissionAction>()
+                              for (const vault of accessibleVaults) {
+                                const vaultPerms = sourceFilesPermsByVault[vault.id]?.[resourceId] || []
+                                vaultPerms.forEach(a => mergedActions.add(a))
+                              }
+                              currentActions = Array.from(mergedActions)
+                            }
+                          } else {
+                            currentActions = permissions[resourceId] || []
+                          }
+                          
+                          return (
+                            <div
+                              key={resourceId}
+                              className={`flex items-center gap-3 px-4 py-2.5 ${
+                                idx !== filteredResources.length - 1 ? 'border-b border-plm-border/20' : ''
+                              }`}
+                            >
+                              {/* Resource icon */}
+                              <div className="w-8 h-8 rounded-lg bg-plm-bg-secondary flex items-center justify-center text-plm-fg-muted">
+                                <ResourceIcon size={16} />
+                              </div>
+                              
+                              {/* Resource info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-plm-fg font-medium truncate">
+                                  {resource.name}
+                                </div>
+                                <div className="text-xs text-plm-fg-muted truncate">
+                                  {resource.description}
+                                </div>
+                              </div>
+                              
+                              {/* Permission indicators */}
+                              <div className="flex items-center gap-1">
+                                {PERMISSION_ACTIONS.map(action => {
+                                  const isApplicable = resource.applicableActions.includes(action)
+                                  const isGranted = currentActions.includes(action)
+                                  
+                                  if (!isApplicable) {
+                                    return (
+                                      <div
+                                        key={action}
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center opacity-20"
+                                        title={`${PERMISSION_ACTION_LABELS[action]} not applicable`}
+                                      >
+                                        <Minus size={12} className="text-plm-fg-dim" />
+                                      </div>
+                                    )
+                                  }
+                                  
+                                  const colorClass = isGranted ? (
+                                    action === 'view' ? 'bg-blue-500/35 text-blue-300 border-blue-400/70' :
+                                    action === 'create' ? 'bg-green-500/35 text-green-300 border-green-400/70' :
+                                    action === 'edit' ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70' :
+                                    action === 'delete' ? 'bg-red-500/35 text-red-300 border-red-400/70' :
+                                    'bg-purple-500/35 text-purple-300 border-purple-400/70'
+                                  ) : (
+                                    action === 'view' ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40' :
+                                    action === 'create' ? 'border-green-500/20 bg-green-500/5 text-green-400/40' :
+                                    action === 'edit' ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40' :
+                                    action === 'delete' ? 'border-red-500/20 bg-red-500/5 text-red-400/40' :
+                                    'border-purple-500/20 bg-purple-500/5 text-purple-400/40'
+                                  )
+                                  
+                                  return (
+                                    <div
+                                      key={action}
+                                      className={`w-8 h-8 rounded-lg flex items-center justify-center border ${colorClass}`}
+                                      title={`${PERMISSION_ACTION_LABELS[action]}: ${isGranted ? 'Granted' : 'Not granted'}`}
+                                    >
+                                      {isGranted ? (
+                                        <Check size={12} />
+                                      ) : (
+                                        <span className="text-[10px] font-medium">{action.charAt(0).toUpperCase()}</span>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        
+        {/* Footer */}
+        <div className="p-4 border-t border-plm-border flex items-center justify-between bg-plm-bg/50 flex-shrink-0">
+          <div className="flex items-center gap-4 text-sm text-plm-fg-muted">
+            <div className="flex items-center gap-1.5">
+              <Shield size={14} />
+              <span>
+                {Object.entries(permissions).filter(([_, a]) => a.length > 0).length} resources with permissions
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Users size={14} />
+              <span>
+                Via {(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+          
+          <button onClick={onClose} className="btn btn-ghost">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Team Modules Dialog - Configure default modules for a team
+function TeamModulesDialog({
+  team,
+  onClose
+}: {
+  team: TeamWithDetails
+  onClose: () => void
+}) {
+  const { addToast, loadTeamModuleDefaults, saveTeamModuleDefaults, clearTeamModuleDefaults, moduleConfig } = usePDMStore()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+  
+  // Local state for the full module config
+  const [localConfig, setLocalConfig] = useState<ModuleConfig | null>(null)
+  
+  const IconComponent = (LucideIcons as any)[team.icon] || Users
+  
+  // Load team defaults on mount
+  useEffect(() => {
+    loadDefaults()
+  }, [team.id])
+  
+  const loadDefaults = async () => {
+    setIsLoading(true)
+    try {
+      const result = await loadTeamModuleDefaults(team.id)
+      if (result.success && result.defaults) {
+        // Team has custom defaults - use them
+        setLocalConfig({
+          enabledModules: result.defaults.enabledModules || {},
+          enabledGroups: result.defaults.enabledGroups || {},
+          moduleOrder: result.defaults.moduleOrder || moduleConfig.moduleOrder,
+          dividers: result.defaults.dividers || [],
+          moduleParents: result.defaults.moduleParents || {},
+          moduleIconColors: result.defaults.moduleIconColors || {},
+          customGroups: result.defaults.customGroups || []
+        } as ModuleConfig)
+      } else {
+        // No team defaults, initialize with current app config (including groups, parents, etc.)
+        setLocalConfig({
+          enabledModules: { ...moduleConfig.enabledModules },
+          enabledGroups: { ...moduleConfig.enabledGroups },
+          moduleOrder: [...moduleConfig.moduleOrder],
+          dividers: [...(moduleConfig.dividers || [])],
+          moduleParents: { ...moduleConfig.moduleParents },
+          moduleIconColors: { ...moduleConfig.moduleIconColors },
+          customGroups: [...(moduleConfig.customGroups || [])]
+        } as ModuleConfig)
+      }
+    } catch (err) {
+      console.error('Failed to load team defaults:', err)
+      addToast('error', 'Failed to load team module defaults')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  const handleConfigChange = (newConfig: ModuleConfig) => {
+    setLocalConfig(newConfig)
+    setHasChanges(true)
+  }
+  
+  const handleSaveDefaults = async () => {
+    if (!localConfig) return
+    
+    setIsSaving(true)
+    try {
+      const result = await saveTeamModuleDefaults(team.id, localConfig)
+      if (result.success) {
+        addToast('success', `Module defaults saved for ${team.name}`)
+        setHasChanges(false)
+        onClose()
+      } else {
+        addToast('error', result.error || 'Failed to save defaults')
+      }
+    } catch (err) {
+      console.error('Failed to save team defaults:', err)
+      addToast('error', 'Failed to save team module defaults')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const handleClearDefaults = async () => {
+    if (!confirm(`Clear module defaults for ${team.name}? Team members will use organization or app defaults instead.`)) return
+    
+    setIsSaving(true)
+    try {
+      const result = await clearTeamModuleDefaults(team.id)
+      if (result.success) {
+        addToast('success', `Module defaults cleared for ${team.name}`)
+        onClose()
+      } else {
+        addToast('error', result.error || 'Failed to clear defaults')
+      }
+    } catch (err) {
+      console.error('Failed to clear team defaults:', err)
+      addToast('error', 'Failed to clear team module defaults')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
+      <div 
+        className="bg-plm-bg-light border border-plm-border rounded-xl max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-4 border-b border-plm-border flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div 
+              className="p-2 rounded-lg"
+              style={{ backgroundColor: `${team.color}20`, color: team.color }}
+            >
+              <IconComponent size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-plm-fg">{team.name} - Module Defaults</h3>
+              <p className="text-sm text-plm-fg-muted">Configure sidebar modules for team members</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost btn-sm">
+            <X size={18} />
+          </button>
+        </div>
+        
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-plm-fg-muted" />
+            </div>
+          ) : localConfig ? (
+            <div className="space-y-4">
+              <p className="text-sm text-plm-fg-muted">
+                Configure which modules are enabled and how they appear for members of this team. 
+                Drag to reorder, create groups, and toggle modules on/off. 
+                If a user is in multiple teams, they get a <strong>union</strong> of all enabled modules.
+              </p>
+              
+              <ModulesEditor
+                config={localConfig}
+                onConfigChange={handleConfigChange}
+                showDescription={false}
+              />
+            </div>
+          ) : null}
+        </div>
+        
+        {/* Footer */}
+        <div className="p-4 border-t border-plm-border flex items-center justify-between flex-shrink-0">
+          <button
+            onClick={handleClearDefaults}
+            disabled={isSaving || !team.module_defaults}
+            className="btn btn-ghost text-plm-error hover:bg-plm-error/10 disabled:opacity-50"
+          >
+            <Trash2 size={14} className="mr-1.5" />
+            Clear Defaults
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="btn btn-ghost" disabled={isSaving}>
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveDefaults}
+              disabled={isSaving || isLoading || !hasChanges}
+              className="btn btn-primary"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 size={14} className="mr-1.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Defaults'
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

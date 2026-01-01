@@ -67,6 +67,17 @@ async function extractSolidWorksMetadata(
   try {
     const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
     
+    // Log raw result from SW service
+    logSyncMeta('info', 'SW service raw response', { 
+      fullPath, 
+      success: result?.success,
+      hasData: !!result?.data,
+      error: result?.error,
+      dataKeys: result?.data ? Object.keys(result.data) : [],
+      filePropsCount: result?.data?.fileProperties ? Object.keys(result.data.fileProperties).length : 0,
+      configPropsCount: result?.data?.configurationProperties ? Object.keys(result.data.configurationProperties).length : 0
+    })
+    
     if (!result?.success || !result.data) {
       logSyncMeta('warn', 'Failed to get properties from SolidWorks', { fullPath, error: result?.error })
       return null
@@ -76,6 +87,13 @@ async function extractSolidWorksMetadata(
       fileProperties?: Record<string, string>
       configurationProperties?: Record<string, Record<string, string>>
     }
+    
+    // Log the actual properties
+    logSyncMeta('info', 'SW file properties', { 
+      fullPath,
+      fileProperties: data.fileProperties,
+      configNames: data.configurationProperties ? Object.keys(data.configurationProperties) : []
+    })
     
     // Merge file-level and active configuration properties
     // Configuration properties take precedence over file-level properties
@@ -236,11 +254,13 @@ async function extractSolidWorksMetadata(
       }
     }
     
-    logSyncMeta('debug', 'Extracted metadata', { 
+    // Log extracted values at info level so it's visible
+    logSyncMeta('info', 'Extracted metadata from SW file', { 
       fullPath, 
       partNumber: part_number, 
       description: description?.substring(0, 50), 
-      revision 
+      revision,
+      allPropertyKeys: Object.keys(allProps).join(', ')
     })
     
     return {
@@ -260,15 +280,19 @@ async function extractSolidWorksMetadata(
  */
 function hasMetadataChanged(
   file: LocalFile,
-  newMetadata: { part_number?: string | null; description?: string | null }
+  newMetadata: { part_number?: string | null; description?: string | null; revision?: string | null }
 ): boolean {
   const currentPartNumber = file.pdmData?.part_number || null
   const currentDescription = file.pdmData?.description || null
+  const currentRevision = file.pdmData?.revision || null
   
   const newPartNumber = newMetadata.part_number || null
   const newDescription = newMetadata.description || null
+  const newRevision = newMetadata.revision || null
   
-  return currentPartNumber !== newPartNumber || currentDescription !== newDescription
+  return currentPartNumber !== newPartNumber || 
+         currentDescription !== newDescription ||
+         currentRevision !== newRevision
 }
 
 export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
@@ -393,8 +417,21 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
         })
         
         // Check if metadata has changed
-        if (!hasMetadataChanged(file, swMetadata)) {
-          logSyncMeta('debug', 'Metadata unchanged', { operationId, fileName: file.name })
+        const metadataChanged = hasMetadataChanged(file, swMetadata)
+        logSyncMeta('info', 'Comparing metadata', {
+          operationId,
+          fileName: file.name,
+          dbPartNumber: file.pdmData?.part_number || null,
+          dbDescription: file.pdmData?.description?.substring(0, 30) || null,
+          dbRevision: file.pdmData?.revision || null,
+          swPartNumber: swMetadata.part_number || null,
+          swDescription: swMetadata.description?.substring(0, 30) || null,
+          swRevision: swMetadata.revision || null,
+          changed: metadataChanged
+        })
+        
+        if (!metadataChanged) {
+          logSyncMeta('info', 'Metadata unchanged - no update needed', { operationId, fileName: file.name })
           progress.update()
           return { success: true, changed: false }
         }
@@ -403,6 +440,7 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
         const result = await syncSolidWorksFileMetadata(file.pdmData!.id, user.id, {
           part_number: swMetadata.part_number,
           description: swMetadata.description,
+          revision: swMetadata.revision,
           custom_properties: swMetadata.customProperties
         })
         

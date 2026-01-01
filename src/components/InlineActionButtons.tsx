@@ -537,6 +537,7 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
                   src={u.avatar_url}
                   alt={u.name}
                   className="w-5 h-5 object-cover"
+                  referrerPolicy="no-referrer"
                 />
               ) : (
                 <div className={`w-5 h-5 flex items-center justify-center text-[9px] font-medium ${

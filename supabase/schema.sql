@@ -63,6 +63,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 --  18 = Fix invited users being added to New Users team when they have specific teams
 --  19 = ensure_user_org_id creates user record if trigger failed (fixes invite after account deletion)
 --  20 = Per-vault permissions: vault_id column on team_permissions and user_permissions
+--  21 = Added last_online column to users table for activity tracking
+--  22 = get_org_auth_providers RPC for pre-login auth method visibility
+--  23 = Team-based permissions: admin is now Administrators team membership, role column deprecated
+--       All RLS policies now use is_org_admin() and user_has_team_permission() functions
+--       Run migrate-roles-to-teams.sql to migrate existing users from role to team memberships
+--  24 = Team module defaults use UNION logic: users in multiple teams get all enabled modules
 -- ===========================================
 
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -75,22 +81,16 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version if table is empty (new installations get latest version)
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 20, 'Per-vault permissions', NOW(), 'migration')
+VALUES (1, 25, 'Added custom_avatar_url column for user profile pictures', NOW(), 'migration')
 ON CONFLICT (id) DO NOTHING;
 
--- Update existing installations to latest version
-UPDATE schema_version SET 
-  version = 20, 
-  description = 'Per-vault permissions: vault_id column on team_permissions and user_permissions', 
-  applied_at = NOW() 
-WHERE id = 1 AND version < 20;
-
--- Upgrade existing installations to v10
+-- Migration: update any existing installation to version 24
+-- Single UPDATE to avoid deadlocks - covers all previous versions
 UPDATE schema_version 
-SET version = 10, 
-    description = 'join_org_by_slug creates user record if trigger hasn''t fired',
+SET version = 24, 
+    description = 'Team module defaults use UNION logic: users in multiple teams get all enabled modules', 
     applied_at = NOW()
-WHERE version < 10;
+WHERE version < 24;
 
 -- Function to update schema version (for use in migrations)
 CREATE OR REPLACE FUNCTION update_schema_version(
@@ -155,6 +155,47 @@ DO $$ BEGIN
     CREATE TYPE activity_action AS ENUM ('checkout', 'checkin', 'create', 'delete', 'restore', 'state_change', 'revision_change', 'rename', 'move', 'rollback', 'roll_forward');
   END IF;
 END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'permission_action') THEN
+    CREATE TYPE permission_action AS ENUM ('view', 'create', 'edit', 'delete', 'admin');
+  END IF;
+END $$;
+
+-- ===========================================
+-- PERMISSION CHECK FUNCTIONS (Early stubs)
+-- ===========================================
+-- These STUB functions are created early so RLS policies can reference them.
+-- They are replaced with full implementations after the teams table is created.
+
+-- Stub: Check if current user is an admin (replaced later with full implementation)
+CREATE OR REPLACE FUNCTION is_org_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+AS 'SELECT false';
+
+-- Stub: Check if specific user is an admin (replaced later with full implementation)
+CREATE OR REPLACE FUNCTION is_org_admin(p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+AS 'SELECT false';
+
+-- Stub: Check if current user has a specific permission (replaced later with full implementation)
+CREATE OR REPLACE FUNCTION user_has_team_permission(
+  p_resource TEXT,
+  p_action permission_action,
+  p_vault_id UUID DEFAULT NULL
+)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+AS 'SELECT false';
+
+GRANT EXECUTE ON FUNCTION is_org_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION is_org_admin(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION user_has_team_permission(TEXT, permission_action, UUID) TO authenticated;
 
 -- ===========================================
 -- ORGANIZATIONS
@@ -371,9 +412,8 @@ CREATE POLICY "Admins can insert addresses"
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-        AND org_id = organization_addresses.org_id 
-        AND role = 'admin'
-    )
+        AND org_id = organization_addresses.org_id
+    ) AND is_org_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can update addresses" ON organization_addresses;
@@ -383,9 +423,8 @@ CREATE POLICY "Admins can update addresses"
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-        AND org_id = organization_addresses.org_id 
-        AND role = 'admin'
-    )
+        AND org_id = organization_addresses.org_id
+    ) AND is_org_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can delete addresses" ON organization_addresses;
@@ -395,9 +434,8 @@ CREATE POLICY "Admins can delete addresses"
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-        AND org_id = organization_addresses.org_id 
-        AND role = 'admin'
-    )
+        AND org_id = organization_addresses.org_id
+    ) AND is_org_admin()
   );
 
 -- ===========================================
@@ -408,12 +446,14 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL UNIQUE,
   full_name TEXT,
-  avatar_url TEXT,
+  avatar_url TEXT,              -- Google/OAuth avatar URL (auto-populated from auth)
+  custom_avatar_url TEXT,       -- User-uploaded custom avatar URL (takes priority)
   job_title TEXT,
   org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
   role user_role DEFAULT 'engineer',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  last_sign_in TIMESTAMPTZ
+  last_sign_in TIMESTAMPTZ,
+  last_online TIMESTAMPTZ  -- Updated whenever user is active in the app
 );
 
 -- Add job_title column if it doesn't exist (for existing databases)
@@ -421,6 +461,14 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'job_title') THEN
     ALTER TABLE users ADD COLUMN job_title TEXT;
+  END IF;
+END $$;
+
+-- Add last_online column if it doesn't exist (for existing databases)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'last_online') THEN
+    ALTER TABLE users ADD COLUMN last_online TIMESTAMPTZ;
   END IF;
 END $$;
 
@@ -452,12 +500,12 @@ ALTER TABLE blocked_users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins can view blocked users" ON blocked_users;
 CREATE POLICY "Admins can view blocked users"
   ON blocked_users FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can manage blocked users" ON blocked_users;
 CREATE POLICY "Admins can manage blocked users"
   ON blocked_users FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- ===========================================
 -- AUTO-SET USER ORG_ID TRIGGER (DISABLED)
@@ -583,6 +631,34 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION ensure_user_org_id() TO authenticated;
+
+-- ===========================================
+-- UPDATE LAST ONLINE
+-- ===========================================
+-- RPC function to update the user's last_online timestamp.
+-- Called periodically by the app when user is active.
+
+CREATE OR REPLACE FUNCTION update_last_online()
+RETURNS JSON AS $$
+DECLARE
+  current_user_id UUID;
+BEGIN
+  current_user_id := auth.uid();
+  
+  IF current_user_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+  
+  -- Update last_online for the current user
+  UPDATE users
+  SET last_online = NOW()
+  WHERE id = current_user_id;
+  
+  RETURN json_build_object('success', true, 'timestamp', NOW());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION update_last_online() TO authenticated;
 
 -- ===========================================
 -- JOIN ORG BY SLUG
@@ -727,22 +803,21 @@ RETURNS JSON AS $$
 DECLARE
   current_user_id UUID;
   current_org_id UUID;
-  current_role user_role;
   target_user_id UUID;
   normalized_email TEXT;
 BEGIN
   current_user_id := auth.uid();
   normalized_email := LOWER(TRIM(p_email));
   
-  -- Get current user's org and role
-  SELECT org_id, role INTO current_org_id, current_role
+  -- Get current user's org
+  SELECT org_id INTO current_org_id
   FROM users WHERE id = current_user_id;
   
   IF current_org_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'You are not a member of any organization');
   END IF;
   
-  IF current_role != 'admin' THEN
+  IF NOT is_org_admin() THEN
     RETURN json_build_object('success', false, 'error', 'Only admins can block users');
   END IF;
   
@@ -753,7 +828,13 @@ BEGIN
   
   -- Remove user from org if they're currently a member
   IF target_user_id IS NOT NULL THEN
-    UPDATE users SET org_id = NULL, role = 'engineer'
+    -- Remove from all teams in this org
+    DELETE FROM team_members
+    WHERE user_id = target_user_id 
+      AND team_id IN (SELECT id FROM teams WHERE org_id = current_org_id);
+    
+    -- Remove org association
+    UPDATE users SET org_id = NULL
     WHERE id = target_user_id;
     
     -- Delete any pending org members entries
@@ -784,21 +865,20 @@ RETURNS JSON AS $$
 DECLARE
   current_user_id UUID;
   current_org_id UUID;
-  current_role user_role;
   normalized_email TEXT;
 BEGIN
   current_user_id := auth.uid();
   normalized_email := LOWER(TRIM(p_email));
   
-  -- Get current user's org and role
-  SELECT org_id, role INTO current_org_id, current_role
+  -- Get current user's org
+  SELECT org_id INTO current_org_id
   FROM users WHERE id = current_user_id;
   
   IF current_org_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'You are not a member of any organization');
   END IF;
   
-  IF current_role != 'admin' THEN
+  IF NOT is_org_admin() THEN
     RETURN json_build_object('success', false, 'error', 'Only admins can unblock users');
   END IF;
   
@@ -826,15 +906,14 @@ RETURNS JSON AS $$
 DECLARE
   current_user_id UUID;
   current_org_id UUID;
-  current_role user_role;
   new_slug TEXT;
   org_name TEXT;
 BEGIN
   current_user_id := auth.uid();
   
-  -- Get current user's org and role
-  SELECT u.org_id, u.role, o.name 
-  INTO current_org_id, current_role, org_name
+  -- Get current user's org
+  SELECT u.org_id, o.name 
+  INTO current_org_id, org_name
   FROM users u
   JOIN organizations o ON o.id = u.org_id
   WHERE u.id = current_user_id;
@@ -843,7 +922,7 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'You are not a member of any organization');
   END IF;
   
-  IF current_role != 'admin' THEN
+  IF NOT is_org_admin() THEN
     RETURN json_build_object('success', false, 'error', 'Only admins can regenerate the organization code');
   END IF;
   
@@ -870,6 +949,42 @@ GRANT EXECUTE ON FUNCTION regenerate_org_slug() TO authenticated;
 COMMENT ON FUNCTION block_user IS 'Blocks a user from the organization. They cannot rejoin via org code and need an explicit invite.';
 COMMENT ON FUNCTION unblock_user IS 'Removes a user from the organization blocklist.';
 COMMENT ON FUNCTION regenerate_org_slug IS 'Generates a new org slug, invalidating all existing org codes for security.';
+
+-- ===========================================
+-- GET ORG AUTH PROVIDERS (Public - for pre-sign-in)
+-- ===========================================
+-- Returns the auth_providers settings for an organization by slug.
+-- This is accessible to anonymous users so the sign-in screen can
+-- show/hide appropriate sign-in methods before the user authenticates.
+
+CREATE OR REPLACE FUNCTION get_org_auth_providers(p_org_slug TEXT)
+RETURNS JSON AS $$
+DECLARE
+  auth_settings JSONB;
+BEGIN
+  -- Get auth_providers for the organization by slug
+  SELECT auth_providers
+  INTO auth_settings
+  FROM organizations
+  WHERE slug = p_org_slug;
+  
+  IF auth_settings IS NULL THEN
+    -- Return defaults if org not found or no settings configured
+    RETURN json_build_object(
+      'users', json_build_object('google', true, 'email', true, 'phone', true),
+      'suppliers', json_build_object('google', true, 'email', true, 'phone', true)
+    );
+  END IF;
+  
+  RETURN auth_settings::json;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant access to both authenticated and anonymous users
+GRANT EXECUTE ON FUNCTION get_org_auth_providers(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_org_auth_providers(TEXT) TO anon;
+
+COMMENT ON FUNCTION get_org_auth_providers IS 'Returns auth provider settings for an org by slug. Accessible pre-login to control which sign-in methods are shown.';
 
 -- ===========================================
 -- VAULTS
@@ -1153,10 +1268,10 @@ CREATE POLICY "Admins can update their organization"
   ON organizations FOR UPDATE
   TO authenticated
   USING (
-    id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')
+    id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin()
   )
   WITH CHECK (
-    id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')
+    id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin()
   );
 
 -- Vaults: authenticated users can view (app filters by org)
@@ -1171,20 +1286,20 @@ DROP POLICY IF EXISTS "Admins can create vaults" ON vaults;
 CREATE POLICY "Admins can create vaults"
   ON vaults FOR INSERT
   WITH CHECK (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')
+    org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin()
   );
 
 -- Vaults: only admins can update vaults
 DROP POLICY IF EXISTS "Admins can update vaults" ON vaults;
 CREATE POLICY "Admins can update vaults"
   ON vaults FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Vaults: only admins can delete vaults
 DROP POLICY IF EXISTS "Admins can delete vaults" ON vaults;
 CREATE POLICY "Admins can delete vaults"
   ON vaults FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Vault Access: authenticated users can view access records
 DROP POLICY IF EXISTS "Authenticated users can view vault access" ON vault_access;
@@ -1201,8 +1316,8 @@ CREATE POLICY "Admins can insert vault access"
     vault_id IN (
       SELECT v.id FROM vaults v 
       JOIN users u ON v.org_id = u.org_id 
-      WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+      WHERE u.id = auth.uid()
+    ) AND is_org_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can delete vault access" ON vault_access;
@@ -1212,8 +1327,8 @@ CREATE POLICY "Admins can delete vault access"
     vault_id IN (
       SELECT v.id FROM vaults v 
       JOIN users u ON v.org_id = u.org_id 
-      WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+      WHERE u.id = auth.uid()
+    ) AND is_org_admin()
   );
 
 -- Users: authenticated users can view (app filters by org)
@@ -1236,14 +1351,11 @@ CREATE POLICY "Admins can update users in their org"
   TO authenticated
   USING (
     -- Target user is in the same org as the admin
-    org_id IN (
-      SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'
-    )
+    org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin()
   )
   WITH CHECK (
     -- Admins can only modify users to stay in their org or be removed (org_id = null)
-    org_id IS NULL OR 
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')
+    (org_id IS NULL OR org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin()
   );
 
 -- Files: authenticated users can access (org filtering done in queries)
@@ -1293,7 +1405,7 @@ CREATE POLICY "Users can view org release files"
 DROP POLICY IF EXISTS "Engineers can manage release files" ON release_files;
 CREATE POLICY "Engineers can manage release files"
   ON release_files FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'edit'));
 
 -- File references: same as files
 DROP POLICY IF EXISTS "Users can view file references" ON file_references;
@@ -1304,7 +1416,7 @@ CREATE POLICY "Users can view file references"
 DROP POLICY IF EXISTS "Engineers can manage references" ON file_references;
 CREATE POLICY "Engineers can manage references"
   ON file_references FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'edit'));
 
 -- Activity: users can view and insert for their org
 DROP POLICY IF EXISTS "Users can view org activity" ON activity;
@@ -1855,17 +1967,17 @@ CREATE POLICY "Users can view org backup config"
 DROP POLICY IF EXISTS "Admins can insert backup config" ON backup_config;
 CREATE POLICY "Admins can insert backup config"
   ON backup_config FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can update backup config" ON backup_config;
 CREATE POLICY "Admins can update backup config"
   ON backup_config FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can delete backup config" ON backup_config;
 CREATE POLICY "Admins can delete backup config"
   ON backup_config FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Backup history: All org members can read, authenticated users can insert
 DROP POLICY IF EXISTS "Users can view org backup history" ON backup_history;
@@ -1904,8 +2016,7 @@ CREATE POLICY "Users can remove their machines"
   ON backup_machines FOR DELETE
   USING (
     org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND
-    (user_id = auth.uid() OR user_id IS NULL OR 
-     auth.uid() IN (SELECT id FROM users WHERE org_id = backup_machines.org_id AND role = 'admin'))
+    (user_id = auth.uid() OR user_id IS NULL OR is_org_admin())
   );
 
 -- Backup locks: Org members can manage locks
@@ -2169,17 +2280,17 @@ CREATE POLICY "Users can view org ECOs"
 DROP POLICY IF EXISTS "Engineers can create ECOs" ON ecos;
 CREATE POLICY "Engineers can create ECOs"
   ON ecos FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:eco', 'create'));
 
 DROP POLICY IF EXISTS "Engineers can update ECOs" ON ecos;
 CREATE POLICY "Engineers can update ECOs"
   ON ecos FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:eco', 'edit'));
 
 DROP POLICY IF EXISTS "Admins can delete ECOs" ON ecos;
 CREATE POLICY "Admins can delete ECOs"
   ON ecos FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:eco', 'delete'));
 
 DROP POLICY IF EXISTS "Users can view file-eco associations" ON file_ecos;
 CREATE POLICY "Users can view file-eco associations"
@@ -2189,7 +2300,7 @@ CREATE POLICY "Users can view file-eco associations"
 DROP POLICY IF EXISTS "Engineers can manage file-eco associations" ON file_ecos;
 CREATE POLICY "Engineers can manage file-eco associations"
   ON file_ecos FOR ALL
-  USING (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+  USING (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:eco', 'edit'));
 
 -- ===========================================
 -- ECO TAG SYNC FUNCTIONS
@@ -2465,12 +2576,12 @@ CREATE POLICY "Users can view org reviews"
 DROP POLICY IF EXISTS "Engineers can create reviews" ON reviews;
 CREATE POLICY "Engineers can create reviews"
   ON reviews FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:reviews', 'create'));
 
 DROP POLICY IF EXISTS "Users can update their reviews" ON reviews;
 CREATE POLICY "Users can update their reviews"
   ON reviews FOR UPDATE
-  USING (requested_by = auth.uid() OR org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (requested_by = auth.uid() OR (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin()));
 
 DROP POLICY IF EXISTS "Users can view review responses" ON review_responses;
 CREATE POLICY "Users can view review responses"
@@ -2810,17 +2921,17 @@ CREATE POLICY "Users can view org workflows"
 DROP POLICY IF EXISTS "Admins can create workflows" ON workflow_templates;
 CREATE POLICY "Admins can create workflows"
   ON workflow_templates FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can update workflows" ON workflow_templates;
 CREATE POLICY "Admins can update workflows"
   ON workflow_templates FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can delete workflows" ON workflow_templates;
 CREATE POLICY "Admins can delete workflows"
   ON workflow_templates FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Workflow states: linked to templates
 DROP POLICY IF EXISTS "Users can view workflow states" ON workflow_states;
@@ -2831,7 +2942,7 @@ CREATE POLICY "Users can view workflow states"
 DROP POLICY IF EXISTS "Admins can manage workflow states" ON workflow_states;
 CREATE POLICY "Admins can manage workflow states"
   ON workflow_states FOR ALL
-  USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
+  USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
 
 -- Workflow transitions: linked to templates
 DROP POLICY IF EXISTS "Users can view workflow transitions" ON workflow_transitions;
@@ -2842,7 +2953,7 @@ CREATE POLICY "Users can view workflow transitions"
 DROP POLICY IF EXISTS "Admins can manage workflow transitions" ON workflow_transitions;
 CREATE POLICY "Admins can manage workflow transitions"
   ON workflow_transitions FOR ALL
-  USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
+  USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
 
 -- Workflow gates: linked to transitions
 DROP POLICY IF EXISTS "Users can view workflow gates" ON workflow_gates;
@@ -2853,7 +2964,7 @@ CREATE POLICY "Users can view workflow gates"
 DROP POLICY IF EXISTS "Admins can manage workflow gates" ON workflow_gates;
 CREATE POLICY "Admins can manage workflow gates"
   ON workflow_gates FOR ALL
-  USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))));
+  USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))) AND is_org_admin());
 
 -- Gate reviewers: linked to gates
 DROP POLICY IF EXISTS "Users can view gate reviewers" ON workflow_gate_reviewers;
@@ -2864,7 +2975,7 @@ CREATE POLICY "Users can view gate reviewers"
 DROP POLICY IF EXISTS "Admins can manage gate reviewers" ON workflow_gate_reviewers;
 CREATE POLICY "Admins can manage gate reviewers"
   ON workflow_gate_reviewers FOR ALL
-  USING (gate_id IN (SELECT id FROM workflow_gates WHERE transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')))));
+  USING (gate_id IN (SELECT id FROM workflow_gates WHERE transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())))) AND is_org_admin());
 
 -- File workflow assignments
 DROP POLICY IF EXISTS "Users can view file workflow assignments" ON file_workflow_assignments;
@@ -2875,7 +2986,7 @@ CREATE POLICY "Users can view file workflow assignments"
 DROP POLICY IF EXISTS "Engineers can manage file workflow assignments" ON file_workflow_assignments;
 CREATE POLICY "Engineers can manage file workflow assignments"
   ON file_workflow_assignments FOR ALL
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:workflows', 'edit'));
 
 -- Pending reviews
 DROP POLICY IF EXISTS "Users can view pending reviews" ON pending_reviews;
@@ -2886,7 +2997,7 @@ CREATE POLICY "Users can view pending reviews"
 DROP POLICY IF EXISTS "Engineers can create pending reviews" ON pending_reviews;
 CREATE POLICY "Engineers can create pending reviews"
   ON pending_reviews FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:reviews', 'create'));
 
 DROP POLICY IF EXISTS "Users can update pending reviews" ON pending_reviews;
 CREATE POLICY "Users can update pending reviews"
@@ -3131,7 +3242,7 @@ CREATE POLICY "Users can view share links in org"
 DROP POLICY IF EXISTS "Engineers can create share links" ON file_share_links;
 CREATE POLICY "Engineers can create share links"
   ON file_share_links FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'create'));
 
 -- File Share Links: Users can update their own share links
 DROP POLICY IF EXISTS "Users can update own share links" ON file_share_links;
@@ -3143,7 +3254,7 @@ CREATE POLICY "Users can update own share links"
 DROP POLICY IF EXISTS "Users can delete share links" ON file_share_links;
 CREATE POLICY "Users can delete share links"
   ON file_share_links FOR DELETE
-  USING (created_by = auth.uid() OR auth.uid() IN (SELECT id FROM users WHERE org_id = file_share_links.org_id AND role = 'admin'));
+  USING (created_by = auth.uid() OR is_org_admin());
 
 -- File Comments: Users can view comments in their org
 DROP POLICY IF EXISTS "Users can view file comments in org" ON file_comments;
@@ -3635,17 +3746,17 @@ CREATE POLICY "Users can view org suppliers"
 DROP POLICY IF EXISTS "Engineers can insert suppliers" ON suppliers;
 CREATE POLICY "Engineers can insert suppliers"
   ON suppliers FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'create'));
 
 DROP POLICY IF EXISTS "Engineers can update suppliers" ON suppliers;
 CREATE POLICY "Engineers can update suppliers"
   ON suppliers FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'edit'));
 
 DROP POLICY IF EXISTS "Admins can delete suppliers" ON suppliers;
 CREATE POLICY "Admins can delete suppliers"
   ON suppliers FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'delete'));
 
 -- Part-Suppliers: All org members can read, engineers/admins can modify
 DROP POLICY IF EXISTS "Users can view part suppliers" ON part_suppliers;
@@ -3656,7 +3767,7 @@ CREATE POLICY "Users can view part suppliers"
 DROP POLICY IF EXISTS "Engineers can manage part suppliers" ON part_suppliers;
 CREATE POLICY "Engineers can manage part suppliers"
   ON part_suppliers FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'edit'));
 
 -- Supplier helper functions
 
@@ -4036,17 +4147,17 @@ CREATE POLICY "Users can view org RFQs"
 DROP POLICY IF EXISTS "Engineers can create RFQs" ON rfqs;
 CREATE POLICY "Engineers can create RFQs"
   ON rfqs FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'create'));
 
 DROP POLICY IF EXISTS "Engineers can update RFQs" ON rfqs;
 CREATE POLICY "Engineers can update RFQs"
   ON rfqs FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'edit'));
 
 DROP POLICY IF EXISTS "Admins can delete RFQs" ON rfqs;
 CREATE POLICY "Admins can delete RFQs"
   ON rfqs FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'delete'));
 
 DROP POLICY IF EXISTS "Users can view RFQ items" ON rfq_items;
 CREATE POLICY "Users can view RFQ items"
@@ -4056,7 +4167,7 @@ CREATE POLICY "Users can view RFQ items"
 DROP POLICY IF EXISTS "Engineers can manage RFQ items" ON rfq_items;
 CREATE POLICY "Engineers can manage RFQ items"
   ON rfq_items FOR ALL
-  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:items', 'edit'));
 
 DROP POLICY IF EXISTS "Users can view RFQ suppliers" ON rfq_suppliers;
 CREATE POLICY "Users can view RFQ suppliers"
@@ -4066,7 +4177,7 @@ CREATE POLICY "Users can view RFQ suppliers"
 DROP POLICY IF EXISTS "Engineers can manage RFQ suppliers" ON rfq_suppliers;
 CREATE POLICY "Engineers can manage RFQ suppliers"
   ON rfq_suppliers FOR ALL
-  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:items', 'edit'));
 
 DROP POLICY IF EXISTS "Users can view RFQ quotes" ON rfq_quotes;
 CREATE POLICY "Users can view RFQ quotes"
@@ -4076,7 +4187,7 @@ CREATE POLICY "Users can view RFQ quotes"
 DROP POLICY IF EXISTS "Engineers can manage RFQ quotes" ON rfq_quotes;
 CREATE POLICY "Engineers can manage RFQ quotes"
   ON rfq_quotes FOR ALL
-  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+  USING (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:items', 'edit'));
 
 DROP POLICY IF EXISTS "Users can view RFQ activity" ON rfq_activity;
 CREATE POLICY "Users can view RFQ activity"
@@ -4259,23 +4370,23 @@ CREATE POLICY "Org members can view integrations"
 DROP POLICY IF EXISTS "Admins can insert org integrations" ON organization_integrations;
 CREATE POLICY "Admins can insert org integrations"
   ON organization_integrations FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can update org integrations" ON organization_integrations;
 CREATE POLICY "Admins can update org integrations"
   ON organization_integrations FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can delete org integrations" ON organization_integrations;
 CREATE POLICY "Admins can delete org integrations"
   ON organization_integrations FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Admins and engineers can view sync logs
 DROP POLICY IF EXISTS "Engineers can view sync logs" ON integration_sync_log;
 CREATE POLICY "Engineers can view sync logs"
   ON integration_sync_log FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:integrations', 'view'));
 
 DROP POLICY IF EXISTS "System can insert sync logs" ON integration_sync_log;
 CREATE POLICY "System can insert sync logs"
@@ -4337,17 +4448,17 @@ CREATE POLICY "Org members can view odoo configs"
 DROP POLICY IF EXISTS "Admins can insert odoo configs" ON odoo_saved_configs;
 CREATE POLICY "Admins can insert odoo configs"
   ON odoo_saved_configs FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can update odoo configs" ON odoo_saved_configs;
 CREATE POLICY "Admins can update odoo configs"
   ON odoo_saved_configs FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can delete odoo configs" ON odoo_saved_configs;
 CREATE POLICY "Admins can delete odoo configs"
   ON odoo_saved_configs FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Helper function to get integration status (no credentials exposed)
 CREATE OR REPLACE FUNCTION get_org_integration_status(p_org_id UUID, p_integration_type TEXT)
@@ -4497,17 +4608,17 @@ CREATE POLICY "Org members can view woocommerce configs"
 DROP POLICY IF EXISTS "Admins can insert woocommerce configs" ON woocommerce_saved_configs;
 CREATE POLICY "Admins can insert woocommerce configs"
   ON woocommerce_saved_configs FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can update woocommerce configs" ON woocommerce_saved_configs;
 CREATE POLICY "Admins can update woocommerce configs"
   ON woocommerce_saved_configs FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can delete woocommerce configs" ON woocommerce_saved_configs;
 CREATE POLICY "Admins can delete woocommerce configs"
   ON woocommerce_saved_configs FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Helper function to get WooCommerce configs (no credentials exposed)
 CREATE OR REPLACE FUNCTION get_org_woocommerce_configs(p_org_id UUID)
@@ -4597,7 +4708,7 @@ CREATE POLICY "Org members can view wc product mappings"
 DROP POLICY IF EXISTS "Admins can manage wc product mappings" ON woocommerce_product_mappings;
 CREATE POLICY "Admins can manage wc product mappings"
   ON woocommerce_product_mappings FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- ===========================================
 -- FILE METADATA COLUMNS (Custom metadata fields per org)
@@ -4658,17 +4769,17 @@ CREATE POLICY "Users can view org metadata columns"
 DROP POLICY IF EXISTS "Admins can create metadata columns" ON file_metadata_columns;
 CREATE POLICY "Admins can create metadata columns"
   ON file_metadata_columns FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can update metadata columns" ON file_metadata_columns;
 CREATE POLICY "Admins can update metadata columns"
   ON file_metadata_columns FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can delete metadata columns" ON file_metadata_columns;
 CREATE POLICY "Admins can delete metadata columns"
   ON file_metadata_columns FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- ===========================================
 -- SUPPLIER AUTHENTICATION SYSTEM
@@ -4801,8 +4912,8 @@ CREATE POLICY "Engineers can create supplier contacts"
   WITH CHECK (
     supplier_id IN (
       SELECT s.id FROM suppliers s 
-      WHERE s.org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))
-    )
+      WHERE s.org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    ) AND user_has_team_permission('module:items', 'edit')
   );
 
 -- Supplier contacts: Contacts can update their own profile
@@ -4818,8 +4929,8 @@ CREATE POLICY "Admins can update supplier contacts"
   USING (
     supplier_id IN (
       SELECT s.id FROM suppliers s 
-      WHERE s.org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')
-    )
+      WHERE s.org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    ) AND is_org_admin()
   );
 
 -- Supplier invitations: Org members can view
@@ -4832,13 +4943,13 @@ CREATE POLICY "Org members can view supplier invitations"
 DROP POLICY IF EXISTS "Engineers can create supplier invitations" ON supplier_invitations;
 CREATE POLICY "Engineers can create supplier invitations"
   ON supplier_invitations FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'create'));
 
 -- Supplier invitations: Admins can update/delete
 DROP POLICY IF EXISTS "Admins can manage supplier invitations" ON supplier_invitations;
 CREATE POLICY "Admins can manage supplier invitations"
   ON supplier_invitations FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- ===========================================
 -- SUPPLIER AUTH HELPER FUNCTIONS
@@ -5390,18 +5501,18 @@ DROP POLICY IF EXISTS "Admins can insert webhooks" ON webhooks;
 CREATE POLICY "Admins can insert webhooks"
   ON webhooks FOR INSERT
   WITH CHECK (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')
+    org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can update webhooks" ON webhooks;
 CREATE POLICY "Admins can update webhooks"
   ON webhooks FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can delete webhooks" ON webhooks;
 CREATE POLICY "Admins can delete webhooks"
   ON webhooks FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Users can view their org webhook deliveries" ON webhook_deliveries;
 CREATE POLICY "Users can view their org webhook deliveries"
@@ -5486,25 +5597,25 @@ ALTER TABLE admin_recovery_codes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins can view org recovery codes" ON admin_recovery_codes;
 CREATE POLICY "Admins can view org recovery codes"
   ON admin_recovery_codes FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Only admins can create recovery codes
 DROP POLICY IF EXISTS "Admins can create recovery codes" ON admin_recovery_codes;
 CREATE POLICY "Admins can create recovery codes"
   ON admin_recovery_codes FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Only admins can update (revoke) recovery codes
 DROP POLICY IF EXISTS "Admins can update recovery codes" ON admin_recovery_codes;
 CREATE POLICY "Admins can update recovery codes"
   ON admin_recovery_codes FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Admins can delete old recovery codes
 DROP POLICY IF EXISTS "Admins can delete recovery codes" ON admin_recovery_codes;
 CREATE POLICY "Admins can delete recovery codes"
   ON admin_recovery_codes FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Function to use a recovery code (bypasses RLS for non-admins to attempt)
 CREATE OR REPLACE FUNCTION use_admin_recovery_code(
@@ -5556,10 +5667,12 @@ BEGIN
       used_from_ip = p_user_ip
   WHERE id = v_code_record.id;
   
-  -- Elevate the user to admin
-  UPDATE users
-  SET role = 'admin'
-  WHERE id = v_user_id;
+  -- Elevate the user to admin by adding them to Administrators team
+  INSERT INTO team_members (team_id, user_id, is_team_admin, added_by)
+  SELECT t.id, v_user_id, TRUE, v_user_id
+  FROM teams t
+  WHERE t.org_id = v_user_org_id AND t.name = 'Administrators'
+  ON CONFLICT (team_id, user_id) DO NOTHING;
   
   -- Log this significant event
   INSERT INTO activity (
@@ -5748,17 +5861,17 @@ CREATE POLICY "Users can view org teams"
 DROP POLICY IF EXISTS "Admins can create teams" ON teams;
 CREATE POLICY "Admins can create teams"
   ON teams FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can update teams" ON teams;
 CREATE POLICY "Admins can update teams"
   ON teams FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can delete teams" ON teams;
 CREATE POLICY "Admins can delete teams"
   ON teams FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin') AND NOT is_system);
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin() AND NOT is_system);
 
 -- Team members policies
 DROP POLICY IF EXISTS "Users can view team members" ON team_members;
@@ -5769,7 +5882,7 @@ CREATE POLICY "Users can view team members"
 DROP POLICY IF EXISTS "Admins can manage team members" ON team_members;
 CREATE POLICY "Admins can manage team members"
   ON team_members FOR ALL
-  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
+  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
 
 -- Team permissions policies
 DROP POLICY IF EXISTS "Users can view team permissions" ON team_permissions;
@@ -5780,7 +5893,7 @@ CREATE POLICY "Users can view team permissions"
 DROP POLICY IF EXISTS "Admins can manage team permissions" ON team_permissions;
 CREATE POLICY "Admins can manage team permissions"
   ON team_permissions FOR ALL
-  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
+  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
 
 -- Permission presets policies
 DROP POLICY IF EXISTS "Users can view permission presets" ON permission_presets;
@@ -5791,7 +5904,7 @@ CREATE POLICY "Users can view permission presets"
 DROP POLICY IF EXISTS "Admins can manage permission presets" ON permission_presets;
 CREATE POLICY "Admins can manage permission presets"
   ON permission_presets FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Function to get effective permissions for a user (vault-scoped)
 -- p_vault_id: NULL to get global permissions only, UUID to get permissions for that vault (includes global + vault-specific)
@@ -5823,8 +5936,85 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ===========================================
+-- ADMIN CHECK FUNCTION (Team-based)
+-- ===========================================
+-- Admin status is determined by membership in the "Administrators" team.
+-- The role column on users is DEPRECATED - use this function instead.
+
+-- No-argument version - checks current user
+CREATE OR REPLACE FUNCTION is_org_admin()
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_user_id UUID;
+  v_user_org_id UUID;
+BEGIN
+  v_user_id := auth.uid();
+  
+  IF v_user_id IS NULL THEN
+    RETURN false;
+  END IF;
+  
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = v_user_id;
+  
+  IF v_user_org_id IS NULL THEN
+    RETURN false;
+  END IF;
+  
+  -- Check if user is in the Administrators team for their org
+  RETURN EXISTS(
+    SELECT 1
+    FROM team_members tm
+    JOIN teams t ON t.id = tm.team_id
+    WHERE tm.user_id = v_user_id
+      AND t.org_id = v_user_org_id
+      AND t.name = 'Administrators'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- With user_id argument - checks specific user
+CREATE OR REPLACE FUNCTION is_org_admin(p_user_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_user_id UUID;
+  v_user_org_id UUID;
+BEGIN
+  v_user_id := COALESCE(p_user_id, auth.uid());
+  
+  IF v_user_id IS NULL THEN
+    RETURN false;
+  END IF;
+  
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = v_user_id;
+  
+  IF v_user_org_id IS NULL THEN
+    RETURN false;
+  END IF;
+  
+  -- Check if user is in the Administrators team for their org
+  RETURN EXISTS(
+    SELECT 1
+    FROM team_members tm
+    JOIN teams t ON t.id = tm.team_id
+    WHERE tm.user_id = v_user_id
+      AND t.org_id = v_user_org_id
+      AND t.name = 'Administrators'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION is_org_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION is_org_admin(UUID) TO authenticated;
+
+COMMENT ON FUNCTION is_org_admin() IS 'Checks if current user is an admin by verifying membership in the Administrators team.';
+COMMENT ON FUNCTION is_org_admin(UUID) IS 'Checks if specified user is an admin by verifying membership in the Administrators team.';
+
 -- Function to check if user has specific permission (vault-scoped)
 -- p_vault_id: NULL checks global permissions only, UUID checks vault-specific + global
+-- NOTE: Admins (in Administrators team) always have full access
 -- Drop old 3-parameter version if it exists
 DROP FUNCTION IF EXISTS user_has_permission(UUID, TEXT, permission_action);
 CREATE OR REPLACE FUNCTION user_has_permission(
@@ -5835,13 +6025,9 @@ CREATE OR REPLACE FUNCTION user_has_permission(
 ) RETURNS BOOLEAN AS $$
 DECLARE
   v_has_permission BOOLEAN := false;
-  v_user_role user_role;
 BEGIN
-  -- Get user's role
-  SELECT role INTO v_user_role FROM users WHERE id = p_user_id;
-  
-  -- Admins always have full access (fallback)
-  IF v_user_role = 'admin' THEN
+  -- Admins (in Administrators team) always have full access
+  IF is_org_admin(p_user_id) THEN
     RETURN true;
   END IF;
   
@@ -5863,9 +6049,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function to check if current user has permission on a resource (convenience wrapper)
+CREATE OR REPLACE FUNCTION user_has_team_permission(
+  p_resource TEXT,
+  p_action permission_action,
+  p_vault_id UUID DEFAULT NULL
+) RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN user_has_permission(auth.uid(), p_resource, p_action, p_vault_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Grant execute permissions (specify full signature)
 GRANT EXECUTE ON FUNCTION get_user_permissions(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION user_has_permission(UUID, TEXT, permission_action, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION user_has_team_permission(TEXT, permission_action, UUID) TO authenticated;
 
 -- Enable realtime for teams
 ALTER TABLE teams REPLICA IDENTITY FULL;
@@ -5948,17 +6146,7 @@ CREATE POLICY "Admins can manage job titles"
   ON job_titles FOR ALL
   USING (
     org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
-    AND (
-      -- Check if user has admin role OR is in Administrators team
-      EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
-      OR EXISTS (
-        SELECT 1 FROM team_members tm
-        JOIN teams t ON t.id = tm.team_id
-        WHERE tm.user_id = auth.uid()
-        AND t.name = 'Administrators'
-        AND t.org_id = job_titles.org_id
-      )
-    )
+    AND is_org_admin()
   );
 
 -- RLS for user_job_titles
@@ -5974,18 +6162,7 @@ CREATE POLICY "Admins can manage title assignments"
   ON user_job_titles FOR ALL
   USING (
     title_id IN (SELECT id FROM job_titles WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
-    AND (
-      -- Check if user has admin role OR is in Administrators team
-      EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
-      OR EXISTS (
-        SELECT 1 FROM team_members tm
-        JOIN teams t ON t.id = tm.team_id
-        JOIN job_titles jt ON jt.id = user_job_titles.title_id
-        WHERE tm.user_id = auth.uid()
-        AND t.name = 'Administrators'
-        AND t.org_id = jt.org_id
-      )
-    )
+    AND is_org_admin()
   );
 
 -- Function to create default job titles for an org
@@ -6240,7 +6417,8 @@ END;
 $$;
 
 -- Function to get effective module defaults for a user
--- Priority: User's primary team defaults > Organization defaults > NULL (use app defaults)
+-- UNION logic: If user is in multiple teams with module_defaults, they get the UNION of all enabled modules
+-- Priority: Merged team defaults > Organization defaults > NULL (use app defaults)
 CREATE OR REPLACE FUNCTION get_user_module_defaults(p_user_id UUID DEFAULT NULL)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -6251,6 +6429,11 @@ DECLARE
   v_org_id UUID;
   v_team_defaults JSONB;
   v_org_defaults JSONB;
+  v_merged_modules JSONB := '{}'::jsonb;
+  v_merged_groups JSONB := '{}'::jsonb;
+  v_first_defaults JSONB := NULL;
+  v_has_team_defaults BOOLEAN := FALSE;
+  r RECORD;
 BEGIN
   -- Use current user if not specified
   v_user_id := COALESCE(p_user_id, auth.uid());
@@ -6262,19 +6445,55 @@ BEGIN
     RETURN NULL;
   END IF;
   
-  -- Check teams the user belongs to (prioritize teams with module_defaults set)
-  -- Use the first team that has module_defaults configured
-  SELECT t.module_defaults INTO v_team_defaults
-  FROM team_members tm
-  JOIN teams t ON t.id = tm.team_id
-  WHERE tm.user_id = v_user_id
-    AND t.module_defaults IS NOT NULL
-  ORDER BY tm.added_at ASC  -- Oldest membership = primary team
-  LIMIT 1;
+  -- Iterate through all teams the user belongs to that have module_defaults
+  -- UNION logic: if ANY team enables a module, it's enabled
+  FOR r IN 
+    SELECT t.module_defaults
+    FROM team_members tm
+    JOIN teams t ON t.id = tm.team_id
+    WHERE tm.user_id = v_user_id
+      AND t.module_defaults IS NOT NULL
+    ORDER BY tm.added_at ASC
+  LOOP
+    v_has_team_defaults := TRUE;
+    
+    -- Store first defaults as base (for non-module settings like layout, order, etc.)
+    IF v_first_defaults IS NULL THEN
+      v_first_defaults := r.module_defaults;
+    END IF;
+    
+    -- Merge enabled_modules: if module is true in ANY team, set it true
+    IF r.module_defaults ? 'enabled_modules' THEN
+      SELECT jsonb_object_agg(
+        key,
+        CASE 
+          WHEN v_merged_modules ? key THEN (v_merged_modules->>key)::boolean OR (value)::boolean
+          ELSE (value)::boolean
+        END
+      ) INTO v_merged_modules
+      FROM jsonb_each_text(r.module_defaults->'enabled_modules');
+    END IF;
+    
+    -- Merge enabled_groups: if group is true in ANY team, set it true
+    IF r.module_defaults ? 'enabled_groups' THEN
+      SELECT jsonb_object_agg(
+        key,
+        CASE 
+          WHEN v_merged_groups ? key THEN (v_merged_groups->>key)::boolean OR (value)::boolean
+          ELSE (value)::boolean
+        END
+      ) INTO v_merged_groups
+      FROM jsonb_each_text(r.module_defaults->'enabled_groups');
+    END IF;
+  END LOOP;
   
-  -- If team has defaults, return those
-  IF v_team_defaults IS NOT NULL THEN
-    RETURN v_team_defaults;
+  -- If we found team defaults, return merged result
+  IF v_has_team_defaults AND v_first_defaults IS NOT NULL THEN
+    -- Start with first team's defaults (for layout, order, etc.) and overlay merged modules/groups
+    RETURN v_first_defaults || jsonb_build_object(
+      'enabled_modules', v_merged_modules,
+      'enabled_groups', v_merged_groups
+    );
   END IF;
   
   -- Otherwise, check org defaults
@@ -6295,7 +6514,7 @@ GRANT EXECUTE ON FUNCTION get_user_module_defaults(UUID) TO authenticated;
 COMMENT ON FUNCTION get_team_module_defaults IS 'Returns module defaults configured for a specific team.';
 COMMENT ON FUNCTION set_team_module_defaults IS 'Sets module defaults for a team. Only org admins or team admins can call this.';
 COMMENT ON FUNCTION clear_team_module_defaults IS 'Clears module defaults for a team, reverting members to org/app defaults.';
-COMMENT ON FUNCTION get_user_module_defaults IS 'Returns effective module defaults for a user (team > org > NULL).';
+COMMENT ON FUNCTION get_user_module_defaults IS 'Returns effective module defaults for a user. If in multiple teams, enabled modules are UNIONED (if any team enables a module, its enabled). Falls back to org defaults if no team defaults.';
 
 -- ===========================================
 -- TEAM VAULT ACCESS (Team-level vault permissions)
@@ -6326,7 +6545,7 @@ CREATE POLICY "Users can view team vault access"
 DROP POLICY IF EXISTS "Admins can manage team vault access" ON team_vault_access;
 CREATE POLICY "Admins can manage team vault access"
   ON team_vault_access FOR ALL
-  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
+  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
 
 -- ===========================================
 -- USER PERMISSIONS (Individual user permissions)
@@ -6370,7 +6589,7 @@ CREATE POLICY "Users can view their own permissions"
 DROP POLICY IF EXISTS "Admins can manage user permissions" ON user_permissions;
 CREATE POLICY "Admins can manage user permissions"
   ON user_permissions FOR ALL
-  USING (user_id IN (SELECT id FROM users WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')));
+  USING (user_id IN (SELECT id FROM users WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
 
 -- Update get_user_permissions to include both team and individual permissions (vault-scoped)
 -- p_vault_id: NULL to get global permissions only, UUID to get permissions for that vault (includes global + vault-specific)
@@ -6437,13 +6656,9 @@ CREATE OR REPLACE FUNCTION user_has_permission(
 ) RETURNS BOOLEAN AS $$
 DECLARE
   v_has_permission BOOLEAN := false;
-  v_user_role user_role;
 BEGIN
-  -- Get user's role
-  SELECT role INTO v_user_role FROM users WHERE id = p_user_id;
-  
-  -- Admins always have full access (fallback)
-  IF v_user_role = 'admin' THEN
+  -- Admins (in Administrators team) always have full access
+  IF is_org_admin(p_user_id) THEN
     RETURN true;
   END IF;
   
@@ -6573,7 +6788,7 @@ CREATE POLICY "Users can see their own pending membership"
 DROP POLICY IF EXISTS "Admins can manage pending members" ON pending_org_members;
 CREATE POLICY "Admins can manage pending members"
   ON pending_org_members FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Function to claim pending membership on user creation/login
 -- Runs on BEFORE INSERT or UPDATE to handle both new users and existing users signing in
@@ -6844,17 +7059,17 @@ CREATE POLICY "Users can view org deviations"
 DROP POLICY IF EXISTS "Engineers can create deviations" ON deviations;
 CREATE POLICY "Engineers can create deviations"
   ON deviations FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:deviations', 'create'));
 
 DROP POLICY IF EXISTS "Engineers can update deviations" ON deviations;
 CREATE POLICY "Engineers can update deviations"
   ON deviations FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:deviations', 'edit'));
 
 DROP POLICY IF EXISTS "Admins can delete deviations" ON deviations;
 CREATE POLICY "Admins can delete deviations"
   ON deviations FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:deviations', 'delete'));
 
 DROP POLICY IF EXISTS "Users can view file-deviation associations" ON file_deviations;
 CREATE POLICY "Users can view file-deviation associations"
@@ -6864,7 +7079,7 @@ CREATE POLICY "Users can view file-deviation associations"
 DROP POLICY IF EXISTS "Engineers can manage file-deviation associations" ON file_deviations;
 CREATE POLICY "Engineers can manage file-deviation associations"
   ON file_deviations FOR ALL
-  USING (deviation_id IN (SELECT id FROM deviations WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+  USING (deviation_id IN (SELECT id FROM deviations WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:deviations', 'edit'));
 
 -- Enable realtime for deviations
 ALTER TABLE deviations REPLICA IDENTITY FULL;
@@ -7013,7 +7228,7 @@ CREATE POLICY "Users can view org workflow roles"
 DROP POLICY IF EXISTS "Admins can manage workflow roles" ON workflow_roles;
 CREATE POLICY "Admins can manage workflow roles"
   ON workflow_roles FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- RLS for user_workflow_roles
 ALTER TABLE user_workflow_roles ENABLE ROW LEVEL SECURITY;
@@ -7029,7 +7244,7 @@ DROP POLICY IF EXISTS "Admins can manage workflow role assignments" ON user_work
 CREATE POLICY "Admins can manage workflow role assignments"
   ON user_workflow_roles FOR ALL
   USING (
-    user_id IN (SELECT id FROM users WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))
+    user_id IN (SELECT id FROM users WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin()
   );
 
 -- Realtime for workflow roles
@@ -7749,7 +7964,7 @@ CREATE POLICY "Users can view org revision schemes"
 DROP POLICY IF EXISTS "Admins can manage revision schemes" ON revision_schemes;
 CREATE POLICY "Admins can manage revision schemes"
   ON revision_schemes FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Workflow state permissions
 DROP POLICY IF EXISTS "Users can view workflow state permissions" ON workflow_state_permissions;
@@ -7762,7 +7977,7 @@ DROP POLICY IF EXISTS "Admins can manage workflow state permissions" ON workflow
 CREATE POLICY "Admins can manage workflow state permissions"
   ON workflow_state_permissions FOR ALL
   USING (state_id IN (SELECT id FROM workflow_states WHERE workflow_id IN 
-    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))));
+    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))) AND is_org_admin());
 
 -- Transition conditions
 DROP POLICY IF EXISTS "Users can view transition conditions" ON workflow_transition_conditions;
@@ -7775,7 +7990,7 @@ DROP POLICY IF EXISTS "Admins can manage transition conditions" ON workflow_tran
 CREATE POLICY "Admins can manage transition conditions"
   ON workflow_transition_conditions FOR ALL
   USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN 
-    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))));
+    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))) AND is_org_admin());
 
 -- Transition actions
 DROP POLICY IF EXISTS "Users can view transition actions" ON workflow_transition_actions;
@@ -7788,7 +8003,7 @@ DROP POLICY IF EXISTS "Admins can manage transition actions" ON workflow_transit
 CREATE POLICY "Admins can manage transition actions"
   ON workflow_transition_actions FOR ALL
   USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN 
-    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))));
+    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))) AND is_org_admin());
 
 -- Transition notifications
 DROP POLICY IF EXISTS "Users can view transition notifications" ON workflow_transition_notifications;
@@ -7801,7 +8016,7 @@ DROP POLICY IF EXISTS "Admins can manage transition notifications" ON workflow_t
 CREATE POLICY "Admins can manage transition notifications"
   ON workflow_transition_notifications FOR ALL
   USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN 
-    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))));
+    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))) AND is_org_admin());
 
 -- Transition approvals
 DROP POLICY IF EXISTS "Users can view transition approvals" ON workflow_transition_approvals;
@@ -7814,7 +8029,7 @@ DROP POLICY IF EXISTS "Admins can manage transition approvals" ON workflow_trans
 CREATE POLICY "Admins can manage transition approvals"
   ON workflow_transition_approvals FOR ALL
   USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN 
-    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))));
+    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))) AND is_org_admin());
 
 -- Approval reviewers
 DROP POLICY IF EXISTS "Users can view approval reviewers" ON workflow_approval_reviewers;
@@ -7829,7 +8044,7 @@ CREATE POLICY "Admins can manage approval reviewers"
   ON workflow_approval_reviewers FOR ALL
   USING (approval_id IN (SELECT id FROM workflow_transition_approvals WHERE transition_id IN 
     (SELECT id FROM workflow_transitions WHERE workflow_id IN 
-      (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin')))));
+      (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())))) AND is_org_admin());
 
 -- Auto transitions
 DROP POLICY IF EXISTS "Users can view auto transitions" ON workflow_auto_transitions;
@@ -7842,7 +8057,7 @@ DROP POLICY IF EXISTS "Admins can manage auto transitions" ON workflow_auto_tran
 CREATE POLICY "Admins can manage auto transitions"
   ON workflow_auto_transitions FOR ALL
   USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN 
-    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'))));
+    (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))) AND is_org_admin());
 
 -- Workflow tasks
 DROP POLICY IF EXISTS "Users can view workflow tasks" ON workflow_tasks;
@@ -7853,7 +8068,7 @@ CREATE POLICY "Users can view workflow tasks"
 DROP POLICY IF EXISTS "Admins can manage workflow tasks" ON workflow_tasks;
 CREATE POLICY "Admins can manage workflow tasks"
   ON workflow_tasks FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role = 'admin'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Pending transition approvals
 DROP POLICY IF EXISTS "Users can view pending approvals" ON pending_transition_approvals;
@@ -7864,7 +8079,7 @@ CREATE POLICY "Users can view pending approvals"
 DROP POLICY IF EXISTS "Engineers can create pending approvals" ON pending_transition_approvals;
 CREATE POLICY "Engineers can create pending approvals"
   ON pending_transition_approvals FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer')));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:workflows', 'edit'));
 
 DROP POLICY IF EXISTS "Users can update pending approvals" ON pending_transition_approvals;
 CREATE POLICY "Users can update pending approvals"
@@ -7891,7 +8106,7 @@ CREATE POLICY "Users can view file state entries"
 DROP POLICY IF EXISTS "Engineers can manage file state entries" ON file_state_entries;
 CREATE POLICY "Engineers can manage file state entries"
   ON file_state_entries FOR ALL
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'engineer'))));
+  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:workflows', 'edit'));
 
 -- ===========================================
 -- HELPER FUNCTIONS
@@ -8893,9 +9108,8 @@ CREATE POLICY "Admins can create org swatches"
   WITH CHECK (
     org_id IS NOT NULL AND
     user_id IS NULL AND
-    org_id IN (
-      SELECT u.org_id FROM users u WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+    org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND
+    is_org_admin()
   );
 
 -- Users can delete their own swatches
@@ -8910,9 +9124,8 @@ CREATE POLICY "Admins can delete org swatches"
   ON color_swatches FOR DELETE
   USING (
     org_id IS NOT NULL AND
-    org_id IN (
-      SELECT u.org_id FROM users u WHERE u.id = auth.uid() AND u.role = 'admin'
-    )
+    org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND
+    is_org_admin()
   );
 
 COMMENT ON TABLE color_swatches IS 'Custom color swatches for color pickers. Can be org-level (shared) or user-level (personal).';
@@ -8994,10 +9207,12 @@ BEGIN
     SELECT id, name FROM organizations 
     WHERE default_new_user_team_id IS NULL
   LOOP
-    -- Find an admin user to use as created_by (or NULL if none)
-    SELECT id INTO admin_user_id 
-    FROM users 
-    WHERE org_id = org_record.id AND role = 'admin' 
+    -- Find an admin user (in Administrators team) to use as created_by (or NULL if none)
+    SELECT u.id INTO admin_user_id 
+    FROM users u
+    JOIN team_members tm ON tm.user_id = u.id
+    JOIN teams t ON t.id = tm.team_id AND t.name = 'Administrators'
+    WHERE u.org_id = org_record.id 
     LIMIT 1;
     
     -- Call the function to create default teams (it's idempotent via ON CONFLICT)
@@ -9006,6 +9221,86 @@ BEGIN
     RAISE NOTICE 'Created default teams for org: % (%)', org_record.name, org_record.id;
   END LOOP;
 END $$;
+
+-- =====================================================================
+-- MIGRATION: Add custom_avatar_url column to users table
+-- Allows users to upload custom profile pictures (takes priority over OAuth avatar)
+-- =====================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'users' AND column_name = 'custom_avatar_url'
+  ) THEN
+    ALTER TABLE users ADD COLUMN custom_avatar_url TEXT;
+    COMMENT ON COLUMN users.custom_avatar_url IS 'User-uploaded custom avatar URL (takes priority over OAuth avatar_url)';
+    RAISE NOTICE 'Added custom_avatar_url column to users table';
+  END IF;
+END $$;
+
+-- =====================================================================
+-- FUNCTION: Update user avatar
+-- Allows users to update their own custom avatar URL
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION update_user_avatar(
+  p_custom_avatar_url TEXT DEFAULT NULL,
+  p_avatar_storage_path TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  current_user_id UUID := auth.uid();
+BEGIN
+  -- Verify user is authenticated
+  IF current_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+  
+  -- Update the user's custom avatar URL
+  -- Empty string clears the avatar, NULL leaves it unchanged
+  UPDATE users
+  SET 
+    custom_avatar_url = CASE 
+      WHEN p_custom_avatar_url = '' THEN NULL 
+      WHEN p_custom_avatar_url IS NOT NULL THEN p_custom_avatar_url 
+      ELSE custom_avatar_url 
+    END
+  WHERE id = current_user_id;
+  
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+COMMENT ON FUNCTION update_user_avatar IS 'Allows users to update their own custom avatar URL';
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION update_user_avatar TO authenticated;
+
+-- Update schema version to 25
+UPDATE schema_version SET 
+  version = 25,
+  description = 'Added custom_avatar_url column for user profile pictures',
+  applied_at = NOW(),
+  applied_by = 'migration'
+WHERE id = 1;
+
+-- =====================================================================
+-- OPTIONAL MODULES
+-- =====================================================================
+-- Additional features are available as optional modules in the modules/ folder.
+-- Run these AFTER schema.sql if you need them:
+--
+--   modules/process-templates.sql
+--     Phase-gate checklist system for ECOs with RACI assignments.
+--     Adds: process_templates, eco_checklist_items, eco_gate_approvals, etc.
+--
+-- See modules/README.md for installation instructions.
+-- =====================================================================
 
 -- ===================================================================== 
 -- END OF SCHEMA
