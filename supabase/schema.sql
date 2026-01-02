@@ -1139,6 +1139,7 @@ CREATE TABLE IF NOT EXISTS file_versions (
   
   -- Metadata at time of version
   workflow_state_id UUID REFERENCES workflow_states(id),
+  state TEXT NOT NULL DEFAULT 'not_tracked', -- Workflow state name at time of version
   comment TEXT,
   
   -- Who/when
@@ -1147,6 +1148,12 @@ CREATE TABLE IF NOT EXISTS file_versions (
   
   UNIQUE(file_id, version)
 );
+
+-- Migration: Add state column to file_versions if it doesn't exist
+DO $$ BEGIN 
+  ALTER TABLE file_versions ADD COLUMN state TEXT NOT NULL DEFAULT 'not_tracked'; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_file_versions_file_id ON file_versions(file_id);
 CREATE INDEX IF NOT EXISTS idx_file_versions_content_hash ON file_versions(content_hash);

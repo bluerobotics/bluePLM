@@ -2,35 +2,33 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [3.0.0] - 2026-01-01
+## [2.22.0] - 2026-01-01
 
 ### Added
-- **Custom profile picture uploads**: Users can now upload their own profile picture in Settings > Profile. Supports PNG, JPG, and WebP up to 2MB. Custom pictures override Google avatar
-- **Log viewer multi-select**: Select multiple log entries with checkboxes and copy them with their full content (including expanded JSON data). Use Shift+click for range selection
-- **Refresh Metadata on folders**: Right-click any folder to refresh SolidWorks metadata for all SW files inside. Shows count of files that will be processed (e.g., "Refresh Metadata (15 files)")
-- **Refresh Metadata on vault**: Right-click the vault header in the sidebar to refresh SolidWorks metadata for all SW files in the entire vault
-- **Tab number support in serialization**: Part numbers can now include variant/tab suffixes (e.g., BR101101-104). Configure in Settings → Serialization with custom separator and digit padding. The SolidWorks datacard shows separate Base # and Tab # input fields when enabled
-- **Detect highest serial number**: Admins can scan all vault files to find the highest used serial number and set the counter accordingly. Accessible via "Scan Vault" button in Settings → Serialization
-- **Per-configuration tab numbers**: Parts and assemblies with multiple SolidWorks configurations can now have different tab numbers per configuration while sharing the same base number. For example, a part with 3 configs could be: BR-12345-001 (Default), BR-12345-002 (Machined), BR-12345-003 (Anodized). The datacard shows separate "Base #" (shared) and "Tab #" (per-config) fields with a live preview of the full part number
+- **Per-configuration tab numbers**: Parts/assemblies with multiple SolidWorks configs can have different tab numbers per config (e.g., BR-12345-001, BR-12345-002, BR-12345-003). Datacard shows "Base #" (shared) and "Tab #" (per-config) fields with live preview
+- **Export configurations from file browser**: Right-click on expanded configuration rows to export STEP/IGES/STL. Supports multi-select with Ctrl+click and Shift+click to export specific configurations
+- **Configurable export filenames**: New Settings → Export Options page to customize exported file naming patterns with tokens like `{partNumber}`, `{config}`, `{rev}`, `{date}`, etc. Example: `{partNumber}_Rev{rev}` produces `BR-101011-394_RevA.step`
+- **Bulk Refresh Metadata**: Right-click folders or vault header to refresh SolidWorks metadata for all SW files inside. Shows file count before processing
+- **Detect highest serial number**: Admins can scan vault to find highest used serial and set counter accordingly (Settings → Serialization → "Scan Vault")
+- **Custom profile picture uploads**: Upload profile pictures in Settings > Profile (PNG/JPG/WebP, max 2MB)
+- **Log viewer multi-select**: Select multiple entries with checkboxes, Shift+click for range selection, copy with full content
 
 ### Changed
-- **Log viewer toolbar redesigned**: Reorganized into a compact two-row layout. Level filters now show counts inline, related controls are grouped visually, and selection controls only appear when items are selected
-- **Electron upgraded to v39**: Major upgrade from Electron 34 to 39, bringing Chromium 142, Node.js 22, and V8 14.2
-- **Supporting packages upgraded**: electron-builder 26, electron-updater 6.7.3, vite-plugin-electron 0.29.0
-- **SolidWorks datacard UI redesigned**: Cleaner 3-column layout with preview (left), editable properties (center), and export buttons (right). Configuration tabs only appear when multiple configs exist. Removed redundant "Start Service" buttons - service status is now a subtle indicator dot (users manage the service in Settings → Integrations)
+- **Electron upgraded to v39**: Major upgrade bringing Chromium 142, Node.js 22, V8 14.2, plus electron-builder 26 and electron-updater 6.7.3
+- **SolidWorks datacard redesigned**: Cleaner 3-column layout (preview, properties, export). Config tabs only appear when needed. Service status is now a subtle indicator dot
+- **SolidWorks property saving optimized**: "Save to File" now only writes configs with pending changes and uses batch API. Previously wrote all configs individually (N API calls), now makes 1 call for only changed configs
+- **Log viewer toolbar**: Compact two-row layout with inline level counts and grouped controls
 
 ### Fixed
-- **Avatar images not loading**: Fixed Google-hosted avatar images failing to load in Chromium 142 by adding `referrerPolicy="no-referrer"` to all avatar image elements
-- **Security vulnerability in systeminformation**: Updated systeminformation to fix command injection vulnerability on Windows (CVE-2024-xxxxx)
-- **Slow checkout operations**: Fixed checkout taking 10-20+ seconds by eliminating redundant IPC calls. Machine info and SolidWorks service status are now fetched once per batch instead of per-file. Also fixed 400 errors on activity logging by adding missing `user_email` field, and made activity logging fire-and-forget to avoid blocking operations
-- **SolidWorks drawing revision not syncing**: Fixed "Refresh Metadata" not extracting Revision property from drawing files (.slddrw). The Document Manager API was failing due to incorrect COM interop parameter types - changed `out object` to `out SwDmCustomInfoType` for `GetCustomProperty` calls
-- **File browser not remembering folder**: Fixed file browser resetting to vault root on app restart. The current folder path is now persisted and restored when reopening the app
-- **SolidWorks datacard not showing PDM metadata**: Fixed datacard fields (Item #, Description, Revision) not populating with values from the database. Fields now properly load from pdmData and pendingMetadata, matching what displays inline in the file browser
+- **Slow checkout operations**: Fixed 10-20+ second checkouts by fetching machine info once per batch instead of per-file. Activity logging now fire-and-forget
+- **SolidWorks drawing revision not syncing**: Fixed Revision property extraction from .slddrw files (incorrect COM interop types)
+- **SolidWorks datacard not showing PDM metadata**: Fixed Item #, Description, Revision fields not loading from database
+- **File browser not remembering folder**: Current folder now persists across app restarts
+- **Avatar images not loading**: Fixed for Chromium 142 with `referrerPolicy="no-referrer"`
+- **Security**: Updated systeminformation to fix Windows command injection vulnerability
 
 ### Removed
-- **Unused components**: Removed `StatusBar.tsx` and `SolidWorksPreviewPanel.tsx` (dead code)
-- **Unused npm dependencies**: Removed @tanstack/react-query, @tanstack/react-table, and clsx (never imported)
-- **Duplicate utility functions**: Consolidated 9 copies of `buildFullPath` and 6 copies of `formatBytes` into shared `src/lib/utils.ts`
+- Cleaned up dead code (`StatusBar.tsx`, `SolidWorksPreviewPanel.tsx`), unused dependencies (@tanstack/react-query, @tanstack/react-table, clsx), and consolidated duplicate utilities (9 copies of `buildFullPath`, 6 copies of `formatBytes`)
 
 ---
 

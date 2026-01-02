@@ -4565,6 +4565,11 @@ ipcMain.handle('solidworks:set-properties', async (_, filePath: string, properti
   return sendSWCommand({ action: 'setProperties', filePath, properties, configuration })
 })
 
+// Set properties for multiple configurations in one call (batch)
+ipcMain.handle('solidworks:set-properties-batch', async (_, filePath: string, configProperties: Record<string, Record<string, string>>) => {
+  return sendSWCommand({ action: 'setPropertiesBatch', filePath, configProperties })
+})
+
 // Get configurations
 ipcMain.handle('solidworks:get-configurations', async (_, filePath: string) => {
   return sendSWCommand({ action: 'getConfigurations', filePath })
@@ -4591,7 +4596,7 @@ ipcMain.handle('solidworks:export-pdf', async (_, filePath: string, outputPath?:
 })
 
 // Export to STEP
-ipcMain.handle('solidworks:export-step', async (_, filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean }) => {
+ipcMain.handle('solidworks:export-step', async (_, filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string }) => {
   return sendSWCommand({ action: 'exportStep', filePath, ...options })
 })
 

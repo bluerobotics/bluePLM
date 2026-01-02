@@ -230,6 +230,35 @@ export interface OrgSettings {
   solidworks_dm_license_key?: string  // Document Manager API key for fast file reading
   // REST API (org-wide)
   api_url?: string  // External API server URL for ERP integrations
+  // Export settings (org-wide)
+  export_settings?: ExportSettings
+}
+
+/**
+ * Export filename pattern settings
+ * Supported tokens:
+ * {filename} - Original file name (without extension)
+ * {config} - Configuration name
+ * {partNumber} or {number} - Part/Item number from properties
+ * {revision} or {rev} - Revision from properties
+ * {description} or {desc} - Description from properties
+ * {date} - Current date (YYYY-MM-DD)
+ * {time} - Current time (HH-MM-SS)
+ * {datetime} - Current date and time (YYYY-MM-DD_HH-MM-SS)
+ */
+export interface ExportSettings {
+  // Filename pattern for exports, e.g., "{partNumber}_Rev{rev}" -> "BR-101011-394_RevA.step"
+  filename_pattern: string
+  // Whether to include config name in filename when exporting specific configs
+  include_config_in_filename: boolean
+  // Default export format for parts/assemblies
+  default_export_format?: 'step' | 'iges' | 'stl'
+}
+
+export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
+  filename_pattern: '{filename}_{config}',
+  include_config_in_filename: true,
+  default_export_format: 'step'
 }
 
 // User with org membership

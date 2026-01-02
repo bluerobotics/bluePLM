@@ -556,6 +556,7 @@ export const checkinCommand: Command<CheckinParams> = {
             newFileSize: file.size,
             newFilePath: wasFileMoved ? file.relativePath : undefined,
             newFileName: wasFileRenamed ? file.name : undefined,
+            localActiveVersion: file.localActiveVersion,
             pendingMetadata: metadataToUse
           })
           
@@ -600,10 +601,13 @@ export const checkinCommand: Command<CheckinParams> = {
               }
             })
             
-            logCheckin('debug', 'File checkin successful', {
+            logCheckin('info', 'File checkin successful', {
               operationId,
               fileName: file.name,
-              newVersion: result.file.version
+              oldVersion: file.pdmData?.version,
+              newVersion: result.file.version,
+              localActiveVersionCleared: file.localActiveVersion !== undefined,
+              diffStatusCleared: file.diffStatus !== undefined
             })
             progress.update()
             return { success: true }
@@ -626,6 +630,7 @@ export const checkinCommand: Command<CheckinParams> = {
           const result = await checkinFile(file.pdmData!.id, user.id, {
             newFilePath: wasFileMoved ? file.relativePath : undefined,
             newFileName: wasFileRenamed ? file.name : undefined,
+            localActiveVersion: file.localActiveVersion,
             pendingMetadata: metadataToUse
           })
           
@@ -654,9 +659,13 @@ export const checkinCommand: Command<CheckinParams> = {
               }
             })
             
-            logCheckin('debug', 'Metadata checkin successful', {
+            logCheckin('info', 'Metadata checkin successful', {
               operationId,
-              fileName: file.name
+              fileName: file.name,
+              oldVersion: file.pdmData?.version,
+              newVersion: result.file.version,
+              localActiveVersionCleared: file.localActiveVersion !== undefined,
+              diffStatusCleared: file.diffStatus !== undefined
             })
             progress.update()
             return { success: true }
@@ -684,6 +693,15 @@ export const checkinCommand: Command<CheckinParams> = {
     
     // Apply all store updates in a single batch (avoids N re-renders)
     if (pendingUpdates.length > 0) {
+      logCheckin('info', 'Applying store updates', {
+        operationId,
+        updateCount: pendingUpdates.length,
+        paths: pendingUpdates.map(u => u.path),
+        newVersions: pendingUpdates.map(u => ({
+          path: u.path,
+          version: (u.updates.pdmData as any)?.version
+        }))
+      })
       ctx.updateFilesInStore(pendingUpdates)
     }
     

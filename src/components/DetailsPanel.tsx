@@ -711,7 +711,7 @@ export function DetailsPanel() {
 
   return (
     <div 
-      className="bg-plm-panel border-t border-plm-border flex flex-col"
+      className="details-panel bg-plm-panel border-t border-plm-border flex flex-col"
       style={{ height: detailsPanelHeight }}
     >
       {/* Tabs - Droppable zone */}

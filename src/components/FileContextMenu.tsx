@@ -40,6 +40,7 @@ import {
   getSyncedFilesFromSelection,
   getUnsyncedFilesFromSelection,
   getCloudOnlyFilesFromSelection,
+  getDiscardableFilesFromSelection,
   getFilesInFolder
 } from '../lib/commands'
 import { 
@@ -276,12 +277,16 @@ export function FileContextMenu({
   const effectiveRole = usePDMStore.getState().getEffectiveRole()
   const isAdmin = effectiveRole === 'admin'
   
+  // Discardable files - includes synced files AND 'deleted' files (checked out but removed locally)
+  const discardableFilesInSelection = getDiscardableFilesFromSelection(files, contextFiles, user?.id)
+  const discardableCount = discardableFilesInSelection.length
+  
   const countLabel = multiSelect 
     ? `(${fileCount > 0 ? `${fileCount} file${fileCount > 1 ? 's' : ''}` : ''}${fileCount > 0 && folderCount > 0 ? ', ' : ''}${folderCount > 0 ? `${folderCount} folder${folderCount > 1 ? 's' : ''}` : ''})`
     : ''
   
-  // Check for cloud-only files
-  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
+  // Check for cloud-only files (includes both 'cloud' and 'cloud_new')
+  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
   const hasUnsyncedLocalFiles = unsyncedFilesInSelection.length > 0
   const cloudOnlyCount = cloudOnlyFilesInSelection.length
   
@@ -960,7 +965,8 @@ export function FileContextMenu({
           {anySynced && allCheckedOut && <span className="text-xs text-plm-fg-muted ml-auto">(already out)</span>}
         </div>
         
-        {/* Check In */}
+        {/* Check In - only for synced files that exist locally (not 'deleted') */}
+        {/* Show if there are synced files, but disabled if none are checked out by me */}
         {anySynced && (
           <div 
             className={`context-menu-item ${allCheckedIn || checkinableCount === 0 ? 'disabled' : ''}`}
@@ -977,14 +983,16 @@ export function FileContextMenu({
         )}
         
         {/* Discard Checkout - for files checked out by current user */}
-        {checkinableCount > 0 && (
+        {/* Discard Checkout - for files checked out by current user */}
+        {/* Uses discardableCount which includes 'deleted' files (checked out but removed locally) */}
+        {discardableCount > 0 && (
           <div 
             className="context-menu-item text-plm-warning"
             onClick={handleDiscardCheckout}
             title="Discard local changes and revert to server version"
           >
             <Undo2 size={14} />
-            Discard Checkout {checkinableCount > 1 ? `(${checkinableCount})` : ''}
+            Discard Checkout {discardableCount > 1 ? `(${discardableCount})` : ''}
           </div>
         )}
         

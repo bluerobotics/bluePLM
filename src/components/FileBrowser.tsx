@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, mem
 import { 
   ChevronUp, 
   ChevronDown,
+  ChevronRight,
   FolderOpen,
   Folder,
   FolderPlus,
@@ -52,10 +53,14 @@ import {
   ClipboardList,
   Calendar,
   Plus,
-  Monitor
+  Monitor,
+  Save,
+  Package,
+  Settings
 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { getFileIconType, formatFileSize, getInitials } from '../types/pdm'
+import { getEffectiveExportSettings } from './settings/ExportSettings'
 // Shared file/folder components - use FileIcon for files with thumbnail support
 import { FileIcon } from './shared/FileItemComponents'
 import { logFileAction, logContextMenu, logDragDrop } from '../lib/userActionLogger'
@@ -357,9 +362,13 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, is
     const folderPath = file.relativePath.replace(/\\/g, '/')
     const folderPrefix = folderPath + '/'
     
-    // Get files in this folder
+    // Exclude files that only exist on server (not locally)
+    const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
+    
+    // Get files in this folder (excluding server-only files)
     const folderFiles = allFiles.filter(f => {
       if (f.isDirectory) return false
+      if (serverOnlyStatuses.includes(f.diffStatus || '')) return false
       const filePath = f.relativePath.replace(/\\/g, '/')
       return filePath.startsWith(folderPrefix)
     })
@@ -618,10 +627,13 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, is
                   return filePath.startsWith(folderPrefix)
                 })
                 
-                const checkedOutByMe = folderFiles.filter(f => f.pdmData?.checked_out_by === userId).length
-                const checkedOutByOthers = folderFiles.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId).length
-                const syncedNotCheckedOut = folderFiles.filter(f => f.pdmData && !f.pdmData.checked_out_by && f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new').length
-                const localOnly = folderFiles.filter(f => !f.pdmData && f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new').length
+                // Exclude 'deleted' files - they don't exist locally (were deleted while checked out)
+                const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
+                const localFiles = folderFiles.filter(f => !serverOnlyStatuses.includes(f.diffStatus || ''))
+                const checkedOutByMe = localFiles.filter(f => f.pdmData?.checked_out_by === userId).length
+                const checkedOutByOthers = localFiles.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId).length
+                const syncedNotCheckedOut = localFiles.filter(f => f.pdmData && !f.pdmData.checked_out_by).length
+                const localOnly = localFiles.filter(f => !f.pdmData).length
                 
                 return { checkedOutByMe, checkedOutByOthers, syncedNotCheckedOut, localOnly }
               }
@@ -677,7 +689,8 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, is
                   )}
                   
                   {/* FILE: Checked out by me - avatar + arrow hover effect to check in */}
-                  {!file.isDirectory && file.pdmData?.checked_out_by === userId && onCheckin && (
+                  {/* Exclude 'deleted' - can't check in files that don't exist locally */}
+                  {!file.isDirectory && file.pdmData?.checked_out_by === userId && file.diffStatus !== 'deleted' && onCheckin && (
                     <InlineCheckinButton
                       onClick={(e) => onCheckin(e, file)}
                       userAvatarUrl={userAvatarUrl}
@@ -711,7 +724,8 @@ const FileIconCard = memo(function FileIconCard({ file, iconSize, isSelected, is
                   {/* FOLDER: Has files checked out by others - no arrow, folder color shows status */}
                   
                   {/* FILE: Synced not checked out - cloud + arrow hover effect to checkout */}
-                  {!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && onCheckout && (
+                  {/* Exclude 'deleted' status - represents files that were checked out but deleted locally */}
+                  {!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'deleted' && onCheckout && (
                     <button
                       className="group/checkout flex items-center gap-px p-0.5 rounded hover:bg-plm-warning/20 transition-colors cursor-pointer"
                       title="Click to check out"
@@ -1028,6 +1042,462 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   // Current machine ID for multi-device checkout detection (loaded once)
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
   
+  // Expandable SolidWorks configurations state
+  interface ConfigWithDepth {
+    name: string
+    isActive?: boolean
+    parentConfiguration?: string | null
+    tabNumber?: string
+    description?: string
+    depth: number
+  }
+  
+  const [expandedConfigFiles, setExpandedConfigFiles] = useState<Set<string>>(new Set())
+  const [fileConfigurations, setFileConfigurations] = useState<Map<string, ConfigWithDepth[]>>(new Map())
+  const [loadingConfigs, setLoadingConfigs] = useState<Set<string>>(new Set())
+  // Track when we just saved to prevent reload from clearing our changes
+  const justSavedConfigs = useRef<Set<string>>(new Set())
+  
+  // Selected configurations for multi-select and context menu
+  // Format: "filePath::configName"
+  const [selectedConfigs, setSelectedConfigs] = useState<Set<string>>(new Set())
+  const lastClickedConfigRef = useRef<string | null>(null)  // For shift-click range selection
+  
+  // Configuration context menu state
+  const [configContextMenu, setConfigContextMenu] = useState<{ 
+    x: number; y: number; 
+    filePath: string; 
+    configName: string 
+  } | null>(null)
+  const [isExportingConfigs, setIsExportingConfigs] = useState(false)
+  
+  // Build tree structure from flat config list and flatten with depth
+  const buildConfigTreeFlat = (configs: Array<{
+    name: string
+    isActive?: boolean
+    parentConfiguration?: string | null
+    tabNumber?: string
+    description?: string
+  }>): ConfigWithDepth[] => {
+    interface TreeNode {
+      config: typeof configs[0]
+      children: TreeNode[]
+      depth: number
+    }
+    
+    const nodeMap = new Map<string, TreeNode>()
+    const roots: TreeNode[] = []
+    
+    // Create nodes
+    configs.forEach(config => {
+      nodeMap.set(config.name, { config, children: [], depth: 0 })
+    })
+    
+    // Build tree
+    configs.forEach(config => {
+      const node = nodeMap.get(config.name)!
+      if (config.parentConfiguration && nodeMap.has(config.parentConfiguration)) {
+        const parent = nodeMap.get(config.parentConfiguration)!
+        node.depth = parent.depth + 1
+        parent.children.push(node)
+      } else {
+        roots.push(node)
+      }
+    })
+    
+    // Flatten (depth-first)
+    const flatten = (nodes: TreeNode[]): ConfigWithDepth[] => {
+      const result: ConfigWithDepth[] = []
+      nodes.forEach(node => {
+        result.push({ ...node.config, depth: node.depth })
+        result.push(...flatten(node.children))
+      })
+      return result
+    }
+    
+    return flatten(roots)
+  }
+  
+  // Toggle file configuration expansion
+  const toggleFileConfigExpansion = async (file: LocalFile) => {
+    const newExpanded = new Set(expandedConfigFiles)
+    
+    if (newExpanded.has(file.path)) {
+      // Collapse - also clear any selected configs for this file
+      newExpanded.delete(file.path)
+      setExpandedConfigFiles(newExpanded)
+      setSelectedConfigs(prev => {
+        const next = new Set([...prev].filter(key => !key.startsWith(file.path + '::')))
+        return next
+      })
+    } else {
+      // Expand - load configurations if not already loaded
+      newExpanded.add(file.path)
+      setExpandedConfigFiles(newExpanded)
+      
+      if (!fileConfigurations.has(file.path)) {
+        setLoadingConfigs(prev => new Set(prev).add(file.path))
+        try {
+          const result = await window.electronAPI?.solidworks?.getConfigurations(file.path)
+          if (result?.success && result.data?.configurations) {
+            const configs = result.data.configurations as Array<{
+              name: string
+              isActive?: boolean
+              parentConfiguration?: string | null
+              properties?: Record<string, string>
+            }>
+            
+            // Load pending metadata for tab numbers and descriptions
+            const pendingTabs = file.pendingMetadata?.config_tabs || 
+              (file.pdmData?.custom_properties as Record<string, unknown> | undefined)?._config_tabs as Record<string, string> | undefined || {}
+            const pendingDescs = file.pendingMetadata?.config_descriptions || 
+              (file.pdmData?.custom_properties as Record<string, unknown> | undefined)?._config_descriptions as Record<string, string> | undefined || {}
+            
+            // Also fetch properties from each config from the SW file
+            const configsWithData = await Promise.all(configs.map(async (c) => {
+              let tabNumber = pendingTabs[c.name] || ''
+              let description = pendingDescs[c.name] || ''
+              
+              // If no pending data, try to load from file properties
+              if (!tabNumber || !description) {
+                try {
+                  const propsResult = await window.electronAPI?.solidworks?.getProperties(file.path, c.name)
+                  if (propsResult?.success && propsResult.data) {
+                    const configProps = propsResult.data.configurationProperties?.[c.name] || {}
+                    const fileProps = propsResult.data.fileProperties || {}
+                    const mergedProps = { ...fileProps, ...configProps }
+                    
+                    // Try to extract description from file
+                    if (!description) {
+                      description = mergedProps['Description'] || mergedProps['DESCRIPTION'] || mergedProps['description'] || ''
+                    }
+                    
+                    // Try to extract tab number from file (parse from Number property)
+                    if (!tabNumber) {
+                      const numProp = mergedProps['Number'] || mergedProps['Part Number'] || mergedProps['PartNumber'] || ''
+                      // Extract tab from end of number (e.g., "BR-101010-XXX" -> "XXX")
+                      const parts = numProp.split('-')
+                      if (parts.length >= 2) {
+                        const lastPart = parts[parts.length - 1]
+                        // Check if it looks like a tab number (not the main number)
+                        if (lastPart && lastPart.length <= 4) {
+                          tabNumber = lastPart
+                        }
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error(`Failed to load properties for config ${c.name}:`, err)
+                }
+              }
+              
+              return {
+                name: c.name,
+                isActive: c.isActive,
+                parentConfiguration: c.parentConfiguration,
+                tabNumber,
+                description
+              }
+            }))
+            
+            // Build tree structure with depth
+            const flatTree = buildConfigTreeFlat(configsWithData)
+            setFileConfigurations(prev => new Map(prev).set(file.path, flatTree))
+          }
+        } catch (err) {
+          console.error('Failed to load configurations:', err)
+        } finally {
+          setLoadingConfigs(prev => {
+            const next = new Set(prev)
+            next.delete(file.path)
+            return next
+          })
+        }
+      }
+    }
+  }
+  
+  // Update config tab number
+  const handleConfigTabChange = (filePath: string, configName: string, value: string) => {
+    const file = files.find(f => f.path === filePath)
+    if (!file) return
+    
+    // Update local state
+    setFileConfigurations(prev => {
+      const configs = prev.get(filePath)
+      if (!configs) return prev
+      const updated = configs.map(c => c.name === configName ? { ...c, tabNumber: value.toUpperCase() } : c)
+      return new Map(prev).set(filePath, updated)
+    })
+    
+    // Update pending metadata
+    const existingTabs = file.pendingMetadata?.config_tabs || {}
+    usePDMStore.getState().updatePendingMetadata(filePath, {
+      config_tabs: { ...existingTabs, [configName]: value.toUpperCase() }
+    })
+  }
+  
+  // Update config description
+  const handleConfigDescriptionChange = (filePath: string, configName: string, value: string) => {
+    const file = files.find(f => f.path === filePath)
+    if (!file) return
+    
+    // Update local state
+    setFileConfigurations(prev => {
+      const configs = prev.get(filePath)
+      if (!configs) return prev
+      const updated = configs.map(c => c.name === configName ? { ...c, description: value } : c)
+      return new Map(prev).set(filePath, updated)
+    })
+    
+    // Update pending metadata
+    const existingDescs = file.pendingMetadata?.config_descriptions || {}
+    usePDMStore.getState().updatePendingMetadata(filePath, {
+      config_descriptions: { ...existingDescs, [configName]: value }
+    })
+  }
+  
+  // Check if file can have configurations (sldprt or sldasm)
+  const canHaveConfigs = (file: LocalFile) => {
+    if (file.isDirectory) return false
+    const ext = file.extension.toLowerCase()
+    return ext === '.sldprt' || ext === '.sldasm'
+  }
+  
+  // State for saving configs to SW file
+  const [savingConfigsToSW, setSavingConfigsToSW] = useState<Set<string>>(new Set())
+  
+  // Save config metadata to SolidWorks file
+  const saveConfigsToSWFile = async (file: LocalFile) => {
+    const configs = fileConfigurations.get(file.path)
+    if (!configs || configs.length === 0) return
+    
+    setSavingConfigsToSW(prev => new Set(prev).add(file.path))
+    
+    try {
+      const baseNumber = file.pendingMetadata?.part_number || file.pdmData?.part_number || ''
+      let successCount = 0
+      let failedCount = 0
+      
+      // Only save configs that have PENDING changes (not all configs with data)
+      const pendingTabs = file.pendingMetadata?.config_tabs || {}
+      const pendingDescs = file.pendingMetadata?.config_descriptions || {}
+      const changedConfigNames = new Set([...Object.keys(pendingTabs), ...Object.keys(pendingDescs)])
+      
+      if (changedConfigNames.size === 0) {
+        addToast('info', 'No metadata changes to save')
+        return
+      }
+      
+      // Filter to only configs that have pending changes
+      const configsToSave = configs.filter(c => changedConfigNames.has(c.name))
+      
+      console.log(`[FileBrowser] Saving ${configsToSave.length} changed config(s) to SW file:`, file.name)
+      
+      for (const config of configsToSave) {
+        const props: Record<string, string> = {}
+        
+        // Only include properties that were actually changed
+        const tabChanged = pendingTabs[config.name] !== undefined
+        const descChanged = pendingDescs[config.name] !== undefined
+        
+        // Build full part number (base + tab)
+        if (tabChanged && config.tabNumber) {
+          if (baseNumber) {
+            props['Number'] = `${baseNumber}-${config.tabNumber}`
+          } else {
+            props['Number'] = config.tabNumber
+          }
+          props['Tab Number'] = config.tabNumber
+        }
+        
+        if (descChanged && config.description) {
+          props['Description'] = config.description
+        }
+        
+        if (Object.keys(props).length === 0) continue
+        
+        console.log(`[FileBrowser] Writing to config ${config.name}:`, props)
+        
+        try {
+          const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, config.name)
+          console.log(`[FileBrowser] setProperties result for ${config.name}:`, result)
+          
+          if (result?.success) {
+            successCount++
+          } else {
+            failedCount++
+            console.error(`[FileBrowser] Failed to write to config ${config.name}:`, result?.error || 'Unknown error')
+          }
+        } catch (err) {
+          failedCount++
+          console.error(`[FileBrowser] Exception writing to config ${config.name}:`, err)
+        }
+      }
+      
+      console.log(`[FileBrowser] Save complete: ${successCount} success, ${failedCount} failed`)
+      
+      if (successCount > 0) {
+        if (failedCount > 0) {
+          addToast('warning', `Saved ${successCount} config(s), ${failedCount} failed`)
+        } else {
+          addToast('success', `Saved metadata for ${successCount} configuration${successCount > 1 ? 's' : ''}`)
+        }
+        
+        // Mark that we just saved - prevents accidental reload from clearing our changes
+        justSavedConfigs.current.add(file.path)
+        setTimeout(() => {
+          justSavedConfigs.current.delete(file.path)
+        }, 5000) // Clear after 5 seconds
+        
+        // Clear the pending config metadata since we've written it to the file
+        usePDMStore.getState().clearPendingConfigMetadata(file.path)
+      } else {
+        addToast('error', 'Failed to save metadata - check if file is open in SolidWorks')
+      }
+    } catch (err) {
+      console.error('[FileBrowser] Failed to save configs to SW:', err)
+      addToast('error', 'Failed to save to SolidWorks file')
+    } finally {
+      setSavingConfigsToSW(prev => {
+        const next = new Set(prev)
+        next.delete(file.path)
+        return next
+      })
+    }
+  }
+  
+  // Check if file has pending config changes
+  const hasPendingConfigChanges = (file: LocalFile) => {
+    const pendingTabs = file.pendingMetadata?.config_tabs
+    const pendingDescs = file.pendingMetadata?.config_descriptions
+    return (pendingTabs && Object.keys(pendingTabs).length > 0) || 
+           (pendingDescs && Object.keys(pendingDescs).length > 0)
+  }
+  
+  // Handle config row click with multi-select support (Ctrl/Cmd + Shift)
+  const handleConfigRowClick = (e: React.MouseEvent, filePath: string, configName: string, configs: ConfigWithDepth[]) => {
+    e.stopPropagation()
+    const configKey = `${filePath}::${configName}`
+    
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd click: toggle individual selection
+      setSelectedConfigs(prev => {
+        const next = new Set(prev)
+        // Filter to only configs from the same file
+        const sameFileConfigs = new Set([...next].filter(k => k.startsWith(filePath + '::')))
+        if (sameFileConfigs.has(configKey)) {
+          next.delete(configKey)
+        } else {
+          next.add(configKey)
+        }
+        return next
+      })
+      lastClickedConfigRef.current = configKey
+    } else if (e.shiftKey && lastClickedConfigRef.current?.startsWith(filePath + '::')) {
+      // Shift click: range selection (same file only)
+      const lastConfigName = lastClickedConfigRef.current.split('::')[1]
+      const startIdx = configs.findIndex(c => c.name === lastConfigName)
+      const endIdx = configs.findIndex(c => c.name === configName)
+      
+      if (startIdx >= 0 && endIdx >= 0) {
+        const minIdx = Math.min(startIdx, endIdx)
+        const maxIdx = Math.max(startIdx, endIdx)
+        const rangeConfigs = configs.slice(minIdx, maxIdx + 1).map(c => `${filePath}::${c.name}`)
+        
+        setSelectedConfigs(prev => {
+          const next = new Set(prev)
+          // Add all configs in range
+          rangeConfigs.forEach(key => next.add(key))
+          return next
+        })
+      }
+    } else {
+      // Normal click: select just this config
+      setSelectedConfigs(new Set([configKey]))
+      lastClickedConfigRef.current = configKey
+    }
+    
+    // Also select the parent file
+    setSelectedFiles([filePath])
+  }
+  
+  // Handle config row right-click (context menu)
+  const handleConfigContextMenu = (e: React.MouseEvent, filePath: string, configName: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    const configKey = `${filePath}::${configName}`
+    
+    // If right-clicked config is not in selection, select it alone
+    if (!selectedConfigs.has(configKey)) {
+      setSelectedConfigs(new Set([configKey]))
+      lastClickedConfigRef.current = configKey
+    }
+    
+    setConfigContextMenu({ x: e.clientX, y: e.clientY, filePath, configName })
+    setSelectedFiles([filePath])
+  }
+  
+  // Get selected configs for the given file (for export operations)
+  const getSelectedConfigsForFile = (filePath: string): string[] => {
+    return [...selectedConfigs]
+      .filter(key => key.startsWith(filePath + '::'))
+      .map(key => key.split('::')[1])
+  }
+  
+  // Export configurations
+  const handleExportConfigs = async (format: 'step' | 'iges' | 'stl') => {
+    if (!configContextMenu) return
+    
+    const filePath = configContextMenu.filePath
+    const configsToExport = getSelectedConfigsForFile(filePath)
+    
+    if (configsToExport.length === 0) {
+      configsToExport.push(configContextMenu.configName)
+    }
+    
+    // Get filename pattern from effective export settings (user preference > org default > app default)
+    const exportSettings = getEffectiveExportSettings(organization)
+    const filenamePattern = exportSettings.filename_pattern
+    
+    setIsExportingConfigs(true)
+    setConfigContextMenu(null)
+    
+    try {
+      let result
+      switch (format) {
+        case 'step':
+          result = await window.electronAPI?.solidworks?.exportStep(filePath, { 
+            configurations: configsToExport,
+            filenamePattern
+          })
+          break
+        case 'iges':
+          result = await window.electronAPI?.solidworks?.exportIges(filePath, { 
+            configurations: configsToExport 
+          })
+          break
+        case 'stl':
+          result = await window.electronAPI?.solidworks?.exportStl?.(filePath, { 
+            configurations: configsToExport 
+          })
+          break
+      }
+      
+      if (result?.success) {
+        const count = result.data && 'exportedFiles' in result.data ? result.data.exportedFiles?.length : configsToExport.length
+        addToast('success', `Exported ${count} ${format.toUpperCase()} file${count > 1 ? 's' : ''}`)
+      } else {
+        addToast('error', result?.error || `Failed to export ${format.toUpperCase()}`)
+      }
+    } catch (err) {
+      addToast('error', `Export failed: ${err}`)
+    } finally {
+      setIsExportingConfigs(false)
+    }
+  }
+
   // Conflict resolution dialog state
   interface FileConflict {
     sourcePath: string
@@ -1341,9 +1811,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           m.hasUnsyncedFiles = true
         }
         
-        // Checkoutable files (synced, not checked out, not cloud-only)
+        // Checkoutable files (synced, not checked out, exists locally)
+        // Exclude 'deleted' - files that were deleted locally while checked out
         if (file.pdmData && !file.pdmData.checked_out_by && 
-            file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new') {
+            file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'deleted') {
           m.checkoutableFilesCount++
           m.hasCheckoutableFiles = true
         }
@@ -1353,15 +1824,15 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           m.outdatedFilesCount++
         }
         
-        // Checked out by me
-        if (file.pdmData?.checked_out_by === user?.id) {
+        // Checked out by me (only count files that exist locally, not 'deleted' ones)
+        if (file.pdmData?.checked_out_by === user?.id && file.diffStatus !== 'deleted') {
           m.hasMyCheckedOutFiles = true
           m.myCheckedOutFilesCount++
           m.totalCheckedOutFilesCount++
         }
         
-        // Checked out by others
-        if (file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id) {
+        // Checked out by others (only count files that exist locally)
+        if (file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id && file.diffStatus !== 'deleted') {
           m.hasOthersCheckedOutFiles = true
           m.totalCheckedOutFilesCount++
         }
@@ -1374,8 +1845,10 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     }
     
     // Build checkout users for each folder (second pass to dedupe)
+    // Exclude 'deleted' files - they don't exist locally
     for (const file of allNonDirFiles) {
       if (!file.pdmData?.checked_out_by) continue
+      if (file.diffStatus === 'deleted') continue
       
       const parts = file.relativePath.split('/')
       let currentPath = ''
@@ -1422,12 +1895,14 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   }, [files, user?.id, user?.full_name, user?.email, user?.avatar_url, hideSolidworksTempFiles])
   
   // Calculate selected files that can be checked in (for multi-select check-in feature)
+  // Exclude 'deleted' files - can't check in files that don't exist locally
   const selectedCheckinableFiles = useMemo(() => {
     if (selectedFiles.length <= 1) return []
     return files.filter(f => 
       selectedFiles.includes(f.path) && 
       !f.isDirectory && 
-      f.pdmData?.checked_out_by === user?.id
+      f.pdmData?.checked_out_by === user?.id &&
+      f.diffStatus !== 'deleted'
     )
   }, [files, selectedFiles, user?.id])
 
@@ -1456,6 +1931,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
   }, [files, selectedFiles])
 
   // Calculate selected files that can be checked out (for multi-select checkout feature)
+  // Exclude 'deleted' - files that were deleted locally while checked out
   const selectedCheckoutableFiles = useMemo(() => {
     if (selectedFiles.length <= 1) return []
     return files.filter(f => 
@@ -1464,7 +1940,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       f.pdmData && 
       !f.pdmData.checked_out_by && 
       f.diffStatus !== 'cloud' && 
-      f.diffStatus !== 'cloud_new'
+      f.diffStatus !== 'cloud_new' &&
+      f.diffStatus !== 'deleted'
     )
   }, [files, selectedFiles])
 
@@ -2614,8 +3091,20 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return
       }
+      
+      // Allow native copy/paste/cut/undo in the details panel or when text is selected
+      // This enables Ctrl+C/V/X/Z to work in the bottom pane
+      const isInDetailsPanel = (e.target as HTMLElement)?.closest?.('.details-panel, .sw-datacard-panel, [data-allow-clipboard]')
+      const hasTextSelection = window.getSelection()?.toString()
+      
+      if (isInDetailsPanel || hasTextSelection) {
+        // Let native clipboard operations work
+        if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'z', 'a'].includes(e.key.toLowerCase())) {
+          return // Don't prevent default - let browser handle it
+        }
+      }
 
-      // Ctrl+Z for undo (not configurable)
+      // Ctrl+Z for undo (not configurable) - only for file operations, not text editing
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
         handleUndo()
@@ -2712,6 +3201,13 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         
         if (selectedFile.isDirectory) {
           navigateToFolder(selectedFile.relativePath)
+        } else if (selectedFile.diffStatus === 'cloud' || selectedFile.diffStatus === 'cloud_new') {
+          // Cloud-only file: download first, then open
+          executeCommand('download', { files: [selectedFile] }, { onRefresh, silent: true }).then(result => {
+            if (result.success && window.electronAPI) {
+              window.electronAPI.openFile(selectedFile.path)
+            }
+          })
         } else if (window.electronAPI) {
           window.electronAPI.openFile(selectedFile.path)
         }
@@ -3789,8 +4285,33 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           (isUpdateHovered && selectedUpdatableFiles.some(f => f.path === file.path))
         )
         
+        const hasConfigs = canHaveConfigs(file)
+        const isExpanded = expandedConfigFiles.has(file.path)
+        const isLoadingConfigs = loadingConfigs.has(file.path)
+        
         return (
           <div className="flex items-center gap-1 group/name" style={{ minHeight: listRowSize }}>
+            {/* Expand button for SW files with configurations */}
+            {hasConfigs ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleFileConfigExpansion(file)
+                }}
+                className="p-0.5 -ml-1 hover:bg-plm-bg-light/50 rounded transition-colors flex-shrink-0"
+                title={isExpanded ? 'Collapse configurations' : 'Expand configurations'}
+              >
+                {isLoadingConfigs ? (
+                  <Loader2 size={12} className="animate-spin text-plm-fg-muted" />
+                ) : isExpanded ? (
+                  <ChevronDown size={12} className="text-cyan-400" />
+                ) : (
+                  <ChevronRight size={12} className="text-plm-fg-muted" />
+                )}
+              </button>
+            ) : (
+              <span className="w-4 flex-shrink-0" /> 
+            )}
             <ListRowIcon 
               file={file} 
               size={iconSize} 
@@ -3799,6 +4320,30 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
             />
             <span className={`truncate flex-1 transition-opacity duration-200 ${isNameDimmed ? 'opacity-50' : ''} ${file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new' ? 'italic text-plm-fg-muted' : ''} ${file.diffStatus === 'cloud_new' ? 'text-green-400' : ''}`}>{displayFilename}</span>
+            
+            {/* Save metadata badge for SW files with pending config changes */}
+            {hasConfigs && hasPendingConfigChanges(file) && file.pdmData?.checked_out_by === user?.id && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  saveConfigsToSWFile(file)
+                }}
+                disabled={savingConfigsToSW.has(file.path)}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded
+                  bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 
+                  border border-cyan-500/30 hover:border-cyan-500/50
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  transition-colors flex-shrink-0 ml-1"
+                title="Save pending metadata to SolidWorks file"
+              >
+                {savingConfigsToSW.has(file.path) ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <Save size={10} />
+                )}
+                Save metadata
+              </button>
+            )}
             
             {/* Folder inline buttons - order from left to right: update, cloud, avatar checkout, green cloud, local */}
             {file.isDirectory && (checkoutUsers.length > 0 || cloudFilesCount > 0 || file.diffStatus === 'cloud' || checkoutableFilesCount > 0 || localOnlyFilesCount > 0 || (fm?.outdatedFilesCount || 0) > 0) && (
@@ -3914,7 +4459,8 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   />
                 )}
                 {/* Check In - for individual files checked out by me */}
-                {file.pdmData?.checked_out_by === user?.id && (
+                {/* Exclude 'deleted' - can't check in files that don't exist locally */}
+                {file.pdmData?.checked_out_by === user?.id && file.diffStatus !== 'deleted' && (
                   <InlineCheckinButton
                     onClick={(e) => handleInlineCheckin(e, file)}
                     userAvatarUrl={user?.avatar_url ?? undefined}
@@ -4761,7 +5307,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 </td>
               </tr>
             )}
-            {sortedFiles.map((file, index) => {
+            {sortedFiles.flatMap((file, index) => {
               const diffClass = file.diffStatus === 'added' ? 'diff-added' 
                 : file.diffStatus === 'modified' ? 'diff-modified'
                 : file.diffStatus === 'moved' ? 'diff-moved'
@@ -4773,7 +5319,15 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               const isDragTarget = file.isDirectory && dragOverFolder === file.relativePath
               const isCut = clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)
               
-              return (
+              // Check if this file has expanded configurations
+              const isConfigExpanded = expandedConfigFiles.has(file.path)
+              const configs = fileConfigurations.get(file.path) || []
+              const isEditable = !!file.pdmData?.id && file.pdmData?.checked_out_by === user?.id
+              
+              // Build array of rows: main file row + config rows if expanded
+              const rows: React.ReactNode[] = []
+              
+              rows.push(
               <tr
                 key={file.path}
                 className={`${selectedFiles.includes(file.path) ? 'selected' : ''} ${isProcessing ? 'processing' : ''} ${diffClass} ${isDragTarget ? 'drag-target' : ''} ${isCut ? 'opacity-50' : ''}`}
@@ -4794,7 +5348,107 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   </td>
                 ))}
               </tr>
-            )})}
+              )
+              
+              // Add configuration rows if expanded
+              if (isConfigExpanded && configs.length > 0) {
+                configs.forEach((config) => {
+                  const configKey = `${file.path}::${config.name}`
+                  const isConfigSelected = selectedConfigs.has(configKey)
+                  
+                  rows.push(
+                    <tr
+                      key={`${file.path}::config::${config.name}`}
+                      className={`config-row hover:bg-plm-bg-light/10 cursor-pointer ${
+                        isConfigSelected 
+                          ? 'bg-cyan-500/15 ring-1 ring-cyan-500/30 ring-inset' 
+                          : 'bg-plm-bg-light/5'
+                      }`}
+                      style={{ height: listRowSize + 4 }}
+                      onClick={(e) => handleConfigRowClick(e, file.path, config.name, configs)}
+                      onContextMenu={(e) => handleConfigContextMenu(e, file.path, config.name)}
+                    >
+                      {visibleColumns.map(column => (
+                        <td key={column.id} style={{ width: column.width }}>
+                          {column.id === 'name' ? (
+                            <div 
+                              className="flex items-center gap-1" 
+                              style={{ 
+                                minHeight: listRowSize - 4,
+                                paddingLeft: `${24 + (config.depth * 16)}px`
+                              }}
+                            >
+                              <span className="text-plm-fg-dim text-[10px]">{config.depth > 0 ? '└' : '○'}</span>
+                              <Layers size={12} className={`flex-shrink-0 ${isConfigSelected ? 'text-cyan-400' : config.depth > 0 ? 'text-amber-400/40' : 'text-amber-400/60'}`} />
+                              <span className={`truncate text-sm ${isConfigSelected ? 'text-cyan-300' : config.depth > 0 ? 'text-plm-fg-dim' : 'text-plm-fg-muted'}`}>{config.name}</span>
+                              {config.isActive && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" title="Active configuration" />
+                              )}
+                            </div>
+                          ) : column.id === 'description' ? (
+                            <input
+                              type="text"
+                              value={config.description || ''}
+                              onChange={(e) => handleConfigDescriptionChange(file.path, config.name, e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              disabled={!isEditable}
+                              placeholder="Description"
+                              className={`w-full px-1.5 py-0.5 text-xs rounded border transition-colors bg-transparent
+                                ${isEditable 
+                                  ? 'border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border' 
+                                  : 'border-transparent text-plm-fg-muted cursor-default'
+                                }
+                              `}
+                            />
+                          ) : column.id === 'itemNumber' ? (() => {
+                            // Get base number from parent file
+                            const baseNumber = file.pendingMetadata?.part_number || file.pdmData?.part_number || ''
+                            const tabNumber = config.tabNumber || ''
+                            
+                            // When not editable (checked in), show as single inline text
+                            if (!isEditable) {
+                              const fullNumber = baseNumber && tabNumber 
+                                ? `${baseNumber}-${tabNumber}`
+                                : baseNumber || tabNumber || ''
+                              return fullNumber ? (
+                                <span className="text-xs text-plm-fg-muted">{fullNumber}</span>
+                              ) : (
+                                <span className="text-plm-fg-dim text-xs">—</span>
+                              )
+                            }
+                            
+                            // When editable (checked out), show base number + editable tab input
+                            return (
+                              <div className="flex items-center gap-0.5">
+                                {baseNumber && (
+                                  <>
+                                    <span className="text-xs text-plm-fg">{baseNumber}</span>
+                                    <span className="text-plm-fg-dim text-xs">-</span>
+                                  </>
+                                )}
+                                <input
+                                  type="text"
+                                  value={tabNumber}
+                                  onChange={(e) => handleConfigTabChange(file.path, config.name, e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  placeholder={baseNumber ? 'Tab' : 'Item #'}
+                                  className="w-14 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
+                                />
+                              </div>
+                            )
+                          })() : (
+                            <span className="text-plm-fg-dim text-xs">—</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                })
+                
+              }
+              
+              return rows
+            })}
           </tbody>
         </table>
         )}
@@ -4955,7 +5609,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
           : ''
         
         // Check if any files are cloud-only (exist on server but not locally)
-        const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
+        const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
         
         // Check if files can be cut (moved) - need checkout for synced files
         // Can cut if: directory, unsynced (local-only), or checked out by current user
@@ -4973,17 +5627,17 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
               const folderPrefix = item.relativePath + '/'
               count += files.filter(f => 
                 !f.isDirectory && 
-                f.diffStatus === 'cloud' &&
+                (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new') &&
                 f.relativePath.startsWith(folderPrefix)
               ).length
-            } else if (item.diffStatus === 'cloud') {
+            } else if (item.diffStatus === 'cloud' || item.diffStatus === 'cloud_new') {
               count++
             }
           }
           return count
         }
         const cloudOnlyCount = getCloudOnlyFilesCount()
-        const anyCloudOnly = cloudOnlyCount > 0 || contextFiles.some(f => f.diffStatus === 'cloud')
+        const anyCloudOnly = cloudOnlyCount > 0 || contextFiles.some(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
         
         return (
           <>
@@ -5016,7 +5670,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 top: contextMenuAdjustedPos?.y ?? contextMenu.y 
               }}
             >
-              {!multiSelect && !isFolder && (
+              {!multiSelect && !isFolder && !allCloudOnly && (
                 <div 
                   className="context-menu-item"
                   onClick={() => {
@@ -5027,7 +5681,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                   Open
                 </div>
               )}
-              {multiSelect && allFiles && (
+              {multiSelect && allFiles && !allCloudOnly && (
                 <div 
                   className="context-menu-item"
                   onClick={async () => {
@@ -6134,6 +6788,115 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
                 Undo
                 <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+Z</span>
               </div>
+            </div>
+          </>
+        )
+      })()}
+
+      {/* Configuration context menu */}
+      {configContextMenu && (() => {
+        const file = files.find(f => f.path === configContextMenu.filePath)
+        const selectedConfigNames = getSelectedConfigsForFile(configContextMenu.filePath)
+        const configCount = selectedConfigNames.length || 1
+        const isPartOrAsm = file?.extension?.toLowerCase() === '.sldprt' || file?.extension?.toLowerCase() === '.sldasm'
+        
+        return (
+          <>
+            <div 
+              className="fixed inset-0 z-50" 
+              onClick={() => {
+                setConfigContextMenu(null)
+                setSelectedConfigs(new Set())
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setConfigContextMenu(null)
+                setSelectedConfigs(new Set())
+              }}
+            />
+            <div 
+              className="context-menu z-[60]"
+              style={{ left: configContextMenu.x, top: configContextMenu.y }}
+            >
+              {/* Header showing selection count */}
+              <div className="px-3 py-1.5 text-xs text-plm-fg-muted border-b border-plm-border/50 mb-1">
+                {configCount > 1 ? (
+                  <span className="text-cyan-400">{configCount} configurations selected</span>
+                ) : (
+                  <span>Configuration: <span className="text-cyan-400">{configContextMenu.configName}</span></span>
+                )}
+              </div>
+              
+              {/* Export options for parts/assemblies */}
+              {isPartOrAsm && (
+                <>
+                  <div 
+                    className={`context-menu-item ${isExportingConfigs ? 'opacity-50' : ''}`}
+                    onClick={() => !isExportingConfigs && handleExportConfigs('step')}
+                  >
+                    {isExportingConfigs ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Package size={14} className="text-emerald-400" />
+                    )}
+                    Export STEP {configCount > 1 ? `(${configCount})` : ''}
+                  </div>
+                  <div 
+                    className={`context-menu-item ${isExportingConfigs ? 'opacity-50' : ''}`}
+                    onClick={() => !isExportingConfigs && handleExportConfigs('iges')}
+                  >
+                    {isExportingConfigs ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Package size={14} className="text-amber-400" />
+                    )}
+                    Export IGES {configCount > 1 ? `(${configCount})` : ''}
+                  </div>
+                  <div 
+                    className={`context-menu-item ${isExportingConfigs ? 'opacity-50' : ''}`}
+                    onClick={() => !isExportingConfigs && handleExportConfigs('stl')}
+                  >
+                    {isExportingConfigs ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Package size={14} className="text-violet-400" />
+                    )}
+                    Export STL {configCount > 1 ? `(${configCount})` : ''}
+                  </div>
+                </>
+              )}
+              
+              {/* Export Options link */}
+              <div className="context-menu-separator" />
+              <div 
+                className="context-menu-item text-plm-fg-muted"
+                onClick={() => {
+                  setConfigContextMenu(null)
+                  setSelectedConfigs(new Set())
+                  // Navigate to export settings
+                  window.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'export' }))
+                }}
+              >
+                <Settings size={14} />
+                Export Options...
+              </div>
+              
+              {/* Selection info */}
+              {configCount > 1 && (
+                <>
+                  <div className="context-menu-separator" />
+                  <div 
+                    className="context-menu-item text-plm-fg-muted"
+                    onClick={() => {
+                      setSelectedConfigs(new Set())
+                      setConfigContextMenu(null)
+                    }}
+                  >
+                    <Check size={14} />
+                    Clear Selection
+                  </div>
+                </>
+              )}
             </div>
           </>
         )

@@ -238,6 +238,8 @@ declare global {
             configurationProperties: Record<string, Record<string, string>>; configurations: string[] }; error?: string }>
         setProperties: (filePath: string, properties: Record<string, string>, configuration?: string) => 
           Promise<{ success: boolean; data?: { filePath: string; propertiesSet: number; configuration: string }; error?: string }>
+        setPropertiesBatch: (filePath: string, configProperties: Record<string, Record<string, string>>) =>
+          Promise<{ success: boolean; data?: { filePath: string; configurationsProcessed: number }; error?: string }>
         getConfigurations: (filePath: string) => 
           Promise<{ success: boolean; data?: { filePath: string; activeConfiguration: string; 
             configurations: Array<{ name: string; isActive: boolean; description: string; properties: Record<string, string> }>; count: number }; error?: string }>
@@ -254,7 +256,7 @@ declare global {
         // Export operations
         exportPdf: (filePath: string, outputPath?: string) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
-        exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[] }) => 
+        exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string }) => 
           Promise<{ success: boolean; data?: { inputFile: string; exportedFiles: string[]; count: number }; error?: string }>
         exportDxf: (filePath: string, outputPath?: string) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>

@@ -1094,6 +1094,29 @@ input::placeholder {
   user-select: none;
 }
 
+/* Configuration child rows (SW configs) */
+.file-table tr.config-row {
+  background: rgba(0, 0, 0, 0.15);
+  border-left: 2px solid rgba(6, 182, 212, 0.3);
+}
+
+.file-table tr.config-row:hover {
+  background: rgba(6, 182, 212, 0.08) !important;
+}
+
+.file-table tr.config-row td {
+  padding: 2px 12px;
+  border-bottom: 1px solid rgba(var(--plm-border), 0.3);
+}
+
+.file-table tr.config-row input {
+  background: transparent;
+}
+
+.file-table tr.config-row input:focus {
+  background: rgba(0, 0, 0, 0.2);
+}
+
 .file-table tr {
   transition: background-color 0.1s ease;
   cursor: default;
@@ -1199,6 +1222,21 @@ input::placeholder {
 .checkout-indicator.mine {
   background: rgba(0, 180, 216, 0.15);
   color: var(--plm-accent);
+}
+
+/* Details panel - allow text selection for copy/paste */
+.details-panel,
+.sw-datacard-panel {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.details-panel input,
+.details-panel textarea,
+.sw-datacard-panel input,
+.sw-datacard-panel textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Tree view styling */

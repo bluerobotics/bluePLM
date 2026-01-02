@@ -743,7 +743,7 @@ namespace BluePLM.SolidWorksService
         /// <summary>
         /// Export to STEP format
         /// </summary>
-        public CommandResult ExportToStep(string? filePath, string? outputPath, string? configuration, bool exportAllConfigs)
+        public CommandResult ExportToStep(string? filePath, string? outputPath, string? configuration, bool exportAllConfigs, string[]? configurations = null, string? filenamePattern = null)
         {
             if (string.IsNullOrEmpty(filePath))
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
@@ -773,20 +773,53 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
                 var exportedFiles = new List<string>();
+                var baseName = Path.GetFileNameWithoutExtension(filePath);
+                var outputDir = Path.GetDirectoryName(outputPath ?? filePath)!;
+                Directory.CreateDirectory(outputDir);
 
-                if (exportAllConfigs)
+                // Determine which configs to export
+                string[] configsToExport;
+                if (configurations != null && configurations.Length > 0)
                 {
-                    var configNames = (string[])doc.GetConfigurationNames();
-                    var baseName = Path.GetFileNameWithoutExtension(filePath);
-                    var outputDir = Path.GetDirectoryName(outputPath ?? filePath)!;
-                    Directory.CreateDirectory(outputDir);
+                    // Export specific configurations
+                    configsToExport = configurations;
+                }
+                else if (exportAllConfigs)
+                {
+                    // Export all configurations
+                    configsToExport = (string[])doc.GetConfigurationNames();
+                }
+                else if (!string.IsNullOrEmpty(configuration))
+                {
+                    // Export single configuration
+                    configsToExport = new[] { configuration };
+                }
+                else
+                {
+                    // Export active configuration only
+                    configsToExport = new string[0];
+                }
 
-                    foreach (var configName in configNames)
+                if (configsToExport.Length > 0)
+                {
+                    foreach (var configName in configsToExport)
                     {
                         doc.ShowConfiguration2(configName);
                         doc.EditRebuild3();
 
-                        var configOutputPath = Path.Combine(outputDir, $"{baseName}_{configName}.step");
+                        // Build output filename
+                        string configOutputPath;
+                        if (!string.IsNullOrEmpty(filenamePattern))
+                        {
+                            // Get properties for pattern replacement
+                            var props = GetConfigProperties(doc, configName);
+                            var fileName = FormatExportFilename(filenamePattern, baseName, configName, props, ".step");
+                            configOutputPath = Path.Combine(outputDir, fileName);
+                        }
+                        else
+                        {
+                            configOutputPath = Path.Combine(outputDir, $"{baseName}_{configName}.step");
+                        }
 
                         bool success = doc.Extension.SaveAs3(
                             configOutputPath,
@@ -802,12 +835,7 @@ namespace BluePLM.SolidWorksService
                 }
                 else
                 {
-                    if (!string.IsNullOrEmpty(configuration))
-                    {
-                        doc.ShowConfiguration2(configuration);
-                        doc.EditRebuild3();
-                    }
-
+                    // No specific config - export current/active
                     var finalOutputPath = outputPath ?? Path.ChangeExtension(filePath, ".step");
                     Directory.CreateDirectory(Path.GetDirectoryName(finalOutputPath)!);
 
@@ -1295,6 +1323,108 @@ namespace BluePLM.SolidWorksService
             }
 
             return "";
+        }
+
+        /// <summary>
+        /// Get custom properties from a configuration for export filename formatting
+        /// </summary>
+        private Dictionary<string, string> GetConfigProperties(ModelDoc2 doc, string configName)
+        {
+            var props = new Dictionary<string, string>();
+            try
+            {
+                var manager = doc.Extension.CustomPropertyManager[configName];
+                if (manager == null)
+                    manager = doc.Extension.CustomPropertyManager[""];
+                
+                if (manager != null)
+                {
+                    object names = null, values = null, resolved = null, types = null;
+                    manager.GetAll2(ref names, ref types, ref values, ref resolved);
+                    
+                    var propNames = names as string[];
+                    var propResolved = resolved as string[];
+                    
+                    if (propNames != null && propResolved != null)
+                    {
+                        for (int i = 0; i < propNames.Length && i < propResolved.Length; i++)
+                        {
+                            var name = propNames[i];
+                            var value = propResolved[i];
+                            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(value))
+                            {
+                                props[name] = value;
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore property read errors
+            }
+            return props;
+        }
+
+        /// <summary>
+        /// Format export filename using a pattern with placeholders
+        /// Supported placeholders:
+        /// {filename} - Original file name (without extension)
+        /// {config} - Configuration name
+        /// {partNumber} or {number} - Part/Item number from properties
+        /// {revision} or {rev} - Revision from properties
+        /// {description} or {desc} - Description from properties
+        /// {date} - Current date (YYYY-MM-DD)
+        /// {time} - Current time (HH-MM-SS)
+        /// {datetime} - Current date and time (YYYY-MM-DD_HH-MM-SS)
+        /// </summary>
+        private string FormatExportFilename(string pattern, string baseName, string configName, Dictionary<string, string> props, string extension)
+        {
+            var now = DateTime.Now;
+            
+            // Get property values
+            var partNumber = GetPartNumber(props);
+            var revision = GetRevision(props);
+            var description = GetDictValue(props, "Description") ?? GetDictValue(props, "DESCRIPTION") ?? "";
+            
+            // Replace placeholders (case-insensitive)
+            var result = pattern;
+            result = ReplaceIgnoreCase(result, "{filename}", baseName);
+            result = ReplaceIgnoreCase(result, "{config}", configName);
+            result = ReplaceIgnoreCase(result, "{partNumber}", partNumber);
+            result = ReplaceIgnoreCase(result, "{number}", partNumber);
+            result = ReplaceIgnoreCase(result, "{revision}", revision);
+            result = ReplaceIgnoreCase(result, "{rev}", revision);
+            result = ReplaceIgnoreCase(result, "{description}", description);
+            result = ReplaceIgnoreCase(result, "{desc}", description);
+            result = ReplaceIgnoreCase(result, "{date}", now.ToString("yyyy-MM-dd"));
+            result = ReplaceIgnoreCase(result, "{time}", now.ToString("HH-mm-ss"));
+            result = ReplaceIgnoreCase(result, "{datetime}", now.ToString("yyyy-MM-dd_HH-mm-ss"));
+            
+            // Clean up invalid filename characters
+            foreach (char c in Path.GetInvalidFileNameChars())
+            {
+                result = result.Replace(c, '_');
+            }
+            
+            // Ensure extension
+            if (!result.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            {
+                result += extension;
+            }
+            
+            return result;
+        }
+
+        private static string ReplaceIgnoreCase(string source, string oldValue, string newValue)
+        {
+            int index = source.IndexOf(oldValue, StringComparison.OrdinalIgnoreCase);
+            while (index >= 0)
+            {
+                source = source.Substring(0, index) + newValue + source.Substring(index + oldValue.Length);
+                index = source.IndexOf(oldValue, index + newValue.Length, StringComparison.OrdinalIgnoreCase);
+            }
+            return source;
         }
 
         #endregion

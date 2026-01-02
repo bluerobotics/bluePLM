@@ -143,10 +143,12 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
   // Calculate selected files that can be checked in (for multi-select check-in feature)
   const selectedCheckinableFiles = useMemo(() => {
     if (selectedFiles.length <= 1) return []
+    // Exclude 'deleted' files - can't check in files that don't exist locally
     return files.filter(f => 
       selectedFiles.includes(f.path) && 
       !f.isDirectory && 
-      f.pdmData?.checked_out_by === user?.id
+      f.pdmData?.checked_out_by === user?.id &&
+      f.diffStatus !== 'deleted'
     )
   }, [files, selectedFiles, user?.id])
 
@@ -173,6 +175,7 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
   }, [files, selectedFiles])
 
   // Calculate selected files that can be checked out (for multi-select checkout feature)
+  // Exclude 'deleted' - files that were deleted locally while checked out
   const selectedCheckoutableFiles = useMemo(() => {
     if (selectedFiles.length <= 1) return []
     return files.filter(f => 
@@ -180,7 +183,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
       !f.isDirectory && 
       f.pdmData && 
       !f.pdmData.checked_out_by && 
-      f.diffStatus !== 'cloud'
+      f.diffStatus !== 'cloud' &&
+      f.diffStatus !== 'deleted'
     )
   }, [files, selectedFiles])
 
@@ -258,7 +262,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
   
   // Get files that need attention before disconnect
   const getDisconnectWarnings = () => {
-    const checkedOutFiles = files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by === user?.id)
+    // Exclude 'deleted' files - they don't exist locally
+    const checkedOutFiles = files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by === user?.id && f.diffStatus !== 'deleted')
     const newFiles = files.filter(f => !f.isDirectory && f.diffStatus === 'added')
     const modifiedFiles = files.filter(f => !f.isDirectory && (f.diffStatus === 'modified' || f.diffStatus === 'moved'))
     return { checkedOutFiles, newFiles, modifiedFiles }
@@ -643,6 +648,13 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
         if (selectedFile.isDirectory) {
           // Toggle folder expansion
           toggleFolder(selectedFile.relativePath)
+        } else if (selectedFile.diffStatus === 'cloud' || selectedFile.diffStatus === 'cloud_new') {
+          // Cloud-only file: download first, then open
+          executeCommand('download', { files: [selectedFile] }, { onRefresh, silent: true }).then(result => {
+            if (result.success && window.electronAPI) {
+              window.electronAPI.openFile(selectedFile.path)
+            }
+          })
         } else if (window.electronAPI) {
           // Open file
           window.electronAPI.openFile(selectedFile.path)
@@ -802,7 +814,8 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
     if (isCheckingInMyCheckouts) return
     
     const { user } = usePDMStore.getState()
-    const myCheckedOutFiles = files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by === user?.id)
+    // Exclude 'deleted' files - can't check in files that don't exist locally
+    const myCheckedOutFiles = files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by === user?.id && f.diffStatus !== 'deleted')
     if (myCheckedOutFiles.length === 0) {
       addToast('info', 'No files to check in')
       return
@@ -1472,12 +1485,21 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
               handleSlowDoubleClick(file)
             }
           }}
-          onDoubleClick={() => {
+          onDoubleClick={async () => {
             if (isRenaming) return
             
             if (file.isDirectory) {
               // Toggle expand/collapse on double click
               toggleFolder(file.relativePath)
+            } else if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+              // Cloud-only file: download first, then open
+              const result = await executeCommand('download', { files: [file] }, { onRefresh, silent: true })
+              if (result.success && window.electronAPI) {
+                window.electronAPI.openFile(file.path)
+              }
+              // Reset slow double click tracking
+              setLastClickTime(0)
+              setLastClickPath(null)
             } else if (window.electronAPI) {
               // Double click on file opens it
               window.electronAPI.openFile(file.path)
@@ -1770,8 +1792,10 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
           {!isRenaming && !isBeingProcessed(file.relativePath) && !file.isDirectory && (() => {
             // In offline mode, checkout/checkin buttons don't work - use stage button instead
             // But we still show checkout status (avatar) for files checked out by others
-            const showCheckout = !isOfflineMode && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud'
-            const showCheckin = !isOfflineMode && file.pdmData?.checked_out_by === user?.id
+            // Exclude 'cloud' and 'deleted' - both represent files that don't exist locally
+            const showCheckout = !isOfflineMode && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'deleted'
+            // Also exclude 'deleted' from check-in - can't check in files that don't exist locally
+            const showCheckin = !isOfflineMode && file.pdmData?.checked_out_by === user?.id && file.diffStatus !== 'deleted'
             const checkedOutByOther = file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id
             const checkedOutUser = checkedOutByOther ? (file.pdmData as any)?.checked_out_user : null
             // In offline mode, show a lock icon for files I have checked out (visual indicator only)
@@ -2462,10 +2486,18 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                           setCurrentFolder(parentPath)
                         }
                       }}
-                      onDoubleClick={() => {
+                      onDoubleClick={async () => {
                         // Double click on files opens them
-                        if (!pinned.isDirectory && actualFile && window.electronAPI) {
-                          window.electronAPI.openFile(actualFile.path)
+                        if (!pinned.isDirectory && actualFile) {
+                          if (actualFile.diffStatus === 'cloud' || actualFile.diffStatus === 'cloud_new') {
+                            // Cloud-only file: download first, then open
+                            const result = await executeCommand('download', { files: [actualFile] }, { onRefresh, silent: true })
+                            if (result.success && window.electronAPI) {
+                              window.electronAPI.openFile(actualFile.path)
+                            }
+                          } else if (window.electronAPI) {
+                            window.electronAPI.openFile(actualFile.path)
+                          }
                         }
                         // Double click on folders toggles expand
                         if (pinned.isDirectory) {
@@ -2633,8 +2665,10 @@ export function ExplorerView({ onOpenVault, onOpenRecentVault, onRefresh }: Expl
                       {/* Inline action buttons for individual files - show on hover */}
                       {!pinned.isDirectory && actualFile && pinned.vaultId === activeVaultId && !isBeingProcessed(actualFile.relativePath) && (() => {
                         // In offline mode, checkout/checkin buttons don't work - use stage button instead
-                        const showCheckout = !isOfflineMode && actualFile.pdmData && !actualFile.pdmData.checked_out_by && actualFile.diffStatus !== 'cloud'
-                        const showCheckin = !isOfflineMode && actualFile.pdmData?.checked_out_by === user?.id
+                        // Exclude 'cloud' and 'deleted' - both represent files that don't exist locally
+                        const showCheckout = !isOfflineMode && actualFile.pdmData && !actualFile.pdmData.checked_out_by && actualFile.diffStatus !== 'cloud' && actualFile.diffStatus !== 'deleted'
+                        // Also exclude 'deleted' from check-in - can't check in files that don't exist locally
+                        const showCheckin = !isOfflineMode && actualFile.pdmData?.checked_out_by === user?.id && actualFile.diffStatus !== 'deleted'
                         const showOfflineCheckoutIndicator = isOfflineMode && actualFile.pdmData?.checked_out_by === user?.id
                         
                         if (!showCheckout && !showCheckin && !showOfflineCheckoutIndicator) return null

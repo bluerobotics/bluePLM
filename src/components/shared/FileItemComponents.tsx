@@ -152,9 +152,13 @@ export function getFolderCheckoutStatus(
   allFiles: LocalFile[], 
   userId?: string
 ): FolderCheckoutStatus {
+  // Exclude 'deleted' files - they don't exist locally (were deleted while checked out)
+  // These should be treated like cloud files, not synced/local files
+  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
   const folderFiles = allFiles.filter(f => 
     !f.isDirectory && 
-    f.relativePath.startsWith(folderPath + '/')
+    f.relativePath.startsWith(folderPath + '/') &&
+    !serverOnlyStatuses.includes(f.diffStatus || '')
   )
   const checkedOutByMe = folderFiles.some(f => f.pdmData?.checked_out_by === userId)
   const checkedOutByOthers = folderFiles.some(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId)
@@ -167,14 +171,18 @@ export function getFolderCheckoutStatus(
 
 /**
  * Check if all files in a folder are truly synced (not just content-matched)
+ * Excludes 'deleted' files as they don't exist locally
  */
 export function isFolderSynced(folderPath: string, allFiles: LocalFile[]): boolean {
+  // Exclude files that only exist on server (not locally)
+  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
   const folderFiles = allFiles.filter(f => 
     !f.isDirectory && 
-    f.relativePath.startsWith(folderPath + '/')
+    f.relativePath.startsWith(folderPath + '/') &&
+    !serverOnlyStatuses.includes(f.diffStatus || '')
   )
   if (folderFiles.length === 0) return false
-  // Only consider synced if ALL files have pdmData AND none are marked as 'added'
+  // Only consider synced if ALL local files have pdmData AND none are marked as 'added'
   return folderFiles.every(f => !!f.pdmData && f.diffStatus !== 'added')
 }
 

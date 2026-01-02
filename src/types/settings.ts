@@ -10,6 +10,7 @@ export type SettingsTab =
   | 'company-profile' 
   | 'auth-providers'
   | 'serialization'
+  | 'export'
   | 'rfq' 
   | 'metadata-columns' 
   | 'backup' 

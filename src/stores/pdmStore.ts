@@ -635,6 +635,7 @@ interface PDMState {
   removeFilesFromStore: (paths: string[]) => void
   updatePendingMetadata: (path: string, metadata: PendingMetadata) => void
   clearPendingMetadata: (path: string) => void
+  clearPendingConfigMetadata: (path: string) => void  // Clear only config_tabs and config_descriptions
   renameFileInStore: (oldPath: string, newPath: string, newNameOrRelPath: string, isMove?: boolean) => void
   setSelectedFiles: (paths: string[]) => void
   toggleFileSelection: (path: string, multiSelect?: boolean) => void
@@ -2211,6 +2212,46 @@ export const usePDMStore = create<PDMState>()(
           }
         })
       },
+      clearPendingConfigMetadata: (path) => {
+        set(state => {
+          const file = state.files.find(f => f.path === path)
+          const existingPending = file?.pendingMetadata
+          
+          // If no pending metadata, nothing to clear
+          if (!existingPending) return state
+          
+          // Create new pending without config_tabs and config_descriptions
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { config_tabs, config_descriptions, ...remainingPending } = existingPending
+          
+          // Check if there's anything left after removing config metadata
+          const hasRemainingPending = Object.keys(remainingPending).some(k => remainingPending[k as keyof typeof remainingPending] !== undefined)
+          const newPending = hasRemainingPending ? remainingPending : undefined
+          
+          // Update persisted metadata too
+          const existingPersistedPending = state.persistedPendingMetadata[path]
+          let newPersistedMetadata = state.persistedPendingMetadata
+          if (existingPersistedPending) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { config_tabs: _ct, config_descriptions: _cd, ...remainingPersistedPending } = existingPersistedPending
+            const hasRemainingPersistedPending = Object.keys(remainingPersistedPending).some(k => remainingPersistedPending[k as keyof typeof remainingPersistedPending] !== undefined)
+            if (hasRemainingPersistedPending) {
+              newPersistedMetadata = { ...state.persistedPendingMetadata, [path]: remainingPersistedPending }
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { [path]: _, ...rest } = state.persistedPendingMetadata
+              newPersistedMetadata = rest
+            }
+          }
+          
+          return {
+            files: state.files.map(f => 
+              f.path === path ? { ...f, pendingMetadata: newPending } : f
+            ),
+            persistedPendingMetadata: newPersistedMetadata
+          }
+        })
+      },
       renameFileInStore: (oldPath, newPath, newNameOrRelPath, isMove = false) => {
         const { files, selectedFiles } = get()
         
@@ -2368,6 +2409,15 @@ export const usePDMStore = create<PDMState>()(
                   newDiffStatus = undefined
                 }
               }
+              
+              // Handle checkout status changes for files marked as 'deleted'
+              // When a file was marked 'deleted' because user deleted local copy while checked out,
+              // and the checkout is now released (checked_out_by = null), change status to 'cloud'
+              // This fixes the bug where files show checkout prompt after checkout is released
+              if (f.diffStatus === 'deleted' && 'checked_out_by' in pdmData && pdmData.checked_out_by === null) {
+                newDiffStatus = 'cloud'
+              }
+              
               return { 
                 ...f, 
                 pdmData: updatedPdmData,

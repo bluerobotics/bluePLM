@@ -2,13 +2,14 @@
  * Discard Command
  * 
  * Discard local changes and revert to the server version.
- * Downloads the server file and releases the checkout.
+ * For files that exist locally: downloads the server file and releases the checkout.
+ * For 'deleted' files (checked out but deleted locally): just releases the checkout.
  */
 
 import type { Command, DiscardParams, CommandResult } from '../types'
-import { getSyncedFilesFromSelection } from '../types'
+import { getDiscardableFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
-import { checkinFile } from '../../supabase'
+import { checkinFile, undoCheckout } from '../../supabase'
 import { getDownloadUrl } from '../../storage'
 
 export const discardCommand: Command<DiscardParams> = {
@@ -39,11 +40,10 @@ export const discardCommand: Command<DiscardParams> = {
       return 'No files selected'
     }
     
-    // Get files checked out by current user
-    const syncedFiles = getSyncedFilesFromSelection(ctx.files, files)
-    const myCheckedOutFiles = syncedFiles.filter(f => f.pdmData?.checked_out_by === ctx.user?.id)
+    // Get files checked out by current user (includes 'deleted' files)
+    const discardableFiles = getDiscardableFilesFromSelection(ctx.files, files, ctx.user?.id)
     
-    if (myCheckedOutFiles.length === 0) {
+    if (discardableFiles.length === 0) {
       return 'No files checked out by you to discard'
     }
     
@@ -54,9 +54,8 @@ export const discardCommand: Command<DiscardParams> = {
     const user = ctx.user!
     const organization = ctx.organization!
     
-    // Get files checked out by current user
-    const syncedFiles = getSyncedFilesFromSelection(ctx.files, files)
-    const filesToDiscard = syncedFiles.filter(f => f.pdmData?.checked_out_by === user.id)
+    // Get files checked out by current user (includes 'deleted' files)
+    const filesToDiscard = getDiscardableFilesFromSelection(ctx.files, files, user.id)
     
     if (filesToDiscard.length === 0) {
       return {
@@ -95,44 +94,67 @@ export const discardCommand: Command<DiscardParams> = {
     // Process all files in parallel, collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
+    // Track paths to remove from store (deleted files that will become cloud-only)
+    const pathsToRemove: string[] = []
+    
     const results = await Promise.all(filesToDiscard.map(async (file) => {
       try {
         const contentHash = file.pdmData?.content_hash
+        
         if (!contentHash) {
           progress.update()
           return { success: false, error: `${file.name}: No content hash` }
         }
         
-        const { url, error: urlError } = await getDownloadUrl(organization.id, contentHash)
-        if (urlError || !url) {
-          progress.update()
-          return { success: false, error: `${file.name}: ${urlError || 'Failed to get download URL'}` }
-        }
+        // Check if file actually exists locally (don't trust diffStatus alone)
+        const fileExists = await window.electronAPI?.fileExists(file.path)
+        const isDeletedLocally = !fileExists || file.diffStatus === 'deleted'
         
-        await window.electronAPI?.setReadonly(file.path, false)
-        const writeResult = await window.electronAPI?.downloadUrl(url, file.path)
-        if (!writeResult?.success) {
-          progress.update()
-          return { success: false, error: `${file.name}: Download failed` }
-        }
-        
-        const result = await checkinFile(file.pdmData!.id, user.id)
-        if (!result.success) {
-          progress.update()
-          return { success: false, error: `${file.name}: Failed to release checkout` }
-        }
-        
-        await window.electronAPI?.setReadonly(file.path, true)
-        // Queue update for batch processing
-        pendingUpdates.push({
-          path: file.path,
-          updates: {
-            pdmData: { ...file.pdmData!, checked_out_by: null, checked_out_user: null },
-            localHash: contentHash,
-            diffStatus: undefined,
-            localActiveVersion: undefined
+        if (isDeletedLocally) {
+          // For files that don't exist locally, just release checkout using undoCheckout
+          // This is simpler than checkinFile and doesn't do any version/content logic
+          const result = await undoCheckout(file.pdmData!.id, user.id)
+          if (!result.success) {
+            progress.update()
+            return { success: false, error: `${file.name}: ${result.error || 'Failed to release checkout'}` }
           }
-        })
+          
+          // Remove from store (will be re-added as 'cloud' on next refresh)
+          pathsToRemove.push(file.path)
+        } else {
+          // For files that exist locally, download server version to replace local changes
+          const { url, error: urlError } = await getDownloadUrl(organization.id, contentHash)
+          if (urlError || !url) {
+            progress.update()
+            return { success: false, error: `${file.name}: ${urlError || 'Failed to get download URL'}` }
+          }
+          
+          await window.electronAPI?.setReadonly(file.path, false)
+          const writeResult = await window.electronAPI?.downloadUrl(url, file.path)
+          if (!writeResult?.success) {
+            progress.update()
+            return { success: false, error: `${file.name}: Download failed` }
+          }
+          
+          // Release checkout using checkinFile (handles the file content properly)
+          const result = await checkinFile(file.pdmData!.id, user.id)
+          if (!result.success) {
+            progress.update()
+            return { success: false, error: `${file.name}: Failed to release checkout` }
+          }
+          
+          // Set to read-only and update store
+          await window.electronAPI?.setReadonly(file.path, true)
+          pendingUpdates.push({
+            path: file.path,
+            updates: {
+              pdmData: { ...file.pdmData!, checked_out_by: null, checked_out_user: null },
+              localHash: contentHash,
+              diffStatus: undefined,
+              localActiveVersion: undefined
+            }
+          })
+        }
         progress.update()
         return { success: true }
         
@@ -147,6 +169,11 @@ export const discardCommand: Command<DiscardParams> = {
       ctx.updateFilesInStore(pendingUpdates)
     }
     
+    // Remove deleted files from store (they'll reappear as 'cloud' on next refresh)
+    if (pathsToRemove.length > 0) {
+      ctx.removeFilesFromStore(pathsToRemove)
+    }
+    
     // Count results
     for (const result of results) {
       if (result.success) succeeded++
@@ -159,7 +186,13 @@ export const discardCommand: Command<DiscardParams> = {
     // Clean up - batch remove
     ctx.removeProcessingFolders(foldersBeingProcessed)
     const { duration } = progress.finish()
-    ctx.onRefresh?.(true)
+    
+    // Small delay before refresh to let database changes propagate
+    // This prevents race conditions with realtime subscriptions
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // Force a full refresh (not silent) to ensure correct state after discard
+    ctx.onRefresh?.(false)
     
     // Show result
     if (failed > 0) {

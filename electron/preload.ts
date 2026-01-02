@@ -296,6 +296,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:get-properties', filePath, configuration),
     setProperties: (filePath: string, properties: Record<string, string>, configuration?: string) => 
       ipcRenderer.invoke('solidworks:set-properties', filePath, properties, configuration),
+    setPropertiesBatch: (filePath: string, configProperties: Record<string, Record<string, string>>) =>
+      ipcRenderer.invoke('solidworks:set-properties-batch', filePath, configProperties),
     getConfigurations: (filePath: string) => 
       ipcRenderer.invoke('solidworks:get-configurations', filePath),
     getReferences: (filePath: string) => 

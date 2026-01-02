@@ -1584,6 +1584,7 @@ export async function syncFile(
         content_hash: contentHash,
         file_size: fileSize,
         workflow_state_id: data.workflow_state_id,
+        state: data.state || 'not_tracked',
         created_by: userId
       })
       
@@ -1861,6 +1862,7 @@ export async function checkinFile(
     comment?: string
     newFilePath?: string  // For moved files - update the server path
     newFileName?: string  // For renamed files - update the server name
+    localActiveVersion?: number  // If user rolled to a different version locally, track it to force version increment
     pendingMetadata?: {
       part_number?: string | null
       description?: string | null
@@ -1948,25 +1950,51 @@ export async function checkinFile(
     }
   }
   
-  // Check if content changed OR metadata changed
+  // Check if content changed OR metadata changed OR user switched versions locally
   const contentChanged = options?.newContentHash && options.newContentHash !== file.content_hash
   const metadataChanged = hasPendingMetadata
-  const shouldIncrementVersion = contentChanged || metadataChanged
+  // If user rolled to a different version locally (localActiveVersion set and differs from server), we need to increment
+  // This handles cases where version 7 has same hash as version 6 but user intentionally switched versions
+  const versionSwitched = options?.localActiveVersion !== undefined && options.localActiveVersion !== file.version
+  const shouldIncrementVersion = contentChanged || metadataChanged || versionSwitched
+  
+  console.debug('[Checkin] Version decision:', {
+    fileId,
+    serverVersion: file.version,
+    localActiveVersion: options?.localActiveVersion,
+    contentChanged,
+    metadataChanged,
+    versionSwitched,
+    shouldIncrementVersion
+  })
   
   if (shouldIncrementVersion) {
     // Get max version from history - new version should be max + 1
     // This handles the case where you rollback from v5 to v3, then check in -> should be v6
-    const { data: maxVersionData } = await client
+    // Use maybeSingle() since file might not have version history yet (first version)
+    const { data: maxVersionData, error: maxVersionError } = await client
       .from('file_versions')
       .select('version')
       .eq('file_id', fileId)
       .order('version', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
+    
+    if (maxVersionError) {
+      console.warn('[Checkin] Failed to get max version from history:', maxVersionError.message)
+    }
     
     const maxVersionInHistory = maxVersionData?.version || file.version
     const newVersion = maxVersionInHistory + 1
     updateData.version = newVersion
+    
+    console.debug('[Checkin] Incrementing version:', {
+      fileId,
+      currentVersion: file.version,
+      maxVersionInHistory,
+      newVersion,
+      reason: versionSwitched ? 'version_switched' : contentChanged ? 'content_changed' : 'metadata_changed'
+    })
     
     if (contentChanged) {
       updateData.content_hash = options!.newContentHash
@@ -1976,16 +2004,24 @@ export async function checkinFile(
     }
     
     // Create version record for changes
-    await client.from('file_versions').insert({
+    const { error: versionInsertError } = await client.from('file_versions').insert({
       file_id: fileId,
       version: newVersion,
       revision: updateData.revision || file.revision,
       content_hash: updateData.content_hash || file.content_hash,
       file_size: updateData.file_size || file.file_size,
       workflow_state_id: file.workflow_state_id,
+      state: file.state || 'not_tracked',
       created_by: userId,
       comment: options?.comment || null
     })
+    
+    if (versionInsertError) {
+      console.error('[Checkin] Failed to insert version record:', versionInsertError.message)
+      // If version insert fails, don't update the file to the new version
+      // This prevents version mismatch between files and file_versions tables
+      return { success: false, error: `Failed to create version record: ${versionInsertError.message}` }
+    }
     
     // Log revision change activity if revision changed (fire-and-forget)
     if (options?.pendingMetadata?.revision && options.pendingMetadata.revision !== file.revision) {
@@ -2122,6 +2158,7 @@ export async function syncSolidWorksFileMetadata(
     content_hash: file.content_hash,
     file_size: file.file_size,
     workflow_state_id: file.workflow_state_id,
+    state: file.state || 'not_tracked',
     created_by: userId,
     comment: 'Metadata updated from SolidWorks file properties'
   })

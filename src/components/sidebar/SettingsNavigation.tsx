@@ -35,6 +35,7 @@ const settingsSections: SettingsSection[] = [
       { id: 'company-profile', label: 'Company Profile' },
       { id: 'auth-providers', label: 'Sign-In Methods' },
       { id: 'serialization', label: 'Serialization' },
+      { id: 'export', label: 'Export Options' },
       { id: 'metadata-columns', label: 'File Metadata' },
       { id: 'rfq', label: 'RFQ Settings' },
       { id: 'backup', label: 'Backups' },

@@ -13,6 +13,7 @@ const TeamMembersSettings = lazy(() => import('./settings/TeamMembersSettings').
 const CompanyProfileSettings = lazy(() => import('./settings/CompanyProfileSettings').then(m => ({ default: m.CompanyProfileSettings })))
 const AuthProvidersSettings = lazy(() => import('./settings/AuthProvidersSettings').then(m => ({ default: m.AuthProvidersSettings })))
 const SerializationSettings = lazy(() => import('./settings/SerializationSettings').then(m => ({ default: m.SerializationSettings })))
+const ExportSettings = lazy(() => import('./settings/ExportSettings').then(m => ({ default: m.ExportSettings })))
 const RFQSettings = lazy(() => import('./settings/RFQSettings').then(m => ({ default: m.RFQSettings })))
 const MetadataColumnsSettings = lazy(() => import('./settings/MetadataColumnsSettings').then(m => ({ default: m.MetadataColumnsSettings })))
 const BackupSettings = lazy(() => import('./settings/BackupSettings').then(m => ({ default: m.BackupSettings })))
@@ -65,6 +66,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <AuthProvidersSettings />
       case 'serialization':
         return <SerializationSettings />
+      case 'export':
+        return <ExportSettings />
       case 'rfq':
         return <RFQSettings />
       case 'metadata-columns':

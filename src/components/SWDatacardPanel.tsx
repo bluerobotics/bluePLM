@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePDMStore, LocalFile } from '../stores/pdmStore'
 import { 
   getNextSerialNumber, 
@@ -32,7 +32,48 @@ interface ConfigurationData {
   name: string
   isActive?: boolean
   description?: string
+  parentConfiguration?: string | null  // Parent config name for derived configurations
   properties: Record<string, string>
+}
+
+// Build a tree structure from flat config list
+interface ConfigTreeNode extends ConfigurationData {
+  children: ConfigTreeNode[]
+  depth: number
+}
+
+function buildConfigTree(configs: ConfigurationData[]): ConfigTreeNode[] {
+  const nodeMap = new Map<string, ConfigTreeNode>()
+  const roots: ConfigTreeNode[] = []
+  
+  // Create nodes for all configs
+  configs.forEach(config => {
+    nodeMap.set(config.name, { ...config, children: [], depth: 0 })
+  })
+  
+  // Build tree structure
+  configs.forEach(config => {
+    const node = nodeMap.get(config.name)!
+    if (config.parentConfiguration && nodeMap.has(config.parentConfiguration)) {
+      const parent = nodeMap.get(config.parentConfiguration)!
+      node.depth = parent.depth + 1
+      parent.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+  
+  // Flatten tree for rendering (depth-first)
+  function flattenTree(nodes: ConfigTreeNode[]): ConfigTreeNode[] {
+    const result: ConfigTreeNode[] = []
+    nodes.forEach(node => {
+      result.push(node)
+      result.push(...flattenTree(node.children))
+    })
+    return result
+  }
+  
+  return flattenTree(roots)
 }
 
 // SolidWorks service hook
@@ -99,31 +140,36 @@ function SWFileIcon({ fileType, size = 16 }: { fileType: string; size?: number }
   }
 }
 
-// Configuration tab button
-function ConfigTab({ 
+// Configuration tree item (vertical with indentation for derived configs)
+function ConfigTreeItem({ 
   config, 
-  isActive, 
-  onClick
+  isSelected, 
+  onClick,
+  depth = 0
 }: { 
-  config: ConfigurationData
-  isActive: boolean
+  config: ConfigTreeNode
+  isSelected: boolean
   onClick: () => void
+  depth?: number
 }) {
   return (
     <button
       onClick={onClick}
       className={`
-        px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap transition-all
-        ${isActive 
-          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50' 
-          : 'bg-plm-bg-light/30 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light/50'
+        w-full px-2 py-1 rounded text-xs font-medium text-left transition-all flex items-center gap-1.5
+        ${isSelected 
+          ? 'bg-cyan-500/20 text-cyan-300' 
+          : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light/30'
         }
-        border border-transparent hover:border-plm-border/50
       `}
+      style={{ paddingLeft: `${8 + depth * 12}px` }}
     >
-      {config.name}
+      {depth > 0 && (
+        <span className="text-plm-fg-dim/50">└</span>
+      )}
+      <span className="truncate flex-1">{config.name}</span>
       {config.isActive && (
-        <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block align-middle" />
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" title="Active in SolidWorks" />
       )}
     </button>
   )
@@ -228,6 +274,53 @@ function ExportButton({
   )
 }
 
+// Resizable divider component
+function ResizableDivider({ 
+  onDrag 
+}: { 
+  onDrag: (deltaX: number) => void 
+}) {
+  const [isDragging, setIsDragging] = useState(false)
+  const startXRef = useRef(0)
+  
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+    startXRef.current = e.clientX
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startXRef.current
+      startXRef.current = e.clientX
+      onDrag(deltaX)
+    }
+    
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+  
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className={`
+        w-1 flex-shrink-0 cursor-col-resize group relative
+        ${isDragging ? 'bg-cyan-400/50' : 'hover:bg-cyan-400/30'}
+        transition-colors
+      `}
+    >
+      <div className={`
+        absolute inset-y-0 -left-1 -right-1
+        ${isDragging ? '' : 'group-hover:bg-cyan-400/10'}
+      `} />
+    </div>
+  )
+}
+
 // Main combined preview + properties panel
 export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const [preview, setPreview] = useState<string | null>(null)
@@ -240,6 +333,19 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const [isExporting, setIsExporting] = useState<string | null>(null)
   const [isGeneratingSerial, setIsGeneratingSerial] = useState(false)
   const [isSavingToFile, setIsSavingToFile] = useState(false)
+  
+  // Resizable panel widths
+  const [previewWidth, setPreviewWidth] = useState(180)
+  const [configWidth, setConfigWidth] = useState(200) // Twice as wide as before
+  
+  // Clamp widths to reasonable bounds
+  const handlePreviewResize = (deltaX: number) => {
+    setPreviewWidth(prev => Math.max(120, Math.min(300, prev + deltaX)))
+  }
+  
+  const handleConfigResize = (deltaX: number) => {
+    setConfigWidth(prev => Math.max(120, Math.min(350, prev + deltaX)))
+  }
   
   // Editable fields state - initialized from pdmData/pendingMetadata
   // Base number is SHARED across all configurations (file-level)
@@ -526,6 +632,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   
   // Save properties to SolidWorks file
   // This writes the current metadata values directly into the SW file's custom properties
+  // Only writes CHANGED configs (those in pending metadata) using batch API for efficiency
   const handleSaveToFile = async () => {
     if (!status.running) {
       addToast('error', 'SolidWorks service not running')
@@ -534,14 +641,39 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
     
     setIsSavingToFile(true)
     try {
-      let savedCount = 0
-      let errorCount = 0
-      
       if (hasMultipleConfigs) {
-        // Multi-config: write to each configuration
-        for (const config of configurations) {
-          const configTab = configTabNumbers[config.name] || ''
-          const configDesc = configDescriptions[config.name] || ''
+        // Multi-config: only write configs that have pending changes
+        // Build a batch of config -> properties for changed configs only
+        const pendingTabs = file.pendingMetadata?.config_tabs || {}
+        const pendingDescs = file.pendingMetadata?.config_descriptions || {}
+        
+        // Find configs with pending changes
+        const changedConfigs = new Set([
+          ...Object.keys(pendingTabs),
+          ...Object.keys(pendingDescs)
+        ])
+        
+        // If base number or revision changed, we need to update all configs that have tabs set
+        // (since their full number = base + tab)
+        const baseOrRevChanged = file.pendingMetadata?.part_number !== undefined || 
+                                  file.pendingMetadata?.revision !== undefined
+        if (baseOrRevChanged) {
+          // Add all configs that have tabs (existing or pending)
+          Object.keys(configTabNumbers).forEach(configName => changedConfigs.add(configName))
+        }
+        
+        if (changedConfigs.size === 0) {
+          addToast('info', 'No pending changes to save')
+          setIsSavingToFile(false)
+          return
+        }
+        
+        // Build batch payload - only for changed configs
+        const configProperties: Record<string, Record<string, string>> = {}
+        
+        for (const configName of changedConfigs) {
+          const configTab = configTabNumbers[configName] || ''
+          const configDesc = configDescriptions[configName] || ''
           
           // Build full part number for this config (base + tab)
           const fullPartNumber = tabEnabled && serializationSettings && configTab
@@ -554,14 +686,26 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           if (revision) props['Revision'] = revision
           
           if (Object.keys(props).length > 0) {
-            const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, config.name)
-            if (result?.success) {
-              savedCount += result.data?.propertiesSet || 0
-            } else {
-              console.error(`Failed to save props to config ${config.name}:`, result?.error)
-              errorCount++
-            }
+            configProperties[configName] = props
           }
+        }
+        
+        if (Object.keys(configProperties).length === 0) {
+          addToast('info', 'No properties to save')
+          setIsSavingToFile(false)
+          return
+        }
+        
+        // Single batch call to write all changed configs
+        console.log('[SWDatacard] Batch saving configs:', Object.keys(configProperties))
+        const result = await window.electronAPI?.solidworks?.setPropertiesBatch(file.path, configProperties)
+        
+        if (result?.success) {
+          const count = result.data?.configurationsProcessed || Object.keys(configProperties).length
+          addToast('success', `Saved properties to ${count} configuration${count > 1 ? 's' : ''}`)
+        } else {
+          console.error('Failed to batch save:', result?.error)
+          addToast('error', result?.error || 'Failed to save properties')
         }
       } else {
         // Single config or drawing: write file-level properties
@@ -579,20 +723,14 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           const configName = activeConfig?.name
           const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, configName)
           if (result?.success) {
-            savedCount = result.data?.propertiesSet || 0
+            addToast('success', `Saved ${result.data?.propertiesSet || 0} properties to file`)
           } else {
             console.error('Failed to save props:', result?.error)
-            errorCount++
+            addToast('error', result?.error || 'Failed to save properties')
           }
+        } else {
+          addToast('info', 'No properties to save')
         }
-      }
-      
-      if (errorCount > 0) {
-        addToast('warning', `Saved ${savedCount} properties, but ${errorCount} configs had errors`)
-      } else if (savedCount > 0) {
-        addToast('success', `Saved ${savedCount} properties to file`)
-      } else {
-        addToast('info', 'No properties to save')
       }
     } catch (err) {
       console.error('Failed to save to file:', err)
@@ -612,6 +750,11 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         const result = await window.electronAPI?.solidworks?.getConfigurations(file.path)
         if (result?.success && result.data?.configurations) {
           const configs = result.data.configurations as ConfigurationData[]
+          // Debug: log parent configurations to verify hierarchy data
+          console.log('[SWDatacard] Configurations loaded:', configs.map(c => ({ 
+            name: c.name, 
+            parent: c.parentConfiguration 
+          })))
           setConfigurations(configs)
           
           // Find and select the active config
@@ -640,12 +783,14 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   }, [file?.path, status.running])
 
   // Load additional properties for active configuration
+  // Also auto-populate description/tab from file if not already set in PDM
   useEffect(() => {
     const loadProperties = async () => {
       if (!file?.path || !activeConfig?.name || !status.running) return
       
       try {
         const result = await window.electronAPI?.solidworks?.getProperties(file.path, activeConfig.name)
+        
         if (result?.success && result.data) {
           const fileProps = result.data.fileProperties || {}
           const configProps = result.data.configurationProperties?.[activeConfig.name] || {}
@@ -656,6 +801,34 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
               ? { ...c, properties: mergedProps }
               : c
           ))
+          
+          // Auto-populate per-config description from file if not already set
+          // Only do this for multi-config files and if user hasn't edited yet
+          if (hasMultipleConfigs && !file.pendingMetadata?.config_descriptions?.[activeConfig.name]) {
+            const fileDesc = findPropertyValue(mergedProps, ['Description', 'DESCRIPTION', 'Desc'])
+            if (fileDesc && !configDescriptions[activeConfig.name]) {
+              setConfigDescriptions(prev => ({
+                ...prev,
+                [activeConfig.name]: fileDesc
+              }))
+            }
+          }
+          
+          // Auto-populate per-config tab number from file if not already set
+          if (hasMultipleConfigs && tabEnabled && serializationSettings && 
+              !file.pendingMetadata?.config_tabs?.[activeConfig.name]) {
+            const fileNumber = findPropertyValue(mergedProps, ['Number', 'Part Number', 'PartNumber', 'Item Number'])
+            if (fileNumber && !configTabNumbers[activeConfig.name]) {
+              // Parse the number to extract just the tab portion
+              const parsed = parsePartNumber(fileNumber, serializationSettings)
+              if (parsed?.tab) {
+                setConfigTabNumbers(prev => ({
+                  ...prev,
+                  [activeConfig.name]: parsed.tab
+                }))
+              }
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to load properties:', err)
@@ -663,7 +836,28 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
     }
     
     loadProperties()
-  }, [file?.path, activeConfig?.name, activeConfigIndex, status.running])
+  }, [file?.path, activeConfig?.name, activeConfigIndex, status.running, hasMultipleConfigs, tabEnabled, serializationSettings])
+  
+  // Helper to find a property value by multiple possible names
+  const findPropertyValue = (props: Record<string, string>, keys: string[]): string | null => {
+    for (const key of keys) {
+      const value = props[key]
+      if (value && value.trim() && !value.startsWith('$')) {
+        return value.trim()
+      }
+    }
+    // Case-insensitive fallback
+    for (const [key, value] of Object.entries(props)) {
+      if (value?.startsWith?.('$')) continue
+      const lowerKey = key.toLowerCase()
+      for (const searchKey of keys) {
+        if (lowerKey === searchKey.toLowerCase() || lowerKey.includes(searchKey.toLowerCase())) {
+          if (value && value.trim()) return value.trim()
+        }
+      }
+    }
+    return null
+  }
 
   // Load preview - Priority: OLE preview -> SW service -> OS thumbnail
   useEffect(() => {
@@ -871,7 +1065,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   }
 
   return (
-    <div className="h-full flex flex-col gap-4">
+    <div className="sw-datacard-panel h-full flex flex-col gap-4">
       {/* Header: Workflow state */}
       {file.pdmData?.workflow_state && (
         <div className="flex-shrink-0">
@@ -888,9 +1082,9 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
       )}
 
       {/* Main content area */}
-      <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left: Preview */}
-        <div className="w-48 flex-shrink-0 flex flex-col gap-2">
+        <div className="flex-shrink-0 flex flex-col gap-2" style={{ width: previewWidth }}>
           <div 
             className="flex-1 relative rounded-lg overflow-hidden bg-gradient-to-br from-slate-900/50 via-slate-800/50 to-slate-900/50"
             onWheel={handlePreviewWheel}
@@ -961,29 +1155,50 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           </button>
         </div>
 
-        {/* Center: Properties */}
-        <div className="flex-1 flex flex-col min-w-0 gap-3 max-w-md">
-          {/* Configuration tabs */}
-          {configurations.length > 1 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-shrink-0">
+        {/* Resizable divider after preview */}
+        <div className="px-1">
+          <ResizableDivider onDrag={handlePreviewResize} />
+        </div>
+
+        {/* Configuration pane (between preview and properties) */}
+        {configurations.length > 1 && (
+          <>
+          <div className="flex-shrink-0 flex flex-col bg-plm-bg-light/10 rounded-lg border border-plm-border/30 overflow-hidden" style={{ width: configWidth }}>
+            <div className="px-2 py-1.5 border-b border-plm-border/30 bg-plm-bg-light/20">
+              <span className="text-[10px] uppercase tracking-wider text-plm-fg-muted font-medium">
+                Configurations ({configurations.length})
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-1">
               {configsLoading ? (
-                <div className="flex items-center gap-2 text-plm-fg-muted text-xs">
+                <div className="flex items-center justify-center gap-2 text-plm-fg-muted text-xs py-4">
                   <Loader2 size={12} className="animate-spin" />
-                  Loading...
                 </div>
               ) : (
-                configurations.map((config, index) => (
-                  <ConfigTab
-                    key={config.name}
-                    config={config}
-                    isActive={index === activeConfigIndex}
-                    onClick={() => setActiveConfigIndex(index)}
-                  />
-                ))
+                <div className="flex flex-col gap-0.5">
+                  {buildConfigTree(configurations).map((config) => (
+                    <ConfigTreeItem
+                      key={config.name}
+                      config={config}
+                      isSelected={configurations.findIndex(c => c.name === config.name) === activeConfigIndex}
+                      onClick={() => setActiveConfigIndex(configurations.findIndex(c => c.name === config.name))}
+                      depth={config.depth}
+                    />
+                  ))}
+                </div>
               )}
             </div>
-          )}
+          </div>
+          
+          {/* Resizable divider after config pane */}
+          <div className="px-1">
+            <ResizableDivider onDrag={handleConfigResize} />
+          </div>
+          </>
+        )}
 
+        {/* Center: Properties */}
+        <div className="flex-1 flex flex-col min-w-0 gap-3 max-w-md pl-2">
           {/* Editable PDM properties */}
           <div className="space-y-2.5 flex-shrink-0">
             {getStatusMessage() && (

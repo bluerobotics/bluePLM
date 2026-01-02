@@ -206,6 +206,8 @@ namespace BluePLM.SolidWorksService
                     "setProperties" => SetPropertiesFast(filePath, 
                         command["properties"]?.ToObject<System.Collections.Generic.Dictionary<string, string>>(),
                         command["configuration"]?.ToString()),
+                    "setPropertiesBatch" => SetPropertiesBatchFast(filePath,
+                        command["configProperties"]?.ToObject<System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>>>()),
                     "getMassProperties" => _swApi!.GetMassProperties(filePath,
                         command["configuration"]?.ToString()),
                     
@@ -215,7 +217,9 @@ namespace BluePLM.SolidWorksService
                     "exportStep" => _swApi!.ExportToStep(filePath,
                         command["outputPath"]?.ToString(),
                         command["configuration"]?.ToString(),
-                        command["exportAllConfigs"]?.Value<bool>() ?? false),
+                        command["exportAllConfigs"]?.Value<bool>() ?? false,
+                        command["configurations"]?.ToObject<string[]>(),
+                        command["filenamePattern"]?.ToString()),
                     "exportIges" => _swApi!.ExportToIges(filePath,
                         command["outputPath"]?.ToString()),
                     "exportDxf" => _swApi!.ExportToDxf(filePath,
@@ -403,6 +407,33 @@ namespace BluePLM.SolidWorksService
             
             // Fall back to full SW API (will launch SW - slower)
             return _swApi!.SetCustomProperties(filePath, properties, configuration);
+        }
+
+        static CommandResult SetPropertiesBatchFast(string? filePath, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>>? configProperties)
+        {
+            // Try Document Manager first (NO SW launch!)
+            if (_dmApi != null && _dmApi.IsAvailable)
+            {
+                var result = _dmApi.SetCustomPropertiesBatch(filePath, configProperties);
+                if (result.Success) return result;
+            }
+            
+            // Fall back to doing it one at a time with SW API (slower)
+            if (configProperties == null)
+                return new CommandResult { Success = false, Error = "Missing configProperties" };
+                
+            int success = 0;
+            foreach (var kvp in configProperties)
+            {
+                var result = _swApi!.SetCustomProperties(filePath, kvp.Value, kvp.Key);
+                if (result.Success) success++;
+            }
+            
+            return new CommandResult 
+            { 
+                Success = success > 0,
+                Data = new { configurationsProcessed = success }
+            };
         }
 
         // ========================================

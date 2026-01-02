@@ -259,18 +259,23 @@ export function getFilesInFolder(files: LocalFile[], folderPath: string): LocalF
 }
 
 // Helper to get synced files from selection (handles folders)
+// "Synced" means files that exist BOTH locally AND on server
+// Excludes: cloud, cloud_new, deleted (these only exist on server, not locally)
 export function getSyncedFilesFromSelection(files: LocalFile[], selection: LocalFile[]): LocalFile[] {
   const result: LocalFile[] = []
+  
+  // Statuses that indicate file doesn't exist locally (server-only)
+  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
   
   for (const item of selection) {
     if (item.isDirectory) {
       // Get all synced files inside the folder
       const filesInFolder = getFilesInFolder(files, item.relativePath)
       const syncedInFolder = filesInFolder.filter(f => 
-        f.pdmData?.id && f.diffStatus !== 'cloud'
+        f.pdmData?.id && !serverOnlyStatuses.includes(f.diffStatus || '')
       )
       result.push(...syncedInFolder)
-    } else if (item.pdmData?.id && item.diffStatus !== 'cloud') {
+    } else if (item.pdmData?.id && !serverOnlyStatuses.includes(item.diffStatus || '')) {
       // Look up fresh file from files array to get current pendingMetadata
       // (selection may have stale reference without latest metadata edits)
       const freshFile = files.find(f => f.path === item.path)
@@ -314,6 +319,38 @@ export function getCloudOnlyFilesFromSelection(files: LocalFile[], selection: Lo
       const cloudOnly = filesInFolder.filter(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
       result.push(...cloudOnly)
     } else if ((item.diffStatus === 'cloud' || item.diffStatus === 'cloud_new') && item.pdmData) {
+      // Look up fresh file from files array (selection may have stale reference)
+      const freshFile = files.find(f => f.path === item.path)
+      result.push(freshFile || item)
+    }
+  }
+  
+  return [...new Map(result.map(f => [f.path, f])).values()]
+}
+
+// Helper to get files that can have their checkout discarded/released
+// Includes BOTH:
+// 1. Synced files (exist locally) checked out by user - will download server version
+// 2. Deleted files (don't exist locally) checked out by user - will just release checkout
+export function getDiscardableFilesFromSelection(files: LocalFile[], selection: LocalFile[], userId?: string): LocalFile[] {
+  const result: LocalFile[] = []
+  
+  for (const item of selection) {
+    if (item.isDirectory) {
+      const filesInFolder = getFilesInFolder(files, item.relativePath)
+      // Include synced files and 'deleted' files checked out by user
+      const discardable = filesInFolder.filter(f => 
+        f.pdmData?.id && 
+        f.pdmData.checked_out_by === userId &&
+        (f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new')
+      )
+      result.push(...discardable)
+    } else if (
+      item.pdmData?.id && 
+      item.pdmData.checked_out_by === userId &&
+      item.diffStatus !== 'cloud' && 
+      item.diffStatus !== 'cloud_new'
+    ) {
       // Look up fresh file from files array (selection may have stale reference)
       const freshFile = files.find(f => f.path === item.path)
       result.push(freshFile || item)

@@ -892,11 +892,74 @@ namespace BluePLM.SolidWorksService
                             if (propNames != null)
                             {
                                 Console.Error.WriteLine($"[DM] Config '{configuration}' has {propNames.Length} properties");
+                                
+                                // Get the SwDmCustomInfoType enum type for proper COM interop
+                                var customInfoType = GetDmType("SwDmCustomInfoType");
+                                
                                 foreach (var name in propNames)
                                 {
-                                    object propType = null!;
-                                    string value = config.GetCustomProperty(name, out propType);
-                                    props[name] = value ?? "";
+                                    try
+                                    {
+                                        string? value = null;
+                                        
+                                        // Method 1: Use reflection with proper enum type
+                                        if (customInfoType != null)
+                                        {
+                                            try
+                                            {
+                                                var configType = ((object)config).GetType();
+                                                var getMethod = configType.GetMethod("ISwDMConfiguration_GetCustomProperty") ??
+                                                               configType.GetMethod("GetCustomProperty");
+                                                
+                                                if (getMethod != null)
+                                                {
+                                                    var enumDefault = Enum.ToObject(customInfoType, 0);
+                                                    var parameters = new object[] { name, enumDefault };
+                                                    value = getMethod.Invoke(config, parameters)?.ToString();
+                                                }
+                                            }
+                                            catch { }
+                                        }
+                                        
+                                        // Method 2: Try using InvokeMember with integer enum value
+                                        if (string.IsNullOrEmpty(value))
+                                        {
+                                            try
+                                            {
+                                                var result = ((object)config).GetType().InvokeMember(
+                                                    "GetCustomProperty",
+                                                    System.Reflection.BindingFlags.InvokeMethod,
+                                                    null,
+                                                    config,
+                                                    new object[] { name, 0 }
+                                                );
+                                                value = result?.ToString();
+                                            }
+                                            catch { }
+                                        }
+                                        
+                                        // Method 3: Try dynamic with cast to int
+                                        if (string.IsNullOrEmpty(value))
+                                        {
+                                            try
+                                            {
+                                                dynamic dynConfig = config;
+                                                int outType = 0;
+                                                value = dynConfig.GetCustomProperty(name, out outType);
+                                            }
+                                            catch { }
+                                        }
+                                        
+                                        if (!string.IsNullOrEmpty(value))
+                                        {
+                                            props[name] = value;
+                                            Console.Error.WriteLine($"[DM] Config property '{name}' = '{value}'");
+                                        }
+                                    }
+                                    catch (Exception propEx)
+                                    {
+                                        Console.Error.WriteLine($"[DM] Error reading config property '{name}': {propEx.Message}");
+                                    }
                                 }
                             }
                         }
@@ -1144,6 +1207,124 @@ namespace BluePLM.SolidWorksService
         }
 
         /// <summary>
+        /// Set custom properties on MULTIPLE configurations in one document open/save cycle.
+        /// MUCH faster than calling SetCustomProperties multiple times!
+        /// </summary>
+        /// <param name="filePath">Path to the SolidWorks file</param>
+        /// <param name="configProperties">Dictionary mapping configuration name -> property dictionary</param>
+        public CommandResult SetCustomPropertiesBatch(string? filePath, Dictionary<string, Dictionary<string, string>>? configProperties)
+        {
+            if (!Initialize() || _dmApp == null)
+                return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
+
+            if (string.IsNullOrEmpty(filePath))
+                return new CommandResult { Success = false, Error = "Missing 'filePath'" };
+
+            if (!File.Exists(filePath))
+                return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
+
+            if (configProperties == null || configProperties.Count == 0)
+                return new CommandResult { Success = false, Error = "Missing or empty 'configProperties'" };
+
+            object? doc = null;
+            try
+            {
+                Console.Error.WriteLine($"[DM] SetCustomPropertiesBatch: Opening {Path.GetFileName(filePath)} for {configProperties.Count} configs");
+                
+                // Open document for WRITE access ONCE
+                doc = OpenDocumentForWrite(filePath!, out var openError);
+                if (doc == null)
+                    return new CommandResult { Success = false, Error = $"Failed to open file for writing: error code {openError}" };
+
+                dynamic dynDoc = doc;
+                var configMgr = dynDoc.ConfigurationManager;
+                const int swDmCustomInfoText = 2;
+                
+                int totalPropsSet = 0;
+                int configsProcessed = 0;
+                var errors = new List<string>();
+
+                // Write properties to each configuration
+                foreach (var configEntry in configProperties)
+                {
+                    var configName = configEntry.Key;
+                    var properties = configEntry.Value;
+                    
+                    if (properties == null || properties.Count == 0)
+                        continue;
+
+                    try
+                    {
+                        var config = configMgr.GetConfigurationByName(configName);
+                        if (config == null)
+                        {
+                            errors.Add($"Configuration not found: {configName}");
+                            continue;
+                        }
+
+                        int propsSetForConfig = 0;
+                        foreach (var kvp in properties)
+                        {
+                            try
+                            {
+                                try { config.DeleteCustomProperty(kvp.Key); } catch { }
+                                config.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
+                                propsSetForConfig++;
+                            }
+                            catch
+                            {
+                                try 
+                                { 
+                                    config.SetCustomProperty(kvp.Key, kvp.Value);
+                                    propsSetForConfig++; 
+                                } 
+                                catch { }
+                            }
+                        }
+                        
+                        totalPropsSet += propsSetForConfig;
+                        configsProcessed++;
+                        Console.Error.WriteLine($"[DM] Config '{configName}': set {propsSetForConfig} properties");
+                    }
+                    catch (Exception configEx)
+                    {
+                        errors.Add($"Error writing to config '{configName}': {configEx.Message}");
+                    }
+                }
+
+                // Save the document ONCE after all writes
+                Console.Error.WriteLine($"[DM] Saving document...");
+                dynDoc.Save();
+                Console.Error.WriteLine($"[DM] Saved! {configsProcessed} configs, {totalPropsSet} properties total");
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Data = new
+                    {
+                        filePath,
+                        configurationsProcessed = configsProcessed,
+                        propertiesSet = totalPropsSet,
+                        errors = errors.Count > 0 ? errors : null
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DM] SetCustomPropertiesBatch error: {ex.Message}");
+                return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null)
+                {
+                    try { ((dynamic)doc).CloseDoc(); } catch { }
+                }
+            }
+        }
+
+        /// <summary>
         /// Open document for write access (not read-only)
         /// </summary>
         private object? OpenDocumentForWrite(string filePath, out int error)
@@ -1207,12 +1388,23 @@ namespace BluePLM.SolidWorksService
                 {
                     var config = dynDoc.ConfigurationManager.GetConfigurationByName(name);
                     var props = ReadProperties(dynDoc, name);
+                    
+                    // Try to get parent configuration name (for derived configurations)
+                    string? parentConfig = null;
+                    try
+                    {
+                        parentConfig = config?.GetParentConfigurationName();
+                        if (string.IsNullOrEmpty(parentConfig))
+                            parentConfig = null;
+                    }
+                    catch { }
 
                     configs.Add(new
                     {
                         name,
                         isActive = name == activeConfig,
                         description = config?.Description ?? "",
+                        parentConfiguration = parentConfig,
                         properties = props
                     });
                 }
