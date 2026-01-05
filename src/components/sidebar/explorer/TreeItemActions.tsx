@@ -13,7 +13,7 @@ import {
   FolderCheckinButton
 } from '../../InlineActionButtons'
 import { executeCommand } from '../../../lib/commands'
-import type { CheckoutUser } from '../../shared/FileItemComponents'
+import type { CheckoutUser } from '../../shared/FileItem'
 import type { FolderDiffCounts } from './types'
 
 interface FileActionButtonsProps {

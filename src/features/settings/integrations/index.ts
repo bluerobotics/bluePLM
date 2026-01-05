@@ -1,0 +1,7 @@
+export { ApiSettings } from './ApiSettings'
+export { WebhooksSettings } from './WebhooksSettings'
+export { GoogleDriveSettings } from './google-drive'
+export { SolidWorksSettings } from './solidworks'
+export { OdooSettings } from './odoo'
+export { SlackSettings } from './slack'
+export { WooCommerceSettings } from './woocommerce'

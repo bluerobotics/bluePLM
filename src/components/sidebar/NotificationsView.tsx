@@ -48,7 +48,7 @@ import {
   createCustomNotification
 } from '../../lib/supabase'
 import type { Notification, NotificationCategory, NotificationPriority } from '../../types/database'
-import { buildFullPath } from '../../lib/utils'
+import { buildFullPath } from '@/lib/utils/path'
 
 // Category configuration
 const CATEGORIES: { id: NotificationCategory | 'all'; label: string; icon: React.ReactNode; color: string }[] = [

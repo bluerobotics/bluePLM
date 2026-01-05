@@ -3,7 +3,7 @@ import { ChevronRight, ChevronDown, FolderOpen, Loader2 } from 'lucide-react'
 import { LocalFile } from '../../../stores/pdmStore'
 import { FolderActionButtons } from './TreeItemActions'
 import { TREE_BASE_PADDING_PX, TREE_INDENT_PX, DIFF_STATUS_CLASS_PREFIX } from './constants'
-import type { CheckoutUser } from '../../shared/FileItemComponents'
+import type { CheckoutUser } from '../../shared/FileItem'
 import type { FolderDiffCounts } from './types'
 
 interface FolderTreeItemProps {

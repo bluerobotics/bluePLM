@@ -20,7 +20,7 @@ import {
 import { 
   FileIcon,
   type CheckoutUser
-} from '../shared/FileItemComponents'
+} from '../shared/FileItem'
 // Use command system for PDM operations
 import { executeCommand } from '../../lib/commands'
 import { usePDMStore, LocalFile, ConnectedVault } from '../../stores/pdmStore'

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { PerformanceSettings } from './settings/PerformanceSettings'
+import { PerformanceSettings } from '@/features/settings/system'
 
 /**
  * Standalone Performance Window Component

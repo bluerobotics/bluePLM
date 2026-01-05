@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronUp, Home, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react'
-import { buildFullPath } from '../lib/utils'
+import { buildFullPath } from '@/lib/utils/path'
 
 // Parse a full path back to relative path
 function parsePathToRelative(fullPath: string, vaultPath: string): string {

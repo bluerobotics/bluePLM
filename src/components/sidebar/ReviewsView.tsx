@@ -29,7 +29,7 @@ import {
   cancelReview
 } from '../../lib/supabase'
 import type { Review, Notification, ReviewStatus } from '../../types/database'
-import { buildFullPath } from '../../lib/utils'
+import { buildFullPath } from '@/lib/utils/path'
 
 type ViewTab = 'notifications' | 'pending' | 'my-reviews'
 

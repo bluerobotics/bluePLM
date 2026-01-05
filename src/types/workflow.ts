@@ -203,6 +203,12 @@ export interface WorkflowState {
   is_released: boolean          // Files are considered "released" in this state
   is_obsolete: boolean          // Files are considered "obsolete" in this state
   
+  // Revision behavior
+  auto_increment_revision: boolean  // Automatically increment revision when entering this state
+  
+  // Role requirements
+  required_workflow_roles?: string[]  // Workflow roles required to enter this state
+  
   sort_order: number
   created_at: string
 }

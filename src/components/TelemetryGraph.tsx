@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { telemetry, TelemetrySnapshot } from '@/lib/telemetry'
 import { Play, Pause, Trash2, Settings2 } from 'lucide-react'
-import { formatBytes, formatSpeed } from '@/lib/utils'
+import { formatBytes, formatSpeed } from '@/lib/utils/format'
 
 interface TelemetryGraphProps {
   metric: 'fps' | 'cpu' | 'memory' | 'network' | 'appMemory'

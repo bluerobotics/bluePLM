@@ -1,0 +1,569 @@
+/**
+ * WorkflowCanvas - SVG canvas for rendering workflow states and transitions
+ * 
+ * Extracted from WorkflowsView to reduce complexity.
+ * Handles rendering of grid, alignment guides, transitions, and state nodes.
+ */
+import { GitBranch } from 'lucide-react'
+import type { 
+  WorkflowState, 
+  WorkflowTransition, 
+  WorkflowGate,
+  CanvasMode,
+  TransitionPathType,
+  TransitionLineStyle,
+  TransitionArrowHead,
+  TransitionLineThickness
+} from '@/types/workflow'
+import type { 
+  Point, 
+  SnapSettings, 
+  AlignmentGuides, 
+  EdgePositions, 
+  FloatingToolbarData,
+  TransitionEndpointDrag
+} from '../types'
+import { lightenColor } from '../utils'
+import { DEFAULT_STATE_WIDTH, DEFAULT_STATE_HEIGHT } from '../constants'
+import { StateNode } from './StateNode'
+import { TransitionLine } from './TransitionLine'
+import { TransitionHandles } from './TransitionHandles'
+import { CreatingTransition } from './CreatingTransition'
+import { FloatingToolbar } from './toolbar'
+
+interface WorkflowCanvasProps {
+  // Core data
+  states: WorkflowState[]
+  transitions: WorkflowTransition[]
+  gates: Record<string, WorkflowGate[]>
+  
+  // Selection state
+  selectedStateId: string | null
+  selectedTransitionId: string | null
+  hoveredStateId: string | null
+  hoveredTransitionId: string | null
+  hoveredWaypoint: { transitionId: string; index: number } | null
+  
+  // Canvas state
+  canvasMode: CanvasMode
+  zoom: number
+  pan: Point
+  mousePos: Point
+  canvasRef: React.RefObject<HTMLDivElement | null>
+  canvasTransform: string
+  
+  // Permissions
+  isAdmin: boolean
+  
+  // Dragging state
+  draggingStateId: string | null
+  currentResizing: { stateId: string } | null
+  
+  // Transition creation
+  isCreatingTransition: boolean
+  transitionStartId: string | null
+  isDraggingToCreateTransition: boolean
+  draggingTransitionEndpoint: TransitionEndpointDrag | null
+  justCompletedTransitionRef: React.MutableRefObject<boolean>
+  transitionCompletedAtRef: React.MutableRefObject<number>
+  hasDraggedRef: React.MutableRefObject<boolean>
+  
+  // Dimensions
+  stateDimensions: Record<string, { width: number; height: number }>
+  getDimensions: (stateId: string) => { width: number; height: number }
+  
+  // Snap/alignment
+  snapSettings: SnapSettings
+  alignmentGuides: AlignmentGuides
+  
+  // Waypoints/edges
+  waypoints: Record<string, Point[]>
+  edgePositions: EdgePositions
+  draggingCurveControl: string | null
+  draggingWaypointIndex: number | null
+  tempCurvePos: Point | null
+  waypointHasDraggedRef: React.MutableRefObject<boolean>
+  
+  // Labels
+  labelOffsets: Record<string, Point>
+  pinnedLabelPositions: Record<string, Point>
+  draggingLabel: string | null
+  tempLabelPos: Point | null
+  
+  // Floating toolbar
+  floatingToolbar: FloatingToolbarData | null
+  toolbarActions: {
+    handleColorChange: (color: string) => void | Promise<void>
+    handleLineStyleChange: (style: TransitionLineStyle) => void | Promise<void>
+    handlePathTypeChange: (pathType: TransitionPathType) => void | Promise<void>
+    handleArrowHeadChange: (arrowHead: TransitionArrowHead) => void | Promise<void>
+    handleThicknessChange: (thickness: TransitionLineThickness) => void | Promise<void>
+    handleFillOpacityChange: (opacity: number) => void | Promise<void>
+    handleBorderColorChange: (color: string | null) => void | Promise<void>
+    handleBorderOpacityChange: (opacity: number) => void | Promise<void>
+    handleBorderThicknessChange: (thickness: number) => void | Promise<void>
+    handleCornerRadiusChange: (radius: number) => void | Promise<void>
+    handleShapeChange: (shape: 'rectangle' | 'diamond' | 'hexagon' | 'ellipse') => void | Promise<void>
+    handleEdit: () => void
+    handleDuplicate: () => void | Promise<void>
+    handleDelete: () => void | Promise<void>
+    handleAddGate: () => void | Promise<void>
+    handleClose: () => void
+  }
+  
+  // Event handlers
+  onCanvasMouseDown: (e: React.MouseEvent) => void
+  onCanvasMouseMove: (e: React.MouseEvent) => void
+  onCanvasMouseUp: (e: React.MouseEvent) => void
+  onCanvasClick: (e: React.MouseEvent) => void
+  onCanvasContextMenu: (e: React.MouseEvent) => void
+  onWheel: (e: React.WheelEvent) => void
+  
+  // State handlers
+  onSelectState: (stateId: string | null) => void
+  onSelectTransition: (transitionId: string | null) => void
+  onStartDrag: (stateId: string, e: React.MouseEvent) => void
+  onStartResize: (stateId: string, handle: string, e: React.MouseEvent) => void
+  onCompleteTransition: (stateId: string) => void
+  onStartTransition: (stateId: string) => void
+  onEditState: (state: WorkflowState) => void
+  onHoverState: (stateId: string | null) => void
+  onShowStateToolbar: (stateId: string) => void
+  onShowTransitionToolbar: (transitionId: string, canvasX: number, canvasY: number) => void
+  onAddWaypointToTransition: (transitionId: string, x: number, y: number, pathType: string, startEdge: string, endEdge: string) => void
+  
+  // Setters
+  setIsDraggingToCreateTransition: (value: boolean) => void
+  setHoveredStateId: (id: string | null) => void
+  setHoveredTransitionId: (id: string | null) => void
+  setFloatingToolbar: (data: FloatingToolbarData | null) => void
+  setDraggingTransitionEndpoint: (value: TransitionEndpointDrag | null) => void
+  setDraggingCurveControl: (id: string | null) => void
+  setDraggingWaypointIndex: (index: number | null) => void
+  setDraggingWaypointAxis: (axis: 'x' | 'y' | null) => void
+  setTempCurvePos: (pos: Point | null) => void
+  setDraggingLabel: (id: string | null) => void
+  setTempLabelPos: (pos: Point | null) => void
+  setHoveredWaypoint: (value: { transitionId: string; index: number } | null) => void
+  setWaypoints: React.Dispatch<React.SetStateAction<Record<string, Point[]>>>
+  setWaypointContextMenu: (menu: {
+    x: number
+    y: number
+    canvasX: number
+    canvasY: number
+    transitionId: string
+    waypointIndex: number | null
+  } | null) => void
+  setLabelOffsets: React.Dispatch<React.SetStateAction<Record<string, Point>>>
+  setPinnedLabelPositions: React.Dispatch<React.SetStateAction<Record<string, Point>>>
+  
+  // Notifications
+  addToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void
+}
+
+export function WorkflowCanvas({
+  states,
+  transitions,
+  gates,
+  selectedStateId,
+  selectedTransitionId,
+  hoveredStateId,
+  hoveredTransitionId,
+  hoveredWaypoint,
+  canvasMode,
+  zoom,
+  pan,
+  mousePos,
+  canvasRef,
+  canvasTransform,
+  isAdmin,
+  draggingStateId,
+  currentResizing,
+  isCreatingTransition,
+  transitionStartId,
+  isDraggingToCreateTransition,
+  draggingTransitionEndpoint,
+  justCompletedTransitionRef,
+  transitionCompletedAtRef,
+  hasDraggedRef,
+  stateDimensions,
+  getDimensions,
+  snapSettings,
+  alignmentGuides,
+  waypoints,
+  edgePositions,
+  draggingCurveControl,
+  draggingWaypointIndex,
+  tempCurvePos,
+  waypointHasDraggedRef,
+  labelOffsets,
+  pinnedLabelPositions,
+  draggingLabel,
+  tempLabelPos,
+  floatingToolbar,
+  toolbarActions,
+  onCanvasMouseDown,
+  onCanvasMouseMove,
+  onCanvasMouseUp,
+  onCanvasClick,
+  onCanvasContextMenu,
+  onWheel,
+  onSelectState,
+  onSelectTransition,
+  onStartDrag,
+  onStartResize,
+  onCompleteTransition,
+  onStartTransition,
+  onEditState,
+  onHoverState,
+  onShowStateToolbar,
+  onShowTransitionToolbar,
+  onAddWaypointToTransition,
+  setIsDraggingToCreateTransition,
+  setHoveredStateId,
+  setHoveredTransitionId,
+  setFloatingToolbar,
+  setDraggingTransitionEndpoint,
+  setDraggingCurveControl,
+  setDraggingWaypointIndex,
+  setDraggingWaypointAxis,
+  setTempCurvePos,
+  setDraggingLabel,
+  setTempLabelPos,
+  setHoveredWaypoint,
+  setWaypoints,
+  setWaypointContextMenu,
+  setLabelOffsets,
+  setPinnedLabelPositions,
+  addToast
+}: WorkflowCanvasProps) {
+  return (
+    <div 
+      ref={canvasRef}
+      className="flex-1 relative overflow-hidden bg-plm-bg"
+      style={{ 
+        cursor: canvasMode === 'pan' ? (draggingStateId === '_panning_' ? 'grabbing' : 'grab') : 
+                canvasMode === 'connect' ? 'crosshair' : 'default'
+      }}
+      onMouseDown={onCanvasMouseDown}
+      onMouseMove={onCanvasMouseMove}
+      onMouseUp={onCanvasMouseUp}
+      onClick={onCanvasClick}
+      onContextMenu={onCanvasContextMenu}
+      onWheel={onWheel}
+    >
+      <svg 
+        width="100%" 
+        height="100%" 
+        style={{ position: 'absolute', inset: 0 }}
+      >
+        {/* Arrow marker definitions */}
+        <defs>
+          <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#60a5fa" />
+          </marker>
+          <marker id="arrowhead-start-selected" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+            <polygon points="10 0, 0 3.5, 10 7" fill="#60a5fa" />
+          </marker>
+          <marker id="arrowhead-creating" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22c55e" />
+          </marker>
+          
+          {/* Per-transition markers for custom colors */}
+          {transitions.map(t => {
+            const color = t.line_color || '#6b7280'
+            const hoverColor = lightenColor(color, 0.35)
+            return (
+              <g key={`markers-${t.id}`}>
+                <marker id={`arrowhead-${t.id}`} markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill={color} />
+                </marker>
+                <marker id={`arrowhead-start-${t.id}`} markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                  <polygon points="10 0, 0 3.5, 10 7" fill={color} />
+                </marker>
+                <marker id={`arrowhead-hover-${t.id}`} markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill={hoverColor} />
+                </marker>
+                <marker id={`arrowhead-start-hover-${t.id}`} markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                  <polygon points="10 0, 0 3.5, 10 7" fill={hoverColor} />
+                </marker>
+              </g>
+            )
+          })}
+        </defs>
+        
+        {/* Transformable canvas group */}
+        <g transform={canvasTransform}>
+          {/* Grid pattern when snap to grid enabled */}
+          {snapSettings.snapToGrid && (
+            <g className="pointer-events-none" opacity="0.15">
+              {Array.from({ length: 100 }).map((_, i) => (
+                <line
+                  key={`vgrid-${i}`}
+                  x1={i * snapSettings.gridSize - 2000}
+                  y1={-2000}
+                  x2={i * snapSettings.gridSize - 2000}
+                  y2={2000}
+                  stroke="currentColor"
+                  strokeWidth={0.5}
+                />
+              ))}
+              {Array.from({ length: 100 }).map((_, i) => (
+                <line
+                  key={`hgrid-${i}`}
+                  x1={-2000}
+                  y1={i * snapSettings.gridSize - 2000}
+                  x2={2000}
+                  y2={i * snapSettings.gridSize - 2000}
+                  stroke="currentColor"
+                  strokeWidth={0.5}
+                />
+              ))}
+            </g>
+          )}
+          
+          {/* Alignment guides */}
+          {alignmentGuides.vertical !== null && (
+            <line
+              x1={alignmentGuides.vertical}
+              y1={-10000}
+              x2={alignmentGuides.vertical}
+              y2={10000}
+              stroke="#60a5fa"
+              strokeWidth={1}
+              strokeDasharray="4,4"
+              className="pointer-events-none"
+            />
+          )}
+          {alignmentGuides.horizontal !== null && (
+            <line
+              x1={-10000}
+              y1={alignmentGuides.horizontal}
+              x2={10000}
+              y2={alignmentGuides.horizontal}
+              stroke="#60a5fa"
+              strokeWidth={1}
+              strokeDasharray="4,4"
+              className="pointer-events-none"
+            />
+          )}
+          
+          {/* Transitions */}
+          {transitions.map(transition => {
+            const fromState = states.find(s => s.id === transition.from_state_id)
+            const toState = states.find(s => s.id === transition.to_state_id)
+            if (!fromState || !toState) return null
+            
+            const transitionGates = gates[transition.id] || []
+            const transitionWaypoints = waypoints[transition.id] || []
+            const isDraggingThis = draggingTransitionEndpoint?.transitionId === transition.id
+            const draggingEndpoint = isDraggingThis ? draggingTransitionEndpoint.endpoint : null
+            
+            return (
+              <TransitionLine
+                key={transition.id}
+                transition={transition}
+                states={states}
+                gates={transitionGates}
+                isSelected={selectedTransitionId === transition.id}
+                isDragging={isDraggingThis}
+                draggingEndpoint={draggingEndpoint}
+                hoveredTransitionId={hoveredTransitionId}
+                hoveredStateId={hoveredStateId}
+                isAdmin={isAdmin}
+                stateDimensions={stateDimensions}
+                DEFAULT_STATE_WIDTH={DEFAULT_STATE_WIDTH}
+                DEFAULT_STATE_HEIGHT={DEFAULT_STATE_HEIGHT}
+                edgePositions={edgePositions}
+                waypoints={transitionWaypoints}
+                labelOffset={labelOffsets[transition.id] || null}
+                pinnedLabelPosition={pinnedLabelPositions[transition.id] || null}
+                draggingCurveControl={draggingCurveControl}
+                draggingWaypointIndex={draggingWaypointIndex}
+                tempCurvePos={tempCurvePos}
+                draggingLabel={draggingLabel}
+                tempLabelPos={tempLabelPos}
+                mousePos={mousePos}
+                pan={pan}
+                zoom={zoom}
+                canvasRef={canvasRef}
+                onSelect={() => onSelectTransition(transition.id)}
+                onHoverChange={(hovered) => setHoveredTransitionId(hovered ? transition.id : null)}
+                onShowToolbar={(canvasX, canvasY) => onShowTransitionToolbar(transition.id, canvasX, canvasY)}
+                onAddWaypoint={(clickX, clickY, pathType, startEdge, endEdge) => {
+                  onAddWaypointToTransition(transition.id, clickX, clickY, pathType, startEdge, endEdge)
+                }}
+                onShowWaypointContextMenu={(e, clickX, clickY) => {
+                  setWaypointContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    canvasX: clickX,
+                    canvasY: clickY,
+                    transitionId: transition.id,
+                    waypointIndex: null
+                  })
+                }}
+                addToast={addToast}
+              />
+            )
+          })}
+          
+          {/* Transition handles (when selected) */}
+          <TransitionHandles
+            transitions={transitions}
+            states={states}
+            isAdmin={isAdmin}
+            selectedTransitionId={selectedTransitionId}
+            edgePositions={edgePositions}
+            waypoints={waypoints}
+            labelOffsets={labelOffsets}
+            pinnedLabelPositions={pinnedLabelPositions}
+            draggingTransitionEndpoint={draggingTransitionEndpoint}
+            draggingCurveControl={draggingCurveControl}
+            draggingWaypointIndex={draggingWaypointIndex}
+            draggingLabel={draggingLabel}
+            tempCurvePos={tempCurvePos}
+            tempLabelPos={tempLabelPos}
+            hoveredWaypoint={hoveredWaypoint}
+            waypointHasDraggedRef={waypointHasDraggedRef}
+            setFloatingToolbar={setFloatingToolbar}
+            setDraggingTransitionEndpoint={setDraggingTransitionEndpoint}
+            setDraggingCurveControl={setDraggingCurveControl}
+            setDraggingWaypointIndex={setDraggingWaypointIndex}
+            setDraggingWaypointAxis={setDraggingWaypointAxis}
+            setTempCurvePos={setTempCurvePos}
+            setDraggingLabel={setDraggingLabel}
+            setTempLabelPos={setTempLabelPos}
+            setHoveredWaypoint={setHoveredWaypoint}
+            setWaypoints={setWaypoints}
+            setWaypointContextMenu={setWaypointContextMenu}
+            setSelectedTransitionId={onSelectTransition}
+            setSelectedStateId={onSelectState}
+            setLabelOffsets={setLabelOffsets}
+            setPinnedLabelPositions={setPinnedLabelPositions}
+            addToast={addToast}
+          />
+          
+          {/* State nodes */}
+          {states.map(state => {
+            const dims = getDimensions(state.id)
+            const isSelected = selectedStateId === state.id
+            const isDragging = draggingStateId === state.id
+            const isResizing = currentResizing?.stateId === state.id
+            const isTransitionStart = transitionStartId === state.id
+            const isHovered = hoveredStateId === state.id
+            const isSnapTarget = isDraggingToCreateTransition && hoveredStateId === state.id && transitionStartId !== state.id
+            
+            return (
+              <StateNode
+                key={state.id}
+                state={state}
+                isSelected={isSelected}
+                isTransitionStart={isTransitionStart}
+                isDragging={isDragging}
+                isResizing={isResizing}
+                isSnapTarget={isSnapTarget}
+                isHovered={isHovered}
+                isAdmin={isAdmin}
+                canvasMode={canvasMode}
+                isCreatingTransition={isCreatingTransition}
+                transitionStartId={transitionStartId}
+                isDraggingToCreateTransition={isDraggingToCreateTransition}
+                dimensions={dims}
+                pan={pan}
+                zoom={zoom}
+                canvasRef={canvasRef}
+                justCompletedTransitionRef={justCompletedTransitionRef}
+                transitionCompletedAtRef={transitionCompletedAtRef}
+                hasDraggedRef={hasDraggedRef}
+                onSelect={() => onSelectState(state.id)}
+                onStartDrag={(e) => onStartDrag(state.id, e)}
+                onStartResize={(handle, e) => onStartResize(state.id, handle, e)}
+                onCompleteTransition={() => onCompleteTransition(state.id)}
+                onStartTransition={() => onStartTransition(state.id)}
+                onEdit={() => onEditState(state)}
+                onHoverChange={(hovered) => {
+                  if (hovered) {
+                    onHoverState(state.id)
+                  } else if (hoveredStateId === state.id) {
+                    onHoverState(null)
+                  }
+                }}
+                onShowToolbar={() => onShowStateToolbar(state.id)}
+                onSetDraggingToCreateTransition={setIsDraggingToCreateTransition}
+                onSetHoveredStateId={setHoveredStateId}
+              />
+            )
+          })}
+          
+          {/* Creating transition line */}
+          {isCreatingTransition && transitionStartId && (
+            <CreatingTransition
+              fromState={states.find(s => s.id === transitionStartId)!}
+              hoveredStateId={hoveredStateId}
+              states={states}
+              mousePos={mousePos}
+              stateDimensions={stateDimensions}
+              DEFAULT_STATE_WIDTH={DEFAULT_STATE_WIDTH}
+              DEFAULT_STATE_HEIGHT={DEFAULT_STATE_HEIGHT}
+            />
+          )}
+        </g>
+      </svg>
+      
+      {/* Empty state message */}
+      {states.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center text-plm-fg-muted pointer-events-none">
+          <div className="text-center">
+            <GitBranch size={48} className="mx-auto mb-2 opacity-50" />
+            <p className="text-sm">
+              No states defined. Click "Add State" to add your first state.
+            </p>
+          </div>
+        </div>
+      )}
+      
+      {/* Floating toolbar */}
+      {floatingToolbar && (() => {
+        const targetState = floatingToolbar.type === 'state' 
+          ? states.find(s => s.id === floatingToolbar.targetId)
+          : undefined
+        const targetTransition = floatingToolbar.type === 'transition'
+          ? transitions.find(t => t.id === floatingToolbar.targetId)
+          : undefined
+        
+        // Convert canvas coordinates to screen coordinates
+        const rect = canvasRef.current?.getBoundingClientRect()
+        const screenX = rect ? rect.left + pan.x + floatingToolbar.canvasX * zoom : floatingToolbar.canvasX
+        const screenY = rect ? rect.top + pan.y + floatingToolbar.canvasY * zoom : floatingToolbar.canvasY
+        
+        return (
+          <FloatingToolbar
+            x={screenX}
+            y={screenY}
+            type={floatingToolbar.type}
+            isAdmin={isAdmin}
+            targetState={targetState}
+            targetTransition={targetTransition}
+            onColorChange={toolbarActions.handleColorChange}
+            onLineStyleChange={toolbarActions.handleLineStyleChange}
+            onPathTypeChange={toolbarActions.handlePathTypeChange}
+            onArrowHeadChange={toolbarActions.handleArrowHeadChange}
+            onThicknessChange={toolbarActions.handleThicknessChange}
+            onFillOpacityChange={toolbarActions.handleFillOpacityChange}
+            onBorderColorChange={toolbarActions.handleBorderColorChange}
+            onBorderOpacityChange={toolbarActions.handleBorderOpacityChange}
+            onBorderThicknessChange={toolbarActions.handleBorderThicknessChange}
+            onCornerRadiusChange={toolbarActions.handleCornerRadiusChange}
+            onShapeChange={toolbarActions.handleShapeChange}
+            onEdit={toolbarActions.handleEdit}
+            onDuplicate={toolbarActions.handleDuplicate}
+            onDelete={toolbarActions.handleDelete}
+            onAddGate={toolbarActions.handleAddGate}
+            onClose={toolbarActions.handleClose}
+          />
+        )
+      })()}
+    </div>
+  )
+}

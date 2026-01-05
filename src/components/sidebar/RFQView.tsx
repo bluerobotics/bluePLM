@@ -30,7 +30,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import type { RFQ, RFQItem, RFQStatus, RFQSupplier } from '@/types/rfq'
 import { getRFQStatusInfo, formatCurrency } from '@/types/rfq'
 import { generateRFQPdf, type OrgBranding } from '@/lib/rfqPdf'
-import { buildFullPath } from '@/lib/utils'
+import { buildFullPath } from '@/lib/utils/path'
 import { getInitials } from '@/types/pdm'
 
 // Supabase client with any type to bypass strict typing for new tables

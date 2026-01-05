@@ -5,7 +5,7 @@ import { usePDMStore, type SidebarView } from '../stores/pdmStore'
 // Lazy loaded views
 const ExplorerView = lazy(() => import('./sidebar/ExplorerView').then(m => ({ default: m.ExplorerView })))
 const PendingView = lazy(() => import('./sidebar/PendingView').then(m => ({ default: m.PendingView })))
-const WorkflowsView = lazy(() => import('./sidebar/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
+const WorkflowsView = lazy(() => import('@/features/workflows/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
 const HistoryView = lazy(() => import('./sidebar/HistoryView').then(m => ({ default: m.HistoryView })))
 const TrashView = lazy(() => import('./sidebar/TrashView').then(m => ({ default: m.TrashView })))
 const TerminalView = lazy(() => import('./sidebar/TerminalView').then(m => ({ default: m.TerminalView })))
@@ -18,8 +18,8 @@ const ScheduleView = lazy(() => import('./sidebar/ScheduleView').then(m => ({ de
 const NotificationsView = lazy(() => import('./sidebar/NotificationsView').then(m => ({ default: m.NotificationsView })))
 const SuppliersView = lazy(() => import('./sidebar/SuppliersView').then(m => ({ default: m.SuppliersView })))
 const SupplierPortalView = lazy(() => import('./sidebar/SupplierPortalView').then(m => ({ default: m.SupplierPortalView })))
-const SettingsContent = lazy(() => import('./SettingsContent').then(m => ({ default: m.SettingsContent })))
-const FileBrowser = lazy(() => import('./file-browser').then(m => ({ default: m.FileBrowser })))
+const SettingsContent = lazy(() => import('@/features/settings').then(m => ({ default: m.SettingsContent })))
+const FileBrowser = lazy(() => import('@/features/source/browser').then(m => ({ default: m.FileBrowser })))
 const GoogleDrivePanel = lazy(() => import('./GoogleDrivePanel').then(m => ({ default: m.GoogleDrivePanel })))
 
 // Loading fallback

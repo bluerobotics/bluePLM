@@ -1,16 +1,16 @@
 import { Suspense, lazy } from 'react'
 import { Loader2 } from 'lucide-react'
-import { SettingsContent } from '@/components/SettingsContent'
+import { SettingsContent } from '@/features/settings'
 import { WelcomeScreen } from '@/components/WelcomeScreen'
 import { TabBar } from '@/components/TabBar'
 import { ResizeHandle } from './ResizeHandle'
 import type { SettingsTab } from '@/types/settings'
 
 // Lazy loaded main content components - only loaded when their module is active
-const FileBrowser = lazy(() => import('@/components/file-browser').then(m => ({ default: m.FileBrowser })))
+const FileBrowser = lazy(() => import('@/features/source/browser').then(m => ({ default: m.FileBrowser })))
 const DetailsPanel = lazy(() => import('@/components/DetailsPanel').then(m => ({ default: m.DetailsPanel })))
 const GoogleDrivePanel = lazy(() => import('@/components/GoogleDrivePanel').then(m => ({ default: m.GoogleDrivePanel })))
-const WorkflowsView = lazy(() => import('@/components/sidebar/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
+const WorkflowsView = lazy(() => import('@/features/workflows/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
 
 // Loading fallback for lazy-loaded components
 function ContentLoading() {

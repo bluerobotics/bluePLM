@@ -1,7 +1,7 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, FilesSlice, LocalFile, DiffStatus } from '../types'
 import type { PDMFile } from '../../types/pdm'
-import { buildFullPath } from '../../lib/utils'
+import { buildFullPath } from '@/lib/utils/path'
 
 export const createFilesSlice: StateCreator<
   PDMStoreState,

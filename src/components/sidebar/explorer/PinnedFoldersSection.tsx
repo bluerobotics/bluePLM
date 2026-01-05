@@ -8,7 +8,7 @@ import {
   getFolderCheckoutStatus,
   isFolderSynced,
   getFolderCheckoutUsers
-} from '../../shared/FileItemComponents'
+} from '../../shared/FileItem'
 import { FileActionButtons, FolderActionButtons } from './TreeItemActions'
 import { executeCommand } from '../../../lib/commands'
 import type { TreeMap, FolderDiffCounts } from './types'

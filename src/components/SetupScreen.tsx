@@ -8,7 +8,7 @@ import {
   type SupabaseConfig 
 } from '../lib/supabaseConfig'
 import { reconfigureSupabase } from '../lib/supabase'
-import { LanguageSelector } from './LanguageSelector'
+import { LanguageSelector } from './shared/LanguageSelector'
 import { useTranslation } from '../lib/i18n'
 import { copyToClipboard } from '../lib/clipboard'
 

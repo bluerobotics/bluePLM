@@ -6,7 +6,7 @@ import { clearConfig, loadConfig } from '../lib/supabaseConfig'
 import { getInitials, getEffectiveAvatarUrl } from '../types/pdm'
 import { logClick, logAuth } from '../lib/userActionLogger'
 import { LogViewer } from './LogViewer'
-import { LanguageSelector } from './LanguageSelector'
+import { LanguageSelector } from './shared/LanguageSelector'
 import { useTranslation } from '../lib/i18n'
 import type { AccountType } from '../types/database'
 

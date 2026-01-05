@@ -5,7 +5,7 @@ import {
   isFolderSynced, 
   getFolderCheckoutUsers,
   type CheckoutUser
-} from '../../../shared/FileItemComponents'
+} from '../../../shared/FileItem'
 import type { TreeMap, FolderDiffCounts } from '../types'
 
 /**

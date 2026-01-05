@@ -1,6 +1,6 @@
 // Types for Explorer components
 import type { LocalFile, ConnectedVault } from '../../../stores/pdmStore'
-import type { CheckoutUser } from '../../shared/FileItemComponents'
+import type { CheckoutUser } from '../../shared/FileItem'
 
 // Tree node structure for recursive rendering
 export interface TreeNode {

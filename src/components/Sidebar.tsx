@@ -5,12 +5,12 @@ import { isModuleVisible } from '../types/modules'
 import { Loader2, Construction } from 'lucide-react'
 
 // Eagerly loaded views (always needed)
-import { SettingsNavigation } from './sidebar/SettingsNavigation'
+import { SettingsNavigation } from '@/features/settings'
 
 // Lazy loaded views - only loaded when the module is enabled and selected
 const ExplorerView = lazy(() => import('./sidebar/ExplorerView').then(m => ({ default: m.ExplorerView })))
 const PendingView = lazy(() => import('./sidebar/PendingView').then(m => ({ default: m.PendingView })))
-const WorkflowsView = lazy(() => import('./sidebar/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
+const WorkflowsView = lazy(() => import('@/features/workflows/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
 const HistoryView = lazy(() => import('./sidebar/HistoryView').then(m => ({ default: m.HistoryView })))
 const TrashView = lazy(() => import('./sidebar/TrashView').then(m => ({ default: m.TrashView })))
 const TerminalView = lazy(() => import('./sidebar/TerminalView').then(m => ({ default: m.TerminalView })))

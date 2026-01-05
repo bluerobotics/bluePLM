@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { LogOut, ChevronDown, Building2, Search, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, Settings, WifiOff, Wifi, PanelLeft, PanelBottom, PanelRight, SlidersHorizontal, Gauge, Users, Activity, User, Layers } from 'lucide-react'
 import { usePDMStore } from '../stores/pdmStore'
-import { CommandSearch } from './CommandSearch'
+import { CommandSearch } from './command-search'
 import { signInWithGoogle, signOut, isSupabaseConfigured, getActiveSessions, endRemoteSession, UserSession, supabase } from '../lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '../types/pdm'
 import { logAuth } from '../lib/userActionLogger'
-import { SystemStats } from './SystemStats'
-import { OnlineUsersIndicator } from './OnlineUsersIndicator'
+import { SystemStats } from './shared/SystemStats'
+import { OnlineUsersIndicator } from './shared/OnlineUsers'
 import { getMachineId } from '../lib/backup'
 
 // Helper to log to both console and electron log file

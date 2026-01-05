@@ -1,7 +1,7 @@
 // File tree item component for the explorer
 import { Loader2 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '../../../stores/pdmStore'
-import { FileIcon } from '../../shared/FileItemComponents'
+import { FileIcon } from '../../shared/FileItem'
 import { FileActionButtons } from './TreeItemActions'
 import { TREE_BASE_PADDING_PX, TREE_INDENT_PX, DIFF_STATUS_CLASS_PREFIX } from './constants'
 

@@ -3,7 +3,7 @@ import { Lock, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, Ale
 import { usePDMStore, LocalFile } from '../../stores/pdmStore'
 import { getInitials } from '../../types/pdm'
 // Shared file icon component for consistent file type icons
-import { FileTypeIcon } from '../shared/FileItemComponents'
+import { FileTypeIcon } from '../shared/FileItem'
 // Use command system instead of direct supabase calls
 import { executeCommand } from '../../lib/commands'
 import { isMachineOnline } from '../../lib/supabase'
