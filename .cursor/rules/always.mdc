@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Critical Rules
 
-## Tool Usage (Terminal = System Ops Only)
+## Tool Usage
 
 | Task | Use This | Never This |
 |------|----------|------------|
@@ -13,8 +13,23 @@ alwaysApply: true
 | Write | `write` | `echo >`, `Set-Content` |
 | Edit | `search_replace` | `sed`, `awk` |
 | Search | `grep` | `rg`, `findstr` |
+| **Move** | `Move-Item` (terminal) | write new + delete old |
+| **Rename** | `Rename-Item` (terminal) | write new + delete old |
+| **Delete** | `Remove-Item` (terminal) | — |
 
-Terminal is for: `git`, `npm`, `npx`, build scripts only.
+## File Move/Rename/Delete (CRITICAL)
+
+**NEVER** recreate files from scratch when moving or renaming. Use PowerShell:
+
+```powershell
+Move-Item -Path "old/path/file.ts" -Destination "new/path/file.ts"
+Rename-Item -Path "file.ts" -NewName "newname.ts"
+Remove-Item -Path "file.ts"
+```
+
+Why: Recreating files risks losing content, comments, or subtle details. Native file operations preserve everything exactly.
+
+Terminal is also for: `git`, `npm`, `npx`, build scripts.
 
 ## Schema Versioning (BOTH files, every time)
 

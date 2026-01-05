@@ -9,7 +9,7 @@
  */
 import * as LucideIcons from 'lucide-react'
 import { Shield, Plus, Pencil, Trash2 } from 'lucide-react'
-import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useMembers, useWorkflowRoles, useWorkflowRoleDialogs } from '../hooks'
 import { WorkflowRoleFormDialog } from '../components/dialogs'

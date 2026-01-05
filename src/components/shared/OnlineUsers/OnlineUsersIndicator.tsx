@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Users, Monitor, Laptop } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getOrgOnlineUsers, subscribeToOrgOnlineUsers, OnlineUser } from '@/lib/supabase'
-import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { UserProfileModal } from '@/features/settings/account'
 
 interface OnlineUsersIndicatorProps {

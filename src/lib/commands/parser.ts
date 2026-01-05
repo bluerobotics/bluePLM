@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 /**
  * Command Parser
  * 
@@ -24,8 +23,7 @@ import './handlers'
 // Import registry functions
 import { 
   getTerminalCommandHandler, 
-  getAllTerminalCommandAliases,
-  isTerminalCommandRegistered 
+  getAllTerminalCommandAliases 
 } from './registry'
 
 export interface ParsedCommand {

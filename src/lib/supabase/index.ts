@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference issues
 // Barrel export file - re-exports everything for backward compatibility
 // All imports from '../lib/supabase' will continue to work unchanged
 

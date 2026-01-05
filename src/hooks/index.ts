@@ -14,3 +14,8 @@ export { useAuth } from './useAuth'
 export { useStagedCheckins } from './useStagedCheckins'
 export { useAutoDownload } from './useAutoDownload'
 export { useVaultManagement } from './useVaultManagement'
+
+// Shared file operation hooks
+export { useClipboard } from './useClipboard'
+export { useSelectionCategories } from './useSelectionCategories'
+export { useDragDrop } from './useDragDrop'

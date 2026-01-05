@@ -1,4 +1,4 @@
-import { getInitials, getAvatarColor, getEffectiveAvatarUrl } from '@/types/pdm'
+import { getInitials, getAvatarColor, getEffectiveAvatarUrl } from '@/lib/utils'
 
 interface AvatarProps {
   user: {

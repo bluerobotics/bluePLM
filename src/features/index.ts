@@ -1,8 +1,24 @@
 /**
  * Feature Modules Index
  * 
- * Re-exports all feature modules for convenient access
+ * Import directly from submodules to avoid naming conflicts
+ * (e.g., ContextMenuState, OrgUser, EmptyState are defined in multiple modules).
+ * 
+ * Example: import { FileTree } from '@/features/source'
  */
 
-export * from './seasonal-effects'
-export * from './source'
+// These modules have unique exports, safe to re-export
+export * from './notifications'
+export * from './dev-tools'
+
+// Note: Other features have overlapping exports and should be imported directly:
+// - import { ... } from '@/features/source'
+// - import { ... } from '@/features/source/workflows'
+// - import { ... } from '@/features/settings'
+// - import { ... } from '@/features/search'
+// - import { ... } from '@/features/change-control'
+// - import { ... } from '@/features/items'
+// - import { ... } from '@/features/supply-chain'
+// - import { ... } from '@/features/integrations'
+
+// Note: seasonal-effects moved to components/effects/

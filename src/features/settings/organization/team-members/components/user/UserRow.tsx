@@ -18,7 +18,7 @@ import {
   Loader2,
   X
 } from 'lucide-react'
-import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { formatLastOnline, getTitleIcon, getTeamIcon, getRoleIcon } from '../../utils'
 import type { UserRowProps } from '../../types'
 

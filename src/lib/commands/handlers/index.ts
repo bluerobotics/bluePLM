@@ -16,6 +16,7 @@ import './pinning'
 import './backupOps'
 import './admin'
 import './batch'
+import './collaboration'
 
 // PDM command handlers (used via executor, not self-registered)
 // These are imported when needed by the parser for PDM operations

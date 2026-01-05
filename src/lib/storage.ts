@@ -11,8 +11,6 @@
  *   files table                     - Current file metadata
  *   file_versions table             - All versions with hash references
  */
-// @ts-nocheck - TODO: Fix Supabase type inference issues
-
 import { supabase } from './supabase'
 import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from './network'
 
@@ -31,6 +29,7 @@ interface StorageLogContext {
   fileName?: string
   fileSize?: number
   startTime?: number
+  uploadedPath?: string
 }
 
 function logStorageOperation(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: StorageLogContext, error?: unknown) {
@@ -500,8 +499,8 @@ export async function downloadFileWithProgress(
       onProgress({ loaded, total: loaded, speed })
     }
     
-    // Combine chunks into blob
-    const blob = new Blob(chunks)
+    // Combine chunks into blob - Uint8Array is BlobPart compatible
+    const blob = new Blob(chunks as BlobPart[])
     logStorageOperation('info', 'Download with progress completed', { ...ctx, fileSize: blob.size })
     return { data: blob }
   } catch (err) {

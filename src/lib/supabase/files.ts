@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference with Database generics has known issues in v2.x
 import { getSupabaseClient } from './client'
 import { getCurrentUserEmail } from './auth'
 
@@ -208,8 +207,12 @@ export async function getCheckedOutUsers(fileIds: string[]) {
   if (filesError) return { users: {}, error: filesError }
   if (!files || files.length === 0) return { users: {}, error: null }
   
-  // Get unique user IDs
-  const userIds = [...new Set(files.map(f => f.checked_out_by).filter(Boolean))]
+  // Get unique user IDs - filter out nulls with proper type narrowing
+  const userIds = [...new Set(
+    files.map(f => f.checked_out_by).filter((id): id is string => id !== null)
+  )]
+  
+  if (userIds.length === 0) return { users: {}, error: null }
   
   // Fetch user info separately
   const { data: usersData, error: usersError } = await client
@@ -225,6 +228,7 @@ export async function getCheckedOutUsers(fileIds: string[]) {
   // Convert to a map for easy lookup by file ID
   const users: Record<string, { email: string; full_name: string; avatar_url?: string }> = {}
   for (const file of files) {
+    if (!file.checked_out_by) continue
     const user = userLookup.get(file.checked_out_by)
     if (user) {
       users[file.id] = {
@@ -382,12 +386,61 @@ export async function getAllCheckedOutFiles(orgId: string) {
 // Sync Operations
 // ============================================
 
-function getFileTypeFromExtension(ext: string): 'part' | 'assembly' | 'drawing' | 'document' | 'other' {
+function getFileTypeFromExtension(ext: string): 'part' | 'assembly' | 'drawing' | 'pdf' | 'step' | 'other' {
   const lowerExt = ext.toLowerCase()
-  if (['.sldprt', '.prt', '.ipt', '.par'].includes(lowerExt)) return 'part'
-  if (['.sldasm', '.asm', '.iam'].includes(lowerExt)) return 'assembly'
-  if (['.slddrw', '.drw', '.idw', '.dwg'].includes(lowerExt)) return 'drawing'
-  if (['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'].includes(lowerExt)) return 'document'
+  
+  // CAD Parts (all major CAD software)
+  if ([
+    '.sldprt', '.prtdot', '.sldlfp', '.sldftp', '.sldblk',  // SolidWorks
+    '.ipt',                                                   // Inventor
+    '.prt',                                                   // Creo/NX
+    '.par', '.psm', '.pwd',                                   // Solid Edge
+    '.catpart', '.catshape',                                  // CATIA
+    '.3dm', '.gh', '.ghx',                                    // Rhino
+    '.skp', '.skb',                                           // SketchUp
+    '.fcstd', '.scad', '.brep',                               // Open source CAD
+    '.blend', '.max', '.ma', '.mb', '.c4d',                   // 3D viz
+    '.x_t', '.x_b', '.xmt_txt', '.xmt_bin',                   // Parasolid
+    '.sat', '.sab', '.asat',                                  // ACIS
+    '.f3d', '.f3z',                                           // Fusion 360
+  ].includes(lowerExt)) return 'part'
+  
+  // CAD Assemblies
+  if ([
+    '.sldasm', '.asmdot',   // SolidWorks
+    '.iam', '.ipn',         // Inventor
+    '.asm',                  // Creo
+    '.catproduct',           // CATIA
+  ].includes(lowerExt)) return 'assembly'
+  
+  // CAD Drawings
+  if ([
+    '.slddrw', '.slddrt', '.drwdot', '.sldstd',              // SolidWorks
+    '.idw', '.dwg', '.dwt', '.dws', '.dwf', '.dwfx',         // Inventor/AutoCAD
+    '.dxf',                                                   // DXF
+    '.drw', '.frm',                                           // Creo
+    '.dft',                                                   // Solid Edge
+    '.catdrawing',                                            // CATIA
+    '.layout',                                                // SketchUp
+  ].includes(lowerExt)) return 'drawing'
+  
+  // PDF
+  if (lowerExt === '.pdf') return 'pdf'
+  
+  // STEP and neutral exchange formats
+  if ([
+    '.step', '.stp', '.stpz', '.p21',                        // STEP
+    '.iges', '.igs',                                          // IGES
+    '.jt',                                                    // JT
+    '.stl', '.stla', '.stlb',                                // STL
+    '.3mf', '.amf',                                           // Additive manufacturing
+    '.obj', '.mtl',                                           // OBJ
+    '.fbx', '.dae',                                           // Animation exchange
+    '.gltf', '.glb',                                          // GL Transmission
+    '.usdz', '.usda', '.usdc',                                // USD
+    '.ply', '.wrl', '.vrml', '.x3d',                         // Other mesh
+  ].includes(lowerExt)) return 'step'
+  
   return 'other'
 }
 
@@ -882,7 +935,7 @@ export async function checkinFile(
   }
   
   // Check if content changed OR metadata changed OR user switched versions locally
-  const contentChanged = options?.newContentHash && options.newContentHash !== file.content_hash
+  const contentChanged = !!(options?.newContentHash && options.newContentHash !== file.content_hash)
   const metadataChanged = hasPendingMetadata
   // If user rolled to a different version locally (localActiveVersion set and differs from server), we need to increment
   // This handles cases where version 7 has same hash as version 6 but user intentionally switched versions
@@ -1085,8 +1138,8 @@ export async function syncSolidWorksFileMetadata(
   await client.from('file_versions').insert({
     file_id: fileId,
     version: newVersion,
-    revision: updateData.revision || file.revision,
-    content_hash: file.content_hash,
+    revision: updateData.revision || file.revision || 'A',
+    content_hash: file.content_hash || '',
     file_size: file.file_size,
     workflow_state_id: file.workflow_state_id,
     state: file.state || 'not_tracked',
@@ -1151,7 +1204,7 @@ export async function undoCheckout(fileId: string, userId: string) {
   }
   
   if (file.checked_out_by !== userId) {
-    // TODO: Allow admins to undo anyone's checkout
+    // Note: Admins should use adminForceDiscardCheckout() instead
     return { success: false, error: 'You do not have this file checked out' }
   }
   
@@ -1217,7 +1270,7 @@ export async function adminForceDiscardCheckout(
   }
   
   // Get the checked out user info separately
-  let checkedOutUser: { id: string; email: string; full_name: string } | null = null
+  let checkedOutUser: { id: string; email: string; full_name: string | null } | null = null
   const { data: userData } = await client
     .from('users')
     .select('id, email, full_name')
@@ -1246,15 +1299,16 @@ export async function adminForceDiscardCheckout(
     return { success: false, error: error.message }
   }
   
-  // Log activity
+  // Log activity (use 'update' action with details indicating admin force discard)
   getCurrentUserEmail().then(adminEmail => {
     client.from('activity').insert({
       org_id: file.org_id,
       file_id: fileId,
       user_id: adminUserId,
       user_email: adminEmail,
-      action: 'admin_force_discard',
+      action: 'update' as const,
       details: { 
+        admin_action: 'force_discard',
         previousCheckoutUser: checkedOutUser?.email || checkedOutUser?.id,
         previousCheckoutUserName: checkedOutUser?.full_name
       }

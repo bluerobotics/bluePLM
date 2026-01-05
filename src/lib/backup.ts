@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 // Backup service - simplified to use restic directly for everything
 import { getSupabaseClient } from './supabase'
 
@@ -134,7 +133,7 @@ export async function getBackupConfig(orgId: string): Promise<BackupConfig | nul
 export async function saveBackupConfig(
   orgId: string,
   config: Partial<BackupConfig>,
-  userId: string
+  _userId: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabaseClient()
   
@@ -223,18 +222,21 @@ export async function updateHeartbeat(orgId: string): Promise<boolean> {
   const supabase = getSupabaseClient()
   const machineId = await getMachineId()
   
-  const { data, error } = await supabase
-    .rpc('update_backup_heartbeat', {
-      p_org_id: orgId,
-      p_machine_id: machineId
+  // Direct update instead of RPC
+  const { error } = await supabase
+    .from('backup_config')
+    .update({
+      designated_machine_last_seen: new Date().toISOString()
     })
+    .eq('org_id', orgId)
+    .eq('designated_machine_id', machineId)
   
   if (error) {
     console.error('[Backup] Heartbeat error:', error)
     return false
   }
   
-  return data === true
+  return true
 }
 
 // Check if designated machine is online (seen within last 2 minutes)
@@ -260,19 +262,29 @@ export async function requestBackup(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabaseClient()
   
-  const { data, error } = await supabase
-    .rpc('request_backup', {
-      p_org_id: orgId,
-      p_requested_by: userEmail
+  // Check if there's a designated machine first
+  const { data: config, error: configError } = await supabase
+    .from('backup_config')
+    .select('designated_machine_id')
+    .eq('org_id', orgId)
+    .single()
+  
+  if (configError || !config?.designated_machine_id) {
+    return { success: false, error: 'No designated machine configured' }
+  }
+  
+  // Direct update instead of RPC
+  const { error } = await supabase
+    .from('backup_config')
+    .update({
+      backup_requested_at: new Date().toISOString(),
+      backup_requested_by: userEmail
     })
+    .eq('org_id', orgId)
   
   if (error) {
     console.error('[Backup] Error requesting backup:', error)
     return { success: false, error: error.message }
-  }
-  
-  if (!data) {
-    return { success: false, error: 'No designated machine configured' }
   }
   
   console.log('[Backup] Backup requested by:', userEmail)
@@ -289,18 +301,23 @@ export async function markBackupStarted(orgId: string): Promise<boolean> {
   const supabase = getSupabaseClient()
   const machineId = await getMachineId()
   
-  const { data, error } = await supabase
-    .rpc('start_backup', {
-      p_org_id: orgId,
-      p_machine_id: machineId
+  // Verify this is the designated machine and update running state
+  const { error } = await supabase
+    .from('backup_config')
+    .update({
+      backup_running_since: new Date().toISOString(),
+      backup_requested_at: null,
+      backup_requested_by: null
     })
+    .eq('org_id', orgId)
+    .eq('designated_machine_id', machineId)
   
   if (error) {
     console.error('[Backup] Error marking backup started:', error)
     return false
   }
   
-  return data === true
+  return true
 }
 
 // Mark backup as complete (called by designated machine)
@@ -308,18 +325,21 @@ export async function markBackupComplete(orgId: string): Promise<boolean> {
   const supabase = getSupabaseClient()
   const machineId = await getMachineId()
   
-  const { data, error } = await supabase
-    .rpc('complete_backup', {
-      p_org_id: orgId,
-      p_machine_id: machineId
+  // Verify this is the designated machine and clear running state
+  const { error } = await supabase
+    .from('backup_config')
+    .update({
+      backup_running_since: null
     })
+    .eq('org_id', orgId)
+    .eq('designated_machine_id', machineId)
   
   if (error) {
     console.error('[Backup] Error marking backup complete:', error)
     return false
   }
   
-  return data === true
+  return true
 }
 
 // ============================================
@@ -378,7 +398,7 @@ function shouldRunScheduledBackup(config: BackupConfig): boolean {
 // Start heartbeat and polling (called when app starts if this is designated machine)
 export function startBackupService(
   orgId: string,
-  vaultId: string,
+  _vaultId: string,
   onBackupRequest: (config: BackupConfig) => void,
   getLatestConfig: () => Promise<BackupConfig | null>
 ): void {
@@ -471,7 +491,11 @@ export async function listSnapshots(config: BackupConfig): Promise<BackupSnapsho
       resticPassword: config.restic_password_encrypted
     })
     
-    return result.snapshots || []
+    // Add short_id if missing (restic returns id but not always short_id)
+    return (result.snapshots || []).map(s => ({
+      ...s,
+      short_id: s.short_id || s.id.substring(0, 8)
+    }))
   } catch (err) {
     console.error('[Backup] Failed to list snapshots:', err)
     return []
@@ -846,19 +870,19 @@ export async function importDatabaseMetadata(
           id: file.id,
           org_id: exportData._orgId,
           vault_id: exportData._vaultId,
-          path: file.path,
-          checksum: file.checksum,
-          size: file.size,
-          is_folder: file.is_folder,
-          locked_by: file.locked_by,
-          locked_at: file.locked_at,
-          current_version: file.current_version,
+          file_path: file.file_path,
+          file_name: file.file_name,
+          extension: file.extension || '',
+          file_type: file.file_type || 'other',
+          content_hash: file.content_hash,
+          file_size: file.file_size,
+          state: file.state,
+          checked_out_by: file.checked_out_by,
+          checked_out_at: file.checked_out_at,
+          version: file.version,
           created_at: file.created_at,
           updated_at: file.updated_at,
-          created_by: file.created_by,
-          updated_by: file.updated_by,
-          deleted_at: restoreDeleted ? null : file.deleted_at,
-          deleted_by: restoreDeleted ? null : file.deleted_by
+          deleted_at: restoreDeleted ? null : file.deleted_at
         }, { onConflict: 'id' })
       
       if (!error) filesRestored++
@@ -879,13 +903,13 @@ export async function importDatabaseMetadata(
         .upsert({
           id: version.id,
           file_id: version.file_id,
-          version_number: version.version_number,
-          checksum: version.checksum,
-          size: version.size,
-          storage_path: version.storage_path,
+          version: version.version,
+          revision: version.revision || 'A',
+          content_hash: version.content_hash || '',
+          file_size: version.file_size,
+          state: version.state || 'work_in_progress',
           created_at: version.created_at,
-          created_by: version.created_by,
-          comment: version.comment
+          created_by: version.created_by || exportData._orgId // Fallback if missing
         }, { onConflict: 'id' })
       
       if (!error) versionsRestored++

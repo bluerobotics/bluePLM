@@ -175,3 +175,45 @@ export function normalizeWhitespace(str: string): string {
   if (!str) return str
   return str.trim().replace(/\s+/g, ' ')
 }
+
+/**
+ * Get selection count label for context menus
+ *
+ * @param fileCount - Number of files selected
+ * @param folderCount - Number of folders selected
+ * @returns Formatted count label or empty string
+ *
+ * @example
+ * getCountLabel(3, 2) // "(3 files, 2 folders)"
+ * getCountLabel(1, 0) // "(1 file)"
+ * getCountLabel(0, 0) // ""
+ */
+export function getCountLabel(fileCount: number, folderCount: number): string {
+  if (fileCount === 0 && folderCount === 0) return ''
+  const parts: string[] = []
+  if (fileCount > 0) {
+    parts.push(`${fileCount} file${fileCount > 1 ? 's' : ''}`)
+  }
+  if (folderCount > 0) {
+    parts.push(`${folderCount} folder${folderCount > 1 ? 's' : ''}`)
+  }
+  return `(${parts.join(', ')})`
+}
+
+/**
+ * Get plural suffix based on count
+ *
+ * @param count - Number to check
+ * @param singular - Suffix for singular (default: '')
+ * @param pluralSuffix - Suffix for plural (default: 's')
+ * @returns Appropriate suffix
+ *
+ * @example
+ * plural(1) // ''
+ * plural(2) // 's'
+ * plural(1, '', 'es') // ''
+ * plural(2, '', 'es') // 'es'
+ */
+export function plural(count: number, singular = '', pluralSuffix = 's'): string {
+  return count === 1 ? singular : pluralSuffix
+}

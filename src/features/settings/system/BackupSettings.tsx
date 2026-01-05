@@ -1,5 +1,5 @@
 import { usePDMStore } from '@/stores/pdmStore'
-import { BackupPanel } from '@/components/backup'
+import { BackupPanel } from '@/features/source/backup'
 
 export function BackupSettings() {
   const { getEffectiveRole } = usePDMStore()

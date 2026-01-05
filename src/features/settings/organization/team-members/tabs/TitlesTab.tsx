@@ -9,7 +9,7 @@
  */
 import * as LucideIcons from 'lucide-react'
 import { Briefcase, Plus, Pencil, Trash2 } from 'lucide-react'
-import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useMembers, useJobTitles, useJobTitleDialogs } from '../hooks'
 import { JobTitleFormDialog } from '../components/dialogs'

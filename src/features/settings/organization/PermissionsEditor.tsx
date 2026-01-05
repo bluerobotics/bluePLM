@@ -1,5 +1,4 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import * as LucideIcons from 'lucide-react'
 import {
   X,
@@ -13,33 +12,21 @@ import {
   Sparkles,
   Save,
   RotateCcw,
-  Filter,
-  Eye,
-  Plus,
-  Edit,
-  Trash2,
   Users,
-  Settings,
   Database,
   LayoutGrid,
   Wand2,
-  Copy,
   AlertTriangle,
   Folder
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
-import type { Team, TeamPermission, PermissionPreset, PermissionAction, ResourceDefinition, ResourceCategory } from '@/types/permissions'
+import type { Team, PermissionPreset, PermissionAction } from '@/types/permissions'
 import {
   PERMISSION_ACTIONS,
   PERMISSION_ACTION_LABELS,
-  MODULE_RESOURCES,
-  SYSTEM_RESOURCES,
   ALL_RESOURCES,
-  RESOURCE_CATEGORIES,
-  getResourcesByCategory,
-  DEFAULT_PRESETS,
-  hasPermission
+  DEFAULT_PRESETS
 } from '@/types/permissions'
 
 interface Vault {
@@ -127,14 +114,14 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(RESOURCE_GROUPS.map(g => g.id)))
   const [showPresets, setShowPresets] = useState(false)
-  const [presets, setPresets] = useState<PermissionPreset[]>([])
+  const [_presets, setPresets] = useState<PermissionPreset[]>([])
   
   // Vault scope state - only for source files
   const [vaults, setVaults] = useState<Vault[]>([])
   const [selectedSourceFilesVaultId, setSelectedSourceFilesVaultId] = useState<string | null>(null) // null = "All Vaults"
   const [sourceFilesPermsByVault, setSourceFilesPermsByVault] = useState<Record<string, Record<string, PermissionAction[]>>>({})
   const [originalSourceFilesPermsByVault, setOriginalSourceFilesPermsByVault] = useState<Record<string, Record<string, PermissionAction[]>>>({})
-  const [vaultsLoading, setVaultsLoading] = useState(true)
+  const [_vaultsLoading, setVaultsLoading] = useState(true)
   
   // Source files resources
   const sourceFilesResources = ['module:explorer', 'module:pending', 'module:history', 'module:workflows', 'module:trash']

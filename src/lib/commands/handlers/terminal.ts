@@ -394,6 +394,15 @@ PDM Operations:
   remove <path>        Remove local copy (alias: rm-local)
   force-release <path> Force release checkout (admin)
 
+Collaboration:
+  watch <path>         Watch file for notifications
+  unwatch <path>       Stop watching a file
+  share <path>         Create shareable link (alias: share-link)
+  notify <path> <email> Mention someone about a file
+  request-review <p> <e> Request file review (alias: review)
+  request-checkout <p> Request checkout from owner
+  add-to-eco <p> [eco] Add file to ECO (alias: eco-add)
+
 SolidWorks Operations:
   sync-sw-metadata <p> Sync SW properties to server (alias: sw-sync)
 
@@ -498,6 +507,7 @@ Roles & Permissions:
   titles               List job titles
   create-title <name>  Create job title
   set-title <e> <t>    Set user's job title
+  delete-title <name>  Delete a job title (--force)
   permissions <team>   View team permissions
   grant <t> <r> <a>    Grant permission (team, resource, action)
   revoke <t> <r> [a]   Revoke permission

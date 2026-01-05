@@ -4,7 +4,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { executeCommand } from '@/lib/commands'
 
-// Cast supabase client to bypass known v2 type inference issues
+// Supabase v2 type inference incomplete for SolidWorks settings
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
 

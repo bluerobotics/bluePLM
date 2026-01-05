@@ -4,11 +4,10 @@
  * High-level file operations combining Supabase database + storage.
  * Handles versioning, check-in/check-out, conflict detection.
  */
-// @ts-nocheck - TODO: Fix Supabase type inference issues
-
 import { supabase } from './supabase'
 import { uploadFile, downloadFile } from './storage'
-import { getNextRevision, getFileType } from '../types/pdm'
+import { getNextRevision } from '../types/pdm'
+import { getFileType } from './utils'
 import type { PDMFile, FileVersion } from '../types/pdm'
 
 /**
@@ -425,8 +424,9 @@ export async function rollbackToVersion(
         file_id: fileId,
         user_id: userId,
         user_email: userEmail,
-        action: isRollback ? 'rollback' : 'roll_forward',
+        action: 'revision_change' as const,  // Use revision_change for rollback/roll_forward
         details: { 
+          version_action: isRollback ? 'rollback' : 'roll_forward',
           from_version: file.version, 
           to_version: targetVersion,
           comment: comment || null

@@ -44,9 +44,3 @@ export {
   TeamVaultAccessDialog,
   type TeamVaultAccessDialogProps
 } from './team'
-
-// Self-contained dialog groups (use context, no props needed)
-export { TeamDialogs } from './TeamDialogs'
-export { UserDialogs } from './UserDialogs'
-export { WorkflowRoleDialogs } from './WorkflowRoleDialogs'
-export { JobTitleDialogs } from './JobTitleDialogs'

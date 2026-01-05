@@ -33,10 +33,6 @@ import {
   TeamsTab,
   RolesTab,
   TitlesTab,
-  TeamDialogs,
-  UserDialogs,
-  WorkflowRoleDialogs,
-  JobTitleDialogs,
   // Data hooks
   useTeams,
   useMembers,
@@ -345,11 +341,6 @@ export function TeamMembersSettings() {
         </div>
       )}
 
-      {/* Self-contained dialogs - each checks its own visibility via hooks */}
-      <TeamDialogs />
-      <UserDialogs />
-      <WorkflowRoleDialogs />
-      <JobTitleDialogs />
     </div>
   )
 }

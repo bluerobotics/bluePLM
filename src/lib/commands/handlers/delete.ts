@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 /**
  * Delete Commands
  * 
@@ -509,10 +508,10 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       succeeded: deletedServer || deletedLocal,
       failed,
       errors: errors.length > 0 ? errors : undefined,
-      details: {
-        deletedFromServer: deletedServer,
-        deletedLocally: deletedLocal
-      }
+      details: [
+        `Deleted from server: ${deletedServer}`,
+        `Deleted locally: ${deletedLocal}`
+      ]
     }
   }
 }

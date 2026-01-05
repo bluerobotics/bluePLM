@@ -15,7 +15,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import type { FileMetadataColumn, MetadataColumnType } from '@/types/database'
 
-// Cast supabase client to bypass known v2 type inference issues
+// Supabase v2 type inference incomplete for metadata column operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
 

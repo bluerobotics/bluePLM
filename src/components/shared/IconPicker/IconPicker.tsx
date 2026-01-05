@@ -283,7 +283,7 @@ export function IconPicker({
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
-  
+  // Dynamic Lucide icon lookup requires any cast (icon name is runtime string)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const IconComponent = (LucideIcons as any)[value] || LucideIcons.HelpCircle
   
@@ -356,6 +356,7 @@ export function IconPicker({
           <div className="max-h-64 overflow-y-auto">
             <div className="grid grid-cols-8 gap-1">
               {filteredIcons.map(iconName => {
+                // Dynamic Lucide icon lookup requires any cast
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const Icon = (LucideIcons as any)[iconName]
                 if (!Icon) return null
@@ -451,6 +452,7 @@ export function IconGridPicker({
       >
         <div className={`grid gap-1`} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
           {filteredIcons.map(iconName => {
+            // Dynamic Lucide icon lookup requires any cast
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const Icon = (LucideIcons as any)[iconName]
             if (!Icon) return null

@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 /**
  * Info Command Handlers
  * 
@@ -127,8 +126,8 @@ export function handleInfo(
   
   if (!file.isDirectory) {
     lines.push(`   Size: ${formatBytes(file.size || 0)}`)
-    if (file.localModified) {
-      lines.push(`   Modified: ${new Date(file.localModified).toLocaleString()}`)
+    if (file.modifiedTime) {
+      lines.push(`   Modified: ${new Date(file.modifiedTime).toLocaleString()}`)
     }
   }
   
@@ -137,7 +136,7 @@ export function handleInfo(
     if (file.pdmData.checked_out_by) {
       const { user } = usePDMStore.getState()
       const isMe = file.pdmData.checked_out_by === user?.id
-      lines.push(`   Checked out by: ${isMe ? 'You' : file.pdmData.checked_out_by_name || 'Unknown'}`)
+      lines.push(`   Checked out by: ${isMe ? 'You' : file.pdmData.checked_out_user?.full_name || file.pdmData.checked_out_user?.email || 'Unknown'}`)
     }
     if (file.pdmData.version) {
       lines.push(`   Version: ${file.pdmData.version}`)
@@ -163,7 +162,7 @@ export function handleWhoami(addOutput: OutputFn): void {
       `👤 ${user.full_name || user.email}`,
       `   Email: ${user.email}`,
       organization ? `   Organization: ${organization.name}` : '',
-      `   Role: ${user.is_admin ? 'Admin' : 'Member'}`
+      `   Role: ${user.role === 'admin' ? 'Admin' : user.role === 'engineer' ? 'Engineer' : 'Viewer'}`
     ].filter(Boolean).join('\n'))
   }
 }
@@ -198,7 +197,7 @@ export function handleMetadata(
     lines.push(`   Part Number: ${file.pdmData.part_number || 'None'}`)
     lines.push(`   Description: ${file.pdmData.description || 'None'}`)
     lines.push(`   Revision: ${file.pdmData.revision || 'None'}`)
-    lines.push(`   State: ${file.pdmData.state || 'Unknown'}`)
+    lines.push(`   State: ${file.pdmData.workflow_state?.name || 'Unknown'}`)
     lines.push(`   Version: ${file.pdmData.version}`)
   }
   

@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference with Database generics has known issues in v2.x
 import { getSupabaseClient } from './client'
 
 // ============================================
@@ -256,7 +255,7 @@ export async function getAccessibleVaults(
   orgId: string,
   userRole: string
 ): Promise<{ 
-  vaults: Array<{ id: string; name: string; slug: string; description: string | null; is_default: boolean; created_at: string }>;
+  vaults: Array<{ id: string; name: string; slug: string; description: string | null; is_default: boolean | null; created_at: string | null }>;
   error?: string 
 }> {
   const client = getSupabaseClient()

@@ -240,6 +240,7 @@ export interface JobTitleBasic {
  * Note: The client has @ts-nocheck internally, so we use type assertions
  * to provide proper typing for operations.
  */
+// Supabase v2 type inference incomplete for team member operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
 

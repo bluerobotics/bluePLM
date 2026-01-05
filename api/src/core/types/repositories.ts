@@ -29,6 +29,7 @@ export interface IFileRepository {
   undoCheckout(id: string): Promise<File>;
   softDelete(id: string, userId: string): Promise<void>;
   restore(id: string): Promise<File>;
+  updateState(id: string, state: string, userId: string): Promise<File>;
 }
 
 export interface IVaultRepository {

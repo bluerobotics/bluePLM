@@ -1,4 +1,4 @@
-import { LogViewerInline } from '@/components/LogViewer'
+import { LogViewerInline } from '@/features/dev-tools/logs'
 
 export function LogsSettings() {
   return <LogViewerInline />

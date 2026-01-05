@@ -71,7 +71,7 @@ export function ModulesSettings() {
         .order('name')
       
       if (error) throw error
-      
+      // Supabase v2 nested select type inference incomplete for team counts
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const teamsWithCounts = (data || []).map((team: any) => ({
         ...team,
@@ -188,6 +188,7 @@ export function ModulesSettings() {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {teamsWithModules.map(team => {
+              // Dynamic Lucide icon lookup requires any cast (icon name is runtime string)
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const IconComponent = (LucideIcons as any)[team.icon] || Users
               const defaults = team.module_defaults as { enabled_modules?: Record<string, boolean> } | null

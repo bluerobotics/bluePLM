@@ -1,7 +1,7 @@
 // Store types - extracted from pdmStore.ts for use across slices
 import type { PDMFile, Organization, User } from '../types/pdm'
 import type { ModuleId, ModuleConfig } from '../types/modules'
-import type { KeybindingsConfig, KeybindingAction, Keybinding } from '../types/settings'
+import type { KeybindingsConfig, KeybindingAction, Keybinding, SettingsTab } from '../types/settings'
 
 // ============================================================================
 // Type Aliases
@@ -302,6 +302,9 @@ export interface UISlice {
   rightPanelTabs: DetailsPanelTab[]
   bottomPanelTabOrder: DetailsPanelTab[]
   
+  // Settings navigation
+  settingsTab: SettingsTab
+  
   // Google Drive navigation
   gdriveCurrentFolderId: string | null
   gdriveCurrentFolderName: string | null
@@ -335,6 +338,9 @@ export interface UISlice {
   toggleTerminal: () => void
   setTerminalHeight: (height: number) => void
   addTerminalHistory: (command: string) => void
+  
+  // Settings navigation
+  setSettingsTab: (tab: SettingsTab) => void
 }
 
 export interface SettingsSlice {
@@ -795,7 +801,16 @@ export type PDMStoreState =
   TabsSlice & 
   OperationsSlice
 
+// ============================================================================
+// Store Versioning
+// ============================================================================
+
+// Store versioning for migrations
+export interface StoreMetadata {
+  _storeVersion: number
+}
+
 // Re-export types that were originally in pdmStore.ts for backward compatibility
 export type { PDMFile, Organization, User } from '../types/pdm'
 export type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider, OrderListItem, OrgModuleDefaults } from '../types/modules'
-export type { KeybindingAction, KeybindingsConfig, Keybinding } from '../types/settings'
+export type { KeybindingAction, KeybindingsConfig, Keybinding, SettingsTab } from '../types/settings'

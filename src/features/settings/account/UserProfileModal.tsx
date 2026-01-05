@@ -22,9 +22,9 @@ import {
 
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient } from '@/lib/supabase'
-import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 
-// Get supabase client with any type cast for queries with type inference issues
+// Supabase v2 type inference incomplete for user profile queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getDb = () => getSupabaseClient() as any
 
@@ -253,7 +253,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         
         if (!activityError && activities) {
           const dataMap = new Map<string, DayData>()
-          
+          // Supabase v2 nested select type inference incomplete
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const fileActivities: ActivityRecord[] = activities.map((a: any) => ({
             id: a.id,

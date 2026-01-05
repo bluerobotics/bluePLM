@@ -1,4 +1,3 @@
-// @ts-nocheck - Store type inference issues
 /**
  * Vault Operations Command Handlers
  * 
@@ -28,9 +27,6 @@ export function handleVault(addOutput: OutputFn): void {
     const marker = isActive ? '▶' : ' '
     lines.push(`${marker} ${vault.name}`)
     lines.push(`    Path: ${vault.localPath}`)
-    if (vault.organization_name) {
-      lines.push(`    Org: ${vault.organization_name}`)
-    }
   }
   
   addOutput('info', lines.join('\n'))
@@ -75,7 +71,7 @@ export function handleCheckouts(
   const lines = [`🔒 Checked Out Files (${checkedOutFiles.length}):`]
   for (const file of checkedOutFiles.slice(0, 20)) {
     const byMe = file.pdmData?.checked_out_by === user?.id
-    const who = byMe ? 'you' : (file.pdmData?.checked_out_by_name || 'unknown')
+    const who = byMe ? 'you' : (file.pdmData?.checked_out_user?.full_name || file.pdmData?.checked_out_user?.email || 'unknown')
     lines.push(`  ${file.relativePath} (${who})`)
   }
   if (checkedOutFiles.length > 20) {

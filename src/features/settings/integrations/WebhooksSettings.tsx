@@ -25,7 +25,7 @@ import { supabase } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
 import type { Webhook, WebhookDelivery, WebhookEvent, WebhookTriggerFilter } from '@/types/database'
 
-// Cast supabase client to bypass known v2 type inference issues
+// Supabase v2 type inference incomplete for webhooks table
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
 

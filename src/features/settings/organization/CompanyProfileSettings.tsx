@@ -1,9 +1,7 @@
-// @ts-nocheck - Supabase type inference issues with new columns
 import { useState, useEffect, useRef } from 'react'
 import { 
   Upload, 
   Loader2, 
-  MapPin,
   Phone,
   Globe,
   Save,
@@ -66,7 +64,7 @@ const emptyAddress: Omit<OrgAddress, 'id' | 'org_id'> = {
 }
 
 export function CompanyProfileSettings() {
-  const { organization, user, addToast, getEffectiveRole } = usePDMStore()
+  const { organization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

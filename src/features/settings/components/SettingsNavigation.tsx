@@ -272,16 +272,15 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
       newStatuses['odoo'] = 'offline'
     }
     
-    // Slack - not yet implemented in API, skip status check
-    // TODO: Re-enable when /integrations/slack endpoint is added to API
-    newStatuses['slack'] = 'not-configured'
+    // Slack - not yet implemented in API
+    newStatuses['slack'] = 'coming-soon'
     
-    // WooCommerce - coming soon
-    // TODO: Re-enable when /integrations/woocommerce endpoint is added to API
-    newStatuses['woocommerce'] = 'coming-soon'
+    // WooCommerce - API endpoint exists at /integrations/woocommerce
+    // Status is handled separately via WooCommerceSettings component
+    newStatuses['woocommerce'] = 'not-configured'
     
-    // Webhooks - coming soon
-    newStatuses['webhooks'] = 'coming-soon'
+    // Webhooks - status handled via WebhooksSettings component
+    newStatuses['webhooks'] = 'not-configured'
     
     setStatuses(newStatuses)
   }

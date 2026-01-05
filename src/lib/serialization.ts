@@ -58,6 +58,7 @@ const DEFAULT_SETTINGS: SerializationSettings = {
  */
 export async function getNextSerialNumber(orgId: string): Promise<string | null> {
   try {
+    // Supabase v2 RPC type inference incomplete for custom functions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('get_next_serial_number', {
       p_org_id: orgId
@@ -84,6 +85,7 @@ export async function getNextSerialNumber(orgId: string): Promise<string | null>
  */
 export async function previewNextSerialNumber(orgId: string): Promise<string | null> {
   try {
+    // Supabase v2 RPC type inference incomplete for custom functions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('preview_next_serial_number', {
       p_org_id: orgId
@@ -120,6 +122,7 @@ export async function getSerializationSettings(orgId: string): Promise<Serializa
       return DEFAULT_SETTINGS
     }
     
+    // Supabase v2 JSONB column type inference incomplete
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const settings = (data as any)?.serialization_settings
     return {
@@ -153,6 +156,7 @@ export async function updateSerializationSettings(
       ...settings
     }
     
+    // Supabase v2 type inference incomplete for JSONB column updates
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from('organizations') as any)
       .update({ serialization_settings: updated })
@@ -561,6 +565,7 @@ export async function detectHighestSerialNumber(
       return null
     }
     
+    // Supabase v2 nested select type inference incomplete
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const partNumbers = ((data || []) as { part_number: string | null }[])
       .map(f => f.part_number)

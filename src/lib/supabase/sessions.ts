@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference with Database generics has known issues in v2.x
 import { getSupabaseClient } from './client'
 
 // ============================================
@@ -48,6 +47,12 @@ export async function registerDeviceSession(
   // Retry logic for new users (user record might not exist yet due to trigger timing)
   const maxRetries = 3
   const retryDelays = [1000, 2000, 3000]
+  
+  // org_id is required, if null skip session creation
+  if (!orgId) {
+    console.log('[Session] Skipping session registration - no org_id')
+    return { success: false, error: 'No organization ID provided' }
+  }
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const { data, error } = await client
@@ -461,7 +466,7 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
       console.log('[OnlineUsers]   -', s.machine_name, 
         '| user:', s.user_id?.substring(0, 8) + '...',
         '| org:', s.org_id?.substring(0, 8) || 'NULL',
-        '| last_seen:', new Date(s.last_seen).toLocaleTimeString())
+        '| last_seen:', s.last_seen ? new Date(s.last_seen).toLocaleTimeString() : 'unknown')
     })
   }
   if (debugError) {
@@ -496,6 +501,7 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
   }
   
   // Transform the data to flatten the user info
+  // Supabase v2 nested select type inference is incomplete, requires any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const users: OnlineUser[] = (data || []).map((session: any) => ({
     user_id: session.user_id,
@@ -573,7 +579,7 @@ export async function updateLastOnline(): Promise<{ success: boolean; error?: st
   const client = getSupabaseClient()
   
   try {
-    const { data, error } = await client.rpc('update_last_online')
+    const { error } = await client.rpc('update_last_online')
     
     if (error) {
       console.error('[LastOnline] Failed to update:', error.message)

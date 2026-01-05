@@ -137,7 +137,7 @@ export function CreateUserDialog({
         .eq('org_id', orgId)
         .ilike('email', normalizedEmail)
       
-      // Type definitions in database.ts, but client has @ts-nocheck
+      // Supabase v2 type inference incomplete for pending_org_members table
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).from('pending_org_members').insert({
         org_id: orgId,

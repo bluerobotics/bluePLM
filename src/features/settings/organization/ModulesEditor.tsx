@@ -287,7 +287,7 @@ function OrderListItemComponent({
   if (item.type === 'group') {
     const group = config.customGroups?.find(g => g.id === item.id)
     if (!group) return null
-    
+    // Dynamic Lucide icon lookup requires any cast (icon name is runtime string)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const IconComponent = (LucideIcons as any)[group.icon]
     const childCount = getChildModules(group.id, config).length
@@ -587,6 +587,7 @@ function OrderListItemComponent({
                   Groups
                 </div>
                 {(config.customGroups || []).map(group => {
+                  // Dynamic Lucide icon lookup requires any cast
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const GroupIcon = (LucideIcons as any)[group.icon]
                   return (
@@ -760,6 +761,7 @@ function GroupEditorModal({
             <div className="flex items-center gap-3 p-3 bg-plm-bg-secondary rounded border border-plm-border">
               <div style={{ color: iconColor || 'var(--plm-accent)' }}>
                 {(() => {
+                  // Dynamic Lucide icon lookup requires any cast
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const IconComponent = (LucideIcons as any)[icon]
                   return IconComponent ? <IconComponent size={22} /> : <Package size={22} />

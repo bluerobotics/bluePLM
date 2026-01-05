@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference with Database generics has known issues in v2.x
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../../types/database'
 import { loadConfig, type SupabaseConfig } from '../supabaseConfig'

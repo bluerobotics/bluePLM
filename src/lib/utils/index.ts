@@ -14,6 +14,22 @@
  * import { truncate } from '@/lib/utils/string'
  */
 
+// Avatar utilities
+export {
+  AVATAR_COLORS,
+  type AvatarColor,
+  getInitials,
+  getAvatarColor,
+  getEffectiveAvatarUrl,
+} from './avatar'
+
+// File utilities
+export {
+  getFileType,
+  getFileIconType,
+  isCADFile,
+} from './file'
+
 // Date utilities
 export {
   formatDate,
@@ -39,6 +55,8 @@ export {
   kebabToCamel,
   pluralize,
   normalizeWhitespace,
+  getCountLabel,
+  plural,
 } from './string'
 
 // Path utilities

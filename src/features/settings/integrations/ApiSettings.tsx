@@ -21,7 +21,7 @@ import { supabase } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
 import { checkApiCompatibility, EXPECTED_API_VERSION, type ApiVersionCheckResult } from '@/lib/apiVersion'
 
-// Cast supabase client to bypass known v2 type inference issues
+// Supabase v2 type inference incomplete for API key operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
 

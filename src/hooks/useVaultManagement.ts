@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import type { SettingsTab } from '@/types/settings'
 
 /**
  * Hook to manage vault operations and state
@@ -10,9 +9,7 @@ import type { SettingsTab } from '@/types/settings'
  * - Vault not found dialog state
  * - Working directory initialization
  */
-export function useVaultManagement(
-  setSettingsTab: (tab: SettingsTab) => void
-) {
+export function useVaultManagement() {
   const {
     user,
     isOfflineMode,
@@ -30,6 +27,9 @@ export function useVaultManagement(
     addRecentVault,
     addToast,
   } = usePDMStore()
+
+  // Get setSettingsTab from store (added by Agent 2)
+  const setSettingsTab = usePDMStore(s => s.setSettingsTab)
 
   // Vault not found dialog state
   const [vaultNotFoundPath, setVaultNotFoundPath] = useState<string | null>(null)
@@ -152,8 +152,9 @@ export function useVaultManagement(
     }
     
     mountedRef.current = true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run on mount
+  // Mount-only effect: initializes lastLoadKey and sets mounted flag
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
   // Reset lastLoadKey when vault is disconnected so reconnecting triggers a fresh load
   useEffect(() => {

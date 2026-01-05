@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { usePDMStore, ThemeMode, Language } from '@/stores/pdmStore'
 import { signOut, getSupabaseClient, endRemoteSession } from '@/lib/supabase'
-import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { getMachineId } from '@/lib/backup'
 import { useTranslation } from '@/lib/i18n'
 import { ContributionHistory } from '../system/ContributionHistory'

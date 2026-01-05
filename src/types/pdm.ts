@@ -3,38 +3,396 @@
 // Revision follows engineering convention (A, B, C... then AA, AB, etc.)
 export type RevisionScheme = 'letter' | 'numeric'
 
-// Supported CAD file types
+// Supported CAD file types - comprehensive list for PLM/PDM systems
 export const CAD_EXTENSIONS = [
-  // SolidWorks
-  '.sldprt',   // Parts
-  '.sldasm',   // Assemblies  
-  '.slddrw',   // Drawings
-  '.slddrt',   // Drawing templates
-  '.sldlfp',   // Library feature parts
-  '.sldblk',   // Blocks
-  // Neutral formats
-  '.step',
-  '.stp',
-  '.iges',
-  '.igs',
-  '.x_t',      // Parasolid
-  '.x_b',
-  '.sat',      // ACIS
-  // Mesh/visualization
-  '.stl',
-  '.3mf',
-  '.obj',
-  // Documents
-  '.pdf',
-  '.dxf',
-  '.dwg',
-  // Other CAD
-  '.catpart',  // CATIA
-  '.catproduct',
-  '.prt',      // Creo/Pro-E, NX
-  '.asm',
-  '.ipt',      // Inventor
-  '.iam',
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SOLIDWORKS
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.sldprt',    // Part
+  '.sldasm',    // Assembly
+  '.slddrw',    // Drawing
+  '.slddrt',    // Drawing template
+  '.sldlfp',    // Library feature part
+  '.sldblk',    // Block
+  '.asmdot',    // Assembly template
+  '.prtdot',    // Part template
+  '.drwdot',    // Drawing template
+  '.sldstd',    // Drafting standard
+  '.sldftp',    // Form tool part
+  '.sldprt~',   // Backup part
+  '.sldasm~',   // Backup assembly
+  '.slddrw~',   // Backup drawing
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUTODESK INVENTOR
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.ipt',       // Part
+  '.iam',       // Assembly
+  '.idw',       // Drawing
+  '.dwg',       // AutoCAD drawing (also Inventor)
+  '.ipn',       // Presentation
+  '.ipj',       // Project file
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUTODESK AUTOCAD / CIVIL / MECHANICAL
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.dxf',       // Drawing exchange
+  '.dwt',       // Template
+  '.dws',       // Standards
+  '.dwf',       // Design web format
+  '.dwfx',      // Design web format XPS
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUTODESK FUSION 360 / ALIAS
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.f3d',       // Fusion 360 design
+  '.f3z',       // Fusion 360 archive
+  '.wire',      // Alias wire
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PTC CREO / PRO-ENGINEER
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.prt',       // Part (also NX)
+  '.asm',       // Assembly
+  '.drw',       // Drawing
+  '.frm',       // Format/template
+  '.sec',       // Section
+  '.lay',       // Layout
+  '.neu',       // Neutral
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SIEMENS NX (UNIGRAPHICS)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Uses .prt for all types - versioned like part.prt.1, part.prt.2
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SIEMENS SOLID EDGE
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.par',       // Part
+  '.psm',       // Sheet metal part
+  '.pwd',       // Weldment
+  '.dft',       // Draft/drawing
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DASSAULT CATIA
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.catpart',   // Part
+  '.catproduct', // Assembly
+  '.catdrawing', // Drawing
+  '.catshape',  // Shape
+  '.catmaterial', // Material
+  '.cgr',       // Graphical representation
+  '.3dxml',     // 3D XML
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RHINO / GRASSHOPPER
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.3dm',       // Rhino model
+  '.gh',        // Grasshopper definition
+  '.ghx',       // Grasshopper definition XML
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SKETCHUP
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.skp',       // SketchUp model
+  '.skb',       // SketchUp backup
+  '.layout',    // SketchUp Layout
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FREECAD / OPENSCAD / OPEN SOURCE
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.fcstd',     // FreeCAD standard
+  '.scad',      // OpenSCAD
+  '.brep',      // OpenCASCADE boundary representation
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BLENDER / 3D VISUALIZATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.blend',     // Blender
+  '.blend1',    // Blender backup
+  '.max',       // 3ds Max
+  '.ma',        // Maya ASCII
+  '.mb',        // Maya binary
+  '.c4d',       // Cinema 4D
+  '.hda',       // Houdini digital asset
+  '.hip',       // Houdini
+  '.hipnc',     // Houdini non-commercial
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEUTRAL / EXCHANGE FORMATS
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.step',      // STEP AP203/AP214/AP242
+  '.stp',       // STEP alternate
+  '.stpz',      // Compressed STEP
+  '.p21',       // STEP physical file
+  '.iges',      // IGES
+  '.igs',       // IGES alternate
+  '.x_t',       // Parasolid text
+  '.x_b',       // Parasolid binary
+  '.xmt_txt',   // Parasolid transmit text
+  '.xmt_bin',   // Parasolid transmit binary
+  '.sat',       // ACIS text
+  '.sab',       // ACIS binary
+  '.asat',      // ACIS annotated
+  '.jt',        // JT (Siemens/Jupiter)
+  '.vda',       // VDA-FS
+  '.vdafs',     // VDA-FS alternate
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MESH / 3D PRINTING / VISUALIZATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.stl',       // Stereolithography
+  '.3mf',       // 3D Manufacturing Format
+  '.obj',       // Wavefront OBJ
+  '.mtl',       // OBJ material library
+  '.fbx',       // Filmbox
+  '.dae',       // COLLADA
+  '.gltf',      // GL Transmission Format
+  '.glb',       // GL Transmission Format binary
+  '.usdz',      // Universal Scene Description
+  '.usda',      // USD ASCII
+  '.usdc',      // USD crate/binary
+  '.ply',       // Polygon file format
+  '.wrl',       // VRML
+  '.vrml',      // VRML alternate
+  '.x3d',       // X3D
+  '.amf',       // Additive Manufacturing File
+  '.off',       // Object File Format
+  '.smesh',     // Surface mesh
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ELECTRONICS / PCB / SCHEMATIC - KICAD
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.kicad_pcb', // KiCad PCB
+  '.kicad_sch', // KiCad schematic
+  '.kicad_mod', // KiCad footprint module
+  '.kicad_sym', // KiCad symbol
+  '.kicad_pro', // KiCad project
+  '.kicad_wks', // KiCad worksheet
+  '.kicad_dru', // KiCad design rules
+  '.fp-lib-table', // Footprint library table
+  '.sym-lib-table', // Symbol library table
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ELECTRONICS / PCB / SCHEMATIC - EAGLE
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.brd',       // Eagle/Altium board
+  '.sch',       // Eagle/generic schematic
+  '.lbr',       // Eagle library
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ELECTRONICS / PCB / SCHEMATIC - ALTIUM
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.pcbdoc',    // Altium PCB document
+  '.schdoc',    // Altium schematic
+  '.prjpcb',    // Altium PCB project
+  '.prjsch',    // Altium schematic project
+  '.schlib',    // Altium schematic library
+  '.pcblib',    // Altium PCB library
+  '.intlib',    // Altium integrated library
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ELECTRONICS / PCB - CADENCE ALLEGRO / ORCAD
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.dsn',       // OrCAD schematic
+  '.brd',       // Allegro board (shared with Eagle)
+  '.spm',       // Allegro symbol
+  '.dra',       // Allegro drawing
+  '.psm',       // Allegro padstack (also Solid Edge part)
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GERBER / NC DRILL / MANUFACTURING OUTPUT
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.gbr',       // Gerber RS-274X
+  '.ger',       // Gerber alternate
+  '.pho',       // Gerber photo
+  '.gtl',       // Gerber top copper
+  '.gbl',       // Gerber bottom copper
+  '.gts',       // Gerber top soldermask
+  '.gbs',       // Gerber bottom soldermask
+  '.gto',       // Gerber top silkscreen
+  '.gbo',       // Gerber bottom silkscreen
+  '.gtp',       // Gerber top paste
+  '.gbp',       // Gerber bottom paste
+  '.gko',       // Gerber keep-out
+  '.gm1',       // Gerber mechanical 1
+  '.gm2',       // Gerber mechanical 2
+  '.gd1',       // Gerber drill drawing
+  '.drl',       // NC drill
+  '.xln',       // Excellon drill
+  '.exc',       // Excellon
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMBEDDED / FIRMWARE
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.hex',       // Intel HEX
+  '.bin',       // Binary firmware
+  '.elf',       // Executable and Linkable Format
+  '.uf2',       // USB Flashing Format (RP2040, etc)
+  '.dfu',       // Device Firmware Upgrade
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DOCUMENTS / OFFICE
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.pdf',       // PDF
+  '.doc',       // Word (legacy)
+  '.docx',      // Word
+  '.xls',       // Excel (legacy)
+  '.xlsx',      // Excel
+  '.xlsm',      // Excel with macros
+  '.csv',       // Comma-separated values
+  '.ppt',       // PowerPoint (legacy)
+  '.pptx',      // PowerPoint
+  '.odt',       // OpenDocument text
+  '.ods',       // OpenDocument spreadsheet
+  '.odp',       // OpenDocument presentation
+  '.rtf',       // Rich text
+  '.txt',       // Plain text
+  '.md',        // Markdown
+  '.rst',       // ReStructuredText
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IMAGES / GRAPHICS
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.png',       // PNG
+  '.jpg',       // JPEG
+  '.jpeg',      // JPEG alternate
+  '.gif',       // GIF
+  '.bmp',       // Bitmap
+  '.tiff',      // TIFF
+  '.tif',       // TIFF alternate
+  '.webp',      // WebP
+  '.svg',       // SVG vector
+  '.ai',        // Adobe Illustrator
+  '.eps',       // Encapsulated PostScript
+  '.psd',       // Photoshop
+  '.xcf',       // GIMP
+  '.raw',       // Camera RAW
+  '.cr2',       // Canon RAW
+  '.nef',       // Nikon RAW
+  '.arw',       // Sony RAW
+  '.dng',       // Digital Negative
+  '.heic',      // HEIF/HEIC
+  '.ico',       // Icon
+  '.icns',      // macOS icon
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIDEO
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.mp4',       // MPEG-4
+  '.avi',       // AVI
+  '.mov',       // QuickTime
+  '.mkv',       // Matroska
+  '.wmv',       // Windows Media
+  '.webm',      // WebM
+  '.m4v',       // MPEG-4 Video
+  '.flv',       // Flash Video
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CAM / CNC / G-CODE
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.nc',        // Numerical control
+  '.gcode',     // G-code
+  '.ngc',       // G-code (LinuxCNC)
+  '.tap',       // G-code (generic)
+  '.cnc',       // CNC program
+  '.ncc',       // NC code
+  '.iso',       // ISO G-code (also disk image)
+  '.mpf',       // Main program file (Siemens)
+  '.spf',       // Subprogram file (Siemens)
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CAM / TOOLPATH
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.mastercam', // Mastercam
+  '.mcam',      // Mastercam alternate
+  '.emcam',     // EdgeCAM
+  '.hsm',       // HSMWorks
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CAE / FEA / SIMULATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.sldcmp',    // SolidWorks Composer
+  '.smg',       // SolidWorks Composer
+  '.sldpfl',    // SolidWorks Profile
+  '.cdb',       // ANSYS database
+  '.db',        // ANSYS database
+  '.inp',       // Abaqus input
+  '.odb',       // Abaqus output
+  '.cas',       // Fluent case
+  '.dat',       // Data file (various)
+  '.msh',       // Mesh (GMSH/Fluent)
+  '.nas',       // Nastran
+  '.bdf',       // Nastran bulk data
+  '.fem',       // FEM model
+  '.op2',       // Nastran output
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ARCHIVES
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.zip',       // ZIP
+  '.7z',        // 7-Zip
+  '.rar',       // RAR
+  '.tar',       // Tape archive
+  '.gz',        // Gzip
+  '.bz2',       // Bzip2
+  '.xz',        // XZ
+  '.zst',       // Zstandard
+  '.tgz',       // Tar + Gzip
+  '.tbz2',      // Tar + Bzip2
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DATA / CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.json',      // JSON
+  '.xml',       // XML
+  '.yaml',      // YAML
+  '.yml',       // YAML alternate
+  '.toml',      // TOML
+  '.ini',       // INI config
+  '.cfg',       // Configuration
+  '.conf',      // Configuration
+  '.properties', // Java properties
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SOURCE CODE (for reference designs, libraries, scripts)
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.py',        // Python
+  '.js',        // JavaScript
+  '.ts',        // TypeScript
+  '.c',         // C
+  '.cpp',       // C++
+  '.h',         // C/C++ header
+  '.hpp',       // C++ header
+  '.cs',        // C#
+  '.java',      // Java
+  '.rs',        // Rust
+  '.go',        // Go
+  '.swift',     // Swift
+  '.kt',        // Kotlin
+  '.m',         // MATLAB/Objective-C
+  '.mlx',       // MATLAB live script
+  '.mat',       // MATLAB data
+  '.html',      // HTML
+  '.css',       // CSS
+  '.scss',      // SCSS
+  '.less',      // LESS
+  '.sql',       // SQL
+  '.sh',        // Shell script
+  '.bash',      // Bash script
+  '.ps1',       // PowerShell
+  '.bat',       // Batch file
+  '.cmd',       // Command script
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MISC ENGINEERING
+  // ═══════════════════════════════════════════════════════════════════════════
+  '.smc',       // Simulation/multi-body
+  '.eprt',      // eDrawings part
+  '.easm',      // eDrawings assembly
+  '.edrw',      // eDrawings drawing
+  '.stla',      // STL ASCII
+  '.stlb',      // STL binary
 ] as const
 
 export type CADExtension = typeof CAD_EXTENSIONS[number]
@@ -275,17 +633,6 @@ export interface User {
   last_sign_in: string | null
 }
 
-/**
- * Get the effective avatar URL for a user with priority:
- * 1. Custom uploaded avatar (custom_avatar_url)
- * 2. Google/OAuth avatar (avatar_url)
- * 3. null (falls back to initials display)
- */
-export function getEffectiveAvatarUrl(user: { custom_avatar_url?: string | null; avatar_url?: string | null } | null | undefined): string | null {
-  if (!user) return null
-  return user.custom_avatar_url || user.avatar_url || null
-}
-
 // Check-out request/lock
 export interface CheckoutLock {
   id: string
@@ -420,161 +767,11 @@ export function getNextRevision(current: string, scheme: RevisionScheme): string
   return 'A' + chars.join('')
 }
 
-// Get file type from extension (for database categorization)
-export function getFileType(extension: string): PDMFile['file_type'] {
-  // Normalize extension to have leading dot
-  const ext = extension.startsWith('.') ? extension.toLowerCase() : ('.' + extension.toLowerCase())
-  
-  if (['.sldprt', '.prt', '.ipt', '.catpart', '.x_t', '.x_b', '.sat'].includes(ext)) {
-    return 'part'
-  }
-  if (['.sldasm', '.asm', '.iam', '.catproduct'].includes(ext)) {
-    return 'assembly'
-  }
-  if (['.slddrw', '.dwg', '.dxf', '.idw', '.drw'].includes(ext)) {
-    return 'drawing'
-  }
-  if (['.pdf'].includes(ext)) {
-    return 'pdf'
-  }
-  if (['.step', '.stp', '.iges', '.igs', '.stl', '.3mf', '.obj'].includes(ext)) {
-    return 'step'
-  }
-  
-  return 'other'
-}
-
 // Icon types for UI display (more specific than database file_type)
 export type FileIconType = 
   | 'part' | 'assembly' | 'drawing' 
   | 'step' | 'pdf' | 'image' | 'spreadsheet' | 'archive' | 'pcb' | 'schematic' | 'library' | 'code' | 'text'
+  | 'video' | 'gcode' | 'simulation' | 'firmware' | 'presentation'
   | 'other'
 
-// Get icon type from extension (for UI icons - more granular than file_type)
-export function getFileIconType(extension: string): FileIconType {
-  // Normalize extension to have leading dot
-  const ext = extension.startsWith('.') ? extension.toLowerCase() : ('.' + extension.toLowerCase())
-  
-  // CAD Parts
-  if (['.sldprt', '.prt', '.ipt', '.catpart', '.x_t', '.x_b', '.sat', '.par'].includes(ext)) {
-    return 'part'
-  }
-  // CAD Assemblies
-  if (['.sldasm', '.asm', '.iam', '.catproduct'].includes(ext)) {
-    return 'assembly'
-  }
-  // CAD Drawings
-  if (['.slddrw', '.dwg', '.dxf', '.idw', '.drw'].includes(ext)) {
-    return 'drawing'
-  }
-  // STEP/Exchange formats
-  if (['.step', '.stp', '.iges', '.igs', '.stl', '.3mf', '.obj', '.fbx', '.gltf', '.glb'].includes(ext)) {
-    return 'step'
-  }
-  // PDF
-  if (ext === '.pdf') {
-    return 'pdf'
-  }
-  // Images
-  if (['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.tiff', '.tif', '.ico'].includes(ext)) {
-    return 'image'
-  }
-  // Spreadsheets
-  if (['.xlsx', '.xls', '.csv', '.ods'].includes(ext)) {
-    return 'spreadsheet'
-  }
-  // Archives
-  if (['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2'].includes(ext)) {
-    return 'archive'
-  }
-  // Schematics (red chip)
-  if (['.sch', '.kicad_sch'].includes(ext)) {
-    return 'schematic'
-  }
-  // Libraries (purple chip)
-  if (['.lbr', '.kicad_mod', '.kicad_sym'].includes(ext)) {
-    return 'library'
-  }
-  // PCB/Electronics (green chip for boards/gerbers)
-  if (['.kicad_pcb', '.brd', '.pcb', '.gbr', '.drl', '.gtl', '.gbl', '.gts', '.gbs', '.gto', '.gbo'].includes(ext)) {
-    return 'pcb'
-  }
-  // Code
-  if (['.py', '.js', '.ts', '.c', '.cpp', '.h', '.hpp', '.cs', '.java', '.rs', '.go', '.json', '.xml', '.yaml', '.yml', '.html', '.css'].includes(ext)) {
-    return 'code'
-  }
-  // Text/Documents
-  if (['.txt', '.md', '.doc', '.docx', '.rtf', '.odt'].includes(ext)) {
-    return 'text'
-  }
-  
-  return 'other'
-}
-
-// Check if file is a CAD file
-export function isCADFile(filename: string): boolean {
-  const ext = '.' + filename.split('.').pop()?.toLowerCase()
-  return CAD_EXTENSIONS.includes(ext as CADExtension)
-}
-
-// Format file size
-export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
-}
-
-// Get initials from a name (1-2 characters)
-// "John Doe" -> "JD", "john.doe@email.com" -> "JD", "John" -> "JO"
-export function getInitials(name: string | null | undefined): string {
-  if (!name) return '?'
-  
-  // If it's an email, extract the part before @
-  const displayName = name.includes('@') ? name.split('@')[0] : name
-  
-  // Split by spaces, dots, underscores, or hyphens
-  const parts = displayName.trim().split(/[\s._-]+/).filter(p => p.length > 0)
-  
-  if (parts.length >= 2) {
-    // First letter of first and last parts
-    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-  } else if (parts.length === 1 && parts[0].length >= 2) {
-    // Single word - take first 2 characters
-    return parts[0].substring(0, 2).toUpperCase()
-  } else if (parts.length === 1) {
-    return parts[0].charAt(0).toUpperCase() || '?'
-  }
-  
-  return '?'
-}
-
-// Avatar color palette for fallback avatars (when no profile picture)
-// These are tailwind-compatible color classes
-const AVATAR_COLORS = [
-  { bg: 'bg-blue-500/20', text: 'text-blue-400', ring: 'ring-blue-500/50' },
-  { bg: 'bg-emerald-500/20', text: 'text-emerald-400', ring: 'ring-emerald-500/50' },
-  { bg: 'bg-amber-500/20', text: 'text-amber-400', ring: 'ring-amber-500/50' },
-  { bg: 'bg-rose-500/20', text: 'text-rose-400', ring: 'ring-rose-500/50' },
-  { bg: 'bg-violet-500/20', text: 'text-violet-400', ring: 'ring-violet-500/50' },
-  { bg: 'bg-cyan-500/20', text: 'text-cyan-400', ring: 'ring-cyan-500/50' },
-  { bg: 'bg-orange-500/20', text: 'text-orange-400', ring: 'ring-orange-500/50' },
-  { bg: 'bg-pink-500/20', text: 'text-pink-400', ring: 'ring-pink-500/50' },
-]
-
-// Get consistent avatar color based on name/id (same person always gets same color)
-export function getAvatarColor(identifier: string | null | undefined): { bg: string; text: string; ring: string } {
-  if (!identifier) return AVATAR_COLORS[0]
-  
-  // Simple hash function to get consistent index
-  let hash = 0
-  for (let i = 0; i < identifier.length; i++) {
-    hash = ((hash << 5) - hash) + identifier.charCodeAt(i)
-    hash = hash & hash // Convert to 32bit integer
-  }
-  
-  const index = Math.abs(hash) % AVATAR_COLORS.length
-  return AVATAR_COLORS[index]
-}
 

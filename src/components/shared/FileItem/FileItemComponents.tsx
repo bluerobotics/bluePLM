@@ -1,8 +1,8 @@
 /**
  * Shared file/folder item components and utilities
- * Extracted from ExplorerView.tsx to provide consistent rendering across views
+ * Extracted from FileTree.tsx to provide consistent rendering across views
  * 
- * ExplorerView is the reference implementation - any changes should be made there first
+ * FileTree is the reference implementation - any changes should be made there first
  * and then reflected here.
  */
 
@@ -23,11 +23,11 @@ import {
   Loader2
 } from 'lucide-react'
 import { LocalFile } from '@/stores/pdmStore'
-import { getFileIconType, getInitials } from '@/types/pdm'
+import { getFileIconType, getInitials } from '@/lib/utils'
 
 // ============================================================================
 // FILE ICON - Loads OS thumbnail with fallback to type-based icons
-// This is the canonical icon component - matches ExplorerView exactly
+// This is the canonical icon component - matches FileTree exactly
 // ============================================================================
 
 export interface FileIconProps {
@@ -40,7 +40,7 @@ export interface FileIconProps {
  * File icon component with thumbnail support
  * - Loads SolidWorks thumbnails for supported files
  * - Falls back to extension-based icons
- * - Matches ExplorerView styling exactly
+ * - Matches FileTree styling exactly
  */
 export const FileIcon = memo(function FileIcon({ file, size = 16, className = '' }: FileIconProps) {
   const [icon, setIcon] = useState<string | null>(null)

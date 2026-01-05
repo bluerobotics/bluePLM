@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand'
-import type { PDMStoreState, UISlice, SidebarView, DetailsPanelTab } from '../types'
+import type { PDMStoreState, UISlice, SidebarView, DetailsPanelTab, SettingsTab } from '../types'
 
 export const createUISlice: StateCreator<
   PDMStoreState,
@@ -22,6 +22,9 @@ export const createUISlice: StateCreator<
   rightPanelTab: null,
   rightPanelTabs: [],
   bottomPanelTabOrder: [],
+  
+  // Initial state - Settings navigation
+  settingsTab: 'profile' as SettingsTab,
   
   // Initial state - Google Drive
   gdriveCurrentFolderId: null,
@@ -175,4 +178,7 @@ export const createUISlice: StateCreator<
     // Keep last 100 commands
     return { terminalHistory: [command, ...s.terminalHistory.slice(0, 99)] }
   }),
+  
+  // Actions - Settings navigation
+  setSettingsTab: (tab: SettingsTab) => set({ settingsTab: tab }),
 })

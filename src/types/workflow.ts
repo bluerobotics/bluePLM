@@ -108,7 +108,8 @@ export type NotificationRecipientType =
   | 'all_org'
 
 // Approval mode (how approvals are counted)
-export type ApprovalMode = 'any' | 'all' | 'sequential'
+// Note: 'majority' is from Supabase, 'sequential' is local extension
+export type ApprovalMode = 'any' | 'all' | 'majority' | 'sequential'
 
 // Review status
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
@@ -878,10 +879,11 @@ export interface AvailableTransition {
   to_state_id: string
   to_state_name: string
   to_state_color: string
-  has_approvals: boolean       // Renamed from has_gates
-  has_conditions: boolean
+  has_gates?: boolean          // From RPC
+  has_approvals?: boolean      // Renamed from has_gates (local alias)
+  has_conditions?: boolean     // Not in RPC - computed locally if needed
   user_can_transition: boolean
-  conditions_met: boolean
+  conditions_met?: boolean     // Not in RPC - computed locally if needed
 }
 
 // ===========================================
@@ -1071,10 +1073,15 @@ export const NOTIFICATION_PLACEHOLDERS = [
   { key: '{COMMENT}', description: 'Transition comment' },
 ]
 
-// Legacy compatibility - map old GateType to new ApprovalMode
-export type GateType = 'approval' | 'checklist' | 'condition' | 'notification'
+// ===========================================
+// WORKFLOW GATES (transition approval requirements)
+// ===========================================
 
-// Legacy interface for backwards compatibility
+// Gate types define what kind of approval/check is needed
+// Note: 'notification' is a local extension not in Supabase
+export type GateType = 'approval' | 'checklist' | 'condition'
+
+// Workflow gate definition - maps to workflow_gates table
 // Note: checklist_items and conditions come from database as Json (JSONB)
 // They can be either parsed types or raw Json depending on where data comes from
 export interface WorkflowGate {
@@ -1093,7 +1100,7 @@ export interface WorkflowGate {
   created_at: string | null
 }
 
-// Legacy interface
+// Gate reviewer - who can approve/review gates. Maps to workflow_gate_reviewers table
 export interface GateReviewer {
   id: string
   gate_id: string
@@ -1112,10 +1119,7 @@ export interface GateReviewer {
   workflow_role?: WorkflowRole | null
 }
 
-// Legacy type - remove state_type since we only have states now
-export type StateType = 'state'
-
-// Legacy interfaces that referenced gates
+// Gate configuration form data for creating/editing gates
 export interface GateConfig {
   gate_type?: GateType
   required_approvals?: number
@@ -1133,13 +1137,13 @@ export interface AllowedReviewer {
   workflow_role_id?: string
 }
 
-// Legacy - PendingReview mapped to new PendingTransitionApproval
+// Pending review - a gate approval request awaiting response
 export interface PendingReview {
   id: string
   org_id: string
   file_id: string
   transition_id: string
-  gate_id: string  // Now maps to approval_id
+  gate_id: string
   requested_by: string
   requested_at: string
   status: ReviewStatus
@@ -1167,7 +1171,7 @@ export interface PendingReview {
   } | null
 }
 
-// Legacy - ReviewHistoryEntry mapped to WorkflowHistoryEntry
+// Review history entry - historical record of gate reviews
 export interface ReviewHistoryEntry {
   id: string
   org_id: string

@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { Mail, Loader2, ShoppingCart, GitBranch, Key, Shield, AlertTriangle, Check, RefreshCw, Camera, X } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient, useAdminRecoveryCode, supabase } from '@/lib/supabase'
-import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
+import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { ContributionHistory } from '../system/ContributionHistory'
 
-// Get supabase client with any type cast for queries with type inference issues
+// Supabase v2 client type inference incomplete for RPC/advanced queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getDb = () => getSupabaseClient() as any
 
@@ -89,7 +89,7 @@ export function ProfileSettings() {
 
       if (signedError) throw signedError
 
-      // Update user's custom avatar via RPC
+      // Update user's custom avatar via RPC (RPC types not inferred in Supabase v2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: updateError } = await (supabase as any).rpc('update_user_avatar', {
         p_custom_avatar_url: signedData.signedUrl
@@ -133,7 +133,7 @@ export function ProfileSettings() {
         supabase.storage.from('vault').remove([`${filePath}.webp`]),
       ])
 
-      // Clear custom avatar URL via RPC
+      // Clear custom avatar URL via RPC (RPC types not inferred in Supabase v2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: updateError } = await (supabase as any).rpc('update_user_avatar', {
         p_custom_avatar_url: ''  // Empty string clears it

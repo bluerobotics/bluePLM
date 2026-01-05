@@ -1,9 +1,7 @@
-// @ts-nocheck - Supabase type inference with Database generics has known issues in v2.x
 import { 
   getSupabaseClient, 
   authLog, 
   getCurrentConfigValues, 
-  getSessionResolver, 
   setSessionResolver 
 } from './client'
 

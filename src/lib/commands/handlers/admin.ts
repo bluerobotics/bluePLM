@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 /**
  * Admin Command Handlers
  * 
@@ -70,7 +69,6 @@ export async function handleInvite(
   addOutput: OutputFn
 ): Promise<void> {
   const email = parsed.args[0]
-  const name = parsed.flags['name'] as string || parsed.flags['n'] as string || 'New User'
   const role = parsed.flags['role'] as string || parsed.flags['r'] as string || 'engineer'
   
   if (!email) {
@@ -117,12 +115,9 @@ export async function handleInvite(
       .insert({
         org_id: organization.id,
         email: email.toLowerCase(),
-        full_name: name,
-        role: role,
+        role: role as 'admin' | 'engineer' | 'viewer',
         team_ids: teamIds,
-        workflow_role_ids: [],
-        vault_ids: [],
-        created_by: user.id
+        invited_by: user.id
       })
     
     if (error) throw error
@@ -696,7 +691,7 @@ export async function handleAssignRole(
       .from('user_workflow_roles')
       .insert({
         user_id: targetUser.id,
-        role_id: role.id,
+        workflow_role_id: role.id,
         assigned_by: user.id
       })
     
@@ -928,6 +923,74 @@ export async function handleSetTitle(
 }
 
 /**
+ * Handle delete-title command - delete a job title
+ */
+export async function handleDeleteTitle(
+  parsed: ParsedCommand,
+  addOutput: OutputFn
+): Promise<void> {
+  const name = parsed.args[0]
+  
+  if (!name) {
+    addOutput('error', 'Usage: delete-title <name>')
+    return
+  }
+  
+  const { organization } = usePDMStore.getState()
+  if (!organization) {
+    addOutput('error', 'Not signed in')
+    return
+  }
+  
+  try {
+    // Find the title
+    const { data: title, error: findError } = await supabase
+      .from('job_titles')
+      .select('id, name')
+      .eq('org_id', organization.id)
+      .ilike('name', name)
+      .single()
+    
+    if (findError || !title) {
+      addOutput('error', `Title not found: ${name}`)
+      return
+    }
+    
+    // Check if anyone is using this title
+    const { count } = await supabase
+      .from('user_job_titles')
+      .select('*', { count: 'exact', head: true })
+      .eq('title_id', title.id)
+    
+    if (count && count > 0) {
+      const force = parsed.flags['force'] || parsed.flags['f']
+      if (!force) {
+        addOutput('error', `Title "${title.name}" is assigned to ${count} user${count > 1 ? 's' : ''}. Use --force to delete anyway.`)
+        return
+      }
+      
+      // Remove all assignments first
+      await supabase
+        .from('user_job_titles')
+        .delete()
+        .eq('title_id', title.id)
+    }
+    
+    // Delete the title
+    const { error } = await supabase
+      .from('job_titles')
+      .delete()
+      .eq('id', title.id)
+    
+    if (error) throw error
+    
+    addOutput('success', `Deleted job title: ${title.name}`)
+  } catch (err) {
+    addOutput('error', `Failed to delete title: ${err instanceof Error ? err.message : err}`)
+  }
+}
+
+/**
  * Handle permissions command - view team permissions
  */
 export async function handlePermissions(
@@ -1025,9 +1088,14 @@ export async function handleGrant(
       .eq('resource', resource)
       .single()
     
+    // Cast action to the permission_action enum type
+    type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'admin'
+    const typedAction = action as PermissionAction
+    
     if (existing) {
       // Add action to existing permission
-      const newActions = [...new Set([...existing.actions, action])]
+      const currentActions = existing.actions || []
+      const newActions = [...new Set([...currentActions, typedAction])]
       await supabase
         .from('team_permissions')
         .update({ actions: newActions, updated_by: user.id })
@@ -1039,7 +1107,7 @@ export async function handleGrant(
         .insert({
           team_id: team.id,
           resource,
-          actions: [action],
+          actions: [typedAction],
           granted_by: user.id
         })
     }
@@ -1106,7 +1174,8 @@ export async function handleRevoke(
         .single()
       
       if (existing) {
-        const newActions = existing.actions.filter((a: string) => a !== action)
+        const currentActions = existing.actions || []
+        const newActions = currentActions.filter((a) => a !== action)
         if (newActions.length === 0) {
           await supabase.from('team_permissions').delete().eq('id', existing.id)
         } else {
@@ -1217,11 +1286,10 @@ export async function handlePendingInvites(addOutput: OutputFn): Promise<void> {
     
     const lines = [`📧 Pending Invites (${pending.length}):`]
     for (const p of pending) {
-      const created = new Date(p.created_at).toLocaleDateString()
+      const invited = p.invited_at ? new Date(p.invited_at).toLocaleDateString() : 'Unknown'
       lines.push(`  • ${p.email}`)
-      lines.push(`    Name: ${p.full_name || 'Not set'}`)
-      lines.push(`    Role: ${p.role}`)
-      lines.push(`    Created: ${created}`)
+      lines.push(`    Role: ${p.role || 'Not set'}`)
+      lines.push(`    Invited: ${invited}`)
     }
     
     addOutput('info', lines.join('\n'))
@@ -1381,6 +1449,15 @@ registerTerminalCommand({
   category: 'admin'
 }, async (parsed, _files, addOutput) => {
   await handleSetTitle(parsed, addOutput)
+})
+
+registerTerminalCommand({
+  aliases: ['delete-title'],
+  description: 'Delete a job title',
+  usage: 'delete-title <name> [--force]',
+  category: 'admin'
+}, async (parsed, _files, addOutput) => {
+  await handleDeleteTitle(parsed, addOutput)
 })
 
 registerTerminalCommand({

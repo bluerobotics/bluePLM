@@ -3,8 +3,8 @@
  * 
  * Centralized command system for all PDM operations.
  * This enables consistent behavior across:
- * - Right-click context menus (FileContextMenu, ExplorerView)
- * - Inline buttons (FileBrowser rows)
+ * - Right-click context menus (FileContextMenu, FileTree)
+ * - Inline buttons (FilePane rows)
  * - Sidebar views (CheckoutView)
  * - Future: Terminal/CLI interface
  * - Future: External API for add-ins

@@ -12,10 +12,13 @@ export class AppError extends Error {
   }
 
   toJSON() {
-    return {
+    const result: { error: ErrorCode; message: string; details?: unknown } = {
       error: this.code,
       message: this.message,
-      ...(this.details && { details: this.details }),
     };
+    if (this.details !== undefined) {
+      result.details = this.details;
+    }
+    return result;
   }
 }

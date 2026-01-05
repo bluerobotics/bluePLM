@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Gauge, Cpu, MemoryStick, Wifi, Box, Trash2, ExternalLink } from 'lucide-react'
 import { telemetry, TelemetrySnapshot, TelemetryConfig } from '@/lib/telemetry'
-import { TelemetryDashboard } from '@/components/TelemetryGraph'
+import { TelemetryDashboard } from '@/features/dev-tools/telemetry'
 import { formatBytes } from '@/lib/utils/format'
 
 export function PerformanceSettings() {

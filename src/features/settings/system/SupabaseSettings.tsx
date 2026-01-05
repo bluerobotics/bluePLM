@@ -29,7 +29,7 @@ import { copyToClipboard } from '@/lib/clipboard'
 import { getSchemaVersion, EXPECTED_SCHEMA_VERSION, type SchemaVersionInfo } from '@/lib/schemaVersion'
 import { formatBytes } from '@/lib/utils/format'
 
-// Cast supabase client to bypass known v2 type inference issues
+// Supabase v2 type inference incomplete for system queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
 
@@ -416,6 +416,7 @@ export function SupabaseSettings() {
       
       // Estimate bytes out
       const avgFileSize = versions && versions.length > 0 
+        // Supabase v2 nested select type inference incomplete
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ? versions.reduce((sum: number, v: any) => sum + (v.file_size || 0), 0) / versions.length 
         : 0

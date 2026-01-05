@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 /**
  * Backup Operations Command Handlers
  * 
@@ -112,11 +111,11 @@ export async function handleBackupStatus(addOutput: OutputFn): Promise<void> {
         lines.push(`   ⏳ Backup pending (requested ${new Date(status.config.backup_requested_at).toLocaleString()})`)
       }
       
-      if (status.latestSnapshot) {
-        lines.push(`   Latest: ${new Date(status.latestSnapshot.time).toLocaleString()}`)
+      if (status.lastSnapshot) {
+        lines.push(`   Latest: ${new Date(status.lastSnapshot.time).toLocaleString()}`)
       }
       
-      lines.push(`   Total Snapshots: ${status.snapshotCount}`)
+      lines.push(`   Total Snapshots: ${status.totalSnapshots}`)
     }
     
     addOutput('info', lines.join('\n'))
@@ -258,7 +257,7 @@ export async function handleEmptyTrash(
     return
   }
   
-  if (!user.is_admin) {
+  if (user.role !== 'admin') {
     addOutput('error', 'Admin access required')
     return
   }
@@ -299,7 +298,7 @@ export async function handleVersions(
   try {
     const result = await getFileVersions(matches[0].pdmData.id)
     if (result.error || !result.versions) {
-      addOutput('error', result.error || 'Failed to get versions')
+      addOutput('error', result.error?.message || 'Failed to get versions')
       return
     }
     
@@ -310,7 +309,7 @@ export async function handleVersions(
     
     const lines = [`📜 Version History for ${matches[0].name}:`]
     for (const ver of result.versions.slice(0, 15)) {
-      const date = new Date(ver.created_at).toLocaleString()
+      const date = ver.created_at ? new Date(ver.created_at).toLocaleString() : 'Unknown'
       const user = ver.created_by_user?.full_name || ver.created_by_user?.email || ''
       const current = ver.version === matches[0].pdmData?.version ? ' (current)' : ''
       lines.push(`  v${ver.version} - ${date} by ${user}${current}`)
@@ -365,7 +364,7 @@ export async function handleRollback(
   
   try {
     addOutput('info', `Rolling back to version ${version}...`)
-    const result = await rollbackToVersion(file.pdmData.id, version, user.id)
+    const result = await rollbackToVersion(file.pdmData.id, user.id, version)
     
     if (result.success) {
       addOutput('success', `Rolled back to version ${version}. Check in to save.`)
@@ -396,7 +395,7 @@ export async function handleActivity(
   try {
     const result = await getRecentActivity(organization.id, count)
     if (result.error || !result.activity) {
-      addOutput('error', result.error || 'Failed to get activity')
+      addOutput('error', result.error?.message || 'Failed to get activity')
       return
     }
     
@@ -407,8 +406,9 @@ export async function handleActivity(
     
     const lines = ['📋 Recent Activity:']
     for (const act of result.activity) {
-      const time = new Date(act.created_at).toLocaleString()
-      const fileName = act.file?.file_name || act.details?.file_name || ''
+      const time = act.created_at ? new Date(act.created_at).toLocaleString() : 'Unknown'
+      const details = act.details as { file_name?: string } | null
+      const fileName = act.file?.file_name || details?.file_name || ''
       lines.push(`  ${time} - ${act.action}${fileName ? `: ${fileName}` : ''}`)
     }
     addOutput('info', lines.join('\n'))

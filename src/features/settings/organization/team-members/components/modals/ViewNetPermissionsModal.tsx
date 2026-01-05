@@ -23,7 +23,7 @@ import {
   ALL_RESOURCES
 } from '@/types/permissions'
 import { supabase } from '@/lib/supabase'
-import { getEffectiveAvatarUrl } from '@/types/pdm'
+import { getEffectiveAvatarUrl } from '@/lib/utils'
 import { PERMISSION_RESOURCE_GROUPS } from '../../constants'
 import type { ViewNetPermissionsModalProps } from '../../types'
 import type { PermissionAction } from '@/types/permissions'

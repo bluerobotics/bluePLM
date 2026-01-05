@@ -36,10 +36,6 @@ team-members/
 │   │   ├── UserRow.tsx
 │   │   ├── UserVaultAccessDialog.tsx
 │   │   └── index.ts
-│   ├── TeamDialogs.tsx        # Deprecated (dialogs now inline in tabs)
-│   ├── UserDialogs.tsx        # Deprecated (dialogs now inline in tabs)
-│   ├── WorkflowRoleDialogs.tsx  # Deprecated (dialogs now inline in tabs)
-│   ├── JobTitleDialogs.tsx    # Deprecated (dialogs now inline in tabs)
 │   └── index.ts
 ├── hooks/                    # React hooks (modular architecture)
 │   ├── handlers/             # Domain-specific handler hooks

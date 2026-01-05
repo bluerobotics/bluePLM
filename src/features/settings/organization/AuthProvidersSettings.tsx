@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase type inference issues with new columns
 import { useState, useEffect, useRef } from 'react'
 import { 
   Loader2, 

@@ -152,7 +152,7 @@ export function UserPermissionsDialog({
         }))
       
       if (newPerms.length > 0) {
-        // Type definitions in database.ts, but client has @ts-nocheck
+        // Supabase v2 type inference incomplete for user_permissions table
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any).from('user_permissions').insert(newPerms)
         if (error) throw error

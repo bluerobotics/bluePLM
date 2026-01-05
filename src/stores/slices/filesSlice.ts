@@ -153,7 +153,7 @@ export const createFilesSlice: StateCreator<
   
   clearPendingMetadata: (path) => {
     set(state => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // Destructure to exclude `path` key, using _ for intentionally discarded value
       const { [path]: _, ...remainingPersisted } = state.persistedPendingMetadata
       return {
         files: state.files.map(f => 
@@ -172,8 +172,7 @@ export const createFilesSlice: StateCreator<
       // If no pending metadata, nothing to clear
       if (!existingPending) return state
       
-      // Create new pending without config_tabs and config_descriptions
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // Destructure to exclude config_tabs and config_descriptions (intentionally discarded)
       const { config_tabs, config_descriptions, ...remainingPending } = existingPending
       
       // Check if there's anything left after removing config metadata
@@ -184,13 +183,13 @@ export const createFilesSlice: StateCreator<
       const existingPersistedPending = state.persistedPendingMetadata[path]
       let newPersistedMetadata = state.persistedPendingMetadata
       if (existingPersistedPending) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // Destructure to exclude config fields (prefixed with _ to indicate intentionally unused)
         const { config_tabs: _ct, config_descriptions: _cd, ...remainingPersistedPending } = existingPersistedPending
         const hasRemainingPersistedPending = Object.keys(remainingPersistedPending).some(k => remainingPersistedPending[k as keyof typeof remainingPersistedPending] !== undefined)
         if (hasRemainingPersistedPending) {
           newPersistedMetadata = { ...state.persistedPendingMetadata, [path]: remainingPersistedPending }
         } else {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          // Destructure to exclude `path` key (intentionally discarded)
           const { [path]: _, ...rest } = state.persistedPendingMetadata
           newPersistedMetadata = rest
         }

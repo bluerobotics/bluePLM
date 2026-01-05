@@ -1,6 +1,5 @@
-// @ts-nocheck - Supabase type inference with Database generics has known issues in v2.x
 import { getSupabaseClient } from './client'
-import type { Review, ReviewResponse, Notification, NotificationWithDetails, ReviewStatus } from '../../types/database'
+import type { Review, NotificationWithDetails, ReviewStatus } from '../../types/database'
 
 // ============================================
 // Reviews
@@ -93,7 +92,7 @@ export async function createReviewRequest(
  */
 export async function getMyReviews(
   userId: string,
-  orgId?: string,  // Optional for backward compatibility
+  _orgId?: string,  // Optional for backward compatibility
   options?: {
     status?: ReviewStatus[]
     limit?: number
@@ -142,7 +141,7 @@ export async function getMyReviews(
  */
 export async function getPendingReviewsForUser(
   userId: string,
-  orgId?: string  // Optional for backward compatibility
+  _orgId?: string  // Optional for backward compatibility
 ): Promise<{ reviews: any[]; error?: string }> {
   const client = getSupabaseClient()
   
@@ -181,7 +180,7 @@ export async function getPendingReviewsForUser(
 export async function respondToReview(
   reviewResponseId: string,
   reviewerId: string,
-  status: 'approved' | 'rejected' | 'changes_requested',
+  status: 'approved' | 'rejected',
   comment?: string
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
@@ -910,7 +909,7 @@ export async function validateShareLink(
   }
   
   // Check download limit
-  if (data.max_downloads && data.download_count >= data.max_downloads) {
+  if (data.max_downloads && (data.download_count ?? 0) >= data.max_downloads) {
     return { valid: false, error: 'Download limit reached' }
   }
   
@@ -918,7 +917,7 @@ export async function validateShareLink(
     valid: true, 
     fileId: data.file_id, 
     orgId: data.org_id,
-    requireAuth: data.require_auth
+    requireAuth: data.require_auth ?? undefined
   }
 }
 

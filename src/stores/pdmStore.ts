@@ -8,8 +8,9 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider } from '../types/modules'
 import { getDefaultModuleConfig } from '../types/modules'
-import type { KeybindingsConfig } from '../types/settings'
+import type { KeybindingsConfig, SettingsTab } from '../types/settings'
 import type { PDMStoreState, Tab, ConnectedVault, StagedCheckin, PendingMetadata, ThemeMode, Language } from './types'
+import { CURRENT_STORE_VERSION, runMigrations, getPersistedVersion } from './migrations'
 
 // Re-export all types from the types file for backward compatibility
 export * from './types'
@@ -46,29 +47,65 @@ export const usePDMStore = create<PDMStoreState>()(
     {
       name: 'blue-plm-storage',
       partialize: (state) => ({
+        // ═══════════════════════════════════════════════════════════════
+        // Schema Version
+        // ═══════════════════════════════════════════════════════════════
+        _storeVersion: CURRENT_STORE_VERSION,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Vault State
+        // ═══════════════════════════════════════════════════════════════
         vaultPath: state.vaultPath,
         vaultName: state.vaultName,
         recentVaults: state.recentVaults,
         autoConnect: state.autoConnect,
-        onboardingComplete: state.onboardingComplete,
-        logSharingEnabled: state.logSharingEnabled,
-        cadPreviewMode: state.cadPreviewMode,
-        topbarConfig: state.topbarConfig,
-        solidworksIntegrationEnabled: state.solidworksIntegrationEnabled,
-        solidworksPath: state.solidworksPath,
-        solidworksDmLicenseKey: state.solidworksDmLicenseKey,
-        autoStartSolidworksService: state.autoStartSolidworksService,
-        hideSolidworksTempFiles: state.hideSolidworksTempFiles,
-        ignoreSolidworksTempFiles: state.ignoreSolidworksTempFiles,
-        apiServerUrl: state.apiServerUrl,
-        lowercaseExtensions: state.lowercaseExtensions,
+        connectedVaults: state.connectedVaults,
+        activeVaultId: state.activeVaultId,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // UI Layout
+        // ═══════════════════════════════════════════════════════════════
+        sidebarVisible: state.sidebarVisible,
+        sidebarWidth: state.sidebarWidth,
+        activityBarMode: state.activityBarMode,
+        activeView: state.activeView,
+        settingsTab: state.settingsTab,
+        detailsPanelVisible: state.detailsPanelVisible,
+        detailsPanelHeight: state.detailsPanelHeight,
+        rightPanelVisible: state.rightPanelVisible,
+        rightPanelWidth: state.rightPanelWidth,
+        rightPanelTabs: state.rightPanelTabs,
+        bottomPanelTabOrder: state.bottomPanelTabOrder,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Tabs & Navigation
+        // ═══════════════════════════════════════════════════════════════
+        tabs: state.tabs,
+        activeTabId: state.activeTabId,
+        tabGroups: state.tabGroups,
+        tabsEnabled: state.tabsEnabled,
+        currentFolder: state.currentFolder,
+        expandedFolders: Array.from(state.expandedFolders),
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Display Preferences
+        // ═══════════════════════════════════════════════════════════════
         viewMode: state.viewMode,
         iconSize: state.iconSize,
         listRowSize: state.listRowSize,
+        columns: state.columns,
+        lowercaseExtensions: state.lowercaseExtensions,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Theme & Appearance
+        // ═══════════════════════════════════════════════════════════════
         theme: state.theme,
         autoApplySeasonalThemes: state.autoApplySeasonalThemes,
         language: state.language,
-        keybindings: state.keybindings,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Theme Effects (Christmas)
+        // ═══════════════════════════════════════════════════════════════
         christmasSnowOpacity: state.christmasSnowOpacity,
         christmasSnowDensity: state.christmasSnowDensity,
         christmasSnowSize: state.christmasSnowSize,
@@ -76,47 +113,73 @@ export const usePDMStore = create<PDMStoreState>()(
         christmasUseLocalWeather: state.christmasUseLocalWeather,
         christmasSleighEnabled: state.christmasSleighEnabled,
         christmasSleighDirection: state.christmasSleighDirection,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Theme Effects (Halloween)
+        // ═══════════════════════════════════════════════════════════════
         halloweenSparksEnabled: state.halloweenSparksEnabled,
         halloweenSparksOpacity: state.halloweenSparksOpacity,
         halloweenSparksSpeed: state.halloweenSparksSpeed,
         halloweenGhostsOpacity: state.halloweenGhostsOpacity,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Integrations
+        // ═══════════════════════════════════════════════════════════════
+        solidworksIntegrationEnabled: state.solidworksIntegrationEnabled,
+        solidworksPath: state.solidworksPath,
+        solidworksDmLicenseKey: state.solidworksDmLicenseKey,
+        autoStartSolidworksService: state.autoStartSolidworksService,
+        hideSolidworksTempFiles: state.hideSolidworksTempFiles,
+        ignoreSolidworksTempFiles: state.ignoreSolidworksTempFiles,
+        apiServerUrl: state.apiServerUrl,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // File Operations
+        // ═══════════════════════════════════════════════════════════════
         autoDownloadCloudFiles: state.autoDownloadCloudFiles,
         autoDownloadUpdates: state.autoDownloadUpdates,
         autoDownloadExcludedFiles: state.autoDownloadExcludedFiles,
+        ignorePatterns: state.ignorePatterns,
+        stagedCheckins: state.stagedCheckins,
+        persistedPendingMetadata: state.persistedPendingMetadata,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // User Preferences
+        // ═══════════════════════════════════════════════════════════════
+        onboardingComplete: state.onboardingComplete,
+        logSharingEnabled: state.logSharingEnabled,
+        cadPreviewMode: state.cadPreviewMode,
+        topbarConfig: state.topbarConfig,
+        keybindings: state.keybindings,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         colorSwatches: state.colorSwatches,
-        connectedVaults: state.connectedVaults,
-        activeVaultId: state.activeVaultId,
-        sidebarVisible: state.sidebarVisible,
-        sidebarWidth: state.sidebarWidth,
-        activityBarMode: state.activityBarMode,
-        activeView: state.activeView,
-        detailsPanelVisible: state.detailsPanelVisible,
-        detailsPanelHeight: state.detailsPanelHeight,
-        rightPanelVisible: state.rightPanelVisible,
-        rightPanelWidth: state.rightPanelWidth,
-        rightPanelTabs: state.rightPanelTabs,
-        bottomPanelTabOrder: state.bottomPanelTabOrder,
-        // Tabs and navigation
-        tabs: state.tabs,
-        activeTabId: state.activeTabId,
-        tabGroups: state.tabGroups,
-        tabsEnabled: state.tabsEnabled,
-        currentFolder: state.currentFolder,
-        columns: state.columns,
-        expandedFolders: Array.from(state.expandedFolders),
-        ignorePatterns: state.ignorePatterns,
-        stagedCheckins: state.stagedCheckins,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Module Configuration
+        // ═══════════════════════════════════════════════════════════════
+        moduleConfig: state.moduleConfig,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Terminal
+        // ═══════════════════════════════════════════════════════════════
         terminalVisible: state.terminalVisible,
         terminalHeight: state.terminalHeight,
-        terminalHistory: state.terminalHistory.slice(0, 100),  // Keep last 100
-        moduleConfig: state.moduleConfig,
-        recentSearches: state.recentSearches.slice(0, 20),  // Keep last 20
-        persistedPendingMetadata: state.persistedPendingMetadata,  // Survive app restart
+        terminalHistory: state.terminalHistory.slice(0, 100),
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Search
+        // ═══════════════════════════════════════════════════════════════
+        recentSearches: state.recentSearches.slice(0, 20),
       }),
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as Record<string, unknown>
+        const rawPersisted = persistedState as Record<string, unknown>
+        
+        // Run any necessary migrations
+        const persistedVersion = getPersistedVersion(rawPersisted)
+        const persisted = persistedVersion < CURRENT_STORE_VERSION
+          ? runMigrations(rawPersisted, persistedVersion)
+          : rawPersisted
         
         // Deduplicate connected vaults by ID (keep first occurrence, ensure expanded)
         const persistedVaults = (persisted.connectedVaults as ConnectedVault[]) || []
@@ -192,6 +255,8 @@ export const usePDMStore = create<PDMStoreState>()(
           autoApplySeasonalThemes: persisted.autoApplySeasonalThemes !== undefined ? (persisted.autoApplySeasonalThemes as boolean) : true,
           // Ensure language has a default
           language: (persisted.language as Language) || 'en',
+          // Ensure settingsTab has a default
+          settingsTab: (persisted.settingsTab as SettingsTab) || 'profile',
           // Ensure keybindings has defaults (merge with defaults for new keybindings)
           keybindings: Object.assign({
             navigateUp: { key: 'ArrowUp' },

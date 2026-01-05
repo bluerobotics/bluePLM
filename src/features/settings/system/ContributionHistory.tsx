@@ -15,7 +15,7 @@ import {
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient } from '@/lib/supabase'
 
-// Get supabase client with any type cast for queries with type inference issues
+// Supabase v2 type inference incomplete for contribution history queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getDb = () => getSupabaseClient() as any
 
@@ -220,7 +220,7 @@ export function ContributionHistory() {
         // Build activity map by date
         const dataMap = new Map<string, DayData>()
         
-        // Process file activities
+        // Process file activities (Supabase v2 nested select type inference incomplete)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fileActivities: ActivityRecord[] = (activities || []).map((a: any) => ({
           id: a.id,
@@ -238,7 +238,7 @@ export function ContributionHistory() {
           dataMap.set(date, existing)
         })
         
-        // Process reviews as reviewer (approvals/rejections)
+        // Process reviews as reviewer (Supabase v2 nested select type incomplete)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const reviewActivities: ActivityRecord[] = (reviewsAsReviewer || []).map((r: any) => {
           const review = r.reviews as { id: string; title?: string; created_at: string }
@@ -259,7 +259,7 @@ export function ContributionHistory() {
           dataMap.set(date, existing)
         })
         
-        // Process reviews requested
+        // Process reviews requested (Supabase v2 nested select type incomplete)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const requestedActivities: ActivityRecord[] = (reviewsRequested || []).map((r: any) => ({
           id: r.id,

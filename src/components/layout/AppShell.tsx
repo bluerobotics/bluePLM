@@ -1,24 +1,19 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { MenuBar } from '@/components/MenuBar'
-import { ActivityBar } from '@/components/activity-bar'
-import { Sidebar } from '@/components/Sidebar'
+import { useLoadFiles, useVaultManagement, useStagedCheckins } from '@/hooks'
+import { MenuBar } from './MenuBar'
+import { ActivityBar } from './ActivityBar'
+import { Sidebar } from './Sidebar'
 import { Toast } from '@/components/core'
-import { ChristmasEffects, HalloweenEffects, WeatherEffects } from '@/features/seasonal-effects'
+import { ChristmasEffects, HalloweenEffects, WeatherEffects } from '@/components/effects/seasonal'
 import { ImpersonationBanner } from '@/components/shared/ImpersonationBanner'
-import { UpdateModal } from '@/components/UpdateModal'
-import { OrphanedCheckoutsContainer } from '@/components/OrphanedCheckoutDialog'
-import { MissingStorageFilesContainer } from '@/components/MissingStorageFilesDialog'
-import { VaultNotFoundDialog } from '@/components/VaultNotFoundDialog'
-import { StagedCheckinConflictDialog } from '@/components/StagedCheckinConflictDialog'
+import { UpdateModal, OrphanedCheckoutsContainer, MissingStorageFilesContainer, VaultNotFoundDialog, StagedCheckinConflictDialog } from '@/components/shared/Dialogs'
 import { ResizeHandle } from './ResizeHandle'
 import { MainContent } from './MainContent'
 import { Loader2 } from 'lucide-react'
-import type { SettingsTab } from '@/types/settings'
-import type { StagedCheckin } from '@/stores/pdmStore'
 
 // Lazy load right panel
-const RightPanel = lazy(() => import('@/components/RightPanel').then(m => ({ default: m.RightPanel })))
+const RightPanel = lazy(() => import('./RightPanel').then(m => ({ default: m.RightPanel })))
 
 // Loading fallback for lazy-loaded components
 function ContentLoading() {
@@ -32,23 +27,6 @@ function ContentLoading() {
 interface AppShellProps {
   showWelcome: boolean
   isSignInScreen: boolean
-  settingsTab: SettingsTab
-  onSettingsTabChange: (tab: SettingsTab) => void
-  onOpenVault: () => void
-  onOpenRecentVault: (path: string) => void
-  onChangeOrg: () => void
-  loadFiles: (silent?: boolean) => void
-  stagedConflicts: Array<{
-    staged: StagedCheckin
-    serverVersion: number
-    localPath: string
-  }>
-  onClearStagedConflicts: () => void
-  vaultNotFoundPath: string | null
-  vaultNotFoundName: string | undefined
-  onCloseVaultNotFound: () => void
-  onVaultNotFoundSettings: () => void
-  onVaultNotFoundBrowse: () => void
 }
 
 /**
@@ -57,19 +35,6 @@ interface AppShellProps {
 export function AppShell({
   showWelcome,
   isSignInScreen,
-  settingsTab,
-  onSettingsTabChange,
-  onOpenVault,
-  onOpenRecentVault,
-  onChangeOrg,
-  loadFiles,
-  stagedConflicts,
-  onClearStagedConflicts,
-  vaultNotFoundPath,
-  vaultNotFoundName,
-  onCloseVaultNotFound,
-  onVaultNotFoundSettings,
-  onVaultNotFoundBrowse,
 }: AppShellProps) {
   const {
     activeView,
@@ -81,6 +46,18 @@ export function AppShell({
     setRightPanelWidth,
     rightPanelTabs,
   } = usePDMStore()
+
+  // Call hooks directly instead of receiving as props
+  const { loadFiles } = useLoadFiles()
+  const {
+    handleOpenVault,
+    handleVaultNotFoundBrowse,
+    handleVaultNotFoundSettings,
+    handleCloseVaultNotFound,
+    vaultNotFoundPath,
+    vaultNotFoundName,
+  } = useVaultManagement()
+  const { stagedConflicts, clearStagedConflicts } = useStagedCheckins(loadFiles)
 
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
   const [isResizingDetails, setIsResizingDetails] = useState(false)
@@ -132,7 +109,7 @@ export function AppShell({
       <WeatherEffects />
       
       <MenuBar
-        onOpenVault={onOpenVault}
+        onOpenVault={handleOpenVault}
         onRefresh={loadFiles}
         minimal={isSignInScreen}
       />
@@ -146,13 +123,7 @@ export function AppShell({
 
         {sidebarVisible && !showWelcome && activeView !== 'workflows' && (
           <>
-            <Sidebar 
-              onOpenVault={onOpenVault}
-              onOpenRecentVault={onOpenRecentVault}
-              onRefresh={loadFiles}
-              settingsTab={settingsTab}
-              onSettingsTabChange={onSettingsTabChange}
-            />
+            <Sidebar />
             {/* Resize handle for non-settings views, simple border for settings */}
             {activeView === 'settings' ? (
               <div className="w-px bg-plm-border flex-shrink-0" />
@@ -169,13 +140,9 @@ export function AppShell({
         <MainContent
           showWelcome={showWelcome}
           activeView={activeView}
-          settingsTab={settingsTab}
           detailsPanelVisible={detailsPanelVisible}
           isResizingSidebar={isResizingSidebar}
           isResizingRightPanel={isResizingRightPanel}
-          onOpenRecentVault={onOpenRecentVault}
-          onChangeOrg={onChangeOrg}
-          onRefresh={loadFiles}
           onResizeDetailsStart={() => setIsResizingDetails(true)}
         />
 
@@ -207,7 +174,7 @@ export function AppShell({
       {stagedConflicts.length > 0 && (
         <StagedCheckinConflictDialog
           conflicts={stagedConflicts}
-          onClose={onClearStagedConflicts}
+          onClose={clearStagedConflicts}
           onRefresh={loadFiles}
         />
       )}
@@ -220,9 +187,9 @@ export function AppShell({
         <VaultNotFoundDialog
           vaultPath={vaultNotFoundPath}
           vaultName={vaultNotFoundName}
-          onClose={onCloseVaultNotFound}
-          onOpenSettings={onVaultNotFoundSettings}
-          onBrowseNewPath={onVaultNotFoundBrowse}
+          onClose={handleCloseVaultNotFound}
+          onOpenSettings={handleVaultNotFoundSettings}
+          onBrowseNewPath={handleVaultNotFoundBrowse}
         />
       )}
     </div>
