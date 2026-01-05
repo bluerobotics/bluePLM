@@ -58,3 +58,59 @@ export interface Webhook {
 export type WebhookEvent = 
   | 'file.checkout' | 'file.checkin' | 'file.sync' 
   | 'file.delete' | 'file.restore' | 'file.state_change' | 'file.version';
+
+export interface Supplier {
+  id: string;
+  orgId: string;
+  name: string;
+  code: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  website: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string;
+  paymentTerms: string | null;
+  defaultLeadTimeDays: number | null;
+  minOrderValue: number | null;
+  currency: string;
+  shippingAccount: string | null;
+  isActive: boolean;
+  isApproved: boolean;
+  notes: string | null;
+  erpId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PriceBreak {
+  qty: number;
+  price: number;
+}
+
+export interface PartSupplier {
+  id: string;
+  orgId: string;
+  fileId: string;
+  supplierId: string;
+  supplierPartNumber: string | null;
+  supplierDescription: string | null;
+  supplierUrl: string | null;
+  unitPrice: number | null;
+  currency: string;
+  priceUnit: string;
+  priceBreaks: PriceBreak[];
+  minOrderQty: number;
+  orderMultiple: number;
+  leadTimeDays: number | null;
+  isPreferred: boolean;
+  isActive: boolean;
+  isQualified: boolean;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
