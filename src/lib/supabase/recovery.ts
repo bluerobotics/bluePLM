@@ -10,12 +10,12 @@ export interface AdminRecoveryCode {
   org_id: string
   description: string | null
   created_by: string
-  created_at: string
+  created_at: string | null
   expires_at: string
-  is_used: boolean
+  is_used: boolean | null
   used_by: string | null
   used_at: string | null
-  is_revoked: boolean
+  is_revoked: boolean | null
   revoked_by: string | null
   revoked_at: string | null
   revoke_reason: string | null
@@ -222,8 +222,7 @@ export async function useAdminRecoveryCode(
   
   // Call the database function that handles everything
   const { data, error } = await client.rpc('use_admin_recovery_code', {
-    p_code_hash: codeHash,
-    p_user_ip: null // Could be populated if we tracked IPs
+    p_code: codeHash
   })
   
   if (error) {

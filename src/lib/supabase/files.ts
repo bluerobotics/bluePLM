@@ -1564,6 +1564,10 @@ export async function restoreFile(
     return { success: false, error: 'File is not in trash' }
   }
   
+  if (!file.vault_id) {
+    return { success: false, error: 'File has no vault assigned' }
+  }
+  
   // Check if a file with the same path already exists (not deleted)
   const { data: existingFile } = await client
     .from('files')

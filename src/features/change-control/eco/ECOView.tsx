@@ -537,7 +537,7 @@ export function ECOView() {
         ) : (
           <div className="p-2 space-y-1">
             {filteredECOs.map((eco) => {
-              const statusConfig = STATUS_CONFIG[eco.status]
+              const statusConfig = STATUS_CONFIG[eco.status ?? 'open']
               const isExpanded = expandedECO === eco.id
               const filesForEco = ecoFiles[eco.id] || []
               const isLoadingEcoFiles = loadingFiles === eco.id
@@ -580,7 +580,7 @@ export function ECOView() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar size={10} />
-                          {formatDistanceToNow(new Date(eco.created_at), { addSuffix: true })}
+                          {eco.created_at ? formatDistanceToNow(new Date(eco.created_at), { addSuffix: true }) : 'Unknown'}
                         </span>
                       </div>
                     </div>

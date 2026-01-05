@@ -481,10 +481,10 @@ export interface FileVersion {
   version: number
   revision: string
   content_hash: string
-  file_size: number
+  file_size: number | null
   comment: string | null
   workflow_state_id: string | null
-  created_at: string
+  created_at: string | null
   created_by: string
 }
 

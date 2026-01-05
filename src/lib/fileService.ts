@@ -502,6 +502,20 @@ export async function transitionFileState(
     return { success: false, error: updateError.message }
   }
   
-  return { success: true, file: updated }
+  // Map workflow_state to expected PDMFile structure
+  const mappedFile: PDMFile = {
+    ...updated,
+    workflow_state: updated.workflow_state ? {
+      id: updated.workflow_state.id,
+      name: updated.workflow_state.name,
+      label: updated.workflow_state.label ?? null,
+      color: updated.workflow_state.color ?? '#888888',
+      icon: updated.workflow_state.icon ?? 'file',
+      is_editable: updated.workflow_state.is_editable ?? true,
+      requires_checkout: updated.workflow_state.requires_checkout ?? false
+    } : null
+  }
+  
+  return { success: true, file: mappedFile }
 }
 

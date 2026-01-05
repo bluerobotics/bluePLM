@@ -494,7 +494,7 @@ export async function listSnapshots(config: BackupConfig): Promise<BackupSnapsho
     // Add short_id if missing (restic returns id but not always short_id)
     return (result.snapshots || []).map(s => ({
       ...s,
-      short_id: s.short_id || s.id.substring(0, 8)
+      short_id: (s as any).short_id || s.id.substring(0, 8)
     }))
   } catch (err) {
     console.error('[Backup] Failed to list snapshots:', err)
@@ -710,30 +710,30 @@ export interface DatabaseExport {
     id: string
     file_path: string
     file_name: string
-    extension: string | null
-    file_type: string | null
+    extension: string
+    file_type: 'part' | 'assembly' | 'drawing' | 'pdf' | 'step' | 'other'
     content_hash: string | null
     file_size: number | null
     state: string | null
     checked_out_by: string | null
     checked_out_at: string | null
     version: number
-    created_at: string
-    updated_at: string
+    created_at: string | null
+    updated_at: string | null
     deleted_at: string | null
   }>
   fileVersions: Array<{
     id: string
     file_id: string
     version: number
-    revision: string | null
-    content_hash: string | null
+    revision: string
+    content_hash: string
     file_size: number | null
-    state: string | null
-    created_by: string | null
-    created_at: string
+    state: string
+    created_by: string
+    created_at: string | null
   }>
-  fileComments: Array<any>  // May not exist in all deployments
+  fileComments: Array<unknown>  // May not exist in all deployments
   users: Array<{
     id: string
     email: string
@@ -864,8 +864,15 @@ export async function importDatabaseMetadata(
         continue
       }
       
-      const { error } = await supabase
-        .from('files')
+      // Validate file_type is a valid enum value
+      const validFileTypes = ['part', 'assembly', 'drawing', 'pdf', 'step', 'other'] as const
+      const fileType = validFileTypes.includes(file.file_type as typeof validFileTypes[number])
+        ? file.file_type
+        : 'other'
+
+      // Use any to bypass type restrictions during restore
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from('files') as any)
         .upsert({
           id: file.id,
           org_id: exportData._orgId,
@@ -873,7 +880,7 @@ export async function importDatabaseMetadata(
           file_path: file.file_path,
           file_name: file.file_name,
           extension: file.extension || '',
-          file_type: file.file_type || 'other',
+          file_type: fileType,
           content_hash: file.content_hash,
           file_size: file.file_size,
           state: file.state,
@@ -915,7 +922,8 @@ export async function importDatabaseMetadata(
       if (!error) versionsRestored++
     }
     
-    for (const comment of exportData.fileComments) {
+    for (const rawComment of exportData.fileComments) {
+      const comment = rawComment as { id: string; file_id: string; user_id: string; comment: string; created_at: string }
       const { data: existing } = await supabase
         .from('file_comments')
         .select('id')

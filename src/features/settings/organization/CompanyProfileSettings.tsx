@@ -147,7 +147,7 @@ export function CompanyProfileSettings() {
         
         // Load email domain settings
         setEmailDomains(data?.email_domains || [])
-        const settings = data?.settings || {}
+        const settings = (data?.settings || {}) as { enforce_email_domain?: boolean }
         setEnforceEmailDomain(settings.enforce_email_domain ?? false)
       } catch (err) {
         console.error('Failed to load company profile:', err)
@@ -270,7 +270,7 @@ export function CompanyProfileSettings() {
       // Update organization with signed URL and storage path using RPC function
       // (Direct updates aren't allowed due to RLS policy)
       console.log('[CompanyProfile] Saving to DB via RPC - logo_storage_path:', filePath)
-      const { error: updateError } = await supabase.rpc('update_org_branding', {
+      const { error: updateError } = await (supabase.rpc as any)('update_org_branding', {
         p_org_id: organization.id,
         p_logo_url: signedData.signedUrl,
         p_logo_storage_path: filePath
@@ -312,7 +312,7 @@ export function CompanyProfileSettings() {
 
       // Update organization using RPC function (direct updates not allowed due to RLS)
       // Pass empty strings to clear the values (COALESCE in function will handle nulls)
-      const { error } = await supabase.rpc('update_org_branding', {
+      const { error } = await (supabase.rpc as any)('update_org_branding', {
         p_org_id: organization.id,
         p_logo_url: '',
         p_logo_storage_path: ''
@@ -341,7 +341,7 @@ export function CompanyProfileSettings() {
     savingRef.current = true
     try {
       // Use RPC function (direct updates not allowed due to RLS)
-      const { error } = await supabase.rpc('update_org_branding', {
+      const { error } = await (supabase.rpc as any)('update_org_branding', {
         p_org_id: organization.id,
         p_phone: profile.phone || null,
         p_website: profile.website || null,

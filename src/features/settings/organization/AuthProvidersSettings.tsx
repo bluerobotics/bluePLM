@@ -155,7 +155,7 @@ export function AuthProvidersSettings() {
     try {
       const { error } = await supabase
         .from('organizations')
-        .update({ auth_providers: settings })
+        .update({ auth_providers: JSON.parse(JSON.stringify(settings)) })
         .eq('id', organization.id)
 
       if (error) throw error

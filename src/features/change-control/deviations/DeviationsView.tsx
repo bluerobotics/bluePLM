@@ -865,7 +865,7 @@ export function DeviationsView() {
         ) : (
           <div className="p-2 space-y-1">
             {filteredDeviations.map((dev) => {
-              const statusConfig = STATUS_CONFIG[dev.status]
+              const statusConfig = STATUS_CONFIG[dev.status ?? 'draft']
               const isExpanded = expandedDeviation === dev.id
               const filesForDev = deviationFiles[dev.id] || []
               const isLoadingDevFiles = loadingFiles === dev.id
@@ -937,7 +937,7 @@ export function DeviationsView() {
                         )}
                         <span className="flex items-center gap-1">
                           <Calendar size={10} />
-                          {formatDistanceToNow(new Date(dev.created_at), { addSuffix: true })}
+                          {dev.created_at ? formatDistanceToNow(new Date(dev.created_at), { addSuffix: true }) : 'Unknown'}
                         </span>
                       </div>
                     </div>
@@ -1233,8 +1233,8 @@ export function DeviationsView() {
                       <div className="text-sm font-medium">{dev.deviation_number}</div>
                       <div className="text-xs text-plm-fg-muted truncate">{dev.title}</div>
                     </div>
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_CONFIG[dev.status].color} ${STATUS_CONFIG[dev.status].bgColor}`}>
-                      {STATUS_CONFIG[dev.status].label}
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_CONFIG[dev.status ?? 'draft'].color} ${STATUS_CONFIG[dev.status ?? 'draft'].bgColor}`}>
+                      {STATUS_CONFIG[dev.status ?? 'draft'].label}
                     </span>
                     {tagDeviationId === dev.id && (
                       <Check size={14} className="text-plm-accent flex-shrink-0" />

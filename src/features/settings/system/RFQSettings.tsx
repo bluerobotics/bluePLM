@@ -58,7 +58,10 @@ export function RFQSettings() {
 
         if (error) throw error
         
-        setSettings(data?.rfq_settings || DEFAULT_RFQ_SETTINGS)
+        const rfqData = data?.rfq_settings
+        setSettings(rfqData && typeof rfqData === 'object' && !Array.isArray(rfqData) 
+          ? rfqData as unknown as RFQSettingsData 
+          : DEFAULT_RFQ_SETTINGS)
       } catch (err) {
         console.error('Failed to load RFQ settings:', err)
       } finally {
@@ -93,7 +96,7 @@ export function RFQSettings() {
     try {
       const { error } = await supabase
         .from('organizations')
-        .update({ rfq_settings: settings })
+        .update({ rfq_settings: JSON.parse(JSON.stringify(settings)) })
         .eq('id', organization.id)
 
       if (error) throw error

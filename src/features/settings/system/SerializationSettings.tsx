@@ -174,7 +174,10 @@ export function SerializationSettings() {
 
         if (error) throw error
         
-        const savedSettings = data?.serialization_settings || DEFAULT_SERIALIZATION_SETTINGS
+        const rawSettings = data?.serialization_settings
+        const savedSettings = (rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings) 
+          ? rawSettings as unknown as SerializationSettingsData 
+          : DEFAULT_SERIALIZATION_SETTINGS)
         // Ensure all fields exist with defaults
         setSettings({
           ...DEFAULT_SERIALIZATION_SETTINGS,
@@ -218,12 +221,12 @@ export function SerializationSettings() {
     
     setLoadingPreview(true)
     try {
-      const { data, error } = await supabase.rpc('preview_next_serial_number', {
+      const { data, error } = await (supabase.rpc as any)('preview_next_serial_number', {
         p_org_id: organization.id
       })
       
       if (error) throw error
-      setPreviewNumber(data)
+      setPreviewNumber(data as string)
     } catch (err) {
       console.error('Failed to fetch preview:', err)
       addToast('error', 'Failed to fetch serial number preview')
@@ -241,7 +244,7 @@ export function SerializationSettings() {
     try {
       const { error } = await supabase
         .from('organizations')
-        .update({ serialization_settings: settings })
+        .update({ serialization_settings: JSON.parse(JSON.stringify(settings)) })
         .eq('id', organization.id)
 
       if (error) throw error

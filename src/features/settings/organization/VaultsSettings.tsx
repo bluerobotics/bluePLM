@@ -112,7 +112,13 @@ export function VaultsSettings() {
       if (error) {
         console.error('Failed to load org vaults:', error)
       } else {
-        setOrgVaults(vaults || [])
+        // Map Supabase nullables to app types with defaults
+        setOrgVaults((vaults || []).map(v => ({
+          ...v,
+          description: v.description ?? null,
+          is_default: v.is_default ?? false,
+          created_at: v.created_at ?? new Date().toISOString()
+        })))
       }
     } catch (err) {
       console.error('Failed to load org vaults:', err)
@@ -159,7 +165,14 @@ export function VaultsSettings() {
       }
       
       addToast('success', `Vault "${name}" created`)
-      setOrgVaults([...orgVaults, vault])
+      // Map Supabase nullables to app types with defaults
+      const mappedVault: Vault = {
+        ...vault,
+        description: vault.description ?? null,
+        is_default: vault.is_default ?? false,
+        created_at: vault.created_at ?? new Date().toISOString()
+      }
+      setOrgVaults([...orgVaults, mappedVault])
       setIsCreatingVault(false)
       setNewVaultName('')
       setNewVaultDescription('')

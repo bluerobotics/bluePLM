@@ -159,7 +159,8 @@ export function RecoveryCodeSettings() {
     return { label: 'Active', color: 'text-plm-accent', icon: Key }
   }
   
-  const formatDate = (date: string) => {
+  const formatDate = (date: string | null) => {
+    if (!date) return 'Unknown'
     return new Date(date).toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'short',

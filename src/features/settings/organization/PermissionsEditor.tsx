@@ -220,7 +220,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       
       // Group by vault_id
       for (const perm of vaultPermsData || []) {
-        if (sourceFilesResources.includes(perm.resource)) {
+        if (sourceFilesResources.includes(perm.resource) && perm.vault_id) {
           if (!vaultPermsMap[perm.vault_id]) {
             vaultPermsMap[perm.vault_id] = {}
           }
@@ -255,7 +255,21 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         .order('name')
       
       if (error) throw error
-      setPresets(data || [])
+      // Map Supabase types to app types with defaults
+      setPresets((data || []).map(p => ({
+        id: p.id,
+        org_id: p.org_id,
+        name: p.name,
+        description: p.description ?? null,
+        color: p.color ?? '#64748b',
+        icon: p.icon ?? 'Shield',
+        permissions: (p.permissions as Record<string, PermissionAction[]>) ?? {},
+        is_system: p.is_system ?? false,
+        created_at: p.created_at ?? new Date().toISOString(),
+        created_by: p.created_by ?? null,
+        updated_at: p.updated_at ?? new Date().toISOString(),
+        updated_by: p.updated_by ?? null
+      })))
     } catch (err) {
       console.error('Failed to load presets:', err)
     }
