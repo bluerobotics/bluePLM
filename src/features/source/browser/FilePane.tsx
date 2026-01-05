@@ -49,9 +49,10 @@ import {
   // Utilities
   isPathBeingProcessed,
   matchesKeybinding,
-  // Types
-  COLUMN_TRANSLATION_KEYS
 } from './'
+
+// Import types directly to avoid circular dependency with barrel file
+import { COLUMN_TRANSLATION_KEYS } from './types'
 
 // Import hooks for folder metrics and sorting
 import { useFolderMetrics } from './hooks/useFolderMetrics'

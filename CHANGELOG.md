@@ -2,6 +2,17 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.0.0] - 2026-01-05
+
+### Changed
+- **Major version bump**: BluePLM 3.0 release
+- **API version aligned**: API version now matches app version (3.0.0)
+
+### Fixed
+- **Circular dependency crash**: Fixed "Cannot access 'COLUMN_TRANSLATION_KEYS' before initialization" error in FilePane caused by barrel file circular import
+
+---
+
 ## [2.22.0] - 2026-01-01
 
 ### Added
