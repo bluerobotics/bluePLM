@@ -17,9 +17,9 @@ ENV BUILD_COMMIT_SHA=${GIT_COMMIT_SHA}
 
 WORKDIR /app
 
-# Install dependencies first (for caching)
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Install API dependencies first (for caching)
+COPY api/package*.json ./api/
+RUN cd api && npm ci --omit=dev && npm cache clean --force
 
 # Copy API and required source files
 COPY api/ ./api/
