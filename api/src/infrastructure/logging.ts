@@ -6,7 +6,7 @@
 
 import type { FastifyLoggerOptions } from 'fastify';
 import type { LoggerOptions as PinoLoggerOptions } from 'pino';
-import type { env as envType } from '../config/env';
+import type { env as envType } from '../config/env.js';
 
 type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 

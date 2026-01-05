@@ -26,3 +26,6 @@ export function validateEnv(): Env {
 }
 
 export const env = validateEnv();
+
+// Constants
+export const SIGNED_URL_EXPIRY = 3600; // 1 hour

@@ -6,7 +6,7 @@
 
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify'
 import fp from 'fastify-plugin'
-import { createSupabaseClient } from '../config.js'
+import { createSupabaseClient } from '../src/infrastructure/supabase.js'
 import type { UserProfile } from '../types.js'
 
 const authPluginImpl: FastifyPluginAsync = async (fastify) => {

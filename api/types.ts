@@ -5,6 +5,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js'
+import type { FastifyReply } from 'fastify'
 
 // ============================================
 // Core Entity Types

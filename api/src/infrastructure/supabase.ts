@@ -5,7 +5,7 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { env } from '../config/env';
+import { env } from '../config/env.js';
 
 /**
  * Creates a Supabase client, optionally with a user's access token for RLS.

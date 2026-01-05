@@ -6,7 +6,11 @@
 
 import { FastifyPluginAsync, FastifyReply } from 'fastify'
 import { createClient } from '@supabase/supabase-js'
-import { createSupabaseClient, SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY } from '../config.js'
+import { createSupabaseClient } from '../src/infrastructure/supabase.js'
+import { env } from '../src/config/env.js'
+
+// Destructure for backwards compatibility
+const { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY } = env
 import { schemas } from '../schemas/index.js'
 
 // Helper to send error responses without TypeScript complaining about schema types

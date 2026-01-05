@@ -6,7 +6,7 @@
 
 import { FastifyPluginAsync, FastifyReply } from 'fastify'
 import crypto from 'crypto'
-import { SIGNED_URL_EXPIRY } from '../config.js'
+import { SIGNED_URL_EXPIRY } from '../src/config/env.js'
 import { schemas } from '../schemas/index.js'
 import { computeHash, getFileTypeFromExtension, triggerWebhooks } from '../utils/index.js'
 import type { FileRecord } from '../types.js'
