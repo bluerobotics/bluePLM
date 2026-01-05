@@ -1,13 +1,32 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 // Team Members Dialog - Manage members of a specific team
 import { useState, useEffect } from 'react'
+import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Users, UserPlus, Search, Plus, X, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
+import { insertTeamMember } from '../../hooks/supabaseHelpers'
 import type { TeamMembersDialogProps, OrgUser } from '../../types'
 import type { TeamMember } from '@/types/permissions'
+
+// Type for team member query result with joined user data
+interface TeamMemberQueryResult {
+  id: string
+  team_id: string
+  user_id: string
+  is_team_admin: boolean
+  added_at: string
+  added_by: string | null
+  users: {
+    id: string
+    email: string
+    full_name: string | null
+    avatar_url: string | null
+    custom_avatar_url: string | null
+    role: string
+  } | null
+}
 
 export function TeamMembersDialog({
   team,
@@ -39,9 +58,22 @@ export function TeamMembersDialog({
       
       if (error) throw error
       
-      const mappedData = (data || []).map(m => ({
-        ...m,
-        user: m.users
+      const typedData = (data || []) as unknown as TeamMemberQueryResult[]
+      const mappedData: TeamMember[] = typedData.map(m => ({
+        id: m.id,
+        team_id: m.team_id,
+        user_id: m.user_id,
+        is_team_admin: m.is_team_admin,
+        added_at: m.added_at,
+        added_by: m.added_by,
+        user: m.users ? {
+          id: m.users.id,
+          email: m.users.email,
+          full_name: m.users.full_name,
+          avatar_url: m.users.avatar_url,
+          custom_avatar_url: m.users.custom_avatar_url,
+          role: m.users.role as 'admin' | 'engineer' | 'viewer'
+        } : undefined
       }))
       
       setMembers(mappedData)
@@ -64,7 +96,7 @@ export function TeamMembersDialog({
     
     setIsAdding(true)
     try {
-      const { error } = await supabase.from('team_members').insert({
+      const { error } = await insertTeamMember({
         team_id: team.id,
         user_id: userToAdd.id,
         added_by: userId
@@ -93,7 +125,7 @@ export function TeamMembersDialog({
     }
   }
   
-  const IconComponent = (LucideIcons as any)[team.icon] || Users
+  const IconComponent = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[team.icon] || Users
   
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>

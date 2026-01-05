@@ -8,6 +8,7 @@
  */
 
 import type { Team, TeamMember, PermissionAction } from '@/types/permissions'
+import type { Json } from '@/types/supabase'
 
 // ============================================
 // Core Data Types
@@ -49,7 +50,7 @@ export interface TeamWithDetails extends Team {
   member_count: number
   permissions_count: number
   vault_access?: string[] // vault IDs
-  module_defaults?: Record<string, unknown> | null
+  module_defaults?: Json | Record<string, unknown> | null
 }
 
 export interface PendingMember {

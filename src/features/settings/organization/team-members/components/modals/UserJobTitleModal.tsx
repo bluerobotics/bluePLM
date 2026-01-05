@@ -1,9 +1,9 @@
 // User Job Title Modal - Manage a user's job title assignment
 import { useState } from 'react'
-import * as LucideIcons from 'lucide-react'
 import { Briefcase, Search, Plus, X, Check, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { ColorPickerDropdown } from '@/components/shared/ColorPicker'
 import { IconGridPicker } from '@/components/shared/IconPicker'
+import { getTitleIcon } from '../../utils'
 import type { UserJobTitleModalProps, JobTitle } from '../../types'
 
 export function UserJobTitleModal({
@@ -153,13 +153,13 @@ export function UserJobTitleModal({
             </div>
           ) : (
             filteredTitles.map(title => {
-              const TitleIcon = (LucideIcons as any)[title.icon] || Briefcase
+              const TitleIcon = getTitleIcon(title.icon)
               const isSelected = selectedTitleId === title.id
               const isEditing = editingTitleId === title.id
               const isDeleting = deletingTitleId === title.id
               
               if (isEditing && isAdmin) {
-                const EditIcon = (LucideIcons as any)[editIcon] || Briefcase
+                const EditIcon = getTitleIcon(editIcon)
                 return (
                   <div key={title.id} className="p-3 rounded-lg border border-plm-accent bg-plm-accent/5 space-y-3">
                     <div className="flex items-center justify-between">

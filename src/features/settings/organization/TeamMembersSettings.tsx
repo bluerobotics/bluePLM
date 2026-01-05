@@ -1,9 +1,13 @@
 /**
  * TeamMembersSettings - Main component for team members management
  * 
- * This component uses the TeamMembersProvider to manage all state
- * and renders tabs and dialogs that consume the context.
+ * This component uses hooks directly to manage state:
+ * - usePDMStore for organization data
+ * - useTeams, useMembers, useWorkflowRoles, useJobTitles for data
+ * - useTeamDialogs, useUserDialogs, etc. for dialog state
+ * - useOrgCode for organization code management
  */
+import { useState, useCallback } from 'react'
 import {
   Users,
   Plus,
@@ -21,11 +25,10 @@ import {
 import { copyToClipboard } from '@/lib/clipboard'
 import { getCurrentConfig } from '@/lib/supabase'
 import { generateOrgCode } from '@/lib/supabaseConfig'
+import { usePDMStore } from '@/stores/pdmStore'
 
-// Import context and components from team-members
+// Import components and hooks from team-members
 import {
-  TeamMembersProvider,
-  useTeamMembersContext,
   UsersTab,
   TeamsTab,
   RolesTab,
@@ -33,57 +36,80 @@ import {
   TeamDialogs,
   UserDialogs,
   WorkflowRoleDialogs,
-  JobTitleDialogs
+  JobTitleDialogs,
+  // Data hooks
+  useTeams,
+  useMembers,
+  useWorkflowRoles,
+  useJobTitles,
+  // Dialog state hooks
+  useTeamDialogs,
+  useUserDialogs,
+  useWorkflowRoleDialogs,
+  useJobTitleDialogs,
+  useOrgCode
 } from './team-members'
+
+type TabType = 'users' | 'teams' | 'roles' | 'titles'
 
 /**
  * Main TeamMembersSettings component
- * Wraps content in the provider
  */
 export function TeamMembersSettings() {
-  return (
-    <TeamMembersProvider>
-      <TeamMembersContent />
-    </TeamMembersProvider>
-  )
-}
+  // ===== STORE STATE =====
+  const { organization, getEffectiveRole } = usePDMStore()
+  const orgId = organization?.id ?? null
+  const isAdmin = getEffectiveRole() === 'admin'
 
-/**
- * TeamMembersContent - Inner component that consumes the context
- */
-function TeamMembersContent() {
+  // ===== DATA HOOKS =====
+  const { teams, isLoading: teamsLoading, loadTeams } = useTeams(orgId)
+  const { members: orgUsers, isLoading: membersLoading, loadMembers } = useMembers(orgId)
+  const { workflowRoles, isLoading: rolesLoading } = useWorkflowRoles(orgId)
+  const { jobTitles, isLoading: titlesLoading } = useJobTitles(orgId)
+
+  const isLoading = teamsLoading || membersLoading || rolesLoading || titlesLoading
+
+  // ===== UI STATE (local) =====
+  const [activeTab, setActiveTab] = useState<TabType>('users')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // ===== ORG CODE STATE =====
   const {
-    organization,
-    isAdmin,
-    isLoading,
-    activeTab,
-    setActiveTab,
-    searchQuery,
-    setSearchQuery,
-    orgUsers,
-    teams,
-    workflowRoles,
-    jobTitles,
-    
-    // Org code state
     showOrgCode,
     setShowOrgCode,
     orgCode,
     setOrgCode,
     codeCopied,
-    setCodeCopied,
-    
-    // Dialog openers
-    setShowCreateUserDialog,
-    setShowCreateTeamDialog,
-    setShowCreateWorkflowRoleDialog,
-    resetTeamForm,
-    openCreateJobTitle,
-    
-    // Data refresh
-    loadAllData
-  } = useTeamMembersContext()
+    setCodeCopied
+  } = useOrgCode()
 
+  // ===== DIALOG STATE HOOKS =====
+  const {
+    setShowCreateTeamDialog,
+    resetTeamForm
+  } = useTeamDialogs()
+
+  const {
+    setShowCreateUserDialog
+  } = useUserDialogs()
+
+  const {
+    setShowCreateWorkflowRoleDialog
+  } = useWorkflowRoleDialogs()
+
+  const {
+    openCreateTitleDialog: openCreateJobTitle
+  } = useJobTitleDialogs()
+
+  // ===== DATA LOADING =====
+  const loadAllData = useCallback(async () => {
+    await Promise.all([
+      loadTeams(),
+      loadMembers()
+    ])
+  }, [loadTeams, loadMembers])
+
+  // ===== RENDER =====
   if (!organization) {
     return (
       <div className="text-center py-12 text-plm-fg-muted text-base">
@@ -152,7 +178,7 @@ function TeamMembersContent() {
           )}
           {isAdmin && activeTab === 'titles' && (
             <button
-              onClick={openCreateJobTitle}
+              onClick={() => openCreateJobTitle()}
               className="btn btn-primary btn-sm flex items-center gap-1"
               title="Add title"
             >
@@ -307,14 +333,19 @@ function TeamMembersContent() {
         </div>
       ) : (
         <div className="space-y-4">
-          {activeTab === 'teams' && <TeamsTab />}
-          {activeTab === 'users' && <UsersTab />}
-          {activeTab === 'roles' && <RolesTab />}
-          {activeTab === 'titles' && <TitlesTab />}
+          {activeTab === 'users' && (
+            <UsersTab 
+              searchQuery={searchQuery} 
+              onShowCreateUserDialog={() => setShowCreateUserDialog(true)}
+            />
+          )}
+          {activeTab === 'teams' && <TeamsTab searchQuery={searchQuery} />}
+          {activeTab === 'roles' && <RolesTab searchQuery={searchQuery} />}
+          {activeTab === 'titles' && <TitlesTab searchQuery={searchQuery} />}
         </div>
       )}
 
-      {/* Self-contained dialogs - each checks its own visibility via context */}
+      {/* Self-contained dialogs - each checks its own visibility via hooks */}
       <TeamDialogs />
       <UserDialogs />
       <WorkflowRoleDialogs />

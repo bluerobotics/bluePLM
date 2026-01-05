@@ -12,6 +12,7 @@ team-members/
 │   │   ├── EditPendingMemberDialog.tsx
 │   │   ├── JobTitleFormDialog.tsx
 │   │   ├── TeamFormDialog.tsx
+│   │   ├── VaultAccessDialog.tsx  # Generic vault access dialog
 │   │   ├── WorkflowRoleFormDialog.tsx
 │   │   └── index.ts
 │   ├── modals/               # Selection/assignment modals
@@ -27,6 +28,7 @@ team-members/
 │   │   ├── TeamVaultAccessDialog.tsx
 │   │   └── index.ts
 │   ├── user/                 # User-specific components
+│   │   ├── ConnectedUserRow.tsx  # Self-contained user row
 │   │   ├── CreateUserDialog.tsx
 │   │   ├── RemoveFromAdminsDialog.tsx
 │   │   ├── RemoveUserDialog.tsx
@@ -34,14 +36,10 @@ team-members/
 │   │   ├── UserRow.tsx
 │   │   ├── UserVaultAccessDialog.tsx
 │   │   └── index.ts
-│   ├── TeamDialogs.tsx        # Self-contained team dialog group
-│   ├── UserDialogs.tsx        # Self-contained user dialog group
-│   ├── WorkflowRoleDialogs.tsx  # Self-contained role dialog group
-│   ├── JobTitleDialogs.tsx    # Self-contained title dialog group
-│   ├── TeamMembersDialogs.tsx # Legacy consolidated dialog renderer
-│   └── index.ts
-├── context/                  # React Context for state management
-│   ├── TeamMembersContext.tsx # Main provider and consumer hook
+│   ├── TeamDialogs.tsx        # Deprecated (dialogs now inline in tabs)
+│   ├── UserDialogs.tsx        # Deprecated (dialogs now inline in tabs)
+│   ├── WorkflowRoleDialogs.tsx  # Deprecated (dialogs now inline in tabs)
+│   ├── JobTitleDialogs.tsx    # Deprecated (dialogs now inline in tabs)
 │   └── index.ts
 ├── hooks/                    # React hooks (modular architecture)
 │   ├── handlers/             # Domain-specific handler hooks
@@ -67,7 +65,7 @@ team-members/
 │   ├── useWorkflowRoleDialogs.ts
 │   ├── useWorkflowRoles.ts   # Workflow role CRUD operations
 │   └── index.ts
-├── tabs/                     # Tab content components (use context)
+├── tabs/                     # Tab content components (use hooks directly)
 │   ├── RolesTab.tsx          # Workflow roles tab
 │   ├── TeamsTab.tsx          # Teams tab
 │   ├── TitlesTab.tsx         # Job titles tab
@@ -82,97 +80,70 @@ team-members/
 
 ## Architecture Overview
 
-### Context-Based Architecture (Current)
+### Hooks-Based Architecture
 
-The module uses React Context to eliminate prop drilling. The main entry point is:
+The module uses a **hooks-based architecture** where each component calls data hooks directly. This eliminates the need for a context provider and prevents unnecessary re-renders.
 
-```tsx
-// TeamMembersSettings.tsx
-import { TeamMembersProvider, useTeamMembersContext } from './team-members'
-
-function TeamMembersSettings() {
-  return (
-    <TeamMembersProvider>
-      <TeamMembersContent />
-    </TeamMembersProvider>
-  )
-}
-
-function TeamMembersContent() {
-  const { teams, orgUsers, isLoading } = useTeamMembersContext()
-  // All data, handlers, and state are available via context
-}
-```
-
-### TeamMembersContext
-
-The `TeamMembersContext` provides:
-
-| Category | Examples |
-|----------|----------|
-| **Data** | `teams`, `orgUsers`, `pendingMembers`, `workflowRoles`, `jobTitles`, `orgVaults` |
-| **Computed Data** | `filteredTeams`, `filteredAllUsers`, `unassignedUsers` |
-| **Loading State** | `isLoading` |
-| **User Info** | `user`, `organization`, `isAdmin`, `isRealAdmin` |
-| **UI State** | `activeTab`, `searchQuery`, `expandedTeams`, `showPendingMembers` |
-| **Dialog State** | `showCreateTeamDialog`, `selectedTeam`, `editingWorkflowRole`, etc. |
-| **Handlers** | `handleCreateTeam`, `handleRemoveUser`, `handleChangeJobTitle`, etc. |
-| **Data Loaders** | `loadAllData`, `loadTeams`, `loadOrgUsers` |
-
-### Tab Components
-
-Tab components consume context directly (no props):
+Each tab component is self-contained:
 
 ```tsx
-import { useTeamMembersContext } from '../context'
+// Example: RolesTab.tsx
+import { usePDMStore } from '@/stores/pdmStore'
+import { useWorkflowRoles, useMembers, useWorkflowRoleDialogs } from '../hooks'
 
-export function UsersTab() {
-  const {
-    filteredAllUsers,
-    teams,
-    workflowRoles,
-    handleToggleTeam,
-    handleToggleWorkflowRole,
-    // ...
-  } = useTeamMembersContext()
-  
-  return (/* render users */)
-}
-```
+export function RolesTab({ searchQuery = '' }: RolesTabProps) {
+  const { organization, getEffectiveRole } = usePDMStore()
+  const orgId = organization?.id ?? null
+  const isAdmin = getEffectiveRole() === 'admin'
 
-### Self-Contained Dialog Groups
+  // Data hooks (cached, efficient)
+  const { workflowRoles, createWorkflowRole, updateWorkflowRole, deleteWorkflowRole } = useWorkflowRoles(orgId)
+  const { members: orgUsers } = useMembers(orgId)
 
-Dialogs are grouped by domain and check their own visibility:
+  // Dialog state
+  const { showCreateDialog, setShowCreateDialog, ... } = useWorkflowRoleDialogs()
 
-```tsx
-// components/TeamDialogs.tsx
-export function TeamDialogs() {
-  const {
-    showCreateTeamDialog,
-    selectedTeam,
-    handleCreateTeam,
-    // ...
-  } = useTeamMembersContext()
-  
+  // Dialogs are rendered inline in the tab
   return (
     <>
-      {showCreateTeamDialog && <TeamFormDialog ... />}
-      {showEditTeamDialog && selectedTeam && <TeamFormDialog ... />}
-      {/* ... other team dialogs */}
+      {/* Tab content */}
+      {filteredRoles.map(role => ...)}
+      
+      {/* Dialogs */}
+      {showCreateDialog && <WorkflowRoleFormDialog ... />}
     </>
   )
 }
 ```
 
-Available dialog groups:
-- `TeamDialogs` - Create/edit/delete teams, permissions, vault access
-- `UserDialogs` - Create users, remove users, permissions, vault access
-- `WorkflowRoleDialogs` - Create/edit workflow roles
-- `JobTitleDialogs` - Create/edit job titles, user title assignment
+### Tab Components
+
+Tab components accept a `searchQuery` prop and use hooks internally:
+
+| Tab | Props | Hooks Used |
+|-----|-------|------------|
+| `UsersTab` | `searchQuery`, `onShowCreateUserDialog` | `useMembers`, `useTeams`, `useInvites`, `useWorkflowRoles`, `useFilteredData` |
+| `TeamsTab` | `searchQuery` | `useTeams`, `useMembers`, `useVaultAccess`, `useTeamDialogs`, `useFilteredData` |
+| `RolesTab` | `searchQuery` | `useWorkflowRoles`, `useMembers`, `useWorkflowRoleDialogs` |
+| `TitlesTab` | `searchQuery` | `useJobTitles`, `useMembers`, `useJobTitleDialogs` |
+
+### ConnectedUserRow
+
+The `ConnectedUserRow` component is also self-contained, calling hooks directly:
+
+```tsx
+function ConnectedUserRow({ user, teamContext, compact }: ConnectedUserRowProps) {
+  // Get data from store and hooks
+  const { user: currentUser, organization } = usePDMStore()
+  const { teams } = useTeams(orgId)
+  const { workflowRoles, userRoleAssignments } = useWorkflowRoles(orgId)
+  // ...
+
+  return <UserRow user={user} ... />
+}
+```
 
 ### Hooks Layer
-
-The context internally uses these hooks:
 
 #### Data Hooks (Server State)
 
@@ -184,18 +155,6 @@ The context internally uses these hooks:
 | `useWorkflowRoles` | Workflow roles and assignments | `loadWorkflowRoles`, `createWorkflowRole`, `toggleUserRole` |
 | `useJobTitles` | Job titles | `loadJobTitles`, `createJobTitle`, `assignJobTitle` |
 | `useVaultAccess` | User/team vault access | `loadVaults`, `saveUserVaultAccess`, `saveTeamVaultAccess` |
-
-#### Handler Hooks (Domain-Specific)
-
-Located in `hooks/handlers/`:
-
-| Hook | Purpose |
-|------|---------|
-| `useTeamHandlers` | Team create/update/delete, vault access |
-| `useUserHandlers` | User management, vault access |
-| `useWorkflowRoleHandlers` | Workflow role CRUD |
-| `useJobTitleHandlers` | Job title CRUD, assignments |
-| `usePendingMemberHandlers` | Pending member updates, invites |
 
 #### Dialog/UI State Hooks
 
@@ -268,66 +227,69 @@ Available in `utils.ts`:
 
 ```tsx
 import {
-  TeamMembersProvider,
-  useTeamMembersContext,
   UsersTab,
   TeamsTab,
   RolesTab,
   TitlesTab,
-  TeamDialogs,
-  UserDialogs,
-  WorkflowRoleDialogs,
-  JobTitleDialogs
+  useUIState
 } from './team-members'
 
 function TeamMembersSettings() {
-  return (
-    <TeamMembersProvider>
-      <TeamMembersContent />
-    </TeamMembersProvider>
-  )
-}
-
-function TeamMembersContent() {
-  const { activeTab, isLoading } = useTeamMembersContext()
-  
-  if (isLoading) return <LoadingSpinner />
+  // Tab and search state managed locally
+  const { activeTab, setActiveTab, searchQuery, setSearchQuery } = useUIState()
   
   return (
     <div>
-      {activeTab === 'users' && <UsersTab />}
-      {activeTab === 'teams' && <TeamsTab />}
-      {activeTab === 'roles' && <RolesTab />}
-      {activeTab === 'titles' && <TitlesTab />}
+      {/* Tab navigation */}
+      <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
       
-      {/* Self-contained dialogs */}
-      <TeamDialogs />
-      <UserDialogs />
-      <WorkflowRoleDialogs />
-      <JobTitleDialogs />
+      {/* Search */}
+      <SearchInput value={searchQuery} onChange={setSearchQuery} />
+      
+      {/* Tab content - each tab is self-contained */}
+      {activeTab === 'users' && <UsersTab searchQuery={searchQuery} />}
+      {activeTab === 'teams' && <TeamsTab searchQuery={searchQuery} />}
+      {activeTab === 'roles' && <RolesTab searchQuery={searchQuery} />}
+      {activeTab === 'titles' && <TitlesTab searchQuery={searchQuery} />}
     </div>
   )
 }
 ```
 
-## Migration Notes
+## Architecture Notes
 
-The module supports both old (prop-drilling) and new (context) patterns:
+The module uses a **hooks-based architecture** without context:
 
-- **Legacy**: `TeamMembersDialogs` component with 75+ props
-- **Current**: Self-contained dialog groups using context
+- **Tab Components**: `UsersTab`, `TeamsTab`, `RolesTab`, `TitlesTab`
+  - Each tab calls data hooks directly
+  - Dialogs are rendered inline within tabs
+  - Accept `searchQuery` prop for filtering
 
-Tab components have been refactored to use context and no longer accept props.
+- **ConnectedUserRow**: Self-contained component that calls hooks directly
+  - Wraps the pure `UserRow` component
+  - Each instance is independent
+
+- **Data Hooks**: Cached and efficient
+  - Multiple components can call the same hook
+  - Data is cached per organization ID
+
+- **Dialog State Hooks**: Local state per component
+  - Each tab manages its own dialog visibility
+  - No global dialog state coordination needed
+
+- **VaultAccessDialog**: Generic vault access component used by both user and team dialogs
+  - Located in `components/dialogs/VaultAccessDialog.tsx`
+  - `UserVaultAccessDialog` and `TeamVaultAccessDialog` are thin wrappers
+
+- **TypeScript**: All components use proper Supabase typing via `supabaseHelpers.ts`
 
 ## Exports
 
 The main `index.ts` barrel export provides:
 
-- `TeamMembersProvider`, `useTeamMembersContext` from `./context`
-- All components from `./components`
-- All tab components from `./tabs`
+- All tab components from `./tabs` (with props interfaces)
 - All hooks (data, dialog state, computed, handlers)
-- Domain-specific handler hooks
+- All components from `./components`
 - All types
 - All utility functions
 - All constants

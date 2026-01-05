@@ -4,17 +4,19 @@
  * This module provides all components, hooks, and utilities
  * for the Team Members Settings feature.
  * 
+ * Components now use hooks directly instead of context.
+ * The TeamMembersContext has been removed - tabs and dialog components
+ * are self-contained, calling data hooks internally.
+ * 
  * @module team-members
  */
-
-// Context providers and hooks
-export * from './context'
 
 // All components from organized subfolders
 export * from './components'
 
-// Tab components (use context, no props needed)
+// Tab components (use hooks directly, accept searchQuery prop)
 export { UsersTab, TeamsTab, RolesTab, TitlesTab } from './tabs'
+export type { UsersTabProps, TeamsTabProps, RolesTabProps, TitlesTabProps } from './tabs'
 
 // Data hooks (API calls and state)
 export {

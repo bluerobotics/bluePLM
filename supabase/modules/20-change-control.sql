@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   file_version INTEGER NOT NULL,
   
   -- Status
-  status review_status DEFAULT 'pending',
+  status review_status NOT NULL DEFAULT 'pending',
   completed_at TIMESTAMPTZ,
   
   -- Scheduling
@@ -129,6 +129,13 @@ CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_due_date ON reviews(due_date) WHERE due_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_reviews_priority ON reviews(priority);
+
+-- Migration: Ensure reviews.status has NOT NULL
+UPDATE reviews SET status = 'pending' WHERE status IS NULL;
+DO $$ BEGIN
+  ALTER TABLE reviews ALTER COLUMN status SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- ===========================================
 -- REVIEW RESPONSES

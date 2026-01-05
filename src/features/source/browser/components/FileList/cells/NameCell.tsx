@@ -1,5 +1,9 @@
 /**
  * Name column cell renderer - handles file/folder display with icons, buttons, and avatars
+ * 
+ * Uses both contexts:
+ * - useFileBrowserContext() for UI state
+ * - useFileBrowserHandlers() for action handlers
  */
 import {
   ChevronDown,
@@ -21,30 +25,11 @@ import {
   FolderCheckinButton
 } from '@/components/InlineActionButtons'
 import type { CheckoutUser } from '../../../types'
-import { useFileBrowserContext } from '../../../context'
+import { useFileBrowserContext, useFileBrowserHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
 
-export function NameCell({
-  file,
-  handleRename,
-  isBeingProcessed,
-  getFolderCheckoutStatus,
-  isFolderSynced,
-  canHaveConfigs,
-  toggleFileConfigExpansion,
-  hasPendingConfigChanges,
-  savingConfigsToSW,
-  saveConfigsToSWFile,
-  selectedDownloadableFiles,
-  selectedUploadableFiles,
-  selectedCheckoutableFiles,
-  selectedCheckinableFiles,
-  selectedUpdatableFiles,
-  handleInlineDownload,
-  handleInlineUpload,
-  handleInlineCheckout,
-  handleInlineCheckin,
-}: CellRendererBaseProps): React.ReactNode {
+export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
+  // UI state from FileBrowserContext
   const {
     listRowSize,
     lowercaseExtensions,
@@ -70,6 +55,28 @@ export function NameCell({
     isUpdateHovered,
     setIsUpdateHovered,
   } = useFileBrowserContext()
+
+  // Handlers from FileBrowserHandlersContext
+  const {
+    handleRename,
+    isBeingProcessed,
+    getFolderCheckoutStatus,
+    isFolderSynced,
+    canHaveConfigs,
+    toggleFileConfigExpansion,
+    hasPendingConfigChanges,
+    savingConfigsToSW,
+    saveConfigsToSWFile,
+    selectedDownloadableFiles,
+    selectedUploadableFiles,
+    selectedCheckoutableFiles,
+    selectedCheckinableFiles,
+    selectedUpdatableFiles,
+    handleInlineDownload,
+    handleInlineUpload,
+    handleInlineCheckout,
+    handleInlineCheckin,
+  } = useFileBrowserHandlers()
 
   const isSynced = !!file.pdmData
   const isBeingRenamed = renamingFile?.path === file.path

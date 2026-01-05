@@ -8,10 +8,9 @@
  * @module team-members/WorkflowRoleFormDialog
  */
 
-import * as LucideIcons from 'lucide-react'
-import { Shield } from 'lucide-react'
 import { IconGridPicker } from '@/components/shared/IconPicker'
 import { ColorPickerDropdown } from '@/components/shared/ColorPicker'
+import { getRoleIcon } from '../../utils'
 import type { WorkflowRoleBasic, WorkflowRoleFormData } from '../../types'
 
 export interface WorkflowRoleFormDialogProps {
@@ -83,7 +82,7 @@ export function WorkflowRoleFormDialog({
                 style={{ backgroundColor: `${formData.color}20`, color: formData.color }}
               >
                 {(() => {
-                  const IconComp = (LucideIcons as any)[formData.icon] || Shield
+                  const IconComp = getRoleIcon(formData.icon)
                   return <IconComp size={16} />
                 })()}
               </div>

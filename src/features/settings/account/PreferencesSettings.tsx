@@ -37,11 +37,14 @@ import { isAnalyticsEnabled, initAnalytics } from '@/lib/analytics'
 interface UserSession {
   id: string
   machine_id: string
-  machine_name: string
-  platform: string | null
+  machine_name: string | null
+  os_version: string | null
   app_version: string | null
-  last_seen: string
-  is_active: boolean
+  platform: string | null
+  last_active: string | null
+  last_seen: string | null
+  is_active: boolean | null
+  created_at: string | null
 }
 
 // Only show languages that have actual translations (not English fallback)
@@ -138,7 +141,8 @@ export function PreferencesSettings() {
           .order('last_seen', { ascending: false })
 
         if (!error && data) {
-          setSessions(data)
+          // Cast to UserSession[] - Supabase types may be out of sync with actual schema
+          setSessions(data as unknown as UserSession[])
         }
       } catch (err) {
         console.error('Error loading sessions:', err)
@@ -160,7 +164,8 @@ export function PreferencesSettings() {
     setOrganization(null)
   }
 
-  const formatLastSeen = (lastSeen: string) => {
+  const formatLastSeen = (lastSeen: string | null) => {
+    if (!lastSeen) return 'unknown'
     const date = new Date(lastSeen)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()

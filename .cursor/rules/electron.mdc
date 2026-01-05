@@ -1,40 +1,36 @@
 ---
-description: Electron main process and IPC rules
+description: Electron main process and IPC security
 globs:
   - electron/**/*.ts
   - src/electron.d.ts
 ---
 
-# Electron Development Rules
+# Electron Security Model
 
-## IPC Communication
+## IPC Architecture
 
-- All IPC goes through `window.electronAPI` (defined in `src/electron.d.ts`)
-- **Renderer → Main**: Promise-based calls (e.g., `listWorkingFiles()`)
-- **Main → Renderer**: Event listeners (e.g., `onUpdateAvailable`)
+```
+Renderer ──Promise──> window.electronAPI ──IPC──> Main Process
+Renderer <──Event─── window.electronAPI <──IPC─── Main Process
+```
 
-## Security Requirements
+All IPC goes through `window.electronAPI` (defined in `src/electron.d.ts`).
 
-- **NEVER expose Node.js APIs directly to renderer**
-- Context isolation must remain enabled
-- Validate all IPC messages in main process
-- Sanitize file paths to prevent directory traversal
+## Security Invariants
 
-## Preload Script (`electron/preload.ts`)
+- Node.js APIs: NEVER exposed to renderer
+- Context isolation: always enabled
+- File paths: sanitize against traversal (`../`)
+- IPC inputs: validate in main process
 
-- Only expose safe, validated APIs
-- Use `contextBridge.exposeInMainWorld`
-- Keep exposed API surface minimal
+## Adding New IPC
 
-## Main Process (`electron/main.ts`)
+1. Define type in `src/electron.d.ts`
+2. Implement handler in `electron/handlers/`
+3. Expose via `preload.ts` contextBridge
 
-- Handle all file system operations here
-- Implement proper error handling for IPC handlers
-- Log errors with structured logging
+## Test Mode
 
-## Testing
-
-Run UI tests with test mode to bypass single-instance lock:
 ```bash
 npm run dev -- -- --test-mode
 # or

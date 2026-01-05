@@ -311,7 +311,59 @@ CREATE TRIGGER ensure_single_default
   FOR EACH ROW
   EXECUTE FUNCTION ensure_single_default_address();
 
--- RLS Policies for organization_addresses
+-- NOTE: RLS Policies for organization_addresses are defined AFTER users table (they reference users)
+
+-- ===========================================
+-- USERS
+-- ===========================================
+
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL UNIQUE,
+  full_name TEXT,
+  avatar_url TEXT,
+  custom_avatar_url TEXT,
+  job_title TEXT,
+  org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
+  role user_role NOT NULL DEFAULT 'engineer',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  last_sign_in TIMESTAMPTZ,
+  last_online TIMESTAMPTZ
+);
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'job_title') THEN
+    ALTER TABLE users ADD COLUMN job_title TEXT;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'last_online') THEN
+    ALTER TABLE users ADD COLUMN last_online TIMESTAMPTZ;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'custom_avatar_url') THEN
+    ALTER TABLE users ADD COLUMN custom_avatar_url TEXT;
+  END IF;
+END $$;
+
+-- Ensure role column has NOT NULL (set default for any existing NULLs first)
+UPDATE users SET role = 'engineer' WHERE role IS NULL;
+DO $$ BEGIN
+  ALTER TABLE users ALTER COLUMN role SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_users_org_id ON users(org_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- ===========================================
+-- RLS POLICIES FOR ORGANIZATION_ADDRESSES
+-- (Defined here because they reference the users table)
+-- ===========================================
+
 ALTER TABLE organization_addresses ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view org addresses" ON organization_addresses;
@@ -342,45 +394,6 @@ CREATE POLICY "Admins can delete addresses"
     EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND org_id = organization_addresses.org_id)
     AND is_org_admin()
   );
-
--- ===========================================
--- USERS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT NOT NULL UNIQUE,
-  full_name TEXT,
-  avatar_url TEXT,
-  custom_avatar_url TEXT,
-  job_title TEXT,
-  org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
-  role user_role DEFAULT 'engineer',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  last_sign_in TIMESTAMPTZ,
-  last_online TIMESTAMPTZ
-);
-
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'job_title') THEN
-    ALTER TABLE users ADD COLUMN job_title TEXT;
-  END IF;
-END $$;
-
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'last_online') THEN
-    ALTER TABLE users ADD COLUMN last_online TIMESTAMPTZ;
-  END IF;
-END $$;
-
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'custom_avatar_url') THEN
-    ALTER TABLE users ADD COLUMN custom_avatar_url TEXT;
-  END IF;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_users_org_id ON users(org_id);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- ===========================================
 -- BLOCKED USERS
@@ -420,8 +433,8 @@ CREATE TABLE IF NOT EXISTS teams (
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
-  color TEXT DEFAULT '#3b82f6',
-  icon TEXT DEFAULT 'Users',
+  color TEXT NOT NULL DEFAULT '#3b82f6',
+  icon TEXT NOT NULL DEFAULT 'Users',
   parent_team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   created_by UUID REFERENCES users(id),
@@ -440,6 +453,15 @@ CREATE INDEX IF NOT EXISTS idx_teams_parent ON teams(parent_team_id);
 DO $$ BEGIN
   ALTER TABLE teams ADD COLUMN module_defaults JSONB DEFAULT NULL;
 EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+-- Ensure color and icon columns have NOT NULL (set defaults for any existing NULLs first)
+UPDATE teams SET color = '#3b82f6' WHERE color IS NULL;
+UPDATE teams SET icon = 'Users' WHERE icon IS NULL;
+DO $$ BEGIN
+  ALTER TABLE teams ALTER COLUMN color SET NOT NULL;
+  ALTER TABLE teams ALTER COLUMN icon SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
 END $$;
 
 -- ===========================================
@@ -735,16 +757,40 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   machine_id TEXT NOT NULL,
   machine_name TEXT,
+  platform TEXT,
   os_version TEXT,
   app_version TEXT,
+  is_active BOOLEAN DEFAULT true,
   last_active TIMESTAMPTZ DEFAULT NOW(),
+  last_seen TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   
   UNIQUE(user_id, machine_id)
 );
 
+-- Add new columns to existing user_sessions table (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'platform') THEN
+    ALTER TABLE user_sessions ADD COLUMN platform TEXT;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'is_active') THEN
+    ALTER TABLE user_sessions ADD COLUMN is_active BOOLEAN DEFAULT true;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sessions' AND column_name = 'last_seen') THEN
+    ALTER TABLE user_sessions ADD COLUMN last_seen TIMESTAMPTZ DEFAULT NOW();
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_org_id ON user_sessions(org_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_seen);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_is_active ON user_sessions(is_active);
 
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 
@@ -752,6 +798,11 @@ DROP POLICY IF EXISTS "Users can view their sessions" ON user_sessions;
 CREATE POLICY "Users can view their sessions"
   ON user_sessions FOR SELECT
   USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Org members can view sessions" ON user_sessions;
+CREATE POLICY "Org members can view sessions"
+  ON user_sessions FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "Users can manage their sessions" ON user_sessions;
 CREATE POLICY "Users can manage their sessions"

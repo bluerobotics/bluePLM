@@ -1,9 +1,9 @@
 // Workflow Roles Modal - Manage a user's workflow role assignments
 import { useState } from 'react'
-import * as LucideIcons from 'lucide-react'
 import { Shield, Search, Plus, X, Check, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { ColorPickerDropdown } from '@/components/shared/ColorPicker'
 import { IconGridPicker } from '@/components/shared/IconPicker'
+import { getRoleIcon } from '../../utils'
 import type { WorkflowRolesModalProps, WorkflowRoleBasic } from '../../types'
 
 export function WorkflowRolesModal({
@@ -143,13 +143,13 @@ export function WorkflowRolesModal({
           ) : (
             <>
               {filteredRoles.map(role => {
-                const RoleIcon = (LucideIcons as any)[role.icon] || Shield
+                const RoleIcon = getRoleIcon(role.icon)
                 const isSelected = selectedRoleIds.includes(role.id)
                 const isEditing = editingRoleId === role.id
                 const isDeleting = deletingRoleId === role.id
                 
                 if (isEditing) {
-                  const EditIcon = (LucideIcons as any)[editIcon] || Shield
+                  const EditIcon = getRoleIcon(editIcon)
                   return (
                     <div key={role.id} className="p-3 rounded-lg border border-plm-accent bg-plm-accent/5 space-y-3">
                       <div className="flex items-center justify-between">

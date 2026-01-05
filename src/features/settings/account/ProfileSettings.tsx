@@ -22,9 +22,9 @@ interface RFQRecord {
   id: string
   rfq_number: string
   title: string | null
-  status: string
-  created_at: string
-  created_by: string
+  status: string | null
+  created_at: string | null
+  created_by: string | null
 }
 
 export function ProfileSettings() {
@@ -254,7 +254,8 @@ export function ProfileSettings() {
     loadRFQs()
   }, [user, organization])
   
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
+    if (!status) return 'bg-gray-500/20 text-gray-400'
     switch (status) {
       case 'open':
       case 'draft':
@@ -272,7 +273,8 @@ export function ProfileSettings() {
     }
   }
   
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'unknown'
     return new Date(dateStr).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -505,7 +507,7 @@ export function ProfileSettings() {
                     </div>
                   </div>
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(rfq.status)}`}>
-                    {rfq.status.replace('_', ' ')}
+                    {(rfq.status || 'unknown').replace('_', ' ')}
                   </span>
                 </div>
               ))}

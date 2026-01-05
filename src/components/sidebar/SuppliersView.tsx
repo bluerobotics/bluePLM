@@ -32,12 +32,12 @@ interface Supplier {
   website: string | null
   city: string | null
   state: string | null
-  country: string
-  is_active: boolean
-  is_approved: boolean
+  country: string | null
+  is_active: boolean | null
+  is_approved: boolean | null
   erp_id: string | null
   erp_synced_at: string | null
-  created_at: string
+  created_at: string | null
 }
 
 export function SuppliersView() {

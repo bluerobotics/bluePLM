@@ -1,28 +1,114 @@
 /**
  * TitlesTab - Displays and manages job titles
  * 
- * Shows a list of job titles with assigned users and admin actions
- * for editing and deleting titles.
+ * This component uses hooks directly instead of context:
+ * - usePDMStore for user/org info
+ * - useJobTitles for data
+ * - useJobTitleDialogs for dialog state
+ * - useMembers for user data
  */
 import * as LucideIcons from 'lucide-react'
 import { Briefcase, Plus, Pencil, Trash2 } from 'lucide-react'
 import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
-import { useTeamMembersContext } from '../context'
+import { usePDMStore } from '@/stores/pdmStore'
+import { useMembers, useJobTitles, useJobTitleDialogs } from '../hooks'
+import { JobTitleFormDialog } from '../components/dialogs'
 
-export function TitlesTab() {
+export interface TitlesTabProps {
+  /** Search query for filtering titles */
+  searchQuery?: string
+}
+
+export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
+  // Get user/org info from store
+  const { organization, getEffectiveRole, addToast } = usePDMStore()
+  const orgId = organization?.id ?? null
+  const isAdmin = getEffectiveRole() === 'admin'
+
+  // Data hooks
   const {
     jobTitles,
-    orgUsers,
-    searchQuery,
-    isAdmin,
-    openEditJobTitle,
-    openCreateJobTitle,
-    handleDeleteJobTitle
-  } = useTeamMembersContext()
+    createJobTitle,
+    updateJobTitle,
+    deleteJobTitle
+  } = useJobTitles(orgId)
+  
+  const { members: orgUsers } = useMembers(orgId)
 
+  // Dialog state
+  const {
+    showCreateTitleDialog,
+    setShowCreateTitleDialog,
+    editingJobTitle,
+    setEditingJobTitle,
+    pendingTitleForUser,
+    setPendingTitleForUser,
+    newTitleName,
+    setNewTitleName,
+    newTitleColor,
+    setNewTitleColor,
+    newTitleIcon,
+    setNewTitleIcon,
+    isCreatingTitle,
+    setIsCreatingTitle,
+    openEditTitleDialog,
+    openCreateTitleDialog,
+    resetTitleForm
+  } = useJobTitleDialogs()
+
+  // Filter titles by search
   const filteredTitles = jobTitles.filter(t => 
     !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  // Handlers
+  const handleCreateTitle = async () => {
+    if (!newTitleName.trim()) return
+    setIsCreatingTitle(true)
+    try {
+      const success = await createJobTitle(
+        newTitleName.trim(),
+        newTitleColor,
+        newTitleIcon,
+        pendingTitleForUser?.id
+      )
+      if (success) {
+        setShowCreateTitleDialog(false)
+        resetTitleForm()
+      }
+    } finally {
+      setIsCreatingTitle(false)
+    }
+  }
+
+  const handleUpdateJobTitle = async () => {
+    if (!editingJobTitle || !newTitleName.trim()) return
+    setIsCreatingTitle(true)
+    try {
+      const success = await updateJobTitle(
+        editingJobTitle.id,
+        newTitleName.trim(),
+        newTitleColor,
+        newTitleIcon
+      )
+      if (success) {
+        setShowCreateTitleDialog(false)
+        resetTitleForm()
+      }
+    } finally {
+      setIsCreatingTitle(false)
+    }
+  }
+
+  const handleDeleteJobTitle = async (title: { id: string; name: string }) => {
+    if (!confirm(`Delete job title "${title.name}"? Users with this title will have it removed.`)) {
+      return
+    }
+    const success = await deleteJobTitle(title.id)
+    if (success) {
+      addToast('success', `Deleted title "${title.name}"`)
+    }
+  }
 
   if (filteredTitles.length === 0) {
     return (
@@ -34,7 +120,7 @@ export function TitlesTab() {
           </p>
           {isAdmin && !searchQuery && (
             <button
-              onClick={openCreateJobTitle}
+              onClick={() => openCreateTitleDialog()}
               className="btn btn-primary btn-sm"
             >
               <Plus size={14} className="mr-1" />
@@ -42,6 +128,27 @@ export function TitlesTab() {
             </button>
           )}
         </div>
+
+        {/* Dialog */}
+        {showCreateTitleDialog && (
+          <JobTitleFormDialog
+            editingTitle={editingJobTitle}
+            titleName={newTitleName}
+            setTitleName={setNewTitleName}
+            titleColor={newTitleColor}
+            setTitleColor={setNewTitleColor}
+            titleIcon={newTitleIcon}
+            setTitleIcon={setNewTitleIcon}
+            pendingTitleForUser={pendingTitleForUser}
+            onSave={editingJobTitle ? handleUpdateJobTitle : handleCreateTitle}
+            onClose={() => {
+              setShowCreateTitleDialog(false)
+              setEditingJobTitle(null)
+              setPendingTitleForUser(null)
+            }}
+            isSaving={isCreatingTitle}
+          />
+        )}
       </div>
     )
   }
@@ -110,7 +217,7 @@ export function TitlesTab() {
                 {isAdmin && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => openEditJobTitle(title)}
+                      onClick={() => openEditTitleDialog(title)}
                       className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
                       title="Edit title"
                     >
@@ -136,9 +243,27 @@ export function TitlesTab() {
         Job titles are display-only labels. Editing a title updates it for all users who have it assigned.
         All permissions come from teams.
       </p>
+
+      {/* Dialog */}
+      {showCreateTitleDialog && (
+        <JobTitleFormDialog
+          editingTitle={editingJobTitle}
+          titleName={newTitleName}
+          setTitleName={setNewTitleName}
+          titleColor={newTitleColor}
+          setTitleColor={setNewTitleColor}
+          titleIcon={newTitleIcon}
+          setTitleIcon={setNewTitleIcon}
+          pendingTitleForUser={pendingTitleForUser}
+          onSave={editingJobTitle ? handleUpdateJobTitle : handleCreateTitle}
+          onClose={() => {
+            setShowCreateTitleDialog(false)
+            setEditingJobTitle(null)
+            setPendingTitleForUser(null)
+          }}
+          isSaving={isCreatingTitle}
+        />
+      )}
     </div>
   )
 }
-
-// Export props type for backward compatibility (can be removed later)
-export type TitlesTabProps = Record<string, never>

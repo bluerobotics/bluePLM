@@ -915,7 +915,8 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                       const isCurrentDevice = session.machine_id === currentMachineId
                       const isSigningOut = signingOutSessionId === session.id
                       // Format last seen for other devices
-                      const formatLastSeen = (lastSeen: string) => {
+                      const formatLastSeen = (lastSeen: string | null) => {
+                        if (!lastSeen) return 'unknown'
                         const diff = Math.floor((Date.now() - new Date(lastSeen).getTime()) / 1000)
                         if (diff < 60) return 'now'
                         if (diff < 120) return '1m ago'

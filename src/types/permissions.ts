@@ -189,12 +189,13 @@ export interface Team {
   color: string
   icon: string
   parent_team_id: string | null
-  created_at: string
+  created_at: string | null
   created_by: string | null
-  updated_at: string
+  updated_at: string | null
   updated_by: string | null
-  is_default: boolean
-  is_system: boolean
+  is_default: boolean | null
+  is_system: boolean | null
+  module_defaults?: unknown
   // Computed/joined
   member_count?: number
   members?: TeamMember[]

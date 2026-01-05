@@ -1,5 +1,8 @@
 /**
  * Cell renderer - uses strategy pattern to delegate to column-specific components
+ * 
+ * Props have been simplified from 20+ to just 2 (file, columnId).
+ * Cell components now get handlers from FileBrowserHandlersContext.
  */
 import type React from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
@@ -41,57 +44,29 @@ const cellRenderers: Record<string, React.FC<CellRendererBaseProps>> = {
   modifiedTime: ModifiedTimeCell,
 }
 
+/**
+ * Simplified cell renderer props - handlers come from context
+ */
 export interface CellRendererProps {
-  // Per-cell data
   file: LocalFile
   columnId: string
-  
-  // Handlers
-  handleRename: () => void
-  isBeingProcessed: (path: string) => boolean
-  getFolderCheckoutStatus: (path: string) => 'mine' | 'others' | 'both' | null
-  isFolderSynced: (path: string) => boolean
-  isFileEditable: (file: LocalFile) => boolean
-  
-  // Config handlers
-  canHaveConfigs: (file: LocalFile) => boolean
-  toggleFileConfigExpansion: (file: LocalFile) => void
-  hasPendingConfigChanges: (file: LocalFile) => boolean
-  savingConfigsToSW: Set<string>
-  saveConfigsToSWFile: (file: LocalFile) => void
-  
-  // Inline editing handlers
-  handleSaveCellEdit: () => void
-  handleCancelCellEdit: () => void
-  handleStartCellEdit: (file: LocalFile, column: string) => void
-  
-  // Selected file lists
-  selectedDownloadableFiles: LocalFile[]
-  selectedUploadableFiles: LocalFile[]
-  selectedCheckoutableFiles: LocalFile[]
-  selectedCheckinableFiles: LocalFile[]
-  selectedUpdatableFiles: LocalFile[]
-  
-  // Inline action handlers
-  handleInlineDownload: (e: React.MouseEvent, file: LocalFile) => void
-  handleInlineUpload: (e: React.MouseEvent, file: LocalFile) => void
-  handleInlineCheckout: (e: React.MouseEvent, file: LocalFile) => void
-  handleInlineCheckin: (e: React.MouseEvent, file: LocalFile) => void
 }
 
 /**
  * Main cell renderer - delegates to appropriate cell component based on columnId
+ * 
+ * Cell components get handlers from FileBrowserHandlersContext, eliminating prop drilling.
  */
 export function CellRenderer({
+  file,
   columnId,
-  ...props
 }: CellRendererProps): React.ReactNode {
   const { customMetadataColumns } = useFileBrowserContext()
   
   // Check if this is a known column
   const Renderer = cellRenderers[columnId]
   if (Renderer) {
-    return <Renderer {...props} />
+    return <Renderer file={file} />
   }
   
   // Check if this is a custom metadata column
@@ -99,7 +74,7 @@ export function CellRenderer({
     const columnName = columnId.replace('custom_', '')
     return (
       <CustomCell 
-        {...props} 
+        file={file}
         columnName={columnName}
         customMetadataColumns={customMetadataColumns}
       />

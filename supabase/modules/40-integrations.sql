@@ -268,20 +268,20 @@ CREATE TABLE IF NOT EXISTS webhooks (
   
   -- Configuration
   events webhook_event[] NOT NULL DEFAULT '{}',
-  is_active BOOLEAN DEFAULT TRUE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   
   -- User filtering
-  trigger_filter TEXT DEFAULT 'everyone' CHECK (trigger_filter IN ('everyone', 'roles', 'users')),
-  trigger_roles TEXT[] DEFAULT '{}',
-  trigger_user_ids UUID[] DEFAULT '{}',
+  trigger_filter TEXT NOT NULL DEFAULT 'everyone' CHECK (trigger_filter IN ('everyone', 'roles', 'users')),
+  trigger_roles TEXT[] NOT NULL DEFAULT '{}',
+  trigger_user_ids UUID[] NOT NULL DEFAULT '{}',
   
   -- Headers
-  custom_headers JSONB DEFAULT '{}'::jsonb,
+  custom_headers JSONB NOT NULL DEFAULT '{}'::jsonb,
   
   -- Retry configuration
-  max_retries INTEGER DEFAULT 3,
-  retry_delay_seconds INTEGER DEFAULT 60,
-  timeout_seconds INTEGER DEFAULT 30,
+  max_retries INTEGER NOT NULL DEFAULT 3,
+  retry_delay_seconds INTEGER NOT NULL DEFAULT 60,
+  timeout_seconds INTEGER NOT NULL DEFAULT 30,
   
   -- Metadata
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -297,6 +297,27 @@ CREATE TABLE IF NOT EXISTS webhooks (
 
 CREATE INDEX IF NOT EXISTS idx_webhooks_org_id ON webhooks(org_id);
 CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(org_id, is_active) WHERE is_active = TRUE;
+
+-- Migration: Ensure webhooks columns have NOT NULL (set defaults for any existing NULLs first)
+UPDATE webhooks SET is_active = TRUE WHERE is_active IS NULL;
+UPDATE webhooks SET trigger_filter = 'everyone' WHERE trigger_filter IS NULL;
+UPDATE webhooks SET trigger_roles = '{}' WHERE trigger_roles IS NULL;
+UPDATE webhooks SET trigger_user_ids = '{}' WHERE trigger_user_ids IS NULL;
+UPDATE webhooks SET custom_headers = '{}'::jsonb WHERE custom_headers IS NULL;
+UPDATE webhooks SET max_retries = 3 WHERE max_retries IS NULL;
+UPDATE webhooks SET retry_delay_seconds = 60 WHERE retry_delay_seconds IS NULL;
+UPDATE webhooks SET timeout_seconds = 30 WHERE timeout_seconds IS NULL;
+DO $$ BEGIN
+  ALTER TABLE webhooks ALTER COLUMN is_active SET NOT NULL;
+  ALTER TABLE webhooks ALTER COLUMN trigger_filter SET NOT NULL;
+  ALTER TABLE webhooks ALTER COLUMN trigger_roles SET NOT NULL;
+  ALTER TABLE webhooks ALTER COLUMN trigger_user_ids SET NOT NULL;
+  ALTER TABLE webhooks ALTER COLUMN custom_headers SET NOT NULL;
+  ALTER TABLE webhooks ALTER COLUMN max_retries SET NOT NULL;
+  ALTER TABLE webhooks ALTER COLUMN retry_delay_seconds SET NOT NULL;
+  ALTER TABLE webhooks ALTER COLUMN timeout_seconds SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- ===========================================
 -- WEBHOOK DELIVERIES

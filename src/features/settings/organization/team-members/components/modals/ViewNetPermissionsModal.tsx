@@ -1,6 +1,6 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 import { useState, useEffect, useMemo } from 'react'
 import * as LucideIcons from 'lucide-react'
+import type React from 'react'
 import {
   Shield,
   X,
@@ -25,16 +25,29 @@ import {
 import { supabase } from '@/lib/supabase'
 import { getEffectiveAvatarUrl } from '@/types/pdm'
 import { PERMISSION_RESOURCE_GROUPS } from '../../constants'
-import type { OrgUser, Vault, TeamWithDetails, ViewNetPermissionsModalProps } from '../../types'
+import type { ViewNetPermissionsModalProps } from '../../types'
 import type { PermissionAction } from '@/types/permissions'
+
+// Types for Supabase query results
+interface TeamVaultAccessResult {
+  vault_id: string
+  team_id: string
+}
+
+interface TeamPermissionResult {
+  resource: string
+  actions: PermissionAction[]
+}
 
 export function ViewNetPermissionsModal({
   user,
   vaultAccessCount,
   orgVaults,
-  teams,
+  teams: _teams,
   onClose
 }: ViewNetPermissionsModalProps) {
+  // Note: teams prop is received but user.teams is used instead for consistency
+  void _teams
   const [isLoading, setIsLoading] = useState(true)
   const [permissions, setPermissions] = useState<Record<string, PermissionAction[]>>({})
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -69,7 +82,8 @@ export function ViewNetPermissionsModal({
         .select('vault_id')
         .in('team_id', userTeamIds)
       
-      const vaultIds = [...new Set((data || []).map(d => d.vault_id))]
+      const typedData = (data || []) as unknown as TeamVaultAccessResult[]
+      const vaultIds = [...new Set(typedData.map(d => d.vault_id))]
       setUserVaultIds(vaultIds)
     }
     
@@ -98,13 +112,15 @@ export function ViewNetPermissionsModal({
         
         if (error) throw error
         
+        const typedPerms = (data || []) as unknown as TeamPermissionResult[]
+        
         // Merge permissions - union of all actions for each resource
         const mergedPerms: Record<string, Set<PermissionAction>> = {}
-        for (const perm of data || []) {
+        for (const perm of typedPerms) {
           if (!mergedPerms[perm.resource]) {
             mergedPerms[perm.resource] = new Set()
           }
-          for (const action of (perm.actions as PermissionAction[])) {
+          for (const action of perm.actions) {
             mergedPerms[perm.resource].add(action)
           }
         }
@@ -126,10 +142,11 @@ export function ViewNetPermissionsModal({
           .select('team_id, vault_id')
           .in('team_id', userTeamIds)
         
+        const typedTeamVaultData = (teamVaultData || []) as unknown as TeamVaultAccessResult[]
         const teamsByVault: Record<string, string[]> = {}
         const teamsWithRestrictions = new Set<string>()
         
-        for (const tv of teamVaultData || []) {
+        for (const tv of typedTeamVaultData) {
           teamsWithRestrictions.add(tv.team_id)
           if (!teamsByVault[tv.vault_id]) {
             teamsByVault[tv.vault_id] = []
@@ -152,13 +169,14 @@ export function ViewNetPermissionsModal({
             .select('resource, actions')
             .in('team_id', teamsForVault)
           
+          const typedVaultTeamPerms = (vaultTeamPerms || []) as unknown as TeamPermissionResult[]
           const vaultPermsObj: Record<string, PermissionAction[]> = {}
-          for (const perm of vaultTeamPerms || []) {
+          for (const perm of typedVaultTeamPerms) {
             if (sourceFilesResources.includes(perm.resource)) {
               if (!vaultPermsObj[perm.resource]) {
                 vaultPermsObj[perm.resource] = []
               }
-              for (const action of (perm.actions as PermissionAction[])) {
+              for (const action of perm.actions) {
                 if (!vaultPermsObj[perm.resource].includes(action)) {
                   vaultPermsObj[perm.resource].push(action)
                 }
@@ -277,7 +295,7 @@ export function ViewNetPermissionsModal({
               {(user.teams || []).length > 0 ? (
                 <>
                   {(user.teams || []).map(team => {
-                    const TeamIcon = (LucideIcons as any)[team.icon] || UsersRound
+                    const TeamIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[team.icon] || UsersRound
                     return (
                       <div
                         key={team.id}
@@ -304,7 +322,7 @@ export function ViewNetPermissionsModal({
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-plm-fg-muted mr-1">Roles:</span>
                 {(user.workflow_roles || []).map(wfRole => {
-                  const WfRoleIcon = (LucideIcons as any)[wfRole.icon] || Shield
+                  const WfRoleIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[wfRole.icon] || Shield
                   return (
                     <div
                       key={wfRole.id}
@@ -413,7 +431,7 @@ export function ViewNetPermissionsModal({
                 
                 const isExpanded = expandedGroups.has(group.id)
                 const stats = getGroupStats(group.id)
-                const GroupIcon = (LucideIcons as any)[group.icon] || Settings2
+                const GroupIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[group.icon] || Settings2
                 
                 return (
                   <div key={group.id} className="border border-plm-border rounded-xl overflow-hidden bg-plm-bg/30">
@@ -490,7 +508,7 @@ export function ViewNetPermissionsModal({
                           const resource = ALL_RESOURCES.find(r => r.id === resourceId)
                           if (!resource) return null
                           
-                          const ResourceIcon = (LucideIcons as any)[resource.icon] || Shield
+                          const ResourceIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[resource.icon] || Shield
                           
                           // For source-files, use vault-specific permissions
                           let currentActions: PermissionAction[] = []

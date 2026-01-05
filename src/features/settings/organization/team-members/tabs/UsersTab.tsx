@@ -1,10 +1,15 @@
 /**
  * UsersTab - Displays and manages organization users
  * 
- * Shows all organization members with inline actions for managing
- * teams, workflow roles, job titles, and permissions.
- * Also displays pending members who haven't yet signed in.
+ * This component uses hooks directly instead of context:
+ * - usePDMStore for user/org info
+ * - useMembers for user data
+ * - useTeams for team data
+ * - useWorkflowRoles for role data
+ * - useInvites for pending members
+ * - useFilteredData for search filtering
  */
+import { useState, useCallback } from 'react'
 import * as LucideIcons from 'lucide-react'
 import {
   UsersRound,
@@ -22,32 +27,80 @@ import {
   UserCog,
   Loader2
 } from 'lucide-react'
+import { usePDMStore } from '@/stores/pdmStore'
+import {
+  useMembers,
+  useTeams,
+  useWorkflowRoles,
+  useInvites,
+  useFilteredData
+} from '../hooks'
 import { ConnectedUserRow } from '../components/user'
-import { useTeamMembersContext } from '../context'
 import { pendingMemberToOrgUser } from '../utils'
+import type { PendingMember, PendingMemberFormData } from '../types'
 
-export function UsersTab() {
+export interface UsersTabProps {
+  /** Search query for filtering users */
+  searchQuery?: string
+  /** Called when the "Add User" button should trigger a dialog in the parent */
+  onShowCreateUserDialog?: () => void
+}
+
+export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabProps) {
+  // Get user/org info from store
+  const { organization, getEffectiveRole, apiServerUrl, startUserImpersonation } = usePDMStore()
+  const orgId = organization?.id ?? null
+  const isAdmin = getEffectiveRole() === 'admin'
+
+  // Data hooks
+  const { members: orgUsers } = useMembers(orgId)
+  const { teams } = useTeams(orgId)
+  const { workflowRoles } = useWorkflowRoles(orgId)
   const {
-    filteredAllUsers,
-    orgUsers,
-    teams,
-    workflowRoles,
     pendingMembers,
-    isAdmin,
-    apiServerUrl,
-    setShowCreateUserDialog,
-    // Pending member state & handlers
-    showPendingMembers,
-    setShowPendingMembers,
-    pendingMemberDropdownOpen,
-    setPendingMemberDropdownOpen,
-    setViewingPendingMemberPermissions,
-    openEditPendingMember,
-    handleResendInvite,
-    resendingInviteId,
     deletePendingMember,
-    startUserImpersonation
-  } = useTeamMembersContext()
+    resendInvite
+  } = useInvites(orgId)
+
+  // Filtered data
+  const { filteredAllUsers } = useFilteredData({ orgUsers, teams, searchQuery })
+
+  // Local UI state for pending members section
+  const [showPendingMembers, setShowPendingMembers] = useState(true)
+  const [pendingMemberDropdownOpen, setPendingMemberDropdownOpen] = useState<string | null>(null)
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null)
+  
+  // Pending member editing state
+  const [, setEditingPendingMember] = useState<PendingMember | null>(null)
+  const [, setPendingMemberForm] = useState<PendingMemberFormData>({
+    full_name: '',
+    team_ids: [],
+    workflow_role_ids: [],
+    vault_ids: []
+  })
+  
+  // View permissions modal state
+  const [, setViewingPendingMemberPermissions] = useState<PendingMember | null>(null)
+
+  // Handlers
+  const handleResendInvite = useCallback(async (pm: PendingMember) => {
+    setResendingInviteId(pm.id)
+    try {
+      await resendInvite(pm)
+    } finally {
+      setResendingInviteId(null)
+    }
+  }, [resendInvite])
+
+  const openEditPendingMember = useCallback((pm: PendingMember) => {
+    setEditingPendingMember(pm)
+    setPendingMemberForm({
+      full_name: pm.full_name || '',
+      team_ids: pm.team_ids || [],
+      workflow_role_ids: pm.workflow_role_ids || [],
+      vault_ids: pm.vault_ids || []
+    })
+  }, [])
 
   return (
     <>
@@ -59,9 +112,9 @@ export function UsersTab() {
             <p className="text-sm text-plm-fg-muted mb-4">
               {orgUsers.length === 0 ? 'No users yet' : 'No users match your search'}
             </p>
-            {isAdmin && orgUsers.length === 0 && (
+            {isAdmin && orgUsers.length === 0 && onShowCreateUserDialog && (
               <button
-                onClick={() => setShowCreateUserDialog(true)}
+                onClick={onShowCreateUserDialog}
                 className="btn btn-primary btn-sm"
               >
                 <UserPlus size={14} className="mr-1" />
@@ -248,6 +301,3 @@ export function UsersTab() {
     </>
   )
 }
-
-// Export props type for backward compatibility (can be removed later)
-export type UsersTabProps = Record<string, never>

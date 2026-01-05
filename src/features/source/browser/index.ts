@@ -191,5 +191,15 @@ export {
 } from './constants'
 
 // Context
-export { FileBrowserProvider, useFileBrowserContext } from './context'
-export type { FileBrowserContextValue, FileBrowserProviderProps } from './context'
+export { 
+  FileBrowserProvider, 
+  useFileBrowserContext,
+  FileBrowserHandlersProvider,
+  useFileBrowserHandlers
+} from './context'
+export type { 
+  FileBrowserContextValue, 
+  FileBrowserProviderProps,
+  FileBrowserHandlersContextValue,
+  FileBrowserHandlersProviderProps
+} from './context'

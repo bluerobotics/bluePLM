@@ -1,6 +1,6 @@
 // @ts-nocheck - Supabase type inference with Database generics has known issues in v2.x
 import { getSupabaseClient } from './client'
-import type { Review, ReviewResponse, Notification, ReviewStatus } from '../../types/database'
+import type { Review, ReviewResponse, Notification, NotificationWithDetails, ReviewStatus } from '../../types/database'
 
 // ============================================
 // Reviews
@@ -287,7 +287,7 @@ export async function getNotifications(
     unreadOnly?: boolean
     limit?: number
   }
-): Promise<{ notifications: Notification[]; error?: string }> {
+): Promise<{ notifications: NotificationWithDetails[]; error?: string }> {
   const client = getSupabaseClient()
   
   let query = client
@@ -314,7 +314,16 @@ export async function getNotifications(
     return { notifications: [], error: error.message }
   }
   
-  return { notifications: (data as unknown as Notification[]) || [] }
+  // Map entity_id to review_id for review-type notifications
+  const notifications = (data || []).map((n: unknown) => {
+    const notification = n as NotificationWithDetails
+    if (notification.entity_type === 'review' && notification.entity_id) {
+      notification.review_id = notification.entity_id
+    }
+    return notification
+  })
+  
+  return { notifications }
 }
 
 /**

@@ -7,10 +7,9 @@
  * @module team-members/JobTitleFormDialog
  */
 
-import * as LucideIcons from 'lucide-react'
-import { Briefcase } from 'lucide-react'
 import { IconGridPicker } from '@/components/shared/IconPicker'
 import { ColorPickerDropdown } from '@/components/shared/ColorPicker'
+import { getTitleIcon } from '../../utils'
 import type { OrgUser, JobTitle } from '../../types'
 
 export interface JobTitleFormDialogProps {
@@ -79,7 +78,7 @@ export function JobTitleFormDialog({
                 style={{ backgroundColor: `${titleColor}20`, color: titleColor }}
               >
                 {(() => {
-                  const IconComp = (LucideIcons as any)[titleIcon] || Briefcase
+                  const IconComp = getTitleIcon(titleIcon)
                   return <IconComp size={16} />
                 })()}
               </div>

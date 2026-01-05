@@ -1,6 +1,8 @@
 // Workflow Types for BluePLM
 // SolidWorks PDM-style workflow system with states, transitions, permissions, and automations
 
+import type { Json } from './supabase'
+
 // ===========================================
 // ENUMS
 // ===========================================
@@ -123,14 +125,12 @@ export interface WorkflowTemplate {
   org_id: string
   name: string
   description: string | null
-  is_default: boolean
-  is_active: boolean
-  canvas_config: CanvasConfig
-  revision_scheme_id: string | null
-  file_conditions: FileConditions | null
-  created_at: string
+  is_default: boolean | null
+  is_active: boolean | null
+  canvas_config: CanvasConfig | null
+  created_at: string | null
   created_by: string | null
-  updated_at: string
+  updated_at: string | null
   updated_by: string | null
 }
 
@@ -1075,20 +1075,22 @@ export const NOTIFICATION_PLACEHOLDERS = [
 export type GateType = 'approval' | 'checklist' | 'condition' | 'notification'
 
 // Legacy interface for backwards compatibility
+// Note: checklist_items and conditions come from database as Json (JSONB)
+// They can be either parsed types or raw Json depending on where data comes from
 export interface WorkflowGate {
   id: string
   transition_id: string
   name: string
   description: string | null
-  gate_type: GateType
-  required_approvals: number
-  approval_mode: ApprovalMode
-  checklist_items: ChecklistItem[]
-  conditions: Record<string, unknown> | null
-  is_blocking: boolean
-  can_be_skipped_by: UserRole[]
-  sort_order: number
-  created_at: string
+  gate_type: GateType | null
+  required_approvals: number | null
+  approval_mode: ApprovalMode | null
+  checklist_items: ChecklistItem[] | Json
+  conditions: Record<string, unknown> | Json | null
+  is_blocking: boolean | null
+  can_be_skipped_by: UserRole[] | null
+  sort_order: number | null
+  created_at: string | null
 }
 
 // Legacy interface

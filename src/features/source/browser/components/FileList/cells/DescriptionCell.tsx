@@ -1,17 +1,19 @@
 /**
  * Description column cell renderer
+ * 
+ * Uses both contexts:
+ * - useFileBrowserContext() for UI state (editing state, refs)
+ * - useFileBrowserHandlers() for action handlers
  */
-import { useFileBrowserContext } from '../../../context'
+import { useFileBrowserContext, useFileBrowserHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
 
-export function DescriptionCell({ 
-  file, 
-  isFileEditable,
-  handleSaveCellEdit,
-  handleCancelCellEdit,
-  handleStartCellEdit,
-}: CellRendererBaseProps): React.ReactNode {
+export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNode {
+  // UI state from FileBrowserContext
   const { editingCell, editValue, setEditValue, inlineEditInputRef } = useFileBrowserContext()
+  
+  // Handlers from FileBrowserHandlersContext
+  const { isFileEditable, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit } = useFileBrowserHandlers()
   
   if (file.isDirectory) return ''
   

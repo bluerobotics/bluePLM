@@ -73,6 +73,7 @@ export interface EdgePosition {
 }
 
 // Type alias for edge positions record
+// Keys are formatted as `${transitionId}-start` or `${transitionId}-end`
 export type EdgePositions = Record<string, EdgePosition>
 
 // Type aliases for commonly used context menu types

@@ -1,38 +1,38 @@
 ---
-description: Database schema and migration rules
+description: Database schema and Supabase patterns
 globs:
   - supabase/**/*.sql
   - src/lib/schemaVersion.ts
   - src/types/database.ts
 ---
 
-# Database Change Rules
+# Database Schema Rules
 
-## Schema Version Workflow
+## Change Protocol (All 3 Steps Required)
 
-When modifying database schema, ALWAYS update these files together:
+1. `supabase/schema.sql` ← source of truth, bump version
+2. `src/lib/schemaVersion.ts` ← sync EXPECTED_SCHEMA_VERSION
+3. `src/types/database.ts` ← regenerate if schema changed
 
-### 1. Update `supabase/schema.sql` (Source of Truth)
-- Update version history comment at top
-- Change the INSERT statement to new version number
-- Add UPDATE statement for migrations from previous version
+## Supabase Query Patterns
 
-### 2. Update `src/lib/schemaVersion.ts`
-- Bump `EXPECTED_SCHEMA_VERSION` constant
-- Add entry to `VERSION_DESCRIPTIONS` object
+```typescript
+// GOOD: explicit columns, error handling
+const { data, error } = await supabase
+  .from('files')
+  .select('id, name, status')
+  .range(0, 49);
+if (error) throw error;
 
-### 3. Update Types (if schema changes)
-- Regenerate or manually update `src/types/database.ts`
+// BAD: select(*), no error check
+const { data } = await supabase.from('files').select('*');
+```
 
-## Supabase Best Practices
+## Storage
 
-- Use `.select()` with explicit columns (avoid `select('*')`)
-- Always check `error` field in responses
-- Use `.range()` for pagination on large datasets
-- Test RLS policies with different user roles
-- Use signed URLs for private storage files
+- Private files: signed URLs only
+- Public assets: direct URLs OK
 
-## Migration File Naming
+## Migration Naming
 
-Use descriptive names: `YYYYMMDD-description.sql`
-Example: `20240115-add-workflow-status.sql`
+`YYYYMMDD-description.sql` → e.g., `20240115-add-workflow-status.sql`

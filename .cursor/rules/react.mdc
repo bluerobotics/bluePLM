@@ -1,0 +1,47 @@
+---
+description: React component architecture and patterns
+globs:
+  - src/components/**/*.tsx
+  - src/features/**/*.tsx
+  - src/App.tsx
+---
+
+# React Architecture
+
+## State Management (Zustand-First)
+
+| Scope | Tool | Example |
+|-------|------|---------|
+| Component UI | `useState` | modal open, input value |
+| Shared/Global | `usePDMStore` | user, files, settings |
+| Server cache | React Query | when implemented |
+
+**Prop Drilling: Max 2 levels. Beyond that → Zustand selector.**
+
+```typescript
+// GOOD: grab what you need from store
+const files = usePDMStore(state => state.files);
+
+// BAD: passing props through 3+ components
+<Parent files={files}> → <Child files={files}> → <GrandChild files={files}>
+```
+
+## Component Rules
+
+- Single responsibility: one reason to change
+- Composition over configuration: small, composable pieces
+- Props interface: explicit types, no `any`
+- Default export, one component per file
+
+## Styling (Tailwind Only)
+
+- Theme tokens: `pdm-bg`, `pdm-fg`, `pdm-accent`, `pdm-border`
+- Status: `pdm-success`, `pdm-warning`, `pdm-error`, `pdm-info`
+- Sidebar text: always `text-left`
+- No inline styles, no CSS modules
+
+## Import Order
+
+1. External (`react`, `zustand`)
+2. Internal (`@/lib`, `@/stores`, `@/components`)
+3. Relative (`./`, `../`)

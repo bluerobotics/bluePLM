@@ -10,11 +10,16 @@
  * - Version 2: Added workflow_roles, job_titles, pending_org_members, vault_users (v2.16.0)
  * - Version 3: Added auth_providers to organizations for SSO control (v2.16.6)
  * 
+ * DATABASE SCHEMA LOCATION:
+ * The schema is now modular - see supabase/README.md for details:
+ * - supabase/core.sql - Foundation (orgs, users, teams, permissions)
+ * - supabase/modules/*.sql - Feature modules (source files, change control, etc.)
+ * 
  * When making schema changes:
  * 1. Increment EXPECTED_SCHEMA_VERSION here
- * 2. Update schema.sql with the new schema changes
- * 3. Add a call to update_schema_version() at the end of schema.sql
- * 4. Add entry to VERSION_DESCRIPTIONS
+ * 2. Update the appropriate module file in supabase/ (core.sql or modules/*.sql)
+ * 3. Add entry to VERSION_DESCRIPTIONS below
+ * 4. Both this file and supabase/core.sql must have matching version numbers
  */
 
 import { supabase } from './supabase'
@@ -117,7 +122,7 @@ export async function checkSchemaCompatibility(): Promise<SchemaCheckResult> {
       expectedVersion: EXPECTED_SCHEMA_VERSION,
       message: 'Database schema version unknown',
       details: 'Your organization\'s database was created before schema version tracking was added. ' +
-        'Ask your admin to run the latest schema.sql to enable version tracking and get the latest features.',
+        'Ask your admin to run the latest schema (core.sql + modules) to enable version tracking and get the latest features.',
     }
   }
 
@@ -154,7 +159,7 @@ export async function checkSchemaCompatibility(): Promise<SchemaCheckResult> {
       expectedVersion: EXPECTED_SCHEMA_VERSION,
       message: 'Database schema update required',
       details: `Your organization's database (v${dbVersion}) is too old for this app version. ` +
-        `Required: v${MINIMUM_COMPATIBLE_VERSION}+. Ask your admin to run the latest schema.sql migration.`,
+        `Required: v${MINIMUM_COMPATIBLE_VERSION}+. Ask your admin to run the latest schema (core.sql + modules).`,
     }
   }
 
@@ -165,7 +170,7 @@ export async function checkSchemaCompatibility(): Promise<SchemaCheckResult> {
     expectedVersion: EXPECTED_SCHEMA_VERSION,
     message: 'Database schema update available',
     details: `Your organization's database is on v${dbVersion}, but v${EXPECTED_SCHEMA_VERSION} is available. ` +
-      'Some new features may not work until your admin runs the latest schema.sql migration.',
+      'Some new features may not work until your admin runs the latest schema (core.sql + modules).',
   }
 }
 

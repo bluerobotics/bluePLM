@@ -28,7 +28,7 @@ import {
   deleteNotification,
   cancelReview
 } from '../../lib/supabase'
-import type { Review, Notification, ReviewStatus } from '../../types/database'
+import type { ReviewWithDetails, NotificationWithDetails, ReviewStatus } from '../../types/database'
 import { buildFullPath } from '@/lib/utils/path'
 
 type ViewTab = 'notifications' | 'pending' | 'my-reviews'
@@ -91,7 +91,7 @@ export function ReviewsView() {
   
   
   // Get the vault path for a review (by vault_id or fall back to active vault)
-  const getVaultPathForReview = useCallback((review: Review): string | null => {
+  const getVaultPathForReview = useCallback((review: ReviewWithDetails): string | null => {
     // First try to find the vault by vault_id
     if (review.vault_id && connectedVaults.length > 0) {
       const vault = connectedVaults.find(v => v.id === review.vault_id)
@@ -106,7 +106,7 @@ export function ReviewsView() {
   }, [connectedVaults, activeVaultId, vaultPath])
   
   // Get full file path for a review
-  const getFullFilePath = useCallback((review: Review): string | null => {
+  const getFullFilePath = useCallback((review: ReviewWithDetails): string | null => {
     if (!review.file?.file_path) return null
     const reviewVaultPath = getVaultPathForReview(review)
     if (!reviewVaultPath) return null
@@ -114,7 +114,7 @@ export function ReviewsView() {
   }, [getVaultPathForReview])
   
   // Open file handler
-  const handleOpenFile = useCallback((review: Review) => {
+  const handleOpenFile = useCallback((review: ReviewWithDetails) => {
     const fullPath = getFullFilePath(review)
     if (fullPath) {
       window.electronAPI?.openFile(fullPath)
@@ -124,7 +124,7 @@ export function ReviewsView() {
   }, [getFullFilePath, addToast])
   
   // Get full file path for a notification (similar to review but uses notification.file)
-  const getNotificationFilePath = useCallback((notification: Notification): string | null => {
+  const getNotificationFilePath = useCallback((notification: NotificationWithDetails): string | null => {
     if (!notification.file?.file_path) return null
     // Use active vault or legacy vaultPath
     let notifVaultPath: string | null = null
@@ -138,7 +138,7 @@ export function ReviewsView() {
   }, [connectedVaults, activeVaultId, vaultPath])
   
   // Open notification file handler
-  const handleOpenNotificationFile = useCallback((notification: Notification) => {
+  const handleOpenNotificationFile = useCallback((notification: NotificationWithDetails) => {
     const fullPath = getNotificationFilePath(notification)
     if (fullPath) {
       window.electronAPI?.openFile(fullPath)
@@ -175,7 +175,7 @@ export function ReviewsView() {
   const lastClickedId = useRef<string | null>(null)
   
   // Handle row click - single click navigates, double click opens
-  const handleRowClick = useCallback((review: Review) => {
+  const handleRowClick = useCallback((review: ReviewWithDetails) => {
     const now = Date.now()
     const isDoubleClick = lastClickedId.current === review.id && (now - lastClickTime.current) < 300
     
@@ -192,9 +192,9 @@ export function ReviewsView() {
   }, [handleOpenFile, handleNavigateToFile])
   
   const [activeTab, setActiveTab] = useState<ViewTab>('notifications')
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [pendingReviews, setPendingReviews] = useState<Review[]>([])
-  const [myReviews, setMyReviews] = useState<Review[]>([])
+  const [notifications, setNotifications] = useState<NotificationWithDetails[]>([])
+  const [pendingReviews, setPendingReviews] = useState<ReviewWithDetails[]>([])
+  const [myReviews, setMyReviews] = useState<ReviewWithDetails[]>([])
   const [loading, setLoading] = useState(true)
   const [respondingTo, setRespondingTo] = useState<string | null>(null)
   const [responseComment, setResponseComment] = useState('')
@@ -309,7 +309,8 @@ export function ReviewsView() {
   }
   
   // Format relative time
-  const formatRelativeTime = (dateStr: string) => {
+  const formatRelativeTime = (dateStr: string | null) => {
+    if (!dateStr) return 'unknown'
     const date = new Date(dateStr)
     const now = new Date()
     const diff = now.getTime() - date.getTime()
@@ -336,7 +337,7 @@ export function ReviewsView() {
   }
   
   // Get status icon
-  const getStatusIcon = (status: ReviewStatus) => {
+  const getStatusIcon = (status: ReviewStatus | null) => {
     switch (status) {
       case 'approved': return <CheckCircle2 size={14} className="text-plm-success" />
       case 'rejected': return <XCircle size={14} className="text-plm-error" />

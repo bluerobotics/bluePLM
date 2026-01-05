@@ -47,7 +47,7 @@ import {
   clearAllNotifications,
   createCustomNotification
 } from '../../lib/supabase'
-import type { Notification, NotificationCategory, NotificationPriority } from '../../types/database'
+import type { NotificationWithDetails, NotificationCategory, NotificationPriority } from '../../types/database'
 import { buildFullPath } from '@/lib/utils/path'
 
 // Category configuration
@@ -184,7 +184,8 @@ function UserAvatar({ user, size = 24 }: { user?: { email: string; full_name: st
 }
 
 // Format relative time
-function formatRelativeTime(dateStr: string): string {
+function formatRelativeTime(dateStr: string | null): string {
+  if (!dateStr) return 'unknown'
   const date = new Date(dateStr)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
@@ -257,7 +258,7 @@ export function NotificationsView() {
   } = usePDMStore()
   
   // State
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [notifications, setNotifications] = useState<NotificationWithDetails[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<NotificationCategory | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -465,6 +466,7 @@ export function NotificationsView() {
     const actionRequired = notifications.filter(n => isActionable(n.type) && !n.action_completed && !n.read).length
     const urgent = notifications.filter(n => n.priority === 'urgent' && !n.read).length
     const today = notifications.filter(n => {
+      if (!n.created_at) return false
       const date = new Date(n.created_at)
       const now = new Date()
       return date.toDateString() === now.toDateString()
@@ -548,7 +550,7 @@ export function NotificationsView() {
   }
   
   // Handle opening notification file
-  const handleOpenNotificationFile = useCallback((notification: Notification) => {
+  const handleOpenNotificationFile = useCallback((notification: NotificationWithDetails) => {
     if (!notification.file?.file_path) return
     
     let notifVaultPath: string | null = null
@@ -791,7 +793,7 @@ export function NotificationsView() {
               const category = notification.category || getCategoryFromType(notification.type)
               const isActionableNotif = isActionable(notification.type)
               const hasFile = !!notification.file
-              const priorityConfig = PRIORITY_CONFIG[notification.priority || 'normal']
+              const priorityConfig = PRIORITY_CONFIG[(notification.priority || 'normal') as NotificationPriority]
               
               return (
                 <div
@@ -809,7 +811,7 @@ export function NotificationsView() {
                           <UserAvatar user={notification.from_user} size={36} />
                         ) : (
                           <div className="w-9 h-9 rounded-full bg-plm-bg-lighter flex items-center justify-center">
-                            {getNotificationIcon(notification.type, category)}
+                            {getNotificationIcon(notification.type, category as NotificationCategory | null)}
                           </div>
                         )}
                       </div>

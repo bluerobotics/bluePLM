@@ -1,63 +1,17 @@
 /**
  * WorkflowRoleDialogs - Self-contained workflow role dialogs
  * 
- * This component renders workflow role create/edit dialogs and manages
- * their visibility through the TeamMembersContext.
+ * NOTE: This component has been refactored. Workflow role dialogs are now
+ * rendered inline within RolesTab. This component is kept for backward
+ * compatibility but will render nothing if used standalone.
+ * 
+ * For new code, dialogs are managed by RolesTab directly using hooks.
+ * 
+ * @deprecated Dialogs are now rendered inline in RolesTab
  */
-import { useTeamMembersContext } from '../context'
-import { WorkflowRoleFormDialog } from './dialogs'
 
 export function WorkflowRoleDialogs() {
-  const {
-    // Workflow role dialog state
-    showCreateWorkflowRoleDialog,
-    setShowCreateWorkflowRoleDialog,
-    showEditWorkflowRoleDialog,
-    setShowEditWorkflowRoleDialog,
-    editingWorkflowRole,
-    setEditingWorkflowRole,
-    workflowRoleFormData,
-    setWorkflowRoleFormData,
-    isSavingWorkflowRole,
-    
-    // Handlers
-    handleCreateWorkflowRole,
-    handleUpdateWorkflowRole
-  } = useTeamMembersContext()
-
-  return (
-    <>
-      {/* Create Workflow Role Dialog */}
-      {showCreateWorkflowRoleDialog && (
-        <WorkflowRoleFormDialog
-          mode="create"
-          formData={workflowRoleFormData}
-          setFormData={setWorkflowRoleFormData}
-          onSave={handleCreateWorkflowRole}
-          onClose={() => {
-            setShowCreateWorkflowRoleDialog(false)
-            setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
-          }}
-          isSaving={isSavingWorkflowRole}
-        />
-      )}
-
-      {/* Edit Workflow Role Dialog */}
-      {showEditWorkflowRoleDialog && editingWorkflowRole && (
-        <WorkflowRoleFormDialog
-          mode="edit"
-          formData={workflowRoleFormData}
-          setFormData={setWorkflowRoleFormData}
-          editingRole={editingWorkflowRole}
-          onSave={handleUpdateWorkflowRole}
-          onClose={() => {
-            setShowEditWorkflowRoleDialog(false)
-            setEditingWorkflowRole(null)
-            setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
-          }}
-          isSaving={isSavingWorkflowRole}
-        />
-      )}
-    </>
-  )
+  // Dialogs are now rendered inline in RolesTab using hooks directly.
+  // This component is kept for backward compatibility with parent imports.
+  return null
 }

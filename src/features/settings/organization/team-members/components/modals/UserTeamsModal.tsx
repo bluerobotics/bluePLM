@@ -1,7 +1,7 @@
 // User Teams Modal - Manage a user's team assignments
 import { useState } from 'react'
-import * as LucideIcons from 'lucide-react'
 import { Users, Search, Plus, X, Check, Loader2 } from 'lucide-react'
+import { getTeamIcon } from '../../utils'
 import type { UserTeamsModalProps } from '../../types'
 
 export function UserTeamsModal({
@@ -86,7 +86,7 @@ export function UserTeamsModal({
             </div>
           ) : (
             filteredTeams.map(team => {
-              const TeamIcon = (LucideIcons as any)[team.icon] || Users
+              const TeamIcon = getTeamIcon(team.icon)
               const isSelected = selectedTeamIds.includes(team.id)
               
               return (

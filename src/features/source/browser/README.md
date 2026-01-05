@@ -269,9 +269,11 @@ The `FileContextMenu` composes 7 action components instead of inline logic:
 
 This reduced the component from ~1,400 to ~240 lines.
 
-### Context Provider
+### Context Providers
 
-The `FileBrowserContext` provides shared state to deeply nested components:
+The FileBrowser uses two context providers to separate UI state from action handlers:
+
+#### FileBrowserContext (UI State)
 
 ```tsx
 <FileBrowserProvider onRefresh={onRefresh} customMetadataColumns={columns}>
@@ -286,6 +288,24 @@ Key state provided:
 - Drag-and-drop state
 - Rename and editing state
 - Refs for DOM elements
+- Inline action hover states
+
+#### FileBrowserHandlersContext (Action Handlers)
+
+```tsx
+<FileBrowserHandlersProvider handlers={handlersContextValue}>
+  {/* Cell components can access handlers via useFileBrowserHandlers() */}
+</FileBrowserHandlersProvider>
+```
+
+Key handlers provided:
+- Inline action handlers: `handleInlineDownload`, `handleInlineCheckout`, etc.
+- Computed selection arrays: `selectedDownloadableFiles`, `selectedCheckoutableFiles`, etc.
+- Status functions: `isBeingProcessed`, `getFolderCheckoutStatus`, `isFileEditable`
+- Config handlers: `canHaveConfigs`, `toggleFileConfigExpansion`, `saveConfigsToSWFile`
+- Edit handlers: `handleRename`, `handleSaveCellEdit`, `handleStartCellEdit`
+
+This separation eliminates prop drilling through `CellRenderer` to cell components. Previously, `CellRenderer` received 20+ props that were drilled down to 12 cell components. Now it receives just `file` and `columnId`, with cells accessing handlers via `useFileBrowserHandlers()`.
 
 ## Type Definitions
 

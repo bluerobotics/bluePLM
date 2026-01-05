@@ -45,9 +45,6 @@ export {
   type TeamVaultAccessDialogProps
 } from './team'
 
-// Legacy consolidated dialogs component (kept for backward compatibility)
-export { TeamMembersDialogs, type TeamMembersDialogsProps } from './TeamMembersDialogs'
-
 // Self-contained dialog groups (use context, no props needed)
 export { TeamDialogs } from './TeamDialogs'
 export { UserDialogs } from './UserDialogs'

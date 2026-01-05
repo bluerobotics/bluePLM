@@ -201,7 +201,7 @@ export interface OrphanedCheckout {
   filePath: string           // Relative path in vault
   localPath: string          // Full local path
   checkedInBy: string        // Machine name that force-checked-in
-  checkedInAt: string        // When it was checked in
+  checkedInAt: string | null // When it was checked in
   newVersion: number         // The new server version
   localHash?: string         // Hash of local file (if available)
   serverHash?: string        // Hash of server file

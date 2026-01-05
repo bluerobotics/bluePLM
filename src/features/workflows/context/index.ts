@@ -1,2 +1,6 @@
-export { WorkflowContext, WorkflowProvider, useWorkflowContext } from './WorkflowContext'
-export type { WorkflowContextValue } from './WorkflowContext'
+export { 
+  WorkflowCanvasContext, 
+  WorkflowCanvasProvider, 
+  useWorkflowCanvasContext 
+} from './WorkflowCanvasContext'
+export type { WorkflowCanvasContextValue } from './WorkflowCanvasContext'

@@ -1,11 +1,11 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 import { useState, useEffect } from 'react'
+import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Users, X, Loader2, Trash2 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { ModulesEditor } from '../../../ModulesEditor'
 import type { ModuleConfig } from '@/types/modules'
-import type { TeamWithDetails, TeamModulesDialogProps } from '../../types'
+import type { TeamModulesDialogProps } from '../../types'
 
 export function TeamModulesDialog({
   team,
@@ -19,7 +19,7 @@ export function TeamModulesDialog({
   // Local state for the full module config
   const [localConfig, setLocalConfig] = useState<ModuleConfig | null>(null)
   
-  const IconComponent = (LucideIcons as any)[team.icon] || Users
+  const IconComponent = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[team.icon] || Users
   
   // Load team defaults on mount
   useEffect(() => {

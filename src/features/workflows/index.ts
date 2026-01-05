@@ -27,9 +27,12 @@ export {
   ContextMenus
 } from './canvas'
 
-// Re-export context
-export { WorkflowProvider, useWorkflowContext } from './context'
-export type { WorkflowContextValue } from './context'
+// Re-export contexts
+export { 
+  WorkflowCanvasProvider, 
+  useWorkflowCanvasContext 
+} from './context'
+export type { WorkflowCanvasContextValue } from './context'
 
 // Re-export types
 export * from './types'

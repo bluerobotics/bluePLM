@@ -1,5 +1,5 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 import { useState, useEffect } from 'react'
+import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import {
   Shield,
@@ -19,6 +19,18 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import type { OrgUser, Vault } from '../../types'
 import type { PermissionAction } from '@/types/permissions'
+
+// Types for Supabase query results
+interface UserPermissionResult {
+  resource: string
+  actions: PermissionAction[]
+}
+
+interface VaultQueryResult {
+  id: string
+  name: string
+  slug: string
+}
 
 interface UserPermissionsDialogProps {
   user: OrgUser
@@ -58,7 +70,8 @@ export function UserPermissionsDialog({
           .order('name')
         
         if (error) throw error
-        setVaults(data || [])
+        const typedData = (data || []) as unknown as VaultQueryResult[]
+        setVaults(typedData as Vault[])
       } catch (err) {
         console.error('Failed to load vaults:', err)
       } finally {
@@ -93,9 +106,10 @@ export function UserPermissionsDialog({
       
       if (error) throw error
       
+      const typedPerms = (data || []) as unknown as UserPermissionResult[]
       const permsMap: Record<string, PermissionAction[]> = {}
-      for (const perm of data || []) {
-        permsMap[perm.resource] = perm.actions as PermissionAction[]
+      for (const perm of typedPerms) {
+        permsMap[perm.resource] = perm.actions
       }
       
       setPermissions(permsMap)
@@ -138,7 +152,9 @@ export function UserPermissionsDialog({
         }))
       
       if (newPerms.length > 0) {
-        const { error } = await supabase.from('user_permissions').insert(newPerms)
+        // Type definitions in database.ts, but client has @ts-nocheck
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any).from('user_permissions').insert(newPerms)
         if (error) throw error
       }
       
@@ -244,7 +260,7 @@ export function UserPermissionsDialog({
           ) : (
             <div className="space-y-0">
               {filteredResources.map(resource => {
-                const ResourceIcon = (LucideIcons as any)[resource.icon] || Shield
+                const ResourceIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[resource.icon] || Shield
                 const currentActions = permissions[resource.id] || []
                 
                 return (

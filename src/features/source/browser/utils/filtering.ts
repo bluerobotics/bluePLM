@@ -74,10 +74,10 @@ export function getSearchScore(file: LocalFile, query: string): number {
   // Priority 5: Other metadata matches
   if (file.pdmData) {
     if (file.pdmData.revision?.toLowerCase().includes(q)) score = Math.max(score, 200)
-    const customProps = file.pdmData.custom_properties
-    if (typeof customProps?.material === 'string' && customProps.material.toLowerCase().includes(q)) score = Math.max(score, 200)
-    if (typeof customProps?.vendor === 'string' && customProps.vendor.toLowerCase().includes(q)) score = Math.max(score, 200)
-    if (typeof customProps?.project === 'string' && customProps.project.toLowerCase().includes(q)) score = Math.max(score, 200)
+    const customProps = file.pdmData.custom_properties as Record<string, unknown> | null
+    if (typeof customProps?.['material'] === 'string' && customProps['material'].toLowerCase().includes(q)) score = Math.max(score, 200)
+    if (typeof customProps?.['vendor'] === 'string' && customProps['vendor'].toLowerCase().includes(q)) score = Math.max(score, 200)
+    if (typeof customProps?.['project'] === 'string' && customProps['project'].toLowerCase().includes(q)) score = Math.max(score, 200)
   }
   
   // Extension match (lowest priority)

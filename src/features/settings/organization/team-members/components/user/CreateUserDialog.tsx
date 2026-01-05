@@ -1,5 +1,5 @@
-// @ts-nocheck - Supabase type inference issues with Database generics
 import { useState } from 'react'
+import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import {
   UserPlus,
@@ -14,6 +14,12 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
 import type { TeamWithDetails, WorkflowRoleBasic } from '../../types'
+
+// Types for Supabase query results
+interface UserOrgCheckResult {
+  id: string
+  org_id: string | null
+}
 
 interface CreateUserDialogProps {
   onClose: () => void
@@ -117,7 +123,8 @@ export function CreateUserDialog({
         .select('id, org_id')
         .ilike('email', normalizedEmail)
       
-      const existingUser = existingUsers?.[0]
+      const typedUsers = (existingUsers || []) as unknown as UserOrgCheckResult[]
+      const existingUser = typedUsers[0]
       if (existingUser?.org_id === orgId) {
         addToast('error', 'This user is already a member of your organization')
         return
@@ -130,19 +137,19 @@ export function CreateUserDialog({
         .eq('org_id', orgId)
         .ilike('email', normalizedEmail)
       
-      const { error } = await supabase
-        .from('pending_org_members')
-        .insert({
-          org_id: orgId,
-          email: normalizedEmail,
-          full_name: fullName.trim() || null,
-          role: 'viewer',  // Default role, permissions come from teams
-          team_ids: selectedTeamIds,
-          vault_ids: selectedVaultIds,
-          workflow_role_ids: selectedWorkflowRoleIds,
-          notes: notes.trim() || null,
-          created_by: currentUserId
-        })
+      // Type definitions in database.ts, but client has @ts-nocheck
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from('pending_org_members').insert({
+        org_id: orgId,
+        email: normalizedEmail,
+        full_name: fullName.trim() || null,
+        role: 'viewer',  // Default role, permissions come from teams
+        team_ids: selectedTeamIds,
+        vault_ids: selectedVaultIds,
+        workflow_role_ids: selectedWorkflowRoleIds,
+        notes: notes.trim() || null,
+        created_by: currentUserId
+      })
       
       if (error) {
         if (error.code === '23505') {
@@ -238,7 +245,7 @@ export function CreateUserDialog({
               <label className="block text-sm text-plm-fg-muted mb-1.5">Assign to Teams</label>
               <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
                 {teams.map(team => {
-                  const TeamIcon = (LucideIcons as any)[team.icon] || Users
+                  const TeamIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[team.icon] || Users
                   const isSelected = selectedTeamIds.includes(team.id)
                   return (
                     <label
@@ -323,7 +330,7 @@ export function CreateUserDialog({
               <label className="block text-sm text-plm-fg-muted mb-1.5">Workflow Roles</label>
               <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
                 {workflowRoles.map(role => {
-                  const RoleIcon = (LucideIcons as any)[role.icon] || Shield
+                  const RoleIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[role.icon] || Shield
                   const isSelected = selectedWorkflowRoleIds.includes(role.id)
                   return (
                     <label

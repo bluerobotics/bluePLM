@@ -48,7 +48,7 @@ export interface PDMFile {
   file_path: string           // Relative path in vault
   file_name: string           // Display name
   extension: string           // .sldprt, .sldasm, etc.
-  file_type: 'part' | 'assembly' | 'drawing' | 'document' | 'other'
+  file_type: 'part' | 'assembly' | 'drawing' | 'pdf' | 'step' | 'other'
   
   // Engineering metadata
   part_number: string | null
@@ -67,7 +67,7 @@ export interface PDMFile {
     is_editable: boolean
     requires_checkout: boolean
   } | null
-  state_changed_at: string
+  state_changed_at: string | null
   state_changed_by: string | null
   
   // Lock/checkout
@@ -84,19 +84,19 @@ export interface PDMFile {
   
   // Content tracking
   content_hash: string | null  // SHA-256 hash of file content
-  file_size: number           // Bytes
+  file_size: number | null     // Bytes
   
   // Timestamps
-  created_at: string
+  created_at: string | null
   created_by: string
-  updated_at: string
+  updated_at: string | null
   updated_by: string | null
   
   // Custom properties (from SolidWorks custom properties)
-  custom_properties: Record<string, string | number | null>
+  custom_properties: Record<string, string | number | null> | unknown | null
   
   // ECO tags (denormalized from file_ecos junction table)
-  eco_tags?: string[]
+  eco_tags?: string[] | null
   
   // Soft delete (trash bin)
   deleted_at: string | null
@@ -374,7 +374,7 @@ export interface DeletedFile {
   file_path: string
   file_name: string
   extension: string
-  file_type: 'part' | 'assembly' | 'drawing' | 'document' | 'other'
+  file_type: 'part' | 'assembly' | 'drawing' | 'pdf' | 'step' | 'other'
   part_number: string | null
   description: string | null
   revision: string
@@ -434,8 +434,11 @@ export function getFileType(extension: string): PDMFile['file_type'] {
   if (['.slddrw', '.dwg', '.dxf', '.idw', '.drw'].includes(ext)) {
     return 'drawing'
   }
-  if (['.pdf', '.step', '.stp', '.iges', '.igs', '.stl', '.3mf', '.obj'].includes(ext)) {
-    return 'document'
+  if (['.pdf'].includes(ext)) {
+    return 'pdf'
+  }
+  if (['.step', '.stp', '.iges', '.igs', '.stl', '.3mf', '.obj'].includes(ext)) {
+    return 'step'
   }
   
   return 'other'

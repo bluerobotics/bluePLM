@@ -1,9 +1,14 @@
 /**
  * TeamsTab - Displays and manages organization teams
  * 
- * Shows teams in an expandable list with members, permissions,
- * vault access, and admin actions for team management.
+ * This component uses hooks directly instead of context:
+ * - usePDMStore for user/org info
+ * - useTeams for team data
+ * - useMembers for user data
+ * - useVaultAccess for vault data
+ * - useTeamDialogs for dialog state
  */
+import { useState } from 'react'
 import * as LucideIcons from 'lucide-react'
 import {
   Users,
@@ -20,31 +25,184 @@ import {
   Loader2,
   AlertTriangle
 } from 'lucide-react'
+import { PermissionsEditor } from '@/features/settings/organization/PermissionsEditor'
+import { usePDMStore } from '@/stores/pdmStore'
+import { useTeams, useMembers, useVaultAccess, useTeamDialogs } from '../hooks'
+import { useFilteredData } from '../hooks/useFilteredData'
 import { ConnectedUserRow } from '../components/user'
-import { useTeamMembersContext } from '../context'
+import {
+  TeamFormDialog,
+  DeleteTeamDialog
+} from '../components/dialogs'
+import {
+  TeamMembersDialog,
+  TeamModulesDialog,
+  TeamVaultAccessDialog
+} from '../components/team'
 
-export function TeamsTab() {
+export interface TeamsTabProps {
+  /** Search query for filtering teams */
+  searchQuery?: string
+}
+
+export function TeamsTab({ searchQuery = '' }: TeamsTabProps) {
+  // Get user/org info from store
+  const { user, organization, setOrganization, getEffectiveRole } = usePDMStore()
+  const orgId = organization?.id ?? null
+  const isAdmin = getEffectiveRole() === 'admin'
+
+  // Data hooks
   const {
     teams,
-    filteredTeams,
-    orgUsers,
+    loadTeams,
+    createTeam,
+    updateTeam,
+    deleteTeam,
+    setDefaultTeam
+  } = useTeams(orgId)
+  
+  const { members: orgUsers, loadMembers: loadOrgUsers } = useMembers(orgId)
+  
+  const {
+    vaults: orgVaults,
     teamVaultAccessMap,
-    expandedTeams,
-    isAdmin,
-    organization,
-    isSavingDefaultTeam,
-    toggleTeamExpand,
+    saveTeamVaultAccess
+  } = useVaultAccess(orgId)
+
+  // Filtered data
+  const { filteredTeams } = useFilteredData({ orgUsers, teams, searchQuery })
+
+  // Dialog state
+  const {
+    selectedTeam,
     setSelectedTeam,
-    setShowTeamMembersDialog,
-    setShowPermissionsEditor,
-    setShowDeleteTeamDialog,
+    showCreateTeamDialog,
     setShowCreateTeamDialog,
+    showEditTeamDialog,
+    setShowEditTeamDialog,
+    showDeleteTeamDialog,
+    setShowDeleteTeamDialog,
+    showTeamMembersDialog,
+    setShowTeamMembersDialog,
+    showTeamVaultAccessDialog,
+    setShowTeamVaultAccessDialog,
+    showPermissionsEditor,
+    setShowPermissionsEditor,
+    showModulesDialog,
+    setShowModulesDialog,
+    teamFormData,
+    setTeamFormData,
+    isSavingTeam,
+    setIsSavingTeam,
+    copyFromTeamId,
+    setCopyFromTeamId,
+    pendingTeamVaultAccess,
+    setPendingTeamVaultAccess,
+    isSavingTeamVaultAccess,
+    setIsSavingTeamVaultAccess,
     resetTeamForm,
     openEditTeamDialog,
-    openTeamVaultAccessDialog,
-    openModulesDialog,
-    handleSetDefaultTeam
-  } = useTeamMembersContext()
+    openModulesDialog
+  } = useTeamDialogs()
+
+  // Local UI state
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
+  const [isSavingDefaultTeam, setIsSavingDefaultTeam] = useState(false)
+
+  // Handlers
+  const toggleTeamExpand = (teamId: string) => {
+    setExpandedTeams(prev => {
+      const next = new Set(prev)
+      if (next.has(teamId)) {
+        next.delete(teamId)
+      } else {
+        next.add(teamId)
+      }
+      return next
+    })
+  }
+
+  const handleCreateTeam = async () => {
+    setIsSavingTeam(true)
+    try {
+      const success = await createTeam(teamFormData, copyFromTeamId)
+      if (success) {
+        setShowCreateTeamDialog(false)
+        resetTeamForm()
+      }
+    } finally {
+      setIsSavingTeam(false)
+    }
+  }
+
+  const handleUpdateTeam = async () => {
+    if (!selectedTeam) return
+    setIsSavingTeam(true)
+    try {
+      const success = await updateTeam(selectedTeam.id, teamFormData)
+      if (success) {
+        setShowEditTeamDialog(false)
+        setSelectedTeam(null)
+      }
+    } finally {
+      setIsSavingTeam(false)
+    }
+  }
+
+  const handleDeleteTeam = async () => {
+    if (!selectedTeam) return
+    setIsSavingTeam(true)
+    try {
+      const success = await deleteTeam(selectedTeam.id)
+      if (success) {
+        setShowDeleteTeamDialog(false)
+        setSelectedTeam(null)
+      }
+    } finally {
+      setIsSavingTeam(false)
+    }
+  }
+
+  const handleSetDefaultTeam = async (teamId: string | null) => {
+    if (!organization) return
+    setIsSavingDefaultTeam(true)
+    try {
+      // Cast to satisfy the generic constraint - the DB column exists even if type doesn't include it
+      type OrgWithDefaultTeam = typeof organization & { default_new_user_team_id?: string | null }
+      await setDefaultTeam(
+        teamId,
+        organization.id,
+        setOrganization as (org: OrgWithDefaultTeam) => void,
+        organization as OrgWithDefaultTeam
+      )
+    } finally {
+      setIsSavingDefaultTeam(false)
+    }
+  }
+
+  const openTeamVaultAccessDialog = (team: typeof teams[0]) => {
+    setSelectedTeam(team)
+    setPendingTeamVaultAccess(teamVaultAccessMap[team.id] || [])
+    setShowTeamVaultAccessDialog(true)
+  }
+
+  const handleSaveTeamVaultAccess = async () => {
+    if (!selectedTeam) return
+    setIsSavingTeamVaultAccess(true)
+    try {
+      const success = await saveTeamVaultAccess(
+        selectedTeam.id,
+        pendingTeamVaultAccess,
+        selectedTeam.name
+      )
+      if (success) {
+        setShowTeamVaultAccessDialog(false)
+        setSelectedTeam(null)
+      }
+    } finally {
+      setIsSavingTeamVaultAccess(false)
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -65,7 +223,7 @@ export function TeamsTab() {
             </div>
             <div className="flex items-center gap-2">
               <select
-                value={organization?.default_new_user_team_id || ''}
+                value={(organization as { default_new_user_team_id?: string | null } | null)?.default_new_user_team_id || ''}
                 onChange={(e) => handleSetDefaultTeam(e.target.value || null)}
                 disabled={isSavingDefaultTeam}
                 className="px-3 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-50"
@@ -80,7 +238,7 @@ export function TeamsTab() {
               )}
             </div>
           </div>
-          {!organization?.default_new_user_team_id && (
+          {!(organization as { default_new_user_team_id?: string | null } | null)?.default_new_user_team_id && (
             <p className="mt-2 text-xs text-yellow-500 flex items-center gap-1">
               <AlertTriangle size={12} />
               New users will have no team permissions until manually assigned
@@ -272,31 +430,10 @@ export function TeamsTab() {
                       ) : (
                         <div className="divide-y divide-white/10">
                           {teamMembers.map(member => (
-                            <UserRow
+                            <ConnectedUserRow
                               key={member.id}
                               user={member}
-                              isAdmin={isAdmin}
-                              isRealAdmin={isRealAdmin}
-                              isCurrentUser={member.id === currentUserId}
-                              onViewProfile={() => setViewingUserId(member.id)}
-                              onRemove={() => setRemovingUser(member)}
-                              onRemoveFromTeam={() => handleRemoveFromTeam(member, team.id, team.name)}
-                              onVaultAccess={() => openVaultAccessEditor(member)}
-                              onPermissions={isAdmin ? () => setEditingPermissionsUser(member) : undefined}
-                              onViewNetPermissions={() => setViewingPermissionsUser(member)}
-                              onSimulatePermissions={() => startUserImpersonation(member.id)}
-                              isSimulating={impersonatedUserId === member.id}
-                              vaultAccessCount={getUserVaultAccessCount(member.id)}
-                              onEditJobTitle={isAdmin ? setEditingJobTitleUser : undefined}
-                              jobTitles={jobTitles}
-                              onToggleJobTitle={isAdmin ? handleChangeJobTitle : undefined}
-                              workflowRoles={workflowRoles}
-                              userWorkflowRoleIds={userWorkflowRoleAssignments[member.id]}
-                              onEditWorkflowRoles={setEditingWorkflowRolesUser}
-                              teams={teams}
-                              onEditTeams={setEditingTeamsUser}
-                              onToggleTeam={isAdmin ? handleToggleTeam : undefined}
-                              onToggleWorkflowRole={isAdmin ? handleToggleWorkflowRole : undefined}
+                              teamContext={{ teamId: team.id, teamName: team.name }}
                             />
                           ))}
                         </div>
@@ -309,9 +446,94 @@ export function TeamsTab() {
           })}
         </div>
       )}
+
+      {/* Dialogs */}
+      {showCreateTeamDialog && (
+        <TeamFormDialog
+          title="Create Team"
+          formData={teamFormData}
+          setFormData={setTeamFormData}
+          onSave={handleCreateTeam}
+          onCancel={() => setShowCreateTeamDialog(false)}
+          isSaving={isSavingTeam}
+          existingTeams={teams}
+          copyFromTeamId={copyFromTeamId}
+          setCopyFromTeamId={setCopyFromTeamId}
+        />
+      )}
+
+      {showEditTeamDialog && selectedTeam && (
+        <TeamFormDialog
+          title="Edit Team"
+          formData={teamFormData}
+          setFormData={setTeamFormData}
+          onSave={handleUpdateTeam}
+          onCancel={() => {
+            setShowEditTeamDialog(false)
+            setSelectedTeam(null)
+          }}
+          isSaving={isSavingTeam}
+        />
+      )}
+
+      {showDeleteTeamDialog && selectedTeam && (
+        <DeleteTeamDialog
+          team={selectedTeam}
+          onConfirm={handleDeleteTeam}
+          onClose={() => setShowDeleteTeamDialog(false)}
+          isDeleting={isSavingTeam}
+        />
+      )}
+
+      {showTeamMembersDialog && selectedTeam && (
+        <TeamMembersDialog
+          team={selectedTeam}
+          orgUsers={orgUsers}
+          onClose={() => {
+            setShowTeamMembersDialog(false)
+            setSelectedTeam(null)
+            loadTeams()
+            loadOrgUsers()
+          }}
+          userId={user?.id}
+        />
+      )}
+
+      {showTeamVaultAccessDialog && selectedTeam && (
+        <TeamVaultAccessDialog
+          team={selectedTeam}
+          orgVaults={orgVaults}
+          pendingVaultAccess={pendingTeamVaultAccess}
+          setPendingVaultAccess={setPendingTeamVaultAccess}
+          onSave={handleSaveTeamVaultAccess}
+          onClose={() => setShowTeamVaultAccessDialog(false)}
+          isSaving={isSavingTeamVaultAccess}
+        />
+      )}
+
+      {showPermissionsEditor && selectedTeam && (
+        <PermissionsEditor
+          team={selectedTeam}
+          onClose={() => {
+            setShowPermissionsEditor(false)
+            setSelectedTeam(null)
+            loadTeams()
+          }}
+          userId={user?.id}
+          isAdmin={isAdmin}
+        />
+      )}
+
+      {showModulesDialog && selectedTeam && (
+        <TeamModulesDialog
+          team={selectedTeam}
+          onClose={() => {
+            setShowModulesDialog(false)
+            setSelectedTeam(null)
+            loadTeams()
+          }}
+        />
+      )}
     </div>
   )
 }
-
-// Export props type for backward compatibility (can be removed later)
-export type TeamsTabProps = Record<string, never>

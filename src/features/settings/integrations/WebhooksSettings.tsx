@@ -279,7 +279,7 @@ export function WebhooksSettings() {
       secret: webhook.secret,
       events: webhook.events,
       is_active: webhook.is_active,
-      trigger_filter: webhook.trigger_filter || 'everyone',
+      trigger_filter: (webhook.trigger_filter as WebhookTriggerFilter) || 'everyone',
       trigger_roles: webhook.trigger_roles || [],
       trigger_user_ids: webhook.trigger_user_ids || [],
     })
@@ -993,7 +993,7 @@ export function WebhooksSettings() {
                             )}
                           </div>
                           <div className="text-xs text-plm-fg-dim whitespace-nowrap">
-                            {new Date(delivery.created_at).toLocaleString()}
+                            {delivery.created_at ? new Date(delivery.created_at).toLocaleString() : 'unknown'}
                           </div>
                         </div>
                       ))}

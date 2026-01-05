@@ -1,8 +1,8 @@
 // Team Form Dialog - Create/Edit team modal
-import * as LucideIcons from 'lucide-react'
-import { Users, Copy, Loader2 } from 'lucide-react'
+import { Copy, Loader2 } from 'lucide-react'
 import { IconPicker } from '@/components/shared/IconPicker'
 import { ColorPickerDropdown } from '@/components/shared/ColorPicker'
+import { getTeamIcon } from '../../utils'
 import type { TeamFormDialogProps } from '../../types'
 
 export function TeamFormDialog({
@@ -17,7 +17,7 @@ export function TeamFormDialog({
   setCopyFromTeamId,
   disableNameEdit = false
 }: TeamFormDialogProps) {
-  const IconComponent = (LucideIcons as any)[formData.icon] || Users
+  const IconComponent = getTeamIcon(formData.icon)
   const isCreating = title === 'Create Team'
   
   return (

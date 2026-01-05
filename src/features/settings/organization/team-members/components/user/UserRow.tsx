@@ -1,6 +1,5 @@
 // User Row Component - displays a single user with inline dropdown menus
 import { useState } from 'react'
-import * as LucideIcons from 'lucide-react'
 import {
   Users,
   Shield,
@@ -17,11 +16,10 @@ import {
   UserMinus,
   Clock,
   Loader2,
-  X,
-  Briefcase
+  X
 } from 'lucide-react'
 import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
-import { formatLastOnline } from '../../utils'
+import { formatLastOnline, getTitleIcon, getTeamIcon, getRoleIcon } from '../../utils'
 import type { UserRowProps } from '../../types'
 
 export function UserRow({
@@ -128,14 +126,10 @@ export function UserRow({
             style={user.job_title ? { backgroundColor: `${user.job_title.color}15`, color: user.job_title.color } : {}}
             disabled={!canManage || !onToggleJobTitle}
           >
-            {user.job_title ? (
-              (() => {
-                const TitleIcon = (LucideIcons as any)[user.job_title.icon] || Briefcase
-                return <TitleIcon size={12} />
-              })()
-            ) : (
-              <Briefcase size={12} />
-            )}
+            {(() => {
+              const TitleIcon = getTitleIcon(user.job_title?.icon)
+              return <TitleIcon size={12} />
+            })()}
             {user.job_title?.name || 'No title'}
             {canManage && onToggleJobTitle && <ChevronDown size={12} />}
           </button>
@@ -196,9 +190,9 @@ export function UserRow({
                       {!user.job_title && <Check size={14} className="text-plm-success flex-shrink-0" />}
                     </button>
                   )}
-                  {jobTitles.filter(t => !titleSearch || t.name.toLowerCase().includes(titleSearch.toLowerCase())).map(title => {
-                    const TitleIcon = (LucideIcons as any)[title.icon] || Briefcase
-                    const isSelected = user.job_title?.id === title.id
+                      {jobTitles.filter(t => !titleSearch || t.name.toLowerCase().includes(titleSearch.toLowerCase())).map(title => {
+                        const TitleIcon = getTitleIcon(title.icon)
+                        const isSelected = user.job_title?.id === title.id
                     return (
                       <button
                         key={title.id}
@@ -302,7 +296,7 @@ export function UserRow({
                     </div>
                     <div className="overflow-y-auto flex-1">
                       {teams.filter(t => !teamSearch || t.name.toLowerCase().includes(teamSearch.toLowerCase())).map(team => {
-                        const TeamIcon = (LucideIcons as any)[team.icon] || Users
+                        const TeamIcon = getTeamIcon(team.icon)
                         const isInTeam = (user.teams || []).some(t => t.id === team.id)
                         const isToggling = togglingTeam === team.id
                         return (
@@ -398,7 +392,7 @@ export function UserRow({
                     </div>
                     <div className="overflow-y-auto flex-1">
                       {workflowRoles.filter(r => !roleSearch || r.name.toLowerCase().includes(roleSearch.toLowerCase())).map(role => {
-                        const RoleIcon = (LucideIcons as any)[role.icon] || Shield
+                        const RoleIcon = getRoleIcon(role.icon)
                         const hasRole = (userWorkflowRoleIds || []).includes(role.id)
                         const isToggling = togglingRole === role.id
                         return (
@@ -494,7 +488,7 @@ export function UserRow({
                 </div>
                 <div className="overflow-y-auto flex-1">
                   {workflowRoles.filter(r => !roleSearch || r.name.toLowerCase().includes(roleSearch.toLowerCase())).map(role => {
-                    const RoleIcon = (LucideIcons as any)[role.icon] || Shield
+                    const RoleIcon = getRoleIcon(role.icon)
                     const hasRole = (userWorkflowRoleIds || []).includes(role.id)
                     const isToggling = togglingRole === role.id
                     return (

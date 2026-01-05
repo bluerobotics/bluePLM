@@ -94,3 +94,15 @@ export function getPendingMemberVaultAccessCount(
   
   return teamVaultIds.size
 }
+
+// Re-export icon utilities
+export { 
+  getIcon, 
+  getTeamIcon, 
+  getRoleIcon, 
+  getTitleIcon,
+  isValidIconName,
+  getAvailableIconNames,
+  ICON_REGISTRY,
+  type IconName
+} from './utils/icons'

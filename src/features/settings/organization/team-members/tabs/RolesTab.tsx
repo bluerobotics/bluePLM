@@ -1,31 +1,109 @@
 /**
  * RolesTab - Displays and manages workflow roles
  * 
- * Shows a list of workflow roles with assigned users and admin actions
- * for editing and deleting roles.
+ * This component uses hooks directly instead of context:
+ * - usePDMStore for user/org info
+ * - useWorkflowRoles for data
+ * - useWorkflowRoleDialogs for dialog state
+ * - useWorkflowRoleHandlers for CRUD operations
  */
 import * as LucideIcons from 'lucide-react'
 import { Shield, Plus, Pencil, Trash2 } from 'lucide-react'
 import { getInitials, getEffectiveAvatarUrl } from '@/types/pdm'
-import { useTeamMembersContext } from '../context'
+import { usePDMStore } from '@/stores/pdmStore'
+import { useMembers, useWorkflowRoles, useWorkflowRoleDialogs } from '../hooks'
+import { WorkflowRoleFormDialog } from '../components/dialogs'
 
-export function RolesTab() {
+export interface RolesTabProps {
+  /** Search query for filtering roles */
+  searchQuery?: string
+}
+
+export function RolesTab({ searchQuery = '' }: RolesTabProps) {
+  // Get user/org info from store
+  const { organization, getEffectiveRole, addToast } = usePDMStore()
+  const orgId = organization?.id ?? null
+  const isAdmin = getEffectiveRole() === 'admin'
+
+  // Data hooks
   const {
     workflowRoles,
-    orgUsers,
-    userWorkflowRoleAssignments,
-    searchQuery,
-    isAdmin,
-    setEditingWorkflowRole,
-    setWorkflowRoleFormData,
-    setShowEditWorkflowRoleDialog,
-    setShowCreateWorkflowRoleDialog,
-    handleDeleteWorkflowRole
-  } = useTeamMembersContext()
+    userRoleAssignments: userWorkflowRoleAssignments,
+    createWorkflowRole,
+    updateWorkflowRole,
+    deleteWorkflowRole
+  } = useWorkflowRoles(orgId)
+  
+  const { members: orgUsers } = useMembers(orgId)
 
+  // Dialog state
+  const {
+    showCreateWorkflowRoleDialog,
+    setShowCreateWorkflowRoleDialog,
+    showEditWorkflowRoleDialog,
+    setShowEditWorkflowRoleDialog,
+    editingWorkflowRole,
+    setEditingWorkflowRole,
+    workflowRoleFormData,
+    setWorkflowRoleFormData,
+    isSavingWorkflowRole,
+    setIsSavingWorkflowRole
+  } = useWorkflowRoleDialogs()
+
+  // Filter roles by search
   const filteredRoles = workflowRoles.filter(r => 
     !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  // Handlers
+  const handleCreateWorkflowRole = async () => {
+    setIsSavingWorkflowRole(true)
+    try {
+      const success = await createWorkflowRole(workflowRoleFormData)
+      if (success) {
+        setShowCreateWorkflowRoleDialog(false)
+        setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+      }
+    } finally {
+      setIsSavingWorkflowRole(false)
+    }
+  }
+
+  const handleUpdateWorkflowRole = async () => {
+    if (!editingWorkflowRole) return
+    setIsSavingWorkflowRole(true)
+    try {
+      const success = await updateWorkflowRole(editingWorkflowRole.id, workflowRoleFormData)
+      if (success) {
+        setShowEditWorkflowRoleDialog(false)
+        setEditingWorkflowRole(null)
+        setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+      }
+    } finally {
+      setIsSavingWorkflowRole(false)
+    }
+  }
+
+  const handleDeleteWorkflowRole = async (role: { id: string; name: string }) => {
+    if (!confirm(`Delete workflow role "${role.name}"? Users will be unassigned from this role.`)) {
+      return
+    }
+    const success = await deleteWorkflowRole(role.id)
+    if (success) {
+      addToast('success', `Deleted role "${role.name}"`)
+    }
+  }
+
+  const openEditRoleDialog = (role: typeof workflowRoles[0]) => {
+    setEditingWorkflowRole(role)
+    setWorkflowRoleFormData({
+      name: role.name,
+      color: role.color,
+      icon: role.icon,
+      description: role.description || ''
+    })
+    setShowEditWorkflowRoleDialog(true)
+  }
 
   if (filteredRoles.length === 0) {
     return (
@@ -45,6 +123,21 @@ export function RolesTab() {
             </button>
           )}
         </div>
+
+        {/* Dialogs */}
+        {showCreateWorkflowRoleDialog && (
+          <WorkflowRoleFormDialog
+            mode="create"
+            formData={workflowRoleFormData}
+            setFormData={setWorkflowRoleFormData}
+            onSave={handleCreateWorkflowRole}
+            onClose={() => {
+              setShowCreateWorkflowRoleDialog(false)
+              setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+            }}
+            isSaving={isSavingWorkflowRole}
+          />
+        )}
       </div>
     )
   }
@@ -116,16 +209,7 @@ export function RolesTab() {
                 {isAdmin && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => {
-                        setEditingWorkflowRole(role)
-                        setWorkflowRoleFormData({
-                          name: role.name,
-                          color: role.color,
-                          icon: role.icon,
-                          description: role.description || ''
-                        })
-                        setShowEditWorkflowRoleDialog(true)
-                      }}
+                      onClick={() => openEditRoleDialog(role)}
                       className="p-1.5 text-plm-fg-muted hover:text-purple-400 hover:bg-purple-500/10 rounded transition-colors"
                       title="Edit role"
                     >
@@ -151,9 +235,37 @@ export function RolesTab() {
         Workflow roles define responsibilities in workflows (e.g., approvers, reviewers). 
         Editing a role updates it for all assigned users.
       </p>
+
+      {/* Dialogs */}
+      {showCreateWorkflowRoleDialog && (
+        <WorkflowRoleFormDialog
+          mode="create"
+          formData={workflowRoleFormData}
+          setFormData={setWorkflowRoleFormData}
+          onSave={handleCreateWorkflowRole}
+          onClose={() => {
+            setShowCreateWorkflowRoleDialog(false)
+            setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+          }}
+          isSaving={isSavingWorkflowRole}
+        />
+      )}
+
+      {showEditWorkflowRoleDialog && editingWorkflowRole && (
+        <WorkflowRoleFormDialog
+          mode="edit"
+          formData={workflowRoleFormData}
+          setFormData={setWorkflowRoleFormData}
+          editingRole={editingWorkflowRole}
+          onSave={handleUpdateWorkflowRole}
+          onClose={() => {
+            setShowEditWorkflowRoleDialog(false)
+            setEditingWorkflowRole(null)
+            setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
+          }}
+          isSaving={isSavingWorkflowRole}
+        />
+      )}
     </div>
   )
 }
-
-// Export props type for backward compatibility (can be removed later)
-export type RolesTabProps = Record<string, never>

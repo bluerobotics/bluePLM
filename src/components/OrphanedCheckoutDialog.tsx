@@ -298,7 +298,7 @@ export function OrphanedCheckoutDialog({ checkout, onClose, onRefresh }: Orphane
         {/* Footer */}
         <div className="px-4 py-3 bg-plm-bg border-t border-plm-border">
           <p className="text-xs text-plm-fg-muted text-center">
-            Server version: v{checkout.newVersion} • Checked in at {new Date(checkout.checkedInAt).toLocaleString()}
+            Server version: v{checkout.newVersion} • Checked in at {checkout.checkedInAt ? new Date(checkout.checkedInAt).toLocaleString() : 'unknown'}
           </p>
         </div>
       </div>
@@ -408,7 +408,7 @@ function FileRow({
       {isExpanded && (
         <div className="p-3 bg-plm-bg border-t border-plm-border">
           <div className="text-xs text-plm-fg-muted mb-2">
-            Checked in from <span className="font-medium text-plm-fg">{checkout.checkedInBy}</span> at {new Date(checkout.checkedInAt).toLocaleString()} • v{checkout.newVersion}
+            Checked in from <span className="font-medium text-plm-fg">{checkout.checkedInBy}</span> at {checkout.checkedInAt ? new Date(checkout.checkedInAt).toLocaleString() : 'unknown'} • v{checkout.newVersion}
           </div>
           <div className="grid grid-cols-2 gap-2">
             {ACTIONS.map(action => {

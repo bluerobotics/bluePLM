@@ -7,17 +7,15 @@
  * @module team-members/EditPendingMemberDialog
  */
 
-import * as LucideIcons from 'lucide-react'
 import {
   Pencil,
   X,
   Loader2,
   Check,
-  Shield,
-  Users,
   Folder,
   Database
 } from 'lucide-react'
+import { getRoleIcon, getTeamIcon } from '../../utils'
 import type {
   PendingMember,
   PendingMemberFormData,
@@ -100,7 +98,7 @@ export function EditPendingMemberDialog({
                 <div className="text-sm text-plm-fg-muted p-2">No workflow roles defined yet</div>
               ) : (
                 workflowRoles.map(role => {
-                  const RoleIcon = (LucideIcons as any)[role.icon] || Shield
+                  const RoleIcon = getRoleIcon(role.icon)
                   const isSelected = pendingMemberForm.workflow_role_ids.includes(role.id)
                   return (
                     <button
@@ -138,7 +136,7 @@ export function EditPendingMemberDialog({
                 <div className="text-sm text-plm-fg-muted p-2">No teams available</div>
               ) : (
                 teams.map(team => {
-                  const TeamIcon = (LucideIcons as any)[team.icon] || Users
+                  const TeamIcon = getTeamIcon(team.icon)
                   const isSelected = pendingMemberForm.team_ids.includes(team.id)
                   return (
                     <button

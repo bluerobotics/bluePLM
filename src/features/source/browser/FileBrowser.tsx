@@ -40,6 +40,8 @@ import {
   FileToolbar,
   // Context
   FileBrowserProvider,
+  FileBrowserHandlersProvider,
+  type FileBrowserHandlersContextValue,
   // Utilities
   isPathBeingProcessed,
   matchesKeybinding,
@@ -961,35 +963,48 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
     return cleanup
   }, [vaultPath, currentFolder, selectedFiles, files]) // Re-subscribe when these deps change
 
+  // Create handlers context value for cell components (eliminates prop drilling)
+  const handlersContextValue = useMemo<FileBrowserHandlersContextValue>(() => ({
+    // Inline action handlers
+    handleInlineDownload,
+    handleInlineUpload,
+    handleInlineCheckout,
+    handleInlineCheckin,
+    // Computed selection arrays
+    selectedDownloadableFiles,
+    selectedUploadableFiles,
+    selectedCheckoutableFiles,
+    selectedCheckinableFiles,
+    selectedUpdatableFiles,
+    // Status functions
+    isBeingProcessed,
+    getFolderCheckoutStatus,
+    isFolderSynced,
+    isFileEditable,
+    // Config handlers
+    canHaveConfigs,
+    toggleFileConfigExpansion,
+    hasPendingConfigChanges,
+    savingConfigsToSW,
+    saveConfigsToSWFile,
+    // Edit handlers
+    handleRename,
+    handleSaveCellEdit,
+    handleCancelCellEdit,
+    handleStartCellEdit,
+  }), [
+    handleInlineDownload, handleInlineUpload, handleInlineCheckout, handleInlineCheckin,
+    selectedDownloadableFiles, selectedUploadableFiles, selectedCheckoutableFiles,
+    selectedCheckinableFiles, selectedUpdatableFiles,
+    isBeingProcessed, getFolderCheckoutStatus, isFolderSynced, isFileEditable,
+    canHaveConfigs, toggleFileConfigExpansion, hasPendingConfigChanges,
+    savingConfigsToSW, saveConfigsToSWFile,
+    handleRename, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit,
+  ])
+
+  // Simplified renderCellContent - handlers come from context
   const renderCellContent = (file: LocalFile, columnId: string) => {
-          return (
-      <CellRenderer
-        file={file} 
-        columnId={columnId}
-        handleRename={handleRename}
-        isBeingProcessed={isBeingProcessed}
-        getFolderCheckoutStatus={getFolderCheckoutStatus}
-        isFolderSynced={isFolderSynced}
-        isFileEditable={isFileEditable}
-        canHaveConfigs={canHaveConfigs}
-        toggleFileConfigExpansion={toggleFileConfigExpansion}
-        hasPendingConfigChanges={hasPendingConfigChanges}
-        savingConfigsToSW={savingConfigsToSW}
-        saveConfigsToSWFile={saveConfigsToSWFile}
-        handleSaveCellEdit={handleSaveCellEdit}
-        handleCancelCellEdit={handleCancelCellEdit}
-        handleStartCellEdit={handleStartCellEdit}
-        selectedDownloadableFiles={selectedDownloadableFiles}
-        selectedUploadableFiles={selectedUploadableFiles}
-        selectedCheckoutableFiles={selectedCheckoutableFiles}
-        selectedCheckinableFiles={selectedCheckinableFiles}
-        selectedUpdatableFiles={selectedUpdatableFiles}
-        handleInlineDownload={handleInlineDownload}
-        handleInlineUpload={handleInlineUpload}
-        handleInlineCheckout={handleInlineCheckout}
-        handleInlineCheckin={handleInlineCheckin}
-      />
-    )
+    return <CellRenderer file={file} columnId={columnId} />
   }
 
   // Combine default columns with custom metadata columns
@@ -1010,6 +1025,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
 
   return (
     <FileBrowserProvider onRefresh={onRefresh} customMetadataColumns={customMetadataColumns}>
+    <FileBrowserHandlersProvider handlers={handlersContextValue}>
     <div 
       className="flex-1 flex flex-col overflow-hidden relative min-w-0"
       onDragOver={handleDragOver}
@@ -1424,6 +1440,7 @@ export function FileBrowser({ onRefresh }: FileBrowserProps) {
         />
       )}
     </div>
+    </FileBrowserHandlersProvider>
     </FileBrowserProvider>
   )
 }

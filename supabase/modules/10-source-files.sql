@@ -300,13 +300,13 @@ CREATE TABLE IF NOT EXISTS files (
   file_path TEXT NOT NULL,
   file_name TEXT NOT NULL,
   extension TEXT NOT NULL,
-  file_type file_type DEFAULT 'other',
+  file_type file_type NOT NULL DEFAULT 'other',
   
   -- Engineering metadata
   part_number TEXT,
   description TEXT,
-  revision TEXT DEFAULT 'A',
-  version INTEGER DEFAULT 1,
+  revision TEXT NOT NULL DEFAULT 'A',
+  version INTEGER NOT NULL DEFAULT 1,
   
   -- Content reference
   content_hash TEXT,
@@ -369,6 +369,17 @@ DO $$ BEGIN
   );
 EXCEPTION WHEN OTHERS THEN 
   RAISE NOTICE 'Could not create idx_files_search: %', SQLERRM;
+END $$;
+
+-- Migration: Ensure files columns have NOT NULL (set defaults for any existing NULLs first)
+UPDATE files SET file_type = 'other' WHERE file_type IS NULL;
+UPDATE files SET revision = 'A' WHERE revision IS NULL;
+UPDATE files SET version = 1 WHERE version IS NULL;
+DO $$ BEGIN
+  ALTER TABLE files ALTER COLUMN file_type SET NOT NULL;
+  ALTER TABLE files ALTER COLUMN revision SET NOT NULL;
+  ALTER TABLE files ALTER COLUMN version SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
 END $$;
 
 -- ===========================================
@@ -612,7 +623,7 @@ CREATE TABLE IF NOT EXISTS pending_reviews (
   gate_id UUID NOT NULL REFERENCES workflow_gates(id) ON DELETE CASCADE,
   requested_by UUID NOT NULL REFERENCES users(id),
   requested_at TIMESTAMPTZ DEFAULT NOW(),
-  status review_status DEFAULT 'pending',
+  status review_status NOT NULL DEFAULT 'pending',
   assigned_to UUID REFERENCES users(id),
   reviewed_by UUID REFERENCES users(id),
   reviewed_at TIMESTAMPTZ,
@@ -626,6 +637,13 @@ CREATE INDEX IF NOT EXISTS idx_pending_reviews_org_id ON pending_reviews(org_id)
 CREATE INDEX IF NOT EXISTS idx_pending_reviews_file_id ON pending_reviews(file_id);
 CREATE INDEX IF NOT EXISTS idx_pending_reviews_status ON pending_reviews(status);
 CREATE INDEX IF NOT EXISTS idx_pending_reviews_assigned_to ON pending_reviews(assigned_to);
+
+-- Migration: Ensure pending_reviews.status has NOT NULL
+UPDATE pending_reviews SET status = 'pending' WHERE status IS NULL;
+DO $$ BEGIN
+  ALTER TABLE pending_reviews ALTER COLUMN status SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- ===========================================
 -- WORKFLOW REVIEW HISTORY
@@ -997,13 +1015,13 @@ CREATE TABLE IF NOT EXISTS file_metadata_columns (
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   label TEXT NOT NULL,
-  data_type metadata_column_type DEFAULT 'text',
-  select_options TEXT[] DEFAULT '{}',
-  width INTEGER DEFAULT 120,
-  visible BOOLEAN DEFAULT true,
-  sortable BOOLEAN DEFAULT true,
-  sort_order INTEGER DEFAULT 0,
-  required BOOLEAN DEFAULT false,
+  data_type metadata_column_type NOT NULL DEFAULT 'text',
+  select_options TEXT[] NOT NULL DEFAULT '{}',
+  width INTEGER NOT NULL DEFAULT 120,
+  visible BOOLEAN NOT NULL DEFAULT true,
+  sortable BOOLEAN NOT NULL DEFAULT true,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  required BOOLEAN NOT NULL DEFAULT false,
   default_value TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   created_by UUID REFERENCES users(id),
@@ -1015,6 +1033,25 @@ CREATE TABLE IF NOT EXISTS file_metadata_columns (
 
 CREATE INDEX IF NOT EXISTS idx_file_metadata_columns_org_id ON file_metadata_columns(org_id);
 CREATE INDEX IF NOT EXISTS idx_file_metadata_columns_sort_order ON file_metadata_columns(org_id, sort_order);
+
+-- Migration: Ensure file_metadata_columns columns have NOT NULL (set defaults for any existing NULLs first)
+UPDATE file_metadata_columns SET data_type = 'text' WHERE data_type IS NULL;
+UPDATE file_metadata_columns SET select_options = '{}' WHERE select_options IS NULL;
+UPDATE file_metadata_columns SET width = 120 WHERE width IS NULL;
+UPDATE file_metadata_columns SET visible = true WHERE visible IS NULL;
+UPDATE file_metadata_columns SET sortable = true WHERE sortable IS NULL;
+UPDATE file_metadata_columns SET sort_order = 0 WHERE sort_order IS NULL;
+UPDATE file_metadata_columns SET required = false WHERE required IS NULL;
+DO $$ BEGIN
+  ALTER TABLE file_metadata_columns ALTER COLUMN data_type SET NOT NULL;
+  ALTER TABLE file_metadata_columns ALTER COLUMN select_options SET NOT NULL;
+  ALTER TABLE file_metadata_columns ALTER COLUMN width SET NOT NULL;
+  ALTER TABLE file_metadata_columns ALTER COLUMN visible SET NOT NULL;
+  ALTER TABLE file_metadata_columns ALTER COLUMN sortable SET NOT NULL;
+  ALTER TABLE file_metadata_columns ALTER COLUMN sort_order SET NOT NULL;
+  ALTER TABLE file_metadata_columns ALTER COLUMN required SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- ===========================================
 -- BACKUP SYSTEM

@@ -5,7 +5,8 @@ import { format } from 'date-fns'
 import type { CustomCellProps } from './types'
 
 export function CustomCell({ file, columnName, customMetadataColumns }: CustomCellProps): React.ReactNode {
-  const customValue = file.pdmData?.custom_properties?.[columnName]
+  const props = file.pdmData?.custom_properties as Record<string, unknown> | null | undefined
+  const customValue = props?.[columnName]
   
   if (customValue === null || customValue === undefined) {
     return <span className="text-plm-fg-muted/50">—</span>

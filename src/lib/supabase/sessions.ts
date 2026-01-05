@@ -8,14 +8,16 @@ import { getSupabaseClient } from './client'
 export interface UserSession {
   id: string
   user_id: string
-  org_id: string | null
+  org_id: string
   machine_id: string
-  machine_name: string
-  platform: string | null
+  machine_name: string | null
+  os_version: string | null
   app_version: string | null
-  last_seen: string
-  is_active: boolean
-  created_at: string
+  platform: string | null
+  last_active: string | null
+  last_seen: string | null
+  is_active: boolean | null
+  created_at: string | null
 }
 
 let heartbeatInterval: NodeJS.Timeout | null = null

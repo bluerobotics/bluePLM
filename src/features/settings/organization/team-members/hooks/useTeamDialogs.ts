@@ -50,7 +50,7 @@ export function useTeamDialogs() {
       description: team.description || '',
       color: team.color,
       icon: team.icon,
-      is_default: team.is_default
+      is_default: team.is_default ?? false
     })
     setShowEditTeamDialog(true)
   }, [])

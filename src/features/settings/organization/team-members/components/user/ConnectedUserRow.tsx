@@ -1,8 +1,9 @@
 /**
- * ConnectedUserRow - Context-connected wrapper for UserRow
+ * ConnectedUserRow - Self-contained wrapper for UserRow
  * 
- * This component uses the TeamMembersContext to derive all props needed
- * by UserRow, eliminating prop drilling from parent components.
+ * This component uses hooks directly instead of context to derive all props
+ * needed by UserRow. Each instance calls hooks, but since hooks cache their
+ * data, this is performant.
  * 
  * UserRow remains a pure presentation component for testability.
  * 
@@ -18,7 +19,16 @@
  * />
  * ```
  */
-import { useTeamMembersContext } from '../../context'
+import { useCallback, useState } from 'react'
+import { usePDMStore } from '@/stores/pdmStore'
+import {
+  useTeams,
+  useMembers,
+  useWorkflowRoles,
+  useJobTitles,
+  useVaultAccess,
+  useUserDialogs
+} from '../../hooks'
 import { UserRow } from './UserRow'
 import type { OrgUser } from '../../types'
 
@@ -38,41 +48,76 @@ export interface ConnectedUserRowProps {
 }
 
 export function ConnectedUserRow({ user, teamContext, compact }: ConnectedUserRowProps) {
-  // Get all needed data and handlers from context
+  // Get current user info from store
   const {
-    // Current user info
     user: currentUser,
-    isAdmin,
-    isRealAdmin,
-    impersonatedUserId,
-    
-    // Data lists
-    teams,
-    workflowRoles,
-    jobTitles,
-    userWorkflowRoleAssignments,
-    
-    // Dialog setters
+    organization,
+    getEffectiveRole,
+    startUserImpersonation,
+    impersonatedUser
+  } = usePDMStore()
+  
+  const orgId = organization?.id ?? null
+  const isAdmin = getEffectiveRole() === 'admin'
+  const isRealAdmin = currentUser?.role === 'admin'
+  
+  // Data hooks (these are cached, so calling them in each row is efficient)
+  const { teams } = useTeams(orgId)
+  const { toggleTeam, removeFromTeam } = useMembers(orgId)
+  const { workflowRoles, userRoleAssignments: userWorkflowRoleAssignments, toggleUserRole } = useWorkflowRoles(orgId)
+  const { jobTitles, assignJobTitle } = useJobTitles(orgId)
+  const { getUserVaultAccessCount, getUserAccessibleVaults } = useVaultAccess(orgId)
+  
+  // Dialog state hooks
+  const {
     setViewingUserId,
     setRemovingUser,
     setEditingPermissionsUser,
     setViewingPermissionsUser,
-    setEditingJobTitleUser,
+    setEditingVaultAccessUser,
+    setPendingVaultAccess,
     setEditingWorkflowRolesUser,
     setEditingTeamsUser,
-    
-    // Handlers
-    openVaultAccessEditor,
-    startUserImpersonation,
-    getUserVaultAccessCount,
-    handleChangeJobTitle,
-    handleToggleTeam,
-    handleToggleWorkflowRole,
-    handleRemoveFromTeam
-  } = useTeamMembersContext()
+    setRemovingFromTeam
+  } = useUserDialogs()
+  
+  // Local state for job title editing
+  const [, setEditingJobTitleUser] = useState<OrgUser | null>(null)
 
-  // Derive props from context
+  // Derive props
   const isCurrentUser = user.id === currentUser?.id
+
+  // Handlers
+  const handleToggleTeam = useCallback(async (u: OrgUser, teamId: string, isAdding: boolean) => {
+    await toggleTeam(u.id, teamId, isAdding)
+  }, [toggleTeam])
+
+  const handleToggleWorkflowRole = useCallback(async (u: OrgUser, roleId: string, isAdding: boolean) => {
+    await toggleUserRole(u.id, roleId, isAdding, currentUser?.id)
+  }, [toggleUserRole, currentUser?.id])
+
+  const handleChangeJobTitle = useCallback(async (u: OrgUser, titleId: string | null) => {
+    await assignJobTitle(u, titleId)
+  }, [assignJobTitle])
+
+  const handleRemoveFromTeam = useCallback(async (u: OrgUser, teamId: string, teamName: string) => {
+    // Check if removing self from Administrators
+    const isRemovingSelfFromAdmins = u.id === currentUser?.id && teamName === 'Administrators'
+    
+    if (isRemovingSelfFromAdmins) {
+      // Show confirmation dialog for removing self from Administrators
+      setRemovingFromTeam({ user: u, teamId, teamName })
+    } else {
+      // Direct removal
+      await removeFromTeam(u.id, teamId, teamName)
+    }
+  }, [currentUser?.id, removeFromTeam, setRemovingFromTeam])
+
+  const openVaultAccessEditor = useCallback((u: OrgUser) => {
+    const currentVaultIds = getUserAccessibleVaults(u.id)
+    setEditingVaultAccessUser(u)
+    setPendingVaultAccess(currentVaultIds)
+  }, [getUserAccessibleVaults, setEditingVaultAccessUser, setPendingVaultAccess])
 
   return (
     <UserRow
@@ -88,7 +133,7 @@ export function ConnectedUserRow({ user, teamContext, compact }: ConnectedUserRo
       
       // Simulate permissions (impersonation)
       onSimulatePermissions={() => startUserImpersonation(user.id)}
-      isSimulating={impersonatedUserId === user.id}
+      isSimulating={impersonatedUser?.id === user.id}
       
       // Removal actions
       onRemove={() => setRemovingUser(user)}

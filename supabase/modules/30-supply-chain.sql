@@ -262,7 +262,7 @@ CREATE TABLE IF NOT EXISTS rfqs (
   description TEXT,
   
   -- Status
-  status rfq_status DEFAULT 'draft',
+  status rfq_status NOT NULL DEFAULT 'draft',
   
   -- Dates
   due_date DATE,
@@ -313,6 +313,13 @@ CREATE TABLE IF NOT EXISTS rfqs (
 CREATE INDEX IF NOT EXISTS idx_rfqs_org_id ON rfqs(org_id);
 CREATE INDEX IF NOT EXISTS idx_rfqs_status ON rfqs(status);
 CREATE INDEX IF NOT EXISTS idx_rfqs_created_at ON rfqs(created_at DESC);
+
+-- Migration: Ensure rfqs.status has NOT NULL
+UPDATE rfqs SET status = 'draft' WHERE status IS NULL;
+DO $$ BEGIN
+  ALTER TABLE rfqs ALTER COLUMN status SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- ===========================================
 -- RFQ ITEMS

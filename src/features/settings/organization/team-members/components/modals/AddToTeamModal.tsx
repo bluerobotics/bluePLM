@@ -7,11 +7,11 @@
  * @module team-members/AddToTeamModal
  */
 
-// @ts-nocheck - Supabase type inference issues with Database generics
+import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Users } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
+import { insertTeamMember } from '../../hooks/supabaseHelpers'
 import type { OrgUser, TeamWithDetails } from '../../types'
 
 export interface AddToTeamModalProps {
@@ -33,11 +33,12 @@ export function AddToTeamModal({
 
   const handleAddToTeam = async (team: TeamWithDetails) => {
     try {
-      await supabase.from('team_members').insert({
+      const { error } = await insertTeamMember({
         team_id: team.id,
         user_id: targetUser.id,
-        added_by: currentUserId
+        added_by: currentUserId ?? null
       })
+      if (error) throw error
       addToast('success', `Added ${targetUser.full_name || targetUser.email} to ${team.name}`)
       onSuccess()
       onClose()
@@ -61,7 +62,7 @@ export function AddToTeamModal({
         ) : (
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {teams.map(team => {
-              const TeamIcon = (LucideIcons as any)[team.icon] || Users
+              const TeamIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[team.icon] || Users
               return (
                 <button
                   key={team.id}

@@ -4,12 +4,13 @@
  * These components render the content for each tab in the
  * Team Members Settings page.
  * 
- * They use useTeamMembersContext() to access all data and handlers.
+ * They use hooks directly (usePDMStore, useTeams, etc.) instead of context.
+ * Each tab accepts a searchQuery prop for filtering.
  * 
  * @module team-members/tabs
  */
 
-export { UsersTab } from './UsersTab'
-export { TeamsTab } from './TeamsTab'
-export { RolesTab } from './RolesTab'
-export { TitlesTab } from './TitlesTab'
+export { UsersTab, type UsersTabProps } from './UsersTab'
+export { TeamsTab, type TeamsTabProps } from './TeamsTab'
+export { RolesTab, type RolesTabProps } from './RolesTab'
+export { TitlesTab, type TitlesTabProps } from './TitlesTab'
