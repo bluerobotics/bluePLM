@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.1.0] - 2026-01-07
+
+### Added
+- **Clean install on major upgrades**: App data is automatically wiped when upgrading between major versions (2→3, 3→4, etc.) ensuring a fresh start. Clears settings, logs, cache, browser storage, and temp files
+
+---
+
 ## [3.0.2] - 2026-01-07
 
 ### Fixed
