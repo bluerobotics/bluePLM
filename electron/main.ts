@@ -7,7 +7,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import * as Sentry from '@sentry/electron/main'
 
-import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService } from './handlers'
+import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService, performMigrationCheck, wasMigrationPerformed } from './handlers'
 import { createAppMenu } from './menu'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -378,12 +378,23 @@ app.on('second-instance', () => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Initialize file-based logging
   initializeLogging()
   
   // Initialize Sentry for crash reporting
   initSentryMain()
+  
+  // Perform migration check BEFORE creating window
+  // This handles clean install when upgrading from 2.x to 3.0+
+  log('Checking for version migration...')
+  const migrationResult = await performMigrationCheck()
+  if (migrationResult.performed) {
+    log('Migration performed: cleaned ' + migrationResult.cleanedPaths.length + ' items', {
+      fromVersion: migrationResult.fromVersion,
+      toVersion: migrationResult.toVersion
+    })
+  }
   
   log('App ready, creating window...')
   createWindow()

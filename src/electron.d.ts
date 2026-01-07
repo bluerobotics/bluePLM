@@ -525,6 +525,14 @@ declare global {
       generateCliToken: (userEmail: string) => Promise<{ success: boolean; token?: string }>
       revokeCliToken: () => Promise<{ success: boolean }>
       getCliStatus: () => Promise<{ authenticated: boolean; serverRunning: boolean }>
+      
+      // Migration status (for 2.x -> 3.0 upgrade notifications)
+      getMigrationStatus: () => Promise<{
+        performed: boolean
+        fromVersion: string | null
+        toVersion: string | null
+        cleanedCount: number
+      }>
     }
   }
 }

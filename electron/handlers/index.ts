@@ -1,5 +1,5 @@
 // Handler registry - registers all IPC handlers
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 
 import { registerFsHandlers, unregisterFsHandlers, getWorkingDirectory, FsHandlerDependencies } from './fs'
 import { registerBackupHandlers, unregisterBackupHandlers, BackupHandlerDependencies } from './backup'
@@ -10,9 +10,13 @@ import { registerLoggingHandlers, unregisterLoggingHandlers, writeLog, initializ
 import { registerUpdaterHandlers, unregisterUpdaterHandlers, UpdaterHandlerDependencies } from './updater'
 import { registerOAuthHandlers, unregisterOAuthHandlers, OAuthHandlerDependencies } from './oauth'
 import { registerCliHandlers, unregisterCliHandlers, startCliServer, cleanupCli, CliHandlerDependencies } from './cli'
+import { performMigrationCheck, getMigrationResult, wasMigrationPerformed } from './migration'
 
 // Logging utilities for main.ts
 export { writeLog, initializeLogging } from './logging'
+
+// Migration utilities for main.ts
+export { performMigrationCheck, getMigrationResult, wasMigrationPerformed } from './migration'
 
 // CLI exports for main.ts
 export { startCliServer, cleanupCli } from './cli'
@@ -111,6 +115,17 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   registerUpdaterHandlers(mainWindow, updaterHandlerDeps)
   registerOAuthHandlers(mainWindow, oauthHandlerDeps)
   registerCliHandlers(mainWindow, cliHandlerDeps)
+  
+  // Migration status handler
+  ipcMain.handle('migration:get-status', () => {
+    const result = getMigrationResult()
+    return {
+      performed: result?.performed ?? false,
+      fromVersion: result?.fromVersion ?? null,
+      toVersion: result?.toVersion ?? null,
+      cleanedCount: result?.cleanedPaths.length ?? 0
+    }
+  })
 
   log('All IPC handlers registered')
 }
@@ -125,4 +140,7 @@ export function unregisterAllHandlers(): void {
   unregisterUpdaterHandlers()
   unregisterOAuthHandlers()
   unregisterCliHandlers()
+  
+  // Unregister migration handler
+  ipcMain.removeHandler('migration:get-status')
 }
