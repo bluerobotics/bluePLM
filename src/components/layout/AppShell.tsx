@@ -7,7 +7,7 @@ import { Sidebar } from './Sidebar'
 import { Toast } from '@/components/core'
 import { ChristmasEffects, HalloweenEffects, WeatherEffects } from '@/components/effects/seasonal'
 import { ImpersonationBanner } from '@/components/shared/ImpersonationBanner'
-import { UpdateModal, OrphanedCheckoutsContainer, MissingStorageFilesContainer, VaultNotFoundDialog, StagedCheckinConflictDialog } from '@/components/shared/Dialogs'
+import { UpdateModal, OrphanedCheckoutsContainer, MissingStorageFilesContainer, VaultNotFoundDialog, StagedCheckinConflictDialog, VaultMigrationContainer } from '@/components/shared/Dialogs'
 import { ResizeHandle } from './ResizeHandle'
 import { MainContent } from './MainContent'
 import { Loader2 } from 'lucide-react'
@@ -163,6 +163,12 @@ export function AppShell({
       </div>
 
       <Toast />
+      
+      {/* Vault Migration Dialog (shown after major version upgrade) */}
+      <VaultMigrationContainer 
+        onComplete={() => loadFiles()} 
+        onRefresh={loadFiles}
+      />
       
       {/* Update Modal */}
       <UpdateModal />

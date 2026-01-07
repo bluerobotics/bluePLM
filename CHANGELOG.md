@@ -4,8 +4,13 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [3.1.1] - 2026-01-07
 
+### Added
+- **Vault migration dialog**: User-friendly dialog shown after major version upgrades when connecting to an existing vault. Runs a health check comparing local files with server state, identifies files with missing storage blobs, and offers one-click "Fix All" to re-sync affected files
+
 ### Fixed
 - **SolidWorks file downloads failing**: Fixed critical bug where check-in did not upload modified file content to storage. When users checked in files (especially SolidWorks files with metadata writeback), the database was updated with the new content hash but the actual file was never uploaded. This caused all downloads of those files to fail with HTTP 400 errors. Check-in now properly uploads file content to storage when the hash changes.
+- **Delete local files spinner**: Fixed missing loading spinner when deleting local files. Spinners now appear in the inline action button area (where download/checkout/checkin spinners appear) for list view, grid view, and tree view
+- **Upgrade file sync issues**: Fixed issues where users upgrading to 3.1 with existing vault folders would see orphan checkout warnings or "Missing Storage Files" dialogs. Files with matching content hashes are now recognized as synced regardless of timestamps, and storage blob existence is pre-validated before download attempts
 
 ---
 

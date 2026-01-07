@@ -1,4 +1,5 @@
 // Inline action buttons for tree items
+import { Loader2 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import { getInitials } from '@/lib/utils'
@@ -160,6 +161,11 @@ export function FileActionButtons({
       })
       addToast('success', `Staged "${file.name}" for check-in when online`)
     }
+  }
+  
+  // Show delete spinner when deleting
+  if (operationType === 'delete') {
+    return <Loader2 size={16} className="text-red-400 animate-spin" />
   }
   
   return (
@@ -378,6 +384,11 @@ export function FolderActionButtons({
   const handleInlineFirstCheckin = (e: React.MouseEvent) => {
     e.stopPropagation()
     executeCommand('sync', { files: [file] }, { onRefresh })
+  }
+  
+  // Show delete spinner when deleting
+  if (operationType === 'delete') {
+    return <Loader2 size={16} className="text-red-400 animate-spin ml-auto mr-0.5" />
   }
   
   return (

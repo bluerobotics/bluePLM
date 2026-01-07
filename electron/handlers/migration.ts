@@ -13,6 +13,8 @@ interface VersionInfo {
   version: string
   lastRun: string
   migratedFrom?: string
+  /** True if major version migration was performed and vault health check hasn't run yet */
+  migrationPending?: boolean
 }
 
 interface MigrationResult {
@@ -21,6 +23,14 @@ interface MigrationResult {
   toVersion: string
   cleanedPaths: string[]
   errors: string[]
+}
+
+export interface MigrationStatus {
+  performed: boolean
+  pending: boolean
+  fromVersion: string | null
+  toVersion: string
+  cleanedCount: number
 }
 
 // ============================================
@@ -58,12 +68,13 @@ function loadStoredVersion(): VersionInfo | null {
   return null
 }
 
-function saveVersion(version: string, migratedFrom?: string): void {
+function saveVersion(version: string, migratedFrom?: string, migrationPending?: boolean): void {
   try {
     const versionInfo: VersionInfo = {
       version,
       lastRun: new Date().toISOString(),
-      ...(migratedFrom && { migratedFrom })
+      ...(migratedFrom && { migratedFrom }),
+      ...(migrationPending !== undefined && { migrationPending })
     }
     
     // Ensure userData directory exists
@@ -278,11 +289,16 @@ export async function performMigrationCheck(): Promise<MigrationResult> {
       console.warn(`[Migration] Encountered ${result.errors.length} errors:`, result.errors)
     }
     
-    // Save new version (with migration info)
-    saveVersion(currentVersion, previousVersion ?? 'pre-3.0')
+    // Save new version (with migration info and pending flag)
+    saveVersion(currentVersion, previousVersion ?? 'pre-3.0', true)
+    console.log('[Migration] Set migrationPending = true for vault health check')
   } else {
-    // Just update the version file
-    saveVersion(currentVersion)
+    // Just update the version file (preserve pending state from previous version)
+    const existingPending = storedVersionInfo?.migrationPending ?? false
+    if (existingPending) {
+      console.log('[Migration] Preserving existing migrationPending = true')
+    }
+    saveVersion(currentVersion, undefined, existingPending ? true : undefined)
     console.log('[Migration] No migration needed')
   }
   
@@ -303,4 +319,41 @@ export function getMigrationResult(): MigrationResult | null {
  */
 export function wasMigrationPerformed(): boolean {
   return migrationResult?.performed ?? false
+}
+
+/**
+ * Check if a migration is pending (vault health check hasn't been completed yet).
+ * This persists across app restarts until acknowledged.
+ */
+export function isMigrationPending(): boolean {
+  const stored = loadStoredVersion()
+  return stored?.migrationPending ?? false
+}
+
+/**
+ * Acknowledge/complete the migration (called after vault health check completes).
+ * Clears the migrationPending flag.
+ */
+export function acknowledgeMigration(): void {
+  const stored = loadStoredVersion()
+  if (stored) {
+    saveVersion(stored.version, stored.migratedFrom, false)
+    console.log('[Migration] Acknowledged - migrationPending cleared')
+  }
+}
+
+/**
+ * Get full migration status for renderer.
+ */
+export function getMigrationStatus(): MigrationStatus {
+  const result = migrationResult
+  const pending = isMigrationPending()
+  
+  return {
+    performed: result?.performed ?? false,
+    pending,
+    fromVersion: result?.fromVersion ?? null,
+    toVersion: result?.toVersion ?? app.getVersion(),
+    cleanedCount: result?.cleanedPaths.length ?? 0
+  }
 }

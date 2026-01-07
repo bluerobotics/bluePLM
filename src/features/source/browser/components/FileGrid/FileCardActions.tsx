@@ -49,11 +49,17 @@ export function FileCardActions({
   const isCheckingIn = operationType === 'checkin'
   const isUploading = operationType === 'upload'
   const isSyncing = operationType === 'sync'
+  const isDeleting = operationType === 'delete'
 
   return (
     <div className="absolute top-1 left-1 flex items-center z-10" style={{ gap: spacing }}>
+      {/* Delete spinner */}
+      {isDeleting && (
+        <Loader2 size={16} className="text-red-400 animate-spin" />
+      )}
+
       {/* Download for cloud files */}
-      {(file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && !file.isDirectory && onDownload && (
+      {!isDeleting && (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && !file.isDirectory && onDownload && (
         isDownloading ? (
           <Loader2 size={16} className="text-sky-400 animate-spin" />
         ) : (
@@ -73,7 +79,7 @@ export function FileCardActions({
       )}
 
       {/* Folder download button */}
-      {file.isDirectory && (cloudFilesCount > 0 || file.diffStatus === 'cloud') && onDownload && (
+      {!isDeleting && file.isDirectory && (cloudFilesCount > 0 || file.diffStatus === 'cloud') && onDownload && (
         (isDownloading || isSyncing) ? (
           <Loader2 size={16} className="text-sky-400 animate-spin" />
         ) : (
@@ -94,7 +100,7 @@ export function FileCardActions({
       )}
 
       {/* File check-in button */}
-      {!file.isDirectory && file.pdmData?.checked_out_by === userId && file.diffStatus !== 'deleted' && onCheckin && (
+      {!isDeleting && !file.isDirectory && file.pdmData?.checked_out_by === userId && file.diffStatus !== 'deleted' && onCheckin && (
         <InlineCheckinButton
           onClick={(e) => onCheckin(e, file)}
           isProcessing={isCheckingIn}
@@ -106,7 +112,7 @@ export function FileCardActions({
       )}
 
       {/* Folder check-in button */}
-      {file.isDirectory && folderCheckoutInfo && folderCheckoutInfo.checkedOutByMe > 0 && onCheckin && (
+      {!isDeleting && file.isDirectory && folderCheckoutInfo && folderCheckoutInfo.checkedOutByMe > 0 && onCheckin && (
         <FolderCheckinButton
           onClick={(e) => onCheckin(e, file)}
           isProcessing={isCheckingIn}
@@ -118,7 +124,7 @@ export function FileCardActions({
       )}
 
       {/* File checkout button */}
-      {!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'deleted' && onCheckout && (
+      {!isDeleting && !file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'deleted' && onCheckout && (
         isCheckingOut ? (
           <Loader2 size={16} className="text-sky-400 animate-spin" />
         ) : (
@@ -134,7 +140,7 @@ export function FileCardActions({
       )}
 
       {/* File upload button */}
-      {!file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && onUpload && (
+      {!isDeleting && !file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && onUpload && (
         isUploading ? (
           <Loader2 size={16} className="text-sky-400 animate-spin" />
         ) : (

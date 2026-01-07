@@ -8,7 +8,7 @@
 import type { Command, CommandResult, LocalFile } from '../types'
 import { buildFullPath, getFilesInFolder } from '../types'
 import { ProgressTracker } from '../executor'
-import { getDownloadUrl } from '../../storage'
+import { getDownloadUrl, fileExists } from '../../storage'
 import { usePDMStore, MissingStorageFile } from '../../../stores/pdmStore'
 import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
@@ -158,14 +158,92 @@ export const getLatestCommand: Command<GetLatestParams> = {
       }
     }
     
+    // Pre-validate storage blobs exist before attempting downloads
+    // This provides better UX - show missing files dialog immediately instead of after download failures
+    logGetLatest('info', 'Pre-validating storage blobs', {
+      operationId,
+      count: outdatedFiles.length
+    })
+    
+    const missingStorageFiles: LocalFile[] = []
+    const downloadableFiles: LocalFile[] = []
+    
+    // Check storage existence in batches for performance
+    const VALIDATION_BATCH_SIZE = 10
+    for (let i = 0; i < outdatedFiles.length; i += VALIDATION_BATCH_SIZE) {
+      const batch = outdatedFiles.slice(i, i + VALIDATION_BATCH_SIZE)
+      const results = await Promise.all(
+        batch.map(async (file) => {
+          if (!file.pdmData?.content_hash) {
+            // No hash means we can't validate - assume downloadable
+            return { file, exists: true }
+          }
+          try {
+            const exists = await fileExists(organization.id, file.pdmData.content_hash)
+            return { file, exists }
+          } catch {
+            // If we can't check, assume it exists and let download fail naturally
+            return { file, exists: true }
+          }
+        })
+      )
+      
+      for (const { file, exists } of results) {
+        if (exists) {
+          downloadableFiles.push(file)
+        } else {
+          missingStorageFiles.push(file)
+        }
+      }
+    }
+    
+    // If any files have missing storage blobs, show the dialog immediately
+    if (missingStorageFiles.length > 0) {
+      logGetLatest('warn', 'Pre-validation found files with missing storage blobs', {
+        operationId,
+        missingCount: missingStorageFiles.length,
+        downloadableCount: downloadableFiles.length,
+        missingFiles: missingStorageFiles.map(f => f.name)
+      })
+      
+      const missingFilesData: MissingStorageFile[] = missingStorageFiles.map(f => ({
+        fileId: f.pdmData?.id || '',
+        fileName: f.name,
+        filePath: f.relativePath,
+        serverHash: f.pdmData?.content_hash || '',
+        version: f.pdmData?.version || 0,
+        detectedAt: new Date().toISOString()
+      }))
+      
+      usePDMStore.getState().setMissingStorageFiles(missingFilesData)
+    }
+    
+    // If no files are downloadable, return early
+    if (downloadableFiles.length === 0) {
+      logGetLatest('info', 'No downloadable files after pre-validation', {
+        operationId,
+        missingCount: missingStorageFiles.length
+      })
+      return {
+        success: false,
+        message: `${missingStorageFiles.length} file${missingStorageFiles.length > 1 ? 's' : ''} need to be re-uploaded`,
+        total: outdatedFiles.length,
+        succeeded: 0,
+        failed: missingStorageFiles.length
+      }
+    }
+    
+    // Continue with only the downloadable files
+    const filesToProcess = downloadableFiles
+    
     // Track files being updated
-    const filePaths = outdatedFiles.map(f => f.relativePath)
+    const filePaths = filesToProcess.map(f => f.relativePath)
     ctx.addProcessingFolders(filePaths, 'sync')
     
     // Yield to event loop so React can render spinners
     await new Promise(resolve => setTimeout(resolve, 0))
     
-    const total = outdatedFiles.length
+    const total = filesToProcess.length
     
     // Progress tracking
     const toastId = `get-latest-${Date.now()}`
@@ -189,7 +267,7 @@ export const getLatestCommand: Command<GetLatestParams> = {
     const pendingUpdates: Array<{ path: string; updates: Partial<LocalFile> }> = []
     
     // Process files with limited concurrency
-    const results = await processWithConcurrency(outdatedFiles, CONCURRENT_OPERATIONS, async (file) => {
+    const results = await processWithConcurrency(filesToProcess, CONCURRENT_OPERATIONS, async (file) => {
       const fileCtx = getFileContext(file)
       
       if (!file.pdmData?.content_hash) {
@@ -363,11 +441,17 @@ export const getLatestCommand: Command<GetLatestParams> = {
     ctx.removeProcessingFolders(filePaths)
     const { duration } = progress.finish()
     
+    // Include pre-validated missing files in totals
+    const totalAttempted = total + missingStorageFiles.length
+    const totalFailed = failed + missingStorageFiles.length
+    
     logGetLatest('info', 'Get-latest operation complete', {
       operationId,
-      total,
+      totalAttempted,
+      downloaded: total,
       succeeded,
       failed,
+      preValidatedMissing: missingStorageFiles.length,
       duration,
       errors: errors.length > 0 ? errors : undefined,
       pendingUpdatesApplied: pendingUpdates.length
@@ -375,65 +459,71 @@ export const getLatestCommand: Command<GetLatestParams> = {
     
     ctx.onRefresh?.(true)
     
-    // Detect "orphaned files" - database has records but storage is missing the actual files
-    // This happens when check-in partially failed (database updated but upload failed)
+    // Note: Missing storage files were already detected during pre-validation
+    // and the modal was already triggered. We only need to handle download errors here.
+    
+    // Detect any additional "orphaned files" that slipped through pre-validation
     const objectNotFoundErrors = errors.filter(e => 
       e.includes('Object not found') || 
       e.includes('not found in cloud storage') ||
       e.includes('File not found')
     )
-    const isOrphanedFilesSituation = objectNotFoundErrors.length > 0 && objectNotFoundErrors.length === failed
     
-    // Show result with helpful message for orphaned files
-    if (failed > 0) {
-      if (isOrphanedFilesSituation) {
-        // All failures are due to missing storage - show modal with affected files
-        const fileCount = objectNotFoundErrors.length
-        
-        // Build list of missing storage files for the modal
-        const missingFiles: MissingStorageFile[] = outdatedFiles
-          .filter(f => {
-            const errorForFile = errors.find(e => e.startsWith(f.name + ':'))
-            return errorForFile && (
-              errorForFile.includes('Object not found') ||
-              errorForFile.includes('not found in cloud storage') ||
-              errorForFile.includes('File not found')
-            )
-          })
-          .map(f => ({
-            fileId: f.pdmData?.id || '',
-            fileName: f.name,
-            filePath: f.relativePath,
-            serverHash: f.pdmData?.content_hash || '',
-            version: f.pdmData?.version || 0,
-            detectedAt: new Date().toISOString()
-          }))
-        
-        // Set in store to trigger modal
-        if (missingFiles.length > 0) {
-          usePDMStore.getState().setMissingStorageFiles(missingFiles)
-        }
-        
-        logGetLatest('warn', 'Orphaned files detected - database records exist but storage files are missing', {
-          operationId,
-          orphanedCount: fileCount,
-          affectedFiles: missingFiles.map(f => f.fileName)
+    if (objectNotFoundErrors.length > 0) {
+      // Some files failed with "not found" during download - add to existing missing files
+      const additionalMissing: MissingStorageFile[] = filesToProcess
+        .filter(f => {
+          const errorForFile = errors.find(e => e.startsWith(f.name + ':'))
+          return errorForFile && (
+            errorForFile.includes('Object not found') ||
+            errorForFile.includes('not found in cloud storage') ||
+            errorForFile.includes('File not found')
+          )
         })
+        .map(f => ({
+          fileId: f.pdmData?.id || '',
+          fileName: f.name,
+          filePath: f.relativePath,
+          serverHash: f.pdmData?.content_hash || '',
+          version: f.pdmData?.version || 0,
+          detectedAt: new Date().toISOString()
+        }))
+      
+      if (additionalMissing.length > 0) {
+        // Merge with any existing missing files from pre-validation
+        const existingMissing = usePDMStore.getState().missingStorageFiles
+        const allMissing = [...existingMissing, ...additionalMissing]
+        usePDMStore.getState().setMissingStorageFiles(allMissing)
         
-        // Don't show a toast - the modal is more informative
-      } else {
-        ctx.addToast('warning', `Updated ${succeeded}/${total} files`)
+        logGetLatest('warn', 'Additional orphaned files detected during download', {
+          operationId,
+          additionalCount: additionalMissing.length
+        })
       }
+    }
+    
+    // Show result toast (unless only missing storage files, which show a modal)
+    const hasOnlyMissingStorageIssues = totalFailed > 0 && 
+      totalFailed === (missingStorageFiles.length + objectNotFoundErrors.length)
+    
+    if (totalFailed > 0) {
+      if (!hasOnlyMissingStorageIssues) {
+        // Some failures were NOT due to missing storage - show warning
+        ctx.addToast('warning', `Updated ${succeeded}/${totalAttempted} files`)
+      }
+      // If only missing storage issues, the modal provides the information
     } else {
       ctx.addToast('success', `Updated ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }
     
     return {
-      success: failed === 0,
-      message: failed > 0 ? `Updated ${succeeded}/${total} files` : `Updated ${succeeded} file${succeeded > 1 ? 's' : ''}`,
-      total,
+      success: totalFailed === 0,
+      message: totalFailed > 0 
+        ? `Updated ${succeeded}/${totalAttempted} files` 
+        : `Updated ${succeeded} file${succeeded > 1 ? 's' : ''}`,
+      total: totalAttempted,
       succeeded,
-      failed,
+      failed: totalFailed,
       errors: errors.length > 0 ? errors : undefined,
       duration
     }

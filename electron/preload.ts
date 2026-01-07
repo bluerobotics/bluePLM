@@ -519,7 +519,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCliStatus: () => ipcRenderer.invoke('cli:get-status'),
   
   // Migration status (for 2.x -> 3.0 upgrade notifications)
-  getMigrationStatus: () => ipcRenderer.invoke('migration:get-status')
+  getMigrationStatus: () => ipcRenderer.invoke('migration:get-status'),
+  acknowledgeMigration: () => ipcRenderer.invoke('migration:acknowledge')
 })
 
 // Type declarations for the renderer process

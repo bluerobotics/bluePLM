@@ -4,3 +4,4 @@ export { OrphanedCheckoutDialog, OrphanedCheckoutsContainer } from './OrphanedCh
 export { StagedCheckinConflictDialog, StagedCheckinConflictContainer } from './StagedCheckinConflictDialog'
 export { VaultNotFoundDialog } from './VaultNotFoundDialog'
 export { UpdateModal } from './UpdateModal'
+export { VaultMigrationDialog, VaultMigrationContainer } from './VaultMigrationDialog'

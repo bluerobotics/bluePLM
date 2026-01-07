@@ -263,8 +263,13 @@ export function useLoadFiles() {
               // File was moved - needs check-in to update server path (but no version increment)
               diffStatus = 'moved'
             } else if (pdmData.content_hash && localFile.localHash) {
-              // File exists both places - check if modified or outdated
-              if (pdmData.content_hash !== localFile.localHash) {
+              // File exists both places - compare hashes
+              // KEY INSIGHT: If hashes match exactly, the file is synced - regardless of timestamps.
+              // This is critical for post-upgrade reconciliation where timestamps may be unreliable.
+              if (pdmData.content_hash === localFile.localHash) {
+                // Hashes match - file is synced, leave diffStatus undefined
+                // This trusts content hash over timestamps for determining sync state
+              } else {
                 // Hashes differ - determine if local is newer or cloud is newer
                 const localModTime = new Date(localFile.modifiedTime).getTime()
                 const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
@@ -273,7 +278,8 @@ export function useLoadFiles() {
                   // Local file was modified more recently - local changes
                   diffStatus = 'modified'
                 } else {
-                  // Cloud was updated more recently - need to pull
+                  // Cloud was updated more recently - may need to pull
+                  // Note: getLatest will verify storage blob exists before downloading
                   diffStatus = 'outdated'
                   // Debug: Log outdated file details
                   window.electronAPI?.log('debug', '[LoadFiles] File marked as OUTDATED', {

@@ -10,13 +10,13 @@ import { registerLoggingHandlers, unregisterLoggingHandlers, writeLog, initializ
 import { registerUpdaterHandlers, unregisterUpdaterHandlers, UpdaterHandlerDependencies } from './updater'
 import { registerOAuthHandlers, unregisterOAuthHandlers, OAuthHandlerDependencies } from './oauth'
 import { registerCliHandlers, unregisterCliHandlers, startCliServer, cleanupCli, CliHandlerDependencies } from './cli'
-import { performMigrationCheck, getMigrationResult, wasMigrationPerformed } from './migration'
+import { performMigrationCheck, getMigrationResult, wasMigrationPerformed, isMigrationPending, acknowledgeMigration, getMigrationStatus } from './migration'
 
 // Logging utilities for main.ts
 export { writeLog, initializeLogging } from './logging'
 
 // Migration utilities for main.ts
-export { performMigrationCheck, getMigrationResult, wasMigrationPerformed } from './migration'
+export { performMigrationCheck, getMigrationResult, wasMigrationPerformed, isMigrationPending, acknowledgeMigration, getMigrationStatus } from './migration'
 
 // CLI exports for main.ts
 export { startCliServer, cleanupCli } from './cli'
@@ -118,13 +118,13 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   
   // Migration status handler
   ipcMain.handle('migration:get-status', () => {
-    const result = getMigrationResult()
-    return {
-      performed: result?.performed ?? false,
-      fromVersion: result?.fromVersion ?? null,
-      toVersion: result?.toVersion ?? null,
-      cleanedCount: result?.cleanedPaths.length ?? 0
-    }
+    return getMigrationStatus()
+  })
+  
+  // Migration acknowledge handler (called after vault health check)
+  ipcMain.handle('migration:acknowledge', () => {
+    acknowledgeMigration()
+    return { success: true }
   })
 
   log('All IPC handlers registered')
@@ -141,6 +141,7 @@ export function unregisterAllHandlers(): void {
   unregisterOAuthHandlers()
   unregisterCliHandlers()
   
-  // Unregister migration handler
+  // Unregister migration handlers
   ipcMain.removeHandler('migration:get-status')
+  ipcMain.removeHandler('migration:acknowledge')
 }
