@@ -1,6 +1,6 @@
 {
   "name": "blue-plm",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Product Lifecycle Management for everyone who builds",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -98,7 +98,7 @@
           ]
         },
         {
-          "from": "solidworks-addin/BluePLM.SolidWorksService/bin/Release",
+          "from": "solidworks-service/BluePLM.SolidWorksService/bin/Release",
           "to": "bin",
           "filter": [
             "BluePLM.SolidWorksService.exe",
