@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, memo, useEffect } from 'react'
-import { Lock, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, AlertTriangle, Shield, Unlock, FolderOpen, CloudOff, Monitor } from 'lucide-react'
+import { Lock, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, AlertTriangle, Shield, Unlock, FolderOpen, CloudOff, Monitor, FileEdit, ExternalLink, RotateCcw, Pencil } from 'lucide-react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { getInitials } from '@/lib/utils'
 // Shared file icon component for consistent file type icons
@@ -7,6 +7,20 @@ import { FileTypeIcon } from '@/components/shared/FileItem'
 // Use command system instead of direct supabase calls
 import { executeCommand } from '@/lib/commands'
 import { isMachineOnline } from '@/lib/supabase'
+
+// ============================================
+// Types for Open Documents
+// ============================================
+
+interface OpenDocument {
+  filePath: string
+  fileName: string
+  fileType: string
+  isReadOnly: boolean
+  isDirty: boolean
+  activeConfiguration: string
+  extension: string
+}
 
 // ============================================
 // Memoized Row Components (outside main component)
@@ -262,6 +276,67 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
   )
 })
 
+interface OpenFileRowProps {
+  doc: OpenDocument
+  localFile?: LocalFile
+  onNavigate: (filePath: string, localFile?: LocalFile) => void
+  onOpen: (filePath: string) => void
+}
+
+const OpenFileRow = memo(function OpenFileRow({ 
+  doc, 
+  localFile,
+  onNavigate,
+  onOpen
+}: OpenFileRowProps) {
+  return (
+    <div
+      className="flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-plm-highlight/50 transition-colors"
+    >
+      <FileEdit size={14} className={`flex-shrink-0 ${doc.isDirty ? 'text-plm-warning' : 'text-plm-accent'}`} />
+      <FileTypeIcon extension={doc.extension} size={14} />
+      <span className="truncate flex-1" title={doc.filePath}>
+        {doc.fileName}
+      </span>
+      {/* Status badges */}
+      {doc.isDirty && (
+        <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] rounded bg-plm-warning/20 text-plm-warning font-medium" title="Unsaved changes">
+          <Pencil size={10} className="inline mr-0.5" />
+          Modified
+        </span>
+      )}
+      {doc.isReadOnly && (
+        <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] rounded bg-plm-fg-muted/20 text-plm-fg-muted font-medium" title="Read-only">
+          <Lock size={10} className="inline mr-0.5" />
+          R/O
+        </span>
+      )}
+      {/* Navigate to file location */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onNavigate(doc.filePath, localFile)
+        }}
+        className="flex-shrink-0 p-0.5 rounded hover:bg-plm-highlight text-plm-fg-muted hover:text-plm-fg transition-colors"
+        title="Show in Explorer"
+      >
+        <FolderOpen size={14} />
+      </button>
+      {/* Open file in native app */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpen(doc.filePath)
+        }}
+        className="flex-shrink-0 p-0.5 rounded hover:bg-plm-highlight text-plm-fg-muted hover:text-plm-fg transition-colors"
+        title="Focus in SolidWorks"
+      >
+        <ExternalLink size={14} />
+      </button>
+    </div>
+  )
+})
+
 // ============================================
 // Main Component
 // ============================================
@@ -271,7 +346,7 @@ interface PendingViewProps {
 }
 
 export function PendingView({ onRefresh }: PendingViewProps) {
-  const { files, user, setActiveView, setCurrentFolder, toggleFolder, expandedFolders, hideSolidworksTempFiles } = usePDMStore()
+  const { files, user, setCurrentFolder, toggleFolder, expandedFolders, hideSolidworksTempFiles } = usePDMStore()
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [selectedAddedFiles, setSelectedAddedFiles] = useState<Set<string>>(new Set())
   const [selectedOthersFiles, setSelectedOthersFiles] = useState<Set<string>>(new Set())
@@ -290,6 +365,12 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     anyMachineOnline: boolean
   } | null>(null)
   
+  // Open files in SolidWorks
+  const [openDocuments, setOpenDocuments] = useState<OpenDocument[]>([])
+  const [isLoadingOpenDocs, setIsLoadingOpenDocs] = useState(false)
+  const solidworksIntegrationEnabled = usePDMStore(state => state.solidworksIntegrationEnabled)
+  const vaultPath = usePDMStore(state => state.vaultPath)
+  
   // Load current machine ID once
   useEffect(() => {
     const loadMachineId = async () => {
@@ -303,6 +384,85 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     }
     loadMachineId()
   }, [])
+  
+  // Load open documents from SolidWorks
+  const loadOpenDocuments = useCallback(async () => {
+    if (!solidworksIntegrationEnabled) {
+      setOpenDocuments([])
+      return
+    }
+    
+    setIsLoadingOpenDocs(true)
+    try {
+      const result = await window.electronAPI?.solidworks?.getOpenDocuments?.()
+      if (result?.success && result.data?.documents) {
+        // Filter to only show files in the current vault and map to OpenDocument format
+        const docs = result.data.documents
+          .filter(doc => !vaultPath || doc.filePath.startsWith(vaultPath))
+          .map(doc => ({
+            ...doc,
+            extension: '.' + doc.fileName.split('.').pop()?.toLowerCase() || ''
+          }))
+        setOpenDocuments(docs)
+      } else {
+        setOpenDocuments([])
+      }
+    } catch {
+      setOpenDocuments([])
+    } finally {
+      setIsLoadingOpenDocs(false)
+    }
+  }, [solidworksIntegrationEnabled, vaultPath])
+  
+  // Load open documents on mount and when vault changes
+  useEffect(() => {
+    loadOpenDocuments()
+    
+    // Poll for open documents every 5 seconds when integration is enabled
+    if (solidworksIntegrationEnabled) {
+      const interval = setInterval(loadOpenDocuments, 5000)
+      return () => clearInterval(interval)
+    }
+  }, [loadOpenDocuments, solidworksIntegrationEnabled])
+  
+  // Navigate to open document location in file pane (stays in current view)
+  const navigateToOpenDoc = useCallback((filePath: string, localFile?: LocalFile) => {
+    // If we have a local file reference, use the existing navigation
+    if (localFile) {
+      const parts = localFile.relativePath.split('/')
+      parts.pop()
+      const parentPath = parts.join('/')
+      
+      if (parentPath) {
+        for (let i = 1; i <= parts.length; i++) {
+          const ancestorPath = parts.slice(0, i).join('/')
+          if (!expandedFolders.has(ancestorPath)) {
+            toggleFolder(ancestorPath)
+          }
+        }
+      }
+      
+      // Update file pane location without switching sidebar view
+      setCurrentFolder(parentPath)
+      return
+    }
+    
+    // Fallback: show in system explorer
+    window.electronAPI?.showInExplorer(filePath)
+  }, [expandedFolders, toggleFolder, setCurrentFolder])
+  
+  // Open file in SolidWorks (focus it)
+  const openInSolidWorks = useCallback((filePath: string) => {
+    window.electronAPI?.openFile(filePath)
+  }, [])
+  
+  // Map open documents to local files for navigation
+  const openDocsWithLocalFiles = useMemo(() => {
+    return openDocuments.map(doc => ({
+      doc,
+      localFile: files.find(f => f.path === doc.filePath)
+    }))
+  }, [openDocuments, files])
   
   // Memoize expensive file filtering - only recompute when files or user changes
   const { checkedOutFiles, myCheckedOutFiles, othersCheckedOutFiles, addedFiles, deletedRemoteFiles, syncedFilesCount } = useMemo(() => {
@@ -372,9 +532,9 @@ export function PendingView({ onRefresh }: PendingViewProps) {
       }
     }
     
+    // Update file pane location without switching sidebar view
     setCurrentFolder(parentPath)
-    setActiveView('explorer')
-  }, [expandedFolders, toggleFolder, setCurrentFolder, setActiveView])
+  }, [expandedFolders, toggleFolder, setCurrentFolder])
   
   const selectAll = useCallback(() => {
     setSelectedFiles(new Set(myCheckedOutFiles.map(f => f.path)))
@@ -632,6 +792,57 @@ export function PendingView({ onRefresh }: PendingViewProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Open Files in SolidWorks - shown first when available */}
+        {solidworksIntegrationEnabled && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2">
+                <FileEdit size={12} className="text-plm-accent" />
+                Open Files ({openDocuments.length})
+                {isLoadingOpenDocs && (
+                  <div className="w-3 h-3 border border-plm-accent border-t-transparent rounded-full animate-spin" />
+                )}
+              </div>
+              <button
+                onClick={loadOpenDocuments}
+                disabled={isLoadingOpenDocs}
+                className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors flex items-center gap-1"
+                title="Refresh open files"
+              >
+                <RotateCcw size={10} className={isLoadingOpenDocs ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+            </div>
+            
+            {openDocuments.length === 0 ? (
+              <div className="text-sm text-plm-fg-muted py-4 text-center">
+                {isLoadingOpenDocs ? 'Loading...' : 'No files open in SolidWorks'}
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  {openDocsWithLocalFiles.map(({ doc, localFile }) => (
+                    <OpenFileRow 
+                      key={doc.filePath} 
+                      doc={doc}
+                      localFile={localFile}
+                      onNavigate={navigateToOpenDoc}
+                      onOpen={openInSolidWorks}
+                    />
+                  ))}
+                </div>
+                <div className="text-xs text-plm-fg-muted mt-2 px-2">
+                  {openDocuments.filter(d => d.isDirty).length > 0 && (
+                    <span className="text-plm-warning">
+                      {openDocuments.filter(d => d.isDirty).length} file{openDocuments.filter(d => d.isDirty).length !== 1 ? 's have' : ' has'} unsaved changes
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* New files (not yet synced) - shown first */}
         <div>
           <div className="flex items-center justify-between mb-2">

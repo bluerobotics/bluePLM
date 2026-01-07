@@ -38,6 +38,19 @@ Terminal is also for: `git`, `npm`, `npx`, build scripts.
 
 Mismatch = users see "database newer/older than app" warnings.
 
+## API Versioning (BOTH files, every time)
+
+When making API changes:
+
+1. `api/package.json` → bump `version` field
+2. `src/lib/apiVersion.ts` → bump `EXPECTED_API_VERSION`
+3. Add entry to `API_VERSION_DESCRIPTIONS` with changelog
+
+For **breaking changes** (major version bump):
+- Also update `MINIMUM_COMPATIBLE_API_VERSION`
+
+Mismatch = users see "API newer/older than app" warnings.
+
 ## Release Gate
 
 Before creating a git tag:
@@ -56,3 +69,11 @@ Create `.plan.md` files in repo's `.cursor/plans/` — never user home dir.
 ## CLI Commands
 
 New commands go in `src/lib/commands/handlers/`, register in `index.ts`.
+
+## New Features Checklist
+
+Before adding features, verify:
+
+1. **State** → Use `usePDMStore` slices, never new stores (`zustand.mdc`)
+2. **Location** → Feature code in `src/features/`, shared in `src/components/` (`architecture.mdc`)
+3. **Types** → Shared in `src/types/`, feature-specific in feature folder

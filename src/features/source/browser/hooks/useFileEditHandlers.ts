@@ -165,9 +165,22 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
       return
     }
     
+    // Check if user is logged in
+    if (!user?.id) {
+      addToast('info', 'Sign in to edit metadata')
+      return
+    }
+    
     // Check if file is checked out by current user
-    if (file.pdmData.checked_out_by !== user?.id) {
+    if (!file.pdmData.checked_out_by) {
       addToast('info', 'Check out file to edit metadata')
+      return
+    }
+    
+    if (file.pdmData.checked_out_by !== user.id) {
+      const checkedOutUser = (file.pdmData as any).checked_out_user
+      const checkedOutName = checkedOutUser?.full_name || checkedOutUser?.email || 'another user'
+      addToast('info', `File is checked out by ${checkedOutName}`)
       return
     }
     

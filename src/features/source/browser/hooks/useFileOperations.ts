@@ -21,6 +21,7 @@
  */
 import { useCallback, useMemo } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import { executeCommand } from '@/lib/commands'
 import { logFileAction } from '@/lib/userActionLogger'
 import { getSyncedFilesFromSelection } from '@/lib/commands/types'
@@ -40,7 +41,7 @@ export interface UseFileOperationsOptions {
   updateProgressToast: (id: string, current: number, percent: number) => void
   removeToast: (id: string) => void
   setCustomConfirm: (state: CustomConfirmState | null) => void
-  addProcessingFolder: (path: string) => void
+  addProcessingFolder: (path: string, operationType: OperationType) => void
   removeProcessingFolder: (path: string) => void
   renameFileInStore: (oldPath: string, newPath: string, newRelativePath: string, moved?: boolean) => void
   resetHoverStates?: () => void
@@ -364,7 +365,7 @@ export function useFileOperations({
       const newRelPath = targetFolderPath ? `${targetFolderPath}/${file.name}` : file.name
       const newFullPath = buildFullPath(vaultPath, newRelPath)
       
-      addProcessingFolder(file.relativePath)
+      addProcessingFolder(file.relativePath, 'sync')
       
       try {
         const result = await window.electronAPI.moveFile(file.path, newFullPath)

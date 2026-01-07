@@ -236,7 +236,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
       .map(f => f.relativePath)
     const filesBeingProcessed = filesToCheckout.map(f => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
-    ctx.addProcessingFolders(allPathsBeingProcessed)
+    ctx.addProcessingFolders(allPathsBeingProcessed, 'checkout')
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))

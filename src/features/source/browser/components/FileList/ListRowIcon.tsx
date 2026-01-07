@@ -1,12 +1,11 @@
 import { memo } from 'react'
-import { FolderOpen, Loader2 } from 'lucide-react'
+import { FolderOpen } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { FileIcon } from '@/components/shared/FileItem'
 
 export interface ListRowIconProps {
   file: LocalFile
   size: number
-  isProcessing: boolean
   folderCheckoutStatus?: 'mine' | 'others' | 'both' | null
   isFolderSynced?: boolean
 }
@@ -18,15 +17,9 @@ export interface ListRowIconProps {
 export const ListRowIcon = memo(function ListRowIcon({ 
   file, 
   size, 
-  isProcessing, 
   folderCheckoutStatus, 
   isFolderSynced: folderSynced 
 }: ListRowIconProps) {
-  // Processing state - show spinner
-  if (isProcessing) {
-    return <Loader2 size={size} className="text-sky-400 animate-spin flex-shrink-0" />
-  }
-  
   // For folders, use React icons with status colors (matches FileTree)
   if (file.isDirectory) {
     // Cloud-only folders

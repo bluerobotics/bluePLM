@@ -146,11 +146,11 @@ namespace BluePLM.SolidWorksService
                 LogDebug("Step 1: SUCCESS - DLL loaded");
 
                 LogDebug("Step 2: Checking license key...");
-                var key = _licenseKey ?? Environment.GetEnvironmentVariable("SOLIDWORKS_DM_LICENSE_KEY");
+                var key = _licenseKey;
                 
                 if (string.IsNullOrEmpty(key))
                 {
-                    _initError = "Document Manager license key not provided. Set SOLIDWORKS_DM_LICENSE_KEY environment variable or use 'setDmLicense' command.";
+                    _initError = "Document Manager license key not provided. Configure it in Settings → Integrations → SOLIDWORKS.";
                     LogDebug($"FAILED: {_initError}");
                     _initialized = true;
                     return false;
@@ -424,16 +424,6 @@ namespace BluePLM.SolidWorksService
                 }
 
                 LogDebug($"Document Manager application created: {_dmApp.GetType().FullName}");
-
-                try 
-                { 
-                    Environment.SetEnvironmentVariable("SOLIDWORKS_DM_LICENSE_KEY", key, EnvironmentVariableTarget.User); 
-                    LogDebug("Saved license key to user environment variable");
-                }
-                catch (Exception ex)
-                {
-                    LogDebug($"Warning: Could not save license key to environment: {ex.Message}");
-                }
 
                 _initialized = true;
                 _initError = null;

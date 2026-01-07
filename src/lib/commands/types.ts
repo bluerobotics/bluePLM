@@ -12,6 +12,7 @@
 
 import type { LocalFile as StoreLocalFile, ToastType } from '../../stores/pdmStore'
 import type { User, Organization } from '../../types/pdm'
+import type { OperationType } from '../../stores/types'
 
 // Re-export LocalFile for use by handlers
 export type LocalFile = StoreLocalFile
@@ -48,8 +49,8 @@ export interface CommandContext {
   updateFileInStore: (path: string, updates: Partial<LocalFile>) => void
   updateFilesInStore: (updates: Array<{ path: string; updates: Partial<LocalFile> }>) => void  // Batch update
   removeFilesFromStore: (paths: string[]) => void
-  addProcessingFolder: (path: string) => void
-  addProcessingFolders: (paths: string[]) => void  // Batch add (single state update)
+  addProcessingFolder: (path: string, operationType: OperationType) => void
+  addProcessingFolders: (paths: string[], operationType: OperationType) => void  // Batch add (single state update)
   removeProcessingFolder: (path: string) => void
   removeProcessingFolders: (paths: string[]) => void  // Batch remove (single state update)
   

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
   Building2, 
   Plus, 
@@ -14,46 +14,40 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
+import type { Supplier } from '@/stores/types'
 import { supabase } from '@/lib/supabase'
 
-const API_URL_KEY = 'blueplm_api_url'
-const DEFAULT_API_URL = 'http://127.0.0.1:3001'
-
-function getApiUrl(organization: { settings?: { api_url?: string } } | null): string {
-  return organization?.settings?.api_url || localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL
-}
-
-interface Supplier {
-  id: string
-  name: string
-  code: string | null
-  contact_email: string | null
-  contact_phone: string | null
-  website: string | null
-  city: string | null
-  state: string | null
-  country: string | null
-  is_active: boolean | null
-  is_approved: boolean | null
-  erp_id: string | null
-  erp_synced_at: string | null
-  created_at: string | null
+function getApiUrl(organization: { settings?: { api_url?: string } } | null): string | null {
+  return organization?.settings?.api_url || null
 }
 
 export function SuppliersView() {
-  const { organization, addToast, setActiveView } = usePDMStore()
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [loading, setLoading] = useState(true)
+  const { 
+    organization, 
+    addToast, 
+    setActiveView,
+    // Suppliers slice state
+    suppliers,
+    suppliersLoading,
+    suppliersLoaded,
+    // Suppliers slice actions
+    setSuppliers,
+    setSuppliersLoading,
+  } = usePDMStore()
+  
+  // Local UI state (not persisted)
   const [syncing, setSyncing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'pending'>('all')
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
 
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
     if (!organization?.id) return
 
+    setSuppliersLoading(true)
+    
     try {
-      let query = supabase
+      const query = supabase
         .from('suppliers')
         .select('*')
         .eq('org_id', organization.id)
@@ -67,13 +61,16 @@ export function SuppliersView() {
     } catch (err) {
       console.error('Failed to load suppliers:', err)
     } finally {
-      setLoading(false)
+      setSuppliersLoading(false)
     }
-  }
+  }, [organization?.id, setSuppliers, setSuppliersLoading])
 
+  // Load suppliers on mount if not already loaded
   useEffect(() => {
-    loadSuppliers()
-  }, [organization?.id])
+    if (!suppliersLoaded && organization?.id) {
+      loadSuppliers()
+    }
+  }, [organization?.id, suppliersLoaded, loadSuppliers])
 
   const handleSync = async () => {
     setSyncing(true)
@@ -89,6 +86,11 @@ export function SuppliersView() {
       }
 
       const apiUrl = getApiUrl(organization)
+      if (!apiUrl) {
+        addToast('error', 'API server not configured. Go to Settings > REST API.')
+        setSyncing(false)
+        return
+      }
       const response = await fetch(`${apiUrl}/integrations/odoo/sync/suppliers`, {
         method: 'POST',
         headers: {
@@ -147,6 +149,7 @@ export function SuppliersView() {
 
   const approvedCount = suppliers.filter(s => s.is_approved).length
   const pendingCount = suppliers.filter(s => !s.is_approved).length
+  const loading = suppliersLoading
 
   // Supplier detail view
   if (selectedSupplier) {

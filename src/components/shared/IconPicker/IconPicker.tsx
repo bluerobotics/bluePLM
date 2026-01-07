@@ -282,7 +282,10 @@ export function IconPicker({
 }: IconPickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   // Dynamic Lucide icon lookup requires any cast (icon name is runtime string)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const IconComponent = (LucideIcons as any)[value] || LucideIcons.HelpCircle
@@ -294,12 +297,51 @@ export function IconPicker({
     return ICON_LIBRARY.filter(icon => icon.toLowerCase().includes(searchLower))
   }, [search])
   
+  // Calculate dropdown position when opened
+  useEffect(() => {
+    if (!isOpen || !buttonRef.current) return
+    
+    const updatePosition = () => {
+      if (!buttonRef.current) return
+      const rect = buttonRef.current.getBoundingClientRect()
+      const dropdownHeight = 340 // Approximate height of dropdown
+      const spaceBelow = window.innerHeight - rect.bottom
+      const spaceAbove = rect.top
+      
+      // Decide whether to show above or below
+      const showAbove = dropdownPosition === 'top' || (spaceBelow < dropdownHeight && spaceAbove > spaceBelow)
+      
+      setDropdownStyle({
+        position: 'fixed',
+        left: rect.left,
+        width: 320,
+        ...(showAbove
+          ? { bottom: window.innerHeight - rect.top + 4 }
+          : { top: rect.bottom + 4 }
+        ),
+      })
+    }
+    
+    updatePosition()
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+    
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [isOpen, dropdownPosition])
+  
   // Close on click outside
   useEffect(() => {
     if (!isOpen) return
     
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         setIsOpen(false)
         setSearch('')
       }
@@ -312,6 +354,7 @@ export function IconPicker({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg flex items-center gap-2 hover:border-plm-accent transition-colors"
@@ -324,7 +367,9 @@ export function IconPicker({
       
       {isOpen && (
         <div 
-          className={`absolute z-50 ${dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 bg-plm-bg border border-plm-border rounded-lg shadow-xl p-2 w-80`}
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className="z-[100] bg-plm-bg border border-plm-border rounded-lg shadow-xl p-2"
         >
           {/* Search input */}
           <div className="relative mb-2">
@@ -364,10 +409,12 @@ export function IconPicker({
                   <button
                     key={iconName}
                     type="button"
-                    onClick={() => {
-                      onChange(iconName)
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      // Close dropdown first, then notify parent
                       setIsOpen(false)
                       setSearch('')
+                      onChange(iconName)
                     }}
                     className={`p-1.5 rounded transition-colors ${
                       value === iconName
@@ -460,7 +507,10 @@ export function IconGridPicker({
               <button
                 key={iconName}
                 type="button"
-                onClick={() => onChange(iconName)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onChange(iconName)
+                }}
                 className={`p-2 rounded transition-colors ${
                   value === iconName
                     ? 'bg-plm-accent/20 text-plm-accent'

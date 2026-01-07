@@ -7,6 +7,8 @@
  * - Updating team details
  * - Deleting teams
  * 
+ * State is stored in the Zustand organizationDataSlice.
+ * 
  * @param orgId - Organization ID (null if not connected)
  * @returns Teams state and operations
  * 
@@ -22,7 +24,7 @@
  * } = useTeams(organization?.id ?? null)
  * ```
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { TeamWithDetails, TeamFormData } from '../types'
@@ -37,13 +39,21 @@ import {
 } from './supabaseHelpers'
 
 export function useTeams(orgId: string | null) {
-  const { user, addToast } = usePDMStore()
-  const [teams, setTeams] = useState<TeamWithDetails[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { 
+    user, 
+    addToast,
+    // Team state from organizationDataSlice
+    teams,
+    teamsLoading: isLoading,
+    teamsLoaded,
+    setTeams,
+    setTeamsLoading
+  } = usePDMStore()
 
   const loadTeams = useCallback(async () => {
     if (!orgId) return
     
+    setTeamsLoading(true)
     try {
       const { data: teamsData, error } = await supabase
         .from('teams')
@@ -70,8 +80,10 @@ export function useTeams(orgId: string | null) {
     } catch (err) {
       console.error('Failed to load teams:', err)
       addToast('error', 'Failed to load teams')
+    } finally {
+      setTeamsLoading(false)
     }
-  }, [orgId, addToast])
+  }, [orgId, addToast, setTeams, setTeamsLoading])
 
   const createTeam = useCallback(async (
     formData: TeamFormData,
@@ -241,11 +253,12 @@ export function useTeams(orgId: string | null) {
     }
   }, [teams, addToast])
 
+  // Initial load - only if not already loaded
   useEffect(() => {
-    if (orgId) {
-      loadTeams().finally(() => setIsLoading(false))
+    if (orgId && !teamsLoaded && !isLoading) {
+      loadTeams()
     }
-  }, [orgId, loadTeams])
+  }, [orgId, teamsLoaded, isLoading, loadTeams])
 
   return {
     teams,

@@ -153,8 +153,6 @@ export function useTeamHandlers(params: UseTeamHandlersParams) {
       return
     }
     
-    if (!confirm(`Delete "${team.name}"? All members will be removed from this team.`)) return
-    
     const success = await hookDeleteTeam(team.id)
     if (success) {
       loadOrgUsers()

@@ -233,6 +233,33 @@ async function extractSolidWorksMetadata(
   }
 }
 
+// Concurrency limiter - processes items with max N concurrent operations
+async function processWithConcurrency<T, R>(
+  items: T[],
+  maxConcurrent: number,
+  processor: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let nextIndex = 0
+  
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++
+      results[index] = await processor(items[index])
+    }
+  }
+  
+  // Start maxConcurrent workers
+  await Promise.all(
+    Array.from({ length: Math.min(maxConcurrent, items.length) }, () => worker())
+  )
+  
+  return results
+}
+
+// Maximum concurrent file uploads (prevents connection pool exhaustion)
+const CONCURRENT_UPLOADS = 20
+
 export const syncCommand: Command<SyncParams> = {
   id: 'sync',
   name: 'First Check In',
@@ -300,8 +327,41 @@ export const syncCommand: Command<SyncParams> = {
       .filter(f => f.isDirectory)
       .map(f => f.relativePath)
     const filesBeingProcessed = filesToSync.map(f => f.relativePath)
-    const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
-    ctx.addProcessingFolders(allPathsBeingProcessed)
+
+    // Find all parent folders that contain files being synced
+    // This ensures subfolders show spinners, not just the selected root
+    const parentFolderPaths = new Set<string>()
+    for (const file of filesToSync) {
+      const parts = file.relativePath.replace(/\\/g, '/').split('/')
+      // Build each parent path level (skip the filename itself)
+      for (let i = 1; i < parts.length; i++) {
+        parentFolderPaths.add(parts.slice(0, i).join('/'))
+      }
+    }
+
+    // Also find child folders of selected folders that contain local-only files
+    const childFolderPaths: string[] = []
+    for (const selectedFolder of foldersBeingProcessed) {
+      const normalizedSelected = selectedFolder.replace(/\\/g, '/')
+      // Find folders that are children of this selected folder
+      const childFolders = ctx.files.filter(f => {
+        if (!f.isDirectory) return false
+        const normalizedPath = f.relativePath.replace(/\\/g, '/')
+        return normalizedPath.startsWith(normalizedSelected + '/')
+      }).map(f => f.relativePath)
+      childFolderPaths.push(...childFolders)
+    }
+
+    // Combine all paths that need spinners (deduplicated)
+    const allPathsBeingProcessed = [
+      ...new Set([
+        ...foldersBeingProcessed,
+        ...filesBeingProcessed,
+        ...parentFolderPaths,
+        ...childFolderPaths
+      ])
+    ]
+    ctx.addProcessingFolders(allPathsBeingProcessed, 'upload')
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -325,7 +385,7 @@ export const syncCommand: Command<SyncParams> = {
     // Process all files in parallel, collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
-    const results = await Promise.all(filesToSync.map(async (file) => {
+    const results = await processWithConcurrency(filesToSync, CONCURRENT_UPLOADS, async (file) => {
       try {
         const readResult = await window.electronAPI?.readFile(file.path)
         
@@ -364,7 +424,7 @@ export const syncCommand: Command<SyncParams> = {
         progress.update()
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
-    }))
+    })
     
     // Apply all store updates in a single batch (avoids N re-renders)
     if (pendingUpdates.length > 0) {

@@ -206,27 +206,42 @@ export function OnboardingScreen() {
           {/* Logo and Title */}
           <div className="text-center mb-8">
             <div className="flex justify-center items-center gap-3 mb-4">
-              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
+              <svg width="64" height="64" viewBox="0 0 512 512" fill="none">
+                {/* Gradient matching app icon */}
+                <defs>
+                  <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#0a1929"/>
+                    <stop offset="100%" stopColor="#0d2137"/>
+                  </linearGradient>
+                  <linearGradient id="iconGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#00b4d8"/>
+                    <stop offset="100%" stopColor="#0096c7"/>
+                  </linearGradient>
+                </defs>
+                {/* Rounded square background */}
+                <rect x="0" y="0" width="512" height="512" rx="100" fill="url(#bgGradient)"/>
+                {/* Top layer - filled */}
                 <path 
-                  d="M12 2L2 7L12 12L22 7L12 2Z" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
+                  d="M256 96L96 176L256 256L416 176L256 96Z" 
+                  fill="url(#iconGradient)"
                 />
+                {/* Middle layer - stroked */}
                 <path 
-                  d="M2 17L12 22L22 17" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
+                  d="M96 256L256 336L416 256" 
+                  stroke="url(#iconGradient)" 
+                  strokeWidth="24" 
                   strokeLinecap="round" 
                   strokeLinejoin="round"
+                  fill="none"
                 />
+                {/* Bottom layer - stroked */}
                 <path 
-                  d="M2 12L12 17L22 12" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
+                  d="M96 336L256 416L416 336" 
+                  stroke="url(#iconGradient)" 
+                  strokeWidth="24" 
                   strokeLinecap="round" 
                   strokeLinejoin="round"
+                  fill="none"
                 />
               </svg>
             </div>

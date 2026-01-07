@@ -15,6 +15,7 @@ export function TeamModulesDialog({
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   
   // Local state for the full module config
   const [localConfig, setLocalConfig] = useState<ModuleConfig | null>(null)
@@ -88,8 +89,7 @@ export function TeamModulesDialog({
   }
   
   const handleClearDefaults = async () => {
-    if (!confirm(`Clear module defaults for ${team.name}? Team members will use organization or app defaults instead.`)) return
-    
+    setShowClearConfirm(false)
     setIsSaving(true)
     try {
       const result = await clearTeamModuleDefaults(team.id)
@@ -158,7 +158,7 @@ export function TeamModulesDialog({
         {/* Footer */}
         <div className="p-4 border-t border-plm-border flex items-center justify-between flex-shrink-0">
           <button
-            onClick={handleClearDefaults}
+            onClick={() => setShowClearConfirm(true)}
             disabled={isSaving || !team.module_defaults}
             className="btn btn-ghost text-plm-error hover:bg-plm-error/10 disabled:opacity-50"
           >
@@ -187,6 +187,29 @@ export function TeamModulesDialog({
           </div>
         </div>
       </div>
+
+      {/* Clear Defaults Confirmation Dialog */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center" onClick={() => setShowClearConfirm(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Clear Module Defaults</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
+              Are you sure you want to clear module defaults for <strong>{team.name}</strong>? Team members will use organization or app defaults instead.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowClearConfirm(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button
+                onClick={handleClearDefaults}
+                className="btn bg-plm-error text-white hover:bg-plm-error/90"
+              >
+                Clear Defaults
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

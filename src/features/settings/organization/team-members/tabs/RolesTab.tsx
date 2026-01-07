@@ -10,16 +10,19 @@
 import * as LucideIcons from 'lucide-react'
 import { Shield, Plus, Pencil, Trash2 } from 'lucide-react'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
+import { useState } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useMembers, useWorkflowRoles, useWorkflowRoleDialogs } from '../hooks'
-import { WorkflowRoleFormDialog } from '../components/dialogs'
+import { WorkflowRoleFormDialog, DeleteWorkflowRoleDialog } from '../components/dialogs'
 
 export interface RolesTabProps {
   /** Search query for filtering roles */
   searchQuery?: string
+  /** Called when the "Add Role" button should trigger a dialog in the parent */
+  onShowCreateRoleDialog?: () => void
 }
 
-export function RolesTab({ searchQuery = '' }: RolesTabProps) {
+export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabProps) {
   // Get user/org info from store
   const { organization, getEffectiveRole, addToast } = usePDMStore()
   const orgId = organization?.id ?? null
@@ -29,17 +32,14 @@ export function RolesTab({ searchQuery = '' }: RolesTabProps) {
   const {
     workflowRoles,
     userRoleAssignments: userWorkflowRoleAssignments,
-    createWorkflowRole,
     updateWorkflowRole,
     deleteWorkflowRole
   } = useWorkflowRoles(orgId)
   
   const { members: orgUsers } = useMembers(orgId)
 
-  // Dialog state
+  // Dialog state - for edit operations within the tab
   const {
-    showCreateWorkflowRoleDialog,
-    setShowCreateWorkflowRoleDialog,
     showEditWorkflowRoleDialog,
     setShowEditWorkflowRoleDialog,
     editingWorkflowRole,
@@ -50,25 +50,16 @@ export function RolesTab({ searchQuery = '' }: RolesTabProps) {
     setIsSavingWorkflowRole
   } = useWorkflowRoleDialogs()
 
+  // Delete confirmation dialog state
+  const [deletingRole, setDeletingRole] = useState<{ id: string; name: string } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
   // Filter roles by search
   const filteredRoles = workflowRoles.filter(r => 
     !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   // Handlers
-  const handleCreateWorkflowRole = async () => {
-    setIsSavingWorkflowRole(true)
-    try {
-      const success = await createWorkflowRole(workflowRoleFormData)
-      if (success) {
-        setShowCreateWorkflowRoleDialog(false)
-        setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
-      }
-    } finally {
-      setIsSavingWorkflowRole(false)
-    }
-  }
-
   const handleUpdateWorkflowRole = async () => {
     if (!editingWorkflowRole) return
     setIsSavingWorkflowRole(true)
@@ -84,13 +75,17 @@ export function RolesTab({ searchQuery = '' }: RolesTabProps) {
     }
   }
 
-  const handleDeleteWorkflowRole = async (role: { id: string; name: string }) => {
-    if (!confirm(`Delete workflow role "${role.name}"? Users will be unassigned from this role.`)) {
-      return
-    }
-    const success = await deleteWorkflowRole(role.id)
-    if (success) {
-      addToast('success', `Deleted role "${role.name}"`)
+  const handleDeleteWorkflowRole = async () => {
+    if (!deletingRole) return
+    setIsDeleting(true)
+    try {
+      const success = await deleteWorkflowRole(deletingRole.id)
+      if (success) {
+        addToast('success', `Deleted role "${deletingRole.name}"`)
+      }
+    } finally {
+      setIsDeleting(false)
+      setDeletingRole(null)
     }
   }
 
@@ -113,9 +108,9 @@ export function RolesTab({ searchQuery = '' }: RolesTabProps) {
           <p className="text-sm text-plm-fg-muted mb-4">
             {searchQuery ? 'No matching workflow roles' : 'No workflow roles yet'}
           </p>
-          {isAdmin && !searchQuery && (
+          {isAdmin && !searchQuery && onShowCreateRoleDialog && (
             <button
-              onClick={() => setShowCreateWorkflowRoleDialog(true)}
+              onClick={onShowCreateRoleDialog}
               className="btn btn-primary btn-sm"
             >
               <Plus size={14} className="mr-1" />
@@ -123,21 +118,6 @@ export function RolesTab({ searchQuery = '' }: RolesTabProps) {
             </button>
           )}
         </div>
-
-        {/* Dialogs */}
-        {showCreateWorkflowRoleDialog && (
-          <WorkflowRoleFormDialog
-            mode="create"
-            formData={workflowRoleFormData}
-            setFormData={setWorkflowRoleFormData}
-            onSave={handleCreateWorkflowRole}
-            onClose={() => {
-              setShowCreateWorkflowRoleDialog(false)
-              setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
-            }}
-            isSaving={isSavingWorkflowRole}
-          />
-        )}
       </div>
     )
   }
@@ -216,7 +196,7 @@ export function RolesTab({ searchQuery = '' }: RolesTabProps) {
                       <Pencil size={14} />
                     </button>
                     <button
-                      onClick={() => handleDeleteWorkflowRole(role)}
+                      onClick={() => setDeletingRole(role)}
                       className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
                       title="Delete role"
                     >
@@ -236,21 +216,7 @@ export function RolesTab({ searchQuery = '' }: RolesTabProps) {
         Editing a role updates it for all assigned users.
       </p>
 
-      {/* Dialogs */}
-      {showCreateWorkflowRoleDialog && (
-        <WorkflowRoleFormDialog
-          mode="create"
-          formData={workflowRoleFormData}
-          setFormData={setWorkflowRoleFormData}
-          onSave={handleCreateWorkflowRole}
-          onClose={() => {
-            setShowCreateWorkflowRoleDialog(false)
-            setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
-          }}
-          isSaving={isSavingWorkflowRole}
-        />
-      )}
-
+      {/* Edit Workflow Role Dialog - rendered here for edit actions within the tab */}
       {showEditWorkflowRoleDialog && editingWorkflowRole && (
         <WorkflowRoleFormDialog
           mode="edit"
@@ -264,6 +230,16 @@ export function RolesTab({ searchQuery = '' }: RolesTabProps) {
             setWorkflowRoleFormData({ name: '', color: '#8b5cf6', icon: 'Shield', description: '' })
           }}
           isSaving={isSavingWorkflowRole}
+        />
+      )}
+
+      {/* Delete Workflow Role Confirmation Dialog */}
+      {deletingRole && (
+        <DeleteWorkflowRoleDialog
+          role={deletingRole}
+          onConfirm={handleDeleteWorkflowRole}
+          onClose={() => setDeletingRole(null)}
+          isDeleting={isDeleting}
         />
       )}
     </div>

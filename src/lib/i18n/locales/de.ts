@@ -118,7 +118,8 @@ export const de: TranslationDict = {
 
     adminSetup: 'Admin-Einrichtung',
     enterCredentials: 'Geben Sie Ihre Supabase-Anmeldedaten aus den API-Einstellungen Ihres Projekts ein',
-    supabaseUrl: 'Supabase-URL',
+    projectId: 'Projekt-ID',
+    projectIdHelp: 'Zu finden oben in Ihrem Supabase Dashboard (z.B. vvyhpdzqdizvorrhjhvq)',
     anonKey: 'Anonymer (öffentlicher) Schlüssel',
     orgSlug: 'Organisations-Slug',
     orgSlugHelp: 'Dies hilft, Ihre Organisation im generierten Code zu identifizieren',
@@ -134,8 +135,8 @@ export const de: TranslationDict = {
     joinOrg: 'Ihrer Organisation beitreten',
     enterCode: 'Geben Sie den Code ein, den Sie von Ihrem Organisationsadministrator erhalten haben',
 
-    enterBothFields: 'Bitte geben Sie sowohl die Supabase-URL als auch den anonymen Schlüssel ein',
-    invalidUrl: 'Bitte geben Sie eine gültige Supabase-URL ein',
+    enterBothFields: 'Bitte geben Sie sowohl die Projekt-ID als auch den anonymen Schlüssel ein',
+    invalidProjectId: 'Bitte geben Sie eine gültige Projekt-ID ein (nur Buchstaben und Zahlen)',
     failedToConnect: 'Verbindung zu Supabase fehlgeschlagen',
     enterOrgCode: 'Bitte geben Sie den Organisationscode ein',
     invalidCode: 'Ungültiger Organisationscode. Bitte überprüfen und erneut versuchen.',
@@ -214,26 +215,82 @@ export const de: TranslationDict = {
   },
 
   sidebar: {
+    // Source Files
     explorer: 'Explorer',
     pending: 'Ausstehend',
-    search: 'Suchen',
-    workflows: 'Arbeitsabläufe',
     history: 'Verlauf',
+    workflows: 'Datei-Workflows',
     trash: 'Papierkorb',
-    terminal: 'Terminal',
-    eco: 'ECOs',
-    gsd: 'GSD-Übersicht',
+    // Items
+    items: 'Artikelbrowser',
+    boms: 'Stücklisten',
+    products: 'Produkte',
+    // Change Control
     ecr: 'ECRs / Probleme',
+    eco: 'ECOs',
     notifications: 'Benachrichtigungen',
     deviations: 'Abweichungen',
-    products: 'Produkte',
+    releaseSchedule: 'Freigabeplan',
     process: 'Prozess-Editor',
-    schedule: 'Zeitplan',
-    suppliers: 'Lieferanten',
+    // Supply Chain - Suppliers
+    supplierDatabase: 'Lieferantendatenbank',
     supplierPortal: 'Lieferantenportal',
+    // Supply Chain - Purchasing
+    purchaseRequests: 'Bestellanforderungen',
+    purchaseOrders: 'Bestellungen',
+    invoices: 'Rechnungen',
+    // Supply Chain - Logistics
+    shipping: 'Versand',
+    receiving: 'Wareneingang',
+    // Production
+    manufacturingOrders: 'Fertigungsaufträge',
+    travellers: 'Laufzettel',
+    workInstructions: 'Arbeitsanweisungen',
+    productionSchedule: 'Produktionsplan',
+    routings: 'Arbeitspläne',
+    workCenters: 'Arbeitsstationen',
+    processFlows: 'Prozessabläufe',
+    equipment: 'Ausrüstung',
+    // Production - Analytics
+    productionAnalytics: 'Analytik',
+    yieldTracking: 'Ausbeuteverfolgung',
+    errorCodes: 'Fehlercodes',
+    downtime: 'Stillstandzeiten',
+    oee: 'OEE-Dashboard',
+    scrapTracking: 'Ausschussverfolgung',
+    // Quality
+    fai: 'Erstmusterprüfung (FAI)',
+    ncr: 'Abweichungsbericht (NCR)',
+    imr: 'Wareneingangsprüfung (IMR)',
+    scar: 'Lieferanten-Korrekturmaßnahme (SCAR)',
+    capa: 'Korrektur- & Vorbeugemaßnahme (CAPA)',
+    rma: 'Warenrückgabe-Genehmigung (RMA)',
+    certificates: 'Zertifikate',
+    calibration: 'Kalibrierung',
+    qualityTemplates: 'Vorlagen',
+    // Accounting
+    accountsPayable: 'Kreditorenbuchhaltung (AP)',
+    accountsReceivable: 'Debitorenbuchhaltung (AR)',
+    generalLedger: 'Hauptbuch',
+    costTracking: 'Kostenverfolgung',
+    budgets: 'Budgets',
+    // Integrations
     googleDrive: 'Google Drive',
+    // System
+    terminal: 'Terminal',
     settings: 'Einstellungen',
-
+    // Section Headers
+    sourceFiles: 'Quelldateien',
+    itemsSection: 'Artikel',
+    changeControl: 'Änderungskontrolle',
+    supplyChain: 'Lieferkette',
+    suppliers: 'Lieferanten',
+    purchasing: 'Einkauf',
+    logistics: 'Logistik',
+    production: 'Produktion',
+    quality: 'Qualität',
+    integrations: 'Integrationen',
+    // Sidebar control
     sidebarControl: 'Seitenleistensteuerung',
     expanded: 'Erweitert',
     collapsed: 'Eingeklappt',

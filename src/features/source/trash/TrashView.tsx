@@ -21,7 +21,7 @@ import {
   Database
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { getDeletedFiles, restoreFile, permanentlyDeleteFile, emptyTrash } from '@/lib/supabase'
+import { getDeletedFiles, restoreFile, permanentlyDeleteFiles, emptyTrash } from '@/lib/supabase'
 import { formatDistanceToNow } from 'date-fns'
 import type { DeletedFile } from '@/types/pdm'
 import { getFileIconType } from '@/lib/utils'
@@ -463,64 +463,29 @@ export function TrashView() {
     const fileIds = Array.from(selectedFiles)
     const total = fileIds.length
     
-    // For single file, just delete directly
-    if (total === 1) {
-      try {
-        const result = await permanentlyDeleteFile(fileIds[0], user.id)
-        if (result.success) {
-          addToast('success', 'File permanently deleted')
-        } else {
-          addToast('error', result.error || 'Failed to delete file')
-        }
-        setSelectedFiles(new Set())
-        loadDeletedFiles()
-      } catch (err) {
-        addToast('error', 'Failed to delete file')
-      } finally {
-        setIsDeleting(false)
-      }
-      return
-    }
-    
-    // For multiple files, show progress toast
+    // Show progress toast for any number of files
     const toastId = `delete-permanent-${Date.now()}`
-    addProgressToast(toastId, `Permanently deleting ${total} files...`, total)
-    
-    let deleted = 0
-    let failed = 0
+    addProgressToast(toastId, `Permanently deleting ${total} file${total > 1 ? 's' : ''}...`, total)
     
     try {
-      for (let i = 0; i < fileIds.length; i++) {
+      // Use batch deletion for much better performance
+      const result = await permanentlyDeleteFiles(fileIds, user.id, (completed, totalFiles) => {
         // Check for cancellation
         if (isProgressToastCancelled(toastId)) {
-          break
+          return
         }
-        
-        const fileId = fileIds[i]
-        try {
-          const result = await permanentlyDeleteFile(fileId, user.id)
-          if (result.success) {
-            deleted++
-          } else {
-            failed++
-          }
-        } catch {
-          failed++
-        }
-        
-        // Update progress
-        const percent = Math.round(((i + 1) / total) * 100)
-        updateProgressToast(toastId, i + 1, percent)
-      }
+        const percent = Math.round((completed / totalFiles) * 100)
+        updateProgressToast(toastId, completed, percent)
+      })
       
       removeToast(toastId)
       
-      if (deleted > 0 && failed === 0) {
-        addToast('success', `Permanently deleted ${deleted} file${deleted > 1 ? 's' : ''}`)
-      } else if (deleted > 0) {
-        addToast('warning', `Deleted ${deleted}/${total} files (${failed} failed)`)
+      if (result.deleted > 0 && result.failed === 0) {
+        addToast('success', `Permanently deleted ${result.deleted} file${result.deleted > 1 ? 's' : ''}`)
+      } else if (result.deleted > 0) {
+        addToast('warning', `Deleted ${result.deleted}/${total} files (${result.failed} failed)`)
       } else {
-        addToast('error', 'Failed to delete files')
+        addToast('error', result.errors[0] || 'Failed to delete files')
       }
       
       setSelectedFiles(new Set())

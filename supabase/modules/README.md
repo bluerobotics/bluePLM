@@ -9,7 +9,7 @@ This folder contains optional SQL schema modules that extend BluePLM's functiona
 | `10-source-files.sql` | Source Files | Vaults, files, workflows, backups, watchers | core.sql |
 | `20-change-control.sql` | Change Control | ECOs, reviews, deviations, process templates | core.sql, 10-source-files.sql |
 | `30-supply-chain.sql` | Supply Chain | Suppliers, RFQs, supplier portal | core.sql, 10-source-files.sql |
-| `40-integrations.sql` | Integrations | Odoo, WooCommerce, webhooks | core.sql |
+| `40-integrations.sql` | Integrations | Odoo, WooCommerce, webhooks | core.sql, 10-source-files.sql |
 
 ## Installation Order
 

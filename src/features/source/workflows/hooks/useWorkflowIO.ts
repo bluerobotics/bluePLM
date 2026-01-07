@@ -1,5 +1,5 @@
 // Import/Export operations for workflows
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { 
   WorkflowTemplate, 
@@ -7,6 +7,15 @@ import type {
   WorkflowTransition 
 } from '@/types/workflow'
 import { stateService, transitionService, workflowService } from '../services'
+
+/** Pending import info for confirmation dialog */
+export interface PendingImport {
+  file: File
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any
+  stateCount: number
+  transitionCount: number
+}
 
 interface UseWorkflowIOOptions {
   // Core data
@@ -40,6 +49,10 @@ export function useWorkflowIO(options: UseWorkflowIOOptions) {
 
   // File input ref for import
   const importInputRef = useRef<HTMLInputElement>(null)
+  
+  // Pending import state for confirmation dialog
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
 
   /**
    * Export workflow to JSON file
@@ -103,9 +116,9 @@ export function useWorkflowIO(options: UseWorkflowIOOptions) {
   }, [selectedWorkflow, states, transitions, addToast])
 
   /**
-   * Import workflow from JSON file
+   * Request import - validates file and sets pending state for confirmation
    */
-  const importWorkflow = useCallback(async (file: File) => {
+  const requestImport = useCallback(async (file: File) => {
     if (!selectedWorkflow || !isAdmin) return
     
     try {
@@ -118,11 +131,28 @@ export function useWorkflowIO(options: UseWorkflowIOOptions) {
         return
       }
       
-      // Confirm import (will replace existing states/transitions)
-      const confirmed = window.confirm(
-        `Import workflow from "${file.name}"?\n\nThis will replace all existing states and transitions in "${selectedWorkflow.name}".`
-      )
-      if (!confirmed) return
+      // Set pending import for confirmation dialog
+      setPendingImport({
+        file,
+        data: importData,
+        stateCount: importData.states.length,
+        transitionCount: importData.transitions?.length || 0
+      })
+    } catch (err) {
+      console.error('Failed to parse workflow file:', err)
+      addToast('error', 'Failed to parse workflow file')
+    }
+  }, [selectedWorkflow, isAdmin, addToast])
+
+  /**
+   * Confirm and execute import
+   */
+  const confirmImport = useCallback(async () => {
+    if (!selectedWorkflow || !isAdmin || !pendingImport) return
+    
+    setIsImporting(true)
+    try {
+      const importData = pendingImport.data
       
       // Delete existing transitions first (due to foreign key constraints)
       // Use raw supabase for bulk deletes since services don't have this
@@ -211,8 +241,18 @@ export function useWorkflowIO(options: UseWorkflowIOOptions) {
     } catch (err) {
       console.error('Failed to import workflow:', err)
       addToast('error', `Failed to import workflow: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setIsImporting(false)
+      setPendingImport(null)
     }
-  }, [selectedWorkflow, isAdmin, setStates, setTransitions, setSelectedStateId, setSelectedTransitionId, addToast])
+  }, [selectedWorkflow, isAdmin, pendingImport, setStates, setTransitions, setSelectedStateId, setSelectedTransitionId, addToast])
+
+  /**
+   * Cancel pending import
+   */
+  const cancelImport = useCallback(() => {
+    setPendingImport(null)
+  }, [])
 
   /**
    * Trigger file input for import
@@ -227,15 +267,19 @@ export function useWorkflowIO(options: UseWorkflowIOOptions) {
   const handleImportFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      importWorkflow(file)
+      requestImport(file)
       // Reset input so same file can be selected again
       e.target.value = ''
     }
-  }, [importWorkflow])
+  }, [requestImport])
 
   return {
     exportWorkflow,
-    importWorkflow,
+    requestImport,
+    confirmImport,
+    cancelImport,
+    pendingImport,
+    isImporting,
     importInputRef,
     triggerImport,
     handleImportFileChange

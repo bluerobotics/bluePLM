@@ -34,8 +34,14 @@ export const createFilesSlice: StateCreator<
   trashFolderFilter: null,
   ignorePatterns: {},
   
-  // Initial state - Processing
-  processingFolders: new Set<string>(),
+  // Initial state - Processing (Map tracks operation type per path for inline button spinners)
+  processingOperations: new Map<string, import('../types').OperationType>(),
+  
+  // Initial state - SolidWorks Configurations
+  expandedConfigFiles: new Set<string>(),
+  selectedConfigs: new Set<string>(),
+  fileConfigurations: new Map<string, import('../types').SWConfiguration[]>(),
+  loadingConfigs: new Set<string>(),
   
   // Actions - Files
   setFiles: (files) => {
@@ -501,34 +507,102 @@ export const createFilesSlice: StateCreator<
     return false
   },
   
-  // Actions - Processing
-  addProcessingFolder: (path) => set(state => {
-    const newSet = new Set(state.processingFolders)
-    newSet.add(path)
-    return { processingFolders: newSet }
+  // Actions - Processing (with operation type for inline button spinners)
+  addProcessingFolder: (path, operationType) => set(state => {
+    const newMap = new Map(state.processingOperations)
+    newMap.set(path, operationType)
+    return { processingOperations: newMap }
   }),
-  addProcessingFolders: (paths) => {
+  addProcessingFolders: (paths, operationType) => {
     if (paths.length === 0) return
     set(state => {
-      const newSet = new Set(state.processingFolders)
-      paths.forEach(p => newSet.add(p))
-      return { processingFolders: newSet }
+      const newMap = new Map(state.processingOperations)
+      paths.forEach(p => newMap.set(p, operationType))
+      return { processingOperations: newMap }
     })
   },
   removeProcessingFolder: (path) => set(state => {
-    const newSet = new Set(state.processingFolders)
-    newSet.delete(path)
-    return { processingFolders: newSet }
+    const newMap = new Map(state.processingOperations)
+    newMap.delete(path)
+    return { processingOperations: newMap }
   }),
   removeProcessingFolders: (paths) => {
     if (paths.length === 0) return
     set(state => {
-      const newSet = new Set(state.processingFolders)
-      paths.forEach(p => newSet.delete(p))
-      return { processingFolders: newSet }
+      const newMap = new Map(state.processingOperations)
+      paths.forEach(p => newMap.delete(p))
+      return { processingOperations: newMap }
     })
   },
-  clearProcessingFolders: () => set({ processingFolders: new Set() }),
+  clearProcessingFolders: () => set({ processingOperations: new Map() }),
+  getProcessingOperation: (path) => {
+    const { processingOperations } = get()
+    // Direct lookup first
+    if (processingOperations.has(path)) {
+      return processingOperations.get(path)!
+    }
+    // Check normalized path
+    const normalizedPath = path.replace(/\\/g, '/')
+    if (processingOperations.has(normalizedPath)) {
+      return processingOperations.get(normalizedPath)!
+    }
+    // Check if this path is inside a processing folder
+    for (const [processingPath, opType] of processingOperations) {
+      const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+      if (normalizedPath.startsWith(normalizedProcessingPath + '/')) {
+        return opType
+      }
+    }
+    return null
+  },
+  
+  // Actions - SolidWorks Configurations
+  toggleConfigExpansion: (filePath: string) => {
+    const { expandedConfigFiles } = get()
+    const newExpanded = new Set(expandedConfigFiles)
+    if (newExpanded.has(filePath)) {
+      newExpanded.delete(filePath)
+      // Also clear selected configs for this file when collapsing
+      const { selectedConfigs } = get()
+      const newSelected = new Set([...selectedConfigs].filter(key => !key.startsWith(filePath + '::')))
+      set({ expandedConfigFiles: newExpanded, selectedConfigs: newSelected })
+    } else {
+      newExpanded.add(filePath)
+      set({ expandedConfigFiles: newExpanded })
+    }
+  },
+  
+  setExpandedConfigFiles: (paths: Set<string>) => set({ expandedConfigFiles: paths }),
+  
+  setSelectedConfigs: (configs: Set<string>) => set({ selectedConfigs: configs }),
+  
+  setFileConfigurations: (filePath: string, configs: import('../types').SWConfiguration[]) => {
+    const { fileConfigurations } = get()
+    const newMap = new Map(fileConfigurations)
+    newMap.set(filePath, configs)
+    set({ fileConfigurations: newMap })
+  },
+  
+  clearFileConfigurations: (filePath: string) => {
+    const { fileConfigurations } = get()
+    const newMap = new Map(fileConfigurations)
+    newMap.delete(filePath)
+    set({ fileConfigurations: newMap })
+  },
+  
+  setLoadingConfigs: (paths: Set<string>) => set({ loadingConfigs: paths }),
+  
+  addLoadingConfig: (filePath: string) => {
+    const { loadingConfigs } = get()
+    set({ loadingConfigs: new Set(loadingConfigs).add(filePath) })
+  },
+  
+  removeLoadingConfig: (filePath: string) => {
+    const { loadingConfigs } = get()
+    const newSet = new Set(loadingConfigs)
+    newSet.delete(filePath)
+    set({ loadingConfigs: newSet })
+  },
   
   // Getters
   getSelectedFileObjects: () => {

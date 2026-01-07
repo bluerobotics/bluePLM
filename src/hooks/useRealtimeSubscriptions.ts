@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscribeToColorSwatches, subscribeToPermissions, unsubscribeAll } from '@/lib/realtime'
+import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscribeToColorSwatches, subscribeToPermissions, subscribeToVaults, unsubscribeAll } from '@/lib/realtime'
 import { buildFullPath } from '@/lib/commands/types'
 import type { Organization } from '@/types/pdm'
 
@@ -426,7 +426,8 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           'vault_access': 'Your vault access has been updated',
           'team_vault_access': 'Team vault access has been updated',
           'team_members': 'Your team membership has been updated',
-          'user_permissions': 'Your permissions have been updated'
+          'user_permissions': 'Your permissions have been updated',
+          'teams': 'Team structure has been updated'
         }
         addToast('info', messages[changeType] || 'Your access has been updated')
         
@@ -435,6 +436,25 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
         usePDMStore.setState({ permissionsLastUpdated: Date.now() })
       }
     ) : () => {}
+    
+    // Subscribe to vault CRUD changes (vault created/renamed/deleted)
+    // This ensures all admins see vault changes in real-time
+    const unsubscribeVaults = subscribeToVaults(organization.id, (eventType, vault, _oldVault) => {
+      console.log('[Realtime] Vault change:', eventType, vault?.name)
+      
+      // Trigger a refresh of the vaults list
+      const { triggerVaultsRefresh } = usePDMStore.getState()
+      triggerVaultsRefresh()
+      
+      // Show toast for vault changes
+      const vaultName = vault?.name || 'A vault'
+      const messages: Record<string, string> = {
+        'INSERT': `${vaultName} was created`,
+        'UPDATE': `${vaultName} was updated`,
+        'DELETE': `A vault was deleted`
+      }
+      addToast('info', messages[eventType] || 'Vault configuration changed')
+    })
     
     return () => {
       console.log('[Realtime] Cleaning up subscriptions')
@@ -447,6 +467,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       unsubscribeOrg()
       unsubscribeColorSwatches()
       unsubscribePermissions()
+      unsubscribeVaults()
       unsubscribeAll()
     }
   }, [organization, isOfflineMode, setOrganization, addToast])

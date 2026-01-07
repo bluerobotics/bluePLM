@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 
 export interface CheckoutUser {
   id: string
@@ -18,11 +19,12 @@ export interface UseFileCardStatusParams {
   userEmail: string | undefined
   userAvatarUrl: string | undefined
   currentMachineId: string | null
-  processingPaths: Set<string>
+  processingPaths: Map<string, OperationType>
 }
 
 export interface FileCardStatus {
   isProcessing: boolean
+  operationType: OperationType | null
   cloudFilesCount: number
   localOnlyFilesCount: number
   checkoutUsers: CheckoutUser[]
@@ -39,19 +41,19 @@ export interface FolderCheckoutInfo {
 }
 
 /**
- * Check if a file path is currently being processed
+ * Get the operation type for a file path if it's being processed
  */
-function checkIsProcessing(processingPaths: Set<string>, filePath: string): boolean {
+function getProcessingOperation(processingPaths: Map<string, OperationType>, filePath: string): OperationType | null {
   const normalizedPath = filePath.replace(/\\/g, '/')
 
-  if (processingPaths.has(filePath)) return true
-  if (processingPaths.has(normalizedPath)) return true
+  if (processingPaths.has(filePath)) return processingPaths.get(filePath)!
+  if (processingPaths.has(normalizedPath)) return processingPaths.get(normalizedPath)!
 
-  for (const processingPath of processingPaths) {
+  for (const [processingPath, opType] of processingPaths) {
     const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-    if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return true
+    if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return opType
   }
-  return false
+  return null
 }
 
 /**
@@ -251,7 +253,8 @@ export function useFileCardStatus({
   processingPaths
 }: UseFileCardStatusParams): FileCardStatus {
   return useMemo(() => {
-    const isProcessing = checkIsProcessing(processingPaths, file.relativePath)
+    const operationType = getProcessingOperation(processingPaths, file.relativePath)
+    const isProcessing = operationType !== null
     const diffClass = getDiffClass(file.diffStatus)
     const cloudFilesCount = getCloudFilesCount(file, allFiles)
     const localOnlyFilesCount = getLocalOnlyFilesCount(file, allFiles)
@@ -269,6 +272,7 @@ export function useFileCardStatus({
 
     return {
       isProcessing,
+      operationType,
       cloudFilesCount,
       localOnlyFilesCount,
       checkoutUsers,

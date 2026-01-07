@@ -105,7 +105,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     const foldersBeingProcessed = files.filter(f => f.isDirectory).map(f => f.relativePath)
     const filesBeingProcessed = files.filter(f => !f.isDirectory).map(f => f.relativePath)
     const allPathsBeingProcessed = [...foldersBeingProcessed, ...filesBeingProcessed]
-    ctx.addProcessingFolders(allPathsBeingProcessed)
+    ctx.addProcessingFolders(allPathsBeingProcessed, 'delete')
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -368,7 +368,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     if (uniqueFiles.length === 0 && hasLocalFolders) {
       const foldersToDelete = files.filter(f => f.isDirectory && f.diffStatus !== 'cloud')
       const folderPaths = foldersToDelete.map(f => f.relativePath)
-      ctx.addProcessingFolders(folderPaths)
+      ctx.addProcessingFolders(folderPaths, 'delete')
       
       // Yield to event loop so React can render spinners before starting operation
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -403,7 +403,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     const foldersSelected = files.filter(f => f.isDirectory).map(f => f.relativePath)
     const pathsBeingProcessed = uniqueFiles.map(f => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...pathsBeingProcessed, ...foldersSelected])]
-    ctx.addProcessingFolders(allPathsBeingProcessed)
+    ctx.addProcessingFolders(allPathsBeingProcessed, 'delete')
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))

@@ -1,5 +1,5 @@
-// Workflow data management hook
-import { useState, useCallback, useEffect } from 'react'
+// Workflow data management hook - uses centralized Zustand store
+import { useCallback, useEffect, type SetStateAction, type Dispatch } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { 
   WorkflowTemplate, 
@@ -15,15 +15,32 @@ interface UseWorkflowDataOptions {
 }
 
 export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
-  const { organization, user, addToast, getEffectiveRole } = usePDMStore()
+  const { 
+    organization, 
+    user, 
+    addToast, 
+    getEffectiveRole,
+    // Workflow slice state
+    workflows,
+    workflowsLoading,
+    workflowStates,
+    workflowTransitions,
+    workflowGates,
+    // Workflow slice actions
+    setWorkflows,
+    setWorkflowsLoading,
+    updateWorkflow: updateWorkflowInStore,
+    removeWorkflow: removeWorkflowFromStore,
+    setSelectedWorkflowId,
+    setWorkflowStates,
+    setWorkflowTransitions,
+    setWorkflowGates,
+    getSelectedWorkflow,
+  } = usePDMStore()
   
-  // Core data state
-  const [workflows, setWorkflows] = useState<WorkflowTemplate[]>([])
-  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowTemplate | null>(null)
-  const [states, setStates] = useState<WorkflowState[]>([])
-  const [transitions, setTransitions] = useState<WorkflowTransition[]>([])
-  const [gates, setGates] = useState<Record<string, WorkflowGate[]>>({})
-  const [isLoading, setIsLoading] = useState(true)
+  // Derived state
+  const selectedWorkflow = getSelectedWorkflow()
+  const isLoading = workflowsLoading
   
   // Admin check based on effective role
   const effectiveRole = getEffectiveRole()
@@ -33,26 +50,26 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
    * Load all workflows for the organization
    */
   const loadWorkflows = useCallback(async () => {
-    if (!organization) return
+    if (!organization) return []
     
-    setIsLoading(true)
+    setWorkflowsLoading(true)
     
     const { data, error } = await workflowService.getAll(organization.id)
     
     if (error) {
       console.error('Failed to load workflows:', error)
       addToast('error', 'Failed to load workflows')
-      setIsLoading(false)
+      setWorkflowsLoading(false)
       return []
     }
     
     const workflowList = (data || []) as WorkflowTemplate[]
     setWorkflows(workflowList)
-    setIsLoading(false)
+    setWorkflowsLoading(false)
     
     // Return data for caller to handle auto-select if needed
     return workflowList
-  }, [organization, addToast])
+  }, [organization, addToast, setWorkflows, setWorkflowsLoading])
 
   /**
    * Load workflow details (states, transitions, gates)
@@ -66,12 +83,12 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
     // Load states - cast through unknown since DB row may differ from interface
     const statesResult = await stateService.getByWorkflow(workflow.id)
     const statesData = (statesResult.data || []) as unknown as WorkflowState[]
-    setStates(statesData)
+    setWorkflowStates(statesData)
     
     // Load transitions
     const transitionsResult = await transitionService.getByWorkflow(workflow.id)
     const transitionsData = (transitionsResult.data || []) as WorkflowTransition[]
-    setTransitions(transitionsData)
+    setWorkflowTransitions(transitionsData)
     
     // Load gates for each transition
     let gatesByTransition: Record<string, WorkflowGate[]> = {}
@@ -79,9 +96,9 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
       const transitionIds = transitionsData.map(t => t.id)
       const gatesResult = await transitionService.getGatesGroupedByTransition(transitionIds)
       gatesByTransition = (gatesResult.data || {}) as Record<string, WorkflowGate[]>
-      setGates(gatesByTransition)
+      setWorkflowGates(gatesByTransition)
     } else {
-      setGates({})
+      setWorkflowGates({})
     }
     
     return {
@@ -89,20 +106,20 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
       transitions: transitionsData,
       gates: gatesByTransition
     }
-  }, [])
+  }, [setWorkflowStates, setWorkflowTransitions, setWorkflowGates])
 
   /**
    * Select a workflow and load its details
    */
   const selectWorkflow = useCallback(async (workflow: WorkflowTemplate) => {
-    setSelectedWorkflow(workflow)
+    setSelectedWorkflowId(workflow.id)
     options.onSelectionClear?.()
     
     const details = await loadWorkflowDetails(workflow)
     options.onWorkflowSelect?.(workflow, details.states)
     
     return details
-  }, [loadWorkflowDetails, options])
+  }, [loadWorkflowDetails, options, setSelectedWorkflowId])
 
   /**
    * Create a new workflow
@@ -144,17 +161,12 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
       return false
     }
     
-    // Update local state
-    setWorkflows(prev => prev.map(w => 
-      w.id === workflowId ? { ...w, ...updates } : w
-    ))
-    if (selectedWorkflow?.id === workflowId) {
-      setSelectedWorkflow(prev => prev ? { ...prev, ...updates } : null)
-    }
+    // Update store state
+    updateWorkflowInStore(workflowId, updates)
     
     addToast('success', 'Workflow updated')
     return true
-  }, [selectedWorkflow, addToast])
+  }, [addToast, updateWorkflowInStore])
 
   /**
    * Delete a workflow
@@ -170,17 +182,11 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
     
     addToast('success', 'Workflow deleted')
     
-    // Clear selection if deleted workflow was selected
-    if (selectedWorkflow?.id === workflowId) {
-      setSelectedWorkflow(null)
-      setStates([])
-      setTransitions([])
-      setGates({})
-    }
+    // Remove from store (this also clears selection if needed)
+    removeWorkflowFromStore(workflowId)
     
-    await loadWorkflows()
     return true
-  }, [selectedWorkflow, addToast, loadWorkflows])
+  }, [addToast, removeWorkflowFromStore])
 
   /**
    * Reload current workflow details
@@ -195,20 +201,59 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
   useEffect(() => {
     if (!organization) {
       setWorkflows([])
-      setIsLoading(false)
+      setWorkflowsLoading(false)
       return
     }
     
     loadWorkflows()
-  }, [organization, loadWorkflows])
+  }, [organization?.id]) // Only depend on org ID, not the full object
+
+  // Setters that match the original React.Dispatch<SetStateAction<T>> API for backward compatibility
+  // These support both direct values and updater functions
+  const setStates: Dispatch<SetStateAction<WorkflowState[]>> = useCallback((value) => {
+    if (typeof value === 'function') {
+      const updater = value as (prev: WorkflowState[]) => WorkflowState[]
+      setWorkflowStates(updater(workflowStates))
+    } else {
+      setWorkflowStates(value)
+    }
+  }, [workflowStates, setWorkflowStates])
+  
+  const setTransitions: Dispatch<SetStateAction<WorkflowTransition[]>> = useCallback((value) => {
+    if (typeof value === 'function') {
+      const updater = value as (prev: WorkflowTransition[]) => WorkflowTransition[]
+      setWorkflowTransitions(updater(workflowTransitions))
+    } else {
+      setWorkflowTransitions(value)
+    }
+  }, [workflowTransitions, setWorkflowTransitions])
+  
+  const setGates: Dispatch<SetStateAction<Record<string, WorkflowGate[]>>> = useCallback((value) => {
+    if (typeof value === 'function') {
+      const updater = value as (prev: Record<string, WorkflowGate[]>) => Record<string, WorkflowGate[]>
+      setWorkflowGates(updater(workflowGates))
+    } else {
+      setWorkflowGates(value)
+    }
+  }, [workflowGates, setWorkflowGates])
+  
+  const setSelectedWorkflow: Dispatch<SetStateAction<WorkflowTemplate | null>> = useCallback((value) => {
+    if (typeof value === 'function') {
+      const updater = value as (prev: WorkflowTemplate | null) => WorkflowTemplate | null
+      const newWorkflow = updater(selectedWorkflow)
+      setSelectedWorkflowId(newWorkflow?.id ?? null)
+    } else {
+      setSelectedWorkflowId(value?.id ?? null)
+    }
+  }, [selectedWorkflow, setSelectedWorkflowId])
 
   return {
-    // State
+    // State - mapped from store
     workflows,
     selectedWorkflow,
-    states,
-    transitions,
-    gates,
+    states: workflowStates,
+    transitions: workflowTransitions,
+    gates: workflowGates,
     isLoading,
     isAdmin,
     

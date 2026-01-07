@@ -2,14 +2,16 @@
  * useVaultAccess - Hook for managing vault access
  * 
  * Provides state and operations for vault access including:
- * - Loading vaults and access mappings
+ * - Loading vaults and access mappings into Zustand store
  * - Saving user and team vault access
  * - Computing accessible vaults for users
+ * 
+ * State is managed in the organizationMetadataSlice of the PDM store.
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { supabase, getOrgVaultAccess, setUserVaultAccess } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
-import type { Vault } from '../types'
+import type { OrgVault } from '@/stores/types'
 import {
   type TeamVaultAccessJoin,
   castQueryResult,
@@ -17,15 +19,27 @@ import {
 } from './supabaseHelpers'
 
 export function useVaultAccess(orgId: string | null) {
-  const { user, addToast } = usePDMStore()
-  const [vaults, setVaults] = useState<Vault[]>([])
-  const [vaultAccessMap, setVaultAccessMap] = useState<Record<string, string[]>>({})
-  const [teamVaultAccessMap, setTeamVaultAccessMap] = useState<Record<string, string[]>>({})
-  const [isLoading, setIsLoading] = useState(true)
+  // Get actions from store
+  const user = usePDMStore(s => s.user)
+  const addToast = usePDMStore(s => s.addToast)
+  
+  // Vault access state from store
+  const vaults = usePDMStore(s => s.orgVaults)
+  const vaultAccessMap = usePDMStore(s => s.vaultAccessMap)
+  const teamVaultAccessMap = usePDMStore(s => s.teamVaultAccessMap)
+  const isLoading = usePDMStore(s => s.orgVaultsLoading)
+  const orgVaultsLoaded = usePDMStore(s => s.orgVaultsLoaded)
+  
+  // Vault access actions from store
+  const setOrgVaults = usePDMStore(s => s.setOrgVaults)
+  const setOrgVaultsLoading = usePDMStore(s => s.setOrgVaultsLoading)
+  const setVaultAccessMap = usePDMStore(s => s.setVaultAccessMap)
+  const setTeamVaultAccessMap = usePDMStore(s => s.setTeamVaultAccessMap)
 
   const loadVaults = useCallback(async () => {
     if (!orgId) return
     
+    setOrgVaultsLoading(true)
     try {
       const { data, error } = await supabase
         .from('vaults')
@@ -35,11 +49,12 @@ export function useVaultAccess(orgId: string | null) {
         .order('name')
       
       if (error) throw error
-      setVaults(castQueryResult<Vault[]>(data || []))
+      setOrgVaults(castQueryResult<OrgVault[]>(data || []))
     } catch (err) {
       console.error('Failed to load org vaults:', err)
+      setOrgVaultsLoading(false)
     }
-  }, [orgId])
+  }, [orgId, setOrgVaults, setOrgVaultsLoading])
 
   const loadVaultAccess = useCallback(async () => {
     if (!orgId) return
@@ -50,7 +65,7 @@ export function useVaultAccess(orgId: string | null) {
     } else {
       setVaultAccessMap(accessMap)
     }
-  }, [orgId])
+  }, [orgId, setVaultAccessMap])
 
   const loadTeamVaultAccess = useCallback(async () => {
     if (!orgId) return
@@ -76,7 +91,7 @@ export function useVaultAccess(orgId: string | null) {
     } catch (err) {
       console.error('Failed to load team vault access:', err)
     }
-  }, [orgId])
+  }, [orgId, setTeamVaultAccessMap])
 
   const loadAll = useCallback(async () => {
     await Promise.all([
@@ -98,6 +113,7 @@ export function useVaultAccess(orgId: string | null) {
       
       if (result.success) {
         addToast('success', `Updated vault access for ${userName || 'user'}`)
+        // Reload vault access to get updated map
         await loadVaultAccess()
         return true
       } else {
@@ -135,14 +151,19 @@ export function useVaultAccess(orgId: string | null) {
         )
       }
       
+      // Update store with new team vault access
+      setTeamVaultAccessMap({
+        ...teamVaultAccessMap,
+        [teamId]: vaultIds
+      })
+      
       addToast('success', `Updated vault access for ${teamName || 'team'}`)
-      await loadTeamVaultAccess()
       return true
     } catch (err) {
       addToast('error', 'Failed to update vault access')
       return false
     }
-  }, [user, addToast, loadTeamVaultAccess])
+  }, [user, addToast, teamVaultAccessMap, setTeamVaultAccessMap])
 
   // Get accessible vault IDs for a user
   const getUserAccessibleVaults = useCallback((userId: string): string[] => {
@@ -166,11 +187,12 @@ export function useVaultAccess(orgId: string | null) {
     return count
   }, [vaultAccessMap])
 
+  // Load vault access on mount if not already loaded
   useEffect(() => {
-    if (orgId) {
-      loadAll().finally(() => setIsLoading(false))
+    if (orgId && !orgVaultsLoaded && !isLoading) {
+      loadAll()
     }
-  }, [orgId, loadAll])
+  }, [orgId, orgVaultsLoaded, isLoading, loadAll])
 
   return {
     vaults,

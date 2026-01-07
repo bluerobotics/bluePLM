@@ -370,7 +370,7 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
     
     // Track files being processed
     const filesBeingProcessed = filesToProcess.map(f => f.relativePath)
-    ctx.addProcessingFolders(filesBeingProcessed)
+    ctx.addProcessingFolders(filesBeingProcessed, 'sync')
     
     // Yield to event loop
     await new Promise(resolve => setTimeout(resolve, 0))

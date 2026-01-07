@@ -131,9 +131,10 @@ export async function validateConfig(config: SupabaseConfig): Promise<{ valid: b
     if (error) {
       // Some errors are expected (like empty results), others indicate bad config
       if (error.message.includes('Invalid API key') || 
-          error.message.includes('Invalid URL') ||
+          error.message.includes('FetchError') ||
+          error.message.includes('Failed to fetch') ||
           error.code === 'PGRST301') {
-        return { valid: false, error: 'Invalid Supabase credentials' }
+        return { valid: false, error: 'Invalid Supabase credentials or Project ID' }
       }
       // Other errors might just mean empty table, which is fine
     }
@@ -141,6 +142,10 @@ export async function validateConfig(config: SupabaseConfig): Promise<{ valid: b
     return { valid: true }
   } catch (err: any) {
     console.error('[SupabaseConfig] Validation failed:', err)
+    // Network errors often mean wrong project ID
+    if (err.message?.includes('fetch') || err.message?.includes('network')) {
+      return { valid: false, error: 'Could not connect - please check your Project ID' }
+    }
     return { valid: false, error: err.message || 'Failed to connect to Supabase' }
   }
 }

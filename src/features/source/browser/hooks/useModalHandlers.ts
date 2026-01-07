@@ -29,7 +29,6 @@ import { useCallback } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { ContextMenuState } from './useContextMenuState'
 import type { OrgUser } from './useReviewModal'
-import type { ECO } from './useECOModal'
 import { 
   getOrgUsers,
   createReviewRequest,
@@ -38,10 +37,11 @@ import {
   watchFile,
   unwatchFile,
   createShareLink,
-  getActiveECOs,
+  getActiveECOs as fetchActiveECOs,
   addFileToECO
 } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
+import { usePDMStore } from '@/stores/pdmStore'
 
 export interface ModalHandlersDeps {
   // User and org
@@ -96,13 +96,10 @@ export interface ModalHandlersDeps {
   setGeneratedShareLink: (link: string | null) => void
   setCopiedLink: (copied: boolean) => void
   
-  // ECO modal state
+  // ECO modal state (ECO list comes from store)
   setShowECOModal: (show: boolean) => void
   setEcoFile: (file: LocalFile | null) => void
   ecoFile: LocalFile | null
-  setLoadingECOs: (loading: boolean) => void
-  activeECOs: ECO[]
-  setActiveECOs: (ecos: ECO[]) => void
   selectedECO: string | null
   setSelectedECO: (eco: string | null) => void
   ecoNotes: string
@@ -136,6 +133,14 @@ export interface UseModalHandlersReturn {
  * Hook for managing modal-related handlers (review, checkout request, mention, share, ECO).
  */
 export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersReturn {
+  // Get ECO state from store
+  const {
+    ecosLoaded,
+    getActiveECOs: getActiveECOsFromStore,
+    setECOs,
+    setECOsLoading
+  } = usePDMStore()
+  
   const {
     user,
     organization,
@@ -180,9 +185,6 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
     setShowECOModal,
     setEcoFile,
     ecoFile,
-    setLoadingECOs,
-    activeECOs,
-    setActiveECOs,
     selectedECO,
     setSelectedECO,
     ecoNotes,
@@ -449,12 +451,21 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
     setEcoFile(file)
     setShowECOModal(true)
     setContextMenu(null)
-    setLoadingECOs(true)
     
-    const { ecos } = await getActiveECOs(organization.id)
-    setActiveECOs(ecos)
-    setLoadingECOs(false)
-  }, [organization?.id, setEcoFile, setShowECOModal, setContextMenu, setLoadingECOs, setActiveECOs, addToast])
+    // Only fetch if not already loaded in store
+    if (!ecosLoaded) {
+      setECOsLoading(true)
+      const { ecos } = await fetchActiveECOs(organization.id)
+      // Map to full ECO type for store
+      setECOs(ecos.map(eco => ({
+        ...eco,
+        description: eco.description ?? null,
+        status: eco.status ?? null,
+        created_at: eco.created_at ?? null,
+      })))
+      setECOsLoading(false)
+    }
+  }, [organization?.id, setEcoFile, setShowECOModal, setContextMenu, ecosLoaded, setECOsLoading, setECOs, getActiveECOsFromStore, addToast])
 
   const handleAddToECO = useCallback(async () => {
     if (!user?.id || !selectedECO || !ecoFile?.pdmData?.id) {
@@ -472,7 +483,9 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
     )
     
     if (success) {
-      const eco = activeECOs.find(e => e.id === selectedECO)
+      // Use store's active ECOs for finding the selected ECO
+      const storeActiveECOs = getActiveECOsFromStore()
+      const eco = storeActiveECOs.find(e => e.id === selectedECO)
       addToast('success', `Added to ${eco?.eco_number || 'ECO'}`)
       setShowECOModal(false)
       setSelectedECO(null)
@@ -482,7 +495,7 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
     }
     
     setIsAddingToECO(false)
-  }, [user?.id, selectedECO, ecoFile, ecoNotes, activeECOs, setIsAddingToECO, setShowECOModal, setSelectedECO, setEcoNotes, addToast])
+  }, [user?.id, selectedECO, ecoFile, ecoNotes, getActiveECOsFromStore, setIsAddingToECO, setShowECOModal, setSelectedECO, setEcoNotes, addToast])
 
   return {
     handleOpenReviewModal,

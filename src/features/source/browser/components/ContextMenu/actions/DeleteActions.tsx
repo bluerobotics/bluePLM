@@ -235,7 +235,7 @@ export function DeleteActions({
                 onConfirm: async () => {
                   const total = storedCloudFiles.length
                   
-                  addProcessingFolders(uniquePaths)
+                  addProcessingFolders(uniquePaths, 'delete')
                   startSync(total, 'upload')
                   
                   let deleted = 0

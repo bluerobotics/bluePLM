@@ -27,6 +27,7 @@
  */
 import { useCallback, useMemo } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import type { UseDialogStateReturn } from './useDialogState'
 
 export interface UseDeleteHandlerOptions {
@@ -46,7 +47,7 @@ export interface UseDeleteHandlerOptions {
   
   // Operations
   clearSelection: () => void
-  addProcessingFolders: (paths: string[]) => void
+  addProcessingFolders: (paths: string[], operationType: OperationType) => void
   removeProcessingFolders: (paths: string[]) => void
   setUndoStack: React.Dispatch<React.SetStateAction<Array<{ type: 'delete'; file: LocalFile; originalPath: string }>>>
   onRefresh: () => void
@@ -160,7 +161,7 @@ export function useDeleteHandler({
     
     // Track files/folders being deleted for spinner display - batch add
     const pathsBeingDeleted = itemsToDelete.map(f => f.relativePath)
-    addProcessingFolders(pathsBeingDeleted)
+    addProcessingFolders(pathsBeingDeleted, 'delete')
     
     const totalOps = itemsToDelete.filter(f => f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new').length + (isDeleteEverywhere ? syncedFiles.length : 0)
     const toastId = `delete-${Date.now()}`

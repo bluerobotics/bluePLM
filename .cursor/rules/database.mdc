@@ -36,3 +36,11 @@ const { data } = await supabase.from('files').select('*');
 ## Migration Naming
 
 `YYYYMMDD-description.sql` → e.g., `20240115-add-workflow-status.sql`
+
+## Schema Change Workflow
+
+When making schema changes:
+- **Only** update the schema files (`supabase/core.sql`, `supabase/modules/*.sql`)
+- **Never** provide migration SQL in code blocks — user runs the full schema file
+- **Never** run terminal commands to push SQL to Supabase
+- Just update the files and confirm it's done

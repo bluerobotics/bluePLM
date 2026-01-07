@@ -17,12 +17,9 @@ import {
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 
-const API_URL_KEY = 'blueplm_api_url'
-const DEFAULT_API_URL = 'http://127.0.0.1:3001'
-
-// Helper to get API URL from org settings or localStorage
-function getApiUrl(organization: { settings?: { api_url?: string } } | null): string {
-  return organization?.settings?.api_url || localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL
+// Helper to get API URL from org settings
+function getApiUrl(organization: { settings?: { api_url?: string } } | null): string | null {
+  return organization?.settings?.api_url || null
 }
 
 // Helper to get valid auth token
@@ -107,10 +104,18 @@ function OdooConfigPanel({
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  
+  // Disconnect confirmation state
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
 
   const apiUrl = getApiUrl(organization)
 
   const handleTest = async () => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     if (!url || !database || !username || !apiKey) {
       addToast('warning', 'Please fill in all fields')
       return
@@ -150,6 +155,10 @@ function OdooConfigPanel({
   }
 
   const handleSave = async (skipTest: boolean = false) => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     if (!url || !database || !username || !apiKey) {
       addToast('warning', 'Please fill in all fields')
       return
@@ -204,6 +213,10 @@ function OdooConfigPanel({
   }
 
   const handleSync = async () => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
@@ -237,14 +250,19 @@ function OdooConfigPanel({
   }
 
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Odoo?')) return
-
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      setShowDisconnectDialog(false)
+      return
+    }
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
+      setShowDisconnectDialog(false)
       return
     }
 
+    setIsDisconnecting(true)
     try {
       const response = await fetch(`${apiUrl}/integrations/odoo`, {
         method: 'DELETE',
@@ -260,6 +278,9 @@ function OdooConfigPanel({
       }
     } catch (err) {
       addToast('error', `Error: ${err}`)
+    } finally {
+      setIsDisconnecting(false)
+      setShowDisconnectDialog(false)
     }
   }
 
@@ -423,7 +444,7 @@ function OdooConfigPanel({
             Sync Suppliers Now
           </button>
           <button
-            onClick={handleDisconnect}
+            onClick={() => setShowDisconnectDialog(true)}
             className="px-3 py-2 text-plm-error hover:bg-plm-error/10 rounded text-sm transition-colors"
           >
             Disconnect
@@ -443,6 +464,30 @@ function OdooConfigPanel({
           Odoo API Documentation
         </a>
       </div>
+
+      {/* Disconnect Odoo Confirmation Dialog */}
+      {showDisconnectDialog && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowDisconnectDialog(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Disconnect Odoo</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
+              Are you sure you want to disconnect Odoo? You will need to reconnect to sync data again.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowDisconnectDialog(false)} className="btn btn-ghost" disabled={isDisconnecting}>
+                Cancel
+              </button>
+              <button
+                onClick={handleDisconnect}
+                disabled={isDisconnecting}
+                className="btn bg-plm-error text-white hover:bg-plm-error/90"
+              >
+                {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -457,6 +502,10 @@ export function IntegrationsView() {
   const apiUrl = getApiUrl(organization)
 
   const loadOdooSettings = async () => {
+    if (!apiUrl) {
+      setLoading(false)
+      return
+    }
     try {
       const token = await getAuthToken()
       if (!token) {

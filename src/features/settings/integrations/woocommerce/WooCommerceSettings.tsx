@@ -59,9 +59,6 @@ interface SyncSettings {
   default_status: 'draft' | 'publish' | 'private'
 }
 
-const API_URL_KEY = 'blueplm_api_url'
-const DEFAULT_API_URL = 'http://127.0.0.1:3001'
-
 // Preset colors for saved connections
 const CONFIG_COLORS = [
   { name: 'Purple', value: '#96588a' },
@@ -74,11 +71,8 @@ const CONFIG_COLORS = [
   { name: 'Red', value: '#ef4444' },
 ]
 
-function getApiUrl(organization: { settings?: { api_url?: string } } | null): string {
-  return organization?.settings?.api_url 
-    || localStorage.getItem(API_URL_KEY) 
-    || import.meta.env.VITE_API_URL 
-    || DEFAULT_API_URL
+function getApiUrl(organization: { settings?: { api_url?: string } } | null): string | null {
+  return organization?.settings?.api_url || null
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -131,12 +125,22 @@ export function WooCommerceSettings() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [apiServerOnline, setApiServerOnline] = useState<boolean | null>(null)
   
+  // Delete/Disconnect confirmation state
+  const [deletingConfig, setDeletingConfig] = useState<SavedConfig | null>(null)
+  const [isDeletingConfig, setIsDeletingConfig] = useState(false)
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
+  
   useEffect(() => {
     loadSettings()
     loadSavedConfigs()
   }, [])
   
   const checkApiServer = async () => {
+    if (!apiUrl) {
+      setApiServerOnline(false)
+      return false
+    }
     try {
       const response = await fetch(`${apiUrl}/health`, {
         signal: AbortSignal.timeout(3000)
@@ -151,6 +155,11 @@ export function WooCommerceSettings() {
   
   const loadSettings = async () => {
     setIsLoading(true)
+    if (!apiUrl) {
+      setApiServerOnline(false)
+      setIsLoading(false)
+      return
+    }
     try {
       const token = await getAuthToken()
       if (!token) {
@@ -190,6 +199,10 @@ export function WooCommerceSettings() {
   
   const loadSavedConfigs = async () => {
     setIsLoadingConfigs(true)
+    if (!apiUrl) {
+      setIsLoadingConfigs(false)
+      return
+    }
     try {
       const token = await getAuthToken()
       if (!token) return
@@ -211,6 +224,10 @@ export function WooCommerceSettings() {
   }
   
   const handleTest = async () => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     if (!storeUrl || !consumerKey || !consumerSecret) {
       addToast('warning', 'Please fill in all WooCommerce fields')
       return
@@ -263,6 +280,10 @@ export function WooCommerceSettings() {
   }
   
   const handleSave = async (skipTest: boolean = false) => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     if (!storeUrl || !consumerKey || !consumerSecret) {
       addToast('warning', 'Please fill in all WooCommerce fields')
       return
@@ -318,6 +339,10 @@ export function WooCommerceSettings() {
   }
   
   const handleSaveConfig = async (andConnect: boolean = true) => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     if (!configName.trim()) {
       addToast('warning', 'Please enter a connection name')
       return
@@ -406,6 +431,10 @@ export function WooCommerceSettings() {
   }
   
   const handleLoadConfig = async (config: SavedConfig) => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
@@ -433,6 +462,10 @@ export function WooCommerceSettings() {
   }
   
   const handleActivateConfig = async (config: SavedConfig) => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
@@ -463,29 +496,39 @@ export function WooCommerceSettings() {
     }
   }
   
-  const handleDeleteConfig = async (config: SavedConfig) => {
-    if (!confirm(`Delete connection "${config.name}"?`)) return
+  const handleDeleteConfig = async () => {
+    if (!deletingConfig) return
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      setDeletingConfig(null)
+      return
+    }
 
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
+      setDeletingConfig(null)
       return
     }
 
+    setIsDeletingConfig(true)
     try {
-      const response = await fetch(`${apiUrl}/integrations/woocommerce/configs/${config.id}`, {
+      const response = await fetch(`${apiUrl}/integrations/woocommerce/configs/${deletingConfig.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
 
       if (response.ok) {
-        addToast('info', `Deleted "${config.name}"`)
+        addToast('info', `Deleted "${deletingConfig.name}"`)
         loadSavedConfigs()
       } else {
         addToast('error', 'Failed to delete connection')
       }
     } catch (err) {
       addToast('error', `Error: ${err}`)
+    } finally {
+      setIsDeletingConfig(false)
+      setDeletingConfig(null)
     }
   }
   
@@ -501,6 +544,10 @@ export function WooCommerceSettings() {
   }
   
   const handleSync = async () => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
@@ -534,14 +581,19 @@ export function WooCommerceSettings() {
   }
   
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect WooCommerce?')) return
-
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      setShowDisconnectDialog(false)
+      return
+    }
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
+      setShowDisconnectDialog(false)
       return
     }
 
+    setIsDisconnecting(true)
     try {
       const response = await fetch(`${apiUrl}/integrations/woocommerce`, {
         method: 'DELETE',
@@ -558,6 +610,9 @@ export function WooCommerceSettings() {
       }
     } catch (err) {
       addToast('error', `Error: ${err}`)
+    } finally {
+      setIsDisconnecting(false)
+      setShowDisconnectDialog(false)
     }
   }
 
@@ -731,7 +786,7 @@ export function WooCommerceSettings() {
                             <>
                               {config.is_active ? (
                                 <button
-                                  onClick={handleDisconnect}
+                                  onClick={() => setShowDisconnectDialog(true)}
                                   className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
                                   title="Disconnect this store"
                                 >
@@ -766,7 +821,7 @@ export function WooCommerceSettings() {
                                 <Edit2 size={14} />
                               </button>
                               <button
-                                onClick={() => handleDeleteConfig(config)}
+                                onClick={() => setDeletingConfig(config)}
                                 className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
                                 title="Delete store"
                               >
@@ -992,7 +1047,7 @@ export function WooCommerceSettings() {
                   Sync Products Now
                 </button>
                 <button
-                  onClick={handleDisconnect}
+                  onClick={() => setShowDisconnectDialog(true)}
                   className="px-4 py-2.5 text-base text-plm-error hover:bg-plm-error/10 rounded-lg transition-colors"
                 >
                   Disconnect
@@ -1209,6 +1264,54 @@ export function WooCommerceSettings() {
                   {editingConfig ? 'Update & Connect' : 'Save & Connect'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Config Confirmation Dialog */}
+      {deletingConfig && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDeletingConfig(null)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Delete Connection</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
+              Are you sure you want to delete <strong>{deletingConfig.name}</strong>? This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeletingConfig(null)} className="btn btn-ghost" disabled={isDeletingConfig}>
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfig}
+                disabled={isDeletingConfig}
+                className="btn bg-plm-error text-white hover:bg-plm-error/90"
+              >
+                {isDeletingConfig ? 'Deleting...' : 'Delete Connection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disconnect WooCommerce Confirmation Dialog */}
+      {showDisconnectDialog && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowDisconnectDialog(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Disconnect WooCommerce</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
+              Are you sure you want to disconnect WooCommerce? You will need to reconnect to sync products again.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowDisconnectDialog(false)} className="btn btn-ghost" disabled={isDisconnecting}>
+                Cancel
+              </button>
+              <button
+                onClick={handleDisconnect}
+                disabled={isDisconnecting}
+                className="btn bg-plm-error text-white hover:bg-plm-error/90"
+              >
+                {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+              </button>
             </div>
           </div>
         </div>

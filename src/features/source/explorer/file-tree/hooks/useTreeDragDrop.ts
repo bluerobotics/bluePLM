@@ -463,7 +463,7 @@ export function useTreeDragDrop(): DragDropHandlers {
       const newRelPath = file.name
       const newFullPath = buildFullPath(vaultPath, newRelPath)
       
-      addProcessingFolder(file.relativePath)
+      addProcessingFolder(file.relativePath, 'sync')
       
       try {
         const result = await window.electronAPI.moveFile(file.path, newFullPath)

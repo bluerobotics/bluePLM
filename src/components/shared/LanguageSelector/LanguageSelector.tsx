@@ -63,8 +63,8 @@ export function LanguageSelector({ compact = false, dropdownPosition = 'bottom-r
             className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)} 
           />
-          {/* Dropdown */}
-          <div className={`absolute ${positionClasses[dropdownPosition]} z-50 bg-plm-bg-secondary border border-plm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[200px]`}>
+          {/* Dropdown - data-preserve-font keeps it readable in Elvish mode */}
+          <div data-preserve-font className={`absolute ${positionClasses[dropdownPosition]} z-50 bg-plm-bg-secondary border border-plm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[200px]`}>
             {languageOptions.map((option) => {
               const isSelected = language === option.value
               return (

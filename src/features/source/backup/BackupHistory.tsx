@@ -8,7 +8,7 @@ interface BackupHistoryProps {
   isAdmin: boolean
   selectedSnapshot: string | null
   onSelectSnapshot: (id: string | null) => void
-  deletingSnapshotId: string | null
+  deletingSnapshotIds: Set<string>
   onRequestDelete: (target: DeleteConfirmTarget) => void
   historyVaultFilter: string
   onHistoryVaultFilterChange: (filter: string) => void
@@ -23,7 +23,7 @@ export function BackupHistory({
   isAdmin,
   selectedSnapshot,
   onSelectSnapshot,
-  deletingSnapshotId,
+  deletingSnapshotIds,
   onRequestDelete,
   historyVaultFilter,
   onHistoryVaultFilterChange,
@@ -82,7 +82,7 @@ export function BackupHistory({
               snapshot={snapshot}
               isSelected={selectedSnapshot === snapshot.id}
               isAdmin={isAdmin}
-              isDeleting={deletingSnapshotId === snapshot.id}
+              isDeleting={deletingSnapshotIds.has(snapshot.id)}
               isRestoring={isRestoring}
               onSelect={() => onSelectSnapshot(selectedSnapshot === snapshot.id ? null : snapshot.id)}
               onRequestDelete={() => onRequestDelete({ id: snapshot.id, time: formatDate(snapshot.time) })}

@@ -42,8 +42,12 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 25, 'Core schema with modular structure', NOW(), 'migration')
-ON CONFLICT (id) DO NOTHING;
+VALUES (1, 33, 'Enhanced checkin_file RPC with conditional versioning and activity logging', NOW(), 'migration')
+ON CONFLICT (id) DO UPDATE SET 
+  version = EXCLUDED.version,
+  description = EXCLUDED.description,
+  applied_at = EXCLUDED.applied_at,
+  applied_by = EXCLUDED.applied_by;
 
 -- Function to update schema version (for use in migrations)
 CREATE OR REPLACE FUNCTION update_schema_version(
@@ -89,18 +93,6 @@ DO $$ BEGIN
   END IF;
 END $$;
 
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'address_type') THEN
-    CREATE TYPE address_type AS ENUM ('billing', 'shipping');
-  END IF;
-END $$;
-
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'revision_scheme') THEN
-    CREATE TYPE revision_scheme AS ENUM ('letter', 'numeric');
-  END IF;
-END $$;
-
 -- ===========================================
 -- PERMISSION CHECK FUNCTIONS (Stubs)
 -- ===========================================
@@ -142,7 +134,6 @@ CREATE TABLE IF NOT EXISTS organizations (
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
   email_domains TEXT[] NOT NULL DEFAULT '{}',
-  revision_scheme revision_scheme DEFAULT 'letter',
   settings JSONB DEFAULT '{
     "require_checkout": true,
     "auto_increment_part_numbers": true,
@@ -156,11 +147,6 @@ CREATE TABLE IF NOT EXISTS organizations (
     "enforce_email_domain": false
   }'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Google Drive integration
-  google_drive_client_id TEXT,
-  google_drive_client_secret TEXT,
-  google_drive_enabled BOOLEAN DEFAULT FALSE,
   
   -- Company branding
   logo_url TEXT,
@@ -179,36 +165,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   website TEXT,
   contact_email TEXT,
   
-  -- RFQ template settings (used by supply-chain module)
-  rfq_settings JSONB DEFAULT '{
-    "default_payment_terms": "Net 30",
-    "default_incoterms": "FOB",
-    "default_valid_days": 30,
-    "show_company_logo": true,
-    "show_revision_column": true,
-    "show_material_column": true,
-    "show_finish_column": true,
-    "show_notes_column": true,
-    "terms_and_conditions": "",
-    "footer_text": ""
-  }'::jsonb,
-  
   -- Module configuration defaults
   module_defaults JSONB DEFAULT NULL,
-  
-  -- Serialization settings
-  serialization_settings JSONB DEFAULT '{
-    "enabled": true,
-    "prefix": "PN-",
-    "suffix": "",
-    "padding_digits": 5,
-    "letter_count": 0,
-    "current_counter": 0,
-    "use_letters_before_numbers": false,
-    "letter_prefix": "",
-    "keepout_zones": [],
-    "auto_apply_extensions": []
-  }'::jsonb,
   
   -- Auth provider settings
   auth_providers JSONB DEFAULT '{
@@ -221,9 +179,6 @@ CREATE TABLE IF NOT EXISTS organizations (
 );
 
 -- Migration: Add columns for existing tables
-DO $$ BEGIN ALTER TABLE organizations ADD COLUMN google_drive_client_id TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE organizations ADD COLUMN google_drive_client_secret TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE organizations ADD COLUMN google_drive_enabled BOOLEAN DEFAULT FALSE; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN logo_url TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN logo_storage_path TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN address_line1 TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
@@ -235,83 +190,11 @@ DO $$ BEGIN ALTER TABLE organizations ADD COLUMN country TEXT DEFAULT 'USA'; EXC
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN phone TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN website TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN contact_email TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE organizations ADD COLUMN rfq_settings JSONB DEFAULT '{"default_payment_terms": "Net 30", "default_incoterms": "FOB", "default_valid_days": 30, "show_company_logo": true, "show_revision_column": true, "show_material_column": true, "show_finish_column": true, "show_notes_column": true, "terms_and_conditions": "", "footer_text": ""}'::jsonb; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN module_defaults JSONB DEFAULT NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE organizations ADD COLUMN serialization_settings JSONB DEFAULT '{"enabled": true, "prefix": "PN-", "suffix": "", "padding_digits": 5, "letter_count": 0, "current_counter": 0, "use_letters_before_numbers": false, "letter_prefix": "", "keepout_zones": [], "auto_apply_extensions": []}'::jsonb; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN auth_providers JSONB DEFAULT '{"users": {"google": true, "email": true, "phone": true}, "suppliers": {"google": true, "email": true, "phone": true}}'::jsonb; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN default_new_user_team_id UUID; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 CREATE INDEX IF NOT EXISTS idx_organizations_email_domains ON organizations USING GIN (email_domains);
-
--- ===========================================
--- ORGANIZATION ADDRESSES
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS organization_addresses (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  address_type address_type NOT NULL,
-  label TEXT NOT NULL,
-  is_default BOOLEAN DEFAULT FALSE,
-  company_name TEXT,
-  contact_name TEXT,
-  address_line1 TEXT NOT NULL,
-  address_line2 TEXT,
-  city TEXT NOT NULL,
-  state TEXT,
-  postal_code TEXT,
-  country TEXT DEFAULT 'USA',
-  attention_to TEXT,
-  phone TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  CONSTRAINT no_attn_for_billing CHECK (
-    address_type != 'billing' OR attention_to IS NULL
-  )
-);
-
-CREATE INDEX IF NOT EXISTS idx_org_addresses_org_id ON organization_addresses(org_id);
-CREATE INDEX IF NOT EXISTS idx_org_addresses_type ON organization_addresses(org_id, address_type);
-
--- Trigger to update updated_at
-CREATE OR REPLACE FUNCTION update_org_address_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS org_address_updated ON organization_addresses;
-CREATE TRIGGER org_address_updated
-  BEFORE UPDATE ON organization_addresses
-  FOR EACH ROW
-  EXECUTE FUNCTION update_org_address_timestamp();
-
--- Function to ensure only one default per type per org
-CREATE OR REPLACE FUNCTION ensure_single_default_address()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.is_default = TRUE THEN
-    UPDATE organization_addresses
-    SET is_default = FALSE
-    WHERE org_id = NEW.org_id 
-      AND address_type = NEW.address_type 
-      AND id != NEW.id
-      AND is_default = TRUE;
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS ensure_single_default ON organization_addresses;
-CREATE TRIGGER ensure_single_default
-  BEFORE INSERT OR UPDATE ON organization_addresses
-  FOR EACH ROW
-  EXECUTE FUNCTION ensure_single_default_address();
-
--- NOTE: RLS Policies for organization_addresses are defined AFTER users table (they reference users)
 
 -- ===========================================
 -- USERS
@@ -358,42 +241,6 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_users_org_id ON users(org_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-
--- ===========================================
--- RLS POLICIES FOR ORGANIZATION_ADDRESSES
--- (Defined here because they reference the users table)
--- ===========================================
-
-ALTER TABLE organization_addresses ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can view org addresses" ON organization_addresses;
-CREATE POLICY "Users can view org addresses"
-  ON organization_addresses FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
-
-DROP POLICY IF EXISTS "Admins can insert addresses" ON organization_addresses;
-CREATE POLICY "Admins can insert addresses"
-  ON organization_addresses FOR INSERT
-  WITH CHECK (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND org_id = organization_addresses.org_id)
-    AND is_org_admin()
-  );
-
-DROP POLICY IF EXISTS "Admins can update addresses" ON organization_addresses;
-CREATE POLICY "Admins can update addresses"
-  ON organization_addresses FOR UPDATE
-  USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND org_id = organization_addresses.org_id)
-    AND is_org_admin()
-  );
-
-DROP POLICY IF EXISTS "Admins can delete addresses" ON organization_addresses;
-CREATE POLICY "Admins can delete addresses"
-  ON organization_addresses FOR DELETE
-  USING (
-    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND org_id = organization_addresses.org_id)
-    AND is_org_admin()
-  );
 
 -- ===========================================
 -- BLOCKED USERS
@@ -677,8 +524,12 @@ CREATE TABLE IF NOT EXISTS pending_org_members (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
+  full_name TEXT,
   role user_role DEFAULT 'engineer',
   team_ids UUID[] DEFAULT '{}',
+  vault_ids UUID[] DEFAULT '{}',
+  workflow_role_ids UUID[] DEFAULT '{}',
+  notes TEXT,
   invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
   invited_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
@@ -1348,6 +1199,56 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION regenerate_org_slug() TO authenticated;
+
+-- Update organization branding (logo and contact info)
+CREATE OR REPLACE FUNCTION update_org_branding(
+  p_org_id UUID,
+  p_logo_url TEXT DEFAULT NULL,
+  p_logo_storage_path TEXT DEFAULT NULL,
+  p_phone TEXT DEFAULT NULL,
+  p_website TEXT DEFAULT NULL,
+  p_contact_email TEXT DEFAULT NULL
+)
+RETURNS JSON AS $$
+DECLARE
+  current_user_id UUID;
+  current_org_id UUID;
+BEGIN
+  current_user_id := auth.uid();
+  
+  -- Get user's org
+  SELECT org_id INTO current_org_id
+  FROM users WHERE id = current_user_id;
+  
+  -- Verify user belongs to the target org
+  IF current_org_id IS NULL OR current_org_id != p_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'You are not a member of this organization');
+  END IF;
+  
+  -- Verify user is an admin
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can update organization branding');
+  END IF;
+  
+  -- Update the organization branding and contact fields
+  -- Only update fields that are explicitly provided (not NULL)
+  -- Empty strings are treated as NULL to clear the values
+  UPDATE organizations 
+  SET 
+    logo_url = CASE WHEN p_logo_url IS NOT NULL THEN NULLIF(p_logo_url, '') ELSE logo_url END,
+    logo_storage_path = CASE WHEN p_logo_storage_path IS NOT NULL THEN NULLIF(p_logo_storage_path, '') ELSE logo_storage_path END,
+    phone = CASE WHEN p_phone IS NOT NULL THEN NULLIF(p_phone, '') ELSE phone END,
+    website = CASE WHEN p_website IS NOT NULL THEN NULLIF(p_website, '') ELSE website END,
+    contact_email = CASE WHEN p_contact_email IS NOT NULL THEN NULLIF(p_contact_email, '') ELSE contact_email END
+  WHERE id = p_org_id;
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Drop old function signature and grant on new one
+DROP FUNCTION IF EXISTS update_org_branding(UUID, TEXT, TEXT);
+GRANT EXECUTE ON FUNCTION update_org_branding(UUID, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
 
 -- Get org auth providers
 CREATE OR REPLACE FUNCTION get_org_auth_providers(p_org_slug TEXT)

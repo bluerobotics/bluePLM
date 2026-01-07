@@ -85,7 +85,6 @@ export function WorkflowDialogs({
             }
           }}
           onDelete={async () => {
-            if (!window.confirm(`Delete "${selectedWorkflow.name}"?`)) return
             const success = await deleteWorkflow(selectedWorkflow.id)
             if (success) {
               setShowEditWorkflow(false)

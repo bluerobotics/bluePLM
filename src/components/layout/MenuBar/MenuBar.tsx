@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { LogOut, ChevronDown, Building2, Search, Database, ZoomIn, Minus, Plus, RotateCcw, Monitor, Laptop, Loader2, Settings, WifiOff, Wifi, PanelLeft, PanelBottom, PanelRight, SlidersHorizontal, Gauge, Users, Activity, User, Layers } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { CommandSearch } from '@/features/search/command-search'
+import { UserProfileModal } from '@/features/settings/account'
 import { signInWithGoogle, signOut, isSupabaseConfigured, getActiveSessions, endRemoteSession, UserSession, supabase } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { logAuth } from '@/lib/userActionLogger'
@@ -107,6 +108,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const [showVaultDropdown, setShowVaultDropdown] = useState(false)
   const [showZoomDropdown, setShowZoomDropdown] = useState(false)
   const [showTopbarConfigDropdown, setShowTopbarConfigDropdown] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
   const [zoomFactor, setZoomFactor] = useState(1)
   const [sessions, setSessions] = useState<UserSession[]>([])
@@ -129,7 +131,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const showUserNameFinal = showUserNameByWidth && topbarConfig.showUserName  // Both width and config must allow it
   const showVaultName = menuBarWidth > 700
   const showOrgName = menuBarWidth > 600
-  const searchMaxWidth = menuBarWidth > 850 ? 'max-w-lg' : menuBarWidth > 700 ? 'max-w-sm' : menuBarWidth > 550 ? 'max-w-[200px]' : 'max-w-[140px]'
+  const searchWidth = menuBarWidth > 850 ? 'w-[500px]' : menuBarWidth > 700 ? 'w-[400px]' : menuBarWidth > 550 ? 'w-[300px]' : 'w-[200px]'
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -308,7 +310,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     
     if (!isSupabaseConfigured()) {
       uiLog('warn', 'Supabase not configured')
-      alert('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
+      addToast('error', 'Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
       return
     }
     
@@ -325,13 +327,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       
       if (error) {
         uiLog('error', 'Sign in failed', { error: error.message })
-        alert(`Sign in failed: ${error.message}`)
+        addToast('error', `Sign in failed: ${error.message}`)
       } else {
         uiLog('info', 'Sign in completed successfully, auth state change will be handled by App')
       }
     } catch (err) {
       uiLog('error', 'Sign in exception', { error: String(err) })
-      alert('Sign in failed. Check the console for details.')
+      addToast('error', 'Sign in failed. Check the console for details.')
     } finally {
       uiLog('info', 'Sign in flow finished, resetting state')
       setIsSigningIn(false)
@@ -353,10 +355,10 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   }
 
   return (
-    <div ref={menuBarRef} className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region flex items-center">
+    <div ref={menuBarRef} className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region grid items-center" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
       {/* Left side - Logo, Organization, and Vault (add padding on macOS for window buttons) */}
       <div 
-        className="flex-shrink-0 flex items-center h-full"
+        className="flex items-center h-full justify-start"
         style={{ paddingLeft: platform === 'darwin' ? 72 : 0 }}
       >
         <div className="flex items-center gap-1 px-3 titlebar-no-drag">
@@ -460,20 +462,21 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         </div>
       </div>
 
-      {/* Center - Search bar (flexible, gets squeezed between left and right) */}
-      <div className={`flex-1 min-w-0 flex items-center justify-center px-2`}>
+      {/* Center - Search bar (truly centered, only bumps when neighbors encroach) */}
+      <div className="flex items-center justify-center px-2 min-w-0">
         {!minimal && topbarConfig.showSearch && (
-          <div className={`w-full ${searchMaxWidth} titlebar-no-drag`}>
-            <CommandSearch maxWidth={searchMaxWidth} />
+          <div className={`${searchWidth} titlebar-no-drag`}>
+            <CommandSearch />
           </div>
         )}
       </div>
 
       {/* Right side - Settings and User (with padding for window controls on Windows) */}
       <div 
-        className="flex-shrink-0 h-full flex items-center gap-1 pl-2 titlebar-no-drag"
+        className="flex items-center h-full justify-end"
         style={{ paddingRight: platform === 'darwin' ? 16 : titleBarPadding }}
       >
+        <div className="flex items-center gap-1 px-2 titlebar-no-drag">
         {/* FPS Counter - independent from System Stats */}
         {!minimal && topbarConfig.showFps && (
           <FpsCounter />
@@ -832,8 +835,14 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
             {/* Simplified Dropdown Menu */}
             {showUserMenu && (
               <div className="absolute right-0 top-full mt-1 w-56 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl overflow-hidden z-50">
-                {/* User Info Header */}
-                <div className="px-4 py-3 border-b border-plm-border">
+                {/* User Info Header - Clickable to open profile */}
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false)
+                    setShowProfileModal(true)
+                  }}
+                  className="w-full px-4 py-3 border-b border-plm-border hover:bg-plm-bg-lighter transition-colors text-left"
+                >
                   <div className="flex items-center gap-3">
                     {getEffectiveAvatarUrl(user) ? (
                       <>
@@ -866,7 +875,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                       </div>
                     </div>
                   </div>
-                </div>
+                </button>
 
                 {/* Settings */}
                 <div className="py-1 border-b border-plm-border">
@@ -996,7 +1005,16 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
             {isSigningIn ? 'Signing in...' : 'Sign In with Google'}
           </button>
         ) : null}
+        </div>
       </div>
+      
+      {/* Profile Modal */}
+      {showProfileModal && user && (
+        <UserProfileModal
+          userId={user.id}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
     </div>
   )
 }

@@ -58,7 +58,7 @@ export const createSettingsSlice: StateCreator<
   solidworksIntegrationEnabled: true,
   solidworksPath: null,
   solidworksDmLicenseKey: null,
-  autoStartSolidworksService: false,
+  autoStartSolidworksService: true,
   hideSolidworksTempFiles: true,
   ignoreSolidworksTempFiles: true,
   
@@ -126,15 +126,7 @@ export const createSettingsSlice: StateCreator<
   setIgnoreSolidworksTempFiles: (ignoreSolidworksTempFiles) => set({ ignoreSolidworksTempFiles }),
   
   // Actions - API Server
-  setApiServerUrl: (apiServerUrl) => {
-    set({ apiServerUrl })
-    // Also sync to the legacy localStorage key for backward compatibility
-    if (apiServerUrl) {
-      localStorage.setItem('blueplm_api_url', apiServerUrl)
-    } else {
-      localStorage.removeItem('blueplm_api_url')
-    }
-  },
+  setApiServerUrl: (apiServerUrl) => set({ apiServerUrl }),
   
   // Actions - Display
   setLowercaseExtensions: (lowercaseExtensions) => set({ lowercaseExtensions }),

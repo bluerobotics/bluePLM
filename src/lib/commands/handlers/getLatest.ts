@@ -177,7 +177,7 @@ export const getLatestCommand: Command<GetLatestParams> = {
     
     // Track files being updated
     const filePaths = outdatedFiles.map(f => f.relativePath)
-    ctx.addProcessingFolders(filePaths)
+    ctx.addProcessingFolders(filePaths, 'sync')
     
     // Yield to event loop so React can render spinners
     await new Promise(resolve => setTimeout(resolve, 0))

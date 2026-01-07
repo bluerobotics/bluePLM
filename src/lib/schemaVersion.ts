@@ -26,7 +26,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 25
+export const EXPECTED_SCHEMA_VERSION = 33
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -59,6 +59,14 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   23: 'Team-based permissions: admin = Administrators team membership, role column deprecated',
   24: 'Team module defaults use UNION logic: users in multiple teams get all enabled modules from all teams',
   25: 'Added custom_avatar_url column for user profile pictures',
+  26: 'Added storage_bucket column to vaults table',
+  27: 'Added update_org_branding RPC function for logo upload',
+  28: 'update_org_branding RPC now supports phone, website, contact_email fields',
+  29: 'Add preview_next_serial_number function to source-files module',
+  30: 'Extended pending_org_members: full_name, vault_ids, workflow_role_ids, notes columns',
+  31: 'Added endpoint and restic_password_encrypted columns to backup_config',
+  32: 'Added checkout_file and checkin_file atomic RPC functions',
+  33: 'Enhanced checkin_file RPC with conditional versioning and activity logging',
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

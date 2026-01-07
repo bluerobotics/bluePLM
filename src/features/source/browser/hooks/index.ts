@@ -8,10 +8,12 @@
  * Local UI state management:
  * - `useContextMenuState` - Context menu visibility and position
  * - `useDialogState` - Confirmation dialogs (delete, custom, conflict)
- * - `useConfigState` - SolidWorks configuration expansion state
  * - `useRenameState` - File rename and inline cell editing
  * - `useInlineActionHover` - Multi-select action button hover states
  * - `useDragState` - Drag-and-drop state and handlers
+ * 
+ * Note: SolidWorks configuration state (expandedConfigFiles, selectedConfigs, etc.)
+ * is now in Zustand store (usePDMStore) following the same pattern as expandedFolders/selectedFiles.
  * 
  * ## File Operation Hooks
  * PDM file operations:
@@ -75,9 +77,8 @@ export type {
   ConflictDialogState
 } from './useDialogState'
 
-// Configuration expansion state
-export { useConfigState } from './useConfigState'
-export type { UseConfigStateReturn } from './useConfigState'
+// Configuration expansion state is now in Zustand store (usePDMStore.expandedConfigFiles, etc.)
+// The useConfigState hook is deprecated - use usePDMStore directly
 
 // Inline action button hover states
 export { useInlineActionHover } from './useInlineActionHover'

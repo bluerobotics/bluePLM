@@ -100,8 +100,6 @@ function App() {
   // Get current vault ID (from activeVaultId or first connected vault)
   const currentVaultId = activeVaultId || connectedVaults[0]?.id
   
-  // Consider vault connected if either legacy or new multi-vault system is connected
-  const hasVaultConnected = isVaultConnected || connectedVaults.length > 0
   
   // Existing extracted hooks
   useRealtimeSubscriptions(organization, isOfflineMode)
@@ -277,8 +275,8 @@ function App() {
     let refreshTimeout: NodeJS.Timeout | null = null
     
     const cleanup = window.electronAPI.onFilesChanged((changedFiles) => {
-      const { syncProgress, processingFolders } = usePDMStore.getState()
-      if (syncProgress.isActive || processingFolders.size > 0) {
+      const { syncProgress, processingOperations } = usePDMStore.getState()
+      if (syncProgress.isActive || processingOperations.size > 0) {
         return
       }
       
@@ -290,7 +288,7 @@ function App() {
       
       refreshTimeout = setTimeout(() => {
         const currentState = usePDMStore.getState()
-        if (currentState.syncProgress.isActive || currentState.processingFolders.size > 0) {
+        if (currentState.syncProgress.isActive || currentState.processingOperations.size > 0) {
           return
         }
         loadFiles(true)
@@ -330,7 +328,8 @@ function App() {
   }, [isVaultConnected, vaultPath, isOfflineMode, user, organization, currentVaultId, loadFiles, setIsLoading, setStatusMessage, statusMessage, lastLoadKey])
 
   // Determine if we should show the welcome screen
-  const showWelcome = (!user && !isOfflineMode) || !hasVaultConnected
+  // Only show welcome when not authenticated - allow full app access even without a vault connected
+  const showWelcome = !user && !isOfflineMode
   
   // Only show minimal menu bar on the sign-in screen (not authenticated)
   const isSignInScreen = !user && !isOfflineMode

@@ -138,6 +138,10 @@ export function GoogleDrivePanel() {
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
   
+  // New folder dialog state
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  
   // Iframe refresh key (increment to force reload after auth)
   const [iframeKey, setIframeKey] = useState(0)
   
@@ -730,12 +734,17 @@ export function GoogleDrivePanel() {
     setContextMenu(null)
   }
   
+  const openNewFolderDialog = () => {
+    setNewFolderName('')
+    setShowNewFolderDialog(true)
+  }
+
   const createFolder = async () => {
     const token = localStorage.getItem('gdrive_access_token')
-    if (!token) return
-    
-    const folderName = prompt('Enter folder name:')
-    if (!folderName?.trim()) return
+    if (!token || !newFolderName.trim()) {
+      setShowNewFolderDialog(false)
+      return
+    }
     
     try {
       const response = await fetch(
@@ -747,7 +756,7 @@ export function GoogleDrivePanel() {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            name: folderName.trim(),
+            name: newFolderName.trim(),
             mimeType: 'application/vnd.google-apps.folder',
             parents: [currentFolderId]
           })
@@ -762,6 +771,7 @@ export function GoogleDrivePanel() {
     } catch (err) {
       addToast('error', 'Failed to create folder')
     }
+    setShowNewFolderDialog(false)
   }
   
   const openInDrive = (file: GoogleDriveFile) => {
@@ -1145,7 +1155,7 @@ export function GoogleDrivePanel() {
         
         {/* Actions */}
         <button
-          onClick={createFolder}
+          onClick={openNewFolderDialog}
           className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
           title="New folder"
         >
@@ -1273,7 +1283,7 @@ export function GoogleDrivePanel() {
             <p className="text-lg">{searchQuery ? 'No files match your search' : 'This folder is empty'}</p>
             {!searchQuery && !specialView && (
               <button
-                onClick={createFolder}
+                onClick={openNewFolderDialog}
                 className="mt-4 flex items-center gap-2 px-4 py-2 bg-plm-highlight hover:bg-plm-highlight/80 rounded transition-colors"
               >
                 <FolderPlus size={18} />
@@ -1560,6 +1570,42 @@ export function GoogleDrivePanel() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Folder Dialog */}
+      {showNewFolderDialog && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowNewFolderDialog(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">New Folder</h3>
+            <div className="mb-4">
+              <label className="block text-sm text-plm-fg-muted mb-1">Folder name</label>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') createFolder()
+                  if (e.key === 'Escape') setShowNewFolderDialog(false)
+                }}
+                placeholder="Untitled folder"
+                className="w-full bg-plm-bg border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowNewFolderDialog(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button
+                onClick={createFolder}
+                disabled={!newFolderName.trim()}
+                className="btn btn-primary"
+              >
+                Create Folder
+              </button>
             </div>
           </div>
         </div>

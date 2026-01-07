@@ -2,8 +2,7 @@
 import { useState, useEffect } from 'react'
 import { ClipboardList, File, Loader2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
-import type { ECO } from '../types'
-import { getActiveECOs, addFileToECO } from '@/lib/supabase'
+import { getActiveECOs as fetchActiveECOs, addFileToECO } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 
 interface AddToECODialogProps {
@@ -23,23 +22,41 @@ export function AddToECODialog({
   userId,
   onSuccess
 }: AddToECODialogProps) {
-  const { addToast } = usePDMStore()
+  const { 
+    addToast,
+    ecosLoaded,
+    getActiveECOs,
+    setECOs,
+    setECOsLoading,
+    ecosLoading
+  } = usePDMStore()
   
-  const [activeECOs, setActiveECOs] = useState<ECO[]>([])
+  // Get active ECOs from store
+  const activeECOs = getActiveECOs()
+  
   const [selectedECO, setSelectedECO] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
-  const [loadingECOs, setLoadingECOs] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Load ECOs if not already loaded
   useEffect(() => {
-    if (isOpen && organizationId) {
-      setLoadingECOs(true)
-      getActiveECOs(organizationId).then(({ ecos }) => {
-        setActiveECOs(ecos)
-        setLoadingECOs(false)
+    if (isOpen && organizationId && !ecosLoaded) {
+      setECOsLoading(true)
+      fetchActiveECOs(organizationId).then(({ ecos }) => {
+        // Fetch all ECOs for the store (not just active ones)
+        // Since getActiveECOs from supabase returns only active ones,
+        // we need to set them with the loaded flag
+        // For now, just set what we have - full load happens in ECOView
+        setECOs(ecos.map(eco => ({
+          ...eco,
+          description: eco.description ?? null,
+          status: eco.status ?? null,
+          created_at: eco.created_at ?? null,
+        })))
+        setECOsLoading(false)
       })
     }
-  }, [isOpen, organizationId])
+  }, [isOpen, organizationId, ecosLoaded, setECOs, setECOsLoading])
 
   const handleSubmit = async () => {
     if (!userId || !selectedECO) {
@@ -113,7 +130,7 @@ export function AddToECODialog({
           <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
             Select ECO
           </label>
-          {loadingECOs ? (
+          {ecosLoading && !ecosLoaded ? (
             <div className="flex items-center justify-center p-4">
               <Loader2 size={20} className="animate-spin text-plm-accent" />
             </div>

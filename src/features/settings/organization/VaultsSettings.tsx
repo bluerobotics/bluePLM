@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   Folder, 
   FolderOpen,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
 import { supabase, getAccessibleVaults } from '@/lib/supabase'
+import { subscribeToVaults } from '@/lib/realtime'
 
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
@@ -82,6 +83,9 @@ export function VaultsSettings() {
   const [clearConfirmText2, setClearConfirmText2] = useState('')
   const [isClearing, setIsClearing] = useState(false)
   
+  // Track if we're currently saving to avoid overwriting with stale realtime data
+  const savingRef = useRef(false)
+  
   // Get platform on mount
   useEffect(() => {
     if (window.electronAPI) {
@@ -95,6 +99,21 @@ export function VaultsSettings() {
       loadOrgVaults()
     }
   }, [organization, user?.id])
+  
+  // Real-time subscription for vault changes from other admins
+  useEffect(() => {
+    if (!organization?.id) return
+    
+    const unsubscribe = subscribeToVaults(organization.id, (eventType, vault) => {
+      // Skip if we initiated the change
+      if (savingRef.current) return
+      
+      console.log('[VaultsSettings] Real-time vault change:', eventType, vault?.name)
+      loadOrgVaults()
+    })
+    
+    return unsubscribe
+  }, [organization?.id])
   
   const loadOrgVaults = async () => {
     if (!organization || !user) return
@@ -138,6 +157,7 @@ export function VaultsSettings() {
     if (!newVaultName.trim() || !organization || !user) return
     
     setIsSavingVault(true)
+    savingRef.current = true
     
     const name = newVaultName.trim()
     const slug = createSlug(name)
@@ -170,7 +190,8 @@ export function VaultsSettings() {
         ...vault,
         description: vault.description ?? null,
         is_default: vault.is_default ?? false,
-        created_at: vault.created_at ?? new Date().toISOString()
+        created_at: vault.created_at ?? new Date().toISOString(),
+        storage_bucket: vault.storage_bucket ?? undefined
       }
       setOrgVaults([...orgVaults, mappedVault])
       setIsCreatingVault(false)
@@ -182,6 +203,8 @@ export function VaultsSettings() {
       addToast('error', 'Failed to create vault')
     } finally {
       setIsSavingVault(false)
+      // Small delay before allowing realtime sync again to let the update propagate
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
   
@@ -194,6 +217,7 @@ export function VaultsSettings() {
     const newName = renameValue.trim()
     const newSlug = createSlug(newName)
     
+    savingRef.current = true
     try {
       const { error } = await supabase
         .from('vaults')
@@ -218,12 +242,15 @@ export function VaultsSettings() {
     } catch (err) {
       console.error('Failed to rename vault:', err)
       addToast('error', 'Failed to rename vault')
+    } finally {
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
   
   const handleSetDefaultVault = async (vaultId: string) => {
     if (!organization) return
     
+    savingRef.current = true
     try {
       await supabase
         .from('vaults')
@@ -247,6 +274,8 @@ export function VaultsSettings() {
       addToast('success', 'Default vault updated')
     } catch (err) {
       console.error('Failed to set default vault:', err)
+    } finally {
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
   
@@ -254,6 +283,7 @@ export function VaultsSettings() {
     if (!deletingVault || deleteConfirmText !== deletingVault.name) return
     
     setIsDeleting(true)
+    savingRef.current = true
     
     try {
       const connectedVault = connectedVaults.find(v => v.id === deletingVault.id)
@@ -292,6 +322,7 @@ export function VaultsSettings() {
       addToast('error', 'Failed to delete vault')
     } finally {
       setIsDeleting(false)
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
   
@@ -299,6 +330,7 @@ export function VaultsSettings() {
     if (!clearingVault || clearConfirmText !== clearingVault.name || clearConfirmText2 !== clearingVault.name || !organization) return
     
     setIsClearing(true)
+    savingRef.current = true
     
     try {
       // Delete all files from the vault in the database
@@ -388,6 +420,7 @@ export function VaultsSettings() {
       addToast('error', 'Failed to clear vault')
     } finally {
       setIsClearing(false)
+      setTimeout(() => { savingRef.current = false }, 1000)
     }
   }
   

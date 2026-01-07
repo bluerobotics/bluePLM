@@ -313,20 +313,28 @@ function getSuccessHtml(): string {
 <html>
 <head><title>Sign In Successful</title>
 <style>
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #0a1929 0%, #1a365d 100%); color: #e3f2fd; }
-.container { text-align: center; padding: 40px; background: rgba(255,255,255,0.1); border-radius: 16px; backdrop-filter: blur(10px); }
-.checkmark { width: 80px; height: 80px; margin-bottom: 20px; }
-h1 { margin: 0 0 10px 0; font-weight: 500; }
-p { margin: 0; opacity: 0.8; }
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+* { box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
+.container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+.icon-container { width: 72px; height: 72px; margin: 0 auto 24px; background: rgba(74, 222, 128, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.checkmark { width: 40px; height: 40px; }
+h1 { margin: 0 0 8px 0; font-weight: 600; font-size: 20px; color: #cccccc; }
+p { margin: 0; font-size: 14px; color: #6e6e6e; }
+.brand { margin-top: 24px; padding-top: 20px; border-top: 1px solid #2b2b2b; }
+.brand-text { font-size: 12px; color: #0078d4; font-weight: 500; letter-spacing: 0.5px; }
 </style>
 </head>
 <body>
 <div class="container">
-<svg class="checkmark" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2">
-<circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/>
+<div class="icon-container">
+<svg class="checkmark" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M20 6L9 17l-5-5"/>
 </svg>
-<h1>Sign In Successful!</h1>
-<p>You can close this window and return to BluePLM.</p>
+</div>
+<h1>Sign In Successful</h1>
+<p>You can close this window and return to the app.</p>
+<div class="brand"><span class="brand-text">BluePLM</span></div>
 </div>
 <script>setTimeout(() => window.close(), 2000);</script>
 </body>
@@ -338,21 +346,30 @@ function getErrorHtml(message: string): string {
 <html>
 <head><title>Sign In Failed</title>
 <style>
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #0a1929 0%, #1a365d 100%); color: #e3f2fd; }
-.container { text-align: center; padding: 40px; background: rgba(255,255,255,0.1); border-radius: 16px; backdrop-filter: blur(10px); max-width: 400px; }
-.error-icon { width: 80px; height: 80px; margin-bottom: 20px; }
-h1 { margin: 0 0 10px 0; font-weight: 500; color: #f44336; }
-p { margin: 0; opacity: 0.8; }
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+* { box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
+.container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 420px; }
+.icon-container { width: 72px; height: 72px; margin: 0 auto 24px; background: rgba(241, 76, 76, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.error-icon { width: 40px; height: 40px; }
+h1 { margin: 0 0 12px 0; font-weight: 600; font-size: 20px; color: #f14c4c; }
+p { margin: 0; font-size: 14px; color: #b4b4b4; line-height: 1.5; }
+.hint { margin-top: 16px; font-size: 13px; color: #6e6e6e; }
+.brand { margin-top: 24px; padding-top: 20px; border-top: 1px solid #2b2b2b; }
+.brand-text { font-size: 12px; color: #0078d4; font-weight: 500; letter-spacing: 0.5px; }
 </style>
 </head>
 <body>
 <div class="container">
-<svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="#f44336" stroke-width="2">
+<div class="icon-container">
+<svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="#f14c4c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
 </svg>
+</div>
 <h1>Sign In Failed</h1>
 <p>${message}</p>
-<p style="margin-top: 16px; font-size: 12px;">You can close this window and try again.</p>
+<p class="hint">You can close this window and try again.</p>
+<div class="brand"><span class="brand-text">BluePLM</span></div>
 </div>
 <script>setTimeout(() => window.close(), 5000);</script>
 </body>
@@ -364,13 +381,22 @@ function getHashExtractHtml(): string {
 <html>
 <head><title>Completing Sign In...</title>
 <style>
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #0a1929 0%, #1a365d 100%); color: #e3f2fd; }
-.container { text-align: center; padding: 40px; background: rgba(255,255,255,0.1); border-radius: 16px; backdrop-filter: blur(10px); max-width: 400px; }
-.spinner { width: 60px; height: 60px; border: 4px solid rgba(255,255,255,0.2); border-top-color: #4caf50; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+* { box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
+.container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 420px; }
+.spinner { width: 48px; height: 48px; border: 3px solid #2b2b2b; border-top-color: #0078d4; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 24px; }
 @keyframes spin { to { transform: rotate(360deg); } }
-h1 { margin: 0 0 10px 0; font-weight: 500; }
-p { margin: 0; opacity: 0.8; }
+h1 { margin: 0 0 8px 0; font-weight: 600; font-size: 20px; color: #cccccc; }
+p { margin: 0; font-size: 14px; color: #6e6e6e; }
 .hidden { display: none; }
+.icon-container { width: 72px; height: 72px; margin: 0 auto 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.icon-container.success { background: rgba(74, 222, 128, 0.15); }
+.icon-container.error { background: rgba(241, 76, 76, 0.15); }
+.icon { width: 40px; height: 40px; }
+.error-title { color: #f14c4c; }
+.brand { margin-top: 24px; padding-top: 20px; border-top: 1px solid #2b2b2b; }
+.brand-text { font-size: 12px; color: #0078d4; font-weight: 500; letter-spacing: 0.5px; }
 </style>
 </head>
 <body>
@@ -381,19 +407,24 @@ p { margin: 0; opacity: 0.8; }
 <p>Please wait a moment.</p>
 </div>
 <div id="success" class="hidden">
-<svg style="width:80px;height:80px;margin:0 auto 20px;display:block" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2">
-<circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/>
+<div class="icon-container success">
+<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M20 6L9 17l-5-5"/>
 </svg>
-<h1>Sign In Successful!</h1>
-<p>You can close this window and return to BluePLM.</p>
+</div>
+<h1>Sign In Successful</h1>
+<p>You can close this window and return to the app.</p>
 </div>
 <div id="error" class="hidden">
-<svg style="width:80px;height:80px;margin:0 auto 20px;display:block" viewBox="0 0 24 24" fill="none" stroke="#f44336" stroke-width="2">
+<div class="icon-container error">
+<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#f14c4c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
 </svg>
-<h1 style="color:#f44336;">Sign In Issue</h1>
+</div>
+<h1 class="error-title">Sign In Issue</h1>
 <p id="errorMsg">Could not complete sign in. Please try again.</p>
 </div>
+<div class="brand"><span class="brand-text">BluePLM</span></div>
 </div>
 <script>
 (async function() {
@@ -423,15 +454,28 @@ function getGoogleSuccessHtml(): string {
 <html>
 <head><title>Google Drive Connected</title>
 <style>
-body { font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1e1e2e; color: #cdd6f4; }
-.container { text-align: center; padding: 40px; background: #313244; border-radius: 16px; }
-h1 { color: #a6e3a1; }
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+* { box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
+.container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+.icon-container { width: 72px; height: 72px; margin: 0 auto 24px; background: rgba(74, 222, 128, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.checkmark { width: 40px; height: 40px; }
+h1 { margin: 0 0 8px 0; font-weight: 600; font-size: 20px; color: #4ade80; }
+p { margin: 0; font-size: 14px; color: #6e6e6e; }
+.brand { margin-top: 24px; padding-top: 20px; border-top: 1px solid #2b2b2b; }
+.brand-text { font-size: 12px; color: #0078d4; font-weight: 500; letter-spacing: 0.5px; }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>✓ Google Drive Connected</h1>
+<div class="icon-container">
+<svg class="checkmark" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M20 6L9 17l-5-5"/>
+</svg>
+</div>
+<h1>Google Drive Connected</h1>
 <p>You can close this window.</p>
+<div class="brand"><span class="brand-text">BluePLM</span></div>
 </div>
 <script>setTimeout(() => window.close(), 2000);</script>
 </body>
@@ -443,16 +487,30 @@ function getGoogleErrorHtml(error: string): string {
 <html>
 <head><title>Google Drive - Error</title>
 <style>
-body { font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1e1e2e; color: #cdd6f4; }
-.container { text-align: center; padding: 40px; background: #313244; border-radius: 16px; }
-h1 { color: #f38ba8; }
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+* { box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
+.container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 420px; }
+.icon-container { width: 72px; height: 72px; margin: 0 auto 24px; background: rgba(241, 76, 76, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.error-icon { width: 40px; height: 40px; }
+h1 { margin: 0 0 12px 0; font-weight: 600; font-size: 20px; color: #f14c4c; }
+p { margin: 0; font-size: 14px; color: #b4b4b4; line-height: 1.5; }
+.hint { margin-top: 16px; font-size: 13px; color: #6e6e6e; }
+.brand { margin-top: 24px; padding-top: 20px; border-top: 1px solid #2b2b2b; }
+.brand-text { font-size: 12px; color: #0078d4; font-weight: 500; letter-spacing: 0.5px; }
 </style>
 </head>
 <body>
 <div class="container">
+<div class="icon-container">
+<svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="#f14c4c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
+</svg>
+</div>
 <h1>Authentication Failed</h1>
 <p>${error}</p>
-<p style="opacity: 0.7; margin-top: 20px;">You can close this window.</p>
+<p class="hint">You can close this window.</p>
+<div class="brand"><span class="brand-text">BluePLM</span></div>
 </div>
 </body>
 </html>`

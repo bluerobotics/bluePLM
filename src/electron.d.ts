@@ -1,5 +1,41 @@
 // Type declarations for Electron API exposed via preload
 
+// ============================================
+// Backup Log Types
+// ============================================
+
+type BackupLogLevel = 'debug' | 'info' | 'warn' | 'error' | 'success'
+type BackupPhase = 
+  | 'idle'
+  | 'repo_check'
+  | 'repo_init'
+  | 'unlock'
+  | 'file_scan'
+  | 'backup'
+  | 'retention'
+  | 'restore'
+  | 'metadata_import'
+  | 'complete'
+  | 'error'
+
+interface BackupLogEntry {
+  level: BackupLogLevel
+  phase: BackupPhase
+  message: string
+  timestamp: number
+  metadata?: {
+    operation?: string
+    exitCode?: number
+    filesProcessed?: number
+    filesTotal?: number
+    bytesProcessed?: number
+    bytesTotal?: number
+    currentFile?: string
+    error?: string
+    duration?: number
+  }
+}
+
 // System stats result type
 interface SystemStats {
   cpu: {
@@ -439,6 +475,7 @@ declare global {
       }) => Promise<{ success: boolean; error?: string 
       }>
       onBackupProgress: (callback: (progress: { phase: string; percent: number; message: string }) => void) => () => void
+      onBackupLog: (callback: (entry: BackupLogEntry) => void) => () => void
       
       // Auto Updater
       checkForUpdates: () => Promise<{ success: boolean; updateInfo?: unknown; error?: string }>

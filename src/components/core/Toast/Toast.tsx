@@ -12,6 +12,10 @@ export function Toast() {
   const progressToasts = toasts.filter(t => t.type === 'progress')
   const regularToasts = toasts.filter(t => t.type !== 'progress' && t.type !== 'update')
 
+  const handleDismissAll = () => {
+    regularToasts.forEach(toast => removeToast(toast.id))
+  }
+
   return (
     <div className="fixed bottom-8 left-4 z-50 flex flex-col gap-2 max-w-md">
       {/* Update toasts at the very top */}
@@ -29,6 +33,17 @@ export function Toast() {
           toast={toast}
         />
       ))}
+      {/* Dismiss All button when multiple regular toasts */}
+      {regularToasts.length > 1 && (
+        <button
+          onClick={handleDismissAll}
+          className="self-start px-2 py-1 text-xs rounded-md 
+            bg-plm-bg-dark/80 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-dark
+            border border-plm-border/50 transition-colors backdrop-blur-sm"
+        >
+          Dismiss all ({regularToasts.length})
+        </button>
+      )}
       {/* Regular toasts below */}
       {regularToasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
@@ -278,11 +293,14 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
 
   return (
     <div
+      onClick={handleClose}
       className={`
-        flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg
+        flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg cursor-pointer
         ${colors[toast.type]}
         ${isExiting ? 'animate-slide-out' : 'animate-slide-in'}
+        hover:opacity-90 transition-opacity
       `}
+      title="Click to dismiss"
     >
       <span className={`flex-shrink-0 mt-0.5 ${iconColors[toast.type]}`}>
         {icons[toast.type]}
@@ -292,7 +310,7 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
         {/* Copy button - show for errors and warnings */}
         {(toast.type === 'error' || toast.type === 'warning') && (
           <button
-            onClick={handleCopy}
+            onClick={(e) => { e.stopPropagation(); handleCopy() }}
             className="opacity-60 hover:opacity-100 transition-opacity p-0.5"
             title={copied ? 'Copied!' : 'Copy error'}
           >
@@ -300,8 +318,9 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
           </button>
         )}
         <button
-          onClick={handleClose}
+          onClick={(e) => { e.stopPropagation(); handleClose() }}
           className="opacity-60 hover:opacity-100 transition-opacity"
+          title="Dismiss"
         >
           <X size={14} />
         </button>

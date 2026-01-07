@@ -117,6 +117,10 @@ export function WebhooksSettings() {
   
   // Testing state
   const [testingWebhook, setTestingWebhook] = useState<string | null>(null)
+  
+  // Delete confirmation state
+  const [deletingWebhook, setDeletingWebhook] = useState<Webhook | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Load webhooks
   const loadWebhooks = useCallback(async () => {
@@ -288,14 +292,15 @@ export function WebhooksSettings() {
     setShowSecret(false)
   }
   
-  const handleDelete = async (webhookId: string) => {
-    if (!confirm('Delete this webhook? This cannot be undone.')) return
+  const handleDelete = async () => {
+    if (!deletingWebhook) return
     
+    setIsDeleting(true)
     try {
       const { error } = await supabase
         .from('webhooks')
         .delete()
-        .eq('id', webhookId)
+        .eq('id', deletingWebhook.id)
       
       if (error) throw error
       addToast('success', 'Webhook deleted')
@@ -303,6 +308,9 @@ export function WebhooksSettings() {
     } catch (err) {
       console.error('[Webhooks] Failed to delete:', err)
       addToast('error', 'Failed to delete webhook')
+    } finally {
+      setIsDeleting(false)
+      setDeletingWebhook(null)
     }
   }
   
@@ -897,7 +905,7 @@ export function WebhooksSettings() {
                       <Edit2 size={16} />
                     </button>
                     <button
-                      onClick={() => handleDelete(webhook.id)}
+                      onClick={() => setDeletingWebhook(webhook)}
                       className="p-2 text-plm-fg-muted hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
                       title="Delete"
                     >
@@ -1003,6 +1011,30 @@ export function WebhooksSettings() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Webhook Confirmation Dialog */}
+      {deletingWebhook && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDeletingWebhook(null)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Delete Webhook</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
+              Are you sure you want to delete <strong>{deletingWebhook.name}</strong>? This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeletingWebhook(null)} className="btn btn-ghost" disabled={isDeleting}>
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="btn bg-plm-error text-white hover:bg-plm-error/90"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Webhook'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

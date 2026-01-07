@@ -394,7 +394,7 @@ export function TabBar() {
       {/* New tab button */}
       <button
         onClick={handleNewTabClick}
-        className="h-7 w-7 mb-1 ml-1 flex items-center justify-center text-plm-fg-dim hover:text-plm-fg hover:bg-plm-bg-light rounded transition-colors flex-shrink-0"
+        className="h-7 w-7 mb-1.5 ml-1 flex items-center justify-center text-plm-fg-dim hover:text-plm-fg hover:bg-plm-bg-light rounded-full transition-colors flex-shrink-0"
         title="New Tab"
       >
         <Plus size={16} />

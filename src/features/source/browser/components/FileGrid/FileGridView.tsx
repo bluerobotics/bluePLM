@@ -1,4 +1,5 @@
 import type { LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import { FileIconCard } from './FileCard'
 
 export interface FileGridViewProps {
@@ -7,7 +8,7 @@ export interface FileGridViewProps {
   iconSize: number
   selectedFiles: string[]
   clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
-  processingPaths: Set<string>
+  processingPaths: Map<string, OperationType>
   currentMachineId: string | null
   lowercaseExtensions: boolean
   userId: string | undefined

@@ -9,6 +9,7 @@
  * - Version 1.0.0: Initial API release (v2.15.0)
  * - Version 1.1.0: Added Odoo/WooCommerce integrations (v2.16.0)
  * - Version 1.2.0: Invite flow includes org code, re-invite cleanup (v2.16.8)
+ * - Version 2.0.0: Major API refactor with improved architecture
  * 
  * When making API changes:
  * 1. Increment version in api/package.json
@@ -20,17 +21,18 @@ import { usePDMStore } from '../stores/pdmStore'
 
 // The API version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_API_VERSION = '1.2.0'
+export const EXPECTED_API_VERSION = '2.0.0'
 
 // Minimum API version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
-export const MINIMUM_COMPATIBLE_API_VERSION = '1.0.0'
+export const MINIMUM_COMPATIBLE_API_VERSION = '2.0.0'
 
 // Human-readable descriptions for each version
 export const API_VERSION_DESCRIPTIONS: Record<string, string> = {
   '1.0.0': 'Initial API release with file operations, webhooks, auth',
   '1.1.0': 'Added Odoo and WooCommerce integrations',
   '1.2.0': 'Invite flow includes org code, automatic re-invite cleanup',
+  '2.0.0': 'Major API refactor with improved architecture',
 }
 
 export interface ApiVersionCheckResult {

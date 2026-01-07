@@ -197,8 +197,8 @@ export function ActivityBar() {
                       <ActivityItem
                         key={group.id}
                         icon={getModuleIcon(group.icon, 22, group.iconColor)}
-                        view={`group-${group.id}` as SidebarView}  // Groups use fake view ID so they don't match any real view
-                        title={group.name}
+                        view={group.id as SidebarView}  // Group IDs already prefixed with "group-"
+                        title={group.name || group.id.replace('group-', '').replace(/-/g, ' ')}
                         hasChildren={true}
                         children={childModules}
                       />

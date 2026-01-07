@@ -39,15 +39,22 @@ type ColorSwatchChangeCallback = (
   swatch: { id: string; color: string; org_id: string | null; user_id: string | null; created_at: string }
 ) => void
 
+type VaultChangeCallback = (
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE',
+  vault: { id: string; name: string; slug: string; org_id: string; is_default: boolean | null },
+  oldVault?: { id: string; name: string; slug: string; org_id: string; is_default: boolean | null }
+) => void
+
 let filesChannel: RealtimeChannel | null = null
 let activityChannel: RealtimeChannel | null = null
 let organizationChannel: RealtimeChannel | null = null
 let colorSwatchesChannel: RealtimeChannel | null = null
 let permissionsChannel: RealtimeChannel | null = null
+let vaultsChannel: RealtimeChannel | null = null
 
 // Callback type for permission/access changes
 type PermissionChangeCallback = (
-  changeType: 'vault_access' | 'team_vault_access' | 'team_members' | 'user_permissions',
+  changeType: 'vault_access' | 'team_vault_access' | 'team_members' | 'user_permissions' | 'teams',
   eventType: 'INSERT' | 'UPDATE' | 'DELETE',
   userId?: string
 ) => void
@@ -281,6 +288,58 @@ export function subscribeToColorSwatches(
 }
 
 /**
+ * Subscribe to vault CRUD changes for an organization
+ * 
+ * Updates are instant for:
+ * - Vault created
+ * - Vault renamed
+ * - Vault deleted
+ * - Default vault changed
+ * 
+ * This ensures all admins see vault changes immediately.
+ */
+export function subscribeToVaults(
+  orgId: string,
+  onVaultChange: VaultChangeCallback
+): () => void {
+  // Unsubscribe from previous channel if exists
+  if (vaultsChannel) {
+    vaultsChannel.unsubscribe()
+  }
+
+  vaultsChannel = supabase
+    .channel(`vaults:${orgId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'vaults',
+        filter: `org_id=eq.${orgId}`
+      },
+      (payload) => {
+        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
+        const newVault = payload.new as { id: string; name: string; slug: string; org_id: string; is_default: boolean | null }
+        const oldVault = payload.old as { id: string; name: string; slug: string; org_id: string; is_default: boolean | null } | undefined
+        
+        console.log('[Realtime] Vault change:', eventType, newVault?.name || oldVault?.name)
+        onVaultChange(eventType, newVault, oldVault)
+      }
+    )
+    .subscribe((status) => {
+      console.log('[Realtime] Vaults subscription status:', status)
+    })
+
+  // Return unsubscribe function
+  return () => {
+    if (vaultsChannel) {
+      vaultsChannel.unsubscribe()
+      vaultsChannel = null
+    }
+  }
+}
+
+/**
  * Subscribe to permission-related changes for a user
  * 
  * Updates are instant for:
@@ -288,13 +347,14 @@ export function subscribeToColorSwatches(
  * - team_vault_access: Team-level vault access changes
  * - team_members: User added/removed from teams
  * - user_permissions: Individual permission changes
+ * - teams: Team created/renamed/deleted
  * 
  * This ensures users see access changes immediately without refreshing.
  * The callback is fired with the change type so the app can reload the appropriate data.
  */
 export function subscribeToPermissions(
   userId: string,
-  _orgId: string,  // Reserved for future org-level filtering
+  orgId: string,
   onPermissionChange: PermissionChangeCallback
 ): () => void {
   // Unsubscribe from previous channel if exists
@@ -385,6 +445,21 @@ export function subscribeToPermissions(
         }
       }
     )
+    // Team CRUD changes (team created/renamed/deleted)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'teams',
+        filter: `org_id=eq.${orgId}`
+      },
+      (payload) => {
+        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
+        console.log('[Realtime] Team changed:', eventType)
+        onPermissionChange('teams', eventType)
+      }
+    )
     .subscribe((status) => {
       console.log('[Realtime] Permissions subscription status:', status)
     })
@@ -429,6 +504,10 @@ export function unsubscribeAll() {
     permissionsChannel.unsubscribe()
     permissionsChannel = null
   }
+  if (vaultsChannel) {
+    vaultsChannel.unsubscribe()
+    vaultsChannel = null
+  }
 }
 
 /**
@@ -445,3 +524,9 @@ export function isOrgRealtimeConnected(): boolean {
   return organizationChannel !== null
 }
 
+/**
+ * Check if vaults realtime is connected
+ */
+export function isVaultsRealtimeConnected(): boolean {
+  return vaultsChannel !== null
+}

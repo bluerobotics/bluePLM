@@ -44,7 +44,7 @@ Run these SQL files in order in your Supabase SQL Editor:
 
 The schema uses version tracking to ensure app-database compatibility:
 
-- Current schema version: **25**
+- Current schema version: **30**
 - Version is stored in the `schema_version` table
 - App checks version on startup and warns if mismatched
 

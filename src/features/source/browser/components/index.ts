@@ -8,7 +8,7 @@ export type { ListRowIconProps, CellRendererProps, FileRowProps, ConfigRowProps,
 export { FileCard, FileIconCard, FileGridView } from './FileGrid'
 export type { FileCardProps, FileGridViewProps } from './FileGrid'
 
-export { EmptyState, LoadingState, ErrorState } from './States'
+export { EmptyState, LoadingState, ErrorState, NoVaultEmptyState } from './States'
 export type { EmptyStateProps, LoadingStateProps, ErrorStateProps } from './States'
 
 export { 

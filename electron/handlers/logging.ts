@@ -506,7 +506,8 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
   })
 
   ipcMain.handle('logs:set-recording-state', (_, enabled: boolean) => {
-    return { success: saveLogRecordingState(enabled) }
+    const success = saveLogRecordingState(enabled)
+    return { success, enabled: logRecordingEnabled }
   })
 
   // Start new log file

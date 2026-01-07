@@ -2,6 +2,9 @@
 import type { PDMFile, Organization, User } from '../types/pdm'
 import type { ModuleId, ModuleConfig } from '../types/modules'
 import type { KeybindingsConfig, KeybindingAction, Keybinding, SettingsTab } from '../types/settings'
+import type { WorkflowTemplate, WorkflowState, WorkflowTransition, WorkflowGate } from '../types/workflow'
+import type { OrgUser, TeamWithDetails, PendingMember } from '../features/settings/organization/team-members/types'
+import type { NotificationWithDetails } from '../types/database'
 
 // ============================================================================
 // Type Aliases
@@ -78,6 +81,9 @@ export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress' | 
 export type ThemeMode = 'dark' | 'deep-blue' | 'light' | 'christmas' | 'halloween' | 'weather' | 'kenneth' | 'system'
 export type Language = 'en' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ja' | 'zh-CN' | 'zh-TW' | 'ko' | 'nl' | 'sv' | 'pl' | 'ru' | 'sindarin'
 export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud' | 'cloud_new' | 'moved' | 'ignored' | 'deleted_remote'
+
+/** Operation type for tracking which operation is running on a file/folder (for inline button spinners) */
+export type OperationType = 'checkout' | 'checkin' | 'download' | 'upload' | 'delete' | 'sync'
 
 // ============================================================================
 // Interfaces
@@ -192,6 +198,16 @@ export interface ColumnConfig {
   width: number
   visible: boolean
   sortable: boolean
+}
+
+// SolidWorks configuration with tree depth (for config expansion in file browser)
+export interface SWConfiguration {
+  name: string
+  isActive?: boolean
+  parentConfiguration?: string | null
+  tabNumber?: string
+  description?: string
+  depth: number  // Tree depth for indentation
 }
 
 // Orphaned checkout - file was force-checked-in from another machine
@@ -587,7 +603,14 @@ export interface FilesSlice {
   ignorePatterns: Record<string, string[]>
   
   // State - Processing
-  processingFolders: Set<string>
+  // OperationType tracks what kind of operation is running on each file/folder
+  processingOperations: Map<string, OperationType>
+  
+  // State - SolidWorks Configurations (analogous to expandedFolders/selectedFiles)
+  expandedConfigFiles: Set<string>              // Which files have config section expanded
+  selectedConfigs: Set<string>                  // Selected configs (format: "filePath::configName")
+  fileConfigurations: Map<string, SWConfiguration[]>  // Cached configurations per file
+  loadingConfigs: Set<string>                   // Files currently loading configs
   
   // Actions - Files
   setFiles: (files: LocalFile[]) => void
@@ -637,11 +660,22 @@ export interface FilesSlice {
   isPathIgnored: (vaultId: string, relativePath: string) => boolean
   
   // Actions - Processing
-  addProcessingFolder: (path: string) => void
-  addProcessingFolders: (paths: string[]) => void
+  addProcessingFolder: (path: string, operationType: OperationType) => void
+  addProcessingFolders: (paths: string[], operationType: OperationType) => void
   removeProcessingFolder: (path: string) => void
   removeProcessingFolders: (paths: string[]) => void
   clearProcessingFolders: () => void
+  getProcessingOperation: (path: string) => OperationType | null
+  
+  // Actions - SolidWorks Configurations
+  toggleConfigExpansion: (filePath: string) => void
+  setExpandedConfigFiles: (paths: Set<string>) => void
+  setSelectedConfigs: (configs: Set<string>) => void
+  setFileConfigurations: (filePath: string, configs: SWConfiguration[]) => void
+  clearFileConfigurations: (filePath: string) => void
+  setLoadingConfigs: (paths: Set<string>) => void
+  addLoadingConfig: (filePath: string) => void
+  removeLoadingConfig: (filePath: string) => void
   
   // Getters
   getSelectedFileObjects: () => LocalFile[]
@@ -709,6 +743,130 @@ export interface TabsSlice {
   removeTabFromGroup: (tabId: string) => void
 }
 
+// ============================================================================
+// ECO Type
+// ============================================================================
+
+export interface ECO {
+  id: string
+  eco_number: string
+  title: string | null
+  description: string | null
+  status: 'open' | 'in_progress' | 'completed' | 'cancelled' | null
+  created_at: string | null
+  created_by: string
+  file_count?: number
+  created_by_name?: string | null
+  created_by_email?: string
+}
+
+// ============================================================================
+// ECOs Slice
+// ============================================================================
+
+export interface ECOsSlice {
+  // State
+  ecos: ECO[]
+  ecosLoading: boolean
+  ecosLoaded: boolean
+  
+  // Actions
+  setECOs: (ecos: ECO[]) => void
+  setECOsLoading: (loading: boolean) => void
+  addECO: (eco: ECO) => void
+  updateECO: (id: string, updates: Partial<ECO>) => void
+  removeECO: (id: string) => void
+  clearECOs: () => void
+  
+  // Getter
+  getActiveECOs: () => ECO[]
+}
+
+// ============================================================================
+// Supplier Type
+// ============================================================================
+
+export interface Supplier {
+  id: string
+  name: string
+  code: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  website: string | null
+  city: string | null
+  state: string | null
+  country: string | null
+  is_active: boolean | null
+  is_approved: boolean | null
+  erp_id: string | null
+  erp_synced_at: string | null
+  created_at: string | null
+}
+
+// ============================================================================
+// Workflows Slice
+// ============================================================================
+
+export interface WorkflowsSlice {
+  // Workflow list
+  workflows: WorkflowTemplate[]
+  workflowsLoading: boolean
+  workflowsLoaded: boolean
+  setWorkflows: (workflows: WorkflowTemplate[]) => void
+  setWorkflowsLoading: (loading: boolean) => void
+  addWorkflow: (workflow: WorkflowTemplate) => void
+  updateWorkflow: (id: string, updates: Partial<WorkflowTemplate>) => void
+  removeWorkflow: (id: string) => void
+  
+  // Selection
+  selectedWorkflowId: string | null
+  setSelectedWorkflowId: (id: string | null) => void
+  
+  // Workflow details (for selected workflow)
+  workflowStates: WorkflowState[]
+  workflowTransitions: WorkflowTransition[]
+  workflowGates: Record<string, WorkflowGate[]>
+  setWorkflowStates: (states: WorkflowState[]) => void
+  setWorkflowTransitions: (transitions: WorkflowTransition[]) => void
+  setWorkflowGates: (gates: Record<string, WorkflowGate[]>) => void
+  
+  // State CRUD
+  addWorkflowState: (state: WorkflowState) => void
+  updateWorkflowState: (id: string, updates: Partial<WorkflowState>) => void
+  removeWorkflowState: (id: string) => void
+  
+  // Transition CRUD
+  addWorkflowTransition: (transition: WorkflowTransition) => void
+  updateWorkflowTransition: (id: string, updates: Partial<WorkflowTransition>) => void
+  removeWorkflowTransition: (id: string) => void
+  
+  // Gate CRUD
+  setTransitionGates: (transitionId: string, gates: WorkflowGate[]) => void
+  
+  // Clear/Reset
+  clearWorkflowData: () => void
+  clearWorkflowsSlice: () => void
+  
+  // Getters
+  getSelectedWorkflow: () => WorkflowTemplate | null
+}
+
+// ============================================================================
+// Suppliers Slice
+// ============================================================================
+
+export interface SuppliersSlice {
+  suppliers: Supplier[]
+  suppliersLoading: boolean
+  suppliersLoaded: boolean
+  setSuppliers: (suppliers: Supplier[]) => void
+  setSuppliersLoading: (loading: boolean) => void
+  addSupplier: (supplier: Supplier) => void
+  updateSupplier: (id: string, updates: Partial<Supplier>) => void
+  removeSupplier: (id: string) => void
+  clearSuppliers: () => void
+}
+
 export interface OperationsSlice {
   // State - Loading
   isLoading: boolean
@@ -733,6 +891,9 @@ export interface OperationsSlice {
   // State - Notifications & Reviews
   unreadNotificationCount: number
   pendingReviewCount: number
+  notifications: NotificationWithDetails[]
+  notificationsLoading: boolean
+  notificationsLoaded: boolean
   
   // State - Orphaned checkouts
   orphanedCheckouts: OrphanedCheckout[]
@@ -767,6 +928,14 @@ export interface OperationsSlice {
   setPendingReviewCount: (count: number) => void
   incrementNotificationCount: () => void
   decrementNotificationCount: (amount?: number) => void
+  setNotifications: (notifications: NotificationWithDetails[]) => void
+  setNotificationsLoading: (loading: boolean) => void
+  addNotification: (notification: NotificationWithDetails) => void
+  updateNotification: (id: string, updates: Partial<NotificationWithDetails>) => void
+  removeNotification: (id: string) => void
+  markNotificationRead: (id: string) => void
+  markAllRead: () => void
+  clearNotifications: () => void
   
   // Actions - Orphaned checkouts
   addOrphanedCheckout: (checkout: OrphanedCheckout) => void
@@ -786,6 +955,156 @@ export interface OperationsSlice {
 }
 
 // ============================================================================
+// Organization Metadata Slice
+// ============================================================================
+
+/** Job title for organization members */
+export interface JobTitle {
+  id: string
+  name: string
+  color: string
+  icon: string
+}
+
+/** Basic workflow role info */
+export interface WorkflowRoleBasic {
+  id: string
+  name: string
+  color: string
+  icon: string
+  description?: string | null
+}
+
+/** Vault info for access management */
+export interface OrgVault {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  storage_bucket: string
+  is_default: boolean
+  created_at: string
+}
+
+/** Form data for creating/editing workflow roles */
+export interface WorkflowRoleFormData {
+  name: string
+  color: string
+  icon: string
+  description: string
+}
+
+export interface OrganizationMetadataSlice {
+  // ═══════════════════════════════════════════════════════════════
+  // Job Titles State
+  // ═══════════════════════════════════════════════════════════════
+  jobTitles: JobTitle[]
+  jobTitlesLoading: boolean
+  jobTitlesLoaded: boolean
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Job Titles Actions
+  // ═══════════════════════════════════════════════════════════════
+  setJobTitles: (titles: JobTitle[]) => void
+  setJobTitlesLoading: (loading: boolean) => void
+  addJobTitle: (title: JobTitle) => void
+  updateJobTitleInStore: (id: string, updates: Partial<JobTitle>) => void
+  removeJobTitle: (id: string) => void
+  clearJobTitles: () => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Workflow Roles State
+  // ═══════════════════════════════════════════════════════════════
+  workflowRoles: WorkflowRoleBasic[]
+  workflowRolesLoading: boolean
+  workflowRolesLoaded: boolean
+  userRoleAssignments: Record<string, string[]>  // userId -> roleIds
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Workflow Roles Actions
+  // ═══════════════════════════════════════════════════════════════
+  setWorkflowRoles: (roles: WorkflowRoleBasic[]) => void
+  setWorkflowRolesLoading: (loading: boolean) => void
+  setUserRoleAssignments: (assignments: Record<string, string[]>) => void
+  addWorkflowRole: (role: WorkflowRoleBasic) => void
+  updateWorkflowRoleInStore: (id: string, updates: Partial<WorkflowRoleBasic>) => void
+  removeWorkflowRole: (id: string) => void
+  assignUserRole: (userId: string, roleId: string) => void
+  unassignUserRole: (userId: string, roleId: string) => void
+  clearWorkflowRoles: () => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Vault Access State
+  // ═══════════════════════════════════════════════════════════════
+  orgVaults: OrgVault[]
+  orgVaultsLoading: boolean
+  orgVaultsLoaded: boolean
+  vaultAccessMap: Record<string, string[]>  // vaultId -> userIds
+  teamVaultAccessMap: Record<string, string[]>  // teamId -> vaultIds
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Vault Access Actions
+  // ═══════════════════════════════════════════════════════════════
+  setOrgVaults: (vaults: OrgVault[]) => void
+  setOrgVaultsLoading: (loading: boolean) => void
+  setVaultAccessMap: (map: Record<string, string[]>) => void
+  setTeamVaultAccessMap: (map: Record<string, string[]>) => void
+  grantUserVaultAccess: (userId: string, vaultId: string) => void
+  revokeUserVaultAccess: (userId: string, vaultId: string) => void
+  grantTeamVaultAccess: (teamId: string, vaultId: string) => void
+  revokeTeamVaultAccess: (teamId: string, vaultId: string) => void
+  clearOrgVaults: () => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Bulk Clear (for org switch)
+  // ═══════════════════════════════════════════════════════════════
+  clearOrganizationMetadata: () => void
+}
+
+export interface OrganizationDataSlice {
+  // Teams
+  teams: TeamWithDetails[]
+  teamsLoading: boolean
+  teamsLoaded: boolean
+  setTeams: (teams: TeamWithDetails[]) => void
+  setTeamsLoading: (loading: boolean) => void
+  addTeam: (team: TeamWithDetails) => void
+  updateTeam: (id: string, updates: Partial<TeamWithDetails>) => void
+  removeTeam: (id: string) => void
+  
+  // Members
+  members: OrgUser[]
+  membersLoading: boolean
+  membersLoaded: boolean
+  setMembers: (members: OrgUser[]) => void
+  setMembersLoading: (loading: boolean) => void
+  addMember: (member: OrgUser) => void
+  updateMember: (id: string, updates: Partial<OrgUser>) => void
+  removeMember: (id: string) => void
+  
+  // Pending Members
+  pendingMembers: PendingMember[]
+  pendingMembersLoading: boolean
+  pendingMembersLoaded: boolean
+  setPendingMembers: (members: PendingMember[]) => void
+  setPendingMembersLoading: (loading: boolean) => void
+  addPendingMember: (member: PendingMember) => void
+  updatePendingMember: (id: string, updates: Partial<PendingMember>) => void
+  removePendingMember: (id: string) => void
+  
+  // Dialog state
+  removingUser: OrgUser | null
+  isRemoving: boolean
+  editingTeamsUser: OrgUser | null
+  setRemovingUser: (user: OrgUser | null) => void
+  setIsRemoving: (v: boolean) => void
+  setEditingTeamsUser: (user: OrgUser | null) => void
+  
+  // Reset
+  clearOrganizationData: () => void
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
 
@@ -799,7 +1118,12 @@ export type PDMStoreState =
   FilesSlice & 
   ModulesSlice & 
   TabsSlice & 
-  OperationsSlice
+  OperationsSlice &
+  WorkflowsSlice &
+  SuppliersSlice &
+  ECOsSlice &
+  OrganizationDataSlice &
+  OrganizationMetadataSlice
 
 // ============================================================================
 // Store Versioning

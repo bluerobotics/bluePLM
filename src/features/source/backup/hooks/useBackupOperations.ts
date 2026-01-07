@@ -11,9 +11,20 @@ import {
   startBackupService,
   stopBackupService,
   getBackupConfig,
-  type BackupConfig
+  importDatabaseMetadata,
+  type BackupConfig,
+  type DatabaseExport
 } from '@/lib/backup'
-import type { BackupProgress, DeleteConfirmTarget, ConnectedVault } from '../types'
+import type { BackupProgress, DeleteConfirmTarget, ConnectedVault, BackupLogEntry } from '../types'
+
+// Helper to emit a synthetic backup log for renderer-side operations
+function emitRendererLog(entry: Omit<BackupLogEntry, 'timestamp'>) {
+  // Use a custom event to communicate with useBackupLogs
+  const event = new CustomEvent('backup:renderer-log', { 
+    detail: { ...entry, timestamp: Date.now() } 
+  })
+  window.dispatchEvent(event)
+}
 
 interface UseBackupOperationsReturn {
   // Backup state
@@ -25,8 +36,8 @@ interface UseBackupOperationsReturn {
   selectedSnapshot: string | null
   setSelectedSnapshot: (id: string | null) => void
   
-  // Delete state
-  deletingSnapshotId: string | null
+  // Delete state - set of all snapshots being deleted (queued or in-progress)
+  deletingSnapshotIds: Set<string>
   deleteConfirmTarget: DeleteConfirmTarget | null
   setDeleteConfirmTarget: (target: DeleteConfirmTarget | null) => void
   
@@ -70,8 +81,8 @@ export function useBackupOperations(
   const [isRestoring, setIsRestoring] = useState(false)
   const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null)
   
-  // Delete state
-  const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null)
+  // Delete state - track all snapshots being deleted (queued or in-progress)
+  const [deletingSnapshotIds, setDeletingSnapshotIds] = useState<Set<string>>(new Set())
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<DeleteConfirmTarget | null>(null)
   
   // Vault selection
@@ -239,44 +250,183 @@ export function useBackupOperations(
     }
     
     setIsRestoring(true)
+    
+    // Set up progress listener for restore operation
+    const cleanupProgress = window.electronAPI?.onBackupProgress?.((progress) => {
+      console.log('[RESTORE-DEBUG] Progress:', progress.phase, progress.percent, progress.message)
+    })
+    
     try {
       addToast('info', `Restoring snapshot ${selectedSnapshot.substring(0, 8)}...`, 0)
+      
+      // Emit start log
+      emitRendererLog({
+        level: 'info',
+        phase: 'restore',
+        message: `Starting restore of snapshot ${selectedSnapshot.substring(0, 8)} to ${vaultPath}`
+      })
+      
       const result = await restoreFromSnapshot(config, selectedSnapshot, vaultPath)
       
       if (result.success) {
-        addToast('success', 'Files restored successfully!')
+        emitRendererLog({
+          level: 'success',
+          phase: 'restore',
+          message: 'File restore completed successfully'
+        })
         
+        // If backup contains metadata, automatically import it
         if (result.hasMetadata) {
-          addToast('info', 'Database metadata found, importing...', 5000)
-          addToast('success', 'Restore complete! Metadata can be imported from .blueplm/database-export.json')
+          addToast('info', 'Files restored. Importing database metadata...', 0)
+          
+          emitRendererLog({
+            level: 'info',
+            phase: 'metadata_import',
+            message: 'Starting database metadata import...'
+          })
+          
+          try {
+            // Read the metadata file from the restored backup
+            emitRendererLog({
+              level: 'info',
+              phase: 'metadata_import',
+              message: 'Reading metadata file from restored backup...'
+            })
+            
+            const metadataResult = await window.electronAPI?.readBackupMetadata(vaultPath)
+            
+            console.log('[RESTORE-DEBUG] Metadata result:', {
+              success: metadataResult?.success,
+              hasData: !!metadataResult?.data,
+              dataKeys: metadataResult?.data ? Object.keys(metadataResult.data) : [],
+              filesType: typeof metadataResult?.data?.files,
+              filesIsArray: Array.isArray(metadataResult?.data?.files),
+              vaultPath
+            })
+            
+            if (metadataResult?.success && metadataResult.data) {
+              const fileCount = (metadataResult.data.files as unknown[])?.length || 0
+              const versionCount = (metadataResult.data.fileVersions as unknown[])?.length || 0
+              
+              console.log('[RESTORE-DEBUG] File counts:', { fileCount, versionCount })
+              
+              emitRendererLog({
+                level: 'info',
+                phase: 'metadata_import',
+                message: `Found ${fileCount} files and ${versionCount} versions to import`
+              })
+              
+              // Import the metadata into the database
+              // Cast the data to DatabaseExport since the IPC returns a loosely typed version
+              const importResult = await importDatabaseMetadata(metadataResult.data as DatabaseExport, { 
+                restoreDeleted: true 
+              })
+              
+              if (importResult.success && importResult.stats) {
+                const { filesRestored, versionsRestored, skipped } = importResult.stats
+                
+                emitRendererLog({
+                  level: 'success',
+                  phase: 'complete',
+                  message: `Metadata import complete: ${filesRestored} files, ${versionsRestored} versions restored, ${skipped} skipped`,
+                  metadata: {
+                    filesProcessed: filesRestored + versionsRestored,
+                    operation: 'metadata_import'
+                  }
+                })
+                
+                addToast('success', `Restore complete! ${filesRestored} files, ${versionsRestored} versions restored${skipped > 0 ? ` (${skipped} skipped)` : ''}`)
+              } else {
+                emitRendererLog({
+                  level: 'error',
+                  phase: 'metadata_import',
+                  message: `Metadata import failed: ${importResult.error || 'Unknown error'}`,
+                  metadata: { error: importResult.error }
+                })
+                
+                // Metadata import failed, but files were restored
+                addToast('success', 'Files restored successfully!')
+                addToast('error', `Failed to import metadata: ${importResult.error || 'Unknown error'}`)
+              }
+            } else {
+              emitRendererLog({
+                level: 'error',
+                phase: 'metadata_import',
+                message: `Failed to read metadata file: ${metadataResult?.error || 'Unknown error'}`,
+                metadata: { error: metadataResult?.error }
+              })
+              
+              // Couldn't read metadata file, but files were restored
+              addToast('success', 'Files restored successfully!')
+              addToast('error', `Failed to read metadata: ${metadataResult?.error || 'Unknown error'}`)
+            }
+          } catch (metadataErr) {
+            const errorMsg = metadataErr instanceof Error ? metadataErr.message : String(metadataErr)
+            
+            emitRendererLog({
+              level: 'error',
+              phase: 'metadata_import',
+              message: `Metadata import exception: ${errorMsg}`,
+              metadata: { error: errorMsg }
+            })
+            
+            // Metadata import threw an error, but files were restored
+            addToast('success', 'Files restored successfully!')
+            addToast('error', `Metadata import error: ${errorMsg}`)
+          }
+        } else {
+          emitRendererLog({
+            level: 'success',
+            phase: 'complete',
+            message: 'Restore completed (no metadata to import)'
+          })
+          addToast('success', 'Files restored successfully!')
         }
         
         setSelectedSnapshot(null)
       } else {
+        emitRendererLog({
+          level: 'error',
+          phase: 'error',
+          message: `Restore failed: ${result.error || 'Unknown error'}`,
+          metadata: { error: result.error }
+        })
         addToast('error', result.error || 'Restore failed')
       }
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
       console.error('Restore failed:', err)
-      addToast('error', 'Restore failed: ' + (err instanceof Error ? err.message : String(err)))
+      
+      emitRendererLog({
+        level: 'error',
+        phase: 'error',
+        message: `Restore exception: ${errorMsg}`,
+        metadata: { error: errorMsg }
+      })
+      
+      addToast('error', 'Restore failed: ' + errorMsg)
     } finally {
+      cleanupProgress?.()
       setIsRestoring(false)
     }
   }, [selectedSnapshot, config, vaultPath, addToast])
 
-  // Delete a snapshot
+  // Delete a snapshot (handles queuing automatically)
   const handleDeleteSnapshot = useCallback(async () => {
     if (!deleteConfirmTarget || !config) return
     
     const { id: snapshotId } = deleteConfirmTarget
     setDeleteConfirmTarget(null)
-    setDeletingSnapshotId(snapshotId)
+    
+    // Add to the set of deleting snapshots (shows spinner immediately)
+    setDeletingSnapshotIds(prev => new Set([...prev, snapshotId]))
     
     try {
+      // deleteSnapshot is queued internally - it will wait for other deletes to finish
       const result = await deleteSnapshot(config, snapshotId)
       
       if (result.success) {
-        addToast('success', 'Snapshot deleted')
-        await loadStatus()
+        addToast('success', `Snapshot ${snapshotId.substring(0, 8)} deleted`)
       } else {
         addToast('error', result.error || 'Failed to delete snapshot')
       }
@@ -284,7 +434,19 @@ export function useBackupOperations(
       console.error('Delete failed:', err)
       addToast('error', 'Failed to delete snapshot')
     } finally {
-      setDeletingSnapshotId(null)
+      // Remove from the set
+      setDeletingSnapshotIds(prev => {
+        const next = new Set(prev)
+        next.delete(snapshotId)
+        
+        // Only refresh the list when ALL deletes are done (queue is empty)
+        if (next.size === 0) {
+          // Use setTimeout to allow state to update before refresh
+          setTimeout(() => loadStatus(), 100)
+        }
+        
+        return next
+      })
     }
   }, [deleteConfirmTarget, config, addToast, loadStatus])
 
@@ -320,7 +482,7 @@ export function useBackupOperations(
     isRestoring,
     selectedSnapshot,
     setSelectedSnapshot,
-    deletingSnapshotId,
+    deletingSnapshotIds,
     deleteConfirmTarget,
     setDeleteConfirmTarget,
     selectedVaultIds,

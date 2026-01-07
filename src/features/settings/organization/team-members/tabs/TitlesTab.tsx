@@ -10,16 +10,19 @@
 import * as LucideIcons from 'lucide-react'
 import { Briefcase, Plus, Pencil, Trash2 } from 'lucide-react'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
+import { useState } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useMembers, useJobTitles, useJobTitleDialogs } from '../hooks'
-import { JobTitleFormDialog } from '../components/dialogs'
+import { JobTitleFormDialog, DeleteJobTitleDialog } from '../components/dialogs'
 
 export interface TitlesTabProps {
   /** Search query for filtering titles */
   searchQuery?: string
+  /** Called when the "Add Title" button should trigger a dialog in the parent */
+  onShowCreateTitleDialog?: () => void
 }
 
-export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
+export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesTabProps) {
   // Get user/org info from store
   const { organization, getEffectiveRole, addToast } = usePDMStore()
   const orgId = organization?.id ?? null
@@ -28,14 +31,13 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
   // Data hooks
   const {
     jobTitles,
-    createJobTitle,
     updateJobTitle,
     deleteJobTitle
   } = useJobTitles(orgId)
   
   const { members: orgUsers } = useMembers(orgId)
 
-  // Dialog state
+  // Dialog state - for edit operations within the tab
   const {
     showCreateTitleDialog,
     setShowCreateTitleDialog,
@@ -52,9 +54,12 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
     isCreatingTitle,
     setIsCreatingTitle,
     openEditTitleDialog,
-    openCreateTitleDialog,
     resetTitleForm
   } = useJobTitleDialogs()
+
+  // Delete confirmation dialog state
+  const [deletingTitle, setDeletingTitle] = useState<{ id: string; name: string } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Filter titles by search
   const filteredTitles = jobTitles.filter(t => 
@@ -62,25 +67,6 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
   )
 
   // Handlers
-  const handleCreateTitle = async () => {
-    if (!newTitleName.trim()) return
-    setIsCreatingTitle(true)
-    try {
-      const success = await createJobTitle(
-        newTitleName.trim(),
-        newTitleColor,
-        newTitleIcon,
-        pendingTitleForUser?.id
-      )
-      if (success) {
-        setShowCreateTitleDialog(false)
-        resetTitleForm()
-      }
-    } finally {
-      setIsCreatingTitle(false)
-    }
-  }
-
   const handleUpdateJobTitle = async () => {
     if (!editingJobTitle || !newTitleName.trim()) return
     setIsCreatingTitle(true)
@@ -100,13 +86,17 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
     }
   }
 
-  const handleDeleteJobTitle = async (title: { id: string; name: string }) => {
-    if (!confirm(`Delete job title "${title.name}"? Users with this title will have it removed.`)) {
-      return
-    }
-    const success = await deleteJobTitle(title.id)
-    if (success) {
-      addToast('success', `Deleted title "${title.name}"`)
+  const handleDeleteJobTitle = async () => {
+    if (!deletingTitle) return
+    setIsDeleting(true)
+    try {
+      const success = await deleteJobTitle(deletingTitle.id)
+      if (success) {
+        addToast('success', `Deleted title "${deletingTitle.name}"`)
+      }
+    } finally {
+      setIsDeleting(false)
+      setDeletingTitle(null)
     }
   }
 
@@ -118,9 +108,9 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
           <p className="text-sm text-plm-fg-muted mb-4">
             {searchQuery ? 'No matching job titles' : 'No job titles yet'}
           </p>
-          {isAdmin && !searchQuery && (
+          {isAdmin && !searchQuery && onShowCreateTitleDialog && (
             <button
-              onClick={() => openCreateTitleDialog()}
+              onClick={onShowCreateTitleDialog}
               className="btn btn-primary btn-sm"
             >
               <Plus size={14} className="mr-1" />
@@ -128,27 +118,6 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
             </button>
           )}
         </div>
-
-        {/* Dialog */}
-        {showCreateTitleDialog && (
-          <JobTitleFormDialog
-            editingTitle={editingJobTitle}
-            titleName={newTitleName}
-            setTitleName={setNewTitleName}
-            titleColor={newTitleColor}
-            setTitleColor={setNewTitleColor}
-            titleIcon={newTitleIcon}
-            setTitleIcon={setNewTitleIcon}
-            pendingTitleForUser={pendingTitleForUser}
-            onSave={editingJobTitle ? handleUpdateJobTitle : handleCreateTitle}
-            onClose={() => {
-              setShowCreateTitleDialog(false)
-              setEditingJobTitle(null)
-              setPendingTitleForUser(null)
-            }}
-            isSaving={isCreatingTitle}
-          />
-        )}
       </div>
     )
   }
@@ -224,7 +193,7 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
                       <Pencil size={14} />
                     </button>
                     <button
-                      onClick={() => handleDeleteJobTitle(title)}
+                      onClick={() => setDeletingTitle(title)}
                       className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
                       title="Delete title"
                     >
@@ -244,8 +213,8 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
         All permissions come from teams.
       </p>
 
-      {/* Dialog */}
-      {showCreateTitleDialog && (
+      {/* Edit Job Title Dialog - rendered here for edit actions within the tab */}
+      {showCreateTitleDialog && editingJobTitle && (
         <JobTitleFormDialog
           editingTitle={editingJobTitle}
           titleName={newTitleName}
@@ -255,13 +224,23 @@ export function TitlesTab({ searchQuery = '' }: TitlesTabProps) {
           titleIcon={newTitleIcon}
           setTitleIcon={setNewTitleIcon}
           pendingTitleForUser={pendingTitleForUser}
-          onSave={editingJobTitle ? handleUpdateJobTitle : handleCreateTitle}
+          onSave={handleUpdateJobTitle}
           onClose={() => {
             setShowCreateTitleDialog(false)
             setEditingJobTitle(null)
             setPendingTitleForUser(null)
           }}
           isSaving={isCreatingTitle}
+        />
+      )}
+
+      {/* Delete Job Title Confirmation Dialog */}
+      {deletingTitle && (
+        <DeleteJobTitleDialog
+          title={deletingTitle}
+          onConfirm={handleDeleteJobTitle}
+          onClose={() => setDeletingTitle(null)}
+          isDeleting={isDeleting}
         />
       )}
     </div>

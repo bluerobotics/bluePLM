@@ -33,30 +33,23 @@ import { getEffectiveExportSettings } from '@/features/settings/system'
 import { buildConfigTreeFlat } from '../utils/configTree'
 
 export interface ConfigHandlersDeps {
-  // Files state
+  // Files state (still passed - could also read from store but kept for consistency)
   files: LocalFile[]
   
-  // Config state
-  expandedConfigFiles: Set<string>
-  setExpandedConfigFiles: React.Dispatch<React.SetStateAction<Set<string>>>
-  fileConfigurations: Map<string, ConfigWithDepth[]>
-  setFileConfigurations: (configs: Map<string, ConfigWithDepth[]> | ((prev: Map<string, ConfigWithDepth[]>) => Map<string, ConfigWithDepth[]>)) => void
-  loadingConfigs: Set<string>
-  setLoadingConfigs: React.Dispatch<React.SetStateAction<Set<string>>>
-  selectedConfigs: Set<string>
-  setSelectedConfigs: (configs: Set<string> | ((prev: Set<string>) => Set<string>)) => void
+  // Config state is now read directly from usePDMStore
+  // Only refs and local state that can't be in store are passed
   lastClickedConfigRef: React.MutableRefObject<string | null>
   justSavedConfigs: React.MutableRefObject<Set<string>>
   
-  // Config context menu state
+  // Config context menu state (local UI state)
   configContextMenu: ConfigContextMenuState | null
   setConfigContextMenu: (state: ConfigContextMenuState | null) => void
   
-  // Exporting state
+  // Exporting state (local UI state)
   setIsExportingConfigs: (exporting: boolean) => void
   setSavingConfigsToSW: (saving: Set<string> | ((prev: Set<string>) => Set<string>)) => void
   
-  // File selection
+  // File selection (uses store action)
   setSelectedFiles: (paths: string[]) => void
   
   // Organization
@@ -85,14 +78,6 @@ export interface UseConfigHandlersReturn {
 export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersReturn {
   const {
     files,
-    expandedConfigFiles,
-    setExpandedConfigFiles,
-    fileConfigurations,
-    setFileConfigurations,
-    loadingConfigs: _loadingConfigs, // Used in toggleFileConfigExpansion dependency array
-    setLoadingConfigs,
-    selectedConfigs,
-    setSelectedConfigs,
     lastClickedConfigRef,
     justSavedConfigs,
     configContextMenu,
@@ -103,46 +88,54 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     organization,
     addToast,
   } = deps
+  
+  // Config state from Zustand store (following the pattern of expandedFolders/selectedFiles)
+  const expandedConfigFiles = usePDMStore(s => s.expandedConfigFiles)
+  const selectedConfigs = usePDMStore(s => s.selectedConfigs)
+  const fileConfigurations = usePDMStore(s => s.fileConfigurations)
+  const setExpandedConfigFiles = usePDMStore(s => s.setExpandedConfigFiles)
+  const setSelectedConfigs = usePDMStore(s => s.setSelectedConfigs)
+  const setFileConfigurations = usePDMStore(s => s.setFileConfigurations)
+  const addLoadingConfig = usePDMStore(s => s.addLoadingConfig)
+  const removeLoadingConfig = usePDMStore(s => s.removeLoadingConfig)
 
   // Update config tab number
   const handleConfigTabChange = useCallback((filePath: string, configName: string, value: string) => {
     const file = files.find(f => f.path === filePath)
     if (!file) return
     
-    // Update local state
-    setFileConfigurations(prev => {
-      const configs = prev.get(filePath)
-      if (!configs) return prev
+    // Update config in store
+    const configs = fileConfigurations.get(filePath)
+    if (configs) {
       const updated = configs.map(c => c.name === configName ? { ...c, tabNumber: value.toUpperCase() } : c)
-      return new Map(prev).set(filePath, updated)
-    })
+      setFileConfigurations(filePath, updated)
+    }
     
     // Update pending metadata
     const existingTabs = file.pendingMetadata?.config_tabs || {}
     usePDMStore.getState().updatePendingMetadata(filePath, {
       config_tabs: { ...existingTabs, [configName]: value.toUpperCase() }
     })
-  }, [files, setFileConfigurations])
+  }, [files, fileConfigurations, setFileConfigurations])
 
   // Update config description
   const handleConfigDescriptionChange = useCallback((filePath: string, configName: string, value: string) => {
     const file = files.find(f => f.path === filePath)
     if (!file) return
     
-    // Update local state
-    setFileConfigurations(prev => {
-      const configs = prev.get(filePath)
-      if (!configs) return prev
+    // Update config in store
+    const configs = fileConfigurations.get(filePath)
+    if (configs) {
       const updated = configs.map(c => c.name === configName ? { ...c, description: value } : c)
-      return new Map(prev).set(filePath, updated)
-    })
+      setFileConfigurations(filePath, updated)
+    }
     
     // Update pending metadata
     const existingDescs = file.pendingMetadata?.config_descriptions || {}
     usePDMStore.getState().updatePendingMetadata(filePath, {
       config_descriptions: { ...existingDescs, [configName]: value }
     })
-  }, [files, setFileConfigurations])
+  }, [files, fileConfigurations, setFileConfigurations])
 
   // Check if file can have configurations (sldprt or sldasm)
   const canHaveConfigs = useCallback((file: LocalFile): boolean => {
@@ -389,17 +382,16 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       // Collapse - also clear any selected configs for this file
       newExpanded.delete(file.path)
       setExpandedConfigFiles(newExpanded)
-      setSelectedConfigs(prev => {
-        const next = new Set([...prev].filter(key => !key.startsWith(file.path + '::')))
-        return next
-      })
+      // Clear selected configs for this file
+      const newSelected = new Set([...selectedConfigs].filter(key => !key.startsWith(file.path + '::')))
+      setSelectedConfigs(newSelected)
     } else {
       // Expand - load configurations if not already loaded
       newExpanded.add(file.path)
       setExpandedConfigFiles(newExpanded)
       
       if (!fileConfigurations.has(file.path)) {
-        setLoadingConfigs(prev => new Set(prev).add(file.path))
+        addLoadingConfig(file.path)
         try {
           const result = await window.electronAPI?.solidworks?.getConfigurations(file.path)
           if (result?.success && result.data?.configurations) {
@@ -459,26 +451,23 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
                 isActive: c.isActive,
                 parentConfiguration: c.parentConfiguration,
                 tabNumber,
-                description
+                description,
+                depth: 0  // Will be set by buildConfigTreeFlat
               }
             }))
             
             // Build tree structure with depth
             const flatTree = buildConfigTreeFlat(configsWithData)
-            setFileConfigurations(prev => new Map(prev).set(file.path, flatTree))
+            setFileConfigurations(file.path, flatTree)
           }
         } catch (err) {
           console.error('Failed to load configurations:', err)
         } finally {
-          setLoadingConfigs(prev => {
-            const next = new Set(prev)
-            next.delete(file.path)
-            return next
-          })
+          removeLoadingConfig(file.path)
         }
       }
     }
-  }, [expandedConfigFiles, setExpandedConfigFiles, setSelectedConfigs, fileConfigurations, setFileConfigurations, setLoadingConfigs])
+  }, [expandedConfigFiles, selectedConfigs, fileConfigurations, setExpandedConfigFiles, setSelectedConfigs, setFileConfigurations, addLoadingConfig, removeLoadingConfig])
 
   return {
     handleConfigTabChange,

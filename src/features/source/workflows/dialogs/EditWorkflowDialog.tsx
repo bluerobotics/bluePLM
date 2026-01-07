@@ -6,6 +6,18 @@ import type { EditWorkflowDialogProps } from '../types'
 export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: EditWorkflowDialogProps) {
   const [name, setName] = useState(workflow.name)
   const [description, setDescription] = useState(workflow.description || '')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      await onDelete()
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
   
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -43,7 +55,7 @@ export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: Edit
         
         <div className="flex justify-between mt-4">
           <button
-            onClick={onDelete}
+            onClick={() => setShowDeleteConfirm(true)}
             className="px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/20 rounded"
             title="Delete this workflow"
           >
@@ -67,6 +79,30 @@ export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: Edit
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Delete Workflow</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
+              Are you sure you want to delete <strong>{workflow.name}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowDeleteConfirm(false)} className="btn btn-ghost" disabled={isDeleting}>
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="btn bg-plm-error text-white hover:bg-plm-error/90"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Workflow'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

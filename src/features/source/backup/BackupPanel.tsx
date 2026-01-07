@@ -15,6 +15,7 @@ import { BackupHistory } from './BackupHistory'
 import { RestoreActionBar } from './RestoreActionBar'
 import { DeleteSnapshotDialog } from './DeleteSnapshotDialog'
 import { BackupConfigForm } from './BackupConfigForm'
+import { BackupStatusViewer } from './BackupStatusViewer'
 
 // Types
 import type { BackupPanelProps } from './types'
@@ -127,6 +128,14 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
             onClearDesignatedMachine={operations.handleClearDesignatedMachine}
           />
         )}
+        
+        {/* Backup/Restore Status Viewer */}
+        {status?.isConfigured && (
+          <BackupStatusViewer
+            isRunningBackup={operations.isRunningBackup}
+            isRestoring={operations.isRestoring}
+          />
+        )}
       </div>
       
       {/* Snapshot History */}
@@ -135,7 +144,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         isAdmin={isAdmin}
         selectedSnapshot={operations.selectedSnapshot}
         onSelectSnapshot={operations.setSelectedSnapshot}
-        deletingSnapshotId={operations.deletingSnapshotId}
+        deletingSnapshotIds={operations.deletingSnapshotIds}
         onRequestDelete={operations.setDeleteConfirmTarget}
         historyVaultFilter={operations.historyVaultFilter}
         onHistoryVaultFilterChange={operations.setHistoryVaultFilter}

@@ -37,7 +37,7 @@ export function useFilePaneView() {
     searchQuery,
     searchType,
     hideSolidworksTempFiles,
-    processingFolders,
+    processingOperations,
     tabsEnabled,
     activeTabId,
     updateTabFolder,
@@ -138,8 +138,8 @@ export function useFilePaneView() {
 
   // Check if path is being processed
   const isBeingProcessed = useCallback((relativePath: string) => {
-    return isPathBeingProcessed(relativePath, processingFolders)
-  }, [processingFolders])
+    return isPathBeingProcessed(relativePath, processingOperations)
+  }, [processingOperations])
 
   // Load platform
   useEffect(() => {

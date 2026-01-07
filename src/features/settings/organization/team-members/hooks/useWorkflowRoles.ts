@@ -2,12 +2,14 @@
  * useWorkflowRoles - Hook for managing workflow roles
  * 
  * Provides state and CRUD operations for workflow roles including:
- * - Loading workflow roles with user assignments
+ * - Loading workflow roles with user assignments into Zustand store
  * - Creating, updating, and deleting workflow roles
  * - Toggling user role assignments
  * - Saving batch role assignments
+ * 
+ * State is managed in the organizationMetadataSlice of the PDM store.
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { WorkflowRoleBasic, WorkflowRoleFormData } from '../types'
@@ -21,14 +23,28 @@ import {
 } from './supabaseHelpers'
 
 export function useWorkflowRoles(orgId: string | null) {
-  const { addToast } = usePDMStore()
-  const [workflowRoles, setWorkflowRoles] = useState<WorkflowRoleBasic[]>([])
-  const [userRoleAssignments, setUserRoleAssignments] = useState<Record<string, string[]>>({})
-  const [isLoading, setIsLoading] = useState(true)
+  // Get actions from store
+  const addToast = usePDMStore(s => s.addToast)
+  
+  // Workflow roles state from store
+  const workflowRoles = usePDMStore(s => s.workflowRoles)
+  const userRoleAssignments = usePDMStore(s => s.userRoleAssignments)
+  const isLoading = usePDMStore(s => s.workflowRolesLoading)
+  const workflowRolesLoaded = usePDMStore(s => s.workflowRolesLoaded)
+  
+  // Workflow roles actions from store
+  const setWorkflowRoles = usePDMStore(s => s.setWorkflowRoles)
+  const setWorkflowRolesLoading = usePDMStore(s => s.setWorkflowRolesLoading)
+  const setUserRoleAssignments = usePDMStore(s => s.setUserRoleAssignments)
+  const updateWorkflowRoleInStore = usePDMStore(s => s.updateWorkflowRoleInStore)
+  const removeWorkflowRoleFromStore = usePDMStore(s => s.removeWorkflowRole)
+  const assignUserRoleInStore = usePDMStore(s => s.assignUserRole)
+  const unassignUserRoleInStore = usePDMStore(s => s.unassignUserRole)
 
   const loadWorkflowRoles = useCallback(async () => {
     if (!orgId) return
     
+    setWorkflowRolesLoading(true)
     try {
       // Load workflow roles
       const { data: rolesData, error: rolesError } = await supabase
@@ -66,8 +82,9 @@ export function useWorkflowRoles(orgId: string | null) {
       setUserRoleAssignments(assignmentsMap)
     } catch (err) {
       console.error('Failed to load workflow roles:', err)
+      setWorkflowRolesLoading(false)
     }
-  }, [orgId])
+  }, [orgId, setWorkflowRoles, setWorkflowRolesLoading, setUserRoleAssignments])
 
   const createWorkflowRole = useCallback(async (
     formData: WorkflowRoleFormData
@@ -86,6 +103,7 @@ export function useWorkflowRoles(orgId: string | null) {
       if (error) throw error
       
       addToast('success', `Created workflow role "${formData.name}"`)
+      // Reload to get the new role with its ID
       await loadWorkflowRoles()
       return true
     } catch (err) {
@@ -115,8 +133,15 @@ export function useWorkflowRoles(orgId: string | null) {
       
       if (error) throw error
       
+      // Update in store
+      updateWorkflowRoleInStore(roleId, {
+        name: formData.name.trim(),
+        color: formData.color,
+        icon: formData.icon,
+        description: formData.description || null
+      })
+      
       addToast('success', `Updated workflow role "${formData.name}"`)
-      await loadWorkflowRoles()
       return true
     } catch (err) {
       const pgError = err as { code?: string }
@@ -127,7 +152,7 @@ export function useWorkflowRoles(orgId: string | null) {
       }
       return false
     }
-  }, [addToast, loadWorkflowRoles])
+  }, [addToast, updateWorkflowRoleInStore])
 
   const deleteWorkflowRole = useCallback(async (roleId: string): Promise<boolean> => {
     const role = workflowRoles.find(r => r.id === roleId)
@@ -141,14 +166,16 @@ export function useWorkflowRoles(orgId: string | null) {
       
       if (error) throw error
       
+      // Remove from store (this also cleans up user assignments)
+      removeWorkflowRoleFromStore(roleId)
+      
       addToast('success', `Deleted workflow role "${role.name}"`)
-      await loadWorkflowRoles()
       return true
     } catch {
       addToast('error', 'Failed to delete workflow role')
       return false
     }
-  }, [workflowRoles, addToast, loadWorkflowRoles])
+  }, [workflowRoles, addToast, removeWorkflowRoleFromStore])
 
   const toggleUserRole = useCallback(async (
     userId: string,
@@ -164,6 +191,9 @@ export function useWorkflowRoles(orgId: string | null) {
           assigned_by: assignedBy ?? null
         })
         if (error) throw error
+        
+        // Update store
+        assignUserRoleInStore(userId, roleId)
       } else {
         const { error } = await supabase
           .from('user_workflow_roles')
@@ -171,14 +201,16 @@ export function useWorkflowRoles(orgId: string | null) {
           .eq('user_id', userId)
           .eq('workflow_role_id', roleId)
         if (error) throw error
+        
+        // Update store
+        unassignUserRoleInStore(userId, roleId)
       }
-      await loadWorkflowRoles()
       return true
     } catch {
       addToast('error', isAdding ? 'Failed to add role' : 'Failed to remove role')
       return false
     }
-  }, [addToast, loadWorkflowRoles])
+  }, [addToast, assignUserRoleInStore, unassignUserRoleInStore])
 
   /**
    * Save all workflow role assignments for a user (replaces existing assignments)
@@ -210,21 +242,27 @@ export function useWorkflowRoles(orgId: string | null) {
         if (error) throw error
       }
       
+      // Update store - set the new role assignments for this user
+      setUserRoleAssignments({
+        ...userRoleAssignments,
+        [userId]: roleIds
+      })
+      
       addToast('success', `Updated workflow roles${userName ? ` for ${userName}` : ''}`)
-      await loadWorkflowRoles()
       return true
     } catch (err) {
       console.error('Failed to save workflow roles:', err)
       addToast('error', 'Failed to update workflow roles')
       return false
     }
-  }, [addToast, loadWorkflowRoles])
+  }, [addToast, userRoleAssignments, setUserRoleAssignments])
 
+  // Load workflow roles on mount if not already loaded
   useEffect(() => {
-    if (orgId) {
-      loadWorkflowRoles().finally(() => setIsLoading(false))
+    if (orgId && !workflowRolesLoaded && !isLoading) {
+      loadWorkflowRoles()
     }
-  }, [orgId, loadWorkflowRoles])
+  }, [orgId, workflowRolesLoaded, isLoading, loadWorkflowRoles])
 
   return {
     workflowRoles,

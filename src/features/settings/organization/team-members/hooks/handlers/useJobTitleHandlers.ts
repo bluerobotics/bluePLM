@@ -110,8 +110,6 @@ export function useJobTitleHandlers(params: UseJobTitleHandlersParams) {
   }, [editingJobTitle, newTitleName, newTitleColor, newTitleIcon, hookUpdateJobTitle, setIsCreatingTitle, setEditingJobTitle, setShowCreateTitleDialog, loadOrgUsers])
 
   const handleDeleteJobTitle = useCallback(async (title: { id: string; name: string }) => {
-    if (!confirm(`Delete "${title.name}"? Users with this title will have it removed.`)) return
-    
     const success = await hookDeleteJobTitle(title.id)
     if (success) {
       loadOrgUsers()
@@ -131,10 +129,6 @@ export function useJobTitleHandlers(params: UseJobTitleHandlersParams) {
   const deleteJobTitleDirect = useCallback(async (titleId: string) => {
     const title = jobTitles.find(t => t.id === titleId)
     if (!title) return
-    
-    if (!confirm(`Delete "${title.name}"? Users with this title will have it removed.`)) {
-      throw new Error('Cancelled')
-    }
     
     const success = await hookDeleteJobTitle(titleId)
     if (success) {

@@ -137,7 +137,7 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
     }
     
     // Mark folders as processing
-    addProcessingFolders(foldersWithCloudFiles)
+    addProcessingFolders(foldersWithCloudFiles, 'download')
     
     // Yield to event loop so React can render spinners
     await new Promise(resolve => setTimeout(resolve, 0))

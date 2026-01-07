@@ -20,6 +20,15 @@ export function TeamFormDialog({
   const IconComponent = getTeamIcon(formData.icon)
   const isCreating = title === 'Create Team'
   
+  // Use stable callback refs to avoid stale closures
+  const handleIconChange = (icon: string) => {
+    setFormData({ ...formData, icon })
+  }
+  
+  const handleColorChange = (color: string | null) => {
+    if (color) setFormData({ ...formData, color })
+  }
+  
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onCancel}>
       <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -94,7 +103,7 @@ export function TeamFormDialog({
               <div className="flex items-center gap-2 p-2 bg-plm-bg border border-plm-border rounded-lg">
                 <ColorPickerDropdown
                   color={formData.color}
-                  onChange={(c) => c && setFormData({ ...formData, color: c })}
+                  onChange={handleColorChange}
                   triggerSize="lg"
                   showReset={false}
                   title="Team Color"
@@ -113,7 +122,7 @@ export function TeamFormDialog({
               <label className="block text-sm text-plm-fg-muted mb-1.5">Icon</label>
               <IconPicker
                 value={formData.icon}
-                onChange={(icon) => setFormData({ ...formData, icon })}
+                onChange={handleIconChange}
                 color={formData.color}
               />
             </div>

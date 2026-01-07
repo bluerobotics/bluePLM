@@ -148,7 +148,7 @@ export function CreateUserDialog({
         vault_ids: selectedVaultIds,
         workflow_role_ids: selectedWorkflowRoleIds,
         notes: notes.trim() || null,
-        created_by: currentUserId
+        invited_by: currentUserId
       })
       
       if (error) {

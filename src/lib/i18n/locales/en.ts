@@ -116,16 +116,17 @@ export const en: TranslationDict = {
   setup: {
     welcome: 'Welcome to BluePLM',
     connectToBackend: 'Connect to your organization\'s Supabase backend to get started',
-    imAdmin: "I'm an Organization Admin",
-    imAdminDesc: "Set up BluePLM with your organization's Supabase credentials. You'll get a code to share with your team.",
-    haveCode: 'I have an Organization Code',
-    haveCodeDesc: 'Enter the code provided by your organization admin to connect.',
+    imAdmin: 'Set Up an Organization',
+    imAdminDesc: "Connect BluePLM to your Supabase backend and get a code to share with your team.",
+    haveCode: 'Join an Organization',
+    haveCodeDesc: 'Already have a code from your admin? Enter it to connect.',
     needHelp: 'Need help setting up Supabase?',
 
     // Admin setup
     adminSetup: 'Admin Setup',
     enterCredentials: 'Enter your Supabase credentials from your project\'s API settings',
-    supabaseUrl: 'Supabase URL',
+    projectId: 'Project ID',
+    projectIdHelp: 'Found at the top of your Supabase Dashboard (e.g., vvyhpdzqdizvorrhjhvq)',
     anonKey: 'Anon (Public) Key',
     orgSlug: 'Organization Slug',
     orgSlugHelp: 'This helps identify your organization in the generated code',
@@ -144,8 +145,8 @@ export const en: TranslationDict = {
     enterCode: 'Enter the code provided by your organization admin',
 
     // Errors
-    enterBothFields: 'Please enter both Supabase URL and Anon Key',
-    invalidUrl: 'Please enter a valid Supabase URL',
+    enterBothFields: 'Please enter both Project ID and Anon Key',
+    invalidProjectId: 'Please enter a valid Project ID (letters and numbers only)',
     failedToConnect: 'Failed to connect to Supabase',
     enterOrgCode: 'Please enter the Organization Code',
     invalidCode: 'Invalid Organization Code. Please check and try again.',

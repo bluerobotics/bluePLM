@@ -118,7 +118,8 @@ export const zhCN: TranslationDict = {
     
     adminSetup: '管理员设置',
     enterCredentials: '从项目的 API 设置中输入您的 Supabase 凭据',
-    supabaseUrl: 'Supabase URL',
+    projectId: '项目 ID',
+    projectIdHelp: '在 Supabase 控制台顶部找到（例如 vvyhpdzqdizvorrhjhvq）',
     anonKey: '匿名（公开）密钥',
     orgSlug: '组织标识',
     orgSlugHelp: '这有助于在生成的代码中识别您的组织',
@@ -134,8 +135,8 @@ export const zhCN: TranslationDict = {
     joinOrg: '加入您的组织',
     enterCode: '输入组织管理员提供的代码',
     
-    enterBothFields: '请输入 Supabase URL 和匿名密钥',
-    invalidUrl: '请输入有效的 Supabase URL',
+    enterBothFields: '请输入项目 ID 和匿名密钥',
+    invalidProjectId: '请输入有效的项目 ID（仅限字母和数字）',
     failedToConnect: '连接 Supabase 失败',
     enterOrgCode: '请输入组织代码',
     invalidCode: '组织代码无效。请检查后重试。',
@@ -214,26 +215,82 @@ export const zhCN: TranslationDict = {
   },
 
   sidebar: {
+    // 源文件
     explorer: '资源管理器',
     pending: '待处理',
-    search: '搜索',
-    workflows: '文件工作流',
     history: '历史记录',
+    workflows: '文件工作流',
     trash: '回收站',
-    terminal: '终端',
-    eco: 'ECO',
-    gsd: 'GSD 摘要',
+    // 物料
+    items: '物料浏览器',
+    boms: '物料清单',
+    products: '产品',
+    // 变更控制
     ecr: 'ECR / 问题',
+    eco: 'ECO',
     notifications: '通知',
     deviations: '偏差',
-    products: '产品',
+    releaseSchedule: '发布计划',
     process: '流程编辑器',
-    schedule: '日程',
-    suppliers: '供应商',
+    // 供应链 - 供应商
+    supplierDatabase: '供应商数据库',
     supplierPortal: '供应商门户',
+    // 供应链 - 采购
+    purchaseRequests: '采购申请',
+    purchaseOrders: '采购订单',
+    invoices: '发票',
+    // 供应链 - 物流
+    shipping: '发货',
+    receiving: '收货',
+    // 生产
+    manufacturingOrders: '生产订单',
+    travellers: '工艺流转卡',
+    workInstructions: '作业指导书',
+    productionSchedule: '生产计划',
+    routings: '工艺路线',
+    workCenters: '工作中心',
+    processFlows: '工艺流程',
+    equipment: '设备',
+    // 生产 - 分析
+    productionAnalytics: '生产分析',
+    yieldTracking: '良率追踪',
+    errorCodes: '错误代码',
+    downtime: '停机时间',
+    oee: 'OEE 仪表板',
+    scrapTracking: '报废追踪',
+    // 质量
+    fai: '首件检验 (FAI)',
+    ncr: '不合格报告 (NCR)',
+    imr: '来料检验报告 (IMR)',
+    scar: '供应商纠正措施 (SCAR)',
+    capa: '纠正与预防措施 (CAPA)',
+    rma: '退货授权 (RMA)',
+    certificates: '证书',
+    calibration: '校准',
+    qualityTemplates: '模板',
+    // 财务
+    accountsPayable: '应付账款 (AP)',
+    accountsReceivable: '应收账款 (AR)',
+    generalLedger: '总账',
+    costTracking: '成本追踪',
+    budgets: '预算',
+    // 集成
     googleDrive: 'Google 云端硬盘',
+    // 系统
+    terminal: '终端',
     settings: '设置',
-    
+    // 分组标题
+    sourceFiles: '源文件',
+    itemsSection: '物料',
+    changeControl: '变更控制',
+    supplyChain: '供应链',
+    suppliers: '供应商',
+    purchasing: '采购',
+    logistics: '物流',
+    production: '生产',
+    quality: '质量',
+    integrations: '集成',
+    // 侧边栏控制
     sidebarControl: '侧边栏控制',
     expanded: '展开',
     collapsed: '折叠',

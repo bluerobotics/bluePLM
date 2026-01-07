@@ -180,6 +180,40 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- Revision scheme enum (used by organizations.revision_scheme column)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'revision_scheme') THEN
+    CREATE TYPE revision_scheme AS ENUM ('letter', 'numeric');
+  END IF;
+END $$;
+
+-- ===========================================
+-- ORGANIZATION COLUMNS (managed by source-files module)
+-- ===========================================
+
+-- Migration: Add revision_scheme column to organizations
+DO $$ BEGIN 
+  ALTER TABLE organizations ADD COLUMN revision_scheme revision_scheme DEFAULT 'letter'; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
+END $$;
+
+-- Migration: Add serialization_settings column to organizations
+DO $$ BEGIN 
+  ALTER TABLE organizations ADD COLUMN serialization_settings JSONB DEFAULT '{
+    "enabled": true,
+    "prefix": "PN-",
+    "suffix": "",
+    "padding_digits": 5,
+    "letter_count": 0,
+    "current_counter": 0,
+    "use_letters_before_numbers": false,
+    "letter_prefix": "",
+    "keepout_zones": [],
+    "auto_apply_extensions": []
+  }'::jsonb; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
+END $$;
+
 -- ===========================================
 -- VAULTS
 -- ===========================================
@@ -191,6 +225,7 @@ CREATE TABLE IF NOT EXISTS vaults (
   slug TEXT NOT NULL,
   description TEXT,
   local_path TEXT,
+  storage_bucket TEXT,
   color TEXT DEFAULT '#6366f1',
   icon TEXT DEFAULT 'folder',
   is_default BOOLEAN DEFAULT false,
@@ -199,6 +234,12 @@ CREATE TABLE IF NOT EXISTS vaults (
   
   UNIQUE(org_id, slug)
 );
+
+-- Migration: Add storage_bucket column to existing vaults tables
+DO $$ BEGIN 
+  ALTER TABLE vaults ADD COLUMN storage_bucket TEXT; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_vaults_org_id ON vaults(org_id);
 
@@ -1063,8 +1104,10 @@ CREATE TABLE IF NOT EXISTS backup_config (
   provider TEXT NOT NULL DEFAULT 'backblaze_b2',
   bucket TEXT,
   region TEXT,
+  endpoint TEXT,
   access_key_encrypted TEXT,
   secret_key_encrypted TEXT,
+  restic_password_encrypted TEXT,
   schedule_enabled BOOLEAN DEFAULT false,
   schedule_cron TEXT DEFAULT '0 0 * * *',
   schedule_hour INT DEFAULT 0,
@@ -1837,6 +1880,245 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION get_user_vault_access(UUID) TO authenticated;
 
 -- ===========================================
+-- ATOMIC FILE OPERATIONS
+-- ===========================================
+
+-- Atomic checkout: prevents race conditions when two users try to checkout same file
+-- Returns JSONB with success status, error message, or file data
+CREATE OR REPLACE FUNCTION checkout_file(
+  p_file_id UUID,
+  p_user_id UUID,
+  p_machine_id TEXT DEFAULT NULL,
+  p_machine_name TEXT DEFAULT NULL,
+  p_lock_message TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_file RECORD;
+  v_checked_out_user RECORD;
+  v_result JSONB;
+  v_user_email TEXT;
+BEGIN
+  -- Lock the row and check status atomically
+  SELECT id, file_name, checked_out_by, org_id
+  INTO v_file
+  FROM files
+  WHERE id = p_file_id
+  FOR UPDATE;  -- Row-level lock prevents race conditions
+  
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'File not found');
+  END IF;
+  
+  -- Check if already checked out by someone else
+  IF v_file.checked_out_by IS NOT NULL AND v_file.checked_out_by != p_user_id THEN
+    -- Get the other user's info
+    SELECT email, full_name INTO v_checked_out_user
+    FROM users WHERE id = v_file.checked_out_by;
+    
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', format('File is already checked out by %s', 
+        COALESCE(v_checked_out_user.full_name, v_checked_out_user.email, 'another user'))
+    );
+  END IF;
+  
+  -- Perform the checkout
+  UPDATE files
+  SET 
+    checked_out_by = p_user_id,
+    checked_out_at = NOW(),
+    lock_message = p_lock_message,
+    checked_out_by_machine_id = p_machine_id,
+    checked_out_by_machine_name = p_machine_name,
+    updated_by = p_user_id,
+    updated_at = NOW()
+  WHERE id = p_file_id;
+  
+  -- Return success with file data
+  SELECT jsonb_build_object(
+    'success', true,
+    'file', row_to_json(f.*)
+  ) INTO v_result
+  FROM files f
+  WHERE f.id = p_file_id;
+  
+  -- Log activity
+  SELECT email INTO v_user_email FROM users WHERE id = p_user_id;
+  
+  INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
+  VALUES (
+    v_file.org_id, 
+    p_file_id, 
+    p_user_id, 
+    COALESCE(v_user_email, 'unknown'),
+    'checkout',
+    jsonb_build_object(
+      'message', p_lock_message,
+      'machine_id', p_machine_id,
+      'machine_name', p_machine_name
+    )
+  );
+  
+  RETURN v_result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION checkout_file(UUID, UUID, TEXT, TEXT, TEXT) TO authenticated;
+
+-- Atomic checkin: safely checks in a file with conditional version increment
+-- Only increments version when content, metadata, or version switch is detected
+-- Returns JSONB with success status, error message, or updated file data
+CREATE OR REPLACE FUNCTION checkin_file(
+  p_file_id UUID,
+  p_user_id UUID,
+  p_new_content_hash TEXT DEFAULT NULL,
+  p_new_file_size BIGINT DEFAULT NULL,
+  p_comment TEXT DEFAULT NULL,
+  -- Metadata fields (if any provided, triggers version increment)
+  p_part_number TEXT DEFAULT NULL,
+  p_description TEXT DEFAULT NULL,
+  p_revision TEXT DEFAULT NULL,
+  -- For version rollback detection
+  p_local_active_version INT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_file RECORD;
+  v_new_version INT;
+  v_content_changed BOOLEAN;
+  v_metadata_changed BOOLEAN;
+  v_version_switched BOOLEAN;
+  v_should_increment BOOLEAN;
+  v_max_version INT;
+  v_result JSONB;
+  v_user_email TEXT;
+BEGIN
+  -- Lock and verify ownership
+  SELECT * INTO v_file
+  FROM files
+  WHERE id = p_file_id
+  FOR UPDATE;
+  
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'File not found');
+  END IF;
+  
+  IF v_file.checked_out_by IS NULL OR v_file.checked_out_by != p_user_id THEN
+    RETURN jsonb_build_object('success', false, 'error', 'You do not have this file checked out');
+  END IF;
+  
+  -- Determine what changed
+  v_content_changed := (p_new_content_hash IS NOT NULL AND p_new_content_hash != COALESCE(v_file.content_hash, ''));
+  
+  v_metadata_changed := (
+    (p_part_number IS NOT NULL AND p_part_number IS DISTINCT FROM v_file.part_number) OR
+    (p_description IS NOT NULL AND p_description IS DISTINCT FROM v_file.description) OR
+    (p_revision IS NOT NULL AND p_revision IS DISTINCT FROM v_file.revision)
+  );
+  
+  -- Version switch detection (user rolled back to different version locally)
+  v_version_switched := (p_local_active_version IS NOT NULL AND p_local_active_version != v_file.version);
+  
+  v_should_increment := v_content_changed OR v_metadata_changed OR v_version_switched;
+  
+  -- Calculate new version only if needed
+  IF v_should_increment THEN
+    SELECT COALESCE(MAX(version), v_file.version) + 1 INTO v_new_version
+    FROM file_versions WHERE file_id = p_file_id;
+  ELSE
+    v_new_version := v_file.version;
+  END IF;
+  
+  -- Update file
+  UPDATE files SET
+    checked_out_by = NULL,
+    checked_out_at = NULL,
+    lock_message = NULL,
+    checked_out_by_machine_id = NULL,
+    checked_out_by_machine_name = NULL,
+    content_hash = COALESCE(p_new_content_hash, content_hash),
+    file_size = COALESCE(p_new_file_size, file_size),
+    part_number = COALESCE(p_part_number, part_number),
+    description = COALESCE(p_description, description),
+    revision = COALESCE(p_revision, revision),
+    version = v_new_version,
+    updated_by = p_user_id,
+    updated_at = NOW()
+  WHERE id = p_file_id;
+  
+  -- Create version record ONLY if version incremented
+  IF v_should_increment THEN
+    INSERT INTO file_versions (file_id, version, revision, content_hash, file_size, workflow_state_id, state, created_by, comment)
+    SELECT p_file_id, v_new_version, 
+           COALESCE(p_revision, v_file.revision),
+           COALESCE(p_new_content_hash, v_file.content_hash),
+           COALESCE(p_new_file_size, v_file.file_size),
+           v_file.workflow_state_id,
+           COALESCE(v_file.state, 'not_tracked'), 
+           p_user_id, 
+           p_comment;
+  END IF;
+  
+  -- Log activity
+  SELECT email INTO v_user_email FROM users WHERE id = p_user_id;
+  
+  INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
+  VALUES (
+    v_file.org_id, 
+    p_file_id, 
+    p_user_id, 
+    COALESCE(v_user_email, 'unknown'),
+    'checkin',
+    jsonb_build_object(
+      'content_changed', v_content_changed,
+      'metadata_changed', v_metadata_changed,
+      'version_incremented', v_should_increment,
+      'old_version', v_file.version,
+      'new_version', v_new_version,
+      'comment', p_comment
+    )
+  );
+  
+  -- Log revision change separately if revision changed
+  IF p_revision IS NOT NULL AND p_revision IS DISTINCT FROM v_file.revision THEN
+    INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
+    VALUES (
+      v_file.org_id, 
+      p_file_id, 
+      p_user_id, 
+      COALESCE(v_user_email, 'unknown'),
+      'revision_change',
+      jsonb_build_object('from', v_file.revision, 'to', p_revision)
+    );
+  END IF;
+  
+  -- Return result
+  SELECT jsonb_build_object(
+    'success', true, 
+    'file', row_to_json(f.*), 
+    'new_version', v_new_version,
+    'content_changed', v_content_changed,
+    'metadata_changed', v_metadata_changed,
+    'version_incremented', v_should_increment
+  )
+  INTO v_result
+  FROM files f WHERE f.id = p_file_id;
+  
+  RETURN v_result;
+END;
+$$;
+
+-- Grant for new signature with additional parameters
+GRANT EXECUTE ON FUNCTION checkin_file(UUID, UUID, TEXT, BIGINT, TEXT, TEXT, TEXT, TEXT, INT) TO authenticated;
+
+-- ===========================================
 -- REALTIME
 -- ===========================================
 
@@ -1870,6 +2152,80 @@ BEGIN
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE backup_config; EXCEPTION WHEN duplicate_object THEN NULL; END;
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE backup_machines; EXCEPTION WHEN duplicate_object THEN NULL; END;
 END $$;
+
+-- ===========================================
+-- SERIAL NUMBER FUNCTIONS
+-- ===========================================
+
+-- Preview next serial number (returns what the next auto-generated serial will look like)
+-- Used by the SerializationSettings component to show a server-side preview
+CREATE OR REPLACE FUNCTION preview_next_serial_number(p_org_id UUID)
+RETURNS TEXT AS $$
+DECLARE
+  settings JSONB;
+  next_counter INTEGER;
+  keepout_zones JSONB;
+  zone JSONB;
+  zone_start INTEGER;
+  zone_end INTEGER;
+  result TEXT;
+  prefix TEXT;
+  suffix TEXT;
+  letter_prefix TEXT;
+  padding_digits INTEGER;
+  tab_enabled BOOLEAN;
+  tab_separator TEXT;
+  tab_padding_digits INTEGER;
+BEGIN
+  -- Get serialization settings for the organization
+  SELECT serialization_settings INTO settings
+  FROM organizations WHERE id = p_org_id;
+  
+  -- Return null if no settings or serialization is disabled
+  IF settings IS NULL OR NOT COALESCE((settings->>'enabled')::boolean, false) THEN
+    RETURN NULL;
+  END IF;
+  
+  -- Extract settings
+  prefix := COALESCE(settings->>'prefix', '');
+  suffix := COALESCE(settings->>'suffix', '');
+  letter_prefix := COALESCE(settings->>'letter_prefix', '');
+  padding_digits := COALESCE((settings->>'padding_digits')::integer, 5);
+  tab_enabled := COALESCE((settings->>'tab_enabled')::boolean, false);
+  tab_separator := COALESCE(settings->>'tab_separator', '-');
+  tab_padding_digits := COALESCE((settings->>'tab_padding_digits')::integer, 3);
+  
+  -- Calculate next counter (current + 1)
+  next_counter := COALESCE((settings->>'current_counter')::integer, 0) + 1;
+  
+  -- Skip keepout zones
+  keepout_zones := COALESCE(settings->'keepout_zones', '[]'::jsonb);
+  FOR zone IN SELECT * FROM jsonb_array_elements(keepout_zones)
+  LOOP
+    zone_start := (zone->>'start')::integer;
+    zone_end := COALESCE((zone->>'end_num')::integer, (zone->>'end')::integer);
+    
+    IF next_counter >= zone_start AND next_counter <= zone_end THEN
+      next_counter := zone_end + 1;
+    END IF;
+  END LOOP;
+  
+  -- Build the serial number
+  result := prefix || letter_prefix || LPAD(next_counter::text, padding_digits, '0');
+  
+  -- Add tab number example if enabled
+  IF tab_enabled THEN
+    result := result || tab_separator || LPAD('1', tab_padding_digits, '0');
+  END IF;
+  
+  -- Add suffix
+  result := result || suffix;
+  
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION preview_next_serial_number(UUID) TO authenticated;
 
 -- ===========================================
 -- END OF SOURCE FILES MODULE

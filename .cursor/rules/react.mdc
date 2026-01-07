@@ -3,12 +3,14 @@ description: React component architecture and patterns
 globs:
   - src/components/**/*.tsx
   - src/features/**/*.tsx
-  - src/App.tsx
+  - src/app/**/*.tsx
 ---
 
 # React Architecture
 
 ## State Management (Zustand-First)
+
+> **See `zustand.mdc` for complete Zustand patterns and slice creation.**
 
 | Scope | Tool | Example |
 |-------|------|---------|
@@ -19,12 +21,17 @@ globs:
 **Prop Drilling: Max 2 levels. Beyond that → Zustand selector.**
 
 ```typescript
-// GOOD: grab what you need from store
-const files = usePDMStore(state => state.files);
+// ✅ GOOD: grab what you need from store
+const files = usePDMStore(state => state.files)
 
-// BAD: passing props through 3+ components
+// ❌ BAD: passing props through 3+ components
 <Parent files={files}> → <Child files={files}> → <GrandChild files={files}>
+
+// ❌ NEVER select entire store
+const store = usePDMStore()  // Re-renders on ANY state change
 ```
+
+**Adding state? → Create a slice**, not a new store. See `zustand.mdc`.
 
 ## Component Rules
 

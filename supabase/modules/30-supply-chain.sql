@@ -3,6 +3,9 @@
 -- =====================================================================
 -- 
 -- This module contains:
+--   - address_type enum (billing, shipping)
+--   - Organization Addresses (billing/shipping for RFQs)
+--   - organizations.rfq_settings column migration
 --   - Suppliers (vendor companies)
 --   - Supplier Contacts (portal users)
 --   - Supplier Invitations
@@ -34,6 +37,134 @@ END $$;
 DO $$ BEGIN
   CREATE TYPE supplier_auth_method AS ENUM ('email', 'phone', 'wechat');
 EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'address_type') THEN
+    CREATE TYPE address_type AS ENUM ('billing', 'shipping');
+  END IF;
+END $$;
+
+-- ===========================================
+-- ORGANIZATION ADDRESSES
+-- ===========================================
+-- Billing and shipping addresses for organizations (used by RFQs)
+
+CREATE TABLE IF NOT EXISTS organization_addresses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  address_type address_type NOT NULL,
+  label TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT FALSE,
+  company_name TEXT,
+  contact_name TEXT,
+  address_line1 TEXT NOT NULL,
+  address_line2 TEXT,
+  city TEXT NOT NULL,
+  state TEXT,
+  postal_code TEXT,
+  country TEXT DEFAULT 'USA',
+  attention_to TEXT,
+  phone TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  CONSTRAINT no_attn_for_billing CHECK (
+    address_type != 'billing' OR attention_to IS NULL
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_addresses_org_id ON organization_addresses(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_addresses_type ON organization_addresses(org_id, address_type);
+
+-- Trigger to update updated_at
+CREATE OR REPLACE FUNCTION update_org_address_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS org_address_updated ON organization_addresses;
+CREATE TRIGGER org_address_updated
+  BEFORE UPDATE ON organization_addresses
+  FOR EACH ROW
+  EXECUTE FUNCTION update_org_address_timestamp();
+
+-- Function to ensure only one default per type per org
+CREATE OR REPLACE FUNCTION ensure_single_default_address()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.is_default = TRUE THEN
+    UPDATE organization_addresses
+    SET is_default = FALSE
+    WHERE org_id = NEW.org_id 
+      AND address_type = NEW.address_type 
+      AND id != NEW.id
+      AND is_default = TRUE;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS ensure_single_default ON organization_addresses;
+CREATE TRIGGER ensure_single_default
+  BEFORE INSERT OR UPDATE ON organization_addresses
+  FOR EACH ROW
+  EXECUTE FUNCTION ensure_single_default_address();
+
+-- RLS for organization_addresses
+ALTER TABLE organization_addresses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view org addresses" ON organization_addresses;
+CREATE POLICY "Users can view org addresses"
+  ON organization_addresses FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+DROP POLICY IF EXISTS "Admins can insert addresses" ON organization_addresses;
+CREATE POLICY "Admins can insert addresses"
+  ON organization_addresses FOR INSERT
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND org_id = organization_addresses.org_id)
+    AND is_org_admin()
+  );
+
+DROP POLICY IF EXISTS "Admins can update addresses" ON organization_addresses;
+CREATE POLICY "Admins can update addresses"
+  ON organization_addresses FOR UPDATE
+  USING (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND org_id = organization_addresses.org_id)
+    AND is_org_admin()
+  );
+
+DROP POLICY IF EXISTS "Admins can delete addresses" ON organization_addresses;
+CREATE POLICY "Admins can delete addresses"
+  ON organization_addresses FOR DELETE
+  USING (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND org_id = organization_addresses.org_id)
+    AND is_org_admin()
+  );
+
+-- ===========================================
+-- RFQ SETTINGS MIGRATION
+-- ===========================================
+-- Add rfq_settings column to organizations (managed by supply-chain module)
+
+DO $$ BEGIN 
+  ALTER TABLE organizations ADD COLUMN rfq_settings JSONB DEFAULT '{
+    "default_payment_terms": "Net 30",
+    "default_incoterms": "FOB",
+    "default_valid_days": 30,
+    "show_company_logo": true,
+    "show_revision_column": true,
+    "show_material_column": true,
+    "show_finish_column": true,
+    "show_notes_column": true,
+    "terms_and_conditions": "",
+    "footer_text": ""
+  }'::jsonb; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
 END $$;
 
 -- ===========================================
@@ -707,6 +838,7 @@ END $$;
 -- COMMENTS
 -- ===========================================
 
+COMMENT ON TABLE organization_addresses IS 'Billing and shipping addresses for organizations';
 COMMENT ON TABLE suppliers IS 'Vendor/supplier companies';
 COMMENT ON TABLE supplier_contacts IS 'Portal users who work at supplier companies';
 COMMENT ON TABLE supplier_invitations IS 'Invitations sent to suppliers to join the portal';

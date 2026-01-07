@@ -299,7 +299,6 @@ export class ProgressTracker {
   private completed: number = 0
   private startTime: number
   private lastUpdateTime: number = 0
-  private lastUpdatePercent: number = 0
   
   constructor(
     ctx: CommandContext,
@@ -316,6 +315,9 @@ export class ProgressTracker {
     
     ctx.addProgressToast(toastId, message, total)
     
+    // Set initial label so UI shows "0/X" immediately
+    ctx.updateProgressToast(toastId, 0, 0, undefined, `0/${total}`)
+    
     // Register this operation for tracking/cancellation
     registerActiveOperation(this.operationId, commandId, toastId, message)
   }
@@ -324,7 +326,6 @@ export class ProgressTracker {
    * Update progress (call after each item completes)
    * Throttled to avoid excessive store updates - only updates if:
    * - 100ms has passed since last update, OR
-   * - Progress has changed by at least 5%, OR
    * - This is the last item
    */
   update(): void {
@@ -334,16 +335,15 @@ export class ProgressTracker {
     const percent = Math.round((this.completed / this.total) * 100)
     const now = Date.now()
     const timeSinceLastUpdate = now - this.lastUpdateTime
-    const percentChange = percent - this.lastUpdatePercent
     const isComplete = this.completed >= this.total
     
-    // Throttle updates: only update if enough time passed, significant progress, or complete
-    if (timeSinceLastUpdate < 100 && percentChange < 5 && !isComplete) {
+    // Throttle updates: only update if enough time passed or complete
+    // 100ms = 10 updates/second max, which is smooth enough for UI
+    if (timeSinceLastUpdate < 100 && !isComplete) {
       return
     }
     
     this.lastUpdateTime = now
-    this.lastUpdatePercent = percent
     
     // Build label - simple file count format
     const label = `${this.completed}/${this.total}`

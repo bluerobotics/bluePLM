@@ -2,11 +2,13 @@
  * useJobTitles - Hook for managing job titles
  * 
  * Provides state and CRUD operations for job titles including:
- * - Loading job titles
+ * - Loading job titles from Supabase into Zustand store
  * - Creating, updating, and deleting job titles
  * - Assigning job titles to users
+ * 
+ * State is managed in the organizationMetadataSlice of the PDM store.
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { JobTitle, OrgUser } from '../types'
@@ -18,13 +20,30 @@ import {
 } from './supabaseHelpers'
 
 export function useJobTitles(orgId: string | null) {
-  const { user, addToast } = usePDMStore()
-  const [jobTitles, setJobTitles] = useState<JobTitle[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  // Get state and actions from store
+  const user = usePDMStore(s => s.user)
+  const addToast = usePDMStore(s => s.addToast)
+  
+  // Job titles state from store
+  const jobTitles = usePDMStore(s => s.jobTitles)
+  const isLoading = usePDMStore(s => s.jobTitlesLoading)
+  const jobTitlesLoaded = usePDMStore(s => s.jobTitlesLoaded)
+  
+  // Job titles actions from store
+  const setJobTitles = usePDMStore(s => s.setJobTitles)
+  const setJobTitlesLoading = usePDMStore(s => s.setJobTitlesLoading)
+  const addJobTitleToStore = usePDMStore(s => s.addJobTitle)
+  const updateJobTitleInStore = usePDMStore(s => s.updateJobTitleInStore)
+  const removeJobTitleFromStore = usePDMStore(s => s.removeJobTitle)
+  
+  // Member state and actions for live updates
+  const members = usePDMStore(s => s.members)
+  const updateMember = usePDMStore(s => s.updateMember)
 
   const loadJobTitles = useCallback(async () => {
     if (!orgId) return
     
+    setJobTitlesLoading(true)
     try {
       const { data, error } = await supabase
         .from('job_titles')
@@ -36,8 +55,9 @@ export function useJobTitles(orgId: string | null) {
       setJobTitles(castQueryResult<JobTitle[]>(data || []))
     } catch (err) {
       console.error('Failed to load job titles:', err)
+      setJobTitlesLoading(false)
     }
-  }, [orgId])
+  }, [orgId, setJobTitles, setJobTitlesLoading])
 
   const createJobTitle = useCallback(async (
     name: string,
@@ -59,6 +79,16 @@ export function useJobTitles(orgId: string | null) {
       
       if (error) throw error
       
+      // Add to store optimistically
+      if (data) {
+        addJobTitleToStore({
+          id: data.id,
+          name: data.name,
+          color: data.color,
+          icon: data.icon
+        })
+      }
+      
       // If we have a user to assign, assign the title to them
       if (assignToUserId && data) {
         await upsertUserJobTitle({
@@ -67,12 +97,16 @@ export function useJobTitles(orgId: string | null) {
           assigned_by: user.id
         })
         
+        // Update member in store for live UI update
+        updateMember(assignToUserId, { 
+          job_title: { id: data.id, name: data.name, color: data.color, icon: data.icon } 
+        })
+        
         addToast('success', `Created and assigned "${name}"`)
       } else {
         addToast('success', `Created job title "${name}"`)
       }
       
-      await loadJobTitles()
       return true
     } catch (err) {
       const pgError = err as { code?: string }
@@ -83,7 +117,7 @@ export function useJobTitles(orgId: string | null) {
       }
       return false
     }
-  }, [orgId, user, addToast, loadJobTitles])
+  }, [orgId, user, addToast, addJobTitleToStore, updateMember])
 
   const updateJobTitle = useCallback(async (
     titleId: string,
@@ -102,8 +136,18 @@ export function useJobTitles(orgId: string | null) {
       
       if (error) throw error
       
+      // Update in job titles store
+      updateJobTitleInStore(titleId, { name: name.trim(), color, icon })
+      
+      // Update all members who have this title for live UI updates
+      const updatedTitle = { id: titleId, name: name.trim(), color, icon }
+      members.forEach(member => {
+        if (member.job_title?.id === titleId) {
+          updateMember(member.id, { job_title: updatedTitle })
+        }
+      })
+      
       addToast('success', `Updated "${name}"`)
-      await loadJobTitles()
       return true
     } catch (err) {
       const pgError = err as { code?: string }
@@ -114,7 +158,7 @@ export function useJobTitles(orgId: string | null) {
       }
       return false
     }
-  }, [addToast, loadJobTitles])
+  }, [addToast, updateJobTitleInStore, members, updateMember])
 
   const deleteJobTitle = useCallback(async (titleId: string): Promise<boolean> => {
     const title = jobTitles.find(t => t.id === titleId)
@@ -128,14 +172,23 @@ export function useJobTitles(orgId: string | null) {
       
       if (error) throw error
       
+      // Remove from job titles store
+      removeJobTitleFromStore(titleId)
+      
+      // Clear job_title from all members who had this title for live UI updates
+      members.forEach(member => {
+        if (member.job_title?.id === titleId) {
+          updateMember(member.id, { job_title: null })
+        }
+      })
+      
       addToast('success', `Deleted "${title.name}"`)
-      await loadJobTitles()
       return true
     } catch {
       addToast('error', 'Failed to delete job title')
       return false
     }
-  }, [jobTitles, addToast, loadJobTitles])
+  }, [jobTitles, addToast, removeJobTitleFromStore, members, updateMember])
 
   const assignJobTitle = useCallback(async (
     targetUser: OrgUser,
@@ -152,7 +205,14 @@ export function useJobTitles(orgId: string | null) {
         
         if (error) throw error
         
-        const titleName = jobTitles.find(t => t.id === titleId)?.name || 'title'
+        const title = jobTitles.find(t => t.id === titleId)
+        const titleName = title?.name || 'title'
+        
+        // Update member in store for live UI update
+        updateMember(targetUser.id, { 
+          job_title: title ? { id: title.id, name: title.name, color: title.color, icon: title.icon } : null 
+        })
+        
         addToast('success', `Set ${targetUser.full_name || targetUser.email}'s title to ${titleName}`)
       } else {
         // Remove title
@@ -162,6 +222,10 @@ export function useJobTitles(orgId: string | null) {
           .eq('user_id', targetUser.id)
         
         if (error) throw error
+        
+        // Update member in store for live UI update
+        updateMember(targetUser.id, { job_title: null })
+        
         addToast('success', `Removed ${targetUser.full_name || targetUser.email}'s job title`)
       }
       
@@ -170,13 +234,14 @@ export function useJobTitles(orgId: string | null) {
       addToast('error', 'Failed to change job title')
       return false
     }
-  }, [user, jobTitles, addToast])
+  }, [user, jobTitles, addToast, updateMember])
 
+  // Load job titles on mount if not already loaded
   useEffect(() => {
-    if (orgId) {
-      loadJobTitles().finally(() => setIsLoading(false))
+    if (orgId && !jobTitlesLoaded && !isLoading) {
+      loadJobTitles()
     }
-  }, [orgId, loadJobTitles])
+  }, [orgId, jobTitlesLoaded, isLoading, loadJobTitles])
 
   return {
     jobTitles,

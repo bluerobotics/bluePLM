@@ -245,8 +245,7 @@ export function NotificationsView() {
     user, 
     organization, 
     addToast, 
-    unreadNotificationCount, 
-    setUnreadNotificationCount,
+    unreadNotificationCount,
     setPendingReviewCount,
     vaultPath,
     connectedVaults,
@@ -254,12 +253,25 @@ export function NotificationsView() {
     setActiveView,
     setCurrentFolder,
     setSelectedFiles,
-    files
+    files,
+    // Notifications from store
+    notifications,
+    notificationsLoading,
+    notificationsLoaded,
+    setNotifications,
+    setNotificationsLoading,
+    markNotificationRead: storeMarkNotificationRead,
+    markAllRead: storeMarkAllRead,
+    removeNotification: storeRemoveNotification,
+    clearNotifications: storeClearNotifications,
+    // Members from organizationDataSlice (for recipient selection)
+    members,
+    membersLoaded,
+    setMembers,
+    setMembersLoading,
   } = usePDMStore()
   
-  // State
-  const [notifications, setNotifications] = useState<NotificationWithDetails[]>([])
-  const [loading, setLoading] = useState(true)
+  // State - UI filters (kept as local state)
   const [selectedCategory, setSelectedCategory] = useState<NotificationCategory | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -271,7 +283,6 @@ export function NotificationsView() {
   
   // Create notification dialog state
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [orgUsers, setOrgUsers] = useState<{ id: string; email: string; full_name: string | null; avatar_url: string | null }[]>([])
   const [newNotification, setNewNotification] = useState({
     recipients: [] as string[],
     category: 'system' as NotificationCategory,
@@ -304,39 +315,43 @@ export function NotificationsView() {
     }
   }, [files, setActiveView, setCurrentFolder, setSelectedFiles, addToast])
   
-  // Load organization users for recipient selection
-  const loadOrgUsers = useCallback(async () => {
-    if (!organization?.id) return
+  // Load members for recipient selection when dialog opens
+  const loadMembersForDialog = useCallback(async () => {
+    if (!organization?.id || membersLoaded) return
     
+    setMembersLoading(true)
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, email, full_name, avatar_url')
+        .select('id, email, full_name, avatar_url, custom_avatar_url, role, last_sign_in, last_online')
         .eq('org_id', organization.id)
         .order('full_name')
       
       if (!error && data) {
-        setOrgUsers(data)
+        // Map to OrgUser format with minimal fields (teams/job_title not needed for notification recipient selection)
+        setMembers(data.map(u => ({
+          ...u,
+          teams: [],
+          job_title: null
+        })))
       }
     } catch (err) {
-      console.error('Error loading org users:', err)
+      console.error('Error loading org members:', err)
+    } finally {
+      setMembersLoading(false)
     }
-  }, [organization?.id])
+  }, [organization?.id, membersLoaded, setMembers, setMembersLoading])
   
   // Load data
   const loadData = useCallback(async () => {
     if (!user?.id || !organization?.id) return
     
-    setLoading(true)
+    setNotificationsLoading(true)
     
     try {
       // Load all notifications
       const { notifications: data } = await getNotifications(user.id, { limit: 100 })
-      setNotifications(data)
-      
-      // Update unread count
-      const unreadCount = data.filter(n => !n.read).length
-      setUnreadNotificationCount(unreadCount)
+      setNotifications(data)  // This also updates unreadNotificationCount
       
       // Load pending reviews for count
       const { reviews } = await getPendingReviewsForUser(user.id, organization.id)
@@ -344,14 +359,23 @@ export function NotificationsView() {
     } catch (err) {
       console.error('Error loading notifications:', err)
     } finally {
-      setLoading(false)
+      setNotificationsLoading(false)
     }
-  }, [user?.id, organization?.id, setUnreadNotificationCount, setPendingReviewCount])
+  }, [user?.id, organization?.id, setNotifications, setNotificationsLoading, setPendingReviewCount])
   
   useEffect(() => {
-    loadData()
-    loadOrgUsers()
-  }, [loadData, loadOrgUsers])
+    // Only load if notifications haven't been loaded yet (preserves data across navigation)
+    if (!notificationsLoaded) {
+      loadData()
+    }
+  }, [loadData, notificationsLoaded])
+  
+  // Load members when create dialog opens (if not already loaded)
+  useEffect(() => {
+    if (showCreateDialog && !membersLoaded) {
+      loadMembersForDialog()
+    }
+  }, [showCreateDialog, membersLoaded, loadMembersForDialog])
   
   // Send custom notification
   const handleSendNotification = async () => {
@@ -415,19 +439,19 @@ export function NotificationsView() {
   const selectAllUsers = () => {
     setNewNotification(prev => ({
       ...prev,
-      recipients: orgUsers.map(u => u.id)
+      recipients: members.map(u => u.id)
     }))
   }
   
-  // Filter users for recipient search
-  const filteredOrgUsers = useMemo(() => {
-    if (!recipientSearch) return orgUsers
+  // Filter members for recipient search
+  const filteredMembers = useMemo(() => {
+    if (!recipientSearch) return members
     const query = recipientSearch.toLowerCase()
-    return orgUsers.filter(u =>
+    return members.filter(u =>
       u.full_name?.toLowerCase().includes(query) ||
       u.email.toLowerCase().includes(query)
     )
-  }, [orgUsers, recipientSearch])
+  }, [members, recipientSearch])
   
   // Filter notifications
   const filteredNotifications = useMemo(() => {
@@ -479,10 +503,7 @@ export function NotificationsView() {
   const handleMarkRead = async (notificationId: string) => {
     const { success } = await markNotificationsRead([notificationId])
     if (success) {
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, read: true, read_at: new Date().toISOString() } : n)
-      )
-      setUnreadNotificationCount(Math.max(0, unreadNotificationCount - 1))
+      storeMarkNotificationRead(notificationId)
     }
   }
   
@@ -492,8 +513,7 @@ export function NotificationsView() {
     
     const { success, updated } = await markAllNotificationsRead(user.id)
     if (success) {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true, read_at: new Date().toISOString() })))
-      setUnreadNotificationCount(0)
+      storeMarkAllRead()  // Store action (different from supabase helper markAllNotificationsRead)
       if (updated > 0) {
         addToast('success', `Marked ${updated} notifications as read`)
       }
@@ -502,13 +522,9 @@ export function NotificationsView() {
   
   // Handle deleting a notification
   const handleDeleteNotification = async (notificationId: string) => {
-    const notification = notifications.find(n => n.id === notificationId)
     const { success } = await deleteNotification(notificationId)
     if (success) {
-      setNotifications(prev => prev.filter(n => n.id !== notificationId))
-      if (notification && !notification.read) {
-        setUnreadNotificationCount(Math.max(0, unreadNotificationCount - 1))
-      }
+      storeRemoveNotification(notificationId)  // Store action handles unread count
     }
   }
   
@@ -518,8 +534,7 @@ export function NotificationsView() {
     
     const { success, deleted } = await clearAllNotifications(user.id)
     if (success) {
-      setNotifications([])
-      setUnreadNotificationCount(0)
+      storeClearNotifications()  // Store action clears notifications and resets unread count
       addToast('success', `Cleared ${deleted} notifications`)
     }
   }
@@ -648,10 +663,10 @@ export function NotificationsView() {
           </button>
           <button
             onClick={loadData}
-            disabled={loading}
+            disabled={notificationsLoading}
             className="h-9 w-9 flex items-center justify-center rounded-lg bg-plm-bg-lighter border border-plm-border text-plm-fg-muted hover:text-plm-fg transition-colors"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={notificationsLoading ? 'animate-spin' : ''} />
           </button>
         </div>
         
@@ -767,7 +782,7 @@ export function NotificationsView() {
       
       {/* Notifications List */}
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {notificationsLoading ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 size={24} className="animate-spin text-plm-accent" />
           </div>
@@ -1021,10 +1036,10 @@ export function NotificationsView() {
                   />
                 </div>
                 <div className="max-h-64 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg">
-                  {filteredOrgUsers.length === 0 ? (
+                  {filteredMembers.length === 0 ? (
                     <div className="p-3 text-center text-sm text-plm-fg-muted">No users found</div>
                   ) : (
-                    filteredOrgUsers.map(u => {
+                    filteredMembers.map(u => {
                       const isSelected = newNotification.recipients.includes(u.id)
                       const isSelf = u.id === user?.id
                       return (

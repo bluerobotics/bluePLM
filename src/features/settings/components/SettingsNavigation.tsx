@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { getBackupStatus } from '@/lib/backup'
 import type { SettingsTab } from '@/types/settings'
 import { logSettings } from '@/lib/userActionLogger'
 
 type IntegrationStatus = 'online' | 'partial' | 'offline' | 'not-configured' | 'coming-soon'
+type BackupStatusType = 'online' | 'partial' | 'offline' | 'not-configured'
 
 interface SettingsNavigationProps {
   activeTab: SettingsTab
@@ -68,14 +70,8 @@ const settingsSections: SettingsSection[] = [
 
 const integrationIds = ['supabase', 'solidworks', 'google-drive', 'odoo', 'slack', 'woocommerce', 'webhooks', 'api'] as const
 
-const API_URL_KEY = 'blueplm_api_url'
-const DEFAULT_API_URL = 'http://localhost:3001'
-
-function getApiUrl(organization: { settings?: { api_url?: string } } | null): string {
-  return organization?.settings?.api_url 
-    || localStorage.getItem(API_URL_KEY) 
-    || import.meta.env.VITE_API_URL 
-    || DEFAULT_API_URL
+function getApiUrl(organization: { settings?: { api_url?: string } } | null): string | null {
+  return organization?.settings?.api_url || null
 }
 
 function StatusDot({ status }: { status: IntegrationStatus }) {
@@ -103,7 +99,31 @@ function StatusDot({ status }: { status: IntegrationStatus }) {
   )
 }
 
+function BackupStatusDot({ status }: { status: BackupStatusType }) {
+  const colors: Record<BackupStatusType, string> = {
+    'online': 'bg-plm-success',
+    'partial': 'bg-yellow-500',
+    'offline': 'bg-plm-error',
+    'not-configured': 'bg-plm-fg-muted/40',
+  }
+  
+  const titles: Record<BackupStatusType, string> = {
+    'online': 'Backups working',
+    'partial': 'Not configured',
+    'offline': 'Backup failed',
+    'not-configured': 'Not configured',
+  }
+  
+  return (
+    <span 
+      className={`w-2.5 h-2.5 rounded-full ${colors[status]} flex-shrink-0`}
+      title={titles[status]}
+    />
+  )
+}
+
 export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigationProps) {
+  // Subscribe to store for re-renders when these change (used in useEffect deps)
   const { organization, solidworksPath, solidworksIntegrationEnabled } = usePDMStore()
   const [statuses, setStatuses] = useState<Record<string, IntegrationStatus>>({
     'supabase': 'not-configured',
@@ -115,32 +135,54 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
     'webhooks': 'coming-soon',
     'api': 'not-configured',
   })
+  const [backupStatus, setBackupStatus] = useState<BackupStatusType>('not-configured')
+  
+  // Refs to track the latest check ID and prevent stale async results from overwriting newer ones
+  const integrationCheckIdRef = useRef(0)
+  const backupCheckIdRef = useRef(0)
   
   useEffect(() => {
     checkIntegrationStatuses()
+    checkBackupStatus()
     // Poll for status changes every 5 seconds (for SolidWorks service, etc.)
-    const interval = setInterval(checkIntegrationStatuses, 5000)
+    const interval = setInterval(() => {
+      checkIntegrationStatuses()
+      checkBackupStatus()
+    }, 5000)
     return () => clearInterval(interval)
-  }, [organization?.id, solidworksPath])
+  }, [organization?.id, solidworksPath, solidworksIntegrationEnabled])
   
   const checkIntegrationStatuses = async () => {
-    const newStatuses = { ...statuses }
-    const apiUrl = getApiUrl(organization)
+    // Increment check ID to track this specific check
+    const checkId = ++integrationCheckIdRef.current
+    
+    // Get fresh state directly from store to avoid stale closure issues
+    const currentState = usePDMStore.getState()
+    const currentOrg = currentState.organization
+    const currentSolidworksIntegrationEnabled = currentState.solidworksIntegrationEnabled
+    const currentSolidworksPath = currentState.solidworksPath
+    
+    const apiUrl = getApiUrl(currentOrg)
+    
+    // Use local variables to avoid stale closure issues
+    let supabaseStatus: IntegrationStatus = 'not-configured'
+    let solidworksStatus: IntegrationStatus = 'not-configured'
+    let googleDriveStatus: IntegrationStatus = 'not-configured'
+    let apiStatus: IntegrationStatus = 'not-configured'
+    let odooStatus: IntegrationStatus = 'not-configured'
     
     // Supabase - check if configured and connected
     if (isSupabaseConfigured()) {
       try {
         const { error } = await supabase.from('organizations').select('id').limit(1)
         if (error && (error.message.includes('Invalid API key') || error.code === 'PGRST301')) {
-          newStatuses['supabase'] = 'offline'
+          supabaseStatus = 'offline'
         } else {
-          newStatuses['supabase'] = 'online'
+          supabaseStatus = 'online'
         }
       } catch {
-        newStatuses['supabase'] = 'offline'
+        supabaseStatus = 'offline'
       }
-    } else {
-      newStatuses['supabase'] = 'not-configured'
     }
     
     // SolidWorks - check service status with tri-state logic:
@@ -148,9 +190,9 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
     // Yellow: SW API is down (no SW installed), but DM API is up
     // Red: DM API is down
     // Gray (not-configured): Integration is disabled
-    if (!solidworksIntegrationEnabled) {
+    if (!currentSolidworksIntegrationEnabled) {
       // Integration disabled - show as not configured (gray dot, no red warning)
-      newStatuses['solidworks'] = 'not-configured'
+      solidworksStatus = 'not-configured'
     } else {
       try {
         const swResult = await window.electronAPI?.solidworks?.getServiceStatus()
@@ -162,40 +204,40 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
           if (dmApiAvailable) {
             if (swInstalled) {
               // Both APIs up → Green
-              newStatuses['solidworks'] = 'online'
+              solidworksStatus = 'online'
             } else {
               // SW not installed but DM API up → Yellow
-              newStatuses['solidworks'] = 'partial'
+              solidworksStatus = 'partial'
             }
           } else {
             // DM API is down → Red
-            newStatuses['solidworks'] = 'offline'
+            solidworksStatus = 'offline'
           }
-        } else if (solidworksPath || organization?.settings?.solidworks_dm_license_key) {
+        } else if (currentSolidworksPath || currentOrg?.settings?.solidworks_dm_license_key) {
           // Service not running but configured
-          newStatuses['solidworks'] = 'offline'
+          solidworksStatus = 'offline'
         } else {
-          newStatuses['solidworks'] = 'not-configured'
+          solidworksStatus = 'not-configured'
         }
       } catch {
-        newStatuses['solidworks'] = (solidworksPath || organization?.settings?.solidworks_dm_license_key) ? 'offline' : 'not-configured'
+        solidworksStatus = (currentSolidworksPath || currentOrg?.settings?.solidworks_dm_license_key) ? 'offline' : 'not-configured'
       }
     }
     
     // Google Drive - check org settings
-    if (organization?.id) {
+    if (currentOrg?.id) {
       try {
         const { data } = await (supabase.rpc as any)('get_google_drive_settings', {
-          p_org_id: organization.id
+          p_org_id: currentOrg.id
         })
         if (data && Array.isArray(data) && data.length > 0) {
           const settings = data[0] as { enabled?: boolean; client_id?: string }
           if (settings.enabled && settings.client_id) {
-            newStatuses['google-drive'] = 'online'
+            googleDriveStatus = 'online'
           } else if (settings.client_id) {
-            newStatuses['google-drive'] = 'offline'
+            googleDriveStatus = 'offline'
           } else {
-            newStatuses['google-drive'] = 'not-configured'
+            googleDriveStatus = 'not-configured'
           }
         }
       } catch {
@@ -203,86 +245,140 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
       }
     }
     
-    // API Server - check if online
-    try {
-      const response = await fetch(`${apiUrl}/health`, {
-        signal: AbortSignal.timeout(2000)
-      })
-      if (response.ok) {
-        newStatuses['api'] = 'online'
-        
-        // Odoo - check if connected (only if API is online AND we have a valid token)
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          const token = session?.access_token
+    // API Server - check if online (only if URL is configured)
+    if (!apiUrl) {
+      apiStatus = 'not-configured'
+      odooStatus = 'not-configured'
+    } else {
+      try {
+        const response = await fetch(`${apiUrl}/health`, {
+          signal: AbortSignal.timeout(2000)
+        })
+        if (response.ok) {
+          apiStatus = 'online'
           
-          if (token) {
-            const odooResponse = await fetch(`${apiUrl}/integrations/odoo`, {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              },
-              signal: AbortSignal.timeout(3000)
-            })
-            if (odooResponse.ok) {
-              const odooData = await odooResponse.json()
-              if (odooData.is_connected) {
-                newStatuses['odoo'] = 'online'
-              } else if (odooData.configured) {
-                // Main integration says configured but not connected - check saved configs
-                // for last_test_success which is what the UI shows
-                try {
-                  const configsResponse = await fetch(`${apiUrl}/integrations/odoo/configs`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    signal: AbortSignal.timeout(3000)
-                  })
-                  if (configsResponse.ok) {
-                    const configsData = await configsResponse.json()
-                    const hasSuccessfulConfig = configsData.configs?.some(
-                      (c: { last_test_success: boolean | null }) => c.last_test_success === true
-                    )
-                    newStatuses['odoo'] = hasSuccessfulConfig ? 'online' : 'offline'
-                  } else {
-                    newStatuses['odoo'] = 'offline'
+          // Odoo - check if connected (only if API is online AND we have a valid token)
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const token = session?.access_token
+            
+            if (token) {
+              const odooResponse = await fetch(`${apiUrl}/integrations/odoo`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                },
+                signal: AbortSignal.timeout(3000)
+              })
+              if (odooResponse.ok) {
+                const odooData = await odooResponse.json()
+                if (odooData.is_connected) {
+                  odooStatus = 'online'
+                } else if (odooData.configured) {
+                  // Main integration says configured but not connected - check saved configs
+                  // for last_test_success which is what the UI shows
+                  try {
+                    const configsResponse = await fetch(`${apiUrl}/integrations/odoo/configs`, {
+                      headers: { 'Authorization': `Bearer ${token}` },
+                      signal: AbortSignal.timeout(3000)
+                    })
+                    if (configsResponse.ok) {
+                      const configsData = await configsResponse.json()
+                      const hasSuccessfulConfig = configsData.configs?.some(
+                        (c: { last_test_success: boolean | null }) => c.last_test_success === true
+                      )
+                      odooStatus = hasSuccessfulConfig ? 'online' : 'offline'
+                    } else {
+                      odooStatus = 'offline'
+                    }
+                  } catch {
+                    odooStatus = 'offline'
                   }
-                } catch {
-                  newStatuses['odoo'] = 'offline'
+                } else {
+                  odooStatus = 'not-configured'
                 }
               } else {
-                newStatuses['odoo'] = 'not-configured'
+                // API returned error - could be 401/403
+                console.warn('[SettingsNav] Odoo status check failed:', odooResponse.status)
+                odooStatus = 'not-configured'
               }
             } else {
-              // API returned error - could be 401/403
-              console.warn('[SettingsNav] Odoo status check failed:', odooResponse.status)
-              newStatuses['odoo'] = 'not-configured'
+              // No token available - user not logged in
+              odooStatus = 'not-configured'
             }
-          } else {
-            // No token available - user not logged in
-            newStatuses['odoo'] = 'not-configured'
+          } catch (err) {
+            console.warn('[SettingsNav] Failed to check Odoo status:', err)
+            odooStatus = 'not-configured'
           }
-        } catch (err) {
-          console.warn('[SettingsNav] Failed to check Odoo status:', err)
-          newStatuses['odoo'] = 'not-configured'
+        } else {
+          apiStatus = 'offline'
+          odooStatus = 'offline'
         }
-      } else {
-        newStatuses['api'] = 'offline'
-        newStatuses['odoo'] = 'offline'
+      } catch {
+        apiStatus = 'offline'
+        odooStatus = 'offline'
       }
-    } catch {
-      newStatuses['api'] = 'offline'
-      newStatuses['odoo'] = 'offline'
     }
     
-    // Slack - not yet implemented in API
-    newStatuses['slack'] = 'coming-soon'
+    // Only update state if this is still the latest check (prevents race conditions)
+    if (checkId !== integrationCheckIdRef.current) {
+      return
+    }
     
-    // WooCommerce - API endpoint exists at /integrations/woocommerce
-    // Status is handled separately via WooCommerceSettings component
-    newStatuses['woocommerce'] = 'not-configured'
+    setStatuses({
+      'supabase': supabaseStatus,
+      'solidworks': solidworksStatus,
+      'google-drive': googleDriveStatus,
+      'odoo': odooStatus,
+      'slack': 'coming-soon',
+      'woocommerce': 'not-configured',
+      'webhooks': 'not-configured',
+      'api': apiStatus,
+    })
+  }
+  
+  const checkBackupStatus = async () => {
+    // Increment check ID to track this specific check
+    const checkId = ++backupCheckIdRef.current
     
-    // Webhooks - status handled via WebhooksSettings component
-    newStatuses['webhooks'] = 'not-configured'
+    // Get fresh state directly from store
+    const currentOrg = usePDMStore.getState().organization
     
-    setStatuses(newStatuses)
+    if (!currentOrg?.id) {
+      // Only update if this is still the latest check
+      if (checkId === backupCheckIdRef.current) {
+        setBackupStatus('not-configured')
+      }
+      return
+    }
+    
+    try {
+      const status = await getBackupStatus(currentOrg.id)
+      
+      // Only update if this is still the latest check
+      if (checkId !== backupCheckIdRef.current) {
+        return
+      }
+      
+      if (!status.isConfigured) {
+        // Yellow dot: backups not configured
+        setBackupStatus('partial')
+      } else if (status.error) {
+        // Red dot: backups configured but failed to load/connect
+        setBackupStatus('offline')
+      } else if (status.snapshots.length > 0) {
+        // Green dot: configured and has successful backups
+        setBackupStatus('online')
+      } else {
+        // Yellow dot: configured but no backups yet
+        setBackupStatus('partial')
+      }
+    } catch (err) {
+      console.warn('[SettingsNav] Failed to check backup status:', err)
+      // Only update if this is still the latest check
+      if (checkId === backupCheckIdRef.current) {
+        setBackupStatus('not-configured')
+      }
+    }
   }
   
   const isIntegration = (id: SettingsTab): boolean => {
@@ -324,6 +420,9 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
                       <span>{item.label}</span>
                       {isIntegration(item.id) && (
                         <StatusDot status={statuses[item.id] || 'not-configured'} />
+                      )}
+                      {item.id === 'backup' && (
+                        <BackupStatusDot status={backupStatus} />
                       )}
                     </button>
                   ))}

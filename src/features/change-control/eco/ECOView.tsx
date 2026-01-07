@@ -15,24 +15,12 @@ import {
   Loader2
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
+import type { ECO } from '@/stores/types'
 import { getSupabaseClient } from '@/lib/supabase'
 import { formatDistanceToNow } from 'date-fns'
 
 // ECO status types
 type ECOStatus = 'open' | 'in_progress' | 'completed' | 'cancelled'
-
-interface ECO {
-  id: string
-  eco_number: string
-  title: string | null
-  description: string | null
-  status: ECOStatus | null
-  created_at: string | null
-  created_by: string
-  file_count?: number
-  created_by_name?: string | null
-  created_by_email?: string
-}
 
 interface FileECO {
   id: string
@@ -83,11 +71,16 @@ export function ECOView() {
     isVaultConnected, 
     files,
     selectedFiles,
-    addToast
+    addToast,
+    // ECOs from store
+    ecos,
+    ecosLoading,
+    ecosLoaded,
+    setECOs,
+    setECOsLoading,
+    updateECO,
   } = usePDMStore()
   
-  const [ecos, setEcos] = useState<ECO[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ECOStatus | 'all'>('all')
   const [expandedECO, setExpandedECO] = useState<string | null>(null)
@@ -110,11 +103,15 @@ export function ECOView() {
   useEffect(() => {
     const loadECOs = async () => {
       if (!isVaultConnected || !organization) {
-        setEcos([])
         return
       }
       
-      setIsLoading(true)
+      // Skip if already loaded (unless it's a refresh)
+      if (ecosLoaded && ecos.length > 0) {
+        return
+      }
+      
+      setECOsLoading(true)
       
       try {
         const client = getSupabaseClient()
@@ -162,27 +159,31 @@ export function ECOView() {
           }
         }
         
-        const ecosWithCounts = (data || []).map(eco => ({
+        const ecosWithCounts: ECO[] = (data || []).map(eco => ({
           ...eco,
           file_count: fileCounts[eco.id] || 0,
           created_by_name: (eco.created_by_user as any)?.full_name,
           created_by_email: (eco.created_by_user as any)?.email,
         }))
         
-        setEcos(ecosWithCounts)
+        setECOs(ecosWithCounts)
       } catch (err) {
         console.error('Failed to load ECOs:', err)
       } finally {
-        setIsLoading(false)
+        setECOsLoading(false)
       }
     }
 
     loadECOs()
     
-    // Refresh every 60 seconds
-    const interval = setInterval(loadECOs, 60000)
+    // Refresh every 60 seconds (force refresh by temporarily clearing loaded state)
+    const interval = setInterval(() => {
+      if (isVaultConnected && organization) {
+        loadECOs()
+      }
+    }, 60000)
     return () => clearInterval(interval)
-  }, [isVaultConnected, organization])
+  }, [isVaultConnected, organization, ecosLoaded, ecos.length, setECOs, setECOsLoading, addToast])
   
   // Load files for an ECO when expanded
   const loadECOFiles = async (ecoId: string) => {
@@ -290,13 +291,14 @@ export function ECOView() {
         return
       }
       
-      // Add to list
-      setEcos(prev => [{
+      // Add to store (prepend by updating all ECOs)
+      const newEco: ECO = {
         ...data,
         file_count: 0,
         created_by_name: user.full_name,
         created_by_email: user.email
-      }, ...prev])
+      }
+      setECOs([newEco, ...ecos])
       
       // Reset form
       setNewEcoNumber('')
@@ -354,14 +356,10 @@ export function ECOView() {
         return
       }
       
-      // Update file count in local state
+      // Update file count in store
       const eco = ecos.find(e => e.id === tagEcoId)
       if (eco) {
-        setEcos(prev => prev.map(e => 
-          e.id === tagEcoId 
-            ? { ...e, file_count: (e.file_count || 0) + fileIds.length }
-            : e
-        ))
+        updateECO(tagEcoId, { file_count: (eco.file_count || 0) + fileIds.length })
       }
       
       // Clear cached files for this ECO
@@ -397,17 +395,17 @@ export function ECOView() {
         return
       }
       
-      // Update local state
+      // Update local state for files list
       setEcoFiles(prev => ({
         ...prev,
         [ecoId]: prev[ecoId]?.filter(fe => fe.id !== fileEcoId) || []
       }))
       
-      setEcos(prev => prev.map(e => 
-        e.id === ecoId 
-          ? { ...e, file_count: Math.max(0, (e.file_count || 0) - 1) }
-          : e
-      ))
+      // Update file count in store
+      const eco = ecos.find(e => e.id === ecoId)
+      if (eco) {
+        updateECO(ecoId, { file_count: Math.max(0, (eco.file_count || 0) - 1) })
+      }
       
       addToast('success', 'File removed from ECO')
     } catch (err) {
@@ -437,9 +435,8 @@ export function ECOView() {
         return
       }
       
-      setEcos(prev => prev.map(e => 
-        e.id === ecoId ? { ...e, status: newStatus } : e
-      ))
+      // Update status in store
+      updateECO(ecoId, { status: newStatus })
       
       addToast('success', `ECO status updated to ${STATUS_CONFIG[newStatus].label}`)
     } catch (err) {
@@ -524,7 +521,7 @@ export function ECOView() {
       
       {/* ECO List */}
       <div className="flex-1 overflow-auto">
-        {isLoading && ecos.length === 0 ? (
+        {ecosLoading && ecos.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <div className="spinner" />
           </div>

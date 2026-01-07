@@ -71,7 +71,7 @@ export const discardCommand: Command<DiscardParams> = {
     const foldersBeingProcessed = files
       .filter(f => f.isDirectory)
       .map(f => f.relativePath)
-    ctx.addProcessingFolders(foldersBeingProcessed)
+    ctx.addProcessingFolders(foldersBeingProcessed, 'sync')
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))

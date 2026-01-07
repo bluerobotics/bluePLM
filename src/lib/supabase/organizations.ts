@@ -87,31 +87,81 @@ export interface AuthProviders {
   suppliers: { google: boolean; email: boolean; phone: boolean }
 }
 
-// Get organization auth providers by slug (works without authentication)
+// Default auth providers (all enabled) - used as fallback
+const DEFAULT_AUTH_PROVIDERS: AuthProviders = {
+  users: { google: true, email: true, phone: true },
+  suppliers: { google: true, email: true, phone: true }
+}
+
+// Get organization auth providers (works without authentication)
 // Used by the sign-in screen to determine which sign-in methods to show
-export async function getOrgAuthProviders(orgSlug: string): Promise<AuthProviders | null> {
+// If orgSlug is provided, fetches by slug. Otherwise, fetches from the first/only org in the database.
+export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProviders | null> {
   try {
     const config = getCurrentConfigValues()
     const url = config?.url || import.meta.env.VITE_SUPABASE_URL
     const key = config?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY
     
-    const response = await fetch(`${url}/rest/v1/rpc/get_org_auth_providers`, {
-      method: 'POST',
+    // If we have an org slug, use the RPC function
+    if (orgSlug) {
+      const response = await fetch(`${url}/rest/v1/rpc/get_org_auth_providers`, {
+        method: 'POST',
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${key}`, // Use anon key for unauthenticated access
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ p_org_slug: orgSlug })
+      })
+      
+      if (!response.ok) {
+        console.warn('[Supabase] Failed to fetch auth providers by slug:', response.status)
+        // Fall through to try the fallback method
+      } else {
+        const data = await response.json()
+        if (data) {
+          return data as AuthProviders
+        }
+      }
+    }
+    
+    // Fallback: Query all organizations and get the first one's auth_providers
+    // This works because each org has their own Supabase database (single-tenant model)
+    console.log('[Supabase] Fetching auth providers from first organization (no slug provided)')
+    const orgResponse = await fetch(`${url}/rest/v1/organizations?select=auth_providers&limit=1`, {
       headers: {
         'apikey': key,
-        'Authorization': `Bearer ${key}`, // Use anon key for unauthenticated access
+        'Authorization': `Bearer ${key}`,
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ p_org_slug: orgSlug })
+      }
     })
     
-    if (!response.ok) {
-      console.warn('[Supabase] Failed to fetch auth providers:', response.status)
+    if (!orgResponse.ok) {
+      console.warn('[Supabase] Failed to fetch organization for auth providers:', orgResponse.status)
       return null
     }
     
-    const data = await response.json()
-    return data as AuthProviders
+    const orgs = await orgResponse.json()
+    if (orgs && orgs.length > 0 && orgs[0].auth_providers) {
+      const authProviders = orgs[0].auth_providers as AuthProviders
+      // Merge with defaults to ensure all fields exist
+      return {
+        users: {
+          google: authProviders?.users?.google ?? true,
+          email: authProviders?.users?.email ?? true,
+          phone: authProviders?.users?.phone ?? true
+        },
+        suppliers: {
+          google: authProviders?.suppliers?.google ?? true,
+          email: authProviders?.suppliers?.email ?? true,
+          phone: authProviders?.suppliers?.phone ?? true
+        }
+      }
+    }
+    
+    // If no org found or no auth_providers set, return defaults (all enabled)
+    console.log('[Supabase] No auth_providers found, using defaults')
+    return DEFAULT_AUTH_PROVIDERS
   } catch (err) {
     console.warn('[Supabase] Error fetching auth providers:', err)
     return null

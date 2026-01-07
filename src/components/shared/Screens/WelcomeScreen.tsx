@@ -116,21 +116,27 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     }
   }, [])
 
-  // Fetch org auth providers on mount (for pre-login sign-in method visibility)
+  // Fetch org auth providers on mount and when user signs out (for pre-login sign-in method visibility)
+  // We refetch when user becomes null to ensure we have fresh settings after sign-out
   useEffect(() => {
+    // Only fetch when showing sign-in screen (user is null and not in offline mode)
+    if (user || isOfflineMode) return
+    
     const fetchAuthProviders = async () => {
       const config = loadConfig()
-      if (config?.orgSlug) {
-        uiLog('info', 'Fetching auth providers for org', { orgSlug: config.orgSlug })
-        const providers = await getOrgAuthProviders(config.orgSlug)
-        if (providers) {
-          uiLog('info', 'Auth providers loaded', { providers })
-          setOrgAuthProviders(providers)
-        }
+      // Always fetch auth providers - the function handles missing orgSlug by
+      // falling back to querying the first/only organization in the database
+      uiLog('info', 'Fetching auth providers for org', { orgSlug: config?.orgSlug || '(fallback)' })
+      const providers = await getOrgAuthProviders(config?.orgSlug)
+      if (providers) {
+        uiLog('info', 'Auth providers loaded', { providers })
+        setOrgAuthProviders(providers)
+      } else {
+        uiLog('warn', 'Failed to load auth providers, all methods will be shown')
       }
     }
     fetchAuthProviders()
-  }, [])
+  }, [user, isOfflineMode])
 
   // Auto-select an enabled auth method when providers are loaded
   // This handles cases where Google is disabled but authMethod defaults to 'google'

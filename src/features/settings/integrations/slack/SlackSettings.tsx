@@ -62,14 +62,8 @@ const DEFAULT_NOTIFICATION_EVENTS: NotificationEvent[] = [
   { id: 'file_obsoleted', label: 'File Obsoleted', description: 'When files are marked as obsolete', enabled: false, channel: '' },
 ]
 
-const API_URL_KEY = 'blueplm_api_url'
-const DEFAULT_API_URL = 'http://127.0.0.1:3001'
-
-function getApiUrl(organization: { settings?: { api_url?: string } } | null): string {
-  return organization?.settings?.api_url 
-    || localStorage.getItem(API_URL_KEY) 
-    || import.meta.env.VITE_API_URL 
-    || DEFAULT_API_URL
+function getApiUrl(organization: { settings?: { api_url?: string } } | null): string | null {
+  return organization?.settings?.api_url || null
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -101,11 +95,19 @@ export function SlackSettings() {
   const [testMessage, setTestMessage] = useState('')
   const [isSendingTest, setIsSendingTest] = useState(false)
   
+  // Disconnect confirmation state
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
+  
   useEffect(() => {
     loadSettings()
   }, [])
   
   const checkApiServer = async () => {
+    if (!apiUrl) {
+      setApiServerOnline(false)
+      return false
+    }
     try {
       const response = await fetch(`${apiUrl}/health`, {
         signal: AbortSignal.timeout(3000)
@@ -120,6 +122,11 @@ export function SlackSettings() {
   
   const loadSettings = async () => {
     setIsLoading(true)
+    if (!apiUrl) {
+      setApiServerOnline(false)
+      setIsLoading(false)
+      return
+    }
     try {
       const token = await getAuthToken()
       if (!token) {
@@ -170,6 +177,10 @@ export function SlackSettings() {
   }
   
   const handleTest = async () => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     if (!botToken) {
       addToast('warning', 'Please enter a Bot Token')
       return
@@ -224,6 +235,10 @@ export function SlackSettings() {
   }
   
   const handleFetchChannels = async () => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     const token = await getAuthToken()
     if (!token) return
 
@@ -251,6 +266,10 @@ export function SlackSettings() {
   }
   
   const handleSave = async (skipTest: boolean = false) => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     if (!botToken && !settings?.configured) {
       addToast('warning', 'Please enter a Bot Token')
       return
@@ -305,6 +324,10 @@ export function SlackSettings() {
   }
   
   const handleSendTestMessage = async () => {
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      return
+    }
     if (!defaultChannel) {
       addToast('warning', 'Please select a default channel first')
       return
@@ -347,14 +370,19 @@ export function SlackSettings() {
   }
   
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Slack? This will stop all notifications.')) return
-
+    if (!apiUrl) {
+      addToast('error', 'API server not configured. Go to Settings > REST API.')
+      setShowDisconnectDialog(false)
+      return
+    }
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
+      setShowDisconnectDialog(false)
       return
     }
 
+    setIsDisconnecting(true)
     try {
       const response = await fetch(`${apiUrl}/integrations/slack`, {
         method: 'DELETE',
@@ -376,6 +404,9 @@ export function SlackSettings() {
       }
     } catch (err) {
       addToast('error', `Error: ${err}`)
+    } finally {
+      setIsDisconnecting(false)
+      setShowDisconnectDialog(false)
     }
   }
   
@@ -713,7 +744,7 @@ export function SlackSettings() {
                 {isAdmin && (
                   <div className="flex justify-end pt-4 border-t border-plm-border">
                     <button
-                      onClick={handleDisconnect}
+                      onClick={() => setShowDisconnectDialog(true)}
                       className="flex items-center gap-2 px-4 py-2 text-sm text-plm-error hover:bg-plm-error/10 rounded-lg transition-colors"
                     >
                       <Trash2 size={16} />
@@ -771,6 +802,30 @@ export function SlackSettings() {
           </>
         )}
       </div>
+
+      {/* Disconnect Slack Confirmation Dialog */}
+      {showDisconnectDialog && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowDisconnectDialog(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Disconnect Slack</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
+              Are you sure you want to disconnect Slack? This will stop all notifications.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowDisconnectDialog(false)} className="btn btn-ghost" disabled={isDisconnecting}>
+                Cancel
+              </button>
+              <button
+                onClick={handleDisconnect}
+                disabled={isDisconnecting}
+                className="btn bg-plm-error text-white hover:bg-plm-error/90"
+              >
+                {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

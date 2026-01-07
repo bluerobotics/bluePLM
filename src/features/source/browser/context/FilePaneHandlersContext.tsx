@@ -8,6 +8,7 @@
  */
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 
 /**
  * Context value type for file pane handlers
@@ -28,6 +29,7 @@ export interface FilePaneHandlersContextValue {
   
   // Status functions
   isBeingProcessed: (path: string) => boolean
+  getProcessingOperation: (path: string) => OperationType | null
   getFolderCheckoutStatus: (path: string) => 'mine' | 'others' | 'both' | null
   isFolderSynced: (path: string) => boolean
   isFileEditable: (file: LocalFile) => boolean

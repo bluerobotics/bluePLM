@@ -723,7 +723,7 @@ export function SolidWorksSettings() {
                       }
                     }}
                     placeholder="COMPANYNAME:swdocmgr_general-...,swdocmgr_previews-...,swdocmgr_xml-..."
-                    className="flex-1 px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded-lg text-sm text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent font-mono"
+                    className="flex-1 px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded-lg text-sm text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent font-mono"
                   />
                   <button
                     onClick={handleSaveLicenseKey}

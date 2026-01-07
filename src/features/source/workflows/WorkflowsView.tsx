@@ -202,7 +202,7 @@ function WorkflowsViewContent({
     setSelectedTransitionId: canvas.selectTransition,
     addToast
   })
-  const { exportWorkflow, importWorkflow } = ioOperations
+  const { exportWorkflow, pendingImport, confirmImport, cancelImport, isImporting } = ioOperations
 
   // Clipboard operations
   const clipboardOps = useClipboardOperations({
@@ -546,6 +546,32 @@ function WorkflowsViewContent({
         closeEditTransition={dialogs.closeEditTransition}
         addToast={addToast}
       />
+
+      {/* Import Workflow Confirmation Dialog */}
+      {pendingImport && selectedWorkflow && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={cancelImport}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">Import Workflow</h3>
+            <p className="text-base text-plm-fg-muted mb-4">
+              Import workflow from <strong>{pendingImport.file.name}</strong>?
+              <br /><br />
+              This will replace all existing states and transitions in <strong>{selectedWorkflow.name}</strong> with {pendingImport.stateCount} states and {pendingImport.transitionCount} transitions.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={cancelImport} className="btn btn-ghost" disabled={isImporting}>
+                Cancel
+              </button>
+              <button
+                onClick={confirmImport}
+                disabled={isImporting}
+                className="btn btn-primary"
+              >
+                {isImporting ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

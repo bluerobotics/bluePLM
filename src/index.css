@@ -33,6 +33,14 @@
   letter-spacing: 0.5px;
 }
 
+/* Keep language selector dropdown readable even in Elvish mode */
+[data-language="sindarin"] [data-preserve-font],
+[data-language="sindarin"] [data-preserve-font] * {
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif !important;
+  font-size: inherit;
+  letter-spacing: normal;
+}
+
 /* VS Code Dark Modern Theme (default) */
 :root,
 [data-theme="dark"] {
@@ -1131,7 +1139,8 @@ input::placeholder {
 }
 
 /* Disable row hover and native drag during box selection */
-.file-table.selecting {
+.file-table.selecting,
+.selecting {
   user-select: none;
   -webkit-user-select: none;
 }
@@ -1145,6 +1154,19 @@ input::placeholder {
 }
 
 .file-table.selecting tr.selected {
+  background: var(--plm-selection);
+}
+
+/* Tree view selection box behavior */
+.selecting .tree-item {
+  pointer-events: none;
+}
+
+.selecting .tree-item:hover {
+  background: transparent;
+}
+
+.selecting .tree-item.selected {
   background: var(--plm-selection);
 }
 

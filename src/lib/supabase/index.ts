@@ -74,6 +74,7 @@ export {
   restoreFile,
   restoreFiles,
   permanentlyDeleteFile,
+  permanentlyDeleteFiles,
   getDeletedFiles,
   getDeletedFilesCount,
   emptyTrash

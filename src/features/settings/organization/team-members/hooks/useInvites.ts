@@ -6,28 +6,40 @@
  * - Updating pending member details (teams, roles, vaults)
  * - Deleting pending members
  * - Resending invitation emails
+ * 
+ * State is stored in the Zustand organizationDataSlice.
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { PendingMember, PendingMemberFormData } from '../types'
 import { castQueryResult, updatePendingOrgMember } from './supabaseHelpers'
 
 export function useInvites(orgId: string | null) {
-  const { user, addToast, apiServerUrl } = usePDMStore()
-  const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { 
+    user, 
+    addToast, 
+    apiServerUrl,
+    // Pending members state from organizationDataSlice
+    pendingMembers,
+    pendingMembersLoading: isLoading,
+    pendingMembersLoaded,
+    setPendingMembers,
+    setPendingMembersLoading,
+    removePendingMember: removePendingMemberFromStore
+  } = usePDMStore()
 
   const loadPendingMembers = useCallback(async () => {
     if (!orgId) return
     
+    setPendingMembersLoading(true)
     try {
       const { data, error } = await supabase
         .from('pending_org_members')
         .select('*')
         .eq('org_id', orgId)
         .is('claimed_at', null)
-        .order('created_at', { ascending: false })
+        .order('invited_at', { ascending: false })
       
       if (error) throw error
       
@@ -35,8 +47,10 @@ export function useInvites(orgId: string | null) {
       setPendingMembers(castQueryResult<PendingMember[]>(data || []))
     } catch (err) {
       console.error('Failed to load pending members:', err)
+    } finally {
+      setPendingMembersLoading(false)
     }
-  }, [orgId])
+  }, [orgId, setPendingMembers, setPendingMembersLoading])
 
   const updatePendingMember = useCallback(async (
     memberId: string,
@@ -78,13 +92,13 @@ export function useInvites(orgId: string | null) {
       if (error) throw error
       
       addToast('success', `Removed pending member ${member.email}`)
-      await loadPendingMembers()
+      removePendingMemberFromStore(memberId)
       return true
     } catch {
       addToast('error', 'Failed to remove pending member')
       return false
     }
-  }, [pendingMembers, addToast, loadPendingMembers])
+  }, [pendingMembers, addToast, removePendingMemberFromStore])
 
   const resendInvite = useCallback(async (member: PendingMember): Promise<boolean> => {
     if (!apiServerUrl || !user) {
@@ -131,11 +145,12 @@ export function useInvites(orgId: string | null) {
     }
   }, [apiServerUrl, user, addToast])
 
+  // Initial load - only if not already loaded
   useEffect(() => {
-    if (orgId) {
-      loadPendingMembers().finally(() => setIsLoading(false))
+    if (orgId && !pendingMembersLoaded && !isLoading) {
+      loadPendingMembers()
     }
-  }, [orgId, loadPendingMembers])
+  }, [orgId, pendingMembersLoaded, isLoading, loadPendingMembers])
 
   return {
     pendingMembers,

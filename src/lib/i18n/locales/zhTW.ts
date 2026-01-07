@@ -118,7 +118,8 @@ export const zhTW: TranslationDict = {
     
     adminSetup: '管理員設定',
     enterCredentials: '從專案的 API 設定中輸入您的 Supabase 憑證',
-    supabaseUrl: 'Supabase URL',
+    projectId: '專案 ID',
+    projectIdHelp: '在 Supabase 控制台頂部找到（例如 vvyhpdzqdizvorrhjhvq）',
     anonKey: '匿名（公開）金鑰',
     orgSlug: '組織識別碼',
     orgSlugHelp: '這有助於在產生的代碼中識別您的組織',
@@ -134,8 +135,8 @@ export const zhTW: TranslationDict = {
     joinOrg: '加入您的組織',
     enterCode: '輸入組織管理員提供的代碼',
     
-    enterBothFields: '請輸入 Supabase URL 和匿名金鑰',
-    invalidUrl: '請輸入有效的 Supabase URL',
+    enterBothFields: '請輸入專案 ID 和匿名金鑰',
+    invalidProjectId: '請輸入有效的專案 ID（僅限字母和數字）',
     failedToConnect: '連線 Supabase 失敗',
     enterOrgCode: '請輸入組織代碼',
     invalidCode: '組織代碼無效。請檢查後重試。',
@@ -214,26 +215,82 @@ export const zhTW: TranslationDict = {
   },
 
   sidebar: {
+    // 原始檔案
     explorer: '檔案總管',
     pending: '待處理',
-    search: '搜尋',
-    workflows: '檔案工作流程',
     history: '歷史記錄',
+    workflows: '檔案工作流程',
     trash: '資源回收筒',
-    terminal: '終端機',
-    eco: 'ECO',
-    gsd: 'GSD 摘要',
+    // 物料
+    items: '物料瀏覽器',
+    boms: '物料清單',
+    products: '產品',
+    // 變更控制
     ecr: 'ECR / 問題',
+    eco: 'ECO',
     notifications: '通知',
     deviations: '偏差',
-    products: '產品',
+    releaseSchedule: '發佈計畫',
     process: '流程編輯器',
-    schedule: '排程',
-    suppliers: '供應商',
+    // 供應鏈 - 供應商
+    supplierDatabase: '供應商資料庫',
     supplierPortal: '供應商入口',
+    // 供應鏈 - 採購
+    purchaseRequests: '採購申請',
+    purchaseOrders: '採購訂單',
+    invoices: '發票',
+    // 供應鏈 - 物流
+    shipping: '出貨',
+    receiving: '收貨',
+    // 生產
+    manufacturingOrders: '生產訂單',
+    travellers: '製程流轉卡',
+    workInstructions: '作業指導書',
+    productionSchedule: '生產計畫',
+    routings: '製程路線',
+    workCenters: '工作中心',
+    processFlows: '製程流程',
+    equipment: '設備',
+    // 生產 - 分析
+    productionAnalytics: '生產分析',
+    yieldTracking: '良率追蹤',
+    errorCodes: '錯誤代碼',
+    downtime: '停機時間',
+    oee: 'OEE 儀表板',
+    scrapTracking: '報廢追蹤',
+    // 品質
+    fai: '首件檢驗 (FAI)',
+    ncr: '不合格報告 (NCR)',
+    imr: '進料檢驗報告 (IMR)',
+    scar: '供應商矯正措施 (SCAR)',
+    capa: '矯正與預防措施 (CAPA)',
+    rma: '退貨授權 (RMA)',
+    certificates: '證書',
+    calibration: '校正',
+    qualityTemplates: '範本',
+    // 財務
+    accountsPayable: '應付帳款 (AP)',
+    accountsReceivable: '應收帳款 (AR)',
+    generalLedger: '總帳',
+    costTracking: '成本追蹤',
+    budgets: '預算',
+    // 整合
     googleDrive: 'Google 雲端硬碟',
+    // 系統
+    terminal: '終端機',
     settings: '設定',
-    
+    // 分組標題
+    sourceFiles: '原始檔案',
+    itemsSection: '物料',
+    changeControl: '變更控制',
+    supplyChain: '供應鏈',
+    suppliers: '供應商',
+    purchasing: '採購',
+    logistics: '物流',
+    production: '生產',
+    quality: '品質',
+    integrations: '整合',
+    // 側邊欄控制
     sidebarControl: '側邊欄控制',
     expanded: '展開',
     collapsed: '收合',

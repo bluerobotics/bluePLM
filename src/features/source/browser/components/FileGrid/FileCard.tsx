@@ -1,7 +1,8 @@
 import { memo, useState, useEffect, useRef } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import { useFileCardStatus, useThumbnail } from './hooks'
-import { CheckoutBadge, CloudStatusBadge, DiffStatusBadge, ProcessingBadge } from './badges'
+import { CheckoutBadge, CloudStatusBadge, DiffStatusBadge } from './badges'
 import { FileCardIcon } from './FileCardIcon'
 import { FileCardActions } from './FileCardActions'
 
@@ -11,7 +12,7 @@ export interface FileCardProps {
   isSelected: boolean
   isCut: boolean
   allFiles: LocalFile[]
-  processingPaths: Set<string>
+  processingPaths: Map<string, OperationType>
   currentMachineId: string | null
   lowercaseExtensions: boolean
   userId: string | undefined
@@ -92,7 +93,6 @@ export const FileCard = memo(function FileCard({
   const avatarSize = Math.max(16, Math.min(40, iconSize * 0.25))
   const avatarFontSize = Math.max(8, avatarSize * 0.45)
   const statusIconSize = Math.max(12, Math.min(24, iconSize * 0.18))
-  const buttonSize = Math.max(16, Math.min(32, iconSize * 0.2))
   const buttonIconSize = Math.max(10, Math.min(20, iconSize * 0.14))
   const spacing = Math.max(2, iconSize * 0.03)
 
@@ -141,15 +141,11 @@ export const FileCard = memo(function FileCard({
         </div>
       </div>
 
-      {/* Processing spinner */}
-      {status.isProcessing && (
-        <ProcessingBadge buttonSize={buttonSize} buttonIconSize={buttonIconSize} />
-      )}
-
-      {/* Action buttons - top left */}
+      {/* Action buttons - top left (includes spinner in active button) */}
       <FileCardActions
         file={file}
         isProcessing={status.isProcessing}
+        operationType={status.operationType}
         cloudFilesCount={status.cloudFilesCount}
         folderCheckoutInfo={status.folderCheckoutInfo}
         buttonIconSize={buttonIconSize}
@@ -234,23 +230,23 @@ export const FileCard = memo(function FileCard({
   if (prevProps.lowercaseExtensions !== nextProps.lowercaseExtensions) return false
   if (prevProps.userId !== nextProps.userId) return false
 
-  // Check processing status
+  // Check processing status (using Map)
   const prevPath = prevProps.file.relativePath.replace(/\\/g, '/')
   const nextPath = nextProps.file.relativePath.replace(/\\/g, '/')
 
-  const checkProcessing = (paths: Set<string>, filePath: string, normalizedPath: string) => {
-    if (paths.has(filePath)) return true
-    if (paths.has(normalizedPath)) return true
-    for (const processingPath of paths) {
+  const getProcessingOp = (paths: Map<string, OperationType>, filePath: string, normalizedPath: string): OperationType | null => {
+    if (paths.has(filePath)) return paths.get(filePath)!
+    if (paths.has(normalizedPath)) return paths.get(normalizedPath)!
+    for (const [processingPath, opType] of paths) {
       const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-      if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return true
+      if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return opType
     }
-    return false
+    return null
   }
 
-  const prevProcessing = checkProcessing(prevProps.processingPaths, prevProps.file.relativePath, prevPath)
-  const nextProcessing = checkProcessing(nextProps.processingPaths, nextProps.file.relativePath, nextPath)
-  if (prevProcessing !== nextProcessing) return false
+  const prevProcessingOp = getProcessingOp(prevProps.processingPaths, prevProps.file.relativePath, prevPath)
+  const nextProcessingOp = getProcessingOp(nextProps.processingPaths, nextProps.file.relativePath, nextPath)
+  if (prevProcessingOp !== nextProcessingOp) return false
 
   return true
 })

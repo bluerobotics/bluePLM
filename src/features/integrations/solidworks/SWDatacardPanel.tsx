@@ -364,7 +364,12 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const [serializationSettings, setSerializationSettings] = useState<SerializationSettings | null>(null)
   
   const { status } = useSolidWorksService()
-  const { addToast, organization, user, updatePendingMetadata } = usePDMStore()
+  
+  // Use selector pattern for proper reactivity when store values change
+  const addToast = usePDMStore(s => s.addToast)
+  const organization = usePDMStore(s => s.organization)
+  const user = usePDMStore(s => s.user)
+  const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
   
   const ext = file.extension?.toLowerCase() || ''
   const fileType = ext === '.sldprt' ? 'Part' : ext === '.sldasm' ? 'Assembly' : 'Drawing'
@@ -1057,10 +1062,16 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
     .filter(([key, value]) => value && !key.startsWith('$') && !key.startsWith('SW-'))
     .sort(([a], [b]) => a.localeCompare(b))
 
-  // Status indicator message
+  // Status indicator message - provides detailed feedback on why editing may be disabled
   const getStatusMessage = () => {
     if (!file.pdmData?.id) return 'Sync to cloud to edit'
-    if (!isEditable) return 'Check out to edit'
+    if (!user?.id) return 'Sign in to edit'
+    if (!file.pdmData.checked_out_by) return 'Check out to edit'
+    if (file.pdmData.checked_out_by !== user.id) {
+      const checkedOutUser = (file.pdmData as any).checked_out_user
+      const checkedOutName = checkedOutUser?.full_name || checkedOutUser?.email || 'another user'
+      return `Checked out by ${checkedOutName}`
+    }
     return null
   }
 

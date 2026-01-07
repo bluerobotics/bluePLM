@@ -1,9 +1,11 @@
 // src/features/source/context-menu/hooks/useContextMenuState.ts
-import { useState, useEffect, useRef, useCallback } from 'react'
-import type { DialogState, DialogName, ForceCheckinFilesState, OrgUser, ECO } from '../types'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import type { DialogState, DialogName, ForceCheckinFilesState, OrgUser } from '../types'
 import type { LocalFile } from '@/stores/pdmStore'
-import { isWatchingFile, getOrgUsers, getActiveECOs, isMachineOnline } from '@/lib/supabase'
+import type { ECO } from '@/stores/types'
+import { isWatchingFile, getActiveECOs as fetchActiveECOs, isMachineOnline } from '@/lib/supabase'
 import { getMachineId } from '@/lib/backup'
+import { usePDMStore } from '@/stores/pdmStore'
 
 interface UseContextMenuStateOptions {
   userId: string | undefined
@@ -53,10 +55,9 @@ interface UseContextMenuStateResult {
   copiedLink: boolean
   setCopiedLink: (value: boolean) => void
   
-  // Org users for review/mention modals
+  // Org users for review/mention modals (from store's members)
   orgUsers: OrgUser[]
   loadingUsers: boolean
-  loadOrgUsers: () => Promise<void>
   
   // ECO state
   activeECOs: ECO[]
@@ -90,6 +91,18 @@ export function useContextMenuState({
   organizationId,
   contextFiles
 }: UseContextMenuStateOptions): UseContextMenuStateResult {
+  // Get ECO and members state from store
+  const {
+    ecosLoaded,
+    ecosLoading,
+    getActiveECOs: getActiveECOsFromStore,
+    setECOs,
+    setECOsLoading,
+    // Members for org users
+    members,
+    membersLoading
+  } = usePDMStore()
+  
   // Dialog state
   const [dialogs, setDialogs] = useState<DialogState>(initialDialogState)
   
@@ -115,13 +128,18 @@ export function useContextMenuState({
   const [isCreatingShareLink, setIsCreatingShareLink] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   
-  // Org users state
-  const [orgUsers, setOrgUsers] = useState<OrgUser[]>([])
-  const [loadingUsers, setLoadingUsers] = useState(false)
-  
-  // ECO state
-  const [activeECOs, setActiveECOs] = useState<ECO[]>([])
-  const [loadingECOs, setLoadingECOs] = useState(false)
+  // Org users derived from store members (excluding current user)
+  const orgUsers = useMemo(() => {
+    return members
+      .filter(m => m.id !== userId)
+      .map(m => ({
+        id: m.id,
+        email: m.email,
+        full_name: m.full_name,
+        avatar_url: m.avatar_url || m.custom_avatar_url || null
+      })) as OrgUser[]
+  }, [members, userId])
+  const loadingUsers = membersLoading
   
   // Ignore submenu
   const [showIgnoreSubmenu, setShowIgnoreSubmenu] = useState(false)
@@ -129,6 +147,10 @@ export function useContextMenuState({
   
   // Platform
   const [platform, setPlatform] = useState<string>('win32')
+  
+  // Get active ECOs from store
+  const activeECOs = getActiveECOsFromStore()
+  const loadingECOs = ecosLoading
 
   // Load machine ID
   useEffect(() => {
@@ -211,25 +233,24 @@ export function useContextMenuState({
     }, 150)
   }, [])
 
-  // Load org users
-  const loadOrgUsers = useCallback(async () => {
-    if (!organizationId) return
-    
-    setLoadingUsers(true)
-    const { users } = await getOrgUsers(organizationId)
-    setOrgUsers(users.filter((u: { id: string }) => u.id !== userId))
-    setLoadingUsers(false)
-  }, [organizationId, userId])
-
   // Load active ECOs
   const loadActiveECOs = useCallback(async () => {
     if (!organizationId) return
     
-    setLoadingECOs(true)
-    const { ecos } = await getActiveECOs(organizationId)
-    setActiveECOs(ecos)
-    setLoadingECOs(false)
-  }, [organizationId])
+    // Skip if already loaded
+    if (ecosLoaded) return
+    
+    setECOsLoading(true)
+    const { ecos } = await fetchActiveECOs(organizationId)
+    // Map to full ECO type for store
+    setECOs(ecos.map(eco => ({
+      ...eco,
+      description: eco.description ?? null,
+      status: eco.status ?? null,
+      created_at: eco.created_at ?? null,
+    })))
+    setECOsLoading(false)
+  }, [organizationId, ecosLoaded, setECOs, setECOsLoading])
 
   return {
     dialogs,
@@ -261,7 +282,6 @@ export function useContextMenuState({
     setCopiedLink,
     orgUsers,
     loadingUsers,
-    loadOrgUsers,
     activeECOs,
     loadingECOs,
     loadActiveECOs,

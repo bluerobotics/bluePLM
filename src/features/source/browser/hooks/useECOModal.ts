@@ -1,11 +1,9 @@
 import { useState } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { ECO } from '@/stores/types'
+import { usePDMStore } from '@/stores/pdmStore'
 
-export interface ECO {
-  id: string
-  eco_number: string
-  title: string
-}
+export type { ECO }
 
 export interface UseECOModalReturn {
   // Modal visibility
@@ -16,11 +14,9 @@ export interface UseECOModalReturn {
   ecoFile: LocalFile | null
   setEcoFile: (file: LocalFile | null) => void
   
-  // ECO list
+  // ECO list (from store)
   activeECOs: ECO[]
-  setActiveECOs: (ecos: ECO[]) => void
   loadingECOs: boolean
-  setLoadingECOs: (loading: boolean) => void
   
   // Form state
   selectedECO: string | null
@@ -33,14 +29,20 @@ export interface UseECOModalReturn {
 
 /**
  * Hook to manage ECO (Engineering Change Order) modal state
+ * 
+ * ECO list comes from the ecosSlice in the Zustand store.
+ * Only UI state (modal visibility, form state) is local.
  */
 export function useECOModal(): UseECOModalReturn {
+  // ECO data from store
+  const { getActiveECOs, ecosLoading } = usePDMStore()
+  const activeECOs = getActiveECOs()
+  
+  // Local UI state
   const [showECOModal, setShowECOModal] = useState(false)
   const [ecoFile, setEcoFile] = useState<LocalFile | null>(null)
-  const [activeECOs, setActiveECOs] = useState<ECO[]>([])
   const [selectedECO, setSelectedECO] = useState<string | null>(null)
   const [ecoNotes, setEcoNotes] = useState('')
-  const [loadingECOs, setLoadingECOs] = useState(false)
   const [isAddingToECO, setIsAddingToECO] = useState(false)
 
   return {
@@ -49,9 +51,7 @@ export function useECOModal(): UseECOModalReturn {
     ecoFile,
     setEcoFile,
     activeECOs,
-    setActiveECOs,
-    loadingECOs,
-    setLoadingECOs,
+    loadingECOs: ecosLoading,
     selectedECO,
     setSelectedECO,
     ecoNotes,

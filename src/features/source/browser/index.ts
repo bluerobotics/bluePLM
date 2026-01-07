@@ -5,10 +5,10 @@
 export { FilePane } from './FilePane'
 
 // Hooks
+// Note: Config state is now in Zustand store (usePDMStore.expandedConfigFiles, etc.)
 export { 
   useContextMenuState, 
   useDialogState, 
-  useConfigState, 
   useInlineActionHover, 
   useDragState, 
   useRenameState 
@@ -24,7 +24,6 @@ export type {
   CustomConfirmState,
   DeleteLocalCheckoutConfirmState,
   ConflictDialogState,
-  UseConfigStateReturn,
   UseInlineActionHoverReturn,
   UseDragStateReturn,
   SelectionBox,
@@ -45,6 +44,7 @@ export {
   EmptyState, 
   LoadingState, 
   ErrorState,
+  NoVaultEmptyState,
   FileToolbar,
   ViewToggle,
   SizeSlider,

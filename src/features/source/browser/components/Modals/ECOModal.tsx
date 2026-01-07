@@ -1,12 +1,9 @@
 import { memo } from 'react'
 import { ClipboardList, File, Loader2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { ECO } from '@/stores/types'
 
-export interface ECO {
-  id: string
-  eco_number: string
-  title?: string
-}
+export type { ECO }
 
 export interface ECOModalProps {
   file: LocalFile

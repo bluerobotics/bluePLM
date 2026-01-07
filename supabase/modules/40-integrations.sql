@@ -3,6 +3,7 @@
 -- =====================================================================
 -- 
 -- This module contains:
+--   - Google Drive columns on organizations table
 --   - Organization Integrations (generic integration settings)
 --   - Integration Sync Log
 --   - Odoo saved configurations
@@ -36,6 +37,26 @@ END $$;
 DO $$ BEGIN
   CREATE TYPE webhook_delivery_status AS ENUM ('pending', 'success', 'failed', 'retrying');
 EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- ===========================================
+-- GOOGLE DRIVE ORGANIZATION COLUMNS
+-- ===========================================
+-- These columns on the organizations table are managed by the integrations module
+
+DO $$ BEGIN 
+  ALTER TABLE organizations ADD COLUMN google_drive_client_id TEXT; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
+END $$;
+
+DO $$ BEGIN 
+  ALTER TABLE organizations ADD COLUMN google_drive_client_secret TEXT; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
+END $$;
+
+DO $$ BEGIN 
+  ALTER TABLE organizations ADD COLUMN google_drive_enabled BOOLEAN DEFAULT FALSE; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
 END $$;
 
 -- ===========================================

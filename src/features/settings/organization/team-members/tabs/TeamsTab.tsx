@@ -43,9 +43,11 @@ import {
 export interface TeamsTabProps {
   /** Search query for filtering teams */
   searchQuery?: string
+  /** Called when the "Add Team" button should trigger a dialog in the parent */
+  onShowCreateTeamDialog?: () => void
 }
 
-export function TeamsTab({ searchQuery = '' }: TeamsTabProps) {
+export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabProps) {
   // Get user/org info from store
   const { user, organization, setOrganization, getEffectiveRole } = usePDMStore()
   const orgId = organization?.id ?? null
@@ -251,12 +253,9 @@ export function TeamsTab({ searchQuery = '' }: TeamsTabProps) {
         <div className="text-center py-8 border border-dashed border-plm-border rounded-lg">
           <Users size={36} className="mx-auto text-plm-fg-muted mb-3 opacity-50" />
           <p className="text-sm text-plm-fg-muted mb-4">No teams yet</p>
-          {isAdmin && (
+          {isAdmin && onShowCreateTeamDialog && (
             <button
-              onClick={() => {
-                resetTeamForm()
-                setShowCreateTeamDialog(true)
-              }}
+              onClick={onShowCreateTeamDialog}
               className="btn btn-primary btn-sm"
             >
               <Plus size={14} className="mr-1" />

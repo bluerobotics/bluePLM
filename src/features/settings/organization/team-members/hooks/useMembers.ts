@@ -7,6 +7,8 @@
  * - Removing members from specific teams
  * - Toggling team membership
  * 
+ * State is stored in the Zustand organizationDataSlice.
+ * 
  * @param orgId - Organization ID (null if not connected)
  * @returns Members state and operations
  * 
@@ -22,7 +24,7 @@
  * } = useMembers(organization?.id ?? null)
  * ```
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { supabase, removeUserFromOrg } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { OrgUser } from '../types'
@@ -35,13 +37,22 @@ import {
 } from './supabaseHelpers'
 
 export function useMembers(orgId: string | null) {
-  const { user, addToast } = usePDMStore()
-  const [members, setMembers] = useState<OrgUser[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { 
+    user, 
+    addToast,
+    // Member state from organizationDataSlice
+    members,
+    membersLoading: isLoading,
+    membersLoaded,
+    setMembers,
+    setMembersLoading,
+    removeMember: removeMemberFromStore
+  } = usePDMStore()
 
   const loadMembers = useCallback(async () => {
     if (!orgId) return
     
+    setMembersLoading(true)
     try {
       const { data: usersData, error } = await supabase
         .from('users')
@@ -105,8 +116,10 @@ export function useMembers(orgId: string | null) {
       setMembers(usersWithTeamsAndTitles)
     } catch (err) {
       console.error('Failed to load org users:', err)
+    } finally {
+      setMembersLoading(false)
     }
-  }, [orgId])
+  }, [orgId, setMembers, setMembersLoading])
 
   const removeMember = useCallback(async (memberId: string): Promise<boolean> => {
     if (!orgId) return false
@@ -118,7 +131,7 @@ export function useMembers(orgId: string | null) {
       const result = await removeUserFromOrg(memberId, orgId)
       if (result.success) {
         addToast('success', `Removed ${member.full_name || member.email} from organization`)
-        setMembers(prev => prev.filter(u => u.id !== memberId))
+        removeMemberFromStore(memberId)
         return true
       } else {
         addToast('error', result.error || 'Failed to remove user')
@@ -128,7 +141,7 @@ export function useMembers(orgId: string | null) {
       addToast('error', 'Failed to remove user')
       return false
     }
-  }, [orgId, members, addToast])
+  }, [orgId, members, addToast, removeMemberFromStore])
 
   const removeFromTeam = useCallback(async (
     memberId: string,
@@ -232,11 +245,12 @@ export function useMembers(orgId: string | null) {
     }
   }, [user, addToast, loadMembers])
 
+  // Initial load - only if not already loaded
   useEffect(() => {
-    if (orgId) {
-      loadMembers().finally(() => setIsLoading(false))
+    if (orgId && !membersLoaded && !isLoading) {
+      loadMembers()
     }
-  }, [orgId, loadMembers])
+  }, [orgId, membersLoaded, isLoading, loadMembers])
 
   return {
     members,

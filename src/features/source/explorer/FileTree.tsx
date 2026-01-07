@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   FolderOpen, 
   ChevronRight, 
@@ -26,17 +26,19 @@ import { executeCommand } from '@/lib/commands'
 import { usePDMStore, LocalFile, ConnectedVault } from '@/stores/pdmStore'
 // Context menu from feature module
 import { FileContextMenu } from '@/features/source/context-menu'
+// Selection box overlay from browser feature
+import { SelectionBoxOverlay } from '@/features/source/browser'
 // FileTree sub-components
 import { VaultTreeItem } from './file-tree/VaultTreeItem'
 import { PinnedFoldersSection } from './file-tree/PinnedFoldersSection'
-import { RecentVaultsSection, NoVaultAccessMessage } from './file-tree/RecentVaultsSection'
+import { NoVaultAccessMessage } from './file-tree/RecentVaultsSection'
 import { FileActionButtons, FolderActionButtons } from './file-tree/TreeItemActions'
 // FileTree hooks
 import { useVaultTree } from './file-tree/hooks/useVaultTree'
 import { useTreeDragDrop } from './file-tree/hooks/useTreeDragDrop'
 import { useTreeKeyboardNav } from './file-tree/hooks/useTreeKeyboardNav'
 // Shared hooks
-import { useSelectionCategories, useClipboard } from '@/hooks'
+import { useSelectionCategories, useClipboard, useSelectionBox } from '@/hooks'
 // Constants
 import { 
   TREE_BASE_PADDING_PX, 
@@ -49,19 +51,18 @@ import {
 } from './file-tree/constants'
 
 interface FileTreeProps {
-  onOpenVault: () => void
-  onOpenRecentVault: (path: string) => void
+  onOpenVault?: () => void
+  onOpenRecentVault?: (path: string) => void
   onRefresh?: (silent?: boolean) => void
 }
 
-export function FileTree({ onOpenVault, onOpenRecentVault, onRefresh }: FileTreeProps) {
+export function FileTree({ onRefresh }: FileTreeProps) {
   const { 
     files, 
     expandedFolders, 
     toggleFolder, 
     vaultPath,
     isVaultConnected,
-    recentVaults,
     currentFolder,
     setCurrentFolder,
     connectedVaults,
@@ -156,15 +157,53 @@ export function FileTree({ onOpenVault, onOpenRecentVault, onRefresh }: FileTree
   const [isCheckinHovered, setIsCheckinHovered] = useState(false)
   const [isDownloadHovered, setIsDownloadHovered] = useState(false)
   const [isUploadHovered, setIsUploadHovered] = useState(false)
+  
+  // New folder dialog state
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('New Folder')
+  const [newFolderParentPath, setNewFolderParentPath] = useState<string>('')
   const [isCheckoutHovered, setIsCheckoutHovered] = useState(false)
   const [isUpdateHovered, setIsUpdateHovered] = useState(false)
   const [isCheckingInMyCheckouts, setIsCheckingInMyCheckouts] = useState(false)
   
   // Ref for the file tree container
   const fileTreeContainerRef = useRef<HTMLDivElement>(null!)
+  // Ref for the scrollable vault list (where selection box is drawn)
+  const scrollableContainerRef = useRef<HTMLDivElement>(null!)
   
   // Use keyboard navigation hook
   useTreeKeyboardNav({ containerRef: fileTreeContainerRef, tree, onRefresh })
+  
+  // Get visible tree items (for selection box intersection)
+  const getVisibleTreeItems = useCallback((): LocalFile[] => {
+    const result: LocalFile[] = []
+    const addItems = (items: LocalFile[]) => {
+      for (const item of items) {
+        result.push(item)
+        if (item.isDirectory && expandedFolders.has(item.relativePath)) {
+          const children = tree[item.relativePath] || []
+          addItems(sortChildren(children))
+        }
+      }
+    }
+    addItems(sortChildren(tree[''] || []))
+    return result
+  }, [tree, expandedFolders, sortChildren])
+  
+  // Clear selection helper
+  const clearSelection = useCallback(() => {
+    setSelectedFiles([])
+  }, [setSelectedFiles])
+  
+  // Selection box (marquee/drag-box selection)
+  const { selectionBox, selectionHandlers } = useSelectionBox({
+    containerRef: scrollableContainerRef,
+    getVisibleItems: getVisibleTreeItems,
+    rowSelector: '.tree-item',
+    setSelectedFiles,
+    clearSelection,
+    excludeSelector: '.vault-header'  // Don't start selection when clicking vault headers
+  })
   
   // Get platform for UI text
   useEffect(() => {
@@ -302,10 +341,9 @@ export function FileTree({ onOpenVault, onOpenRecentVault, onRefresh }: FileTree
   }
   
   const handleRename = (file: LocalFile) => {
-    const newName = window.prompt('Enter new name:', file.name)
-    if (newName && newName !== file.name) {
-      executeCommand('rename', { file, newName }, { onRefresh })
-    }
+    // Use inline rename mode
+    setRenamingFile(file)
+    setRenameValue(file.name)
   }
   
   const handleNewFolder = async () => {
@@ -315,10 +353,18 @@ export function FileTree({ onOpenVault, onOpenRecentVault, onRefresh }: FileTree
       ? contextMenu.file.relativePath 
       : contextMenu.file.relativePath.substring(0, contextMenu.file.relativePath.lastIndexOf('/'))
     
-    const folderName = window.prompt('Enter folder name:', 'New Folder')
-    if (folderName) {
-      await executeCommand('new-folder', { parentPath, folderName }, { onRefresh })
+    setNewFolderParentPath(parentPath)
+    setNewFolderName('New Folder')
+    setShowNewFolderDialog(true)
+  }
+
+  const handleNewFolderSubmit = async () => {
+    if (!newFolderName.trim()) {
+      setShowNewFolderDialog(false)
+      return
     }
+    await executeCommand('new-folder', { parentPath: newFolderParentPath, folderName: newFolderName.trim() }, { onRefresh })
+    setShowNewFolderDialog(false)
   }
   
   // Batch operations handlers
@@ -921,12 +967,26 @@ export function FileTree({ onOpenVault, onOpenRecentVault, onRefresh }: FileTree
       )
     }
     
+    // No vaults connected - show empty state with link to vault settings
     return (
-      <RecentVaultsSection
-        recentVaults={recentVaults}
-        onOpenVault={onOpenVault}
-        onOpenRecentVault={onOpenRecentVault}
-      />
+      <div className="flex flex-col items-center justify-center h-full py-8 px-4 text-center">
+        <Database size={32} className="text-plm-fg-muted mb-3" />
+        <p className="text-sm text-plm-fg-muted mb-4">
+          No vault connected
+        </p>
+        <button
+          onClick={() => {
+            // Navigate to vault settings
+            const { setActiveView, setSettingsTab } = usePDMStore.getState()
+            setActiveView('settings')
+            setSettingsTab('vaults')
+          }}
+          className="btn btn-ghost btn-sm text-plm-accent hover:text-plm-accent"
+        >
+          <Database size={14} />
+          Connect a Vault
+        </button>
+      </div>
     )
   }
 
@@ -977,7 +1037,14 @@ export function FileTree({ onOpenVault, onOpenRecentVault, onRefresh }: FileTree
       />
       
       {/* Vault list */}
-      <div className="flex-1 overflow-y-auto">
+      <div 
+        ref={scrollableContainerRef}
+        className={`flex-1 overflow-y-auto relative ${selectionBox ? 'selecting' : ''}`}
+        {...selectionHandlers}
+      >
+        {/* Selection box overlay */}
+        {selectionBox && <SelectionBoxOverlay box={selectionBox} />}
+        
         {visibleVaults.map(vault => renderVaultSection(vault))}
         
         {impersonatedUser && effectiveVaultIds.length > 0 && connectedVaults.length > visibleVaults.length && (
@@ -1413,6 +1480,41 @@ export function FileTree({ onOpenVault, onOpenRecentVault, onRefresh }: FileTree
                 className="btn btn-ghost"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Folder Dialog */}
+      {showNewFolderDialog && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowNewFolderDialog(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-medium text-plm-fg mb-4">New Folder</h3>
+            <div className="mb-4">
+              <label className="block text-sm text-plm-fg-muted mb-1">Folder name</label>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleNewFolderSubmit()
+                  if (e.key === 'Escape') setShowNewFolderDialog(false)
+                }}
+                className="w-full bg-plm-bg border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowNewFolderDialog(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button
+                onClick={handleNewFolderSubmit}
+                disabled={!newFolderName.trim()}
+                className="btn btn-primary"
+              >
+                Create Folder
               </button>
             </div>
           </div>

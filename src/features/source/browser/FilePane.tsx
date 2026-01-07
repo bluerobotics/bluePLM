@@ -17,6 +17,7 @@ import { useTranslation } from '@/lib/i18n'
 // Shared hooks from Agent 1's foundation
 import { useClipboard } from '@/hooks/useClipboard'
 import { useSelectionCategories } from '@/hooks/useSelectionCategories'
+import { useSelectionBox } from '@/hooks/useSelectionBox'
 
 // Import extracted components from this feature module
 import { 
@@ -25,6 +26,7 @@ import {
   FileListBody,
   EmptyState,
   LoadingState,
+  NoVaultEmptyState,
   SelectionBoxOverlay,
   DragOverlay,
   ColumnHeaders,
@@ -62,7 +64,6 @@ import { useSorting } from './hooks/useSorting'
 import {
   useContextMenuState,
   useDialogState,
-  useConfigState,
   useInlineActionHover,
   useDragState,
   useRenameState,
@@ -134,11 +135,12 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     searchQuery,
     searchType,
     lowercaseExtensions,
-    processingFolders,
+    processingOperations,
     addProcessingFolder,
     addProcessingFolders,
     removeProcessingFolder,
     removeProcessingFolders,
+    getProcessingOperation,
     setDetailsPanelTab,
     detailsPanelVisible,
     toggleDetailsPanel,
@@ -281,7 +283,6 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     dragOverFolder,
     draggingColumn, setDraggingColumn,
     dragOverColumn, setDragOverColumn,
-    selectionBox, setSelectionBox,
     resizingColumn, setResizingColumn,
     handleDragStart,
     handleDragEnd,
@@ -326,17 +327,15 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     setColumnContextMenu,
   })
   
-  // Configuration state (expanded configs, selected configs, loading, exporting)
-  const {
-    expandedConfigFiles, setExpandedConfigFiles,
-    fileConfigurations, setFileConfigurations,
-    loadingConfigs, setLoadingConfigs,
-    justSavedConfigs,
-    selectedConfigs, setSelectedConfigs,
-    lastClickedConfigRef,
-    isExportingConfigs, setIsExportingConfigs,
-    savingConfigsToSW, setSavingConfigsToSW
-  } = useConfigState()
+  // Configuration local state (refs and UI state that can't be in Zustand)
+  // Config expansion/selection state is now in Zustand store (like expandedFolders/selectedFiles)
+  const lastClickedConfigRef = useRef<string | null>(null)
+  const justSavedConfigs = useRef<Set<string>>(new Set())
+  const [isExportingConfigs, setIsExportingConfigs] = useState(false)
+  const [savingConfigsToSW, setSavingConfigsToSW] = useState<Set<string>>(new Set())
+  
+  // Config state setter from store (for context menu callbacks)
+  const setSelectedConfigs = usePDMStore(s => s.setSelectedConfigs)
 
   // Config handlers (SolidWorks configurations)
   const {
@@ -352,14 +351,6 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     toggleFileConfigExpansion,
   } = useConfigHandlers({
     files,
-    expandedConfigFiles,
-    setExpandedConfigFiles,
-    fileConfigurations,
-    setFileConfigurations,
-    loadingConfigs,
-    setLoadingConfigs,
-    selectedConfigs,
-    setSelectedConfigs,
     lastClickedConfigRef,
     justSavedConfigs,
     configContextMenu,
@@ -442,12 +433,12 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     copiedLink, setCopiedLink
   } = useShareModal()
 
-  // ECO modal state
+  // ECO modal state (ECO list comes from store via ecosSlice)
   const {
     showECOModal, setShowECOModal,
     ecoFile, setEcoFile,
-    activeECOs, setActiveECOs,
-    loadingECOs, setLoadingECOs,
+    activeECOs,
+    loadingECOs,
     selectedECO, setSelectedECO,
     ecoNotes, setEcoNotes,
     isAddingToECO, setIsAddingToECO
@@ -512,9 +503,6 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     setShowECOModal,
     setEcoFile,
     ecoFile,
-    setLoadingECOs,
-    activeECOs,
-    setActiveECOs,
     selectedECO,
     setSelectedECO,
     ecoNotes,
@@ -589,6 +577,16 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     selectedFiles,
     setSelectedFiles,
     toggleFileSelection
+  })
+
+  // Selection box (marquee/drag-box selection)
+  const { selectionBox, selectionHandlers } = useSelectionBox({
+    containerRef: tableRef,
+    getVisibleItems: () => sortedFiles,
+    rowSelector: 'tbody tr',
+    setSelectedFiles,
+    clearSelection,
+    excludeSelector: 'th'  // Don't start selection when clicking headers
   })
 
   // Delete handler (delete dialog logic and execution)
@@ -675,8 +673,8 @@ export function FilePane({ onRefresh }: FilePaneProps) {
 
   // Check if a file/folder is affected by any processing operation
   const isBeingProcessed = useCallback((relativePath: string) => {
-    return isPathBeingProcessed(relativePath, processingFolders)
-  }, [processingFolders])
+    return isPathBeingProcessed(relativePath, processingOperations)
+  }, [processingOperations])
   
   // Load current machine ID once for multi-device checkout detection
   useEffect(() => {
@@ -937,6 +935,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     selectedUpdatableFiles,
     // Status functions
     isBeingProcessed,
+    getProcessingOperation,
     getFolderCheckoutStatus,
     isFolderSynced,
     isFileEditable,
@@ -955,7 +954,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     handleInlineDownload, handleInlineUpload, handleInlineCheckout, handleInlineCheckin,
     selectedDownloadableFiles, selectedUploadableFiles, selectedCheckoutableFiles,
     selectedCheckinableFiles, selectedUpdatableFiles,
-    isBeingProcessed, getFolderCheckoutStatus, isFolderSynced, isFileEditable,
+    isBeingProcessed, getProcessingOperation, getFolderCheckoutStatus, isFolderSynced, isFileEditable,
     canHaveConfigs, toggleFileConfigExpansion, hasPendingConfigChanges,
     savingConfigsToSW, saveConfigsToSWFile,
     handleRename, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit,
@@ -983,7 +982,10 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   const visibleColumns = allColumns.filter(c => c.visible)
 
   return (
-    <FilePaneProvider onRefresh={onRefresh} customMetadataColumns={customMetadataColumns}>
+    <FilePaneProvider 
+      onRefresh={onRefresh} 
+      customMetadataColumns={customMetadataColumns}
+    >
     <FilePaneHandlersProvider handlers={handlersContextValue}>
     <div 
       className="flex-1 flex flex-col overflow-hidden relative min-w-0"
@@ -1031,70 +1033,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
         ref={tableRef} 
         className="flex-1 overflow-auto relative"
         onContextMenu={handleEmptyContextMenu}
-        onMouseDown={(e) => {
-          // Only start selection box on left click in empty area
-          if (e.button !== 0) return
-          const target = e.target as HTMLElement
-          if (target.closest('tr') || target.closest('th')) return
-          
-          const rect = tableRef.current?.getBoundingClientRect()
-          if (!rect) return
-          
-          const startX = e.clientX - rect.left + (tableRef.current?.scrollLeft || 0)
-          const startY = e.clientY - rect.top + (tableRef.current?.scrollTop || 0)
-          
-          setSelectionBox({ startX, startY, currentX: startX, currentY: startY })
-          
-          if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-            clearSelection()
-          }
-        }}
-        onMouseMove={(e) => {
-          if (!selectionBox) return
-          
-          const rect = tableRef.current?.getBoundingClientRect()
-          if (!rect) return
-          
-          const currentX = e.clientX - rect.left + (tableRef.current?.scrollLeft || 0)
-          const currentY = e.clientY - rect.top + (tableRef.current?.scrollTop || 0)
-          
-          setSelectionBox(prev => prev ? { ...prev, currentX, currentY } : null)
-          
-          // Calculate selection box bounds
-          const top = Math.min(selectionBox.startY, currentY)
-          const bottom = Math.max(selectionBox.startY, currentY)
-          
-          // Find rows that intersect with selection box
-          const rows = tableRef.current?.querySelectorAll('tbody tr')
-          const selectedPaths: string[] = []
-          
-          rows?.forEach((row, index) => {
-            const rowRect = row.getBoundingClientRect()
-            const tableRect = tableRef.current?.getBoundingClientRect()
-            if (!tableRect) return
-            
-            const rowTop = rowRect.top - tableRect.top + (tableRef.current?.scrollTop || 0)
-            const rowBottom = rowTop + rowRect.height
-            
-            // Check if row intersects with selection box
-            if (rowBottom > top && rowTop < bottom) {
-              const file = sortedFiles[index]
-              if (file) {
-                selectedPaths.push(file.path)
-              }
-            }
-          })
-          
-          setSelectedFiles(selectedPaths)
-        }}
-        onMouseUp={() => {
-          setSelectionBox(null)
-        }}
-        onMouseLeave={() => {
-          if (selectionBox) {
-            setSelectionBox(null)
-          }
-        }}
+        {...selectionHandlers}
       >
         {/* Selection box overlay */}
         {selectionBox && <SelectionBoxOverlay box={selectionBox} />}
@@ -1107,7 +1046,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
             iconSize={iconSize}
             selectedFiles={selectedFiles}
             clipboard={clipboard}
-            processingPaths={processingFolders}
+            processingPaths={processingOperations}
             currentMachineId={currentMachineId}
             lowercaseExtensions={lowercaseExtensions !== false}
             userId={user?.id}
@@ -1166,11 +1105,15 @@ export function FilePane({ onRefresh }: FilePaneProps) {
         </table>
         )}
 
-        {sortedFiles.length === 0 && !isLoading && filesLoaded && (
+        {/* Empty state - no vault connected */}
+        {!vaultPath && <NoVaultEmptyState />}
+        
+        {/* Empty state - vault connected but no files in current folder */}
+        {vaultPath && sortedFiles.length === 0 && !isLoading && filesLoaded && (
           <EmptyState onAddFiles={handleAddFiles} onAddFolder={handleAddFolder} />
         )}
 
-        {(isLoading || !filesLoaded) && <LoadingState message="Loading vault..." />}
+        {vaultPath && (isLoading || !filesLoaded) && <LoadingState message="Loading vault..." />}
       </div>
 
       {/* Context Menu */}

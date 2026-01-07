@@ -11,15 +11,30 @@ export { BackupConfigForm } from './BackupConfigForm'
 export { RestoreActionBar } from './RestoreActionBar'
 export { DeleteSnapshotDialog } from './DeleteSnapshotDialog'
 export { VaultSelector } from './VaultSelector'
+export { BackupStatusViewer } from './BackupStatusViewer'
+export { BackupLogConsole } from './BackupLogConsole'
+export { BackupProgressTracker } from './BackupProgressTracker'
 
 // Hook exports
 export { useMachineInfo } from './hooks/useMachineInfo'
 export { useBackupStatus } from './hooks/useBackupStatus'
 export { useBackupConfig } from './hooks/useBackupConfig'
 export { useBackupOperations } from './hooks/useBackupOperations'
+export { useBackupLogs } from './hooks/useBackupLogs'
 
 // Type exports
-export type { BackupPanelProps, BackupProgress, DeleteConfirmTarget, ConnectedVault } from './types'
+export type { 
+  BackupPanelProps, 
+  BackupProgress, 
+  DeleteConfirmTarget, 
+  ConnectedVault,
+  BackupLogEntry,
+  BackupLogLevel,
+  BackupPhase,
+  BackupDetailedProgress,
+  BackupOperationStats,
+  BackupLogFilter
+} from './types'
 
 // Utility exports
 export {

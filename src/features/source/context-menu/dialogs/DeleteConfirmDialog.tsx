@@ -30,8 +30,8 @@ export function DeleteConfirmDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 mb-4">
-          <div className={`w-10 h-10 rounded-full ${keepLocal ? 'bg-plm-warning/20' : 'bg-plm-error/20'} flex items-center justify-center`}>
-            <AlertTriangle size={20} className={keepLocal ? 'text-plm-warning' : 'text-plm-error'} />
+          <div className="w-10 h-10 rounded-full bg-plm-error/20 flex items-center justify-center">
+            <AlertTriangle size={20} className="text-plm-error" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-plm-fg">
@@ -97,7 +97,7 @@ export function DeleteConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className={`btn ${keepLocal ? 'bg-plm-warning hover:bg-plm-warning/80' : 'bg-plm-error hover:bg-plm-error/80'} text-white`}
+            className="btn bg-plm-error hover:bg-plm-error/80 text-white"
           >
             {keepLocal ? <CloudOff size={14} /> : <Trash2 size={14} />}
             {keepLocal 

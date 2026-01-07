@@ -74,8 +74,8 @@ function getSWServicePath(): { path: string; isProduction: boolean } {
   
   const possiblePaths = [
     { path: path.join(process.resourcesPath || '', 'bin', 'BluePLM.SolidWorksService.exe'), isProduction: true },
-    { path: path.join(app.getAppPath(), 'solidworks-addin', 'BluePLM.SolidWorksService', 'bin', 'Release', 'BluePLM.SolidWorksService.exe'), isProduction: false },
-    { path: path.join(app.getAppPath(), 'solidworks-addin', 'BluePLM.SolidWorksService', 'bin', 'Debug', 'BluePLM.SolidWorksService.exe'), isProduction: false },
+    { path: path.join(app.getAppPath(), 'solidworks-service', 'BluePLM.SolidWorksService', 'bin', 'Release', 'BluePLM.SolidWorksService.exe'), isProduction: false },
+    { path: path.join(app.getAppPath(), 'solidworks-service', 'BluePLM.SolidWorksService', 'bin', 'Debug', 'BluePLM.SolidWorksService.exe'), isProduction: false },
   ]
   
   for (const p of possiblePaths) {
@@ -98,13 +98,22 @@ function handleSWServiceOutput(data: string): void {
     if (!line.trim()) continue
     
     try {
-      const result = JSON.parse(line) as SWServiceResult
+      const result = JSON.parse(line) as SWServiceResult & { requestId?: number }
       
-      const entry = swPendingRequests.entries().next().value
-      if (entry) {
-        const [id, handlers] = entry
-        swPendingRequests.delete(id)
+      // Match response to request by requestId (if present) or fall back to FIFO
+      const requestId = result.requestId
+      if (requestId !== undefined && swPendingRequests.has(requestId)) {
+        const handlers = swPendingRequests.get(requestId)!
+        swPendingRequests.delete(requestId)
         handlers.resolve(result)
+      } else {
+        // Fallback to FIFO for backwards compatibility
+        const entry = swPendingRequests.entries().next().value
+        if (entry) {
+          const [id, handlers] = entry
+          swPendingRequests.delete(id)
+          handlers.resolve(result)
+        }
       }
     } catch {
       log('[SolidWorks Service] Failed to parse output: ' + line)
@@ -137,7 +146,9 @@ async function sendSWCommand(command: Record<string, unknown>): Promise<SWServic
       }
     })
     
-    const json = JSON.stringify(command) + '\n'
+    // Include requestId in command for response correlation
+    const commandWithId = { ...command, requestId: id }
+    const json = JSON.stringify(commandWithId) + '\n'
     swServiceProcess!.stdin!.write(json)
   })
 }

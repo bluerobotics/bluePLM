@@ -41,7 +41,8 @@ async function extractSolidWorksMetadata(
     const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
     
     if (!result?.success || !result.data) {
-      console.debug('[Checkin] Failed to get properties:', result?.error)
+      // This is expected if Document Manager is not configured - properties can be synced later using "Refresh Metadata"
+      console.debug('[Checkin] Skipping auto-extraction:', result?.error || 'No data returned')
       return null
     }
     
@@ -228,10 +229,10 @@ async function writeSolidWorksMetadata(
     return true // Nothing to write
   }
   
-  // Check if SolidWorks service is available
+  // Check if SolidWorks service and Document Manager are available
   const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
-  if (!status?.data?.running) {
-    console.debug('[Checkin] SolidWorks service not running, skipping metadata write-back')
+  if (!status?.data?.running || !status?.data?.documentManagerAvailable) {
+    console.debug('[Checkin] SolidWorks service/Document Manager not available, skipping metadata write-back')
     return true // Continue without writing (not a failure)
   }
   
@@ -419,13 +420,13 @@ export const checkinCommand: Command<CheckinParams> = {
       }
     }
     
-    // Track folders and files being processed (for spinner display)
+    // Track folders and files being processed (for spinner display) - batch add
     const foldersBeingProcessed = files
       .filter(f => f.isDirectory)
       .map(f => f.relativePath)
     const filesBeingProcessed = filesToCheckin.map(f => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
-    ctx.addProcessingFolders(allPathsBeingProcessed)
+    ctx.addProcessingFolders(allPathsBeingProcessed, 'checkin')
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))

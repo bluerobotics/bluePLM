@@ -161,19 +161,23 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult ProcessCommand(string json)
         {
+            int? requestId = null;
             try
             {
                 var command = JsonConvert.DeserializeObject<JObject>(json);
                 if (command == null)
                     return new CommandResult { Success = false, Error = "Invalid JSON" };
 
+                // Extract requestId for response correlation
+                requestId = command["requestId"]?.Value<int>();
+
                 var action = command["action"]?.ToString();
                 var filePath = command["filePath"]?.ToString();
 
                 if (string.IsNullOrEmpty(action))
-                    return new CommandResult { Success = false, Error = "Missing 'action' field" };
+                    return new CommandResult { Success = false, Error = "Missing 'action' field", RequestId = requestId };
 
-                return action switch
+                var result = action switch
                 {
                     // ========================================
                     // FAST operations (Document Manager API)
@@ -245,10 +249,14 @@ namespace BluePLM.SolidWorksService
                     
                     _ => new CommandResult { Success = false, Error = $"Unknown action: {action}" }
                 };
+
+                // Set requestId on result for response correlation
+                result.RequestId = requestId;
+                return result;
             }
             catch (JsonException ex)
             {
-                return new CommandResult { Success = false, Error = $"JSON parse error: {ex.Message}" };
+                return new CommandResult { Success = false, Error = $"JSON parse error: {ex.Message}", RequestId = requestId };
             }
         }
 
@@ -273,54 +281,45 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult GetPropertiesFast(string? filePath, JObject command)
         {
-            // Try Document Manager first (NO SW launch!)
-            if (_dmApi != null && _dmApi.IsAvailable)
+            // ONLY use Document Manager API - NEVER fall back to full SolidWorks!
+            // Opening SolidWorks just for property extraction can take 20-30+ seconds.
+            // If Document Manager fails, the user can manually use "Refresh Metadata" 
+            // which intentionally uses full SW API.
+            
+            if (_dmApi == null || !_dmApi.IsAvailable)
             {
-                Console.Error.WriteLine($"[Service] Trying Document Manager API for: {Path.GetFileName(filePath)}");
-                var result = _dmApi.GetCustomProperties(filePath, command["configuration"]?.ToString());
-                
-                if (result.Success)
-                {
-                    // Check if we got actual properties
-                    bool hasProps = false;
-                    try
-                    {
-                        dynamic data = result.Data!;
-                        var fileProps = data.fileProperties as Dictionary<string, string>;
-                        hasProps = fileProps != null && fileProps.Count > 0;
-                        Console.Error.WriteLine($"[Service] DM returned {fileProps?.Count ?? 0} file properties");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine($"[Service] Error checking DM result: {ex.Message}");
-                    }
-                    
-                    if (hasProps)
-                    {
-                        return result;
-                    }
-                    
-                    // For drawings with empty properties, try full SW API as fallback
-                    var ext = Path.GetExtension(filePath ?? "").ToLowerInvariant();
-                    if (ext == ".slddrw")
-                    {
-                        Console.Error.WriteLine($"[Service] DM returned empty for drawing, trying full SW API...");
-                    }
-                    else
-                    {
-                        // For parts/assemblies, empty properties may be valid
-                        return result;
-                    }
-                }
-                else
-                {
-                    Console.Error.WriteLine($"[Service] DM failed: {result.Error}");
-                }
+                Console.Error.WriteLine($"[Service] Document Manager not available for: {Path.GetFileName(filePath)}");
+                return new CommandResult 
+                { 
+                    Success = false, 
+                    Error = "Document Manager not available. Configure DM license in Settings → Integrations → SOLIDWORKS, or use 'Refresh Metadata' for manual extraction." 
+                };
             }
             
-            // Fall back to full SW API (will launch SW - slower)
-            Console.Error.WriteLine($"[Service] Falling back to full SolidWorks API");
-            return _swApi!.GetCustomProperties(filePath, command["configuration"]?.ToString());
+            Console.Error.WriteLine($"[Service] Using Document Manager API for: {Path.GetFileName(filePath)}");
+            var result = _dmApi.GetCustomProperties(filePath, command["configuration"]?.ToString());
+            
+            if (result.Success)
+            {
+                // Log property count for debugging
+                try
+                {
+                    dynamic data = result.Data!;
+                    var fileProps = data.fileProperties as Dictionary<string, string>;
+                    Console.Error.WriteLine($"[Service] DM returned {fileProps?.Count ?? 0} file properties");
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[Service] Error checking DM result: {ex.Message}");
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"[Service] DM failed: {result.Error}");
+            }
+            
+            // Always return DM result - no fallback to slow SW API!
+            return result;
         }
 
         static CommandResult GetConfigurationsFast(string? filePath)
@@ -526,7 +525,6 @@ Usage:
 
 Options:
   --dm-license <key>   Document Manager API license key for fast mode
-                       Can also use SOLIDWORKS_DM_LICENSE_KEY env var
   
   --close-sw-after     Close SolidWorks after each operation
   
@@ -582,5 +580,8 @@ Commands:
 
         [JsonProperty("errorDetails", NullValueHandling = NullValueHandling.Ignore)]
         public string? ErrorDetails { get; set; }
+
+        [JsonProperty("requestId", NullValueHandling = NullValueHandling.Ignore)]
+        public int? RequestId { get; set; }
     }
 }

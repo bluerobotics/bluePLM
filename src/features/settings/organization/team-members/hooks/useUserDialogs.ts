@@ -1,13 +1,22 @@
 import { useState, useCallback } from 'react'
+import { usePDMStore } from '@/stores/pdmStore'
 import type { OrgUser } from '../types'
 
 export function useUserDialogs() {
+  // === State from Zustand store (shared across components) ===
+  const {
+    removingUser,
+    setRemovingUser,
+    isRemoving,
+    setIsRemoving,
+    editingTeamsUser,
+    setEditingTeamsUser
+  } = usePDMStore()
+  
+  // === Local state (component-specific dialogs) ===
+  
   // Create user dialog
   const [showCreateUserDialog, setShowCreateUserDialog] = useState(false)
-  
-  // Remove user state
-  const [removingUser, setRemovingUser] = useState<OrgUser | null>(null)
-  const [isRemoving, setIsRemoving] = useState(false)
   
   // Remove from team confirmation (for removing self from Administrators)
   const [removingFromTeam, setRemovingFromTeam] = useState<{ user: OrgUser; teamId: string; teamName: string } | null>(null)
@@ -23,9 +32,6 @@ export function useUserDialogs() {
   // Add to team
   const [addToTeamUser, setAddToTeamUser] = useState<OrgUser | null>(null)
   
-  // Edit user teams
-  const [editingTeamsUser, setEditingTeamsUser] = useState<OrgUser | null>(null)
-  
   // User vault access
   const [editingVaultAccessUser, setEditingVaultAccessUser] = useState<OrgUser | null>(null)
   const [pendingVaultAccess, setPendingVaultAccess] = useState<string[]>([])
@@ -37,12 +43,12 @@ export function useUserDialogs() {
   // Helper functions
   const openRemoveUserDialog = useCallback((user: OrgUser) => {
     setRemovingUser(user)
-  }, [])
+  }, [setRemovingUser])
   
   const closeRemoveUserDialog = useCallback(() => {
     setRemovingUser(null)
     setIsRemoving(false)
-  }, [])
+  }, [setRemovingUser, setIsRemoving])
   
   const openViewPermissions = useCallback((user: OrgUser) => {
     setViewingPermissionsUser(user)
@@ -62,7 +68,7 @@ export function useUserDialogs() {
   
   const openEditTeams = useCallback((user: OrgUser) => {
     setEditingTeamsUser(user)
-  }, [])
+  }, [setEditingTeamsUser])
   
   const openVaultAccess = useCallback((user: OrgUser, currentVaultIds: string[]) => {
     setEditingVaultAccessUser(user)
@@ -88,7 +94,7 @@ export function useUserDialogs() {
     setPendingVaultAccess([])
     setIsSavingVaultAccess(false)
     setEditingWorkflowRolesUser(null)
-  }, [])
+  }, [setRemovingUser, setIsRemoving, setEditingTeamsUser])
   
   return {
     // State

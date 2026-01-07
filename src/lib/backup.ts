@@ -468,6 +468,34 @@ export function stopBackupService(): void {
 // Restic Operations - All backup data lives here!
 // ============================================
 
+// Queue for restic operations that can't run in parallel
+// (restic locks the repository during operations)
+const deleteQueue: Array<{
+  config: BackupConfig
+  snapshotId: string
+  resolve: (result: { success: boolean; error?: string }) => void
+}> = []
+let isProcessingDeleteQueue = false
+
+async function processDeleteQueue(): Promise<void> {
+  if (isProcessingDeleteQueue || deleteQueue.length === 0) return
+  
+  isProcessingDeleteQueue = true
+  
+  while (deleteQueue.length > 0) {
+    const item = deleteQueue.shift()!
+    
+    try {
+      const result = await deleteSnapshotInternal(item.config, item.snapshotId)
+      item.resolve(result)
+    } catch (err) {
+      item.resolve({ success: false, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  
+  isProcessingDeleteQueue = false
+}
+
 // List snapshots directly from restic
 export async function listSnapshots(config: BackupConfig): Promise<BackupSnapshot[]> {
   if (!window.electronAPI?.listBackupSnapshots) {
@@ -502,8 +530,8 @@ export async function listSnapshots(config: BackupConfig): Promise<BackupSnapsho
   }
 }
 
-// Delete a snapshot from restic
-export async function deleteSnapshot(
+// Internal delete function (called by queue processor)
+async function deleteSnapshotInternal(
   config: BackupConfig,
   snapshotId: string
 ): Promise<{ success: boolean; error?: string }> {
@@ -531,6 +559,21 @@ export async function deleteSnapshot(
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+// Delete a snapshot from restic (queued to prevent lock conflicts)
+export async function deleteSnapshot(
+  config: BackupConfig,
+  snapshotId: string
+): Promise<{ success: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    // Add to queue
+    deleteQueue.push({ config, snapshotId, resolve })
+    console.log(`[Backup] Queued delete for snapshot ${snapshotId} (${deleteQueue.length} in queue)`)
+    
+    // Start processing if not already running
+    processDeleteQueue()
+  })
 }
 
 // Run a backup
@@ -748,6 +791,7 @@ export async function exportDatabaseMetadata(
 ): Promise<{ success: boolean; data?: DatabaseExport; error?: string }> {
   const supabase = getSupabaseClient()
   
+  console.log('[BACKUP-DEBUG] exportDatabaseMetadata called', { orgId, vaultId })
   window.electronAPI?.log('info', '[Backup] exportDatabaseMetadata called', { orgId, vaultId })
   
   try {
@@ -783,6 +827,14 @@ export async function exportDatabaseMetadata(
       .is('deleted_at', null)
     
     if (filesError) throw new Error(`Failed to fetch files: ${filesError.message}`)
+    
+    console.log('[BACKUP-DEBUG] Files query result:', {
+      count: files?.length || 0,
+      orgId,
+      vaultId,
+      firstFile: files?.[0]?.file_name
+    })
+    window.electronAPI?.log('info', '[Backup] Files query result', { count: files?.length || 0 })
     
     const fileIds = (files || []).map(f => f.id)
     
@@ -837,6 +889,18 @@ export async function importDatabaseMetadata(
 ): Promise<{ success: boolean; stats?: { filesRestored: number; versionsRestored: number; skipped: number }; error?: string }> {
   const supabase = getSupabaseClient()
   const { overwriteExisting = false, restoreDeleted = true } = options
+  
+  console.log('[BACKUP-DEBUG] importDatabaseMetadata called with:', {
+    _type: exportData._type,
+    _version: exportData._version,
+    _orgName: exportData._orgName,
+    _vaultName: exportData._vaultName,
+    filesCount: exportData.files?.length,
+    fileVersionsCount: exportData.fileVersions?.length,
+    filesIsArray: Array.isArray(exportData.files),
+    fileVersionsIsArray: Array.isArray(exportData.fileVersions),
+    rawFilesType: typeof exportData.files
+  })
   
   try {
     if (exportData._type !== 'blueplm_database_export') {

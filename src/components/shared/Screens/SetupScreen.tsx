@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Database, Key, Users, Loader2, Check, Copy, AlertCircle, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-react'
+import { Key, Users, Loader2, Check, Copy, AlertCircle, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import { 
   saveConfig, 
   generateOrgCode, 
@@ -92,7 +92,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
   const [error, setError] = useState<string | null>(null)
   
   // Admin mode state
-  const [supabaseUrl, setSupabaseUrl] = useState('')
+  const [projectId, setProjectId] = useState('')
   const [anonKey, setAnonKey] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
   const [showKey, setShowKey] = useState(false)
@@ -103,23 +103,27 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
   const [orgCode, setOrgCode] = useState('')
   
   const handleAdminSetup = async () => {
-    if (!supabaseUrl.trim() || !anonKey.trim()) {
-      setError('Please enter both Supabase URL and Anon Key')
+    if (!projectId.trim() || !anonKey.trim()) {
+      setError(t('setup.enterBothFields'))
       return
     }
     
-    // Basic URL validation
-    if (!supabaseUrl.includes('supabase.co') && !supabaseUrl.includes('supabase.in')) {
-      setError('Please enter a valid Supabase URL')
+    // Basic project ID validation (alphanumeric, typically 20 chars)
+    const cleanProjectId = projectId.trim().toLowerCase()
+    if (!/^[a-z0-9]+$/.test(cleanProjectId)) {
+      setError(t('setup.invalidProjectId'))
       return
     }
     
     setIsValidating(true)
     setError(null)
     
+    // Construct URL from project ID
+    const supabaseUrl = `https://${cleanProjectId}.supabase.co`
+    
     const config: SupabaseConfig = {
       version: 1,
-      url: supabaseUrl.trim(),
+      url: supabaseUrl,
       anonKey: anonKey.trim(),
       orgSlug: orgSlug.trim() || undefined
     }
@@ -207,9 +211,44 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
         <div className="max-w-xl w-full">
           {/* Logo and Title */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-              <Database size={40} className="text-white" />
-            </div>
+            <svg width="80" height="80" viewBox="0 0 512 512" fill="none" className="mx-auto mb-4">
+              {/* Gradient matching app icon */}
+              <defs>
+                <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#0a1929"/>
+                  <stop offset="100%" stopColor="#0d2137"/>
+                </linearGradient>
+                <linearGradient id="iconGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#00b4d8"/>
+                  <stop offset="100%" stopColor="#0096c7"/>
+                </linearGradient>
+              </defs>
+              {/* Rounded square background */}
+              <rect x="0" y="0" width="512" height="512" rx="100" fill="url(#bgGradient)"/>
+              {/* Top layer - filled */}
+              <path 
+                d="M256 96L96 176L256 256L416 176L256 96Z" 
+                fill="url(#iconGradient)"
+              />
+              {/* Middle layer - stroked */}
+              <path 
+                d="M96 256L256 336L416 256" 
+                stroke="url(#iconGradient)" 
+                strokeWidth="24" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                fill="none"
+              />
+              {/* Bottom layer - stroked */}
+              <path 
+                d="M96 336L256 416L416 336" 
+                stroke="url(#iconGradient)" 
+                strokeWidth="24" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </svg>
             <h1 className="text-3xl font-bold text-plm-fg mb-2">{t('setup.welcome')}</h1>
             <p className="text-plm-fg-muted">
               {t('setup.connectToBackend')}
@@ -262,7 +301,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           {/* Help Link */}
           <div className="mt-8 text-center">
             <a 
-              href="https://github.com/bluerobotics/bluePLM#setup" 
+              href="https://docs.blueplm.io/admin-setup.html" 
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sm text-plm-fg-muted hover:text-plm-accent transition-colors"
@@ -358,18 +397,21 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           </div>
           
           <div className="space-y-4">
-            {/* Supabase URL */}
+            {/* Supabase Project ID */}
             <div>
               <label className="block text-sm text-plm-fg-muted mb-1.5">
-                {t('setup.supabaseUrl')}
+                {t('setup.projectId')}
               </label>
               <input
-                type="url"
-                value={supabaseUrl}
-                onChange={(e) => setSupabaseUrl(e.target.value)}
-                placeholder="https://xxxxx.supabase.co"
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none"
+                type="text"
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                placeholder="vvyhpdzqdizvorrhjhvq"
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono"
               />
+              <p className="text-xs text-plm-fg-dim mt-1">
+                {t('setup.projectIdHelp')}
+              </p>
             </div>
             
             {/* Anon Key */}
@@ -423,7 +465,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
             {/* Submit Button */}
             <button
               onClick={handleAdminSetup}
-              disabled={isValidating || !supabaseUrl || !anonKey}
+              disabled={isValidating || !projectId || !anonKey}
               className="w-full btn btn-primary btn-lg justify-center mt-6"
             >
               {isValidating ? (

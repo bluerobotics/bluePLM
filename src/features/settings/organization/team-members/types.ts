@@ -61,9 +61,9 @@ export interface PendingMember {
   team_ids: string[]
   workflow_role_ids: string[]
   vault_ids: string[]
-  created_at: string
-  created_by: string | null
-  notes: string | null
+  invited_at: string
+  invited_by: string | null
+  expires_at: string | null
   claimed_at: string | null
 }
 

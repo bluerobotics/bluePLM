@@ -1,5 +1,6 @@
 // FilePane-specific types
 import type { LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 
 /**
  * Props for the main FilePane component
@@ -20,7 +21,7 @@ export interface FileRowProps {
   renameValue: string
   columns: ColumnConfig[]
   rowHeight: number
-  processingPaths: Set<string>
+  processingPaths: Map<string, OperationType>
   lowercaseExtensions: boolean
   userId: string | undefined
   currentMachineId: string | null
@@ -60,7 +61,7 @@ export interface FileIconCardProps {
   isSelected: boolean
   isCut: boolean
   allFiles: LocalFile[]
-  processingPaths: Set<string>
+  processingPaths: Map<string, OperationType>
   currentMachineId: string | null
   lowercaseExtensions: boolean
   userId: string | undefined

@@ -12,4 +12,4 @@ export { useFileCardStatus, useThumbnail } from './hooks'
 export type { FileCardStatus, CheckoutUser, FolderCheckoutInfo } from './hooks'
 
 // Badges
-export { CheckoutBadge, CloudStatusBadge, DiffStatusBadge, ProcessingBadge } from './badges'
+export { CheckoutBadge, CloudStatusBadge, DiffStatusBadge } from './badges'

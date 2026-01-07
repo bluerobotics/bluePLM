@@ -276,12 +276,15 @@ The FilePane uses two context providers to separate UI state from action handler
 #### FilePaneContext (UI State)
 
 ```tsx
-<FilePaneProvider onRefresh={onRefresh} customMetadataColumns={columns}>
+<FilePaneProvider 
+  onRefresh={onRefresh} 
+  customMetadataColumns={columns}
+>
   <FilePane />
 </FilePaneProvider>
 ```
 
-Key state provided:
+Key state provided (from Zustand store and local state):
 - Files and selection state
 - User and organization info
 - All context menu states
@@ -405,6 +408,10 @@ function SourceFilesView() {
   )
 }
 ```
+
+Note: SolidWorks configuration state (expandedConfigFiles, selectedConfigs, etc.)
+is now managed in the Zustand store (usePDMStore) following the same pattern
+as expandedFolders and selectedFiles.
 
 ## Exports
 

@@ -250,7 +250,7 @@ export const downloadCommand: Command<DownloadParams> = {
     
     // Combine all paths that need spinners (deduplicated)
     const allPathsToTrack = [...new Set([...cloudFilePaths, ...selectedFolderPaths, ...childCloudFolderPaths])]
-    ctx.addProcessingFolders(allPathsToTrack)
+    ctx.addProcessingFolders(allPathsToTrack, 'download')
     
     // Yield to event loop so React can render spinners before starting download
     // Use 16ms (roughly one frame) to ensure React has time to process state update and re-render

@@ -68,7 +68,6 @@ export function useWorkflowRoleHandlers(params: UseWorkflowRoleHandlersParams) {
   }, [editingWorkflowRole, workflowRoleFormData, hookUpdateWorkflowRole, setIsSavingWorkflowRole, setShowEditWorkflowRoleDialog, setEditingWorkflowRole, setWorkflowRoleFormData])
 
   const handleDeleteWorkflowRole = useCallback(async (role: { id: string; name: string }) => {
-    if (!confirm(`Delete "${role.name}"? Users with this role will have it removed.`)) return
     await hookDeleteWorkflowRole(role.id)
   }, [hookDeleteWorkflowRole])
 

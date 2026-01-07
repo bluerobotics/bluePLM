@@ -177,10 +177,10 @@ export function useIsOperationInProgress() {
   const isRefreshing = usePDMStore(s => s.isRefreshing)
   const syncProgress = usePDMStore(s => s.syncProgress)
   const operationQueue = usePDMStore(s => s.operationQueue)
-  const processingFolders = usePDMStore(s => s.processingFolders)
+  const processingOperations = usePDMStore(s => s.processingOperations)
   
   return isLoading || isRefreshing || syncProgress.isActive || 
-         operationQueue.length > 0 || processingFolders.size > 0
+         operationQueue.length > 0 || processingOperations.size > 0
 }
 
 /**

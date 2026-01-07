@@ -182,6 +182,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('backup:progress', handler)
     return () => ipcRenderer.removeListener('backup:progress', handler)
   },
+  onBackupLog: (callback: (entry: {
+    level: 'debug' | 'info' | 'warn' | 'error' | 'success'
+    phase: string
+    message: string
+    timestamp: number
+    metadata?: {
+      operation?: string
+      exitCode?: number
+      filesProcessed?: number
+      filesTotal?: number
+      bytesProcessed?: number
+      bytesTotal?: number
+      currentFile?: string
+      error?: string
+      duration?: number
+    }
+  }) => void) => {
+    const handler = (_: unknown, entry: {
+      level: 'debug' | 'info' | 'warn' | 'error' | 'success'
+      phase: string
+      message: string
+      timestamp: number
+      metadata?: {
+        operation?: string
+        exitCode?: number
+        filesProcessed?: number
+        filesTotal?: number
+        bytesProcessed?: number
+        bytesTotal?: number
+        currentFile?: string
+        error?: string
+        duration?: number
+      }
+    }) => callback(entry)
+    ipcRenderer.on('backup:log', handler)
+    return () => ipcRenderer.removeListener('backup:log', handler)
+  },
   
   // Logging
   getLogs: () => ipcRenderer.invoke('logs:get-entries'),

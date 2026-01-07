@@ -84,15 +84,12 @@ export interface FilePaneContextValue {
   dragOverColumn: string | null
   setDragOverColumn: (column: string | null) => void
   
-  // Configuration state (SolidWorks)
+  // Configuration state (SolidWorks) - read from Zustand store
+  // Note: setters are accessed via usePDMStore directly, not through context
   expandedConfigFiles: Set<string>
-  setExpandedConfigFiles: React.Dispatch<React.SetStateAction<Set<string>>>
   fileConfigurations: Map<string, ConfigWithDepth[]>
-  setFileConfigurations: React.Dispatch<React.SetStateAction<Map<string, ConfigWithDepth[]>>>
   loadingConfigs: Set<string>
-  setLoadingConfigs: React.Dispatch<React.SetStateAction<Set<string>>>
   selectedConfigs: Set<string>
-  setSelectedConfigs: React.Dispatch<React.SetStateAction<Set<string>>>
   
   // Clipboard
   clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
@@ -149,7 +146,11 @@ export interface FilePaneProviderProps {
   customMetadataColumns?: FileMetadataColumn[]
 }
 
-export function FilePaneProvider({ children, onRefresh, customMetadataColumns = [] }: FilePaneProviderProps) {
+export function FilePaneProvider({ 
+  children, 
+  onRefresh, 
+  customMetadataColumns = [],
+}: FilePaneProviderProps) {
   // Get store state
   const files = usePDMStore(s => s.files)
   const selectedFiles = usePDMStore(s => s.selectedFiles)
@@ -159,6 +160,13 @@ export function FilePaneProvider({ children, onRefresh, customMetadataColumns = 
   const columns = usePDMStore(s => s.columns)
   const lowercaseExtensions = usePDMStore(s => s.lowercaseExtensions)
   const listRowSize = usePDMStore(s => s.listRowSize)
+  
+  // SolidWorks configuration state from store (similar to expandedFolders/selectedFiles)
+  // Note: setters are accessed via usePDMStore directly in handlers, not passed through context
+  const expandedConfigFiles = usePDMStore(s => s.expandedConfigFiles)
+  const selectedConfigs = usePDMStore(s => s.selectedConfigs)
+  const fileConfigurations = usePDMStore(s => s.fileConfigurations)
+  const loadingConfigs = usePDMStore(s => s.loadingConfigs)
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -194,11 +202,8 @@ export function FilePaneProvider({ children, onRefresh, customMetadataColumns = 
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   
-  // Configuration state
-  const [expandedConfigFiles, setExpandedConfigFiles] = useState<Set<string>>(new Set())
-  const [fileConfigurations, setFileConfigurations] = useState<Map<string, ConfigWithDepth[]>>(new Map())
-  const [loadingConfigs, setLoadingConfigs] = useState<Set<string>>(new Set())
-  const [selectedConfigs, setSelectedConfigs] = useState<Set<string>>(new Set())
+  // Configuration state is now passed as props from FilePane.tsx
+  // to share state with useConfigHandlers hook
   
   // Clipboard
   const [clipboard, setClipboard] = useState<{ files: LocalFile[]; operation: 'copy' | 'cut' } | null>(null)
@@ -288,11 +293,11 @@ export function FilePaneProvider({ children, onRefresh, customMetadataColumns = 
     draggingColumn, setDraggingColumn,
     dragOverColumn, setDragOverColumn,
     
-    // Configurations
-    expandedConfigFiles, setExpandedConfigFiles,
-    fileConfigurations, setFileConfigurations,
-    loadingConfigs, setLoadingConfigs,
-    selectedConfigs, setSelectedConfigs,
+    // Configurations (read from Zustand store, setters accessed via usePDMStore directly)
+    expandedConfigFiles,
+    fileConfigurations,
+    loadingConfigs,
+    selectedConfigs,
     
     // Clipboard
     clipboard, setClipboard,

@@ -27,6 +27,11 @@ import {
   createModulesSlice,
   createTabsSlice,
   createOperationsSlice,
+  createWorkflowsSlice,
+  createSuppliersSlice,
+  createECOsSlice,
+  createOrganizationDataSlice,
+  createOrganizationMetadataSlice,
 } from './slices'
 
 // Create the combined store
@@ -43,6 +48,11 @@ export const usePDMStore = create<PDMStoreState>()(
       ...createModulesSlice(...a),
       ...createTabsSlice(...a),
       ...createOperationsSlice(...a),
+      ...createWorkflowsSlice(...a),
+      ...createSuppliersSlice(...a),
+      ...createECOsSlice(...a),
+      ...createOrganizationDataSlice(...a),
+      ...createOrganizationMetadataSlice(...a),
     }),
     {
       name: 'blue-plm-storage',
@@ -230,17 +240,11 @@ export const usePDMStore = create<PDMStoreState>()(
             : true,  // Default enabled, onboarding will auto-detect
           solidworksPath: (persisted.solidworksPath as string | null) || null,
           solidworksDmLicenseKey: (persisted.solidworksDmLicenseKey as string | null) || null,
-          autoStartSolidworksService: (persisted.autoStartSolidworksService as boolean) || false,
+          autoStartSolidworksService: (persisted.autoStartSolidworksService as boolean) ?? true,
           hideSolidworksTempFiles: persisted.hideSolidworksTempFiles !== undefined ? (persisted.hideSolidworksTempFiles as boolean) : true,
           ignoreSolidworksTempFiles: persisted.ignoreSolidworksTempFiles !== undefined ? (persisted.ignoreSolidworksTempFiles as boolean) : true,
-          // Restore API Server URL from local cache (server value syncs in App.tsx and takes precedence)
-          apiServerUrl: (() => {
-            // First check if it's in the persisted Zustand state
-            if (persisted.apiServerUrl) return persisted.apiServerUrl as string
-            // Migrate from old localStorage key if exists (one-time migration)
-            const legacyUrl = typeof window !== 'undefined' ? localStorage.getItem('blueplm_api_url') : null
-            return legacyUrl || null
-          })(),
+          // API Server URL - synced from org settings, not persisted locally
+          apiServerUrl: null,
           // Ensure lowercaseExtensions has a default (true)
           lowercaseExtensions: persisted.lowercaseExtensions !== undefined ? persisted.lowercaseExtensions as boolean : true,
           // Ensure viewMode has a default
@@ -400,8 +404,15 @@ export const usePDMStore = create<PDMStoreState>()(
             }
             
             // Custom groups - use defaults if persisted is empty (migration from old format)
+            // Also validate that all groups have proper names
             const customGroups = (persistedConfig.customGroups && persistedConfig.customGroups.length > 0) 
-              ? persistedConfig.customGroups 
+              ? persistedConfig.customGroups.map(group => ({
+                  ...group,
+                  // Ensure name exists - derive from ID if missing
+                  name: group.name || group.id.replace('group-', '').split('-').map(
+                    (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
+                  ).join(' ')
+                }))
               : defaults.customGroups
             
             return { enabledModules, enabledGroups, moduleOrder, dividers, moduleParents, moduleIconColors, customGroups }

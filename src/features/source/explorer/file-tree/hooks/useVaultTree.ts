@@ -18,7 +18,7 @@ export function useVaultTree() {
     hideSolidworksTempFiles,
     user,
     getFolderDiffCounts: getFolderDiffCountsFromStore,
-    processingFolders
+    processingOperations
   } = usePDMStore()
   
   // Build folder tree structure
@@ -54,16 +54,16 @@ export function useVaultTree() {
     const normalizedPath = relativePath.replace(/\\/g, '/')
     
     // Check if this exact path is being processed
-    if (processingFolders.has(relativePath)) return true
-    if (processingFolders.has(normalizedPath)) return true
+    if (processingOperations.has(relativePath)) return true
+    if (processingOperations.has(normalizedPath)) return true
     
     // Check if any parent folder is being processed
-    for (const processingPath of processingFolders) {
+    for (const processingPath of processingOperations.keys()) {
       const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
       if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return true
     }
     return false
-  }, [processingFolders])
+  }, [processingOperations])
   
   // Wrapper for isFolderSynced using local files
   const checkFolderSynced = useCallback((folderPath: string): boolean => {

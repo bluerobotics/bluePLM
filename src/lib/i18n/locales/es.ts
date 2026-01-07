@@ -118,7 +118,8 @@ export const es: TranslationDict = {
 
     adminSetup: 'Configuración de administrador',
     enterCredentials: 'Ingresa tus credenciales de Supabase desde la configuración de API de tu proyecto',
-    supabaseUrl: 'URL de Supabase',
+    projectId: 'ID del Proyecto',
+    projectIdHelp: 'Se encuentra en la parte superior de tu Panel de Supabase (ej. vvyhpdzqdizvorrhjhvq)',
     anonKey: 'Clave anónima (pública)',
     orgSlug: 'Slug de la organización',
     orgSlugHelp: 'Esto ayuda a identificar tu organización en el código generado',
@@ -134,8 +135,8 @@ export const es: TranslationDict = {
     joinOrg: 'Únete a tu organización',
     enterCode: 'Ingresa el código proporcionado por el administrador de tu organización',
 
-    enterBothFields: 'Por favor ingresa tanto la URL de Supabase como la clave anónima',
-    invalidUrl: 'Por favor ingresa una URL de Supabase válida',
+    enterBothFields: 'Por favor ingresa tanto el ID del Proyecto como la clave anónima',
+    invalidProjectId: 'Por favor ingresa un ID de Proyecto válido (solo letras y números)',
     failedToConnect: 'Error al conectar a Supabase',
     enterOrgCode: 'Por favor ingresa el código de organización',
     invalidCode: 'Código de organización inválido. Por favor verifica e intenta de nuevo.',
@@ -214,26 +215,82 @@ export const es: TranslationDict = {
   },
 
   sidebar: {
+    // Source Files
     explorer: 'Explorador',
     pending: 'Pendiente',
-    search: 'Buscar',
-    workflows: 'Flujos de trabajo',
     history: 'Historial',
+    workflows: 'Flujos de trabajo de archivos',
     trash: 'Papelera',
-    terminal: 'Terminal',
-    eco: 'ECOs',
-    gsd: 'Resumen GSD',
+    // Items
+    items: 'Navegador de artículos',
+    boms: 'Listas de materiales',
+    products: 'Productos',
+    // Change Control
     ecr: 'ECRs / Problemas',
+    eco: 'ECOs',
     notifications: 'Notificaciones',
     deviations: 'Desviaciones',
-    products: 'Productos',
+    releaseSchedule: 'Calendario de lanzamientos',
     process: 'Editor de procesos',
-    schedule: 'Calendario',
-    suppliers: 'Proveedores',
+    // Supply Chain - Suppliers
+    supplierDatabase: 'Base de datos de proveedores',
     supplierPortal: 'Portal de proveedores',
+    // Supply Chain - Purchasing
+    purchaseRequests: 'Solicitudes de compra',
+    purchaseOrders: 'Órdenes de compra',
+    invoices: 'Facturas',
+    // Supply Chain - Logistics
+    shipping: 'Envío',
+    receiving: 'Recepción',
+    // Production
+    manufacturingOrders: 'Órdenes de fabricación',
+    travellers: 'Hojas de ruta',
+    workInstructions: 'Instrucciones de trabajo',
+    productionSchedule: 'Programa de producción',
+    routings: 'Rutas',
+    workCenters: 'Centros de trabajo',
+    processFlows: 'Flujos de proceso',
+    equipment: 'Equipos',
+    // Production - Analytics
+    productionAnalytics: 'Analítica',
+    yieldTracking: 'Seguimiento de rendimiento',
+    errorCodes: 'Códigos de error',
+    downtime: 'Tiempo de inactividad',
+    oee: 'Panel OEE',
+    scrapTracking: 'Seguimiento de desperdicio',
+    // Quality
+    fai: 'Inspección de primer artículo (FAI)',
+    ncr: 'Informe de no conformidad (NCR)',
+    imr: 'Informe de material entrante (IMR)',
+    scar: 'Acción correctiva de proveedor (SCAR)',
+    capa: 'Acción correctiva y preventiva (CAPA)',
+    rma: 'Autorización de devolución de material (RMA)',
+    certificates: 'Certificados',
+    calibration: 'Calibración',
+    qualityTemplates: 'Plantillas',
+    // Accounting
+    accountsPayable: 'Cuentas por pagar (AP)',
+    accountsReceivable: 'Cuentas por cobrar (AR)',
+    generalLedger: 'Libro mayor',
+    costTracking: 'Seguimiento de costos',
+    budgets: 'Presupuestos',
+    // Integrations
     googleDrive: 'Google Drive',
+    // System
+    terminal: 'Terminal',
     settings: 'Configuración',
-
+    // Section Headers
+    sourceFiles: 'Archivos fuente',
+    itemsSection: 'Artículos',
+    changeControl: 'Control de cambios',
+    supplyChain: 'Cadena de suministro',
+    suppliers: 'Proveedores',
+    purchasing: 'Compras',
+    logistics: 'Logística',
+    production: 'Producción',
+    quality: 'Calidad',
+    integrations: 'Integraciones',
+    // Sidebar control
     sidebarControl: 'Control de barra lateral',
     expanded: 'Expandida',
     collapsed: 'Colapsada',

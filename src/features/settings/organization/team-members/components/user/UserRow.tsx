@@ -245,7 +245,7 @@ export function UserRow({
                 }}
                 className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
                   (user.teams || []).length > 0
-                    ? 'bg-plm-accent/10 text-plm-accent'
+                    ? 'bg-teal-500/10 text-teal-400'
                     : 'bg-yellow-500/10 text-yellow-500 border border-dashed border-yellow-500/30'
                 } ${canManage && onToggleTeam ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
                 title={(user.teams || []).map(t => t.name).join(', ') || 'No teams assigned'}
