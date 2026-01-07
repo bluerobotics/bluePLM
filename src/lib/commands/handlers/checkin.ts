@@ -11,7 +11,7 @@
 import type { Command, CheckinParams, CommandResult } from '../types'
 import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
-import { checkinFile, upsertFileReferences } from '../../supabase'
+import { checkinFile, upsertFileReferences, getSupabaseClient } from '../../supabase'
 import type { SWReference } from '../../supabase/files/mutations'
 import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS } from '../../concurrency'
 import type { LocalFile, PendingMetadata } from '../../../stores/pdmStore'
@@ -49,6 +49,62 @@ interface SwServiceStatus {
 }
 
 import type { SerializationSettings } from '../../serialization'
+
+/**
+ * Upload file content to storage with the given hash
+ * Used during check-in when file content has changed
+ * Handles deduplication - skips upload if content already exists
+ */
+async function uploadFileContentToStorage(
+  orgId: string,
+  hash: string,
+  base64Content: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  const storagePath = `${orgId}/${hash.substring(0, 2)}/${hash}`
+  
+  try {
+    // Check if already exists (deduplication)
+    const { data: existing, error: listError } = await client.storage
+      .from('vault')
+      .list(`${orgId}/${hash.substring(0, 2)}`, { search: hash, limit: 1 })
+    
+    if (listError) {
+      log.warn('[Checkin]', 'Storage list check failed, will attempt upload', { error: listError.message })
+    }
+    
+    if (existing && existing.length > 0) {
+      // Already exists - deduplication
+      log.debug('[Checkin]', 'Content already exists in storage (deduplication)', { hash: hash.substring(0, 12) })
+      return { success: true }
+    }
+    
+    // Convert base64 to blob
+    const binaryString = atob(base64Content)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+    const blob = new Blob([bytes])
+    
+    // Upload to storage
+    const { error: uploadError } = await client.storage
+      .from('vault')
+      .upload(storagePath, blob, {
+        contentType: 'application/octet-stream',
+        upsert: false
+      })
+    
+    if (uploadError && !uploadError.message.includes('already exists')) {
+      return { success: false, error: uploadError.message }
+    }
+    
+    return { success: true }
+  } catch (err) {
+    const errMessage = err instanceof Error ? err.message : String(err)
+    return { success: false, error: errMessage }
+  }
+}
 
 /**
  * Write pending metadata back to SolidWorks file before check-in
@@ -602,11 +658,57 @@ export const checkinCommand: Command<CheckinParams> = {
         const metadataToUse = file.pendingMetadata
         
         if (fileHash) {
+          // Check if content actually changed from what's in storage
+          const contentChanged = fileHash !== file.pdmData?.content_hash
+          
+          // Upload new content to storage if hash changed
+          // This ensures the file blob exists before updating the database
+          if (contentChanged && orgId) {
+            logCheckin('debug', 'Content changed, uploading to storage', {
+              operationId,
+              fileName: file.name,
+              oldHash: file.pdmData?.content_hash?.substring(0, 12),
+              newHash: fileHash.substring(0, 12)
+            })
+            
+            // Read file content for upload
+            const readResult = await window.electronAPI?.readFile(file.path)
+            if (!readResult?.success || readResult.data === undefined) {
+              logCheckin('error', 'Failed to read file for upload', {
+                operationId,
+                fileName: file.name,
+                error: readResult?.error
+              })
+              progress.update()
+              return { success: false, error: `${file.name}: Failed to read file for upload` }
+            }
+            
+            // Upload to storage
+            const uploadResult = await uploadFileContentToStorage(orgId, fileHash, readResult.data)
+            if (!uploadResult.success) {
+              logCheckin('error', 'Failed to upload file to storage', {
+                operationId,
+                fileName: file.name,
+                error: uploadResult.error
+              })
+              progress.update()
+              return { success: false, error: `${file.name}: Failed to upload - ${uploadResult.error}` }
+            }
+            
+            logCheckin('info', 'Uploaded new content to storage', {
+              operationId,
+              fileName: file.name,
+              hash: fileHash.substring(0, 12),
+              size: fileSize
+            })
+          }
+          
           logCheckin('debug', 'Hash computed, checking in', {
             operationId,
             fileName: file.name,
             localHash: fileHash.substring(0, 12),
-            size: fileSize
+            size: fileSize,
+            contentChanged
           })
           
           const result = await checkinFile(file.pdmData!.id, user.id, {

@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.1.1] - 2026-01-07
+
+### Fixed
+- **SolidWorks file downloads failing**: Fixed critical bug where check-in did not upload modified file content to storage. When users checked in files (especially SolidWorks files with metadata writeback), the database was updated with the new content hash but the actual file was never uploaded. This caused all downloads of those files to fail with HTTP 400 errors. Check-in now properly uploads file content to storage when the hash changes.
+
+---
+
 ## [3.1.0] - 2026-01-07
 
 ### Added
