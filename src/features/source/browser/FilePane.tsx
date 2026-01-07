@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
+import { log } from '@/lib/logger'
 // getEffectiveExportSettings is now used in useConfigHandlers hook
 // Note: FileIcon is now used inside file-pane/ListRowIcon.tsx
 import { 
@@ -117,6 +118,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     isLoading,
     filesLoaded,
     vaultPath,
+    connectedVaults,
     setStatusMessage,
     user,
     organization,
@@ -710,13 +712,13 @@ export function FilePane({ onRefresh }: FilePaneProps) {
           .order('sort_order')
         
         if (error) {
-          console.error('Failed to load custom metadata columns:', error)
+          log.error('[FilePane]', 'Failed to load custom metadata columns', { error })
           return
         }
         
         setCustomMetadataColumns(data || [])
       } catch (err) {
-        console.error('Failed to load custom metadata columns:', err)
+        log.error('[FilePane]', 'Failed to load custom metadata columns', { error: err })
       }
     }
     
@@ -1110,14 +1112,14 @@ export function FilePane({ onRefresh }: FilePaneProps) {
         )}
 
         {/* Empty state - no vault connected */}
-        {!vaultPath && <NoVaultEmptyState />}
+        {(!vaultPath || connectedVaults.length === 0) && <NoVaultEmptyState />}
         
         {/* Empty state - vault connected but no files in current folder */}
-        {vaultPath && sortedFiles.length === 0 && !isLoading && filesLoaded && (
+        {vaultPath && connectedVaults.length > 0 && sortedFiles.length === 0 && !isLoading && filesLoaded && (
           <EmptyState onAddFiles={handleAddFiles} onAddFolder={handleAddFolder} />
         )}
 
-        {vaultPath && (isLoading || !filesLoaded) && <LoadingState message="Loading vault..." />}
+        {vaultPath && connectedVaults.length > 0 && (isLoading || !filesLoaded) && <LoadingState message="Loading vault..." />}
       </div>
 
       {/* Context Menu */}

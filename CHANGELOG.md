@@ -7,6 +7,9 @@ All notable changes to BluePLM will be documented in this file.
 ### Added
 - **Clean install on major upgrades**: App data is automatically wiped when upgrading between major versions (2→3, 3→4, etc.) ensuring a fresh start. Clears settings, logs, cache, browser storage, and temp files
 
+### Fixed
+- **Vault display consistency**: Fixed issue where file tree and file pane would show files from existing local folders even when no vault was connected in settings. Now consistently shows "No vault connected" state until a vault is explicitly connected via Settings > Vaults
+
 ---
 
 ## [3.0.2] - 2026-01-07

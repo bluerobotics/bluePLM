@@ -62,7 +62,6 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     expandedFolders, 
     toggleFolder, 
     vaultPath,
-    isVaultConnected,
     currentFolder,
     setCurrentFolder,
     connectedVaults,
@@ -905,60 +904,6 @@ export function FileTree({ onRefresh }: FileTreeProps) {
           impersonatedUser={impersonatedUser}
           connectedVaultsCount={connectedVaults.length}
         />
-      )
-    }
-    
-    // Legacy single vault mode
-    if (isVaultConnected && vaultPath) {
-      const displayName = vaultPath.split(/[/\\]/).pop() || 'vault'
-      const rootItems = tree[''] || []
-      
-      return (
-        <div className="py-2 relative">
-          <div 
-            className={`px-3 py-2 border-b border-plm-border flex items-center gap-2 cursor-pointer transition-colors ${
-              currentFolder === '' ? 'text-plm-accent font-medium' : 'text-plm-fg-muted hover:text-plm-fg'
-            }`}
-            onClick={() => setCurrentFolder('')}
-            title="Go to vault root"
-          >
-            <Database size={14} />
-            <span className="truncate text-sm">{displayName}</span>
-          </div>
-          
-          {sortChildren(rootItems).map(file => renderTreeItem(file))}
-          
-          {(isLoading || !filesLoaded) && rootItems.length === 0 && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 size={20} className="text-plm-fg-muted animate-spin" />
-            </div>
-          )}
-          
-          {rootItems.length === 0 && !isLoading && filesLoaded && (
-            <div className="px-4 py-8 text-center text-plm-fg-muted text-sm">
-              No files in vault
-            </div>
-          )}
-          
-          {contextMenu && (
-            <FileContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              files={files}
-              contextFiles={selectedFiles.length > 1 && selectedFiles.includes(contextMenu.file.path)
-                ? files.filter(f => selectedFiles.includes(f.path))
-                : [contextMenu.file]}
-              onClose={() => setContextMenu(null)}
-              onRefresh={onRefresh || (() => {})}
-              clipboard={clipboard}
-              onCopy={handleCopy}
-              onCut={handleCut}
-              onPaste={handlePaste}
-              onRename={handleRename}
-              onNewFolder={handleNewFolder}
-            />
-          )}
-        </div>
       )
     }
     
