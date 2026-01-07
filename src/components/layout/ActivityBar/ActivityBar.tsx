@@ -134,13 +134,27 @@ export function ActivityBar() {
   }, [moduleConfig.dividers, originalToVisibleIndex, moduleConfig.moduleOrder.length])
   
   // Update sidebar rect for cascading panels
+  // Uses requestAnimationFrame to debounce updates during CSS transitions,
+  // preventing excessive re-renders when ResizeObserver fires rapidly
   useEffect(() => {
+    let animationFrameId: number | null = null
+    
     const updateSidebarRect = () => {
-      if (sidebarRef.current) {
-        setSidebarRect(sidebarRef.current.getBoundingClientRect())
+      // Cancel any pending frame to debounce rapid resize events
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
       }
+      
+      // Schedule update for next animation frame
+      animationFrameId = requestAnimationFrame(() => {
+        if (sidebarRef.current) {
+          setSidebarRect(sidebarRef.current.getBoundingClientRect())
+        }
+        animationFrameId = null
+      })
     }
     
+    // Initial update
     updateSidebarRect()
     
     // Update on resize
@@ -149,7 +163,12 @@ export function ActivityBar() {
       resizeObserver.observe(sidebarRef.current)
     }
     
-    return () => resizeObserver.disconnect()
+    return () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+      }
+      resizeObserver.disconnect()
+    }
   }, [isExpanded])
   
   // In expanded mode, container matches bar width. In collapsed/hover mode, container is always collapsed width.
@@ -159,11 +178,11 @@ export function ActivityBar() {
     <ExpandedContext.Provider value={isExpanded}>
       <SidebarRectContext.Provider value={sidebarRect}>
       {/* Container with relative positioning for the overlay */}
-      <div className={`relative flex-shrink-0 transition-all duration-200 ${containerWidth}`}>
+      <div className={`relative flex-shrink-0 transition-[width] duration-200 ${containerWidth}`}>
         {/* Actual activity bar - expands on hover, overlays content */}
         <div 
           ref={sidebarRef}
-          className={`absolute inset-y-0 left-0 bg-plm-activitybar flex flex-col border-r border-plm-border z-40 transition-all duration-200 ease-out ${
+          className={`absolute inset-y-0 left-0 bg-plm-activitybar flex flex-col border-r border-plm-border z-40 transition-[width,box-shadow] duration-200 ease-out ${
             isExpanded ? 'w-64' : 'w-[53px]'
           } ${activityBarMode === 'hover' && isExpanded ? 'shadow-xl' : ''}`}
           onMouseEnter={() => setIsHovering(true)}

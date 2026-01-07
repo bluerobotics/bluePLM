@@ -122,16 +122,6 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
   const handleChildMouseEnter = (childId: ModuleId, e: React.MouseEvent) => {
     const allChildren = getChildModules(childId, moduleConfig)
     const childModules = allChildren.filter(c => isModuleVisible(c.id, moduleConfig))
-    // Debug: always log for production-analytics
-    if (childId === 'production-analytics' || allChildren.length > 0) {
-      console.log(`[DEBUG] handleChildMouseEnter(${childId}):`, {
-        allChildrenCount: allChildren.length,
-        allChildrenIds: allChildren.map(c => c.id),
-        visibleCount: childModules.length,
-        visibleIds: childModules.map(c => c.id),
-        moduleParents: Object.entries(moduleConfig.moduleParents || {}).filter(([_k, v]) => v === childId)
-      })
-    }
     if (childModules.length > 0) {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current)

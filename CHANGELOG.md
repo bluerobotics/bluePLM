@@ -2,6 +2,11 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.0.2] - 2026-01-07
+
+### Fixed
+- **SolidWorks service bundling**: Fixed path in GitHub Actions workflow (`solidworks-addin` → `solidworks-service`) and corrected extraResources glob pattern so the service executable is properly included in Windows builds
+
 ## [3.0.0] - 2026-01-07
 
 ### Added
