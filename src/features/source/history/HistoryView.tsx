@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FileText, User, Clock, ArrowUp, ArrowDown, Trash2, Edit, RefreshCw, FolderPlus, MoveRight, X, FolderOpen, RotateCcw, ExternalLink } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getRecentActivity } from '@/lib/supabase'
 import { formatDistanceToNow } from 'date-fns'
@@ -80,7 +81,7 @@ export function HistoryView() {
           setActivity(recentActivity as ActivityEntry[])
         }
       } catch (err) {
-        console.error('Failed to load activity:', err)
+        log.error('[History]', 'Failed to load activity', { error: err })
       } finally {
         setIsLoading(false)
       }

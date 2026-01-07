@@ -8,6 +8,7 @@ import {
   Mail,
   Phone
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { DEFAULT_AUTH_PROVIDERS, type AuthProviderSettings } from '@/types/pdm'
@@ -102,10 +103,10 @@ export function AuthProvidersSettings() {
             phone: authProviders?.suppliers?.phone ?? true
           }
         })
-      } catch (err) {
-        console.error('Failed to load auth provider settings:', err)
-        addToast('error', 'Failed to load authentication settings')
-      } finally {
+    } catch (err) {
+      log.error('[AuthProviders]', 'Failed to load auth provider settings', { error: err })
+      addToast('error', 'Failed to load authentication settings')
+    } finally {
         setLoading(false)
       }
     }
@@ -119,7 +120,6 @@ export function AuthProvidersSettings() {
     
     const org = organization as any
     if (org?.auth_providers) {
-      console.log('[AuthProvidersSettings] Syncing with realtime org settings')
       const authProviders = org.auth_providers as AuthProviderSettings
       setSettings({
         users: {
@@ -161,7 +161,7 @@ export function AuthProvidersSettings() {
       if (error) throw error
       addToast('success', 'Authentication settings saved')
     } catch (err) {
-      console.error('Failed to save auth provider settings:', err)
+      log.error('[AuthProviders]', 'Failed to save auth provider settings', { error: err })
       addToast('error', 'Failed to save authentication settings')
     } finally {
       setSaving(false)

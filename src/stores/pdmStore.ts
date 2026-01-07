@@ -206,9 +206,7 @@ export const usePDMStore = create<PDMStoreState>()(
       onRehydrateStorage: () => {
         return (_state, error) => {
           if (error) {
-            console.error('[PDMStore] Hydration failed:', error)
           } else {
-            console.log('[PDMStore] Hydration complete')
           }
           // Mark hydration as complete regardless of error
           // Components should handle missing/default values gracefully
@@ -232,7 +230,6 @@ export const usePDMStore = create<PDMStoreState>()(
           if (!vault?.id || !vault?.localPath) return false
           const normalizedPath = vault.localPath.toLowerCase().replace(/\\/g, '/')
           if (seenIds.has(vault.id) || seenPaths.has(normalizedPath)) {
-            console.warn('[PDMStore] Removing duplicate vault from storage:', vault.name, vault.id)
             return false
           }
           seenIds.add(vault.id)

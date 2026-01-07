@@ -9,16 +9,8 @@ import { logClick, logAuth } from '@/lib/userActionLogger'
 import { LogViewer } from '@/features/dev-tools/logs'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { useTranslation } from '@/lib/i18n'
+import { log } from '@/lib/logger'
 import type { AccountType } from '@/types/database'
-
-// Helper to log to both console and electron log file
-const uiLog = (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => {
-  const logMsg = `[WelcomeScreen] ${message}`
-  if (level === 'error') console.error(logMsg, data || '')
-  else if (level === 'warn') console.warn(logMsg, data || '')
-  else console.log(logMsg, data || '')
-  window.electronAPI?.log?.(level, `[WelcomeScreen] ${message}`, data)
-}
 
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
@@ -126,13 +118,13 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       const config = loadConfig()
       // Always fetch auth providers - the function handles missing orgSlug by
       // falling back to querying the first/only organization in the database
-      uiLog('info', 'Fetching auth providers for org', { orgSlug: config?.orgSlug || '(fallback)' })
+      log.info('[WelcomeScreen]', 'Fetching auth providers for org', { orgSlug: config?.orgSlug || '(fallback)' })
       const providers = await getOrgAuthProviders(config?.orgSlug)
       if (providers) {
-        uiLog('info', 'Auth providers loaded', { providers })
+        log.info('[WelcomeScreen]', 'Auth providers loaded', { providers })
         setOrgAuthProviders(providers)
       } else {
-        uiLog('warn', 'Failed to load auth providers, all methods will be shown')
+        log.warn('[WelcomeScreen]', 'Failed to load auth providers, all methods will be shown')
       }
     }
     fetchAuthProviders()
@@ -170,7 +162,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
   // Log user/org state changes for debugging
   useEffect(() => {
-    uiLog('info', 'User state changed', { 
+    log.info('[WelcomeScreen]', 'User state changed', { 
       hasUser: !!user, 
       email: user?.email,
       hasOrg: !!organization,
@@ -192,7 +184,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   // Only runs after we've seen a user sign in, then they sign out
   useEffect(() => {
     if (hasSeenUser && !user && !isOfflineMode && connectedVaults.length > 0) {
-      uiLog('info', 'Clearing connected vaults - user signed out', { count: connectedVaults.length })
+      log.info('[WelcomeScreen]', 'Clearing connected vaults - user signed out', { count: connectedVaults.length })
       setConnectedVaults([])
     }
   }, [user, isOfflineMode, hasSeenUser])
@@ -208,7 +200,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     const vault = currentVaults.find(v => v.id === currentActiveId) || currentVaults[0]
     
     if (currentVaults.length > 0 && (user || isOfflineMode) && vault) {
-      uiLog('info', 'Auto-connecting to vault', { vaultName: vault.name, vaultId: vault.id, wasActiveVaultId: currentActiveId })
+      log.info('[WelcomeScreen]', 'Auto-connecting to vault', { vaultName: vault.name, vaultId: vault.id, wasActiveVaultId: currentActiveId })
       // Auto-connect to the active vault (or first vault if no active vault)
       onOpenRecentVault(vault.localPath)
     }
@@ -218,11 +210,11 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   useEffect(() => {
     const loadOrgVaults = async () => {
       if (!organization?.id || !user?.id) {
-        uiLog('debug', 'No organization ID or user ID, skipping vault load')
+        log.debug('[WelcomeScreen]', 'No organization ID or user ID, skipping vault load')
         return
       }
       
-      uiLog('info', 'Loading accessible vaults for user', { orgId: organization.id, orgName: organization.name, userId: user.id, role: user.role })
+      log.info('[WelcomeScreen]', 'Loading accessible vaults for user', { orgId: organization.id, orgName: organization.name, userId: user.id, role: user.role })
       setIsLoadingVaults(true)
       try {
         // Load vaults filtered by user's access permissions
@@ -232,13 +224,13 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           getEffectiveRole()
         )
         
-        uiLog('info', 'Accessible vaults query result', { 
+        log.info('[WelcomeScreen]', 'Accessible vaults query result', { 
           count: vaultsData?.length || 0, 
           error: vaultsError
         })
         
         if (vaultsError || !vaultsData) {
-          uiLog('error', 'Error loading accessible vaults', { error: vaultsError })
+          log.error('[WelcomeScreen]', 'Error loading accessible vaults', { error: vaultsError })
           return
         }
         
@@ -286,7 +278,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         const staleVaultPaths = new Set(staleVaults.map(v => v.localPath.toLowerCase().replace(/\\/g, '/')))
         
         if (staleVaults.length > 0) {
-          uiLog('info', 'Removing stale connected vaults (not on server)', { count: staleVaults.length, ids: staleVaults.map(v => v.id) })
+          log.info('[WelcomeScreen]', 'Removing stale connected vaults (not on server)', { count: staleVaults.length, ids: staleVaults.map(v => v.id) })
           staleVaults.forEach(v => removeConnectedVault(v.id))
         }
         
@@ -297,7 +289,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             try {
               const exists = await window.electronAPI.fileExists(cv.localPath)
               if (!exists) {
-                uiLog('info', 'Removing connected vault (local folder missing)', { vaultName: cv.name, path: cv.localPath })
+                log.info('[WelcomeScreen]', 'Removing connected vault (local folder missing)', { vaultName: cv.name, path: cv.localPath })
                 removeConnectedVault(cv.id)
               }
             } catch {
@@ -310,7 +302,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         // This handles the case where user reinstalls the app and already has vault folders
         // NOTE: We exclude stale vault paths since those are being removed (state update is async)
         if (window.electronAPI) {
-          uiLog('info', 'Checking for orphaned vault folders...', { 
+          log.info('[WelcomeScreen]', 'Checking for orphaned vault folders...', { 
             serverVaultCount: vaultsData.length,
             connectedVaultCount: connectedVaults.length 
           })
@@ -325,13 +317,13 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             // Check if this server vault is already connected (with correct ID)
             const isConnected = connectedVaults.some(cv => cv.id === serverVault.id)
             if (isConnected) {
-              uiLog('debug', 'Vault already connected, skipping', { vaultName: serverVault.name })
+              log.debug('[WelcomeScreen]', 'Vault already connected, skipping', { vaultName: serverVault.name })
               continue
             }
             
             // Check if the expected folder path already exists on disk
             const expectedPath = buildVaultPath(platform, serverVault.slug)
-            uiLog('debug', 'Checking for orphaned vault folder', { 
+            log.debug('[WelcomeScreen]', 'Checking for orphaned vault folder', { 
               vaultName: serverVault.name, 
               slug: serverVault.slug,
               expectedPath 
@@ -340,7 +332,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             try {
               // Use fileExists to check without side effects, then createWorkingDir to get resolved path
               const exists = await window.electronAPI.fileExists(expectedPath)
-              uiLog('debug', 'Folder exists check', { expectedPath, exists })
+              log.debug('[WelcomeScreen]', 'Folder exists check', { expectedPath, exists })
               
               if (exists) {
                 // Get the resolved path (handles ~ expansion on macOS/Linux)
@@ -351,7 +343,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                   // Check if this path isn't already connected under a different valid vault ID
                   if (!connectedPaths.has(normalizedPath)) {
                     const wasStale = staleVaultPaths.has(normalizedPath)
-                    uiLog('info', wasStale ? 'Reconnecting vault after upgrade' : 'Found orphaned vault folder, auto-reconnecting', { 
+                    log.info('[WelcomeScreen]', wasStale ? 'Reconnecting vault after upgrade' : 'Found orphaned vault folder, auto-reconnecting', { 
                       vaultName: serverVault.name, 
                       vaultId: serverVault.id,
                       path: result.path,
@@ -373,7 +365,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 }
               }
             } catch (err) {
-              uiLog('debug', 'Error checking vault folder', { expectedPath, error: String(err) })
+              log.debug('[WelcomeScreen]', 'Error checking vault folder', { expectedPath, error: String(err) })
             }
           }
           
@@ -406,7 +398,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 )
                 
                 if (unmatchedFolders.length > 0) {
-                  uiLog('warn', 'Found unmatched vault folders on disk', { 
+                  log.warn('[WelcomeScreen]', 'Found unmatched vault folders on disk', { 
                     unmatchedFolders,
                     serverSlugs,
                     connectedFolderNames 
@@ -416,11 +408,11 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               }
             }
           } catch (err) {
-            uiLog('debug', 'Error scanning BluePLM folder', { error: String(err) })
+            log.debug('[WelcomeScreen]', 'Error scanning BluePLM folder', { error: String(err) })
           }
         }
       } catch (err) {
-        console.error('Error loading vaults:', err)
+        log.error('[WelcomeScreen]', 'Error loading vaults', { error: err })
       } finally {
         setIsLoadingVaults(false)
       }
@@ -430,7 +422,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   }, [organization?.id, user?.id, vaultsRefreshKey, platform, permissionsLastUpdated]) // Refresh when vaultsRefreshKey changes, user changes, or permissions update via realtime
 
   const cancelSignIn = () => {
-    uiLog('info', 'Sign in canceled by user')
+    log.info('[WelcomeScreen]', 'Sign in canceled by user')
     if (signInTimeoutRef.current) {
       clearTimeout(signInTimeoutRef.current)
       signInTimeoutRef.current = null
@@ -445,10 +437,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
   const handleSignIn = async () => {
     logAuth('Sign in with Google clicked')
-    uiLog('info', 'Sign in button clicked')
+    log.info('[WelcomeScreen]', 'Sign in button clicked')
     
     if (!isSupabaseConfigured()) {
-      uiLog('warn', 'Supabase not configured')
+      log.warn('[WelcomeScreen]', 'Supabase not configured')
       setStatusMessage('Supabase not configured')
       return
     }
@@ -456,14 +448,14 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     // Clear any previous errors
     setAuthError(null)
     setIsSigningIn(true)
-    uiLog('info', 'Starting Google sign-in flow')
+    log.info('[WelcomeScreen]', 'Starting Google sign-in flow')
     
     // Create abort controller for cancellation
     signInAbortControllerRef.current = new AbortController()
     
     // Set timeout to prevent infinite hanging (30 seconds)
     signInTimeoutRef.current = setTimeout(() => {
-      uiLog('warn', 'Sign in timeout after 30 seconds')
+      log.warn('[WelcomeScreen]', 'Sign in timeout after 30 seconds')
       if (signInAbortControllerRef.current) {
         signInAbortControllerRef.current.abort()
       }
@@ -481,19 +473,19 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         signInTimeoutRef.current = null
       }
       
-      uiLog('info', 'signInWithGoogle returned', { 
+      log.info('[WelcomeScreen]', 'signInWithGoogle returned', { 
         hasData: !!data, 
         hasError: !!error,
         errorMessage: error?.message 
       })
       
       if (error) {
-        uiLog('error', 'Sign in failed', { error: error.message })
+        log.error('[WelcomeScreen]', 'Sign in failed', { error: error.message })
         const errorMsg = error.message || 'Sign in failed'
         setAuthError(errorMsg)
         setStatusMessage(`Sign in failed: ${errorMsg}`)
       } else {
-        uiLog('info', 'Sign in completed successfully')
+        log.info('[WelcomeScreen]', 'Sign in completed successfully')
       }
     } catch (err) {
       // Clear timeout on error
@@ -502,12 +494,12 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         signInTimeoutRef.current = null
       }
       
-      uiLog('error', 'Sign in exception', { error: String(err) })
+      log.error('[WelcomeScreen]', 'Sign in exception', { error: String(err) })
       const errorMsg = err instanceof Error ? err.message : 'Sign in failed'
       setAuthError(errorMsg)
       setStatusMessage('Sign in failed')
     } finally {
-      uiLog('info', 'Sign in flow finished, resetting state')
+      log.info('[WelcomeScreen]', 'Sign in flow finished, resetting state')
       setIsSigningIn(false)
       signInAbortControllerRef.current = null
     }
@@ -532,7 +524,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     try {
       if (isNewAccount) {
         // Sign up
-        uiLog('info', 'Starting email sign-up', { accountType })
+        log.info('[WelcomeScreen]', 'Starting email sign-up', { accountType })
         const { data, error } = await signUpWithEmail(authEmail, authPassword, authName || undefined)
         
         if (error) {
@@ -547,10 +539,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           return
         }
         
-        uiLog('info', 'Email sign-up successful')
+        log.info('[WelcomeScreen]', 'Email sign-up successful')
       } else {
         // Sign in
-        uiLog('info', 'Starting email sign-in', { accountType })
+        log.info('[WelcomeScreen]', 'Starting email sign-in', { accountType })
         const { error } = await signInWithEmail(authEmail, authPassword)
         
         if (error) {
@@ -558,7 +550,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           return
         }
         
-        uiLog('info', 'Email sign-in successful')
+        log.info('[WelcomeScreen]', 'Email sign-in successful')
       }
     } catch (err) {
       setAuthError('Authentication failed. Please try again.')
@@ -578,7 +570,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     setAuthError(null)
     
     try {
-      uiLog('info', 'Sending phone OTP', { accountType })
+      log.info('[WelcomeScreen]', 'Sending phone OTP', { accountType })
       const { error } = await signInWithPhone(authPhone)
       
       if (error) {
@@ -587,7 +579,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       }
       
       setIsOtpSent(true)
-      uiLog('info', 'Phone OTP sent successfully')
+      log.info('[WelcomeScreen]', 'Phone OTP sent successfully')
     } catch (err) {
       setAuthError('Failed to send verification code. Please try again.')
     } finally {
@@ -605,7 +597,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     setAuthError(null)
     
     try {
-      uiLog('info', 'Verifying phone OTP', { accountType })
+      log.info('[WelcomeScreen]', 'Verifying phone OTP', { accountType })
       const { error } = await verifyPhoneOTP(authPhone, phoneOtp)
       
       if (error) {
@@ -613,7 +605,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         return
       }
       
-      uiLog('info', 'Phone verification successful')
+      log.info('[WelcomeScreen]', 'Phone verification successful')
     } catch (err) {
       setAuthError('Verification failed. Please try again.')
     } finally {
@@ -637,7 +629,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
   // Clear all saved data and start fresh (goes back to setup screen)
   const handleStartFresh = async () => {
-    uiLog('info', 'Clearing all saved data for fresh start')
+    log.info('[WelcomeScreen]', 'Clearing all saved data for fresh start')
     
     // Clear ALL vault-related state FIRST before sign out (sign out triggers re-render)
     setConnectedVaults([])
@@ -650,7 +642,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     try {
       await supabaseSignOut()
     } catch (err) {
-      uiLog('warn', 'Error signing out during fresh start', { error: String(err) })
+      log.warn('[WelcomeScreen]', 'Error signing out during fresh start', { error: String(err) })
     }
     
     // Clear the Supabase config to go back to setup screen
@@ -659,9 +651,9 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     // Also clear the zustand persisted state directly to ensure clean slate
     try {
       localStorage.removeItem('blue-plm-storage')
-      uiLog('info', 'Cleared zustand persisted storage')
+      log.info('[WelcomeScreen]', 'Cleared zustand persisted storage')
     } catch (err) {
-      uiLog('warn', 'Error clearing zustand storage', { error: String(err) })
+      log.warn('[WelcomeScreen]', 'Error clearing zustand storage', { error: String(err) })
     }
     
     // Small delay to ensure localStorage writes complete, then reload
@@ -676,10 +668,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
   const handleConnectVault = async (vault: Vault) => {
     logClick('Connect vault button', { vaultName: vault.name, vaultId: vault.id })
-    uiLog('info', 'Connect vault clicked', { vaultName: vault.name, vaultId: vault.id })
+    log.info('[WelcomeScreen]', 'Connect vault clicked', { vaultName: vault.name, vaultId: vault.id })
     
     if (!window.electronAPI) {
-      uiLog('error', 'electronAPI not available')
+      log.error('[WelcomeScreen]', 'electronAPI not available')
       return
     }
     
@@ -688,12 +680,12 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     try {
       // Build expected vault folder path based on platform
       const vaultPath = buildVaultPath(platform, vault.slug)
-      uiLog('info', 'Checking vault path', { vaultPath, platform })
+      log.info('[WelcomeScreen]', 'Checking vault path', { vaultPath, platform })
       
       // Check if this vault ID is already connected (by ID)
       const existingById = connectedVaults.find(v => v.id === vault.id)
       if (existingById) {
-        uiLog('info', 'Vault already connected by ID, opening', { vaultName: vault.name, path: existingById.localPath })
+        log.info('[WelcomeScreen]', 'Vault already connected by ID, opening', { vaultName: vault.name, path: existingById.localPath })
         onOpenRecentVault(existingById.localPath)
         return
       }
@@ -708,7 +700,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         )
         
         if (existingByPath) {
-          uiLog('info', 'Vault already connected by path, updating ID and opening', { 
+          log.info('[WelcomeScreen]', 'Vault already connected by path, updating ID and opening', { 
             vaultName: vault.name, 
             oldId: existingByPath.id, 
             newId: vault.id 
@@ -735,17 +727,17 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           isExpanded: true
         }
         addConnectedVault(connectedVault)
-        uiLog('info', 'Vault connected, opening', { vaultName: vault.name })
+        log.info('[WelcomeScreen]', 'Vault connected, opening', { vaultName: vault.name })
         
         // Open the vault
         onOpenRecentVault(result.path)
         addToast('success', `Connected to "${vault.name}"`)
       } else {
-        uiLog('error', 'Failed to create vault folder', { error: result.error })
+        log.error('[WelcomeScreen]', 'Failed to create vault folder', { error: result.error })
         addToast('error', result.error || 'Failed to create vault folder')
       }
     } catch (err) {
-      uiLog('error', 'Exception connecting to vault', { error: String(err) })
+      log.error('[WelcomeScreen]', 'Exception connecting to vault', { error: String(err) })
       addToast('error', 'Failed to connect to vault')
     } finally {
       setConnectingVaultId(null)
@@ -777,7 +769,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         setStatusMessage(result.error || 'Failed to connect to vault')
       }
     } catch (err) {
-      console.error('Error connecting to vault:', err)
+      log.error('[WelcomeScreen]', 'Error connecting to vault', { error: err })
       setStatusMessage('Failed to connect to vault')
     } finally {
       setIsConnectingVault(false)
@@ -793,7 +785,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   // ============================================
   if (isAuthConnecting) {
     const handleCancelConnecting = async () => {
-      uiLog('info', 'User cancelled connecting - signing out')
+      log.info('[WelcomeScreen]', 'User cancelled connecting - signing out')
       const { signOut: supabaseSignOut } = await import('@/lib/supabase')
       await supabaseSignOut()
     }
@@ -1594,7 +1586,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   // ============================================
   if (user && !organization && !isOfflineMode) {
     const handleSignOutAndRetry = async () => {
-      uiLog('info', 'User signing out to retry with different account')
+      log.info('[WelcomeScreen]', 'User signing out to retry with different account')
       const { signOut: supabaseSignOut } = await import('@/lib/supabase')
       await supabaseSignOut()
     }

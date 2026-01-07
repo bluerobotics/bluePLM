@@ -12,6 +12,7 @@ import { getDownloadUrl } from '../../storage'
 import { usePDMStore, MissingStorageFile } from '../../../stores/pdmStore'
 import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
+import { log } from '@/lib/logger'
 
 // Retry configuration
 const MAX_RETRY_ATTEMPTS = 3
@@ -21,27 +22,8 @@ export interface GetLatestParams {
   files: LocalFile[]
 }
 
-// Detailed logging for get-latest operations
 function logGetLatest(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
-  const timestamp = new Date().toISOString()
-  const logData = { timestamp, ...context }
-  
-  const prefix = '[GetLatest]'
-  if (level === 'error') {
-    console.error(prefix, message, logData)
-  } else if (level === 'warn') {
-    console.warn(prefix, message, logData)
-  } else if (level === 'debug') {
-    console.debug(prefix, message, logData)
-  } else {
-    console.log(prefix, message, logData)
-  }
-  
-  try {
-    window.electronAPI?.log(level, `${prefix} ${message}`, logData)
-  } catch {
-    // Ignore if electronAPI not available
-  }
+  log[level]('[GetLatest]', message, context)
 }
 
 // Build file context for logging

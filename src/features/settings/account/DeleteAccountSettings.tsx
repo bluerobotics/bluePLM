@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertTriangle, Loader2, Trash2, UserX } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient, signOut } from '@/lib/supabase'
 
@@ -32,7 +33,7 @@ export function DeleteAccountSettings() {
       const { error } = await client.rpc('delete_user_account')
 
       if (error) {
-        console.error('Failed to delete account:', error)
+        log.error('[Account]', 'Failed to delete account', { error })
         addToast('error', `Failed to delete account: ${error.message}`)
         setIsDeleting(false)
         return
@@ -45,7 +46,7 @@ export function DeleteAccountSettings() {
 
       addToast('success', 'Your account has been deleted successfully.')
     } catch (err) {
-      console.error('Error deleting account:', err)
+      log.error('[Account]', 'Error deleting account', { error: err })
       addToast('error', 'An unexpected error occurred while deleting your account.')
       setIsDeleting(false)
     }

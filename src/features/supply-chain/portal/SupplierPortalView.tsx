@@ -16,6 +16,7 @@ import {
   TrendingUp,
   DollarSign
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import { RFQView } from '../rfq'
@@ -86,7 +87,7 @@ export function SupplierPortalView() {
           })
         }
       } catch (err) {
-        console.error('Failed to load dashboard:', err)
+        log.error('[SupplierPortal]', 'Failed to load dashboard', { error: err })
       } finally {
         setLoading(false)
       }

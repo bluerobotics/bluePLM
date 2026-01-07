@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { usePDMStore, useHasHydrated } from '@/stores/pdmStore'
+import { log as logger } from '@/lib/logger'
 import type { Organization } from '@/types/pdm'
 
 /** Maximum retry attempts for auto-start failures */
@@ -65,13 +66,13 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   const log = useCallback((level: 'info' | 'warn' | 'error', message: string) => {
-    window.electronAPI?.log?.(level, message)
-    if (level === 'error') {
-      console.error(message)
-    } else if (level === 'warn') {
-      console.warn(message)
+    // Extract category and message from prefixed message format "[SolidWorks] ..."
+    const match = message.match(/^(\[[^\]]+\])\s*(.*)$/)
+    if (match) {
+      const [, category, msg] = match
+      logger[level](category, msg)
     } else {
-      console.log(message)
+      logger[level]('[SolidWorks]', message)
     }
   }, [])
   

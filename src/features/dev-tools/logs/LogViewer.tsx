@@ -36,6 +36,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { copyToClipboard } from '@/lib/clipboard'
 import { formatFileSize } from '@/lib/utils'
@@ -870,7 +871,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
         setCrashFiles(crashesResult.files)
       }
     } catch (err) {
-      console.error('Failed to load log files:', err)
+      log.error('[LogViewer]', 'Failed to load log files', { error: err })
     } finally {
       setIsLoading(false)
     }
@@ -905,7 +906,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
         })
       }
     } catch (err) {
-      console.error('Failed to load retention settings:', err)
+      log.error('[LogViewer]', 'Failed to load retention settings', { error: err })
     }
   }
   

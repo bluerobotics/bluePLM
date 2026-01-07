@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getUnreadNotificationCount, getPendingReviewsForUser } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 
 /**
  * Hook to load and periodically refresh notification counts
@@ -27,7 +28,7 @@ export function useNotificationCounts() {
         const { reviews } = await getPendingReviewsForUser(user.id, organization.id)
         setPendingReviewCount(reviews.length)
       } catch (err) {
-        console.error('Error loading notification counts:', err)
+        log.error('[Notifications]', 'Error loading notification counts:', { error: err })
       }
     }
     

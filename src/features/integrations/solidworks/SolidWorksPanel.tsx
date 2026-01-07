@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { syncSolidWorksFileMetadata, getContainsRecursive, getWhereUsed, upsertFileReferences, getVaultFilesForDiagnostics } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 import type { SWReference } from '@/lib/supabase/files/mutations'
 import type { BomTreeNode } from '@/lib/supabase/files/queries'
 import { BomTree, type BomNode } from './BomTree'
@@ -223,7 +224,6 @@ export function ContainsTab({ file }: { file: LocalFile }) {
       const swResult = await window.electronAPI?.solidworks?.getReferences(file.path)
       
       if (!swResult?.success || !swResult.data?.references) {
-        console.debug('[ContainsTab] No SW references for path validation')
         return pathStatusMap
       }
       
@@ -236,7 +236,7 @@ export function ContainsTab({ file }: { file: LocalFile }) {
       )
       
       if (vaultError) {
-        console.error('[ContainsTab] Failed to get vault files for path validation:', vaultError)
+        log.error('[ContainsTab]', 'Failed to get vault files for path validation', { error: vaultError })
         return pathStatusMap
       }
       
@@ -268,11 +268,10 @@ export function ContainsTab({ file }: { file: LocalFile }) {
       }
       
       setPathValidationStats({ valid: validCount, broken: brokenCount })
-      console.log('[ContainsTab] Path validation complete:', { valid: validCount, broken: brokenCount })
       
       return pathStatusMap
     } catch (err) {
-      console.error('[ContainsTab] Path validation error:', err)
+      log.error('[ContainsTab]', 'Path validation error', { error: err })
       return pathStatusMap
     } finally {
       setIsValidatingPaths(false)
@@ -298,23 +297,7 @@ export function ContainsTab({ file }: { file: LocalFile }) {
     )
     
     if (vaultError) {
-      console.error('[ContainsTab] Failed to get vault files for path matching:', vaultError)
-    }
-    
-    // [PathMatch] Log context before matching loop
-    console.log('[PathMatch] Starting match for assembly:', {
-      assemblyPath: file.path,
-      vaultPath,
-      swRefsCount: swRefs.length,
-      dbFilesCount: vaultFiles?.length || 0
-    })
-    
-    // [PathMatch] Log sample paths for visual comparison
-    if (vaultFiles && vaultFiles.length > 0) {
-      console.log('[PathMatch] Sample DB paths:', vaultFiles.slice(0, 5).map(f => f.file_path))
-    }
-    if (swRefs.length > 0) {
-      console.log('[PathMatch] Sample SW paths:', swRefs.slice(0, 5).map(r => r.path))
+      log.error('[ContainsTab]', 'Failed to get vault files for path matching', { error: vaultError })
     }
     
     return swRefs.map(ref => {
@@ -410,14 +393,6 @@ export function ContainsTab({ file }: { file: LocalFile }) {
   const loadFromDatabase = useCallback(async () => {
     if (!fileId) return
     
-    // [PathMatch] Log vault configuration for diagnostics
-    console.log('[PathMatch] Vault config:', {
-      activeVaultId,
-      vaultPath,
-      vaultPathSource: 'usePDMStore settings',
-      organizationId: organization?.id
-    })
-    
     setIsLoadingDb(true)
     setError(null)
     setLoadingProgress(null)
@@ -425,14 +400,14 @@ export function ContainsTab({ file }: { file: LocalFile }) {
     
     try {
       // Use recursive query to build full tree with nested sub-assemblies
-      const { references, error: dbError, stats } = await getContainsRecursive(
+      const { references, error: dbError } = await getContainsRecursive(
         fileId,
         10, // Max depth
         (progress: string) => setLoadingProgress(progress)
       )
       
       if (dbError) {
-        console.error('[ContainsTab] Database error:', dbError)
+        log.error('[ContainsTab]', 'Failed to load references from database', { error: dbError })
         setError('Failed to load from database')
         return
       }
@@ -452,14 +427,6 @@ export function ContainsTab({ file }: { file: LocalFile }) {
         
         setBomNodes(nodes)
         setDataSource('database')
-        
-        console.log('[ContainsTab] Loaded recursive BOM:', {
-          rootComponents: nodes.length,
-          totalNodes: stats.totalNodes,
-          maxDepth: stats.maxDepthReached,
-          assembliesProcessed: stats.assembliesProcessed,
-          pathValidation: pathValidationStats
-        })
       } else {
         setBomNodes([])
         setDataSource('none')
@@ -470,22 +437,16 @@ export function ContainsTab({ file }: { file: LocalFile }) {
         // Track WHY we can't auto-extract to show appropriate hints
         if (autoExtractAttemptedRef.current === fileId) {
           // Already attempted for this file, don't try again
-          console.debug('[ContainsTab] Auto-extract already attempted for this file')
         } else if (!status.running) {
           setExtractionSkipReason('sw_not_running')
-          console.debug('[ContainsTab] Cannot auto-extract: SW service not running')
         } else if (!fileId) {
           setExtractionSkipReason('not_synced')
-          console.debug('[ContainsTab] Cannot auto-extract: File not synced to database')
         } else if (!organization?.id) {
           setExtractionSkipReason('no_org')
-          console.debug('[ContainsTab] Cannot auto-extract: No organization ID')
         } else if (!activeVaultId) {
           setExtractionSkipReason('no_vault')
-          console.debug('[ContainsTab] Cannot auto-extract: No active vault')
         } else {
           // All conditions met - attempt auto-extraction
-          console.log('[ContainsTab] No database references found, auto-extracting from SW...')
           autoExtractAttemptedRef.current = fileId
           setIsAutoExtracting(true)
           setLoadingProgress('Extracting component references...')
@@ -510,15 +471,12 @@ export function ContainsTab({ file }: { file: LocalFile }) {
               
               if (upsertResult.success && upsertResult.inserted > 0) {
                 addToast('success', `Extracted ${upsertResult.inserted} component references`)
-                if (upsertResult.skippedReasons && upsertResult.skippedReasons.length > 0) {
-                  console.debug('[ContainsTab] Some references skipped:', upsertResult.skippedReasons)
-                }
                 setExtractionSkipReason(null)
                 setIsAutoExtracting(false)
                 setLoadingProgress(null)
                 // Reload from database to show the new data (won't re-attempt extract due to ref)
                 setIsLoadingDb(true)
-                const { references: newRefs, stats: newStats } = await getContainsRecursive(
+                const { references: newRefs } = await getContainsRecursive(
                   fileId,
                   10,
                   (progress: string) => setLoadingProgress(progress)
@@ -533,19 +491,14 @@ export function ContainsTab({ file }: { file: LocalFile }) {
                     .filter((item: BomNode | null): item is BomNode => item !== null)
                   setBomNodes(nodes)
                   setDataSource('database')
-                  console.log('[ContainsTab] Loaded BOM after auto-extract:', {
-                    rootComponents: nodes.length,
-                    totalNodes: newStats.totalNodes
-                  })
                 }
                 setIsLoadingDb(false)
                 setLoadingProgress(null)
                 return
-              } else {
-                // SW returned references but upserting failed or found nothing to insert
-                // Instead of showing generic error, display ALL SW references with path status
-                console.log('[ContainsTab] No DB matches, showing SW references with path status')
-                setLoadingProgress('Analyzing component paths...')
+            } else {
+              // SW returned references but upserting failed or found nothing to insert
+              // Instead of showing generic error, display ALL SW references with path status
+              setLoadingProgress('Analyzing component paths...')
                 
                 // Convert SW references to BomNodes with path validation
                 const swServiceRefs: SWServiceReference[] = result.data.references.map((ref: FileReference) => ({
@@ -564,37 +517,30 @@ export function ContainsTab({ file }: { file: LocalFile }) {
                 const validCount = nodes.length - brokenCount
                 setPathValidationStats({ valid: validCount, broken: brokenCount })
                 
-                if (brokenCount > 0) {
-                  addToast('warning', `${brokenCount} of ${nodes.length} component paths not found in vault`)
-                }
-                
-                console.log('[ContainsTab] Displayed SW references:', {
-                  total: nodes.length,
-                  valid: validCount,
-                  broken: brokenCount
-                })
-                
-                // Exit early - we've successfully displayed the references
+              if (brokenCount > 0) {
+                addToast('warning', `${brokenCount} of ${nodes.length} component paths not found in vault`)
+              }
+              
+              // Exit early - we've successfully displayed the references
                 setIsAutoExtracting(false)
                 setLoadingProgress(null)
                 return
               }
-            } else {
-              console.debug('[ContainsTab] Auto-extract: No references found in SW')
-              setExtractionSkipReason('empty_assembly')
-            }
-          } catch (err) {
-            console.debug('[ContainsTab] Auto-extract failed:', err)
-            setExtractionSkipReason('extraction_error')
-            // Fall through to show empty state - user can click button
-          } finally {
+          } else {
+            setExtractionSkipReason('empty_assembly')
+          }
+        } catch (err) {
+          log.warn('[ContainsTab]', 'Auto-extract failed', { error: err })
+          setExtractionSkipReason('extraction_error')
+          // Fall through to show empty state - user can click button
+        } finally {
             setIsAutoExtracting(false)
             setLoadingProgress(null)
           }
         }
       }
     } catch (err) {
-      console.error('[ContainsTab] Error loading from database:', err)
+      log.error('[ContainsTab]', 'Error loading from database', { error: err })
       setError(String(err))
     } finally {
       setIsLoadingDb(false)
@@ -613,7 +559,7 @@ export function ContainsTab({ file }: { file: LocalFile }) {
         setSelectedConfig(result.data.activeConfiguration)
       }
     } catch (err) {
-      console.error('Failed to load configurations:', err)
+      log.error('[ContainsTab]', 'Failed to load configurations', { error: err })
     }
   }, [status.running, file.path])
 
@@ -682,9 +628,6 @@ export function ContainsTab({ file }: { file: LocalFile }) {
       
       if (upsertResult.success) {
         addToast('success', `References updated: ${upsertResult.inserted} added, ${upsertResult.updated} updated, ${upsertResult.deleted} removed`)
-        if (upsertResult.skippedReasons && upsertResult.skippedReasons.length > 0) {
-          console.debug('[ContainsTab] Some references skipped during refresh:', upsertResult.skippedReasons)
-        }
         // Reload from database to get fresh data (will also revalidate paths)
         setPathValidationStats(null)
         await loadFromDatabase()
@@ -1541,7 +1484,7 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
           }
         }
       } catch (err) {
-        console.error('Failed to load properties:', err)
+        log.error('[SolidWorks]', 'Failed to load properties', { error: err })
       } finally {
         setIsLoading(false)
       }
@@ -1667,31 +1610,22 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
 
   // Load properties when service is running
   useEffect(() => {
-    console.log('[SWPropertiesTab] Effect triggered:', { running: status.running, path: file.path, isSolidWorks })
     if (!status.running || !file.path || !isSolidWorks) return
     
     const loadProperties = async () => {
       setIsLoading(true)
-      console.log('[SWPropertiesTab] Loading properties for:', file.path)
       try {
         const result = await window.electronAPI?.solidworks?.getProperties(file.path)
-        console.log('[SWPropertiesTab] getProperties result:', result)
-        console.log('[SWPropertiesTab] result.data keys:', result?.data ? Object.keys(result.data) : 'no data')
-        console.log('[SWPropertiesTab] result.data full:', JSON.stringify(result?.data, null, 2))
         
         if (result?.success && result.data) {
           // Handle different possible response formats
           const data = result.data as Record<string, unknown>
           const props = data.fileProperties || data.customProperties || data.properties || result.data
-          console.log('[SWPropertiesTab] Extracted properties:', props)
           if (typeof props === 'object' && props !== null) {
             setFileProperties(props as Record<string, string>)
           }
           
           const configResult = await window.electronAPI?.solidworks?.getConfigurations(file.path)
-          console.log('[SWPropertiesTab] getConfigurations result:', configResult)
-          console.log('[SWPropertiesTab] configResult.data keys:', configResult?.data ? Object.keys(configResult.data) : 'no data')
-          console.log('[SWPropertiesTab] configResult.data full:', JSON.stringify(configResult?.data, null, 2))
           
           if (configResult?.success && configResult.data) {
             const configs = configResult.data.configurations || configResult.data
@@ -1709,10 +1643,10 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
             }
           }
         } else if (result?.error) {
-          console.error('[SWPropertiesTab] API error:', result.error)
+          log.error('[SWPropertiesTab]', 'API error loading properties', { error: result.error })
         }
       } catch (err) {
-        console.error('[SWPropertiesTab] Failed to load properties:', err)
+        log.error('[SWPropertiesTab]', 'Failed to load properties', { error: err })
       } finally {
         setIsLoading(false)
       }

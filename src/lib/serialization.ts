@@ -2,6 +2,7 @@
 // Provides org-level sync for unique serial number assignment
 
 import { supabase } from './supabase'
+import { log } from './logger'
 
 export interface SerializationSettings {
   enabled: boolean
@@ -65,13 +66,13 @@ export async function getNextSerialNumber(orgId: string): Promise<string | null>
     })
     
     if (error) {
-      console.error('[Serialization] Failed to get next serial number:', error)
+      log.error('[Serialization]', 'Failed to get next serial number', { error })
       throw error
     }
     
     return data
   } catch (err) {
-    console.error('[Serialization] Error getting next serial number:', err)
+    log.error('[Serialization]', 'Error getting next serial number', { error: err })
     return null
   }
 }
@@ -92,13 +93,13 @@ export async function previewNextSerialNumber(orgId: string): Promise<string | n
     })
     
     if (error) {
-      console.error('[Serialization] Failed to preview serial number:', error)
+      log.error('[Serialization]', 'Failed to preview serial number', { error })
       throw error
     }
     
     return data
   } catch (err) {
-    console.error('[Serialization] Error previewing serial number:', err)
+    log.error('[Serialization]', 'Error previewing serial number', { error: err })
     return null
   }
 }
@@ -118,7 +119,7 @@ export async function getSerializationSettings(orgId: string): Promise<Serializa
       .single()
     
     if (error) {
-      console.error('[Serialization] Failed to get settings:', error)
+      log.error('[Serialization]', 'Failed to get settings', { error })
       return DEFAULT_SETTINGS
     }
     
@@ -130,7 +131,7 @@ export async function getSerializationSettings(orgId: string): Promise<Serializa
       ...(settings || {})
     }
   } catch (err) {
-    console.error('[Serialization] Error getting settings:', err)
+    log.error('[Serialization]', 'Error getting settings', { error: err })
     return DEFAULT_SETTINGS
   }
 }
@@ -163,13 +164,13 @@ export async function updateSerializationSettings(
       .eq('id', orgId)
     
     if (error) {
-      console.error('[Serialization] Failed to update settings:', error)
+      log.error('[Serialization]', 'Failed to update settings', { error })
       return false
     }
     
     return true
   } catch (err) {
-    console.error('[Serialization] Error updating settings:', err)
+    log.error('[Serialization]', 'Error updating settings', { error: err })
     return false
   }
 }
@@ -282,13 +283,13 @@ export async function serialNumberExists(
       .limit(1)
     
     if (error) {
-      console.error('[Serialization] Failed to check serial number existence:', error)
+      log.error('[Serialization]', 'Failed to check serial number existence', { error })
       return false // Assume doesn't exist on error
     }
     
     return (data?.length ?? 0) > 0
   } catch (err) {
-    console.error('[Serialization] Error checking serial number:', err)
+    log.error('[Serialization]', 'Error checking serial number', { error: err })
     return false
   }
 }
@@ -561,7 +562,7 @@ export async function detectHighestSerialNumber(
       .not('part_number', 'is', null)
     
     if (error) {
-      console.error('[Serialization] Failed to scan files:', error)
+      log.error('[Serialization]', 'Failed to scan files', { error })
       return null
     }
     
@@ -581,7 +582,7 @@ export async function detectHighestSerialNumber(
       totalScanned: partNumbers.length
     }
   } catch (err) {
-    console.error('[Serialization] Error detecting highest serial:', err)
+    log.error('[Serialization]', 'Error detecting highest serial', { error: err })
     return null
   }
 }

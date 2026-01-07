@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { log } from '@/lib/logger'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { FileConflict, ConflictDialogState } from '../types'
 import { buildFullPath } from '@/lib/utils/path'
@@ -94,7 +95,7 @@ export function useAddFiles({
           successCount++
         } else {
           errorCount++
-          console.error(`Failed to copy:`, copyResult.error)
+          log.error('[AddFiles]', 'Failed to copy', { error: copyResult.error })
         }
       }
       
@@ -185,7 +186,7 @@ export function useAddFiles({
             
             setTimeout(() => onRefresh(true), 100)
           } catch (err) {
-            console.error('Error adding files:', err)
+            log.error('[AddFiles]', 'Error adding files', { error: err })
             removeToast(toastId)
             addToast('error', 'Failed to add files')
           }
@@ -211,7 +212,7 @@ export function useAddFiles({
           successCount++
         } else {
           errorCount++
-          console.error(`Failed to copy:`, copyResult.error)
+          log.error('[AddFiles]', 'Failed to copy', { error: copyResult.error })
         }
         
         const percent = Math.round(((i + 1) / totalFiles) * 100)
@@ -230,7 +231,7 @@ export function useAddFiles({
       setTimeout(() => onRefresh(true), 100)
 
     } catch (err) {
-      console.error('Error adding files:', err)
+      log.error('[AddFiles]', 'Error adding files', { error: err })
       removeToast(toastId)
       addToast('error', 'Failed to add files')
     }
@@ -317,7 +318,7 @@ export function useAddFiles({
             
             setTimeout(() => onRefresh(true), 100)
           } catch (err) {
-            console.error('Error adding folder:', err)
+            log.error('[AddFiles]', 'Error adding folder', { error: err })
             removeToast(toastId)
             addToast('error', 'Failed to add folder')
           }
@@ -343,7 +344,7 @@ export function useAddFiles({
           successCount++
         } else {
           errorCount++
-          console.error(`Failed to copy:`, copyResult.error)
+          log.error('[AddFiles]', 'Failed to copy', { error: copyResult.error })
         }
         
         const percent = Math.round(((i + 1) / totalFiles) * 100)
@@ -362,7 +363,7 @@ export function useAddFiles({
       setTimeout(() => onRefresh(true), 100)
 
     } catch (err) {
-      console.error('Error adding folder:', err)
+      log.error('[AddFiles]', 'Error adding folder', { error: err })
       removeToast(toastId)
       addToast('error', 'Failed to add folder')
     }

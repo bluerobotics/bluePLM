@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { log } from '@/lib/logger'
 
 /**
  * Auto-updater event listeners
@@ -27,7 +28,7 @@ export function useAutoUpdater() {
     // Update available - show modal (always update to latest version)
     cleanups.push(
       window.electronAPI.onUpdateAvailable((info) => {
-        console.log('[Update] Update available:', info.version)
+        log.info('[Update]', 'Update available', { version: info.version })
         // Reset download state when switching to a new update version
         setUpdateDownloading(false)
         setUpdateDownloaded(false)
@@ -40,7 +41,6 @@ export function useAutoUpdater() {
     // Update not available
     cleanups.push(
       window.electronAPI.onUpdateNotAvailable(() => {
-        console.log('[Update] No update available')
         setUpdateAvailable(null)
       })
     )
@@ -55,7 +55,7 @@ export function useAutoUpdater() {
     // Download completed - auto-install
     cleanups.push(
       window.electronAPI.onUpdateDownloaded(async (info) => {
-        console.log('[Update] Update downloaded:', info.version)
+        log.info('[Update]', 'Update downloaded', { version: info.version })
         setUpdateDownloading(false)
         setUpdateDownloaded(true)
         setUpdateProgress(null)
@@ -63,7 +63,7 @@ export function useAutoUpdater() {
         try {
           await window.electronAPI.installUpdate()
         } catch (err) {
-          console.error('[Update] Auto-install error:', err)
+          log.error('[Update]', 'Auto-install error', { error: err })
         }
       })
     )
@@ -71,7 +71,7 @@ export function useAutoUpdater() {
     // Error
     cleanups.push(
       window.electronAPI.onUpdateError((error) => {
-        console.error('[Update] Error:', error.message)
+        log.error('[Update]', 'Update error', { error: error.message })
         setUpdateDownloading(false)
         setUpdateProgress(null)
         setShowUpdateModal(false)
@@ -86,7 +86,6 @@ export function useAutoUpdater() {
     // the React app mounts and registers its event listeners
     window.electronAPI.getUpdateStatus().then((status) => {
       if (status.updateAvailable) {
-        console.log('[Update] Found pending update on mount:', status.updateAvailable.version)
         setUpdateAvailable(status.updateAvailable)
         setShowUpdateModal(true)
       }
@@ -94,7 +93,7 @@ export function useAutoUpdater() {
         setUpdateDownloaded(true)
       }
     }).catch((err) => {
-      console.error('[Update] Failed to get initial status:', err)
+      log.error('[Update]', 'Failed to get initial status', { error: err })
     })
     
     return () => {

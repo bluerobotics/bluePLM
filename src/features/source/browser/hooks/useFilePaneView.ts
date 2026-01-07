@@ -3,6 +3,7 @@
  * for the FilePane component
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { FileMetadataColumn } from '@/types/database'
 import { supabase, isWatchingFile } from '@/lib/supabase'
@@ -179,13 +180,13 @@ export function useFilePaneView() {
           .order('sort_order')
         
         if (error) {
-          console.error('Failed to load custom metadata columns:', error)
+          log.error('[FilePane]', 'Failed to load custom metadata columns', { error })
           return
         }
         
         setCustomMetadataColumns(data || [])
       } catch (err) {
-        console.error('Failed to load custom metadata columns:', err)
+        log.error('[FilePane]', 'Failed to load custom metadata columns', { error: err })
       }
     }
     

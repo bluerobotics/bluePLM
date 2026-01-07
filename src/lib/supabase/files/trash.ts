@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '../client'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
+import { log } from '@/lib/logger'
 
 // ============================================
 // Soft Delete / Restore Operations
@@ -59,8 +60,8 @@ export async function softDeleteFile(
         soft_delete: true
       }
     })
-  } catch (activityError) {
-    console.warn('[softDeleteFile] Failed to log activity:', activityError)
+  } catch {
+    // Activity logging is non-critical
   }
   
   return { success: true, file: deletedFile }
@@ -162,8 +163,8 @@ export async function restoreFile(
         file_path: file.file_path
       }
     })
-  } catch (activityError) {
-    console.warn('[restoreFile] Failed to log activity:', activityError)
+  } catch {
+    // Activity logging is non-critical
   }
   
   return { success: true, file: restoredFile }
@@ -232,8 +233,8 @@ export async function permanentlyDeleteFile(
         permanent: true
       }
     })
-  } catch (activityError) {
-    console.warn('[permanentlyDeleteFile] Failed to log activity:', activityError)
+  } catch {
+    // Activity logging is non-critical
   }
   
   // Delete file versions
@@ -368,7 +369,6 @@ export async function getDeletedFiles(
       if (error) {
         // If column doesn't exist, return empty (trash feature not available)
         if (error.message?.includes('deleted_at') || error.message?.includes('column')) {
-          console.warn('Trash feature not available - run migration to enable')
           return { files: [] }
         }
         return { files: allFiles, error: error.message }
@@ -385,7 +385,7 @@ export async function getDeletedFiles(
     
     return { files: allFiles }
   } catch (err) {
-    console.error('Error fetching deleted files:', err)
+    log.error('[Trash]', 'Error fetching deleted files', { error: err instanceof Error ? err.message : String(err) })
     return { files: [] }
   }
 }
@@ -464,7 +464,7 @@ export async function emptyTrash(
     if (fetchError) {
       // If we've already collected some IDs, try to delete those
       if (allFileIds.length > 0) {
-        console.warn('[emptyTrash] Pagination error, proceeding with collected IDs:', fetchError.message)
+        log.warn('[Trash]', 'Pagination error, proceeding with collected IDs', { error: fetchError.message })
         break
       }
       return { success: false, deleted: 0, error: fetchError.message }

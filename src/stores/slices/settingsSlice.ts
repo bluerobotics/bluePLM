@@ -268,7 +268,6 @@ export const createSettingsSlice: StateCreator<
         .single()
       
       if (error) {
-        console.error('Failed to save color swatch:', error)
         addToast('error', `Failed to save color: ${error.message}`)
         return
       }
@@ -290,7 +289,6 @@ export const createSettingsSlice: StateCreator<
       
       addToast('success', isOrg ? 'Color saved for organization' : 'Color saved')
     } catch (err) {
-      console.error('Failed to save color swatch:', err)
       addToast('error', 'Failed to save color')
     }
   },
@@ -322,7 +320,6 @@ export const createSettingsSlice: StateCreator<
         .eq('id', swatchId)
       
       if (error) {
-        console.error('Failed to delete color swatch:', error)
         // Rollback on error
         if (userSwatch) {
           set({ colorSwatches: [...get().colorSwatches, userSwatch] })
@@ -331,7 +328,6 @@ export const createSettingsSlice: StateCreator<
         }
       }
     } catch (err) {
-      console.error('Failed to delete color swatch:', err)
     }
   },
   
@@ -358,7 +354,6 @@ export const createSettingsSlice: StateCreator<
         }))
       })
     } catch (err) {
-      console.error('Failed to load org color swatches:', err)
     }
   },
   
@@ -408,7 +403,6 @@ export const createSettingsSlice: StateCreator<
         })
       }
     } catch (err) {
-      console.error('Failed to sync color swatches:', err)
     }
   },
   
@@ -452,7 +446,6 @@ export const createSettingsSlice: StateCreator<
       if (error) throw error
       return { success: true }
     } catch (err) {
-      console.error('Failed to save org column defaults:', err)
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   },
@@ -490,7 +483,6 @@ export const createSettingsSlice: StateCreator<
       set({ columns: updatedColumns })
       return { success: true }
     } catch (err) {
-      console.error('Failed to load org column defaults:', err)
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   },

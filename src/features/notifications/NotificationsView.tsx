@@ -35,6 +35,7 @@ import {
   Send,
   Users
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { 
@@ -336,7 +337,7 @@ export function NotificationsView() {
         })))
       }
     } catch (err) {
-      console.error('Error loading org members:', err)
+      log.error('[Notifications]', 'Error loading org members', { error: err })
     } finally {
       setMembersLoading(false)
     }
@@ -357,7 +358,7 @@ export function NotificationsView() {
       const { reviews } = await getPendingReviewsForUser(user.id, organization.id)
       setPendingReviewCount(reviews.length)
     } catch (err) {
-      console.error('Error loading notifications:', err)
+      log.error('[Notifications]', 'Error loading notifications', { error: err })
     } finally {
       setNotificationsLoading(false)
     }
@@ -418,7 +419,7 @@ export function NotificationsView() {
         addToast('error', error || 'Failed to send notification')
       }
     } catch (err) {
-      console.error('Error sending notification:', err)
+      log.error('[Notifications]', 'Error sending notification', { error: err })
       addToast('error', 'Failed to send notification')
     } finally {
       setIsSending(false)

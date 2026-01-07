@@ -185,7 +185,6 @@ export const createUserSlice: StateCreator<
       
       addToast('info', `Now viewing as ${result.user.full_name || result.user.email}`)
     } catch (err) {
-      console.error('Failed to start user impersonation:', err)
       addToast('error', 'Failed to start impersonation')
     }
   },
@@ -243,7 +242,6 @@ export const createUserSlice: StateCreator<
         permissionsLoaded: true
       })
     } catch (err) {
-      console.error('Failed to load user permissions:', err)
       set({ permissionsLoaded: true })
     }
   },

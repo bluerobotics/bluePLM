@@ -4,6 +4,7 @@ import {
   FileText,
   Save
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 
@@ -63,7 +64,7 @@ export function RFQSettings() {
           ? rfqData as unknown as RFQSettingsData 
           : DEFAULT_RFQ_SETTINGS)
       } catch (err) {
-        console.error('Failed to load RFQ settings:', err)
+        log.error('[RFQ]', 'Failed to load RFQ settings', { error: err })
       } finally {
         setLoading(false)
       }
@@ -82,7 +83,6 @@ export function RFQSettings() {
     // Get rfq_settings from the organization object (updated via realtime)
     const realtimeSettings = (organization as any)?.rfq_settings
     if (realtimeSettings) {
-      console.log('[RFQSettings] Syncing with realtime org settings')
       setSettings({ ...DEFAULT_RFQ_SETTINGS, ...realtimeSettings })
     }
   }, [(organization as any)?.rfq_settings])
@@ -102,7 +102,7 @@ export function RFQSettings() {
       if (error) throw error
       addToast('success', 'RFQ settings saved')
     } catch (err) {
-      console.error('Failed to save RFQ settings:', err)
+      log.error('[RFQ]', 'Failed to save RFQ settings', { error: err })
       addToast('error', 'Failed to save RFQ settings')
     } finally {
       setSaving(false)

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { SearchFilter, GoogleDriveFileResult } from '../types'
 
@@ -45,7 +46,7 @@ export function useGoogleDriveSearch(searchTerm: string, filter: SearchFilter) {
         setDriveResults([])
       }
     } catch (err) {
-      console.error('Google Drive search failed:', err)
+      log.error('[Search]', 'Google Drive search failed', { error: err })
       setDriveResults([])
     } finally {
       setIsDriveSearching(false)

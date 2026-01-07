@@ -175,7 +175,7 @@ class TelemetryService {
     const intervalMs = 1000 / this.config.sampleRateHz
     this.intervalId = window.setInterval(() => this.sample(), intervalMs)
     
-    console.log(`[Telemetry] Started at ${this.config.sampleRateHz}Hz, retention ${this.config.retentionSeconds}s`)
+    // Telemetry started
   }
   
   // Stop collecting
@@ -189,7 +189,6 @@ class TelemetryService {
       this.rafId = null
     }
     this.config.enabled = false
-    console.log('[Telemetry] Stopped')
   }
   
   // Check if running
@@ -258,8 +257,8 @@ class TelemetryService {
             }
           }
         }
-      } catch (err) {
-        console.error('[Telemetry] Failed to get system stats:', err)
+      } catch {
+        // System stats unavailable
       }
       
       if (this.config.enabled) {
@@ -288,8 +287,8 @@ class TelemetryService {
     for (const listener of this.listeners) {
       try {
         listener(snapshot)
-      } catch (err) {
-        console.error('[Telemetry] Listener error:', err)
+      } catch {
+        // Listener error - ignore
       }
     }
   }

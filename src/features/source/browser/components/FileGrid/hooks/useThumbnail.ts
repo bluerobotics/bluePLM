@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { log } from '@/lib/logger'
 import { SW_THUMBNAIL_EXTENSIONS, MAX_THUMBNAIL_SIZE } from '../../../constants'
 
 export interface UseThumbnailParams {
@@ -51,7 +52,7 @@ export function useThumbnail({ file, iconSize, isProcessing }: UseThumbnailParam
             setThumbnail(null)
           }
         } catch (err) {
-          console.error('Failed to extract thumbnail:', err)
+          log.error('[Thumbnail]', 'Failed to extract thumbnail', { error: err })
           setThumbnail(null)
         } finally {
           setLoadingThumbnail(false)

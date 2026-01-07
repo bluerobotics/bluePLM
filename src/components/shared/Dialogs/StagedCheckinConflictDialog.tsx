@@ -11,6 +11,7 @@
  */
 
 import { useState } from 'react'
+import { log } from '@/lib/logger'
 import { 
   X, 
   Upload, 
@@ -135,7 +136,7 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
       unstageCheckin(staged.relativePath)
       
     } catch (err) {
-      console.error('[ConflictResolution] Error:', err)
+      log.error('[ConflictResolution]', 'Error resolving conflict', { error: err })
       addToast('error', `Failed to resolve conflict: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setProcessing(null)

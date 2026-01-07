@@ -17,6 +17,7 @@ import {
   XCircle,
   AlertTriangle
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import type { BomNodePathStatus } from '@/lib/solidworks'
 
 // ============================================
@@ -481,7 +482,7 @@ export function BomTree({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error('Failed to copy:', err)
+      log.error('[SolidWorks]', 'Failed to copy BOM', { error: err })
     }
   }, [nodes, assemblyName])
 

@@ -10,6 +10,7 @@ import {
   Loader2,
   UserCheck
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -164,7 +165,7 @@ export function CreateUserDialog({
       onCreated()
       onClose()
     } catch (err) {
-      console.error('Failed to create pending user:', err)
+      log.error('[CreateUser]', 'Failed to create pending user', { error: err })
       addToast('error', 'Failed to create user account')
     } finally {
       setIsSaving(false)

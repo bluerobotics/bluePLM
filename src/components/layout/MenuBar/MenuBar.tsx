@@ -9,15 +9,7 @@ import { logAuth } from '@/lib/userActionLogger'
 import { SystemStats } from '@/components/shared/SystemStats'
 import { OnlineUsersIndicator } from '@/components/shared/OnlineUsers'
 import { getMachineId } from '@/lib/backup'
-
-// Helper to log to both console and electron log file
-const uiLog = (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => {
-  const logMsg = `[MenuBar] ${message}`
-  if (level === 'error') console.error(logMsg, data || '')
-  else if (level === 'warn') console.warn(logMsg, data || '')
-  else console.log(logMsg, data || '')
-  window.electronAPI?.log?.(level, `[MenuBar] ${message}`, data)
-}
+import { log } from '@/lib/logger'
 
 // Get user's initials for avatar fallback (1-2 characters from name or email)
 function getUserInitial(user: { full_name?: string | null; email?: string } | null): string {
@@ -307,49 +299,49 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
 
   const handleSignIn = async () => {
     logAuth('Sign in button clicked')
-    uiLog('info', 'Sign in button clicked from MenuBar')
+    log.info('[MenuBar]', 'Sign in button clicked from MenuBar')
     
     if (!isSupabaseConfigured()) {
-      uiLog('warn', 'Supabase not configured')
+      log.warn('[MenuBar]', 'Supabase not configured')
       addToast('error', 'Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
       return
     }
     
     setIsSigningIn(true)
-    uiLog('info', 'Starting Google sign-in flow from MenuBar')
+    log.info('[MenuBar]', 'Starting Google sign-in flow from MenuBar')
     
     try {
       const { data, error } = await signInWithGoogle()
-      uiLog('info', 'signInWithGoogle returned', { 
+      log.info('[MenuBar]', 'signInWithGoogle returned', { 
         hasData: !!data, 
         hasError: !!error,
         errorMessage: error?.message 
       })
       
       if (error) {
-        uiLog('error', 'Sign in failed', { error: error.message })
+        log.error('[MenuBar]', 'Sign in failed', { error: error.message })
         addToast('error', `Sign in failed: ${error.message}`)
       } else {
-        uiLog('info', 'Sign in completed successfully, auth state change will be handled by App')
+        log.info('[MenuBar]', 'Sign in completed successfully, auth state change will be handled by App')
       }
     } catch (err) {
-      uiLog('error', 'Sign in exception', { error: String(err) })
+      log.error('[MenuBar]', 'Sign in exception', { error: String(err) })
       addToast('error', 'Sign in failed. Check the console for details.')
     } finally {
-      uiLog('info', 'Sign in flow finished, resetting state')
+      log.info('[MenuBar]', 'Sign in flow finished, resetting state')
       setIsSigningIn(false)
     }
   }
 
   const handleSignOut = async () => {
     logAuth('Sign out clicked')
-    uiLog('info', 'Sign out clicked')
+    log.info('[MenuBar]', 'Sign out clicked')
     const { error } = await signOut()
     if (error) {
-      uiLog('error', 'Sign out error', { error: error.message })
+      log.error('[MenuBar]', 'Sign out error', { error: error.message })
     } else {
       logAuth('Sign out successful')
-      uiLog('info', 'Sign out successful')
+      log.info('[MenuBar]', 'Sign out successful')
     }
     setUser(null)
     setOrganization(null)

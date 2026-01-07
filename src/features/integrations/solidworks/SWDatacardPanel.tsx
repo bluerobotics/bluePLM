@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { 
   getNextSerialNumber, 
@@ -702,14 +703,14 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         }
         
         // Single batch call to write all changed configs
-        console.log('[SWDatacard] Batch saving configs:', Object.keys(configProperties))
+        log.debug('[SWDatacard]', 'Batch saving configs', { configs: Object.keys(configProperties) })
         const result = await window.electronAPI?.solidworks?.setPropertiesBatch(file.path, configProperties)
         
         if (result?.success) {
           const count = result.data?.configurationsProcessed || Object.keys(configProperties).length
           addToast('success', `Saved properties to ${count} configuration${count > 1 ? 's' : ''}`)
         } else {
-          console.error('Failed to batch save:', result?.error)
+          log.error('[SWDatacard]', 'Failed to batch save', { error: result?.error })
           addToast('error', result?.error || 'Failed to save properties')
         }
       } else {
@@ -730,7 +731,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           if (result?.success) {
             addToast('success', `Saved ${result.data?.propertiesSet || 0} properties to file`)
           } else {
-            console.error('Failed to save props:', result?.error)
+            log.error('[SWDatacard]', 'Failed to save props', { error: result?.error })
             addToast('error', result?.error || 'Failed to save properties')
           }
         } else {
@@ -738,7 +739,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         }
       }
     } catch (err) {
-      console.error('Failed to save to file:', err)
+      log.error('[SWDatacard]', 'Failed to save to file', { error: err })
       addToast('error', 'Failed to save properties to file')
     } finally {
       setIsSavingToFile(false)
@@ -756,10 +757,10 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         if (result?.success && result.data?.configurations) {
           const configs = result.data.configurations as ConfigurationData[]
           // Debug: log parent configurations to verify hierarchy data
-          console.log('[SWDatacard] Configurations loaded:', configs.map(c => ({ 
+          log.debug('[SWDatacard]', 'Configurations loaded', { configs: configs.map(c => ({ 
             name: c.name, 
             parent: c.parentConfiguration 
-          })))
+          }))})
           setConfigurations(configs)
           
           // Find and select the active config
@@ -770,7 +771,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           setConfigurations([{ name: 'Default', isActive: true, properties: {} }])
         }
       } catch (err) {
-        console.error('Failed to load configurations:', err)
+        log.error('[SWDatacard]', 'Failed to load configurations', { error: err })
         setConfigurations([{ name: 'Default', isActive: true, properties: {} }])
       } finally {
         setConfigsLoading(false)
@@ -836,7 +837,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           }
         }
       } catch (err) {
-        console.error('Failed to load properties:', err)
+        log.error('[SWDatacard]', 'Failed to load properties', { error: err })
       }
     }
     
@@ -880,7 +881,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         // Try direct OLE preview extraction (works for older SW files)
         const oleResult = await window.electronAPI?.extractSolidWorksPreview?.(file.path)
         if (oleResult?.success && oleResult.data) {
-          console.log('[Preview] Using OLE-extracted preview')
+          log.debug('[Preview]', 'Using OLE-extracted preview')
           setPreview(oleResult.data)
           setPreviewLoading(false)
           return
@@ -889,12 +890,12 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         // OLE failed - Fall back to OS thumbnail as immediate fallback
         const thumbResult = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
         if (thumbResult?.success && thumbResult.data) {
-          console.log('[Preview] Using OS thumbnail fallback')
+          log.debug('[Preview]', 'Using OS thumbnail fallback')
           setPreview(thumbResult.data)
         }
         // Note: Don't set preview to null here - let SW service effect try next
       } catch (err) {
-        console.error('Failed to load OLE preview:', err)
+        log.error('[Preview]', 'Failed to load OLE preview', { error: err })
       } finally {
         setPreviewLoading(false)
       }
@@ -910,20 +911,20 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
       // Only try if we don't have a preview yet and service is running
       if (preview || !file?.path || !status.running) return
       
-      console.log('[Preview] Attempting SW service preview for:', file.name)
+      log.debug('[Preview]', 'Attempting SW service preview', { fileName: file.name })
       setPreviewLoading(true)
       
       try {
         const previewResult = await window.electronAPI?.solidworks?.getPreview(file.path, activeConfig?.name)
         if (previewResult?.success && previewResult.data?.imageData) {
           const mimeType = previewResult.data.mimeType || 'image/png'
-          console.log('[Preview] Using SW service preview')
+          log.debug('[Preview]', 'Using SW service preview')
           setPreview(`data:${mimeType};base64,${previewResult.data.imageData}`)
         } else if (previewResult?.error) {
-          console.log('[Preview] SW service preview failed:', previewResult.error)
+          log.debug('[Preview]', 'SW service preview failed', { error: previewResult.error })
         }
       } catch (err) {
-        console.error('Failed to load SW service preview:', err)
+        log.error('[Preview]', 'Failed to load SW service preview', { error: err })
       } finally {
         setPreviewLoading(false)
       }

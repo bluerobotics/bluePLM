@@ -22,6 +22,7 @@ import {
   PERMISSION_ACTION_LABELS,
   ALL_RESOURCES
 } from '@/types/permissions'
+import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { getEffectiveAvatarUrl } from '@/lib/utils'
 import { PERMISSION_RESOURCE_GROUPS } from '../../constants'
@@ -189,7 +190,7 @@ export function ViewNetPermissionsModal({
         
         setSourceFilesPermsByVault(vaultPerms)
       } catch (err) {
-        console.error('Failed to load permissions:', err)
+        log.error('[ViewNetPermissions]', 'Failed to load permissions', { error: err })
       } finally {
         setIsLoading(false)
       }

@@ -26,6 +26,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase, removeUserFromOrg } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { OrgUser } from '../types'
 import {
@@ -115,7 +116,7 @@ export function useMembers(orgId: string | null) {
       
       setMembers(usersWithTeamsAndTitles)
     } catch (err) {
-      console.error('Failed to load org users:', err)
+      log.error('[Members]', 'Failed to load org users', { error: err })
     } finally {
       setMembersLoading(false)
     }
@@ -239,7 +240,7 @@ export function useMembers(orgId: string | null) {
       await loadMembers()
       return true
     } catch (err) {
-      console.error('Failed to update teams:', err)
+      log.error('[Members]', 'Failed to update teams', { error: err })
       addToast('error', 'Failed to update teams')
       return false
     }

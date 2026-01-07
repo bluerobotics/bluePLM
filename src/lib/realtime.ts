@@ -91,16 +91,10 @@ export function subscribeToFiles(
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         const newFile = payload.new as PDMFile
         const oldFile = payload.old as PDMFile | undefined
-
-        // Log for debugging
-        console.log('[Realtime] File change:', eventType, newFile?.file_name || oldFile?.file_name)
-
         onFileChange(eventType, newFile, oldFile)
       }
     )
-    .subscribe((status) => {
-      console.log('[Realtime] Files subscription status:', status)
-    })
+    .subscribe()
 
   // Return unsubscribe function
   return () => {
@@ -138,7 +132,6 @@ export function subscribeToActivity(
         filter: `org_id=eq.${orgId}`
       },
       (payload) => {
-        console.log('[Realtime] New activity:', payload.new)
         onActivity(payload.new as {
           action: string
           file_id: string | null
@@ -148,9 +141,7 @@ export function subscribeToActivity(
         })
       }
     )
-    .subscribe((status) => {
-      console.log('[Realtime] Activity subscription status:', status)
-    })
+    .subscribe()
 
   return () => {
     if (activityChannel) {
@@ -194,30 +185,10 @@ export function subscribeToOrganization(
       (payload: RealtimePostgresChangesPayload<Organization>) => {
         const newOrg = payload.new as Organization
         const oldOrg = payload.old as Organization | undefined
-
-        // Log settings changes for debugging
-        const newSettings = (newOrg?.settings || {}) as unknown as Record<string, unknown>
-        const oldSettings = (oldOrg?.settings || {}) as unknown as Record<string, unknown>
-        const changedKeys = Object.keys(newSettings).filter(
-          key => JSON.stringify(newSettings[key]) !== JSON.stringify(oldSettings[key])
-        )
-        
-        if (changedKeys.length > 0) {
-          console.log('[Realtime] Organization settings changed:', changedKeys)
-          // Log specific api_url changes for debugging sync issues
-          if (changedKeys.includes('api_url')) {
-            console.log('[Realtime] API URL in payload - old:', oldSettings.api_url, '→ new:', newSettings.api_url)
-          }
-        } else {
-          console.log('[Realtime] Organization updated (non-settings change)')
-        }
-
         onOrgChange('UPDATE', newOrg, oldOrg)
       }
     )
-    .subscribe((status) => {
-      console.log('[Realtime] Organization subscription status:', status)
-    })
+    .subscribe()
 
   // Return unsubscribe function
   return () => {
@@ -257,7 +228,6 @@ export function subscribeToColorSwatches(
         filter: `org_id=eq.${orgId}`
       },
       (payload) => {
-        console.log('[Realtime] Org color swatch added:', payload.new)
         onSwatchChange('INSERT', payload.new as { id: string; color: string; org_id: string | null; user_id: string | null; created_at: string })
       }
     )
@@ -270,13 +240,10 @@ export function subscribeToColorSwatches(
         filter: `org_id=eq.${orgId}`
       },
       (payload) => {
-        console.log('[Realtime] Org color swatch deleted:', payload.old)
         onSwatchChange('DELETE', payload.old as { id: string; color: string; org_id: string | null; user_id: string | null; created_at: string })
       }
     )
-    .subscribe((status) => {
-      console.log('[Realtime] Color swatches subscription status:', status)
-    })
+    .subscribe()
 
   // Return unsubscribe function
   return () => {
@@ -321,14 +288,10 @@ export function subscribeToVaults(
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         const newVault = payload.new as { id: string; name: string; slug: string; org_id: string; is_default: boolean | null }
         const oldVault = payload.old as { id: string; name: string; slug: string; org_id: string; is_default: boolean | null } | undefined
-        
-        console.log('[Realtime] Vault change:', eventType, newVault?.name || oldVault?.name)
         onVaultChange(eventType, newVault, oldVault)
       }
     )
-    .subscribe((status) => {
-      console.log('[Realtime] Vaults subscription status:', status)
-    })
+    .subscribe()
 
   // Return unsubscribe function
   return () => {
@@ -377,7 +340,6 @@ export function subscribeToPermissions(
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        console.log('[Realtime] Vault access changed for user:', eventType)
         onPermissionChange('vault_access', eventType, userId)
       }
     )
@@ -391,8 +353,6 @@ export function subscribeToPermissions(
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        console.log('[Realtime] Team vault access changed:', eventType)
-        // We can't filter by user at the DB level, so we notify and let the app check
         onPermissionChange('team_vault_access', eventType)
       }
     )
@@ -407,7 +367,6 @@ export function subscribeToPermissions(
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        console.log('[Realtime] Team membership changed for user:', eventType)
         onPermissionChange('team_members', eventType, userId)
       }
     )
@@ -422,7 +381,6 @@ export function subscribeToPermissions(
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        console.log('[Realtime] User permissions changed:', eventType)
         onPermissionChange('user_permissions', eventType, userId)
       }
     )
@@ -438,9 +396,7 @@ export function subscribeToPermissions(
       (payload) => {
         const newUser = payload.new as { role?: string }
         const oldUser = payload.old as { role?: string }
-        // Only trigger if role changed
         if (newUser?.role !== oldUser?.role) {
-          console.log('[Realtime] User role changed:', oldUser?.role, '→', newUser?.role)
           onPermissionChange('user_permissions', 'UPDATE', userId)
         }
       }
@@ -456,13 +412,10 @@ export function subscribeToPermissions(
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        console.log('[Realtime] Team changed:', eventType)
         onPermissionChange('teams', eventType)
       }
     )
-    .subscribe((status) => {
-      console.log('[Realtime] Permissions subscription status:', status)
-    })
+    .subscribe()
 
   // Return unsubscribe function
   return () => {

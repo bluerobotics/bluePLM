@@ -1,5 +1,6 @@
 // Clipboard operations for workflow states and transitions
 import { useCallback } from 'react'
+import { log } from '@/lib/logger'
 import type { 
   WorkflowTemplate, 
   WorkflowState, 
@@ -102,7 +103,7 @@ export function useClipboardOperations(options: UseClipboardOperationsOptions) {
           setFloatingToolbar(null)
           addToast('success', 'State cut')
         } catch (err) {
-          console.error('Cut failed:', err)
+          log.error('[Workflow]', 'Cut failed', { error: err })
           addToast('error', 'Cut failed')
         }
       }
@@ -119,7 +120,7 @@ export function useClipboardOperations(options: UseClipboardOperationsOptions) {
           setFloatingToolbar(null)
           addToast('success', 'Transition cut')
         } catch (err) {
-          console.error('Cut failed:', err)
+          log.error('[Workflow]', 'Cut failed', { error: err })
           addToast('error', 'Cut failed')
         }
       }
@@ -195,7 +196,7 @@ export function useClipboardOperations(options: UseClipboardOperationsOptions) {
         addToast('success', 'Transition pasted')
       }
     } catch (err) {
-      console.error('Paste failed:', err)
+      log.error('[Workflow]', 'Paste failed', { error: err })
       addToast('error', 'Paste failed')
     }
   }, [clipboard, isAdmin, selectedWorkflow, states, transitions, setStates, setTransitions, setSelectedStateId, setSelectedTransitionId, addToast, pushToUndo])
@@ -227,7 +228,7 @@ export function useClipboardOperations(options: UseClipboardOperationsOptions) {
         setFloatingToolbar(null)
         addToast('success', 'State deleted')
       } catch (err) {
-        console.error('Delete failed:', err)
+        log.error('[Workflow]', 'Delete failed', { error: err })
         addToast('error', 'Delete failed')
       }
     } else if (selectedTransitionId) {
@@ -242,7 +243,7 @@ export function useClipboardOperations(options: UseClipboardOperationsOptions) {
         setFloatingToolbar(null)
         addToast('success', 'Transition deleted')
       } catch (err) {
-        console.error('Delete failed:', err)
+        log.error('[Workflow]', 'Delete failed', { error: err })
         addToast('error', 'Delete failed')
       }
     }

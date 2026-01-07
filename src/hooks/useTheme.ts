@@ -65,7 +65,6 @@ export function useTheme() {
         // Auto-switch to seasonal theme
         setTheme(seasonalTheme)
         localStorage.setItem(storageKey, 'true')
-        console.log(`🎃🎄 Auto-applying ${seasonalTheme} theme for the season!`)
       }
     }
   }, [isSignedIn, autoApplySeasonalThemes]) // Re-run when sign-in status or setting changes

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
+import { log } from '@/lib/logger'
 import type { RFQ, RFQItem, RFQStatus, RFQSupplier } from '@/types/rfq'
 import { getRFQStatusInfo, formatCurrency } from '@/types/rfq'
 import { generateRFQPdf, type OrgBranding } from '@/lib/rfqPdf'
@@ -71,7 +72,7 @@ function RFQListView({
         if (error) throw error
         setRfqs((data as RFQ[]) || [])
       } catch (err) {
-        console.error('Failed to load RFQs:', err)
+        log.error('[RFQ]', 'Failed to load RFQs', { error: err })
       } finally {
         setLoading(false)
       }
@@ -342,7 +343,7 @@ function RFQDetailView({
         if (suppliersError) throw suppliersError
         setSuppliers((suppliersData as RFQSupplier[]) || [])
       } catch (err) {
-        console.error('Failed to load RFQ details:', err)
+        log.error('[RFQ]', 'Failed to load RFQ details', { error: err })
         addToast('error', 'Failed to load RFQ details')
       } finally {
         setLoading(false)
@@ -381,7 +382,7 @@ function RFQDetailView({
           if (defaultShipping) setSelectedShippingId(defaultShipping.id)
         }
       } catch (err) {
-        console.error('Failed to load addresses:', err)
+        log.error('[RFQ]', 'Failed to load addresses', { error: err })
       }
     }
 
@@ -419,7 +420,7 @@ function RFQDetailView({
       }
       return true
     } catch (err) {
-      console.error('Failed to add file:', err)
+      log.error('[RFQ]', 'Failed to add file', { error: err })
       if (!silent) {
         addToast('error', 'Failed to add file to RFQ')
       }
@@ -439,7 +440,7 @@ function RFQDetailView({
       if (error) throw error
       setItems(items.map(i => i.id === itemId ? { ...i, quantity } : i))
     } catch (err) {
-      console.error('Failed to update quantity:', err)
+      log.error('[RFQ]', 'Failed to update quantity', { error: err })
       addToast('error', 'Failed to update quantity')
     }
   }
@@ -455,7 +456,7 @@ function RFQDetailView({
       setItems(items.filter(i => i.id !== itemId))
       addToast('success', 'Item removed from RFQ')
     } catch (err) {
-      console.error('Failed to remove item:', err)
+      log.error('[RFQ]', 'Failed to remove item', { error: err })
       addToast('error', 'Failed to remove item')
     }
   }
@@ -474,7 +475,7 @@ function RFQDetailView({
       if (error) throw error
       setItems(items.map(i => i.id === itemId ? { ...i, [field]: value || null } : i))
     } catch (err) {
-      console.error('Failed to update item:', err)
+      log.error('[RFQ]', 'Failed to update item', { error: err })
       addToast('error', 'Failed to update item')
     }
   }
@@ -499,7 +500,7 @@ function RFQDetailView({
         setItemConfigurations(prev => ({ ...prev, [item.id]: configNames }))
       }
     } catch (err) {
-      console.error('Failed to load configurations:', err)
+      log.error('[RFQ]', 'Failed to load configurations', { error: err })
     } finally {
       setLoadingConfigs(null)
     }
@@ -515,7 +516,7 @@ function RFQDetailView({
       if (error) throw error
       setItems(items.map(i => i.id === itemId ? { ...i, sw_configuration: config } : i))
     } catch (err) {
-      console.error('Failed to update configuration:', err)
+      log.error('[RFQ]', 'Failed to update configuration', { error: err })
       addToast('error', 'Failed to update configuration')
     }
   }
@@ -543,7 +544,7 @@ function RFQDetailView({
       
       setAvailableSuppliers(available)
     } catch (err) {
-      console.error('Failed to load suppliers:', err)
+      log.error('[RFQ]', 'Failed to load suppliers', { error: err })
     } finally {
       setLoadingSuppliers(false)
     }
@@ -580,7 +581,7 @@ function RFQDetailView({
         onUpdate({ ...rfq, status: 'ready' })
       }
     } catch (err) {
-      console.error('Failed to add supplier:', err)
+      log.error('[RFQ]', 'Failed to add supplier', { error: err })
       addToast('error', 'Failed to add supplier')
     }
   }
@@ -608,7 +609,7 @@ function RFQDetailView({
       
       addToast('success', 'Supplier removed from RFQ')
     } catch (err) {
-      console.error('Failed to remove supplier:', err)
+      log.error('[RFQ]', 'Failed to remove supplier', { error: err })
       addToast('error', 'Failed to remove supplier')
     }
   }
@@ -702,7 +703,7 @@ function RFQDetailView({
         addToast('error', result.error)
       }
     } catch (err) {
-      console.error('Failed to generate PDF:', err)
+      log.error('[RFQ]', 'Failed to generate PDF', { error: err })
       addToast('error', err instanceof Error ? err.message : 'Failed to generate PDF')
     } finally {
       setGeneratingPdf(false)
@@ -777,11 +778,11 @@ function RFQDetailView({
               
               successCount++
             } else {
-              console.error(`STEP export failed for ${item.part_number}:`, result?.error)
+              log.error('[RFQ]', `STEP export failed for ${item.part_number}`, { error: result?.error })
               failCount++
             }
           } catch (err) {
-            console.error(`STEP export failed for ${item.part_number}:`, err)
+            log.error('[RFQ]', `STEP export failed for ${item.part_number}`, { error: err })
             failCount++
           }
         }
@@ -824,11 +825,11 @@ function RFQDetailView({
               
               successCount++
             } else {
-              console.error(`PDF export failed for ${item.part_number}:`, result?.error)
+              log.error('[RFQ]', `PDF export failed for ${item.part_number}`, { error: result?.error })
               failCount++
             }
           } catch (err) {
-            console.error(`PDF export failed for ${item.part_number}:`, err)
+            log.error('[RFQ]', `PDF export failed for ${item.part_number}`, { error: err })
             failCount++
           }
         }
@@ -873,7 +874,7 @@ function RFQDetailView({
         onUpdate({ ...rfq, status: 'pending_files' })
       }
     } catch (err) {
-      console.error('Generation failed:', err)
+      log.error('[RFQ]', 'Generation failed', { error: err })
       addToast('error', 'Failed to generate release files')
     } finally {
       setGenerating(false)
@@ -963,10 +964,10 @@ function RFQDetailView({
         if (pdfResult.success && pdfResult.path) {
           rfqPdfPath = pdfResult.path
         } else {
-          console.warn('Failed to generate RFQ PDF:', pdfResult.error)
+          log.warn('[RFQ]', 'Failed to generate RFQ PDF', { error: pdfResult.error })
         }
       } catch (pdfErr) {
-        console.warn('Could not generate RFQ PDF for ZIP:', pdfErr)
+        log.warn('[RFQ]', 'Could not generate RFQ PDF for ZIP', { error: pdfErr })
         addToast('warning', 'Could not generate RFQ PDF document')
       }
 
@@ -1006,7 +1007,7 @@ function RFQDetailView({
         addToast('error', result?.error || 'Failed to create ZIP package')
       }
     } catch (err) {
-      console.error('ZIP generation failed:', err)
+      log.error('[RFQ]', 'ZIP generation failed', { error: err })
       addToast('error', 'Failed to create ZIP package')
     } finally {
       setGenerating(false)
@@ -1073,7 +1074,7 @@ function RFQDetailView({
         addToast('info', 'Files are already in this RFQ or not tracked')
       }
     } catch (err) {
-      console.error('Failed to handle drop:', err)
+      log.error('[RFQ]', 'Failed to handle drop', { error: err })
       addToast('error', 'Failed to add dropped files')
     }
   }
@@ -1612,7 +1613,7 @@ function RFQDetailView({
                       await db.from('rfqs').update({ billing_address_id: newId }).eq('id', rfq.id)
                       onUpdate({ ...rfq, billing_address_id: newId })
                     } catch (err) {
-                      console.error('Failed to update billing address:', err)
+                      log.error('[RFQ]', 'Failed to update billing address', { error: err })
                     } finally {
                       setSavingAddresses(false)
                     }
@@ -1655,7 +1656,7 @@ function RFQDetailView({
                       await db.from('rfqs').update({ shipping_address_id: newId }).eq('id', rfq.id)
                       onUpdate({ ...rfq, shipping_address_id: newId })
                     } catch (err) {
-                      console.error('Failed to update shipping address:', err)
+                      log.error('[RFQ]', 'Failed to update shipping address', { error: err })
                     } finally {
                       setSavingAddresses(false)
                     }
@@ -1720,7 +1721,7 @@ function RFQDetailView({
                       await db.from('rfqs').update({ requires_samples: e.target.checked }).eq('id', rfq.id)
                       onUpdate({ ...rfq, requires_samples: e.target.checked })
                     } catch (err) {
-                      console.error('Failed to update:', err)
+                      log.error('[RFQ]', 'Failed to update', { error: err })
                     }
                   }}
                   className="rounded" 
@@ -1736,7 +1737,7 @@ function RFQDetailView({
                       await db.from('rfqs').update({ requires_first_article: e.target.checked }).eq('id', rfq.id)
                       onUpdate({ ...rfq, requires_first_article: e.target.checked })
                     } catch (err) {
-                      console.error('Failed to update:', err)
+                      log.error('[RFQ]', 'Failed to update', { error: err })
                     }
                   }}
                   className="rounded" 
@@ -1752,7 +1753,7 @@ function RFQDetailView({
                       await db.from('rfqs').update({ requires_quality_report: e.target.checked }).eq('id', rfq.id)
                       onUpdate({ ...rfq, requires_quality_report: e.target.checked })
                     } catch (err) {
-                      console.error('Failed to update:', err)
+                      log.error('[RFQ]', 'Failed to update', { error: err })
                     }
                   }}
                   className="rounded" 
@@ -1858,7 +1859,7 @@ function NewRFQDialog({
       addToast('success', `Created RFQ ${rfqNumber}`)
       onCreate(data as RFQ)
     } catch (err) {
-      console.error('Failed to create RFQ:', err)
+      log.error('[RFQ]', 'Failed to create RFQ', { error: err })
       addToast('error', 'Failed to create RFQ')
     } finally {
       setLoading(false)

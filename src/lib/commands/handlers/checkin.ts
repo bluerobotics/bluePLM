@@ -16,6 +16,7 @@ import type { SWReference } from '../../supabase/files/mutations'
 import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS } from '../../concurrency'
 import type { LocalFile, PendingMetadata } from '../../../stores/pdmStore'
 import { usePDMStore } from '../../../stores/pdmStore'
+import { log } from '@/lib/logger'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -69,7 +70,6 @@ async function writeSolidWorksMetadata(
   
   // Use pre-cached service status (avoids N IPC calls for N files)
   if (!swStatus.running || !swStatus.documentManagerAvailable) {
-    console.debug('[Checkin] SolidWorks service/Document Manager not available, skipping metadata write-back')
     return true // Continue without writing (not a failure)
   }
   
@@ -84,10 +84,9 @@ async function writeSolidWorksMetadata(
     
     // Write file-level properties if any
     if (Object.keys(fileProps).length > 0) {
-      console.debug('[Checkin] Writing file-level properties:', Object.keys(fileProps))
       const result = await window.electronAPI?.solidworks?.setProperties?.(fullPath, fileProps)
       if (!result?.success) {
-        console.warn('[Checkin] Failed to write file-level properties:', result?.error)
+        log.warn('[Checkin]', 'Failed to write file-level properties', { error: result?.error })
       }
     }
     
@@ -134,42 +133,23 @@ async function writeSolidWorksMetadata(
       
       // Use batch API for all configs at once (1 IPC call instead of N)
       if (Object.keys(allConfigProps).length > 0) {
-        console.debug(`[Checkin] Writing properties to ${Object.keys(allConfigProps).length} configs via batch API`)
         const result = await window.electronAPI?.solidworks?.setPropertiesBatch?.(fullPath, allConfigProps)
         if (!result?.success) {
-          console.warn(`[Checkin] Batch properties write failed:`, result?.error)
+          log.warn('[Checkin]', 'Batch properties write failed', { error: result?.error })
         }
       }
     }
     
     return true
   } catch (err) {
-    console.warn('[Checkin] Failed to write SolidWorks metadata:', err)
+    log.warn('[Checkin]', 'Failed to write SolidWorks metadata', { error: err instanceof Error ? err.message : String(err) })
     return false // Non-fatal, continue with check-in
   }
 }
 
 // Detailed logging for checkin operations
 function logCheckin(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
-  const timestamp = new Date().toISOString()
-  const logData = { timestamp, ...context }
-  
-  const prefix = '[Checkin]'
-  if (level === 'error') {
-    console.error(prefix, message, logData)
-  } else if (level === 'warn') {
-    console.warn(prefix, message, logData)
-  } else if (level === 'debug') {
-    console.debug(prefix, message, logData)
-  } else {
-    console.log(prefix, message, logData)
-  }
-  
-  try {
-    window.electronAPI?.log(level, `${prefix} ${message}`, logData)
-  } catch {
-    // Ignore if electronAPI not available
-  }
+  log[level]('[Checkin]', message, context)
 }
 
 /**

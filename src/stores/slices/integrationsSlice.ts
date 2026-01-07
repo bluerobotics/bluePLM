@@ -17,6 +17,7 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, IntegrationsSlice, IntegrationId, IntegrationStatusValue, IntegrationState, BackupStatusValue } from '../types'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 
 // Default state for all integrations
 const defaultIntegrationState: IntegrationState = {
@@ -113,7 +114,6 @@ export const createIntegrationsSlice: StateCreator<
   },
   
   setIsBatchSWOperationRunning: (running: boolean) => {
-    console.log('[IntegrationsSlice] Batch SW operation running:', running)
     set({ isBatchSWOperationRunning: running })
   },
   
@@ -157,7 +157,6 @@ export const createIntegrationsSlice: StateCreator<
     
     // Gate on organization being loaded
     if (!organization?.id) {
-      console.log('[IntegrationsSlice] Organization not loaded, skipping status checks')
       return
     }
     
@@ -239,14 +238,12 @@ async function checkSolidWorksStatus(
   // Skip check if auto-start is in progress to avoid race conditions
   // The auto-start hook will set the correct status when it completes
   if (solidworksAutoStartInProgress) {
-    console.log('[IntegrationsSlice] Skipping SolidWorks check - auto-start in progress')
     return
   }
   
   // Skip check if a batch SW operation is running to reduce service load
   // The useSolidWorksStatus hook will handle status during batch operations
   if (isBatchSWOperationRunning) {
-    console.log('[IntegrationsSlice] Skipping SolidWorks check - batch operation in progress')
     return
   }
   
@@ -272,7 +269,6 @@ async function checkSolidWorksStatus(
       // Handle busy state - service is alive but processing requests
       // Don't mark as offline when busy, keep the current status
       if (data.busy) {
-        console.log('[IntegrationsSlice] SolidWorks service is busy, queue depth:', data.queueDepth)
         // Keep current status - don't update to avoid flickering
         return
       }
@@ -444,11 +440,11 @@ async function checkOdooStatus(
         setStatus('odoo', 'not-configured')
       }
     } else {
-      console.warn('[IntegrationsSlice] Odoo status check failed:', odooResponse.status)
+      log.warn('[Integrations]', 'Odoo status check failed', { status: odooResponse.status })
       setStatus('odoo', 'not-configured')
     }
   } catch (err) {
-    console.warn('[IntegrationsSlice] Failed to check Odoo status:', err)
+    log.warn('[Integrations]', 'Failed to check Odoo status', { error: err instanceof Error ? err.message : String(err) })
     setStatus('odoo', 'not-configured')
   }
 }

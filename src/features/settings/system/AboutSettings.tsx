@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Github, Heart, ExternalLink, Info, RefreshCw, Loader2, CheckCircle, Download, History, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { useTranslation } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
 
@@ -46,7 +47,7 @@ export function AboutSettings() {
       const data: GitHubRelease[] = await response.json()
       setReleases(data)
     } catch (err) {
-      console.error('Failed to fetch releases:', err)
+      log.error('[About]', 'Failed to fetch releases', { error: err })
       setReleasesError(err instanceof Error ? err.message : 'Failed to fetch releases')
     } finally {
       setIsLoadingReleases(false)
@@ -115,7 +116,7 @@ export function AboutSettings() {
       setShowUpdateModal(true)
       
     } catch (err) {
-      console.error('Failed to get release assets:', err)
+      log.error('[About]', 'Failed to get release assets', { error: err })
       addToast('error', `Failed to get download URL: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
@@ -161,7 +162,7 @@ export function AboutSettings() {
         setUpdateCheckResult('error')
       }
     } catch (err) {
-      console.error('Update check error:', err)
+      log.error('[About]', 'Update check error', { error: err })
       setUpdateCheckResult('error')
     } finally {
       setIsCheckingUpdate(false)

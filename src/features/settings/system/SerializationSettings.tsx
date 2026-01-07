@@ -13,6 +13,7 @@ import {
   Search,
   SplitSquareHorizontal
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { detectHighestSerialNumber } from '@/lib/serialization'
@@ -186,7 +187,7 @@ export function SerializationSettings() {
           auto_apply_extensions: savedSettings.auto_apply_extensions || []
         })
       } catch (err) {
-        console.error('Failed to load serialization settings:', err)
+        log.error('[Serialization]', 'Failed to load settings', { error: err })
       } finally {
         setLoading(false)
       }
@@ -205,7 +206,6 @@ export function SerializationSettings() {
     // Get serialization_settings from the organization object (updated via realtime)
     const realtimeSettings = (organization as any)?.serialization_settings
     if (realtimeSettings) {
-      console.log('[SerializationSettings] Syncing with realtime org settings')
       setSettings({
         ...DEFAULT_SERIALIZATION_SETTINGS,
         ...realtimeSettings,
@@ -228,7 +228,7 @@ export function SerializationSettings() {
       if (error) throw error
       setPreviewNumber(data as string)
     } catch (err) {
-      console.error('Failed to fetch preview:', err)
+      log.error('[Serialization]', 'Failed to fetch preview', { error: err })
       addToast('error', 'Failed to fetch serial number preview')
     } finally {
       setLoadingPreview(false)
@@ -253,7 +253,7 @@ export function SerializationSettings() {
       // Refresh preview after save
       fetchPreview()
     } catch (err) {
-      console.error('Failed to save serialization settings:', err)
+      log.error('[Serialization]', 'Failed to save settings', { error: err })
       addToast('error', 'Failed to save serialization settings')
     } finally {
       setSaving(false)
@@ -352,7 +352,7 @@ export function SerializationSettings() {
         addToast('info', `Scanned ${result.totalScanned} files, no matching serial numbers found`)
       }
     } catch (err) {
-      console.error('Failed to detect highest serial:', err)
+      log.error('[Serialization]', 'Failed to detect highest serial', { error: err })
       addToast('error', 'Failed to scan files')
     } finally {
       setDetecting(false)

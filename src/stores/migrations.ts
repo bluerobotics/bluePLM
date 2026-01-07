@@ -40,7 +40,6 @@ export function runMigrations(
   
   for (const migration of migrations) {
     if (migration.version > fromVersion) {
-      console.log(`[Store] Running migration v${migration.version}: ${migration.description}`)
       state = migration.migrate(state)
     }
   }

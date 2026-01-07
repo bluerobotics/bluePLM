@@ -19,9 +19,8 @@ export async function copyToClipboard(text: string): Promise<{ success: boolean;
         return { success: true }
       }
       // Fall through to navigator.clipboard if Electron API fails
-      console.warn('Electron clipboard failed, trying navigator.clipboard:', result.error)
-    } catch (err) {
-      console.warn('Electron clipboard threw error, trying navigator.clipboard:', err)
+    } catch {
+      // Electron clipboard unavailable, try navigator.clipboard
     }
   }
   
@@ -68,8 +67,8 @@ export async function readFromClipboard(): Promise<{ success: boolean; text?: st
       if (result.success && result.text !== undefined) {
         return { success: true, text: result.text }
       }
-    } catch (err) {
-      console.warn('Electron clipboard read failed, trying navigator.clipboard:', err)
+    } catch {
+      // Electron clipboard read unavailable, try navigator.clipboard
     }
   }
   

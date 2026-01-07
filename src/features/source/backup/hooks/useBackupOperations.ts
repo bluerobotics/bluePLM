@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { log } from '@/lib/logger'
 import {
   runBackup,
   restoreFromSnapshot,
@@ -158,7 +159,7 @@ export function useBackupOperations(
           }
         } catch (err) {
           failCount++
-          console.error(`Backup failed for ${vault.name}:`, err)
+          log.error('[Backup]', `Backup failed for ${vault.name}`, { error: err })
           addToast('error', `Failed to backup ${vault.name}: ${err instanceof Error ? err.message : String(err)}`)
         }
       }
@@ -180,7 +181,7 @@ export function useBackupOperations(
   useEffect(() => {
     if (!isThisDesignated || !orgId || !currentVaultId) return
     
-    console.log('[BackupPanel] This is the designated machine, starting backup service...')
+    log.info('[Backup]', 'This is the designated machine, starting backup service')
     
     startBackupService(
       orgId,
@@ -253,7 +254,7 @@ export function useBackupOperations(
     
     // Set up progress listener for restore operation
     const cleanupProgress = window.electronAPI?.onBackupProgress?.((progress) => {
-      console.log('[RESTORE-DEBUG] Progress:', progress.phase, progress.percent, progress.message)
+      log.debug('[Restore]', 'Progress update', { phase: progress.phase, percent: progress.percent, message: progress.message })
     })
     
     try {
@@ -295,7 +296,7 @@ export function useBackupOperations(
             
             const metadataResult = await window.electronAPI?.readBackupMetadata(vaultPath)
             
-            console.log('[RESTORE-DEBUG] Metadata result:', {
+            log.debug('[Restore]', 'Metadata result', {
               success: metadataResult?.success,
               hasData: !!metadataResult?.data,
               dataKeys: metadataResult?.data ? Object.keys(metadataResult.data) : [],
@@ -308,7 +309,7 @@ export function useBackupOperations(
               const fileCount = (metadataResult.data.files as unknown[])?.length || 0
               const versionCount = (metadataResult.data.fileVersions as unknown[])?.length || 0
               
-              console.log('[RESTORE-DEBUG] File counts:', { fileCount, versionCount })
+              log.debug('[Restore]', 'File counts', { fileCount, versionCount })
               
               emitRendererLog({
                 level: 'info',
@@ -395,7 +396,7 @@ export function useBackupOperations(
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
-      console.error('Restore failed:', err)
+      log.error('[Restore]', 'Restore failed', { error: err })
       
       emitRendererLog({
         level: 'error',
@@ -431,7 +432,7 @@ export function useBackupOperations(
         addToast('error', result.error || 'Failed to delete snapshot')
       }
     } catch (err) {
-      console.error('Delete failed:', err)
+      log.error('[Backup]', 'Delete failed', { error: err })
       addToast('error', 'Failed to delete snapshot')
     } finally {
       // Remove from the set

@@ -333,7 +333,6 @@ export async function syncFile(
     return { file: data, error: null, isNew: true }
   } catch (error) {
     logFn('error', '[syncFile] Exception', { filePath, error: String(error) })
-    console.error('Error syncing file:', error)
     return { file: null, error, isNew: false }
   }
 }
@@ -403,8 +402,8 @@ export async function updateFileMetadata(
         to_state_id: updates.workflow_state_id
       }
     })
-  } catch (activityError) {
-    console.warn('[updateFileMetadata] Failed to log activity:', activityError)
+  } catch {
+    // Activity logging is non-critical
   }
   
   return { success: true, file: data, error: null }

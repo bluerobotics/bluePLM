@@ -48,7 +48,6 @@ export function parseOrgCode(code: string): SupabaseConfig | null {
     
     // Validate required fields
     if (!payload.u || !payload.k) {
-      console.error('[SupabaseConfig] Invalid org code: missing required fields')
       return null
     }
     
@@ -58,8 +57,7 @@ export function parseOrgCode(code: string): SupabaseConfig | null {
       anonKey: payload.k,
       orgSlug: payload.s || undefined
     }
-  } catch (err) {
-    console.error('[SupabaseConfig] Failed to parse org code:', err)
+  } catch {
     return null
   }
 }
@@ -69,9 +67,8 @@ export function saveConfig(config: SupabaseConfig): void {
   try {
     const json = JSON.stringify(config)
     localStorage.setItem(STORAGE_KEY, json)
-    console.log('[SupabaseConfig] Configuration saved')
-  } catch (err) {
-    console.error('[SupabaseConfig] Failed to save config:', err)
+  } catch {
+    // Storage may be unavailable
   }
 }
 
@@ -85,14 +82,12 @@ export function loadConfig(): SupabaseConfig | null {
     
     // Validate required fields
     if (!config.url || !config.anonKey) {
-      console.warn('[SupabaseConfig] Invalid stored config, clearing')
       clearConfig()
       return null
     }
     
     return config
-  } catch (err) {
-    console.error('[SupabaseConfig] Failed to load config:', err)
+  } catch {
     return null
   }
 }
@@ -101,9 +96,8 @@ export function loadConfig(): SupabaseConfig | null {
 export function clearConfig(): void {
   try {
     localStorage.removeItem(STORAGE_KEY)
-    console.log('[SupabaseConfig] Configuration cleared')
-  } catch (err) {
-    console.error('[SupabaseConfig] Failed to clear config:', err)
+  } catch {
+    // Storage may be unavailable
   }
 }
 
@@ -140,13 +134,13 @@ export async function validateConfig(config: SupabaseConfig): Promise<{ valid: b
     }
     
     return { valid: true }
-  } catch (err: any) {
-    console.error('[SupabaseConfig] Validation failed:', err)
+  } catch (err: unknown) {
+    const error = err as Error
     // Network errors often mean wrong project ID
-    if (err.message?.includes('fetch') || err.message?.includes('network')) {
+    if (error?.message?.includes('fetch') || error?.message?.includes('network')) {
       return { valid: false, error: 'Could not connect - please check your Project ID' }
     }
-    return { valid: false, error: err.message || 'Failed to connect to Supabase' }
+    return { valid: false, error: error?.message || 'Failed to connect to Supabase' }
   }
 }
 

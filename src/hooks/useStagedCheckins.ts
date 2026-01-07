@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
+import { log } from '@/lib/logger'
 import type { StagedCheckin } from '@/stores/pdmStore'
 
 interface StagedConflict {
@@ -44,7 +45,7 @@ export function useStagedCheckins(loadFiles: (silent?: boolean) => void) {
       return
     }
     
-    console.log('[StagedCheckins] Processing', stagedCheckins.length, 'staged check-ins')
+    log.info('[StagedCheckins]', 'Processing staged check-ins', { count: stagedCheckins.length })
     
     // Get current files to find the staged ones
     const { files } = usePDMStore.getState()
@@ -57,7 +58,7 @@ export function useStagedCheckins(loadFiles: (silent?: boolean) => void) {
     for (const staged of stagedCheckins) {
       const file = files.find(f => f.relativePath === staged.relativePath)
       if (!file) {
-        console.warn('[StagedCheckins] File not found:', staged.relativePath)
+        log.warn('[StagedCheckins]', 'File not found', { relativePath: staged.relativePath })
         unstageCheckin(staged.relativePath)
         continue
       }
@@ -69,10 +70,7 @@ export function useStagedCheckins(loadFiles: (silent?: boolean) => void) {
       
       if (serverVersionChanged) {
         // Conflict detected - add to conflicts list for dialog
-        console.log('[StagedCheckins] Conflict detected for:', staged.fileName, {
-          stagedVersion: staged.serverVersion,
-          currentVersion: file.pdmData?.version
-        })
+        log.warn('[StagedCheckins]', 'Conflict detected', { fileName: staged.fileName, stagedVersion: staged.serverVersion, currentVersion: file.pdmData?.version })
         conflicts.push({
           staged,
           serverVersion: file.pdmData?.version || 0,
@@ -96,9 +94,8 @@ export function useStagedCheckins(loadFiles: (silent?: boolean) => void) {
         // Remove from staged
         unstageCheckin(staged.relativePath)
         successCount++
-        console.log('[StagedCheckins] Successfully processed:', staged.fileName)
       } catch (err) {
-        console.error('[StagedCheckins] Failed to process:', staged.fileName, err)
+        log.error('[StagedCheckins]', 'Failed to process', { fileName: staged.fileName, error: err })
         addToast('error', `Failed to check in "${staged.fileName}": ${err instanceof Error ? err.message : 'Unknown error'}`)
       }
     }
@@ -127,8 +124,6 @@ export function useStagedCheckins(loadFiles: (silent?: boolean) => void) {
     
     // Only process when transitioning from offline to online
     if (wasOffline && isNowOnline && stagedCheckins.length > 0) {
-      console.log('[StagedCheckins] Going online with', stagedCheckins.length, 'staged check-ins')
-      
       // Show notification about staged check-ins
       addToast(
         'info',

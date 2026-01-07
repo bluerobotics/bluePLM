@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { PendingMember, PendingMemberFormData } from '../types'
 import { castQueryResult, updatePendingOrgMember } from './supabaseHelpers'
@@ -46,7 +47,7 @@ export function useInvites(orgId: string | null) {
       // Cast to our PendingMember type
       setPendingMembers(castQueryResult<PendingMember[]>(data || []))
     } catch (err) {
-      console.error('Failed to load pending members:', err)
+      log.error('[Invites]', 'Failed to load pending members', { error: err })
     } finally {
       setPendingMembersLoading(false)
     }
@@ -73,7 +74,7 @@ export function useInvites(orgId: string | null) {
       await loadPendingMembers()
       return true
     } catch (err) {
-      console.error('Failed to update pending member:', err)
+      log.error('[Invites]', 'Failed to update pending member', { error: err })
       addToast('error', 'Failed to update pending member')
       return false
     }
@@ -138,7 +139,7 @@ export function useInvites(orgId: string | null) {
       addToast('success', `Invite email resent to ${member.email}`)
       return true
     } catch (err) {
-      console.error('Failed to resend invite:', err)
+      log.error('[Invites]', 'Failed to resend invite', { error: err })
       const errorMessage = err instanceof Error ? err.message : 'Failed to resend invite email'
       addToast('error', errorMessage)
       return false

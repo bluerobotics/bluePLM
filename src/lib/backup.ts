@@ -1,5 +1,6 @@
 // Backup service - simplified to use restic directly for everything
 import { getSupabaseClient } from './supabase'
+import { log } from '@/lib/logger'
 
 // ============================================
 // Types
@@ -123,7 +124,7 @@ export async function getBackupConfig(orgId: string): Promise<BackupConfig | nul
     .single()
   
   if (error && error.code !== 'PGRST116') {
-    console.error('[Backup] Error fetching config:', error)
+    log.error('[Backup]', 'Error fetching config', { error: error.message })
     return null
   }
   
@@ -148,7 +149,7 @@ export async function saveBackupConfig(
     .upsert(updateData, { onConflict: 'org_id' })
   
   if (error) {
-    console.error('[Backup] Error saving config:', error)
+    log.error('[Backup]', 'Error saving config', { error: error.message })
     return { success: false, error: error.message }
   }
   
@@ -183,11 +184,11 @@ export async function designateThisMachine(
     .eq('org_id', orgId)
   
   if (error) {
-    console.error('[Backup] Error designating machine:', error)
+    log.error('[Backup]', 'Error designating machine', { error: error.message })
     return { success: false, error: error.message }
   }
   
-  console.log('[Backup] This machine designated as backup source:', machineName)
+  log.info('[Backup]', 'This machine designated as backup source', { machineName })
   return { success: true }
 }
 
@@ -210,7 +211,7 @@ export async function clearDesignatedMachine(
     .eq('org_id', orgId)
   
   if (error) {
-    console.error('[Backup] Error clearing designated machine:', error)
+    log.error('[Backup]', 'Error clearing designated machine', { error: error.message })
     return { success: false, error: error.message }
   }
   
@@ -232,7 +233,7 @@ export async function updateHeartbeat(orgId: string): Promise<boolean> {
     .eq('designated_machine_id', machineId)
   
   if (error) {
-    console.error('[Backup] Heartbeat error:', error)
+    log.error('[Backup]', 'Heartbeat error', { error: error.message })
     return false
   }
   
@@ -283,11 +284,10 @@ export async function requestBackup(
     .eq('org_id', orgId)
   
   if (error) {
-    console.error('[Backup] Error requesting backup:', error)
+    log.error('[Backup]', 'Error requesting backup', { error: error.message })
     return { success: false, error: error.message }
   }
   
-  console.log('[Backup] Backup requested by:', userEmail)
   return { success: true }
 }
 
@@ -313,7 +313,7 @@ export async function markBackupStarted(orgId: string): Promise<boolean> {
     .eq('designated_machine_id', machineId)
   
   if (error) {
-    console.error('[Backup] Error marking backup started:', error)
+    log.error('[Backup]', 'Error marking backup started', { error: error.message })
     return false
   }
   
@@ -335,7 +335,7 @@ export async function markBackupComplete(orgId: string): Promise<boolean> {
     .eq('designated_machine_id', machineId)
   
   if (error) {
-    console.error('[Backup] Error marking backup complete:', error)
+    log.error('[Backup]', 'Error marking backup complete', { error: error.message })
     return false
   }
   
@@ -404,7 +404,7 @@ export function startBackupService(
 ): void {
   stopBackupService()
   
-  console.log('[Backup] Starting backup service...')
+  log.info('[Backup]', 'Starting backup service')
   
   // Immediate heartbeat
   updateHeartbeat(orgId)
@@ -423,7 +423,7 @@ export function startBackupService(
       // Check if we're still the designated machine
       const isDesignated = await isThisDesignatedMachine(config)
       if (!isDesignated) {
-        console.log('[Backup] No longer designated machine, stopping service')
+        log.info('[Backup]', 'No longer designated machine, stopping service')
         stopBackupService()
         return
       }
@@ -433,22 +433,18 @@ export function startBackupService(
       
       // Check for pending backup request
       if (hasPendingBackupRequest(config)) {
-        console.log('[Backup] Backup request detected, triggering backup...')
         onBackupRequest(config)
         return
       }
       
       // Check for scheduled backup
       if (shouldRunScheduledBackup(config)) {
-        console.log('[Backup] Scheduled backup time reached, triggering backup...')
         onBackupRequest(config)
       }
     } catch (err) {
-      console.error('[Backup] Polling error:', err)
+      log.error('[Backup]', 'Polling error', { error: err instanceof Error ? err.message : String(err) })
     }
   }, 30 * 1000)
-  
-  console.log('[Backup] Backup service started')
 }
 
 // Stop the service
@@ -461,7 +457,7 @@ export function stopBackupService(): void {
     clearInterval(pollingInterval)
     pollingInterval = null
   }
-  console.log('[Backup] Backup service stopped')
+  log.info('[Backup]', 'Backup service stopped')
 }
 
 // ============================================
@@ -499,12 +495,12 @@ async function processDeleteQueue(): Promise<void> {
 // List snapshots directly from restic
 export async function listSnapshots(config: BackupConfig): Promise<BackupSnapshot[]> {
   if (!window.electronAPI?.listBackupSnapshots) {
-    console.error('[Backup] listBackupSnapshots not available')
+    log.error('[Backup]', 'listBackupSnapshots not available')
     return []
   }
   
   if (!config.bucket || !config.access_key_encrypted || !config.secret_key_encrypted || !config.restic_password_encrypted) {
-    console.error('[Backup] Config incomplete for listing snapshots')
+    log.error('[Backup]', 'Config incomplete for listing snapshots')
     return []
   }
   
@@ -525,7 +521,7 @@ export async function listSnapshots(config: BackupConfig): Promise<BackupSnapsho
       short_id: (s as any).short_id || s.id.substring(0, 8)
     }))
   } catch (err) {
-    console.error('[Backup] Failed to list snapshots:', err)
+    log.error('[Backup]', 'Failed to list snapshots', { error: err instanceof Error ? err.message : String(err) })
     return []
   }
 }
@@ -567,11 +563,7 @@ export async function deleteSnapshot(
   snapshotId: string
 ): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
-    // Add to queue
     deleteQueue.push({ config, snapshotId, resolve })
-    console.log(`[Backup] Queued delete for snapshot ${snapshotId} (${deleteQueue.length} in queue)`)
-    
-    // Start processing if not already running
     processDeleteQueue()
   })
 }
@@ -723,7 +715,7 @@ export async function getBackupStatus(orgId: string): Promise<BackupStatus> {
     snapshots.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
   } catch (err) {
     error = err instanceof Error ? err.message : String(err)
-    console.error('[Backup] Failed to get snapshots:', err)
+    log.error('[Backup]', 'Failed to get snapshots', { error })
   }
   
   return {
@@ -791,8 +783,6 @@ export async function exportDatabaseMetadata(
 ): Promise<{ success: boolean; data?: DatabaseExport; error?: string }> {
   const supabase = getSupabaseClient()
   
-  console.log('[BACKUP-DEBUG] exportDatabaseMetadata called', { orgId, vaultId })
-  window.electronAPI?.log('info', '[Backup] exportDatabaseMetadata called', { orgId, vaultId })
   
   try {
     const { data: org, error: orgError } = await supabase
@@ -802,10 +792,8 @@ export async function exportDatabaseMetadata(
       .single()
     
     if (orgError) {
-      window.electronAPI?.log('error', '[Backup] Failed to fetch organization', { error: orgError.message })
       throw new Error(`Failed to fetch organization: ${orgError.message}`)
     }
-    window.electronAPI?.log('info', '[Backup] Found organization', { name: org?.name })
     
     const { data: vault, error: vaultError } = await supabase
       .from('vaults')
@@ -814,10 +802,8 @@ export async function exportDatabaseMetadata(
       .single()
     
     if (vaultError) {
-      window.electronAPI?.log('error', '[Backup] Failed to fetch vault', { error: vaultError.message, vaultId })
       throw new Error(`Failed to fetch vault: ${vaultError.message}`)
     }
-    window.electronAPI?.log('info', '[Backup] Found vault', { name: vault?.name })
     
     const { data: files, error: filesError } = await supabase
       .from('files')
@@ -827,14 +813,6 @@ export async function exportDatabaseMetadata(
       .is('deleted_at', null)
     
     if (filesError) throw new Error(`Failed to fetch files: ${filesError.message}`)
-    
-    console.log('[BACKUP-DEBUG] Files query result:', {
-      count: files?.length || 0,
-      orgId,
-      vaultId,
-      firstFile: files?.[0]?.file_name
-    })
-    window.electronAPI?.log('info', '[Backup] Files query result', { count: files?.length || 0 })
     
     const fileIds = (files || []).map(f => f.id)
     
@@ -870,15 +848,9 @@ export async function exportDatabaseMetadata(
       users: users || []
     }
     
-    window.electronAPI?.log('info', '[Backup] Exported metadata', { 
-      files: files?.length || 0, 
-      versions: fileVersions.length 
-    })
     return { success: true, data: exportData }
   } catch (err) {
-    window.electronAPI?.log('error', '[Backup] Failed to export database metadata', { 
-      error: err instanceof Error ? err.message : String(err) 
-    })
+    log.error('[Backup]', 'Failed to export database metadata', { error: err instanceof Error ? err.message : String(err) })
     return { success: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
@@ -889,18 +861,6 @@ export async function importDatabaseMetadata(
 ): Promise<{ success: boolean; stats?: { filesRestored: number; versionsRestored: number; skipped: number }; error?: string }> {
   const supabase = getSupabaseClient()
   const { overwriteExisting = false, restoreDeleted = true } = options
-  
-  console.log('[BACKUP-DEBUG] importDatabaseMetadata called with:', {
-    _type: exportData._type,
-    _version: exportData._version,
-    _orgName: exportData._orgName,
-    _vaultName: exportData._vaultName,
-    filesCount: exportData.files?.length,
-    fileVersionsCount: exportData.fileVersions?.length,
-    filesIsArray: Array.isArray(exportData.files),
-    fileVersionsIsArray: Array.isArray(exportData.fileVersions),
-    rawFilesType: typeof exportData.files
-  })
   
   try {
     if (exportData._type !== 'blueplm_database_export') {
@@ -1007,10 +967,10 @@ export async function importDatabaseMetadata(
         }, { onConflict: 'id' })
     }
     
-    console.log(`[Backup] Metadata import complete: ${filesRestored} files, ${versionsRestored} versions, ${skipped} skipped`)
+    log.info('[Backup]', 'Metadata import complete', { filesRestored, versionsRestored, skipped })
     return { success: true, stats: { filesRestored, versionsRestored, skipped } }
   } catch (err) {
-    console.error('[Backup] Failed to import database metadata:', err)
+    log.error('[Backup]', 'Failed to import database metadata', { error: err instanceof Error ? err.message : String(err) })
     return { success: false, error: err instanceof Error ? err.message : String(err) }
   }
 }

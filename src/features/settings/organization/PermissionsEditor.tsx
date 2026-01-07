@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Folder
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import type { Team, PermissionPreset, PermissionAction } from '@/types/permissions'
@@ -147,7 +148,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         if (error) throw error
         setVaults(data || [])
       } catch (err) {
-        console.error('Failed to load vaults:', err)
+        log.error('[PermissionsEditor]', 'Failed to load vaults', { error: err })
       } finally {
         setVaultsLoading(false)
       }
@@ -231,7 +232,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       setSourceFilesPermsByVault(vaultPermsMap)
       setOriginalSourceFilesPermsByVault(JSON.parse(JSON.stringify(vaultPermsMap)))
     } catch (err) {
-      console.error('Failed to load permissions:', err)
+      log.error('[PermissionsEditor]', 'Failed to load permissions', { error: err })
       addToast('error', 'Failed to load permissions')
     } finally {
       setIsLoading(false)
@@ -271,7 +272,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         updated_by: p.updated_by ?? null
       })))
     } catch (err) {
-      console.error('Failed to load presets:', err)
+      log.error('[PermissionsEditor]', 'Failed to load presets', { error: err })
     }
   }
   
@@ -330,7 +331,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       setHasChanges(false)
       addToast('success', 'Permissions saved')
     } catch (err) {
-      console.error('Failed to save permissions:', err)
+      log.error('[PermissionsEditor]', 'Failed to save permissions', { error: err })
       addToast('error', 'Failed to save permissions')
     } finally {
       setIsSaving(false)

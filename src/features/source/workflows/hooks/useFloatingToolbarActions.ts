@@ -1,5 +1,6 @@
 // Floating toolbar action handlers for states and transitions
 import { useCallback } from 'react'
+import { log } from '@/lib/logger'
 import type { 
   WorkflowState, 
   WorkflowTransition,
@@ -70,7 +71,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
           s.id === floatingToolbar.targetId ? { ...s, color } : s
         ))
       } else {
-        console.error('Failed to update state color:', error)
+        log.error('[Workflow]', 'Failed to update state color', { error })
       }
     } else {
       const { error } = await transitionService.update(floatingToolbar.targetId, { line_color: color })
@@ -79,7 +80,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
           t.id === floatingToolbar.targetId ? { ...t, line_color: color } : t
         ))
       } else {
-        console.error('Failed to update transition color:', error)
+        log.error('[Workflow]', 'Failed to update transition color', { error })
       }
     }
   }, [floatingToolbar, setStates, setTransitions])
@@ -96,7 +97,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         t.id === floatingToolbar.targetId ? { ...t, line_style: style } : t
       ))
     } else {
-      console.error('Failed to update line style:', error)
+      log.error('[Workflow]', 'Failed to update line style', { error })
     }
   }, [floatingToolbar, setTransitions])
 
@@ -136,7 +137,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         }
       }
     } else {
-      console.error('Failed to update path type:', error)
+      log.error('[Workflow]', 'Failed to update path type', { error })
     }
   }, [floatingToolbar, states, transitions, waypoints, setTransitions, setWaypoints])
 
@@ -152,7 +153,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         t.id === floatingToolbar.targetId ? { ...t, line_arrow_head: arrowHead } : t
       ))
     } else {
-      console.error('Failed to update arrow head:', error)
+      log.error('[Workflow]', 'Failed to update arrow head', { error })
     }
   }, [floatingToolbar, setTransitions])
 
@@ -168,7 +169,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         t.id === floatingToolbar.targetId ? { ...t, line_thickness: thickness } : t
       ))
     } else {
-      console.error('Failed to update thickness:', error)
+      log.error('[Workflow]', 'Failed to update thickness', { error })
     }
   }, [floatingToolbar, setTransitions])
 
@@ -184,7 +185,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         s.id === floatingToolbar.targetId ? { ...s, fill_opacity: opacity } : s
       ))
     } else {
-      console.error('Failed to update fill opacity:', error)
+      log.error('[Workflow]', 'Failed to update fill opacity', { error })
     }
   }, [floatingToolbar, setStates])
 
@@ -200,7 +201,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         s.id === floatingToolbar.targetId ? { ...s, border_color: color } : s
       ))
     } else {
-      console.error('Failed to update border color:', error)
+      log.error('[Workflow]', 'Failed to update border color', { error })
     }
   }, [floatingToolbar, setStates])
 
@@ -216,7 +217,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         s.id === floatingToolbar.targetId ? { ...s, border_opacity: opacity } : s
       ))
     } else {
-      console.error('Failed to update border opacity:', error)
+      log.error('[Workflow]', 'Failed to update border opacity', { error })
     }
   }, [floatingToolbar, setStates])
 
@@ -232,7 +233,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         s.id === floatingToolbar.targetId ? { ...s, border_thickness: thickness } : s
       ))
     } else {
-      console.error('Failed to update border thickness:', error)
+      log.error('[Workflow]', 'Failed to update border thickness', { error })
     }
   }, [floatingToolbar, setStates])
 
@@ -248,7 +249,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         s.id === floatingToolbar.targetId ? { ...s, corner_radius: radius } : s
       ))
     } else {
-      console.error('Failed to update corner radius:', error)
+      log.error('[Workflow]', 'Failed to update corner radius', { error })
     }
   }, [floatingToolbar, setStates])
 
@@ -264,7 +265,7 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         s.id === floatingToolbar.targetId ? { ...s, shape } : s
       ))
     } else {
-      console.error('Failed to update shape:', error)
+      log.error('[Workflow]', 'Failed to update shape', { error })
     }
   }, [floatingToolbar, setStates])
 

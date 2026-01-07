@@ -1,23 +1,16 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../../types/database'
 import { loadConfig, type SupabaseConfig } from '../supabaseConfig'
+import { log } from '@/lib/logger'
 
 // ============================================
 // Logging Helper (must be defined early)
 // ============================================
 
-// Helper to log to both console and file (via Electron)
+// Helper to log auth events (uses unified logger)
 export const authLog = (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => {
-  const logMsg = `[Auth] ${message}`
-  if (level === 'error') {
-    console.error(logMsg, data || '')
-  } else if (level === 'warn') {
-    console.warn(logMsg, data || '')
-  } else {
-    console.log(logMsg, data || '')
-  }
-  // Also log to file if Electron API is available
-  window.electronAPI?.log?.(level, message, data)
+  const dataObj = data && typeof data === 'object' ? data as Record<string, unknown> : data !== undefined ? { value: data } : undefined
+  log[level]('[Auth]', message, dataObj)
 }
 
 // ============================================
@@ -39,7 +32,6 @@ function initializeClient() {
   if (storedConfig) {
     currentConfig = storedConfig
     supabaseClient = createClient<Database>(storedConfig.url, storedConfig.anonKey, getClientOptions())
-    console.log('[Supabase] Initialized from stored config')
     setupSessionListener()
     return
   }
@@ -51,13 +43,11 @@ function initializeClient() {
   if (envUrl && envKey) {
     currentConfig = { version: 1, url: envUrl, anonKey: envKey }
     supabaseClient = createClient<Database>(envUrl, envKey, getClientOptions())
-    console.log('[Supabase] Initialized from environment variables')
     setupSessionListener()
     return
   }
   
   // Not configured - will use placeholder client
-  console.log('[Supabase] Not configured')
   supabaseClient = createClient<Database>(
     'https://placeholder.supabase.co',
     'placeholder-key',
@@ -84,7 +74,6 @@ function getClientOptions() {
 export function reconfigureSupabase(config: SupabaseConfig): void {
   currentConfig = config
   supabaseClient = createClient<Database>(config.url, config.anonKey, getClientOptions())
-  console.log('[Supabase] Reconfigured with new credentials')
   setupSessionListener()
 }
 

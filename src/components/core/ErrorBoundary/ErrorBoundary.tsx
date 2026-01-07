@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 import { AlertOctagon, Copy, RefreshCw, ChevronDown, ChevronUp, Bug } from 'lucide-react'
 import { copyToClipboard } from '@/lib/clipboard'
+import { log } from '@/lib/logger'
 
 interface Props {
   children: ReactNode
@@ -33,18 +34,12 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo })
     
-    // Log to console for development
-    console.error('ErrorBoundary caught an error:', error)
-    console.error('Component stack:', errorInfo.componentStack)
-    
-    // Log via electron API if available
-    if (window.electronAPI?.log) {
-      window.electronAPI.log('error', 'Application crash', {
-        error: error.message,
-        stack: error.stack,
-        componentStack: errorInfo.componentStack
-      })
-    }
+    // Log error via unified logger (outputs to both console and Electron)
+    log.error('[ErrorBoundary]', 'Application crash', {
+      error: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack
+    })
   }
 
   handleCopyLogs = async () => {
@@ -72,7 +67,7 @@ ${errorInfo?.componentStack || 'No component stack available'}
       this.setState({ copied: true })
       setTimeout(() => this.setState({ copied: false }), 2000)
     } else {
-      console.error('Failed to copy to clipboard:', result.error)
+      log.error('[ErrorBoundary]', 'Failed to copy to clipboard', { error: result.error })
     }
   }
 

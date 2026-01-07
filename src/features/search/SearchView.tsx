@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Search, File, FolderOpen, X, ClipboardList, Tag, Loader2 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient } from '@/lib/supabase'
 import { logSearch } from '@/lib/userActionLogger'
@@ -69,7 +70,7 @@ export function SearchView() {
           .ilike('eco_number', `%${ecoSearchTerm}%`)
         
         if (ecoError) {
-          console.error('ECO search error:', ecoError)
+          log.error('[Search]', 'ECO search error', { error: ecoError })
           return
         }
         
@@ -94,7 +95,7 @@ export function SearchView() {
           .in('eco_id', ecoIds)
         
         if (fileError) {
-          console.error('File ECO search error:', fileError)
+          log.error('[Search]', 'File ECO search error', { error: fileError })
           return
         }
         
@@ -117,7 +118,7 @@ export function SearchView() {
         
         setEcoResults(results)
       } catch (err) {
-        console.error('ECO search failed:', err)
+        log.error('[Search]', 'ECO search failed', { error: err })
       } finally {
         setIsSearchingECO(false)
       }

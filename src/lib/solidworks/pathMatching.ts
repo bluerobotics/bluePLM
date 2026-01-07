@@ -81,13 +81,6 @@ export function matchSwPathToDb(
   const fileName = normalizedSwPath.split('/').pop() || ''
   const suffix2 = getPathSuffix(normalizedSwPath, 2)
   
-  // [PathMatch] Log input values for diagnostics
-  console.log('[PathMatch] Input:', {
-    swPath,
-    vaultPath: vaultRootPath,
-    dbFilesCount: dbFiles.length
-  })
-  
   // Try to strip vault root if provided
   let relativePath = normalizedSwPath
   if (vaultRootPath) {
@@ -99,19 +92,10 @@ export function matchSwPathToDb(
     }
   }
   
-  // [PathMatch] Log normalized values
-  console.log('[PathMatch] Normalized:', {
-    normalizedSwPath,
-    relativePath,
-    swSuffix: suffix2,
-    fileName
-  })
-  
   // Strategy 1: Exact relative path match
   for (const dbFile of dbFiles) {
     const normalizedDbPath = normalizePath(dbFile.file_path)
     if (normalizedDbPath === relativePath) {
-      console.log('[PathMatch] Result:', { matched: true, reason: 'exact relative path match', dbPath: normalizedDbPath })
       return {
         swPath,
         swFileName: fileName,
@@ -127,7 +111,6 @@ export function matchSwPathToDb(
   for (const dbFile of dbFiles) {
     const normalizedDbPath = normalizePath(dbFile.file_path)
     if (normalizedSwPath.endsWith('/' + normalizedDbPath) || normalizedSwPath === normalizedDbPath) {
-      console.log('[PathMatch] Result:', { matched: true, reason: 'SW path ends with DB path', dbPath: normalizedDbPath })
       return {
         swPath,
         swFileName: fileName,
@@ -144,7 +127,6 @@ export function matchSwPathToDb(
     const normalizedDbPath = normalizePath(dbFile.file_path)
     const dbSuffix = getPathSuffix(normalizedDbPath, 2)
     if (suffix2 === dbSuffix) {
-      console.log('[PathMatch] Result:', { matched: true, reason: 'suffix match (last 2 segments)', swSuffix: suffix2, dbSuffix })
       return {
         swPath,
         swFileName: fileName,
@@ -159,7 +141,6 @@ export function matchSwPathToDb(
   // Strategy 4: Filename-only (check if unique)
   const matchingByName = dbFiles.filter(f => f.file_name.toLowerCase() === fileName)
   if (matchingByName.length === 1) {
-    console.log('[PathMatch] Result:', { matched: true, reason: 'unique filename match', fileName })
     return {
       swPath,
       swFileName: fileName,
@@ -170,16 +151,7 @@ export function matchSwPathToDb(
     }
   }
   
-  // No match found - log diagnostic info
-  console.log('[PathMatch] Result:', { 
-    matched: false, 
-    reason: matchingByName.length > 1 
-      ? `filename "${fileName}" found ${matchingByName.length} times (not unique)` 
-      : `no matching file found for "${fileName}"`,
-    swSuffix: suffix2,
-    relativePath
-  })
-  
+  // No match found
   return {
     swPath,
     swFileName: fileName,

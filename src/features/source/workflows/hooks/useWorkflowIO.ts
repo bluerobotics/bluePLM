@@ -1,5 +1,6 @@
 // Import/Export operations for workflows
 import { useCallback, useRef, useState } from 'react'
+import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import type { 
   WorkflowTemplate, 
@@ -139,7 +140,7 @@ export function useWorkflowIO(options: UseWorkflowIOOptions) {
         transitionCount: importData.transitions?.length || 0
       })
     } catch (err) {
-      console.error('Failed to parse workflow file:', err)
+      log.error('[Workflow]', 'Failed to parse workflow file', { error: err })
       addToast('error', 'Failed to parse workflow file')
     }
   }, [selectedWorkflow, isAdmin, addToast])
@@ -204,7 +205,7 @@ export function useWorkflowIO(options: UseWorkflowIOOptions) {
           const toStateId = stateIdMap[transData.to_state]
           
           if (!fromStateId || !toStateId) {
-            console.warn(`Skipping transition: state not found (${transData.from_state} -> ${transData.to_state})`)
+            log.warn('[Workflow]', 'Skipping transition: state not found', { from: transData.from_state, to: transData.to_state })
             continue
           }
           
@@ -239,7 +240,7 @@ export function useWorkflowIO(options: UseWorkflowIOOptions) {
       
       addToast('success', `Imported ${newStates.length} states and ${newTransitions.length} transitions`)
     } catch (err) {
-      console.error('Failed to import workflow:', err)
+      log.error('[Workflow]', 'Failed to import workflow', { error: err })
       addToast('error', `Failed to import workflow: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setIsImporting(false)

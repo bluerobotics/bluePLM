@@ -296,8 +296,8 @@ export async function syncSolidWorksFileMetadata(
         source: 'solidworks'
       }
     })
-  } catch (activityError) {
-    console.warn('[SyncMetadata] Failed to log activity:', activityError)
+  } catch {
+    // Activity logging is non-critical
   }
   
   return { success: true, file: data, error: null }
@@ -428,8 +428,8 @@ export async function adminForceDiscardCheckout(
         previousCheckoutUserName: checkedOutUser?.full_name
       }
     })
-  } catch (activityError) {
-    console.warn('[AdminForceDiscard] Failed to log activity:', activityError)
+  } catch {
+    // Activity logging is non-critical
   }
   
   return { success: true, file: data }

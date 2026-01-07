@@ -4,6 +4,7 @@ import {
   AlertCircle, Plug, ExternalLink, Save, FolderOpen, Trash2, 
   Plus, X, Edit2
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 
@@ -133,7 +134,7 @@ export function OdooSettings() {
     try {
       const token = await getAuthToken()
       if (!token) {
-        console.warn('[OdooSettings] No auth token available')
+        log.warn('[OdooSettings]', 'No auth token available')
         setIsLoading(false)
         return
       }
@@ -160,7 +161,7 @@ export function OdooSettings() {
       if (err instanceof TypeError && err.message.includes('fetch')) {
         setApiServerOnline(false)
       }
-      console.error('Failed to load Odoo settings:', err)
+      log.error('[OdooSettings]', 'Failed to load Odoo settings', { error: err })
     } finally {
       setIsLoading(false)
     }
@@ -186,7 +187,7 @@ export function OdooSettings() {
         setSavedConfigs(data.configs || [])
       }
     } catch (err) {
-      console.error('Failed to load saved connections:', err)
+      log.error('[OdooSettings]', 'Failed to load saved connections', { error: err })
     } finally {
       setIsLoadingConfigs(false)
     }
@@ -288,7 +289,7 @@ export function OdooSettings() {
         }
       }
     } catch (err) {
-      console.error('[OdooSettings] Error:', err)
+      log.error('[OdooSettings]', 'Error', { error: err })
       addToast('error', `Error: ${err}`)
     } finally {
       setIsSaving(false)

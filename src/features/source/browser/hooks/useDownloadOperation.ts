@@ -2,6 +2,7 @@
  * Hook for handling file download operations with progress tracking
  */
 import { useCallback } from 'react'
+import { log } from '@/lib/logger'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { formatBytes, formatSpeed } from '@/lib/utils'
@@ -76,7 +77,7 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
     file: LocalFile
   ): Promise<{ success: boolean; size: number }> => {
     if (!file.pdmData?.content_hash || !organization) {
-      console.error('Download skip - missing content_hash or org:', file.name)
+      log.error('[Download]', 'Download skip - missing content_hash or org', { fileName: file.name })
       return { success: false, size: 0 }
     }
     
@@ -87,12 +88,12 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
       const { data: content, error } = await downloadFile(organization.id, file.pdmData.content_hash)
       
       if (error) {
-        console.error('Download error for', file.name, ':', error)
+        log.error('[Download]', 'Download error', { fileName: file.name, error })
         return { success: false, size: 0 }
       }
       
       if (!content) {
-        console.error('Download returned no content for', file.name)
+        log.error('[Download]', 'Download returned no content', { fileName: file.name })
         return { success: false, size: 0 }
       }
       
@@ -114,12 +115,12 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
       // Write file and check result
       const result = await window.electronAPI?.writeFile(file.path, base64)
       if (!result?.success) {
-        console.error('Failed to write file:', file.name, result?.error)
+        log.error('[Download]', 'Failed to write file', { fileName: file.name, error: result?.error })
         return { success: false, size: 0 }
       }
       return { success: true, size: fileSize }
     } catch (err) {
-      console.error('Failed to download file:', file.name, err)
+      log.error('[Download]', 'Failed to download file', { fileName: file.name, error: err })
     }
     return { success: false, size: 0 }
   }, [organization])
@@ -186,7 +187,7 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
     if (isProgressToastCancelled(toastId)) {
       wasCancelled = true
     } else {
-      console.log(`[Download] Starting parallel download of ${total} files (max ${CONCURRENT_OPERATIONS} concurrent)`)
+      log.info('[Download]', `Starting parallel download of ${total} files`, { maxConcurrent: CONCURRENT_OPERATIONS })
       
       // Download all files with concurrency limit
       const results = await processWithConcurrency(uniqueFiles, CONCURRENT_OPERATIONS, async (f) => {

@@ -3,6 +3,8 @@
  * Provides consistent error detection and retry logic across the app
  */
 
+import { log } from './logger'
+
 // Common network error patterns - these indicate transient issues worth retrying
 const NETWORK_ERROR_PATTERNS = [
   'Failed to fetch',           // Generic browser/Electron fetch failure
@@ -209,7 +211,7 @@ export async function resilientFetch(
     {
       maxAttempts,
       onRetry: (attempt, error, delay) => {
-        console.warn(`[Network] Fetch failed, retrying (${attempt}/${maxAttempts}) in ${Math.round(delay)}ms:`, getErrorMessage(error))
+        log.warn('[Network]', `Fetch failed, retrying (${attempt}/${maxAttempts}) in ${Math.round(delay)}ms`, { error: getErrorMessage(error) })
         onRetry?.(attempt, error)
       },
     }
@@ -225,13 +227,13 @@ if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     isOnline = true
     networkListeners.forEach(fn => fn(true))
-    console.log('[Network] Connection restored')
+    log.info('[Network]', 'Connection restored')
   })
   
   window.addEventListener('offline', () => {
     isOnline = false
     networkListeners.forEach(fn => fn(false))
-    console.log('[Network] Connection lost')
+    log.warn('[Network]', 'Connection lost')
   })
 }
 

@@ -23,6 +23,7 @@
  */
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { log } from '@/lib/logger'
 
 /**
  * Polling interval for SolidWorks status checks (15 seconds)
@@ -95,8 +96,6 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
   const checkStatus = useCallback(async () => {
     // Skip if paused, batch operation running, or auto-start in progress
     if (isPausedRef.current || isBatchSWOperationRunning || solidworksAutoStartInProgress) {
-      console.log('[SWStatus] Skipping check - paused:', isPausedRef.current, 
-        'batch:', isBatchSWOperationRunning, 'autoStart:', solidworksAutoStartInProgress)
       return
     }
     
@@ -132,7 +131,6 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
         
         // Handle reference recovery needed - process alive but IPC connection lost
         if (apiData.referenceRecoveryNeeded) {
-          console.log('[SWStatus] Service reference lost but process alive - recommending restart')
           setStatus(prev => ({
             ...prev,
             running: true,
@@ -147,7 +145,6 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
         
         // Handle busy state - service is alive but processing
         if (apiData.busy) {
-          console.log('[SWStatus] Service is busy, queue depth:', apiData.queueDepth)
           setStatus(prev => ({
             ...prev,
             running: true,
@@ -192,7 +189,7 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
         setIntegrationStatus('solidworks', 'offline', result.error)
       }
     } catch (err) {
-      console.warn('[SWStatus] Error checking status:', err)
+      log.warn('[SWStatus]', 'Error checking status', { error: err })
       setStatus(prev => ({ ...prev, running: false, busy: false, error: String(err) }))
       setIntegrationStatus('solidworks', 'offline', String(err))
     } finally {
@@ -204,7 +201,6 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
    * Pause status polling - call before batch operations
    */
   const pausePolling = useCallback(() => {
-    console.log('[SWStatus] Polling paused')
     isPausedRef.current = true
     setIsPolling(false)
     if (pollIntervalRef.current) {
@@ -217,7 +213,6 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
    * Resume status polling - call after batch operations
    */
   const resumePolling = useCallback(() => {
-    console.log('[SWStatus] Polling resumed')
     isPausedRef.current = false
     setIsPolling(true)
     // Immediately check status then start polling
@@ -272,10 +267,8 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
   // Auto-pause when batch operation starts
   useEffect(() => {
     if (isBatchSWOperationRunning && !isPausedRef.current) {
-      console.log('[SWStatus] Auto-pausing due to batch operation')
       pausePolling()
     } else if (!isBatchSWOperationRunning && !isPolling && !isPausedRef.current) {
-      console.log('[SWStatus] Auto-resuming after batch operation')
       resumePolling()
     }
   }, [isBatchSWOperationRunning, isPolling, pausePolling, resumePolling])

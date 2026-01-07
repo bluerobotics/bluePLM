@@ -32,6 +32,7 @@ import type { Organization } from '@/stores/types'
 import { getEffectiveExportSettings } from '@/features/settings/system'
 import { buildConfigTreeFlat } from '../utils/configTree'
 import { getSerializationSettings, combineBaseAndTab } from '@/lib/serialization'
+import { log } from '@/lib/logger'
 
 export interface ConfigHandlersDeps {
   // Files state (still passed - could also read from store but kept for consistency)
@@ -186,8 +187,6 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       // Filter to only configs that have pending changes
       const configsToSave = configs.filter(c => changedConfigNames.has(c.name))
       
-      console.log(`[ConfigHandlers] Saving ${configsToSave.length} changed config(s) to SW file:`, file.name)
-      
       for (const config of configsToSave) {
         const props: Record<string, string> = {}
         
@@ -211,25 +210,20 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         
         if (Object.keys(props).length === 0) continue
         
-        console.log(`[ConfigHandlers] Writing to config ${config.name}:`, props)
-        
         try {
           const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, config.name)
-          console.log(`[ConfigHandlers] setProperties result for ${config.name}:`, result)
           
           if (result?.success) {
             successCount++
           } else {
             failedCount++
-            console.error(`[ConfigHandlers] Failed to write to config ${config.name}:`, result?.error || 'Unknown error')
+            log.error('[ConfigHandlers]', `Failed to write to config ${config.name}`, { error: result?.error })
           }
         } catch (err) {
           failedCount++
-          console.error(`[ConfigHandlers] Exception writing to config ${config.name}:`, err)
+          log.error('[ConfigHandlers]', `Exception writing to config ${config.name}`, { error: err })
         }
       }
-      
-      console.log(`[ConfigHandlers] Save complete: ${successCount} success, ${failedCount} failed`)
       
       if (successCount > 0) {
         if (failedCount > 0) {
@@ -250,7 +244,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         addToast('error', 'Failed to save metadata - check if file is open in SolidWorks')
       }
     } catch (err) {
-      console.error('[ConfigHandlers] Failed to save configs to SW:', err)
+      log.error('[ConfigHandlers]', 'Failed to save configs to SW', { error: err })
       addToast('error', 'Failed to save to SolidWorks file')
     } finally {
       setSavingConfigsToSW(prev => {
@@ -366,26 +360,12 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           fullItemNumber = `${baseNumber}-${tabNumber}`
         }
       } catch (err) {
-        console.warn('[Export] Failed to get serialization settings, using simple concatenation:', err)
+        log.debug('[Export]', 'Failed to get serialization settings, using simple concatenation', { error: err })
         if (baseNumber && tabNumber) {
           fullItemNumber = `${baseNumber}-${tabNumber}`
         }
       }
     }
-    
-    // Debug logging
-    console.log('[Export] BluePLM metadata for export:')
-    console.log('[Export]   File path:', filePath)
-    console.log('[Export]   Config name:', firstConfigName)
-    console.log('[Export]   PDM part_number:', file?.pdmData?.part_number)
-    console.log('[Export]   Pending part_number:', file?.pendingMetadata?.part_number)
-    console.log('[Export]   Base number:', baseNumber)
-    console.log('[Export]   Tab number:', tabNumber)
-    console.log('[Export]   Full item number:', fullItemNumber)
-    console.log('[Export]   PDM revision:', file?.pdmData?.revision)
-    console.log('[Export]   Config description from store:', firstConfig?.description)
-    console.log('[Export]   Pending config description:', pendingConfigDesc)
-    console.log('[Export]   Final description:', finalDescription)
     
     const pdmMetadata = {
       partNumber: fullItemNumber,  // Full config-specific item number (base + tab)
@@ -393,8 +373,6 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       revision: file?.pdmData?.revision || '',
       description: finalDescription  // Config-specific description
     }
-    
-    console.log('[Export] Final pdmMetadata being sent:', pdmMetadata)
     
     // Get filename pattern from effective export settings (user preference > org default > app default)
     const exportSettings = getEffectiveExportSettings(organization)
@@ -530,10 +508,10 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
                       }
                     }
                   }
-                } catch (err) {
-                  console.error(`Failed to load properties for config ${c.name}:`, err)
-                }
+              } catch (err) {
+                log.error('[ConfigHandlers]', `Failed to load properties for config ${c.name}`, { error: err })
               }
+            }
               
               return {
                 name: c.name,
@@ -550,7 +528,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
             setFileConfigurations(file.path, flatTree)
           }
         } catch (err) {
-          console.error('Failed to load configurations:', err)
+          log.error('[ConfigHandlers]', 'Failed to load configurations', { error: err })
         } finally {
           removeLoadingConfig(file.path)
         }

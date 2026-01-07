@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Image, ExternalLink, FolderOpen, Info, Key, Play, Square, Loader2, Check, EyeOff, Eye, FileX, X, RefreshCw, Database } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { executeCommand } from '@/lib/commands'
@@ -237,7 +238,7 @@ export function SolidWorksSettings() {
       setDmLicenseKeyInput('')
       addToast('success', 'Document Manager license key cleared')
     } catch (err) {
-      console.error('[SWSettings] Clear license key failed:', err)
+      log.error('[SWSettings]', 'Clear license key failed', { error: err })
       addToast('error', err instanceof Error ? err.message : 'Failed to clear license key')
     } finally {
       setIsSavingLicenseKey(false)

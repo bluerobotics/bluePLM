@@ -153,8 +153,7 @@ export const createOperationsSlice: StateCreator<
       
       // Execute without awaiting - run in parallel
       // Each operation will call endSync() when done, which triggers processQueue()
-      operation.execute().catch(err => {
-        console.error('Queue operation failed:', err)
+      operation.execute().catch(() => {
         addToast('error', `Operation failed: ${operation.label}`)
       })
     }

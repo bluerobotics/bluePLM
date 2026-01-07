@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile, DetailsPanelTab } from '@/stores/pdmStore'
 import { getFileIconType } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils'
@@ -250,7 +251,7 @@ export function DetailsPanel() {
           path: result.path
         })
       } catch (err) {
-        console.error('Failed to check eDrawings:', err)
+        log.error('[DetailsPanel]', 'Failed to check eDrawings', { error: err })
         setEDrawingsStatus({ checked: true, installed: false, path: null })
       }
     }
@@ -275,7 +276,7 @@ export function DetailsPanel() {
           setPdfDataUrl(null)
         }
       } catch (err) {
-        console.error('Failed to load PDF:', err)
+        log.error('[DetailsPanel]', 'Failed to load PDF', { error: err })
         setPdfDataUrl(null)
       } finally {
         setPdfLoading(false)
@@ -303,7 +304,7 @@ export function DetailsPanel() {
         // First, try direct OLE preview extraction (most reliable, high quality)
         const oleResult = await window.electronAPI?.extractSolidWorksPreview?.(file.path)
         if (oleResult?.success && oleResult.data) {
-          console.log('[Preview] Using OLE-extracted preview')
+          log.debug('[Preview]', 'Using OLE-extracted preview')
           setCadThumbnail(oleResult.data)
           setCadThumbnailLoading(false)
           return
@@ -313,7 +314,7 @@ export function DetailsPanel() {
         const previewResult = await window.electronAPI?.solidworks?.getPreview(file.path)
         if (previewResult?.success && previewResult.data?.imageData) {
           const mimeType = previewResult.data.mimeType || 'image/png'
-          console.log('[Preview] Using DM API preview')
+          log.debug('[Preview]', 'Using DM API preview')
           setCadThumbnail(`data:${mimeType};base64,${previewResult.data.imageData}`)
           setCadThumbnailLoading(false)
           return
@@ -322,13 +323,13 @@ export function DetailsPanel() {
         // Fall back to OS thumbnail extraction
         const thumbResult = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
         if (thumbResult?.success && thumbResult.data) {
-          console.log('[Preview] Using OS thumbnail fallback')
+          log.debug('[Preview]', 'Using OS thumbnail fallback')
           setCadThumbnail(thumbResult.data)
         } else {
           setCadThumbnail(null)
         }
       } catch (err) {
-        console.error('Failed to extract preview:', err)
+        log.error('[Preview]', 'Failed to extract preview', { error: err })
         setCadThumbnail(null)
       } finally {
         setCadThumbnailLoading(false)
@@ -353,7 +354,7 @@ export function DetailsPanel() {
           setVersions(fileVersions as VersionEntry[])
         }
       } catch (err) {
-        console.error('Failed to load versions:', err)
+        log.error('[DetailsPanel]', 'Failed to load versions', { error: err })
       } finally {
         setIsLoadingVersions(false)
       }
@@ -411,7 +412,7 @@ export function DetailsPanel() {
           setFolderActivity(filtered)
         }
       } catch (err) {
-        console.error('Failed to load folder activity:', err)
+        log.error('[DetailsPanel]', 'Failed to load folder activity', { error: err })
       } finally {
         setIsLoadingFolderActivity(false)
       }
@@ -704,7 +705,7 @@ export function DetailsPanel() {
     try {
       await window.electronAPI?.openInEDrawings(file.path)
     } catch (err) {
-      console.error('Failed to open in eDrawings:', err)
+      log.error('[DetailsPanel]', 'Failed to open in eDrawings', { error: err })
       addToast('error', 'Failed to open in eDrawings')
     }
   }

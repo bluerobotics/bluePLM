@@ -6,6 +6,7 @@
 
 import type { ParsedCommand, TerminalOutput } from './parser'
 import type { LocalFile } from '../../stores/pdmStore'
+import { log } from '../logger'
 
 // ============================================
 // Types
@@ -72,7 +73,7 @@ export function registerTerminalCommand(
   // Register handler under all aliases
   for (const alias of meta.aliases) {
     if (commandHandlers.has(alias.toLowerCase())) {
-      console.warn(`[Registry] Command alias '${alias}' is being overwritten`)
+      log.warn('[Registry]', 'Command alias is being overwritten', { alias })
     }
     commandHandlers.set(alias.toLowerCase(), handler)
   }

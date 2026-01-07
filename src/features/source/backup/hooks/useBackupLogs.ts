@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { log } from '@/lib/logger'
 import type {
   BackupLogEntry,
   BackupDetailedProgress,
@@ -177,7 +178,7 @@ export function useBackupLogs(): UseBackupLogsReturn {
     // Subscribe to unified log events from Electron main process
     if (window.electronAPI?.onBackupLog) {
       const cleanup = window.electronAPI.onBackupLog((entry) => {
-        console.log('[BACKUP-DEBUG] Received IPC log:', entry.phase, entry.message)
+        log.debug('[Backup]', 'Received IPC log', { phase: entry.phase, message: entry.message })
         
         // Convert IPC entry to our typed entry
         const typedEntry: BackupLogEntry = {
@@ -192,7 +193,7 @@ export function useBackupLogs(): UseBackupLogsReturn {
       })
       cleanups.push(cleanup)
     } else {
-      console.warn('[BACKUP-DEBUG] onBackupLog not available on electronAPI')
+      log.debug('[Backup]', 'onBackupLog not available on electronAPI')
     }
     
     // Also listen to the existing basic progress for UI updates
@@ -200,7 +201,7 @@ export function useBackupLogs(): UseBackupLogsReturn {
       const cleanup = window.electronAPI.onBackupProgress((prog) => {
         // Map the human-readable phase to our BackupPhase enum
         const mappedPhase = mapProgressPhase(prog.phase)
-        console.log('[BACKUP-DEBUG] Received progress:', prog.phase, '->', mappedPhase, prog.percent, prog.message)
+        log.debug('[Backup]', 'Received progress', { phase: prog.phase, mapped: mappedPhase, percent: prog.percent })
         setProgress({
           phase: mappedPhase,
           percent: prog.percent,
@@ -209,13 +210,13 @@ export function useBackupLogs(): UseBackupLogsReturn {
       })
       cleanups.push(cleanup)
     } else {
-      console.warn('[BACKUP-DEBUG] onBackupProgress not available on electronAPI')
+      log.debug('[Backup]', 'onBackupProgress not available on electronAPI')
     }
     
     // Listen for renderer-side log events (custom event from useBackupOperations)
     const handleRendererLog = (event: Event) => {
       const customEvent = event as CustomEvent<BackupLogEntry>
-      console.log('[BACKUP-DEBUG] Received renderer log:', customEvent.detail.phase, customEvent.detail.message)
+      log.debug('[Backup]', 'Received renderer log', { phase: customEvent.detail.phase, message: customEvent.detail.message })
       processLogEntry(customEvent.detail)
     }
     window.addEventListener('backup:renderer-log', handleRendererLog)

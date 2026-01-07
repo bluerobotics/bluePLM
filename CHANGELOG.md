@@ -6,6 +6,10 @@ All notable changes to BluePLM will be documented in this file.
 
 ### Added
 - **Clean install on major upgrades**: App data is automatically wiped when upgrading between major versions (2→3, 3→4, etc.) ensuring a fresh start. Clears settings, logs, cache, browser storage, and temp files
+- **Unified logging utility**: New `src/lib/logger.ts` with dual output to DevTools console AND Electron app log. Supports error/warn/info/debug levels with category prefixes (e.g., `[Auth]`, `[Realtime]`) for filtering. Debug logging toggleable via `localStorage.setItem('debug', 'true')`
+
+### Changed
+- **Console logging cleanup**: Reduced console statements from ~225 to 11 (~95% reduction). Removed subscription status spam, heartbeat logs, JSON dumps, and verbose state tracking. Meaningful logs converted to unified logger
 
 ### Fixed
 - **Vault display consistency**: Fixed issue where file tree and file pane would show files from existing local folders even when no vault was connected in settings. Now consistently shows "No vault connected" state until a vault is explicitly connected via Settings > Vaults

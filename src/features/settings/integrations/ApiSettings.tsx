@@ -20,6 +20,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
 import { checkApiCompatibility, EXPECTED_API_VERSION, type ApiVersionCheckResult } from '@/lib/apiVersion'
+import { log } from '@/lib/logger'
 
 // Supabase v2 type inference incomplete for API key operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,19 +72,14 @@ export function ApiSettings() {
   // Get API token from Supabase session
   useEffect(() => {
     const getToken = async () => {
-      console.log('[API] Fetching access token from Supabase session...')
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
-        console.log('[API] Access token retrieved successfully (length:', session.access_token.length, ')')
         setApiToken(session.access_token)
-      } else {
-        console.log('[API] No active session found - user not authenticated')
       }
     }
     getToken()
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('[API] Auth state changed, event:', _event, '- token:', session?.access_token ? 'present' : 'none')
       setApiToken(session?.access_token || null)
     })
     
@@ -96,21 +92,13 @@ export function ApiSettings() {
   useEffect(() => {
     // Don't sync until organization is loaded
     if (!organization?.id) {
-      console.log('[API] Waiting for organization to load before syncing API URL...')
       return
     }
     
     const orgApiUrl = organization?.settings?.api_url || null
     const currentApiUrl = apiServerUrl || null
     
-    console.log('[API] Checking org settings for API URL...', {
-      orgId: organization.id,
-      orgApiUrl: orgApiUrl || 'none',
-      storeApiUrl: currentApiUrl || 'none'
-    })
-    
     if (orgApiUrl !== currentApiUrl) {
-      console.log('[API] Syncing API URL from org settings:', orgApiUrl || '(cleared)')
       setApiServerUrl(orgApiUrl)
     }
   }, [organization?.id, organization?.settings?.api_url, apiServerUrl, setApiServerUrl])
@@ -123,7 +111,6 @@ export function ApiSettings() {
     const effectiveUrl = apiUrl || orgApiUrl
     
     if (effectiveUrl) {
-      console.log('[API] Checking status - URL configured:', effectiveUrl)
       // Small delay to ensure URL sync has happened
       const timeout = setTimeout(() => {
         checkApiStatus()
@@ -131,11 +118,9 @@ export function ApiSettings() {
       return () => clearTimeout(timeout)
     } else if (organization?.id) {
       // Organization loaded but no API URL configured
-      console.log('[API] Organization loaded - no API URL configured')
       setApiStatus('unknown')
       return undefined
     } else {
-      console.log('[API] Waiting for organization to load...')
       // Keep showing 'checking' state while waiting for org
       return undefined
     }
@@ -143,12 +128,10 @@ export function ApiSettings() {
   
   const checkApiStatus = async () => {
     if (!apiUrl) {
-      console.log('[API] Cannot check status - no API URL configured')
       setApiStatus('unknown')
       return
     }
     
-    console.log('[API] Checking API server status at:', apiUrl)
     setApiStatus('checking')
     const start = Date.now()
     try {
@@ -160,7 +143,6 @@ export function ApiSettings() {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('[API] Server ONLINE - version:', data.version, 'build:', data.build, 'latency:', duration, 'ms')
         setApiStatus('online')
         setApiVersion(data.version || null)
         setApiBuild(data.build || null)
@@ -168,17 +150,15 @@ export function ApiSettings() {
         const check = checkApiCompatibility(data.version || null)
         setVersionCheck(check)
         if (check.status !== 'current') {
-          console.log('[API] Version check:', check.status, '-', check.message)
+          log.warn('[API]', 'Version mismatch', { status: check.status, message: check.message })
         }
         addApiCall('GET', '/health', response.status, duration)
       } else {
-        console.log('[API] Server responded with error status:', response.status, 'latency:', duration, 'ms')
         setApiStatus('offline')
         addApiCall('GET', '/health', response.status, duration)
       }
     } catch (err) {
       const duration = Date.now() - start
-      console.log('[API] Server OFFLINE - connection failed after', duration, 'ms:', err instanceof Error ? err.message : 'Unknown error')
       setApiStatus('offline')
       addApiCall('GET', '/health', 0, duration)
     }
@@ -209,7 +189,6 @@ export function ApiSettings() {
   const handleSaveApiUrl = async () => {
     let url = apiUrlInput.trim()
     if (url) {
-      console.log('[API] Saving API URL, input:', url)
       // Remove any existing protocol and normalize
       url = url.replace(/^https?:\/\//, '')
       // Remove trailing slashes
@@ -218,15 +197,12 @@ export function ApiSettings() {
       url = url.trim()
       // Add https:// (always use https for production)
       url = 'https://' + url
-      console.log('[API] Normalized URL:', url)
       
       // Update store (which also syncs to localStorage for backward compatibility)
-      console.log('[API] Saving URL to local store...')
       setApiUrl(url)
       
       // Save org-wide for all members when admin sets external URL
       if (organization && isAdmin) {
-        console.log('[API] Admin detected - syncing URL to organization settings for org:', organization.id)
         try {
           // IMPORTANT: Fetch current settings from database first to avoid overwriting
           // other fields that may have been set by other components
@@ -237,13 +213,12 @@ export function ApiSettings() {
             .single()
           
           if (fetchError) {
-            console.error('[API] Failed to fetch current settings:', fetchError)
+            log.error('[API]', 'Failed to fetch current settings', { error: fetchError })
           }
           
           // Merge with current database settings (not local state which may be stale)
           const currentSettings = currentOrg?.settings || organization.settings || {}
           const newSettings = { ...currentSettings, api_url: url }
-          console.log('[API] Updating org settings with new API URL...')
           
           const { error } = await db
             .from('organizations')
@@ -251,10 +226,9 @@ export function ApiSettings() {
             .eq('id', organization.id)
           
           if (error) {
-            console.error('[API] Failed to save API URL to org:', error)
+            log.error('[API]', 'Failed to save API URL to org', { error })
             addToast('error', `Saved locally, but failed to sync: ${error.message}`)
           } else {
-            console.log('[API] API URL saved to organization successfully')
             // Update local state
             setOrganization({
               ...organization,
@@ -263,16 +237,14 @@ export function ApiSettings() {
             addToast('success', 'API URL saved for organization')
           }
         } catch (err) {
-          console.error('[API] Failed to save API URL to org (exception):', err)
+          log.error('[API]', 'Failed to save API URL to org', { error: err })
           addToast('error', 'Saved locally, but failed to sync to organization')
         }
       } else {
-        console.log('[API] Non-admin or no org - URL saved locally only')
         addToast('success', 'API URL saved')
       }
     }
     setEditingApiUrl(false)
-    console.log('[API] Triggering status check after URL save...')
     setTimeout(checkApiStatus, 100)
   }
   
@@ -283,16 +255,14 @@ export function ApiSettings() {
       setTokenCopied(true)
       setTimeout(() => setTokenCopied(false), 2000)
     } else {
-      console.error('Failed to copy token:', result.error)
+      log.error('[API]', 'Failed to copy token', { error: result.error })
     }
   }
   
   const testApiEndpoint = async (endpoint: string) => {
     if (!apiToken) {
-      console.log('[API] Cannot test endpoint - no access token available')
       return
     }
-    console.log('[API] Testing endpoint:', endpoint, 'with authorization header')
     const start = Date.now()
     try {
       const response = await fetch(`${apiUrl}${endpoint}`, {
@@ -300,11 +270,9 @@ export function ApiSettings() {
         signal: AbortSignal.timeout(10000)
       })
       const duration = Date.now() - start
-      console.log('[API] Test response:', response.status, 'latency:', duration, 'ms')
       addApiCall('GET', endpoint, response.status, duration)
     } catch (err) {
       const duration = Date.now() - start
-      console.log('[API] Test failed after', duration, 'ms:', err instanceof Error ? err.message : 'Unknown error')
       addApiCall('GET', endpoint, 0, duration)
     }
   }

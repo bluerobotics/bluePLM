@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat, signOut } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 import type { User, Organization } from '@/types/pdm'
 
 /**
@@ -20,20 +21,16 @@ export function useSessionHeartbeat(user: User | null, organization: Organizatio
     // Register this device's session
     // Use user.org_id first, fall back to organization.id if not set
     const orgIdForSession = user.org_id || organization?.id || null
-    console.log('[Session] Registering session with org_id:', orgIdForSession?.substring(0, 8) || 'NULL', 
-      '(user.org_id:', user.org_id?.substring(0, 8) || 'NULL', 
-      ', organization?.id:', organization?.id?.substring(0, 8) || 'NULL', ')')
     
     registerDeviceSession(user.id, orgIdForSession)
       .then(result => {
         if (result.success) {
-          console.log('[Session] Device session registered successfully with org_id:', orgIdForSession?.substring(0, 8) || 'NULL')
           // Start heartbeat to keep session alive
           // Pass callbacks: one for remote sign out, one to get current org_id
           startSessionHeartbeat(
             user.id, 
             async () => {
-              console.log('[Session] Remote sign out triggered')
+              log.info('[Session]', 'Remote sign out triggered')
               const { addToast: toast, setUser: clearUser, setOrganization: clearOrg } = usePDMStore.getState()
               toast('info', 'You were signed out from another device')
               await signOut()
@@ -45,11 +42,11 @@ export function useSessionHeartbeat(user: User | null, organization: Organizatio
             () => usePDMStore.getState().user?.org_id || usePDMStore.getState().organization?.id
           )
         } else {
-          console.error('[Session] Failed to register session:', result.error)
+          log.error('[Session]', 'Failed to register session', { error: result.error })
         }
       })
       .catch(err => {
-        console.error('[Session] Error registering session:', err)
+        log.error('[Session]', 'Error registering session', { error: err })
       })
     
     return () => {

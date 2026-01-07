@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { WorkflowRoleBasic, WorkflowRoleFormData } from '../types'
 import {
@@ -81,7 +82,7 @@ export function useWorkflowRoles(orgId: string | null) {
       }
       setUserRoleAssignments(assignmentsMap)
     } catch (err) {
-      console.error('Failed to load workflow roles:', err)
+      log.error('[WorkflowRoles]', 'Failed to load workflow roles', { error: err })
       setWorkflowRolesLoading(false)
     }
   }, [orgId, setWorkflowRoles, setWorkflowRolesLoading, setUserRoleAssignments])
@@ -251,7 +252,7 @@ export function useWorkflowRoles(orgId: string | null) {
       addToast('success', `Updated workflow roles${userName ? ` for ${userName}` : ''}`)
       return true
     } catch (err) {
-      console.error('Failed to save workflow roles:', err)
+      log.error('[WorkflowRoles]', 'Failed to save workflow roles', { error: err })
       addToast('error', 'Failed to update workflow roles')
       return false
     }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { log } from '@/lib/logger'
 import { Mail, Loader2, ShoppingCart, GitBranch, Key, Shield, AlertTriangle, Check, RefreshCw, Camera, X } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient, useAdminRecoveryCode, supabase } from '@/lib/supabase'
@@ -96,7 +97,7 @@ export function ProfileSettings() {
       })
 
       if (updateError) {
-        console.error('[ProfileSettings] Avatar update error:', updateError)
+        log.error('[Profile]', 'Avatar update error', { error: updateError })
         throw updateError
       }
 
@@ -105,7 +106,7 @@ export function ProfileSettings() {
       setAvatarPreview(null) // Clear preview since we now have the real URL
       addToast('success', 'Profile picture updated!')
     } catch (err) {
-      console.error('Failed to upload avatar:', err)
+      log.error('[Profile]', 'Failed to upload avatar', { error: err })
       addToast('error', 'Failed to upload profile picture')
       setAvatarPreview(null) // Clear preview on error
     } finally {
@@ -145,7 +146,7 @@ export function ProfileSettings() {
       setUser({ ...user, custom_avatar_url: null })
       addToast('success', 'Custom profile picture removed')
     } catch (err) {
-      console.error('Failed to remove avatar:', err)
+      log.error('[Profile]', 'Failed to remove avatar', { error: err })
       addToast('error', 'Failed to remove profile picture')
     } finally {
       setUploadingAvatar(false)
@@ -171,7 +172,7 @@ export function ProfileSettings() {
           .limit(10)
         
         if (createdError) {
-          console.error('Error loading ECOs:', createdError)
+          log.error('[Profile]', 'Error loading created ECOs', { error: createdError })
         }
         
         // Get ECOs where user has files attached
@@ -192,7 +193,7 @@ export function ProfileSettings() {
           .limit(20)
         
         if (involvedError) {
-          console.error('Error loading involved ECOs:', involvedError)
+          log.error('[Profile]', 'Error loading involved ECOs', { error: involvedError })
         }
         
         // Combine and deduplicate
@@ -213,7 +214,7 @@ export function ProfileSettings() {
         allECOs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setUserECOs(allECOs.slice(0, 10))
       } catch (err) {
-        console.error('Error loading ECOs:', err)
+        log.error('[Profile]', 'Error loading ECOs', { error: err })
       } finally {
         setIsLoadingECOs(false)
       }
@@ -240,12 +241,12 @@ export function ProfileSettings() {
           .limit(10)
         
         if (error) {
-          console.error('Error loading RFQs:', error)
+          log.error('[Profile]', 'Error loading RFQs', { error })
         } else {
           setUserRFQs(data || [])
         }
       } catch (err) {
-        console.error('Error loading RFQs:', err)
+        log.error('[Profile]', 'Error loading RFQs (exception)', { error: err })
       } finally {
         setIsLoadingRFQs(false)
       }

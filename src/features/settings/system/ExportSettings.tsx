@@ -8,6 +8,7 @@ import {
   User,
   Building2
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { ExportSettings as ExportSettingsType, DEFAULT_EXPORT_SETTINGS } from '@/types/pdm'
@@ -184,7 +185,7 @@ export function ExportSettings() {
         .select()
       
       if (error) {
-        console.error('Supabase error:', error)
+        log.error('[ExportSettings]', 'Supabase error', { error })
         throw error
       }
       
@@ -192,7 +193,7 @@ export function ExportSettings() {
       updateOrganization({ settings: newSettings } as any)
       addToast('success', 'Organization default saved')
     } catch (err) {
-      console.error('Failed to save org export settings:', err)
+      log.error('[ExportSettings]', 'Failed to save org export settings', { error: err })
       addToast('error', `Failed to save: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setSaving(false)

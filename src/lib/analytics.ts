@@ -17,11 +17,9 @@ let initialized = false
 export function initAnalytics(enabled: boolean): boolean {
   if (initialized) return true
   if (!enabled) {
-    console.log('[Analytics] Disabled by user preference')
     return false
   }
   if (!SENTRY_DSN) {
-    console.log('[Analytics] No Sentry DSN configured')
     return false
   }
 
@@ -64,10 +62,8 @@ export function initAnalytics(enabled: boolean): boolean {
     })
 
     initialized = true
-    console.log('[Analytics] Sentry initialized')
     return true
-  } catch (err) {
-    console.error('[Analytics] Failed to initialize Sentry:', err)
+  } catch {
     return false
   }
 }

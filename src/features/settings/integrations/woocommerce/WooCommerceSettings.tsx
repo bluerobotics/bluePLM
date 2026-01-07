@@ -20,6 +20,7 @@ import {
   Edit2,
   Save
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 
@@ -163,7 +164,7 @@ export function WooCommerceSettings() {
     try {
       const token = await getAuthToken()
       if (!token) {
-        console.warn('[WooCommerceSettings] No auth token available')
+        log.warn('[WooCommerceSettings]', 'No auth token available')
         setIsLoading(false)
         return
       }
@@ -191,7 +192,7 @@ export function WooCommerceSettings() {
       if (err instanceof TypeError && err.message.includes('fetch')) {
         setApiServerOnline(false)
       }
-      console.error('Failed to load WooCommerce settings:', err)
+      log.error('[WooCommerceSettings]', 'Failed to load WooCommerce settings', { error: err })
     } finally {
       setIsLoading(false)
     }
@@ -217,7 +218,7 @@ export function WooCommerceSettings() {
         setSavedConfigs(data.configs || [])
       }
     } catch (err) {
-      console.error('Failed to load saved connections:', err)
+      log.error('[WooCommerceSettings]', 'Failed to load saved connections', { error: err })
     } finally {
       setIsLoadingConfigs(false)
     }
@@ -331,7 +332,7 @@ export function WooCommerceSettings() {
         }
       }
     } catch (err) {
-      console.error('[WooCommerceSettings] Error:', err)
+      log.error('[WooCommerceSettings]', 'Error', { error: err })
       addToast('error', `Error: ${err}`)
     } finally {
       setIsSaving(false)

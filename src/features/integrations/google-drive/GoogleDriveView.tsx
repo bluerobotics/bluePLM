@@ -24,6 +24,7 @@ import {
   FileCode,
   Check
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 
 // Google Drive file types
@@ -123,7 +124,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         setIsAuthenticated(false)
       }
     } catch (err) {
-      console.error('Error checking auth status:', err)
+      log.error('[GoogleDrive]', 'Error checking auth status', { error: err })
     }
   }
   
@@ -137,7 +138,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         setUserInfo({ email: data.email, name: data.name, picture: data.picture })
       }
     } catch (err) {
-      console.error('Error fetching user info:', err)
+      log.error('[GoogleDrive]', 'Error fetching user info', { error: err })
     }
   }
   
@@ -183,7 +184,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         loadDriveContents(driveToSelect, savedFolderId || undefined)
       }
     } catch (err) {
-      console.error('Error loading drives:', err)
+      log.error('[GoogleDrive]', 'Error loading drives', { error: err })
     }
   }
   
@@ -248,7 +249,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         }
       }
     } catch (err) {
-      console.error('Error loading drive contents:', err)
+      log.error('[GoogleDrive]', 'Error loading drive contents', { error: err })
     } finally {
       setIsLoading(false)
     }
@@ -276,7 +277,7 @@ export function GoogleDriveView({ onNavigate, onFileSelect, currentFolderId }: G
         setFolderContents(prev => ({ ...prev, [folderId]: data.files || [] }))
       }
     } catch (err) {
-      console.error('Error loading folder:', err)
+      log.error('[GoogleDrive]', 'Error loading folder', { error: err })
     } finally {
       setIsLoading(false)
     }

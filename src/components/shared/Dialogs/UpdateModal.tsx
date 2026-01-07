@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Download, Loader2, X, Sparkles, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { log } from '@/lib/logger'
 
 export function UpdateModal() {
   const { 
@@ -42,7 +43,7 @@ export function UpdateModal() {
         )
         
         if (!result.success) {
-          console.error('Download failed:', result.error)
+          log.error('[Update]', 'Download failed', { error: result.error })
           addToast('error', `Download failed: ${result.error}`)
           setUpdateDownloading(false)
           return
@@ -58,7 +59,7 @@ export function UpdateModal() {
           setIsRunningInstaller(true)
           const runResult = await window.electronAPI.runInstaller(result.filePath)
           if (!runResult.success) {
-            console.error('Failed to run installer:', runResult.error)
+            log.error('[Update]', 'Failed to run installer', { error: runResult.error })
             addToast('error', `Failed to run installer: ${runResult.error}`)
             setIsRunningInstaller(false)
           }
@@ -68,14 +69,14 @@ export function UpdateModal() {
         // Standard auto-update flow
         const result = await window.electronAPI.downloadUpdate()
         if (!result.success) {
-          console.error('Download failed:', result.error)
+          log.error('[Update]', 'Download failed', { error: result.error })
           addToast('error', `Download failed: ${result.error}`)
           setUpdateDownloading(false)
         }
         // After download completes, auto-install will be triggered by onUpdateDownloaded
       }
     } catch (err) {
-      console.error('Download error:', err)
+      log.error('[Update]', 'Download error', { error: err })
       addToast('error', `Download error: ${err instanceof Error ? err.message : String(err)}`)
       setUpdateDownloading(false)
     }
@@ -87,7 +88,7 @@ export function UpdateModal() {
       const version = updateAvailable.version
       if (version) {
         await window.electronAPI.postponeUpdate(version)
-        console.log(`[Update] Postponed update for version ${version}, will remind on next startup or in 24 hours`)
+        log.info('[Update]', `Postponed update for version ${version}, will remind on next startup or in 24 hours`)
       }
     }
     

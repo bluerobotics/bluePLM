@@ -240,7 +240,6 @@ export const createModulesSlice: StateCreator<
       
       return { success: true }
     } catch (err) {
-      console.error('Failed to load org module defaults:', err)
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   },
@@ -269,7 +268,6 @@ export const createModulesSlice: StateCreator<
       if (error) throw error
       return { success: true }
     } catch (err) {
-      console.error('Failed to save org module defaults:', err)
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   },
@@ -298,7 +296,6 @@ export const createModulesSlice: StateCreator<
       
       return { success: true, defaults: null }
     } catch (err) {
-      console.error('Failed to load team module defaults:', err)
       return { success: false, defaults: null, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   },
@@ -322,7 +319,6 @@ export const createModulesSlice: StateCreator<
       if (error) throw error
       return { success: true }
     } catch (err) {
-      console.error('Failed to save team module defaults:', err)
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   },
@@ -336,7 +332,6 @@ export const createModulesSlice: StateCreator<
       if (error) throw error
       return { success: true }
     } catch (err) {
-      console.error('Failed to clear team module defaults:', err)
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   },
@@ -363,7 +358,6 @@ export const createModulesSlice: StateCreator<
       
       return { success: true, defaults: null }
     } catch (err) {
-      console.error('Failed to load user module defaults:', err)
       return { success: false, defaults: null, error: err instanceof Error ? err.message : 'Unknown error' }
     }
   },

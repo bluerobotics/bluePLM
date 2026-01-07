@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { log } from '@/lib/logger'
 import { 
   Plus, 
   Trash2, 
@@ -132,13 +133,13 @@ export function MetadataColumnsSettings() {
         .order('sort_order')
       
       if (error) {
-        console.error('Failed to load metadata columns:', error)
+        log.error('[MetadataColumns]', 'Failed to load metadata columns', { error })
         addToast('error', 'Failed to load metadata columns')
       } else {
         setColumns(data || [])
       }
     } catch (err) {
-      console.error('Failed to load metadata columns:', err)
+      log.error('[MetadataColumns]', 'Failed to load metadata columns', { error: err })
     } finally {
       setIsLoading(false)
     }
@@ -219,7 +220,7 @@ export function MetadataColumnsSettings() {
       setEditingColumn(null)
       setIsCreating(false)
     } catch (err: unknown) {
-      console.error('Failed to save column:', err)
+      log.error('[MetadataColumns]', 'Failed to save column', { error: err })
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       if (errorMessage.includes('duplicate key')) {
         addToast('error', 'A column with this name already exists')
@@ -247,7 +248,7 @@ export function MetadataColumnsSettings() {
       await loadColumns()
       setDeletingColumn(null)
     } catch (err) {
-      console.error('Failed to delete column:', err)
+      log.error('[MetadataColumns]', 'Failed to delete column', { error: err })
       addToast('error', 'Failed to delete column')
     } finally {
       setIsDeleting(false)
@@ -267,7 +268,7 @@ export function MetadataColumnsSettings() {
         c.id === column.id ? { ...c, visible: !c.visible } : c
       ))
     } catch (err) {
-      console.error('Failed to toggle visibility:', err)
+      log.error('[MetadataColumns]', 'Failed to toggle visibility', { error: err })
       addToast('error', 'Failed to update column')
     }
   }
@@ -295,7 +296,7 @@ export function MetadataColumnsSettings() {
       
       await loadColumns()
     } catch (err) {
-      console.error('Failed to reorder columns:', err)
+      log.error('[MetadataColumns]', 'Failed to reorder columns', { error: err })
       addToast('error', 'Failed to reorder columns')
     }
   }

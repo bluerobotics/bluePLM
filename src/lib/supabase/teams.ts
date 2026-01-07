@@ -282,8 +282,8 @@ export async function loadImpersonatedUserContext(
         customGroups: moduleData.custom_groups || []
       } as ModuleConfigType
     }
-  } catch (err) {
-    console.warn('Failed to load module defaults for impersonated user:', err)
+  } catch {
+    // Module defaults loading is non-critical for impersonation
   }
   
   return {

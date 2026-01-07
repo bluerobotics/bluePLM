@@ -12,6 +12,7 @@
 import { usePDMStore } from '../../stores/pdmStore'
 import type { Command, CommandContext, CommandResult, CommandId, CommandMap } from './types'
 import { logUserAction } from '../userActionLogger'
+import { log } from '../logger'
 
 // Registry of all commands
 const commandRegistry = new Map<CommandId, Command<any>>()
@@ -197,7 +198,7 @@ export async function executeCommand<K extends CommandId>(
   const command = commandRegistry.get(commandId)
   
   if (!command) {
-    console.error(`[Commands] Unknown command: ${commandId}`)
+    log.error('[Commands]', 'Unknown command', { commandId })
     return {
       success: false,
       message: `Unknown command: ${commandId}`,
@@ -231,7 +232,6 @@ export async function executeCommand<K extends CommandId>(
       fileCount: fileCount || 0,
       commandId
     })
-    console.log(`[Commands] Executing: ${commandId}`, params)
     const result = await command.execute(params, ctx)
     
     // Add timing
@@ -251,11 +251,10 @@ export async function executeCommand<K extends CommandId>(
       commandHistory.pop()
     }
     
-    console.log(`[Commands] Completed: ${commandId}`, result)
     return result
     
   } catch (error) {
-    console.error(`[Commands] Error executing ${commandId}:`, error)
+    log.error('[Commands]', `Error executing ${commandId}`, { error })
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     
     ctx.addToast('error', `Command failed: ${errorMessage}`)

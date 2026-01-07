@@ -1,5 +1,6 @@
 // Undo/Redo history management hook
 import { useState, useCallback } from 'react'
+import { log } from '@/lib/logger'
 import { MAX_HISTORY } from '../constants'
 import type { HistoryEntry, ClipboardData, WorkflowState, WorkflowTransition } from '../types'
 import { stateService, transitionService } from '../services'
@@ -100,7 +101,7 @@ export function useUndoRedo({
           break
       }
     } catch (err) {
-      console.error('Undo failed:', err)
+      log.error('[Workflow]', 'Undo failed', { error: err })
       addToast('error', 'Undo failed')
     }
   }, [undoStack, isAdmin, addToast, setStates, setTransitions])
@@ -160,7 +161,7 @@ export function useUndoRedo({
           break
       }
     } catch (err) {
-      console.error('Redo failed:', err)
+      log.error('[Workflow]', 'Redo failed', { error: err })
       addToast('error', 'Redo failed')
     }
   }, [redoStack, isAdmin, addToast, setStates, setTransitions])

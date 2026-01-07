@@ -1,6 +1,7 @@
 // Edit State Dialog Component
 import { useState, useEffect } from 'react'
 import { BadgeCheck, CheckCircle } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { STATE_COLORS } from '@/types/workflow'
@@ -39,7 +40,7 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
           setWorkflowRoles(data as WorkflowRoleBasic[])
         }
       } catch (err) {
-        console.error('Failed to load workflow roles:', err)
+        log.error('[Workflow]', 'Failed to load workflow roles', { error: err })
       } finally {
         setLoadingRoles(false)
       }

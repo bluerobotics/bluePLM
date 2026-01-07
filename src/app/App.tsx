@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { log } from '@/lib/logger'
 import { SetupScreen } from '@/components/shared/Screens'
 import { OnboardingScreen } from '@/components/shared/Screens'
 import { PerformanceWindow } from '@/features/dev-tools/performance'
@@ -119,7 +120,7 @@ function App() {
     const currentApiUrl = apiServerUrl || null
     
     if (orgApiUrl !== currentApiUrl) {
-      console.log('[App] Syncing API URL from org settings to store:', orgApiUrl || '(cleared)')
+      log.debug('[App]', 'Syncing API URL from org settings to store', { url: orgApiUrl || '(cleared)' })
       setApiServerUrl(orgApiUrl)
     }
   }, [organization?.settings?.api_url, apiServerUrl, setApiServerUrl])
@@ -129,7 +130,7 @@ function App() {
     if (user && organization) {
       const { syncColorSwatches } = usePDMStore.getState()
       syncColorSwatches().catch(err => {
-        console.warn('[ColorSwatches] Failed to sync:', err)
+        log.warn('[ColorSwatches]', 'Failed to sync', { error: err })
       })
     }
   }, [user?.id, organization?.id])
@@ -139,7 +140,7 @@ function App() {
     const validateVaults = async () => {
       if (!organization || !user || connectedVaults.length === 0) return
       
-      console.log('[VaultValidation] Checking', connectedVaults.length, 'connected vaults against accessible vaults')
+      log.debug('[VaultValidation]', 'Checking connected vaults', { count: connectedVaults.length })
       
       try {
         const { vaults: serverVaults, error } = await getAccessibleVaults(
@@ -149,35 +150,35 @@ function App() {
         )
         
         if (error) {
-          console.error('[VaultValidation] Failed to fetch accessible vaults:', error)
+          log.error('[VaultValidation]', 'Failed to fetch accessible vaults', { error })
           return
         }
         
         const serverVaultIds = new Set((serverVaults || []).map((v) => v.id))
-        console.log('[VaultValidation] User has access to', serverVaultIds.size, 'vaults:', Array.from(serverVaultIds))
+        log.debug('[VaultValidation]', 'User has access to vaults', { count: serverVaultIds.size })
         
         const staleVaults = connectedVaults.filter(cv => !serverVaultIds.has(cv.id))
         
         if (staleVaults.length > 0) {
-          console.warn('[VaultValidation] Found', staleVaults.length, 'stale vault(s):', staleVaults.map(v => ({ id: v.id, name: v.name })))
+          log.warn('[VaultValidation]', 'Found stale vault(s)', { count: staleVaults.length, vaults: staleVaults.map(v => v.name) })
           
           const store = usePDMStore.getState()
           staleVaults.forEach(v => {
-            console.log('[VaultValidation] Removing stale vault:', v.name, v.id)
+            log.debug('[VaultValidation]', 'Removing stale vault', { name: v.name, id: v.id })
             store.removeConnectedVault(v.id)
           })
           
           if (staleVaults.some(v => v.id === currentVaultId) && serverVaults && serverVaults.length > 0) {
             const defaultVault = (serverVaults as any[]).find((v: any) => v.is_default) || serverVaults[0]
-            console.log('[VaultValidation] Active vault was stale, will need to reconnect to:', (defaultVault as any).name)
+            log.info('[VaultValidation]', 'Active vault was stale, reconnecting', { vault: (defaultVault as any).name })
             setVaultConnected(false)
             setVaultPath(null)
           }
         } else {
-          console.log('[VaultValidation] All connected vaults are valid')
+          log.debug('[VaultValidation]', 'All connected vaults are valid')
         }
       } catch (err) {
-        console.error('[VaultValidation] Error validating vaults:', err)
+        log.error('[VaultValidation]', 'Error validating vaults', { error: err })
       }
     }
     
@@ -196,7 +197,7 @@ function App() {
       
       try {
         const result = await checkSchemaCompatibility()
-        console.log('[SchemaVersion] Check result:', result)
+        log.debug('[SchemaVersion]', 'Check result', { status: result.status })
         
         if (result.status === 'missing') {
           addToast('warning', `${result.message}: ${result.details}`, 15000)
@@ -210,7 +211,7 @@ function App() {
           }
         }
       } catch (err) {
-        console.error('[SchemaVersion] Error checking schema:', err)
+        log.error('[SchemaVersion]', 'Error checking schema', { error: err })
       }
     }
     
@@ -224,7 +225,7 @@ function App() {
     if (!window.electronAPI?.onCliCommand) return
     
     const unsubscribe = window.electronAPI.onCliCommand(async ({ requestId, command }) => {
-      console.log('[App] Received CLI command:', command)
+      log.debug('[App]', 'Received CLI command', { command })
       
       try {
         const results = await executeTerminalCommand(command, loadFiles)
@@ -284,7 +285,7 @@ function App() {
         return
       }
       
-      console.log('[FileWatcher] Files changed:', changedFiles.length, 'files')
+      log.debug('[FileWatcher]', 'Files changed', { count: changedFiles.length })
       
       if (refreshTimeout) {
         clearTimeout(refreshTimeout)
@@ -315,10 +316,10 @@ function App() {
     
     const loadKey = `${vaultPath}:${currentVaultId || 'none'}:${organization?.id || 'none'}:${isOfflineMode ? 'offline' : 'online'}`
     
-    console.log('[LoadEffect] loadKey:', loadKey, 'lastLoadKey:', lastLoadKey.current)
+    log.debug('[LoadEffect]', 'Checking loadKey', { loadKey, lastLoadKey: lastLoadKey.current })
     
     if (lastLoadKey.current === loadKey) {
-      console.log('[LoadEffect] Skipping - same loadKey')
+      log.debug('[LoadEffect]', 'Skipping - same loadKey')
       setIsLoading(false)
       if (statusMessage === 'Loading organization...' || statusMessage === 'Loading files...') {
         setStatusMessage('')
@@ -326,7 +327,7 @@ function App() {
       return
     }
     
-    console.log('[LoadEffect] Triggering loadFiles for new loadKey')
+    log.debug('[LoadEffect]', 'Triggering loadFiles for new loadKey')
     lastLoadKey.current = loadKey
     loadFiles()
   }, [isVaultConnected, vaultPath, isOfflineMode, user, organization, currentVaultId, loadFiles, setIsLoading, setStatusMessage, statusMessage, lastLoadKey])

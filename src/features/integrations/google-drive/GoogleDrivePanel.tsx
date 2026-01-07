@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 
 // Google Drive file types
 interface GoogleDriveFile {
@@ -157,7 +158,6 @@ export function GoogleDrivePanel() {
   // Listen for Google iframe session authentication (when sign-in completes)
   useEffect(() => {
     const cleanup = window.electronAPI?.onGdriveSessionAuthenticated?.(() => {
-      console.log('[GoogleDrive] Sign-in complete, refreshing iframe')
       // Force iframe to reload by incrementing key
       setIframeKey(prev => prev + 1)
       addToast('success', 'Signed in - loading document')
@@ -179,7 +179,6 @@ export function GoogleDrivePanel() {
       })
       
       if (error) {
-        console.log('[GoogleDrive] No org credentials:', error.message)
         setOrgCredentials(null)
       } else if (data && Array.isArray(data) && data.length > 0) {
         const settings = data[0] as { client_id?: string; client_secret?: string; enabled?: boolean }
@@ -189,13 +188,12 @@ export function GoogleDrivePanel() {
             clientSecret: settings.client_secret,
             enabled: settings.enabled
           })
-          console.log('[GoogleDrive] Loaded org credentials')
         } else {
           setOrgCredentials(null)
         }
       }
     } catch (err) {
-      console.error('[GoogleDrive] Error loading org credentials:', err)
+      log.error('[GoogleDrive]', 'Error loading org credentials', { error: err })
       setOrgCredentials(null)
     } finally {
       setIsLoadingCredentials(false)
@@ -225,7 +223,7 @@ export function GoogleDrivePanel() {
         setIsAuthenticated(false)
       }
     } catch (err) {
-      console.error('Error checking auth status:', err)
+      log.error('[GoogleDrive]', 'Error checking auth status', { error: err })
     }
   }
   
@@ -239,12 +237,11 @@ export function GoogleDrivePanel() {
         setUserInfo({ email: data.email, name: data.name, picture: data.picture })
       }
     } catch (err) {
-      console.error('Error fetching user info:', err)
+      log.error('[GoogleDrive]', 'Error fetching user info', { error: err })
     }
   }
   
   const cancelSignIn = () => {
-    console.log('[GoogleDrive] Sign in canceled by user')
     if (authTimeoutRef.current) {
       clearTimeout(authTimeoutRef.current)
       authTimeoutRef.current = null
@@ -254,13 +251,11 @@ export function GoogleDrivePanel() {
   }
 
   const handleSignIn = async () => {
-    console.log('[GoogleDrive] Sign in button clicked')
     setAuthError(null)
     setIsAuthenticating(true)
     
     // Set timeout to prevent infinite hanging (30 seconds)
     authTimeoutRef.current = setTimeout(() => {
-      console.log('[GoogleDrive] Sign in timeout after 30 seconds')
       setIsAuthenticating(false)
       setAuthError('Sign in timed out. Please check your internet connection and try again.')
       authTimeoutRef.current = null
@@ -274,7 +269,6 @@ export function GoogleDrivePanel() {
           clientSecret: orgCredentials.clientSecret
         } : undefined
         
-        console.log('[GoogleDrive] Calling openGoogleDriveAuth with org credentials:', !!credentials)
         const result = await window.electronAPI.openGoogleDriveAuth(credentials)
         
         // Clear timeout if sign-in completes
@@ -282,8 +276,6 @@ export function GoogleDrivePanel() {
           clearTimeout(authTimeoutRef.current)
           authTimeoutRef.current = null
         }
-        
-        console.log('[GoogleDrive] Result:', result)
         
         if (result?.success && result?.accessToken) {
           localStorage.setItem('gdrive_access_token', result.accessToken)
@@ -299,7 +291,6 @@ export function GoogleDrivePanel() {
         } else {
           // Handle any error case
           const errorMsg = result?.error || 'Failed to connect to Google Drive'
-          console.log('[GoogleDrive] Error:', errorMsg)
           setAuthError(errorMsg)
           addToast('error', 'Google Drive: ' + (errorMsg.length > 50 ? errorMsg.substring(0, 50) + '...' : errorMsg))
         }
@@ -309,7 +300,6 @@ export function GoogleDrivePanel() {
           clearTimeout(authTimeoutRef.current)
           authTimeoutRef.current = null
         }
-        console.log('[GoogleDrive] API not available')
         const errorMsg = 'Google Drive authentication requires the desktop app. Make sure you are running the Electron app.'
         setAuthError(errorMsg)
         addToast('error', 'Google Drive API not available')
@@ -320,7 +310,7 @@ export function GoogleDrivePanel() {
         clearTimeout(authTimeoutRef.current)
         authTimeoutRef.current = null
       }
-      console.error('[GoogleDrive] Auth error:', err)
+      log.error('[GoogleDrive]', 'Auth error', { error: err })
       const errorMsg = err instanceof Error ? err.message : 'Failed to connect to Google Drive'
       setAuthError(errorMsg)
       addToast('error', 'Google Drive error: ' + errorMsg)
@@ -392,15 +382,13 @@ export function GoogleDrivePanel() {
           setBreadcrumbs([{ id: special, name: specialNames[special] }])
         }
       } else {
-        const error = await response.json()
-        console.error('Drive API error:', error)
         if (response.status === 401) {
           handleSignOut()
           addToast('error', 'Session expired. Please sign in again.')
         }
       }
     } catch (err) {
-      console.error('Error loading files:', err)
+      log.error('[GoogleDrive]', 'Error loading files', { error: err })
       addToast('error', 'Failed to load files')
     } finally {
       setIsLoading(false)
@@ -421,11 +409,9 @@ export function GoogleDrivePanel() {
       if (response.ok) {
         const data = await response.json()
         setSharedDrives(data.drives || [])
-      } else {
-        console.log('Failed to load shared drives:', await response.text())
       }
     } catch (err) {
-      console.error('Error loading shared drives:', err)
+      log.error('[GoogleDrive]', 'Error loading shared drives', { error: err })
     }
   }, [])
   
@@ -466,12 +452,10 @@ export function GoogleDrivePanel() {
           setBreadcrumbs([{ id: driveId, name: drive?.name || 'Shared Drive', isSharedDrive: true }])
         }
       } else {
-        const error = await response.json()
-        console.error('Drive API error:', error)
         addToast('error', 'Failed to load shared drive')
       }
     } catch (err) {
-      console.error('Error loading shared drive files:', err)
+      log.error('[GoogleDrive]', 'Error loading shared drive files', { error: err })
       addToast('error', 'Failed to load files')
     } finally {
       setIsLoading(false)

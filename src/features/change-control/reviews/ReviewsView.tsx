@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { log } from '@/lib/logger'
 import { 
   Bell, 
   CheckCircle2, 
@@ -223,7 +224,7 @@ export function ReviewsView() {
         setMyReviews(reviews)
       }
     } catch (err) {
-      console.error('Error loading reviews data:', err)
+      log.error('[Reviews]', 'Error loading reviews data', { error: err })
     } finally {
       setLoading(false)
     }

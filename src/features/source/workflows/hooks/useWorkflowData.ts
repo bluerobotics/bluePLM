@@ -1,5 +1,6 @@
 // Workflow data management hook - uses centralized Zustand store
 import { useCallback, useEffect, type SetStateAction, type Dispatch } from 'react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { 
   WorkflowTemplate, 
@@ -57,7 +58,7 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
     const { data, error } = await workflowService.getAll(organization.id)
     
     if (error) {
-      console.error('Failed to load workflows:', error)
+      log.error('[Workflow]', 'Failed to load workflows', { error })
       addToast('error', 'Failed to load workflows')
       setWorkflowsLoading(false)
       return []
@@ -131,7 +132,7 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
     const { data: workflowId, error } = await workflowService.createDefault(organization.id, user.id)
     
     if (error || !workflowId) {
-      console.error('Failed to create workflow:', error)
+      log.error('[Workflow]', 'Failed to create workflow', { error })
       addToast('error', 'Failed to create workflow')
       return false
     }
@@ -156,7 +157,7 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
     const { error } = await workflowService.update(workflowId, updates)
     
     if (error) {
-      console.error('Failed to update workflow:', error)
+      log.error('[Workflow]', 'Failed to update workflow', { error })
       addToast('error', 'Failed to update workflow')
       return false
     }
@@ -175,7 +176,7 @@ export function useWorkflowData(options: UseWorkflowDataOptions = {}) {
     const { error } = await workflowService.softDelete(workflowId)
     
     if (error) {
-      console.error('Failed to delete workflow:', error)
+      log.error('[Workflow]', 'Failed to delete workflow', { error })
       addToast('error', 'Failed to delete workflow')
       return false
     }

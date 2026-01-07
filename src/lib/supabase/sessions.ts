@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './client'
+import { log } from '@/lib/logger'
 
 // ============================================
 // User Sessions (Active Device Tracking)
@@ -37,12 +38,6 @@ export async function registerDeviceSession(
   const platform = await window.electronAPI?.getPlatform() || 'unknown'
   const appVersion = await window.electronAPI?.getAppVersion() || 'unknown'
   
-  console.log('[Session] Registering device session:', {
-    userId: userId?.substring(0, 8) + '...',
-    orgId: orgId ? orgId.substring(0, 8) + '...' : 'NULL',
-    machineId: machineId?.substring(0, 8),
-    machineName
-  })
   
   // Retry logic for new users (user record might not exist yet due to trigger timing)
   const maxRetries = 3
@@ -50,7 +45,6 @@ export async function registerDeviceSession(
   
   // org_id is required, if null skip session creation
   if (!orgId) {
-    console.log('[Session] Skipping session registration - no org_id')
     return { success: false, error: 'No organization ID provided' }
   }
   
@@ -73,19 +67,17 @@ export async function registerDeviceSession(
       .single()
     
     if (!error) {
-      console.log('[Session] Device registered:', machineName, 'org_id in session:', data?.org_id || 'NULL')
       return { success: true, session: data }
     }
     
     // Check if it's a foreign key constraint error (user doesn't exist yet)
     if (error.message?.includes('foreign key constraint') || error.code === '23503') {
       if (attempt < maxRetries - 1) {
-        console.log('[Session] User record not ready yet, retrying...', { attempt: attempt + 1, delayMs: retryDelays[attempt] })
         await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
         continue
       }
       // After all retries, return a helpful error
-      console.error('[Session] Failed to register session - user record not created:', error.message)
+      log.error('[Session]', 'Failed to register session - user record not created', { error: error.message })
       return { 
         success: false, 
         error: 'Your account is still being set up. Please wait a moment and try again.',
@@ -94,7 +86,7 @@ export async function registerDeviceSession(
     }
     
     // Other errors, don't retry
-    console.error('[Session] Failed to register device:', error.message)
+    log.error('[Session]', 'Failed to register device', { error: error.message })
     return { success: false, error: error.message }
   }
   
@@ -108,21 +100,15 @@ export async function registerDeviceSession(
 export async function syncUserSessionsOrgId(userId: string, orgId: string): Promise<void> {
   const client = getSupabaseClient()
   
-  console.log('[Session] Syncing all user sessions to org_id:', orgId?.substring(0, 8) + '...')
-  
   // Update ALL active sessions for this user to have the correct org_id
-  // Use unconditional update - simpler and ensures all sessions have correct org_id
-  // The update only affects this user's sessions, so it's safe
-  const { data, error } = await client
+  const { error } = await client
     .from('user_sessions')
     .update({ org_id: orgId })
     .eq('user_id', userId)
     .select('id')
   
   if (error) {
-    console.error('[Session] Failed to sync session org_ids:', error.message)
-  } else {
-    console.log('[Session] Session org_ids synced successfully, updated:', data?.length || 0, 'sessions')
+    log.error('[Session]', 'Failed to sync session org_ids', { error: error.message })
   }
 }
 
@@ -138,10 +124,8 @@ export async function syncUserSessionsOrgId(userId: string, orgId: string): Prom
 export async function ensureUserOrgId(): Promise<{ success: boolean; fixed: boolean; org_id?: string; error?: string }> {
   const client = getSupabaseClient()
   
-  console.log('[Auth] Ensuring user org_id is correct...')
-  
   // Wrap in a timeout since client.rpc() can hang
-  const timeoutMs = 5000 // 5 second timeout
+  const timeoutMs = 5000
   
   try {
     const rpcPromise = client.rpc('ensure_user_org_id' as never)
@@ -152,18 +136,11 @@ export async function ensureUserOrgId(): Promise<{ success: boolean; fixed: bool
     const { data, error } = await Promise.race([rpcPromise, timeoutPromise]) as { data: unknown; error: { message: string } | null }
     
     if (error) {
-      // RPC might not exist yet (before migration runs)
-      console.warn('[Auth] ensure_user_org_id RPC failed (run migration if not done):', error.message)
+      log.warn('[Auth]', 'ensure_user_org_id RPC failed', { error: error.message })
       return { success: false, fixed: false, error: error.message }
     }
     
     const result = data as { success: boolean; fixed: boolean; org_id?: string; previous_org_id?: string; new_org_id?: string; error?: string }
-    
-    if (result.fixed) {
-      console.log('[Auth] Fixed user org_id:', result.previous_org_id?.substring(0, 8) + '... ->', result.new_org_id?.substring(0, 8) + '...')
-    } else {
-      console.log('[Auth] User org_id is correct:', result.org_id?.substring(0, 8) + '...')
-    }
     
     return { 
       success: result.success, 
@@ -172,12 +149,9 @@ export async function ensureUserOrgId(): Promise<{ success: boolean; fixed: bool
       error: result.error
     }
   } catch (err) {
-    // This catches both RPC errors and timeout
     const errorMsg = String(err)
-    if (errorMsg.includes('timeout')) {
-      console.warn('[Auth] ensureUserOrgId timed out - skipping (not critical)')
-    } else {
-      console.error('[Auth] ensureUserOrgId failed:', err)
+    if (!errorMsg.includes('timeout')) {
+      log.error('[Auth]', 'ensureUserOrgId failed', { error: errorMsg })
     }
     return { success: false, fixed: false, error: errorMsg }
   }
@@ -204,13 +178,13 @@ export async function sendSessionHeartbeat(userId: string, orgId?: string | null
     .single()
   
   if (checkError) {
-    console.error('[Session] Failed to check session status:', checkError.message)
+    log.error('[Session]', 'Failed to check session status', { error: checkError.message })
     return true // Assume still active on error
   }
   
   // If session was deactivated remotely, don't update and signal sign out needed
   if (session && !session.is_active) {
-    console.log('[Session] Session was remotely deactivated')
+    log.info('[Session]', 'Session was remotely deactivated')
     return false
   }
   
@@ -226,13 +200,6 @@ export async function sendSessionHeartbeat(userId: string, orgId?: string | null
     updateData.org_id = orgId
   }
   
-  // Log when org_id changes
-  const currentOrgId = session?.org_id
-  const newOrgId = orgId !== undefined ? orgId : currentOrgId
-  if (currentOrgId !== newOrgId) {
-    console.log('[Session] Heartbeat updating org_id:', currentOrgId?.substring(0, 8) || 'NULL', '→', newOrgId?.substring(0, 8) || 'NULL')
-  }
-  
   const { error } = await client
     .from('user_sessions')
     .update(updateData)
@@ -240,7 +207,7 @@ export async function sendSessionHeartbeat(userId: string, orgId?: string | null
     .eq('machine_id', machineId)
   
   if (error) {
-    console.error('[Session] Heartbeat failed:', error.message)
+    log.error('[Session]', 'Heartbeat failed', { error: error.message })
   }
   
   // Also update last_online in users table (throttled - only if more than 1 min since last update)
@@ -274,11 +241,10 @@ export function startSessionHeartbeat(
   }
   
   const checkHeartbeat = async () => {
-    // Get current org_id if callback provided (allows org to change during session)
     const orgId = getOrgId?.()
     const isActive = await sendSessionHeartbeat(userId, orgId)
     if (!isActive && onSessionInvalidated) {
-      console.log('[Session] Remote sign out detected, triggering sign out')
+      log.info('[Session]', 'Remote sign out detected, triggering sign out')
       stopSessionHeartbeat()
       onSessionInvalidated()
     }
@@ -384,7 +350,7 @@ export async function isMachineOnline(userId: string, machineId: string): Promis
     .limit(1)
   
   if (error) {
-    console.error('[Session] Failed to check machine online status:', error.message)
+    log.error('[Session]', 'Failed to check machine online status', { error: error.message })
     return false
   }
   
@@ -449,30 +415,6 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
   // Get sessions active within the last 5 minutes
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
   
-  console.log('[OnlineUsers] Fetching online users for org:', orgId?.substring(0, 8) + '...', 'since:', fiveMinutesAgo)
-  
-  // First, let's debug by fetching ALL active sessions visible to current user (RLS applies)
-  // This helps diagnose if the RLS policy is working correctly
-  const { data: debugData, error: debugError } = await client
-    .from('user_sessions')
-    .select('user_id, org_id, machine_name, is_active, last_seen')
-    .eq('is_active', true)
-    .gte('last_seen', fiveMinutesAgo)
-  
-  console.log('[OnlineUsers] DEBUG - All active sessions visible to current user (RLS filtered):', 
-    debugData?.length || 0, 'sessions')
-  if (debugData && debugData.length > 0) {
-    debugData.forEach(s => {
-      console.log('[OnlineUsers]   -', s.machine_name, 
-        '| user:', s.user_id?.substring(0, 8) + '...',
-        '| org:', s.org_id?.substring(0, 8) || 'NULL',
-        '| last_seen:', s.last_seen ? new Date(s.last_seen).toLocaleTimeString() : 'unknown')
-    })
-  }
-  if (debugError) {
-    console.error('[OnlineUsers] DEBUG query error:', debugError.message)
-  }
-  
   const { data, error } = await client
     .from('user_sessions')
     .select(`
@@ -493,10 +435,8 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
     .gte('last_seen', fiveMinutesAgo)
     .order('last_seen', { ascending: false })
   
-  console.log('[OnlineUsers] Query result - sessions with org_id match:', data?.length || 0, 'Error:', error?.message || 'none')
-  
   if (error) {
-    console.error('[OnlineUsers] Failed to fetch online users:', error.message)
+    log.error('[OnlineUsers]', 'Failed to fetch online users', { error: error.message })
     return { users: [], error: error.message }
   }
   
@@ -535,8 +475,6 @@ export function subscribeToOrgOnlineUsers(
 ): () => void {
   const client = getSupabaseClient()
   
-  console.log('[OnlineUsers] Subscribing to realtime updates for org:', orgId?.substring(0, 8) + '...')
-  
   const channel = client
     .channel(`org_sessions:${orgId}`)
     .on<UserSession>(
@@ -547,22 +485,14 @@ export function subscribeToOrgOnlineUsers(
         table: 'user_sessions',
         filter: `org_id=eq.${orgId}`
       },
-      async (payload) => {
-        console.log('[OnlineUsers] Realtime event received:', payload.eventType, 
-          '| user:', (payload.new as UserSession)?.user_id?.substring(0, 8) || (payload.old as UserSession)?.user_id?.substring(0, 8) || 'unknown')
-        
-        // When any org session changes, fetch all online users
+      async () => {
         const { users } = await getOrgOnlineUsers(orgId)
-        console.log('[OnlineUsers] Refreshed online users after realtime event:', users.length)
         onUsersChange(users)
       }
     )
-    .subscribe((status) => {
-      console.log('[OnlineUsers] Subscription status:', status)
-    })
+    .subscribe()
   
   return () => {
-    console.log('[OnlineUsers] Unsubscribing from realtime updates for org:', orgId?.substring(0, 8) + '...')
     channel.unsubscribe()
   }
 }
@@ -582,13 +512,13 @@ export async function updateLastOnline(): Promise<{ success: boolean; error?: st
     const { error } = await client.rpc('update_last_online')
     
     if (error) {
-      console.error('[LastOnline] Failed to update:', error.message)
+      log.error('[LastOnline]', 'Failed to update', { error: error.message })
       return { success: false, error: error.message }
     }
     
     return { success: true }
   } catch (err) {
-    console.error('[LastOnline] Error updating:', err)
+    log.error('[LastOnline]', 'Error updating', { error: err instanceof Error ? err.message : String(err) })
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }

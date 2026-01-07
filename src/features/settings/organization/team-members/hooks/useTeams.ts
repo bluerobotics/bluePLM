@@ -26,6 +26,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { TeamWithDetails, TeamFormData } from '../types'
 import {
@@ -78,7 +79,7 @@ export function useTeams(orgId: string | null) {
       
       setTeams(teamsWithCounts)
     } catch (err) {
-      console.error('Failed to load teams:', err)
+      log.error('[Teams]', 'Failed to load teams', { error: err })
       addToast('error', 'Failed to load teams')
     } finally {
       setTeamsLoading(false)
@@ -247,7 +248,7 @@ export function useTeams(orgId: string | null) {
       addToast('success', `Default team set to "${teamName}"`)
       return true
     } catch (err) {
-      console.error('Failed to set default team:', err)
+      log.error('[Teams]', 'Failed to set default team', { error: err })
       addToast('error', 'Failed to update default team')
       return false
     }

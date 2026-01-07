@@ -12,6 +12,7 @@
  */
 
 import { useState } from 'react'
+import { log } from '@/lib/logger'
 import { 
   Monitor, 
   X, 
@@ -609,7 +610,7 @@ export function OrphanedCheckoutsContainer({ onRefresh }: { onRefresh?: (silent?
         removeOrphanedCheckout(checkout.fileId)
       } catch (err) {
         failCount++
-        console.error(`Failed to process ${checkout.fileName}:`, err)
+        log.error('[OrphanedCheckout]', `Failed to process ${checkout.fileName}`, { error: err })
       }
     }
     

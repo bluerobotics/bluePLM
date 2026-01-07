@@ -18,6 +18,7 @@ import {
 } from '../types'
 import { checkinFile, softDeleteFile } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
+import { log } from '@/lib/logger'
 
 // ============================================
 // Delete Local Command
@@ -72,7 +73,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
           const result = await window.electronAPI?.deleteItem(folder.path)
           if (result?.success) deleted++
         } catch (err) {
-          console.error('Failed to delete folder:', folder.path, err)
+          log.error('[Delete]', 'Failed to delete folder', { path: folder.path, error: err instanceof Error ? err.message : String(err) })
         }
       }
       
@@ -171,9 +172,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
         failed++
         if (result.error) {
           errors.push(result.error)
-          // Log each error for debugging
-          console.error('[delete-local] Failed to remove file:', result.error)
-          window.electronAPI?.log('ERROR', '[delete-local] Failed to remove file', { error: result.error })
+          log.error('[Delete]', 'Failed to remove local file', { error: result.error })
         }
       }
     }
@@ -380,7 +379,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
           const result = await window.electronAPI?.deleteItem(folder.path)
           if (result?.success) deleted++
         } catch (err) {
-          console.error('Failed to delete folder:', folder.path, err)
+          log.error('[Delete]', 'Failed to delete folder', { path: folder.path, error: err instanceof Error ? err.message : String(err) })
         }
       }
       
@@ -458,9 +457,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
           errors.push(`${file.name}: ${errorMsg}`)
-          // Log each error for debugging
-          console.error('[delete-server] Failed to delete file:', file.name, errorMsg)
-          window.electronAPI?.log('ERROR', '[delete-server] Failed to delete file', { fileName: file.name, error: errorMsg })
+          log.error('[Delete]', 'Failed to delete file from server', { fileName: file.name, error: errorMsg })
           updateProgress()
           return false
         }

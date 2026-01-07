@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { log } from '@/lib/logger'
 import { 
   FileWarning, 
   Plus, 
@@ -217,7 +218,7 @@ export function DeviationsView() {
           .order('created_at', { ascending: false })
         
         if (error) {
-          console.error('Failed to load deviations:', error)
+          log.error('[Deviations]', 'Failed to load deviations', { error })
           // Don't show error if table doesn't exist yet
           if (!error.message?.includes('deviations')) {
             addToast('error', 'Failed to load deviations')
@@ -253,7 +254,7 @@ export function DeviationsView() {
         
         setDeviations(deviationsWithCounts)
       } catch (err) {
-        console.error('Failed to load deviations:', err)
+        log.error('[Deviations]', 'Failed to load deviations', { error: err })
       } finally {
         setIsLoading(false)
       }
@@ -297,7 +298,7 @@ export function DeviationsView() {
         .order('created_at', { ascending: false })
       
       if (error) {
-        console.error('Failed to load deviation files:', error)
+        log.error('[Deviations]', 'Failed to load deviation files', { error })
         return
       }
       
@@ -306,7 +307,7 @@ export function DeviationsView() {
         [deviationId]: data || []
       }))
     } catch (err) {
-      console.error('Failed to load deviation files:', err)
+      log.error('[Deviations]', 'Failed to load deviation files', { error: err })
     } finally {
       setLoadingFiles(null)
     }
@@ -375,7 +376,7 @@ export function DeviationsView() {
         } else {
           addToast('error', 'Failed to create deviation')
         }
-        console.error('Failed to create deviation:', error)
+        log.error('[Deviations]', 'Failed to create deviation', { error })
         return
       }
       
@@ -397,7 +398,7 @@ export function DeviationsView() {
       
       addToast('success', `Deviation ${data.deviation_number} created`)
     } catch (err) {
-      console.error('Failed to create deviation:', err)
+      log.error('[Deviations]', 'Failed to create deviation', { error: err })
       addToast('error', 'Failed to create deviation')
     } finally {
       setIsCreating(false)
@@ -453,7 +454,7 @@ export function DeviationsView() {
         .upsert(insertData, { onConflict: 'file_id,deviation_id' })
       
       if (error) {
-        console.error('Failed to tag files:', error)
+        log.error('[Deviations]', 'Failed to tag files', { error })
         addToast('error', 'Failed to tag files with deviation')
         return
       }
@@ -497,7 +498,7 @@ export function DeviationsView() {
       
       addToast('success', `Tagged ${fileData.length} file(s) with deviation`)
     } catch (err) {
-      console.error('Failed to tag files:', err)
+      log.error('[Deviations]', 'Failed to tag files', { error: err })
       addToast('error', 'Failed to tag files with deviation')
     } finally {
       setIsTagging(false)
@@ -514,7 +515,7 @@ export function DeviationsView() {
         .eq('id', fileDeviationId)
       
       if (error) {
-        console.error('Failed to remove file from deviation:', error)
+        log.error('[Deviations]', 'Failed to remove file from deviation', { error })
         addToast('error', 'Failed to remove file from deviation')
         return
       }
@@ -533,7 +534,7 @@ export function DeviationsView() {
       
       addToast('success', 'File removed from deviation')
     } catch (err) {
-      console.error('Failed to remove file from deviation:', err)
+      log.error('[Deviations]', 'Failed to remove file from deviation', { error: err })
     }
   }
   
@@ -626,7 +627,7 @@ export function DeviationsView() {
       setIsLoadingVersions(false)
       
     } catch (err) {
-      console.error('Failed to handle drop:', err)
+      log.error('[Deviations]', 'Failed to handle drop', { error: err })
       addToast('error', 'Failed to process dropped files')
     }
   }
@@ -665,7 +666,7 @@ export function DeviationsView() {
         .upsert(insertData, { onConflict: 'file_id,deviation_id' })
       
       if (error) {
-        console.error('Failed to add files to deviation:', error)
+        log.error('[Deviations]', 'Failed to add files to deviation', { error })
         addToast('error', 'Failed to add files to deviation')
         return
       }
@@ -709,7 +710,7 @@ export function DeviationsView() {
       
       addToast('success', `Added ${droppedFiles.length} file(s) to deviation`)
     } catch (err) {
-      console.error('Failed to add files to deviation:', err)
+      log.error('[Deviations]', 'Failed to add files to deviation', { error: err })
       addToast('error', 'Failed to add files to deviation')
     } finally {
       setIsAddingDroppedFiles(false)
@@ -740,7 +741,7 @@ export function DeviationsView() {
         .eq('id', deviationId)
       
       if (error) {
-        console.error('Failed to update deviation status:', error)
+        log.error('[Deviations]', 'Failed to update deviation status', { error })
         addToast('error', 'Failed to update deviation status')
         return
       }
@@ -761,7 +762,7 @@ export function DeviationsView() {
       
       addToast('success', `Deviation status updated to ${STATUS_CONFIG[newStatus].label}`)
     } catch (err) {
-      console.error('Failed to update deviation status:', err)
+      log.error('[Deviations]', 'Failed to update deviation status', { error: err })
     }
   }
 

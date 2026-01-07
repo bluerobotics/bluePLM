@@ -14,6 +14,7 @@ import { checkoutFile } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS } from '../../concurrency'
 import type { LocalFile } from '../../../stores/pdmStore'
 import { usePDMStore } from '../../../stores/pdmStore'
+import { log } from '@/lib/logger'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -120,33 +121,14 @@ async function extractSolidWorksMetadata(
       part_number,
       description: description?.trim() || null
     }
-  } catch (err) {
-    console.warn('Failed to extract SolidWorks metadata:', err)
+  } catch {
     return null
   }
 }
 
-// Detailed logging for checkout operations
+// Logging for checkout operations
 function logCheckout(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
-  const timestamp = new Date().toISOString()
-  const logData = { timestamp, ...context }
-  
-  const prefix = '[Checkout]'
-  if (level === 'error') {
-    console.error(prefix, message, logData)
-  } else if (level === 'warn') {
-    console.warn(prefix, message, logData)
-  } else if (level === 'debug') {
-    console.debug(prefix, message, logData)
-  } else {
-    console.log(prefix, message, logData)
-  }
-  
-  try {
-    window.electronAPI?.log(level, `${prefix} ${message}`, logData)
-  } catch {
-    // Ignore if electronAPI not available
-  }
+  log[level]('[Checkout]', message, context)
 }
 
 function getFileContext(file: LocalFile): Record<string, unknown> {

@@ -100,7 +100,6 @@ export async function getSchemaVersion(): Promise<SchemaVersionInfo | null> {
 
     if (error) {
       // Table might not exist yet (pre-schema-versioning database)
-      console.warn('[SchemaVersion] Could not fetch schema version:', error.message)
       return null
     }
 
@@ -113,8 +112,7 @@ export async function getSchemaVersion(): Promise<SchemaVersionInfo | null> {
       appliedAt: row.applied_at ? new Date(row.applied_at) : null,
       appliedBy: row.applied_by,
     }
-  } catch (err) {
-    console.error('[SchemaVersion] Error fetching schema version:', err)
+  } catch {
     return null
   }
 }

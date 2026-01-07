@@ -115,7 +115,6 @@ export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProvide
       })
       
       if (!response.ok) {
-        console.warn('[Supabase] Failed to fetch auth providers by slug:', response.status)
         // Fall through to try the fallback method
       } else {
         const data = await response.json()
@@ -127,7 +126,6 @@ export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProvide
     
     // Fallback: Query all organizations and get the first one's auth_providers
     // This works because each org has their own Supabase database (single-tenant model)
-    console.log('[Supabase] Fetching auth providers from first organization (no slug provided)')
     const orgResponse = await fetch(`${url}/rest/v1/organizations?select=auth_providers&limit=1`, {
       headers: {
         'apikey': key,
@@ -137,7 +135,6 @@ export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProvide
     })
     
     if (!orgResponse.ok) {
-      console.warn('[Supabase] Failed to fetch organization for auth providers:', orgResponse.status)
       return null
     }
     
@@ -160,10 +157,8 @@ export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProvide
     }
     
     // If no org found or no auth_providers set, return defaults (all enabled)
-    console.log('[Supabase] No auth_providers found, using defaults')
     return DEFAULT_AUTH_PROVIDERS
-  } catch (err) {
-    console.warn('[Supabase] Error fetching auth providers:', err)
+  } catch {
     return null
   }
 }

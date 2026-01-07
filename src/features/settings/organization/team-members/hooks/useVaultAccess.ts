@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase, getOrgVaultAccess, setUserVaultAccess } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { OrgVault } from '@/stores/types'
 import {
@@ -51,7 +52,7 @@ export function useVaultAccess(orgId: string | null) {
       if (error) throw error
       setOrgVaults(castQueryResult<OrgVault[]>(data || []))
     } catch (err) {
-      console.error('Failed to load org vaults:', err)
+      log.error('[VaultAccess]', 'Failed to load org vaults', { error: err })
       setOrgVaultsLoading(false)
     }
   }, [orgId, setOrgVaults, setOrgVaultsLoading])
@@ -61,7 +62,7 @@ export function useVaultAccess(orgId: string | null) {
     
     const { accessMap, error } = await getOrgVaultAccess(orgId)
     if (error) {
-      console.error('Failed to load vault access:', error)
+      log.error('[VaultAccess]', 'Failed to load vault access', { error })
     } else {
       setVaultAccessMap(accessMap)
     }
@@ -89,7 +90,7 @@ export function useVaultAccess(orgId: string | null) {
       }
       setTeamVaultAccessMap(accessMap)
     } catch (err) {
-      console.error('Failed to load team vault access:', err)
+      log.error('[VaultAccess]', 'Failed to load team vault access', { error: err })
     }
   }, [orgId, setTeamVaultAccessMap])
 

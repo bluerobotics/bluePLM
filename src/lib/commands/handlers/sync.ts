@@ -15,6 +15,7 @@ import { syncFile, upsertFileReferences } from '../../supabase'
 import type { SWReference } from '../../supabase/files/mutations'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
+import { log } from '@/lib/logger'
 
 // Helper to check if file is a SolidWorks temp lock file (~$filename.sldxxx)
 function isSolidworksTempFile(name: string): boolean {
@@ -49,7 +50,6 @@ async function extractSolidWorksMetadata(
   // DM requires a license key to be configured - without it, getProperties will hang
   const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
   if (!status?.data?.running || !status?.data?.documentManagerAvailable) {
-    console.debug('[Sync] SolidWorks service not running or DM not available, skipping metadata extraction')
     return null
   }
   
@@ -57,7 +57,6 @@ async function extractSolidWorksMetadata(
     const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
     
     if (!result?.success || !result.data) {
-      console.debug('[Sync] Failed to get properties:', result?.error)
       return null
     }
     
@@ -89,9 +88,6 @@ async function extractSolidWorksMetadata(
       }
     }
     
-    // Log all available properties for debugging
-    const propKeys = Object.keys(allProps)
-    console.debug('[Sync] Available properties:', propKeys.join(', '))
     
     // Extract part number from common property names (comprehensive list)
     const partNumberKeys = [
@@ -115,7 +111,6 @@ async function extractSolidWorksMetadata(
     for (const key of partNumberKeys) {
       if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
         partNumber = allProps[key].trim()
-        console.debug(`[Sync] Found part number in "${key}": ${partNumber}`)
         break
       }
     }
@@ -133,7 +128,6 @@ async function extractSolidWorksMetadata(
             lowerKey.includes('stock') && (lowerKey.includes('code') || lowerKey.includes('number'))) {
           if (value && value.trim()) {
             partNumber = value.trim()
-            console.debug(`[Sync] Found part number (fallback) in "${key}": ${partNumber}`)
             break
           }
         }
@@ -225,38 +219,20 @@ async function extractSolidWorksMetadata(
       }
     }
     
-    console.debug('[Sync] Extracted metadata:', { partNumber, description: description?.substring(0, 50), revision })
-    
     return {
       partNumber,
       description: description?.trim() || null,
       revision,
       customProperties: Object.keys(customProperties).length > 0 ? customProperties : undefined
     }
-  } catch (err) {
-    console.warn('[Sync] Failed to extract SolidWorks metadata:', err)
+  } catch {
     return null
   }
 }
 
 // Detailed logging for sync operations
 function logSync(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
-  const prefix = '[Sync]'
-  if (level === 'error') {
-    console.error(prefix, message, context)
-  } else if (level === 'warn') {
-    console.warn(prefix, message, context)
-  } else if (level === 'debug') {
-    console.debug(prefix, message, context)
-  } else {
-    console.log(prefix, message, context)
-  }
-  
-  try {
-    window.electronAPI?.log(level, `${prefix} ${message}`, context)
-  } catch {
-    // Ignore if electronAPI not available
-  }
+  log[level]('[Sync]', message, context)
 }
 
 /**

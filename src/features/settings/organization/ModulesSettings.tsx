@@ -8,6 +8,7 @@ import {
   Users,
   ExternalLink
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { ModulesEditor } from './ModulesEditor'
@@ -80,7 +81,7 @@ export function ModulesSettings() {
       
       setTeamsWithModules(teamsWithCounts)
     } catch (err) {
-      console.error('Failed to load teams with modules:', err)
+      log.error('[ModulesSettings]', 'Failed to load teams with modules', { error: err })
     } finally {
       setTeamsLoading(false)
     }

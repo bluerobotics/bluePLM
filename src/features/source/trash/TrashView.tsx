@@ -20,6 +20,7 @@ import {
   Network,
   Database
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getDeletedFiles, restoreFile, permanentlyDeleteFiles, emptyTrash } from '@/lib/supabase'
 import { formatDistanceToNow } from 'date-fns'
@@ -333,7 +334,7 @@ export function TrashView() {
         setDeletedFiles(files as DeletedFile[])
       }
     } catch (err) {
-      console.error('Failed to load deleted files:', err)
+      log.error('[Trash]', 'Failed to load deleted files', { error: err })
     } finally {
       setIsLoading(false)
     }

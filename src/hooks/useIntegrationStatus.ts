@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getBackupStatus } from '@/lib/backup'
+import { log } from '@/lib/logger'
 import type { IntegrationId } from '@/stores/types'
 
 // Polling interval for status checks (5 seconds)
@@ -60,7 +61,7 @@ export function useIntegrationStatus() {
         setBackupStatus('partial')
       }
     } catch (err) {
-      console.warn('[IntegrationStatus] Failed to check backup status:', err)
+      log.warn('[IntegrationStatus]', 'Failed to check backup status', { error: err })
       setBackupStatus('not-configured')
     }
   }, [setBackupStatus])
@@ -71,37 +72,29 @@ export function useIntegrationStatus() {
     
     // Don't check if organization isn't loaded yet
     if (!currentOrg?.id) {
-      console.log('[IntegrationStatus] Organization not loaded, skipping check')
       return
     }
     
     // Don't check in offline mode
     if (usePDMStore.getState().isOfflineMode) {
-      console.log('[IntegrationStatus] Offline mode, skipping check')
       return
     }
-    
-    console.log('[IntegrationStatus] Starting integration status checks...')
     
     // Delegate to slice for all integration checks
     await usePDMStore.getState().checkAllIntegrations()
     
     // Check backup separately (not in integrations slice)
     checkBackup()
-    
-    console.log('[IntegrationStatus] All checks complete')
   }, [checkBackup])
 
   // Handle online/offline transitions
   useEffect(() => {
     const handleOnline = () => {
-      console.log('[IntegrationStatus] Network came online, triggering check')
       isOnlineRef.current = true
       checkAllIntegrations()
     }
     
     const handleOffline = () => {
-      console.log('[IntegrationStatus] Network went offline')
       isOnlineRef.current = false
       // Mark all network-dependent integrations as offline
       const offlineIntegrations: IntegrationId[] = ['supabase', 'google-drive', 'api', 'odoo']
@@ -123,27 +116,18 @@ export function useIntegrationStatus() {
   useEffect(() => {
     // Wait for organization to be loaded
     if (!organization?.id) {
-      console.log('[IntegrationStatus] Waiting for organization to load...')
       return
     }
     
     // Skip if in offline mode
     if (isOfflineMode) {
-      console.log('[IntegrationStatus] App in offline mode, skipping checks')
       return
-    }
-    
-    // Only run initial check once per organization
-    if (hasInitialCheckRef.current) {
-      // Organization changed - run check again
-      console.log('[IntegrationStatus] Organization changed, re-checking...')
     }
     
     hasInitialCheckRef.current = true
     
     // Delay initial check slightly to let other initialization complete
     const initialTimeout = setTimeout(() => {
-      console.log('[IntegrationStatus] Running initial check for org:', organization.id)
       checkAllIntegrations()
     }, INITIAL_DELAY_MS)
     
@@ -186,7 +170,6 @@ export function useIntegrationStatus() {
       return
     }
     
-    console.log('[IntegrationStatus] Settings changed, re-checking SolidWorks status')
     // Delegate to slice's individual check
     usePDMStore.getState().checkIntegration('solidworks')
   }, [solidworksIntegrationEnabled, solidworksPath, organization?.id])

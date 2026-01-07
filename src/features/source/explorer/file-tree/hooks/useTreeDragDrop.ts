@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { buildFullPath } from '@/lib/utils'
 import { PDM_FILES_DATA_TYPE, MIME_TYPES } from '../constants'
@@ -190,7 +191,7 @@ export function useTreeDragDrop(): DragDropHandlers {
             filePaths.push(filePath)
           }
         } catch (err) {
-          console.error('Error getting file path:', err)
+          log.error('[TreeDragDrop]', 'Error getting file path', { error: err })
         }
       }
 
@@ -234,7 +235,7 @@ export function useTreeDragDrop(): DragDropHandlers {
 
         setTimeout(() => onRefresh?.(), 100)
       } catch (err) {
-        console.error('Error adding files:', err)
+        log.error('[TreeDragDrop]', 'Error adding files', { error: err })
         removeToast(toastId)
         addToast('error', 'Failed to add files')
       }
@@ -255,7 +256,7 @@ export function useTreeDragDrop(): DragDropHandlers {
           const relativePaths: string[] = JSON.parse(pdmFilesData)
           filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
         } catch (err) {
-          console.error('Failed to parse drag data:', err)
+          log.error('[TreeDragDrop]', 'Failed to parse drag data', { error: err })
           return
         }
       }
@@ -351,7 +352,7 @@ export function useTreeDragDrop(): DragDropHandlers {
             filePaths.push(filePath)
           }
         } catch (err) {
-          console.error('Error getting file path:', err)
+          log.error('[TreeDragDrop]', 'Error getting file path', { error: err })
         }
       }
 
@@ -394,7 +395,7 @@ export function useTreeDragDrop(): DragDropHandlers {
 
         setTimeout(() => onRefresh?.(), 100)
       } catch (err) {
-        console.error('Error adding files:', err)
+        log.error('[TreeDragDrop]', 'Error adding files', { error: err })
         removeToast(toastId)
         addToast('error', 'Failed to add files')
       }
@@ -415,7 +416,7 @@ export function useTreeDragDrop(): DragDropHandlers {
           const relativePaths: string[] = JSON.parse(pdmFilesData)
           filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
         } catch (err) {
-          console.error('Failed to parse drag data:', err)
+          log.error('[TreeDragDrop]', 'Failed to parse drag data', { error: err })
           return
         }
       }

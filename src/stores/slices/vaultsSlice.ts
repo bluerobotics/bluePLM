@@ -43,10 +43,7 @@ export const createVaultsSlice: StateCreator<
     // Don't add duplicates by path (normalized for case-insensitive and path separator comparison)
     const normalizedNewPath = vault.localPath.toLowerCase().replace(/\\/g, '/')
     if (connectedVaults.some(v => v.localPath.toLowerCase().replace(/\\/g, '/') === normalizedNewPath)) {
-      console.warn('[PDMStore] Vault with same local path already exists, skipping add', { 
-        newVault: vault.name, 
-        existingVault: connectedVaults.find(v => v.localPath.toLowerCase().replace(/\\/g, '/') === normalizedNewPath)?.name 
-      })
+      // Vault with same local path already exists, skipping add
       return
     }
     // Add vault and set it as active
@@ -77,7 +74,6 @@ export const createVaultsSlice: StateCreator<
   setActiveVault: (activeVaultId) => set({ activeVaultId }),
   
   switchVault: (activeVaultId, vaultPath) => {
-    console.log('[Store] switchVault called:', { activeVaultId, vaultPath })
     set({ activeVaultId, vaultPath })
   },
   

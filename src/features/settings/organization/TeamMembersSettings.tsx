@@ -28,6 +28,7 @@ import {
   Mail,
   X
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { copyToClipboard } from '@/lib/clipboard'
 import { getCurrentConfig, supabase } from '@/lib/supabase'
 import { generateOrgCode } from '@/lib/supabaseConfig'
@@ -231,7 +232,7 @@ export function TeamMembersSettings() {
       setNewDomain('')
       addToast('success', `Added @${domain}`)
     } catch (err) {
-      console.error('Failed to add domain:', err)
+      log.error('[TeamMembers]', 'Failed to add domain', { error: err })
       addToast('error', 'Failed to add domain')
     } finally {
       setSavingDomains(false)
@@ -255,7 +256,7 @@ export function TeamMembersSettings() {
       if (error) throw error
       addToast('success', `Removed @${domain}`)
     } catch (err) {
-      console.error('Failed to remove domain:', err)
+      log.error('[TeamMembers]', 'Failed to remove domain', { error: err })
       setEmailDomains(emailDomains) // Revert
       addToast('error', 'Failed to remove domain')
     } finally {
@@ -289,7 +290,7 @@ export function TeamMembersSettings() {
       if (error) throw error
       addToast('success', newValue ? 'Email domain enforcement enabled' : 'Email domain enforcement disabled')
     } catch (err) {
-      console.error('Failed to update setting:', err)
+      log.error('[TeamMembers]', 'Failed to update enforcement setting', { error: err })
       setEnforceEmailDomain(!newValue) // Revert
       addToast('error', 'Failed to update setting')
     } finally {
@@ -329,7 +330,7 @@ export function TeamMembersSettings() {
         const settings = (data?.settings || {}) as { enforce_email_domain?: boolean }
         setEnforceEmailDomain(settings.enforce_email_domain ?? false)
       } catch (err) {
-        console.error('Failed to load email domain settings:', err)
+        log.error('[TeamMembers]', 'Failed to load email domain settings', { error: err })
       } finally {
         setLoadingEmailSettings(false)
       }

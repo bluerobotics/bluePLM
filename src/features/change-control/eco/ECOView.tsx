@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { log } from '@/lib/logger'
 import { 
   ClipboardList, 
   Plus, 
@@ -133,7 +134,7 @@ export function ECOView() {
           .order('created_at', { ascending: false })
         
         if (error) {
-          console.error('Failed to load ECOs:', error)
+          log.error('[ECO]', 'Failed to load ECOs', { error })
           // Don't show error if table doesn't exist yet
           if (!error.message?.includes('ecos')) {
             addToast('error', 'Failed to load ECOs')
@@ -168,7 +169,7 @@ export function ECOView() {
         
         setECOs(ecosWithCounts)
       } catch (err) {
-        console.error('Failed to load ECOs:', err)
+        log.error('[ECO]', 'Failed to load ECOs', { error: err })
       } finally {
         setECOsLoading(false)
       }
@@ -213,7 +214,7 @@ export function ECOView() {
         .order('created_at', { ascending: false })
       
       if (error) {
-        console.error('Failed to load ECO files:', error)
+        log.error('[ECO]', 'Failed to load ECO files', { error })
         return
       }
       
@@ -222,7 +223,7 @@ export function ECOView() {
         [ecoId]: data || []
       }))
     } catch (err) {
-      console.error('Failed to load ECO files:', err)
+      log.error('[ECO]', 'Failed to load ECO files', { error: err })
     } finally {
       setLoadingFiles(null)
     }
@@ -287,7 +288,7 @@ export function ECOView() {
         } else {
           addToast('error', 'Failed to create ECO')
         }
-        console.error('Failed to create ECO:', error)
+        log.error('[ECO]', 'Failed to create ECO', { error })
         return
       }
       
@@ -308,7 +309,7 @@ export function ECOView() {
       
       addToast('success', `ECO ${data.eco_number} created`)
     } catch (err) {
-      console.error('Failed to create ECO:', err)
+      log.error('[ECO]', 'Failed to create ECO', { error: err })
       addToast('error', 'Failed to create ECO')
     } finally {
       setIsCreating(false)
@@ -351,7 +352,7 @@ export function ECOView() {
         .upsert(insertData, { onConflict: 'file_id,eco_id' })
       
       if (error) {
-        console.error('Failed to tag files:', error)
+        log.error('[ECO]', 'Failed to tag files', { error })
         addToast('error', 'Failed to tag files with ECO')
         return
       }
@@ -373,7 +374,7 @@ export function ECOView() {
       
       addToast('success', `Tagged ${fileIds.length} file(s) with ECO`)
     } catch (err) {
-      console.error('Failed to tag files:', err)
+      log.error('[ECO]', 'Failed to tag files', { error: err })
       addToast('error', 'Failed to tag files with ECO')
     } finally {
       setIsTagging(false)
@@ -390,7 +391,7 @@ export function ECOView() {
         .eq('id', fileEcoId)
       
       if (error) {
-        console.error('Failed to remove file from ECO:', error)
+        log.error('[ECO]', 'Failed to remove file from ECO', { error })
         addToast('error', 'Failed to remove file from ECO')
         return
       }
@@ -409,7 +410,7 @@ export function ECOView() {
       
       addToast('success', 'File removed from ECO')
     } catch (err) {
-      console.error('Failed to remove file from ECO:', err)
+      log.error('[ECO]', 'Failed to remove file from ECO', { error: err })
     }
   }
   
@@ -430,7 +431,7 @@ export function ECOView() {
         .eq('id', ecoId)
       
       if (error) {
-        console.error('Failed to update ECO status:', error)
+        log.error('[ECO]', 'Failed to update ECO status', { error })
         addToast('error', 'Failed to update ECO status')
         return
       }
@@ -440,7 +441,7 @@ export function ECOView() {
       
       addToast('success', `ECO status updated to ${STATUS_CONFIG[newStatus].label}`)
     } catch (err) {
-      console.error('Failed to update ECO status:', err)
+      log.error('[ECO]', 'Failed to update ECO status', { error: err })
     }
   }
 

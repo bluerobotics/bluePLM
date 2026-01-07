@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Users, X, Loader2, Trash2 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { ModulesEditor } from '../../../ModulesEditor'
 import type { ModuleConfig } from '@/types/modules'
@@ -55,7 +56,7 @@ export function TeamModulesDialog({
         } as ModuleConfig)
       }
     } catch (err) {
-      console.error('Failed to load team defaults:', err)
+      log.error('[TeamModules]', 'Failed to load team defaults', { error: err })
       addToast('error', 'Failed to load team module defaults')
     } finally {
       setIsLoading(false)
@@ -81,7 +82,7 @@ export function TeamModulesDialog({
         addToast('error', result.error || 'Failed to save defaults')
       }
     } catch (err) {
-      console.error('Failed to save team defaults:', err)
+      log.error('[TeamModules]', 'Failed to save team defaults', { error: err })
       addToast('error', 'Failed to save team module defaults')
     } finally {
       setIsSaving(false)
@@ -100,7 +101,7 @@ export function TeamModulesDialog({
         addToast('error', result.error || 'Failed to clear defaults')
       }
     } catch (err) {
-      console.error('Failed to clear team defaults:', err)
+      log.error('[TeamModules]', 'Failed to clear team defaults', { error: err })
       addToast('error', 'Failed to clear team module defaults')
     } finally {
       setIsSaving(false)

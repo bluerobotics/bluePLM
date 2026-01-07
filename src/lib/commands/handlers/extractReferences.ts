@@ -13,28 +13,13 @@ import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { upsertFileReferences } from '../../supabase'
 import type { SWReference } from '../../supabase/files/mutations'
+import { log } from '@/lib/logger'
 
 // Only assemblies have references to extract
 const ASSEMBLY_EXTENSIONS = ['.sldasm']
 
-// Detailed logging for extract operations
 function logExtract(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
-  const prefix = '[ExtractReferences]'
-  if (level === 'error') {
-    console.error(prefix, message, context)
-  } else if (level === 'warn') {
-    console.warn(prefix, message, context)
-  } else if (level === 'debug') {
-    console.debug(prefix, message, context)
-  } else {
-    console.log(prefix, message, context)
-  }
-  
-  try {
-    window.electronAPI?.log(level, `${prefix} ${message}`, context)
-  } catch {
-    // Ignore if electronAPI not available
-  }
+  log[level]('[ExtractReferences]', message, context)
 }
 
 /**

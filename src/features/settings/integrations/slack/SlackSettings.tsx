@@ -15,6 +15,7 @@ import {
   TestTube2,
   Send
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 
@@ -130,7 +131,7 @@ export function SlackSettings() {
     try {
       const token = await getAuthToken()
       if (!token) {
-        console.warn('[SlackSettings] No auth token available')
+        log.warn('[SlackSettings]', 'No auth token available')
         setIsLoading(false)
         return
       }
@@ -170,7 +171,7 @@ export function SlackSettings() {
       if (err instanceof TypeError && err.message.includes('fetch')) {
         setApiServerOnline(false)
       }
-      console.error('Failed to load Slack settings:', err)
+      log.error('[SlackSettings]', 'Failed to load Slack settings', { error: err })
     } finally {
       setIsLoading(false)
     }
@@ -316,7 +317,7 @@ export function SlackSettings() {
         }
       }
     } catch (err) {
-      console.error('[SlackSettings] Error:', err)
+      log.error('[SlackSettings]', 'Error', { error: err })
       addToast('error', `Error: ${err}`)
     } finally {
       setIsSaving(false)

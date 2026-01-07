@@ -18,6 +18,7 @@ import {
 import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
 import { supabase, getAccessibleVaults } from '@/lib/supabase'
 import { subscribeToVaults } from '@/lib/realtime'
+import { log } from '@/lib/logger'
 
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
@@ -108,7 +109,7 @@ export function VaultsSettings() {
       // Skip if we initiated the change
       if (savingRef.current) return
       
-      console.log('[VaultsSettings] Real-time vault change:', eventType, vault?.name)
+      log.debug('[VaultsSettings]', 'Real-time vault change', { eventType, vaultName: vault?.name })
       loadOrgVaults()
     })
     
@@ -129,7 +130,7 @@ export function VaultsSettings() {
       )
       
       if (error) {
-        console.error('Failed to load org vaults:', error)
+        log.error('[VaultsSettings]', 'Failed to load org vaults', { error })
       } else {
         // Map Supabase nullables to app types with defaults
         setOrgVaults((vaults || []).map(v => ({
@@ -140,7 +141,7 @@ export function VaultsSettings() {
         })))
       }
     } catch (err) {
-      console.error('Failed to load org vaults:', err)
+      log.error('[VaultsSettings]', 'Failed to load org vaults', { error: err })
     } finally {
       setIsLoadingVaults(false)
     }
@@ -179,7 +180,7 @@ export function VaultsSettings() {
         .single()
       
       if (error) {
-        console.error('Failed to create vault:', error)
+        log.error('[VaultsSettings]', 'Failed to create vault', { error })
         addToast('error', `Failed to create vault: ${error.message}`)
         return
       }
@@ -199,7 +200,7 @@ export function VaultsSettings() {
       setNewVaultDescription('')
       triggerVaultsRefresh()
     } catch (err) {
-      console.error('Failed to create vault:', err)
+      log.error('[VaultsSettings]', 'Failed to create vault', { error: err })
       addToast('error', 'Failed to create vault')
     } finally {
       setIsSavingVault(false)
@@ -240,7 +241,7 @@ export function VaultsSettings() {
       addToast('success', `Vault renamed to "${newName}"`)
       setRenamingVaultId(null)
     } catch (err) {
-      console.error('Failed to rename vault:', err)
+      log.error('[VaultsSettings]', 'Failed to rename vault', { error: err })
       addToast('error', 'Failed to rename vault')
     } finally {
       setTimeout(() => { savingRef.current = false }, 1000)
@@ -273,7 +274,7 @@ export function VaultsSettings() {
       })))
       addToast('success', 'Default vault updated')
     } catch (err) {
-      console.error('Failed to set default vault:', err)
+      log.error('[VaultsSettings]', 'Failed to set default vault', { error: err })
     } finally {
       setTimeout(() => { savingRef.current = false }, 1000)
     }
@@ -293,7 +294,7 @@ export function VaultsSettings() {
           try {
             await api.deleteItem(connectedVault.localPath)
           } catch (err) {
-            console.error('Failed to delete local folder:', err)
+            log.error('[VaultsSettings]', 'Failed to delete local folder during vault delete', { error: err })
           }
         }
       }
@@ -318,7 +319,7 @@ export function VaultsSettings() {
       setDeleteConfirmText('')
       triggerVaultsRefresh()
     } catch (err) {
-      console.error('Failed to delete vault:', err)
+      log.error('[VaultsSettings]', 'Failed to delete vault', { error: err })
       addToast('error', 'Failed to delete vault')
     } finally {
       setIsDeleting(false)
@@ -341,7 +342,7 @@ export function VaultsSettings() {
         .eq('vault_id', clearingVault.id)
       
       if (filesError) {
-        console.error('Failed to delete files:', filesError)
+        log.error('[VaultsSettings]', 'Failed to delete files during vault clear', { error: filesError })
         addToast('error', `Failed to clear vault files: ${filesError.message}`)
         return
       }
@@ -368,7 +369,7 @@ export function VaultsSettings() {
                   await api.deleteItem(file.path)
                   deletedCount++
                 } catch (err) {
-                  console.error('Failed to delete local item:', file.path, err)
+                  log.error('[VaultsSettings]', 'Failed to delete local item', { path: file.path, error: err })
                 }
               }
               addToast('success', `Deleted ${deletedCount} of ${totalItems} local items`)
@@ -376,7 +377,7 @@ export function VaultsSettings() {
               addToast('info', 'No local files to delete')
             }
           } catch (err) {
-            console.error('Failed to clear local files:', err)
+            log.error('[VaultsSettings]', 'Failed to clear local files', { error: err })
             addToast('warning', 'Could not clear some local files')
           }
         }
@@ -397,7 +398,7 @@ export function VaultsSettings() {
           addToast('info', 'No cloud storage files to delete')
         }
       } catch (err) {
-        console.error('Failed to clear storage files:', err)
+        log.error('[VaultsSettings]', 'Failed to clear storage files', { error: err })
         addToast('warning', 'Could not clear cloud storage files')
       }
       
@@ -416,7 +417,7 @@ export function VaultsSettings() {
       setClearConfirmText2('')
       triggerVaultsRefresh()
     } catch (err) {
-      console.error('Failed to clear vault:', err)
+      log.error('[VaultsSettings]', 'Failed to clear vault', { error: err })
       addToast('error', 'Failed to clear vault')
     } finally {
       setIsClearing(false)
@@ -452,7 +453,7 @@ export function VaultsSettings() {
         addToast('error', `Failed to create vault folder: ${result.error}`)
       }
     } catch (err) {
-      console.error('Failed to connect vault:', err)
+      log.error('[VaultsSettings]', 'Failed to connect vault', { error: err })
       addToast('error', 'Failed to connect vault')
     } finally {
       setConnectingVaultId(null)
@@ -484,7 +485,7 @@ export function VaultsSettings() {
             folderDeleted = true
           }
         } catch (err) {
-          console.error('Failed to delete local folder:', err)
+          log.error('[VaultsSettings]', 'Failed to delete local folder during disconnect', { error: err })
         }
       }
     }

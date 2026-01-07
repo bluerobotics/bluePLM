@@ -14,31 +14,13 @@ import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { syncSolidWorksFileMetadata } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
+import { log } from '@/lib/logger'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 
-// Detailed logging
 function logSyncMeta(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
-  const timestamp = new Date().toISOString()
-  const logData = { timestamp, ...context }
-  
-  const prefix = '[SyncSWMetadata]'
-  if (level === 'error') {
-    console.error(prefix, message, logData)
-  } else if (level === 'warn') {
-    console.warn(prefix, message, logData)
-  } else if (level === 'debug') {
-    console.debug(prefix, message, logData)
-  } else {
-    console.log(prefix, message, logData)
-  }
-  
-  try {
-    window.electronAPI?.log(level, `${prefix} ${message}`, logData)
-  } catch {
-    // Ignore if electronAPI not available
-  }
+  log[level]('[SyncSWMetadata]', message, context)
 }
 
 /**

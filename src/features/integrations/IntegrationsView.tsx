@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { log } from '@/lib/logger'
 import { 
   Plug, 
   MessageSquare, 
@@ -167,11 +168,11 @@ function OdooConfigPanel({
     const token = await getAuthToken()
     if (!token) {
       addToast('error', 'Session expired. Please log in again.')
-      console.error('[IntegrationsView] No auth token available')
+      log.warn('[Integrations]', 'No auth token available')
       return
     }
 
-    console.log('[IntegrationsView] Saving with token:', token.substring(0, 20) + '...')
+    log.debug('[Integrations]', 'Saving with token', { tokenPrefix: token.substring(0, 20) })
 
     setSaving(true)
 
@@ -186,7 +187,7 @@ function OdooConfigPanel({
       })
 
       const data = await response.json()
-      console.log('[IntegrationsView] Response:', response.status, data)
+      log.debug('[Integrations]', 'Response received', { status: response.status })
 
       if (response.ok) {
         if (data.connection_error) {
@@ -205,7 +206,7 @@ function OdooConfigPanel({
         }
       }
     } catch (err) {
-      console.error('[IntegrationsView] Error:', err)
+      log.error('[Integrations]', 'Error saving integration', { error: err })
       addToast('error', `Error: ${err}`)
     } finally {
       setSaving(false)
@@ -509,7 +510,7 @@ export function IntegrationsView() {
     try {
       const token = await getAuthToken()
       if (!token) {
-        console.warn('[IntegrationsView] No auth token available')
+        log.warn('[Integrations]', 'No auth token available for Odoo settings')
         setLoading(false)
         return
       }
@@ -547,10 +548,10 @@ export function IntegrationsView() {
           }
         }
       } else {
-        console.warn('[IntegrationsView] Failed to load Odoo settings:', response.status)
+        log.warn('[Integrations]', 'Failed to load Odoo settings', { status: response.status })
       }
     } catch (err) {
-      console.error('Failed to load Odoo settings:', err)
+      log.error('[Integrations]', 'Failed to load Odoo settings', { error: err })
     } finally {
       setLoading(false)
     }

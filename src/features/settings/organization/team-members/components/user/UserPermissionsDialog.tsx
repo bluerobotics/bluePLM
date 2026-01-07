@@ -15,6 +15,7 @@ import {
   PERMISSION_ACTION_LABELS,
   ALL_RESOURCES
 } from '@/types/permissions'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import type { OrgUser, Vault } from '../../types'
@@ -73,7 +74,7 @@ export function UserPermissionsDialog({
         const typedData = (data || []) as unknown as VaultQueryResult[]
         setVaults(typedData as Vault[])
       } catch (err) {
-        console.error('Failed to load vaults:', err)
+        log.error('[UserPermissions]', 'Failed to load vaults', { error: err })
       } finally {
         setVaultsLoading(false)
       }
@@ -115,7 +116,7 @@ export function UserPermissionsDialog({
       setPermissions(permsMap)
       setOriginalPermissions(permsMap)
     } catch (err) {
-      console.error('Failed to load user permissions:', err)
+      log.error('[UserPermissions]', 'Failed to load user permissions', { error: err })
     } finally {
       setIsLoading(false)
     }
@@ -164,7 +165,7 @@ export function UserPermissionsDialog({
       addToast('success', `Permissions saved for ${user.full_name || user.email} on ${vaultName}`)
       onClose()
     } catch (err) {
-      console.error('Failed to save permissions:', err)
+      log.error('[UserPermissions]', 'Failed to save permissions', { error: err })
       addToast('error', 'Failed to save permissions')
     } finally {
       setIsSaving(false)

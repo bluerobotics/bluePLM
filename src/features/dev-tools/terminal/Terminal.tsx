@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { X, Terminal as TerminalIcon, Minus, ChevronUp, ChevronDown } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 // Force reimport of parser with all new commands (v3 - reload command)
 import { executeTerminalCommand, getAutocompleteSuggestions, TerminalOutput } from '@/lib/commands/parser'
@@ -58,7 +59,7 @@ export function Terminal({ onRefresh }: TerminalProps) {
     if (!window.electronAPI?.onCliCommand) return
     
     const unsubscribe = window.electronAPI.onCliCommand(async ({ requestId, command }) => {
-      console.log('[Terminal] Received CLI command:', command)
+      log.debug('[Terminal]', 'Received CLI command', { command })
       
       // Add to output
       setOutputs(prev => [...prev, {

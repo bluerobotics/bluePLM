@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { log } from '@/lib/logger'
 
 /**
  * Hook to manage vault operations and state
@@ -178,15 +179,12 @@ export function useVaultManagement() {
       // This fixes the issue where vaultPath might be stale after vault switch
       const pathToUse = activeVault?.localPath || vaultPath
       if (!pathToUse) {
-        console.log('[Init] No vault path available')
         return
       }
       
-      console.log('[Init] Setting working directory:', pathToUse, 'activeVaultId:', activeVaultId)
       const result = await window.electronAPI.setWorkingDir(pathToUse)
       
       if (result.success) {
-        console.log('[Init] Working directory set successfully')
         // Clear any vault not found state
         setVaultNotFoundPath(null)
         setVaultNotFoundName(undefined)
@@ -200,7 +198,7 @@ export function useVaultManagement() {
           setVaultPath(activeVault.localPath)
         }
       } else {
-        console.error('[Init] Failed to set working directory:', result.error)
+        log.error('[Init]', 'Failed to set working directory', { error: result.error })
         // Only handle if user is authenticated (to avoid race on startup)
         if (user || isOfflineMode) {
           // Check if the error is because the path doesn't exist

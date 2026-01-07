@@ -19,7 +19,7 @@ import {
   Loader2,
   Clock
 } from 'lucide-react'
-
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
@@ -200,7 +200,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
           .single()
         
         if (userError) {
-          console.error('Error loading user:', userError)
+          log.error('[UserProfile]', 'Error loading user', { error: userError })
         } else {
           // Load teams
           const { data: membershipsData } = await client
@@ -300,7 +300,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         }
         
       } catch (err) {
-        console.error('Error loading user profile:', err)
+        log.error('[UserProfile]', 'Error loading user profile', { error: err })
       } finally {
         setIsLoading(false)
       }

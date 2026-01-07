@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { JobTitle, OrgUser } from '../types'
 import {
@@ -54,7 +55,7 @@ export function useJobTitles(orgId: string | null) {
       if (error) throw error
       setJobTitles(castQueryResult<JobTitle[]>(data || []))
     } catch (err) {
-      console.error('Failed to load job titles:', err)
+      log.error('[JobTitles]', 'Failed to load job titles', { error: err })
       setJobTitlesLoading(false)
     }
   }, [orgId, setJobTitles, setJobTitlesLoading])

@@ -1,6 +1,7 @@
 // Edit Transition Dialog Component
 import { useState, useEffect } from 'react'
 import { BadgeCheck, CheckCircle } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import type { EditTransitionDialogProps, WorkflowRoleBasic, TransitionLineStyle } from '../types'
@@ -32,7 +33,7 @@ export function EditTransitionDialog({ transition, onClose, onSave }: EditTransi
           setWorkflowRoles(data as WorkflowRoleBasic[])
         }
       } catch (err) {
-        console.error('Failed to load workflow roles:', err)
+        log.error('[Workflow]', 'Failed to load workflow roles', { error: err })
       } finally {
         setLoadingRoles(false)
       }

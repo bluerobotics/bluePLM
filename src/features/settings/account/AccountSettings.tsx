@@ -23,6 +23,7 @@ import {
   CloudSun,
   Crown
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore, ThemeMode, Language } from '@/stores/pdmStore'
 import { signOut, getSupabaseClient, endRemoteSession } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
@@ -129,7 +130,7 @@ export function AccountSettings() {
           setSessions(data as unknown as UserSession[])
         }
       } catch (err) {
-        console.error('Error loading sessions:', err)
+        log.error('[Account]', 'Error loading sessions', { error: err })
       } finally {
         setIsLoading(false)
       }
@@ -173,10 +174,10 @@ export function AccountSettings() {
         // Remove the session from state immediately
         setSessions(prev => prev.filter(s => s.id !== sessionId))
       } else {
-        console.error('Failed to sign out session:', error)
+        log.error('[Account]', 'Failed to sign out session', { error })
       }
     } catch (err) {
-      console.error('Error signing out session:', err)
+      log.error('[Account]', 'Error signing out session', { error: err })
     } finally {
       setSigningOutSessionId(null)
     }
@@ -199,7 +200,7 @@ export function AccountSettings() {
         setUpdateCheckResult('error')
       }
     } catch (err) {
-      console.error('Update check error:', err)
+      log.error('[Account]', 'Update check error', { error: err })
       setUpdateCheckResult('error')
     } finally {
       setIsCheckingUpdate(false)

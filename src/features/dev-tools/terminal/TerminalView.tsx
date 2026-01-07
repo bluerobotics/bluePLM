@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeTerminalCommand, getAutocompleteSuggestions, TerminalOutput } from '@/lib/commands/parser'
 
@@ -48,7 +49,7 @@ export function TerminalView({ onRefresh }: TerminalViewProps) {
     if (!window.electronAPI?.onCliCommand) return
     
     const unsubscribe = window.electronAPI.onCliCommand(async ({ requestId, command }) => {
-      console.log('[Terminal] Received CLI command:', command)
+      log.debug('[Terminal]', 'Received CLI command', { command })
       
       // Add to output
       setOutputs(prev => [...prev, {

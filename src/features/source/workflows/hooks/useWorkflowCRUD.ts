@@ -1,5 +1,6 @@
 // CRUD operations for workflow states, transitions, and gates
 import { useCallback } from 'react'
+import { log } from '@/lib/logger'
 import type { 
   WorkflowTemplate, 
   WorkflowState, 
@@ -106,7 +107,7 @@ export function useWorkflowCRUD(options: UseWorkflowCRUDOptions) {
     const { data, error } = await stateService.create(newState)
     
     if (error || !data) {
-      console.error('Failed to add state:', error)
+      log.error('[Workflow]', 'Failed to add state', { error })
       addToast('error', 'Failed to add state')
       return null
     }
@@ -142,7 +143,7 @@ export function useWorkflowCRUD(options: UseWorkflowCRUDOptions) {
     const { error } = await stateService.delete(stateId)
     
     if (error) {
-      console.error('Failed to delete state:', error)
+      log.error('[Workflow]', 'Failed to delete state', { error })
       addToast('error', 'Failed to delete state')
       return false
     }
@@ -167,7 +168,7 @@ export function useWorkflowCRUD(options: UseWorkflowCRUDOptions) {
     const { error } = await stateService.updatePosition(stateId, Math.round(x), Math.round(y))
     
     if (error) {
-      console.error('Failed to update state position:', error)
+      log.error('[Workflow]', 'Failed to update state position', { error })
       return
     }
     
@@ -225,7 +226,7 @@ export function useWorkflowCRUD(options: UseWorkflowCRUDOptions) {
     const { data, error } = await transitionService.create(newTransition)
     
     if (error || !data) {
-      console.error('Failed to create transition:', error)
+      log.error('[Workflow]', 'Failed to create transition', { error })
       addToast('error', 'Failed to create transition')
       
       setIsCreatingTransition(false)
@@ -281,7 +282,7 @@ export function useWorkflowCRUD(options: UseWorkflowCRUDOptions) {
     const { error } = await transitionService.delete(transitionId)
     
     if (error) {
-      console.error('Failed to delete transition:', error)
+      log.error('[Workflow]', 'Failed to delete transition', { error })
       addToast('error', 'Failed to delete transition')
       return false
     }
@@ -320,7 +321,7 @@ export function useWorkflowCRUD(options: UseWorkflowCRUDOptions) {
     const { data, error } = await transitionService.createGate(newGate)
     
     if (error || !data) {
-      console.error('Failed to add gate:', error)
+      log.error('[Workflow]', 'Failed to add gate', { error })
       addToast('error', 'Failed to add gate')
       return null
     }

@@ -12,6 +12,7 @@ import { getDownloadUrl } from '../../storage'
 import type { LocalFile } from '../../../stores/pdmStore'
 import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
+import { log } from '@/lib/logger'
 
 // Number of retry attempts for failed downloads
 const MAX_RETRY_ATTEMPTS = 3
@@ -19,28 +20,8 @@ const MAX_RETRY_ATTEMPTS = 3
 // Delay between retries (exponential backoff: 1s, 2s, 4s)
 const RETRY_BASE_DELAY_MS = 1000
 
-// Detailed logging for download operations
 function logDownload(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
-  const timestamp = new Date().toISOString()
-  const logData = { timestamp, ...context }
-  
-  const prefix = '[Download]'
-  if (level === 'error') {
-    console.error(prefix, message, logData)
-  } else if (level === 'warn') {
-    console.warn(prefix, message, logData)
-  } else if (level === 'debug') {
-    console.debug(prefix, message, logData)
-  } else {
-    console.log(prefix, message, logData)
-  }
-  
-  // Also log to electron main process
-  try {
-    window.electronAPI?.log(level, `${prefix} ${message}`, logData)
-  } catch {
-    // Ignore if electronAPI not available
-  }
+  log[level]('[Download]', message, context)
 }
 
 // Build file context for logging

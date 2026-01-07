@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { fetchWeather, getWeatherThemeColors, getWeatherDescription, clearWeatherCache } from '../utils/weather'
+import { log } from '@/lib/logger'
 import type { WeatherData } from '../types'
 import {
   type Snowflake,
@@ -43,7 +44,7 @@ export function WeatherEffects() {
   try {
     return <WeatherEffectsInner />
   } catch (err) {
-    console.warn('[WeatherEffects] Render error (this is okay):', err)
+    log.warn('[WeatherEffects]', 'Render error (this is okay)', { error: err })
     return null
   }
 }
@@ -107,7 +108,7 @@ function WeatherEffectsInner() {
         setWeather(data)
         weatherUpdatedAtRef.current = Date.now()
         setMinutesAgo(0)
-        console.log('[WeatherEffects] Weather loaded:', {
+        log.info('[WeatherEffects]', 'Weather loaded:', {
           condition: data.condition,
           isDay: data.isDay,
           temp: data.temperature,
@@ -115,7 +116,7 @@ function WeatherEffectsInner() {
         })
       }
     } catch (err) {
-      console.warn('[WeatherEffects] Load error (this is okay):', err)
+      log.warn('[WeatherEffects]', 'Load error (this is okay)', { error: err })
     }
   }, [])
   
@@ -196,7 +197,7 @@ function WeatherEffectsInner() {
       
       return () => clearTimeout(timeoutId)
     } catch (err) {
-      console.warn('[WeatherEffects] Apply colors error:', err)
+      log.warn('[WeatherEffects]', 'Apply colors error', { error: err })
       return undefined
     }
   }, [isActive, weather])

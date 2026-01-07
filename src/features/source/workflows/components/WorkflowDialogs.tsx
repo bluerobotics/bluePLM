@@ -3,6 +3,7 @@
  * 
  * Consolidates Create/Edit workflow dialogs and Edit state/transition dialogs.
  */
+import { log } from '@/lib/logger'
 import { 
   CreateWorkflowDialog, 
   EditWorkflowDialog, 
@@ -94,7 +95,7 @@ export function WorkflowDialogs({
           onSave={async (updates) => {
             const { error } = await stateService.update(editingState.id, updates)
             if (error) {
-              console.error('Failed to update state:', error)
+              log.error('[Workflow]', 'Failed to update state', { error })
               addToast('error', 'Failed to update state')
               return
             }
@@ -114,7 +115,7 @@ export function WorkflowDialogs({
           onSave={async (updates) => {
             const { error } = await transitionService.update(editingTransition.id, updates)
             if (error) {
-              console.error('Failed to update transition:', error)
+              log.error('[Workflow]', 'Failed to update transition', { error })
               addToast('error', 'Failed to update transition')
               return
             }

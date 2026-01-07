@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { log } from '@/lib/logger'
 import { 
   Upload, 
   Loader2, 
@@ -109,7 +110,7 @@ export function CompanyProfileSettings() {
 
         if (error) throw error
         
-        console.log('[CompanyProfile] Loaded from DB:', { 
+        log.debug('[CompanyProfile]', 'Loaded from DB', { 
           logo_url: data?.logo_url?.substring(0, 50) + '...', 
           logo_storage_path: data?.logo_storage_path 
         })
@@ -122,9 +123,9 @@ export function CompanyProfileSettings() {
             .createSignedUrl(data.logo_storage_path, 60 * 60 * 24 * 365) // 1 year
           
           if (signedError) {
-            console.error('[CompanyProfile] Failed to create signed URL:', signedError)
+            log.error('[CompanyProfile]', 'Failed to create signed URL', { error: signedError })
           } else if (signedData?.signedUrl) {
-            console.log('[CompanyProfile] Generated fresh signed URL')
+            log.debug('[CompanyProfile]', 'Generated fresh signed URL')
             logoUrl = signedData.signedUrl
           }
         }
@@ -137,7 +138,7 @@ export function CompanyProfileSettings() {
           contact_email: data?.contact_email || null
         })
       } catch (err) {
-        console.error('Failed to load company profile:', err)
+        log.error('[CompanyProfile]', 'Failed to load company profile', { error: err })
       } finally {
         setLoading(false)
       }
@@ -166,7 +167,7 @@ export function CompanyProfileSettings() {
         setBillingAddresses(addresses.filter(a => a.address_type === 'billing'))
         setShippingAddresses(addresses.filter(a => a.address_type === 'shipping'))
       } catch (err) {
-        console.error('Failed to load addresses:', err)
+        log.error('[CompanyProfile]', 'Failed to load addresses', { error: err })
       } finally {
         setLoadingAddresses(false)
       }
@@ -185,7 +186,7 @@ export function CompanyProfileSettings() {
     // Sync company profile fields from realtime organization object
     const org = organization as any
     if (org) {
-      console.log('[CompanyProfile] Syncing with realtime org settings')
+      log.debug('[CompanyProfile]', 'Syncing with realtime org settings')
       
       // Only update if there are actual changes from the store
       setProfile(prev => ({
@@ -227,7 +228,7 @@ export function CompanyProfileSettings() {
       const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
       const filePath = `${organization.id}/_assets/logo.${ext}`
       
-      console.log('[CompanyProfile] Uploading logo to:', filePath)
+      log.debug('[CompanyProfile]', 'Uploading logo', { filePath })
       
       const { error: uploadError } = await supabase.storage
         .from('vault')
@@ -244,7 +245,7 @@ export function CompanyProfileSettings() {
 
       // Update organization with signed URL and storage path using RPC function
       // (Direct updates aren't allowed due to RLS policy)
-      console.log('[CompanyProfile] Saving to DB via RPC - logo_storage_path:', filePath)
+      log.debug('[CompanyProfile]', 'Saving to DB via RPC', { logoStoragePath: filePath })
       const { error: updateError } = await (supabase.rpc as any)('update_org_branding', {
         p_org_id: organization.id,
         p_logo_url: signedData.signedUrl,
@@ -252,11 +253,11 @@ export function CompanyProfileSettings() {
       })
 
       if (updateError) {
-        console.error('[CompanyProfile] DB update error:', updateError)
+        log.error('[CompanyProfile]', 'DB update error', { error: updateError })
         throw updateError
       }
       
-      console.log('[CompanyProfile] Logo saved successfully')
+      log.info('[CompanyProfile]', 'Logo saved successfully')
 
       setProfile(prev => ({
         ...prev,
@@ -266,7 +267,7 @@ export function CompanyProfileSettings() {
 
       addToast('success', 'Logo uploaded successfully')
     } catch (err) {
-      console.error('Failed to upload logo:', err)
+      log.error('[CompanyProfile]', 'Failed to upload logo', { error: err })
       addToast('error', 'Failed to upload logo')
     } finally {
       setUploadingLogo(false)
@@ -303,7 +304,7 @@ export function CompanyProfileSettings() {
 
       addToast('success', 'Logo removed')
     } catch (err) {
-      console.error('Failed to remove logo:', err)
+      log.error('[CompanyProfile]', 'Failed to remove logo', { error: err })
       addToast('error', 'Failed to remove logo')
     }
   }
@@ -326,7 +327,7 @@ export function CompanyProfileSettings() {
       if (error) throw error
       addToast('success', 'Contact information saved')
     } catch (err) {
-      console.error('Failed to save contact info:', err)
+      log.error('[CompanyProfile]', 'Failed to save contact info', { error: err })
       addToast('error', 'Failed to save contact information')
     } finally {
       setSaving(false)
@@ -466,7 +467,7 @@ export function CompanyProfileSettings() {
       setShowAddressModal(false)
       setEditingAddress(null)
     } catch (err) {
-      console.error('Failed to save address:', err)
+      log.error('[CompanyProfile]', 'Failed to save address', { error: err })
       addToast('error', 'Failed to save address')
     } finally {
       setSavingAddress(false)
@@ -499,7 +500,7 @@ export function CompanyProfileSettings() {
 
       addToast('success', 'Address deleted')
     } catch (err) {
-      console.error('Failed to delete address:', err)
+      log.error('[CompanyProfile]', 'Failed to delete address', { error: err })
       addToast('error', 'Failed to delete address')
     } finally {
       setDeletingAddressId(null)
@@ -558,7 +559,7 @@ export function CompanyProfileSettings() {
 
       addToast('success', `"${address.label}" set as default`)
     } catch (err) {
-      console.error('Failed to set default:', err)
+      log.error('[CompanyProfile]', 'Failed to set default', { error: err })
       addToast('error', 'Failed to set default address')
     }
   }

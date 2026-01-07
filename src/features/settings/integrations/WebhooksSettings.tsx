@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { log } from '@/lib/logger'
 import { 
   Plug, 
   Plus, 
@@ -136,7 +137,7 @@ export function WebhooksSettings() {
       if (error) throw error
       setWebhooks(data || [])
     } catch (err) {
-      console.error('[Webhooks] Failed to load:', err)
+      log.error('[Webhooks]', 'Failed to load webhooks', { error: err })
     } finally {
       setLoading(false)
     }
@@ -156,7 +157,7 @@ export function WebhooksSettings() {
       if (error) throw error
       setOrgUsers(data || [])
     } catch (err) {
-      console.error('[Webhooks] Failed to load users:', err)
+      log.error('[Webhooks]', 'Failed to load users', { error: err })
     }
   }, [organization?.id])
   
@@ -175,7 +176,7 @@ export function WebhooksSettings() {
       if (error) throw error
       setDeliveries(data || [])
     } catch (err) {
-      console.error('[Webhooks] Failed to load deliveries:', err)
+      log.error('[Webhooks]', 'Failed to load deliveries', { error: err })
     }
   }, [organization?.id])
   
@@ -268,7 +269,7 @@ export function WebhooksSettings() {
       setFormData({ ...emptyFormData, secret: generateSecret() })
       loadWebhooks()
     } catch (err) {
-      console.error('[Webhooks] Failed to save:', err)
+      log.error('[Webhooks]', 'Failed to save webhook', { error: err })
       addToast('error', 'Failed to save webhook')
     } finally {
       setSaving(false)
@@ -306,7 +307,7 @@ export function WebhooksSettings() {
       addToast('success', 'Webhook deleted')
       loadWebhooks()
     } catch (err) {
-      console.error('[Webhooks] Failed to delete:', err)
+      log.error('[Webhooks]', 'Failed to delete webhook', { error: err })
       addToast('error', 'Failed to delete webhook')
     } finally {
       setIsDeleting(false)
@@ -325,7 +326,7 @@ export function WebhooksSettings() {
       addToast('success', webhook.is_active ? 'Webhook disabled' : 'Webhook enabled')
       loadWebhooks()
     } catch (err) {
-      console.error('[Webhooks] Failed to toggle:', err)
+      log.error('[Webhooks]', 'Failed to toggle webhook', { error: err })
       addToast('error', 'Failed to update webhook')
     }
   }
@@ -336,7 +337,7 @@ export function WebhooksSettings() {
       setSecretCopied(true)
       setTimeout(() => setSecretCopied(false), 2000)
     } else {
-      console.error('Failed to copy:', result.error)
+      log.error('[Webhooks]', 'Failed to copy', { error: result.error })
     }
   }
   
@@ -394,7 +395,7 @@ export function WebhooksSettings() {
         addToast('warning', `Test completed with status: ${response.status}`)
       }
     } catch (err) {
-      console.error('[Webhooks] Test failed:', err)
+      log.error('[Webhooks]', 'Test failed', { error: err })
       addToast('error', `Test failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setTestingWebhook(null)

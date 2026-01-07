@@ -27,6 +27,7 @@
 import { useState, useCallback } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { logDragDrop } from '@/lib/userActionLogger'
+import { log } from '@/lib/logger'
 import { buildFullPath } from '@/lib/utils/path'
 
 export interface SelectionBox {
@@ -180,7 +181,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
     setDraggedFiles(filesToDrag)
     
     const filePaths = filesToDrag.map(f => f.path)
-    console.log('[Drag] Starting drag for:', filePaths)
+    log.debug('[Drag]', 'Starting drag for files', { paths: filePaths })
     
     // Set up HTML5 drag data
     e.dataTransfer.effectAllowed = 'copyMove'
@@ -320,7 +321,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
             filePaths.push(filePath)
           }
         } catch (err) {
-          console.error('Error getting file path:', err)
+          log.error('[Drag]', 'Error getting file path', { error: err })
         }
       }
 
@@ -344,14 +345,14 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
           const fileName = sourcePath.split(/[/\\]/).pop() || 'unknown'
           const destPath = buildFullPath(vaultPath, targetFolder.relativePath + '/' + fileName)
 
-          console.log('[Drop on Folder] Copying:', sourcePath, '->', destPath)
+          log.debug('[Drop]', 'Copying to folder', { sourcePath, destPath })
 
           const result = await window.electronAPI.copyFile(sourcePath, destPath)
           if (result.success) {
             successCount++
           } else {
             errorCount++
-            console.error(`Failed to copy ${fileName}:`, result.error)
+            log.error('[Drop]', `Failed to copy ${fileName}`, { error: result.error })
           }
           
           // Update progress
@@ -370,7 +371,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
         // Refresh the file list
         setTimeout(() => onRefresh(), 100)
       } catch (err) {
-        console.error('Error adding files:', err)
+        log.error('[Drag]', 'Error adding files', { error: err })
         removeToast(toastId)
         addToast('error', 'Failed to add files')
       }
@@ -391,7 +392,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
           const relativePaths: string[] = JSON.parse(pdmFilesData)
           filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
         } catch (err) {
-          console.error('Failed to parse drag data:', err)
+          log.error('[Drag]', 'Failed to parse drag data', { error: err })
           return
         }
       }
@@ -466,7 +467,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
           return
         }
       } catch (err) {
-        console.error('Failed to parse drag data:', err)
+        log.error('[Drag]', 'Failed to parse drag data', { error: err })
       }
     }
 
@@ -483,7 +484,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
           filePaths.push(filePath)
         }
       } catch (err) {
-        console.error('Error getting file path:', err)
+        log.error('[Drag]', 'Error getting file path', { error: err })
       }
     }
 
@@ -510,14 +511,14 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
           ? buildFullPath(vaultPath, destFolder + '/' + fileName)
           : buildFullPath(vaultPath, fileName)
 
-        console.log('[Drop] Copying:', sourcePath, '->', destPath)
+        log.debug('[Drop]', 'Copying file', { sourcePath, destPath })
 
         const result = await window.electronAPI.copyFile(sourcePath, destPath)
         if (result.success) {
           successCount++
         } else {
           errorCount++
-          console.error(`Failed to copy ${fileName}:`, result.error)
+          log.error('[Drop]', `Failed to copy ${fileName}`, { error: result.error })
         }
         
         // Update progress
@@ -537,7 +538,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
       setTimeout(() => onRefresh(), 100)
 
     } catch (err) {
-      console.error('Error adding files:', err)
+      log.error('[Drag]', 'Error adding files', { error: err })
       removeToast(toastId)
       addToast('error', 'Failed to add files')
     }

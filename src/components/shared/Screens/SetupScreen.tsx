@@ -11,6 +11,7 @@ import { reconfigureSupabase } from '@/lib/supabase'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { useTranslation } from '@/lib/i18n'
 import { copyToClipboard } from '@/lib/clipboard'
+import { log } from '@/lib/logger'
 
 interface SetupScreenProps {
   onConfigured: () => void
@@ -155,7 +156,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
       setCodeCopied(true)
       setTimeout(() => setCodeCopied(false), 2000)
     } else {
-      console.error('Failed to copy:', result.error)
+      log.error('[SetupScreen]', 'Failed to copy', { error: result.error })
     }
   }
   

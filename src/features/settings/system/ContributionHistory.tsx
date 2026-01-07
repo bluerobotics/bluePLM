@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Loader2
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient } from '@/lib/supabase'
 
@@ -181,7 +182,7 @@ export function ContributionHistory() {
           .limit(5000) // Limit for heatmap visualization, count query gets accurate total
         
         if (activityError) {
-          console.error('Error loading activities:', activityError)
+          log.error('[Contributions]', 'Error loading activities', { error: activityError })
         }
         
         // Fetch reviews where user was a reviewer
@@ -202,7 +203,7 @@ export function ContributionHistory() {
           .not('responded_at', 'is', null)
         
         if (reviewerError) {
-          console.error('Error loading reviewer data:', reviewerError)
+          log.error('[Contributions]', 'Error loading reviewer data', { error: reviewerError })
         }
         
         // Fetch reviews user requested
@@ -214,7 +215,7 @@ export function ContributionHistory() {
           .gte('created_at', oneYearAgo.toISOString())
         
         if (requestedError) {
-          console.error('Error loading requested reviews:', requestedError)
+          log.error('[Contributions]', 'Error loading requested reviews', { error: requestedError })
         }
         
         // Build activity map by date
@@ -316,7 +317,7 @@ export function ContributionHistory() {
         setRecentActivity(allRecent)
         
       } catch (err) {
-        console.error('Error loading contribution data:', err)
+        log.error('[Contributions]', 'Error loading contribution data', { error: err })
       } finally {
         setIsLoading(false)
       }

@@ -37,16 +37,9 @@ export function logUserAction(
 ) {
   const message = `[UserAction] [${category.toUpperCase()}] ${action}`
   
-  // Log to electron (file) and console
+  // Log to electron (file) only - avoid console spam for user actions
   if (window.electronAPI?.log) {
     window.electronAPI.log('info', message, details)
-  } else {
-    // Fallback to console if electron API not available
-    if (details) {
-      console.log(message, details)
-    } else {
-      console.log(message)
-    }
   }
 }
 

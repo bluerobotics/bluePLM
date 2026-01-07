@@ -103,8 +103,6 @@ function initializeCommands() {
   // SolidWorks specific
   registerCommand('sync-sw-metadata', syncSwMetadataCommand)
   registerCommand('extract-references', extractReferencesCommand)
-  
-  console.log('[Commands] Initialized command registry')
 }
 
 // Initialize on import

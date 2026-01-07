@@ -713,7 +713,7 @@ export function useLoadFiles() {
       if (!silent) {
         setStatusMessage('Error loading files')
       }
-      console.error(err)
+      window.electronAPI?.log?.('error', '[LoadFiles] Error loading files', { error: String(err) })
     } finally {
       if (!silent) {
         setIsLoading(false)

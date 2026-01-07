@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { X, AlertCircle, CheckCircle, Info, AlertTriangle, Copy, Check, Loader2, Download, RefreshCw, ArrowDownToLine } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { copyToClipboard } from '@/lib/clipboard'
+import { log } from '@/lib/logger'
 import type { ToastMessage, ToastType } from './types'
 
 export function Toast() {
@@ -66,11 +67,11 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
     try {
       const result = await window.electronAPI.downloadUpdate()
       if (!result.success) {
-        console.error('Download failed:', result.error)
+        log.error('[Update]', 'Download failed', { error: result.error })
         setUpdateDownloading(false)
       }
     } catch (err) {
-      console.error('Download error:', err)
+      log.error('[Update]', 'Download error', { error: err })
       setUpdateDownloading(false)
     }
   }
@@ -79,7 +80,7 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
     try {
       await window.electronAPI.installUpdate()
     } catch (err) {
-      console.error('Install error:', err)
+      log.error('[Update]', 'Install error', { error: err })
     }
   }
 
@@ -88,7 +89,6 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
     const version = updateAvailable?.version || toast.message.replace('Update available: v', '')
     if (version) {
       await window.electronAPI.postponeUpdate(version)
-      console.log(`[Update] Postponed update for version ${version}, will remind on next startup or in 24 hours`)
     }
     setIsExiting(true)
     setTimeout(onDismiss, 200)
@@ -260,8 +260,6 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
     if (result.success) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } else {
-      console.error('Failed to copy:', result.error)
     }
   }
 

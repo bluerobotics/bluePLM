@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Users, UserPlus, Search, Plus, X, Loader2 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
@@ -78,7 +79,7 @@ export function TeamMembersDialog({
       
       setMembers(mappedData)
     } catch (err) {
-      console.error('Failed to load team members:', err)
+      log.error('[TeamMembers]', 'Failed to load team members', { error: err })
     } finally {
       setIsLoading(false)
     }

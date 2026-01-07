@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { getBackupStatus, isThisDesignatedMachine, updateHeartbeat } from '@/lib/backup'
+import { log } from '@/lib/logger'
 
 /**
  * Backup machine heartbeat - keeps designated_machine_last_seen updated
@@ -20,7 +21,7 @@ export function useBackupHeartbeat(organizationId: string | undefined) {
         const isDesignated = await isThisDesignatedMachine(status.config)
         if (!isDesignated) return
         
-        console.log('[Backup] This is the designated machine, starting heartbeat')
+        log.info('[Backup]', 'This is the designated machine, starting heartbeat')
         
         // Send immediate heartbeat
         await updateHeartbeat(organizationId)
@@ -30,7 +31,7 @@ export function useBackupHeartbeat(organizationId: string | undefined) {
           updateHeartbeat(organizationId)
         }, 60 * 1000)
       } catch (err) {
-        console.error('[Backup] Failed to start heartbeat:', err)
+        log.error('[Backup]', 'Failed to start heartbeat', { error: err })
       }
     }
     

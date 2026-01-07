@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { log } from '@/lib/logger'
 import { 
   Database, 
   RefreshCw, 
@@ -125,7 +126,7 @@ export function SupabaseSettings() {
       const version = await getSchemaVersion()
       setSchemaVersion(version)
     } catch (err) {
-      console.error('[SupabaseSettings] Failed to load schema version:', err)
+      log.error('[Supabase]', 'Failed to load schema version', { error: err })
     }
     setLoadingSchema(false)
   }
@@ -208,7 +209,7 @@ export function SupabaseSettings() {
         realtimeConnected
       })
     } catch (err) {
-      console.error('[SupabaseSettings] Failed to load stats:', err)
+      log.error('[Supabase]', 'Failed to load stats', { error: err })
     }
     setLoadingStats(false)
   }
@@ -259,7 +260,7 @@ export function SupabaseSettings() {
       const { data: activities, error: activityError } = await activityQuery
       
       if (activityError) {
-        console.error('[SupabaseSettings] Activity query error:', activityError)
+        log.error('[Supabase]', 'Activity query error', { error: activityError })
       }
       
       // Build versions query
@@ -274,7 +275,7 @@ export function SupabaseSettings() {
       const { data: versions, error: versionError } = await versionsQuery
       
       if (versionError) {
-        console.error('[SupabaseSettings] Versions query error:', versionError)
+        log.error('[Supabase]', 'Versions query error', { error: versionError })
       }
       
       // Build buckets based on time range
@@ -440,7 +441,7 @@ export function SupabaseSettings() {
         peakEvents: peakBucket?.total || 0
       })
     } catch (err) {
-      console.error('[SupabaseSettings] Failed to load activity:', err)
+      log.error('[Supabase]', 'Failed to load activity', { error: err })
     }
     setLoadingActivity(false)
   }
@@ -452,7 +453,7 @@ export function SupabaseSettings() {
       setKeyCopied(true)
       setTimeout(() => setKeyCopied(false), 2000)
     } else {
-      console.error('Failed to copy key:', result.error)
+      log.error('[Supabase]', 'Failed to copy key', { error: result.error })
     }
   }
   
@@ -463,7 +464,7 @@ export function SupabaseSettings() {
       setUrlCopied(true)
       setTimeout(() => setUrlCopied(false), 2000)
     } else {
-      console.error('Failed to copy URL:', result.error)
+      log.error('[Supabase]', 'Failed to copy URL', { error: result.error })
     }
   }
   

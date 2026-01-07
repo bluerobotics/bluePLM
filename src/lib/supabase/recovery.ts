@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './client'
+import { log } from '@/lib/logger'
 
 // ===========================================
 // ADMIN RECOVERY CODES
@@ -102,11 +103,9 @@ export async function generateAdminRecoveryCode(
     .single()
   
   if (error) {
-    console.error('[RecoveryCode] Failed to create:', error.message)
+    log.error('[RecoveryCode]', 'Failed to create', { error: error.message })
     return { success: false, error: error.message }
   }
-  
-  console.log('[RecoveryCode] Created new recovery code:', data.id)
   
   // Return the plain code - this is the ONLY time it will be visible
   return { 
@@ -146,7 +145,7 @@ export async function listAdminRecoveryCodes(
     .order('created_at', { ascending: false })
   
   if (error) {
-    console.error('[RecoveryCode] Failed to list:', error.message)
+    log.error('[RecoveryCode]', 'Failed to list', { error: error.message })
     return { codes: [], error: error.message }
   }
   
@@ -176,11 +175,10 @@ export async function revokeAdminRecoveryCode(
     .eq('is_used', false) // Can't revoke already-used codes
   
   if (error) {
-    console.error('[RecoveryCode] Failed to revoke:', error.message)
+    log.error('[RecoveryCode]', 'Failed to revoke', { error: error.message })
     return { success: false, error: error.message }
   }
   
-  console.log('[RecoveryCode] Revoked code:', codeId)
   return { success: true }
 }
 
@@ -199,11 +197,10 @@ export async function deleteAdminRecoveryCode(
     .eq('id', codeId)
   
   if (error) {
-    console.error('[RecoveryCode] Failed to delete:', error.message)
+    log.error('[RecoveryCode]', 'Failed to delete', { error: error.message })
     return { success: false, error: error.message }
   }
   
-  console.log('[RecoveryCode] Deleted code:', codeId)
   return { success: true }
 }
 
@@ -226,17 +223,16 @@ export async function useAdminRecoveryCode(
   })
   
   if (error) {
-    console.error('[RecoveryCode] RPC error:', error.message)
+    log.error('[RecoveryCode]', 'RPC error', { error: error.message })
     return { success: false, error: error.message }
   }
   
-  // The function returns a JSONB object
   const result = data as { success: boolean; message?: string; error?: string }
   
   if (result.success) {
-    console.log('[RecoveryCode] Successfully elevated user to admin')
+    log.info('[RecoveryCode]', 'Successfully elevated user to admin')
   } else {
-    console.warn('[RecoveryCode] Code validation failed:', result.error)
+    log.warn('[RecoveryCode]', 'Code validation failed', { error: result.error })
   }
   
   return result

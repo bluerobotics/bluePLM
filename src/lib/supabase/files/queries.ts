@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../client'
+import { log } from '@/lib/logger'
 
 // ============================================
 // Files - Read Operations
@@ -218,7 +219,7 @@ export async function getUserBasicInfo(userId: string): Promise<{
     .single()
   
   if (error) {
-    console.error('[getUserBasicInfo] Failed to fetch user:', error.message)
+    log.error('[Files]', 'Failed to fetch user', { error: error.message })
     return { user: null, error: error.message }
   }
   
@@ -382,7 +383,7 @@ export async function getContainsRecursive(
     
     // Prevent cycles
     if (visited.has(parentId)) {
-      console.warn(`[getContainsRecursive] Cycle detected at file ${parentId}, skipping`)
+      log.warn('[Files]', 'Cycle detected in BOM hierarchy, skipping', { parentId })
       return []
     }
     visited.add(parentId)
@@ -452,7 +453,7 @@ export async function getContainsRecursive(
       stats
     }
   } catch (error) {
-    console.error('[getContainsRecursive] Error building tree:', error)
+    log.error('[Files]', 'Error building BOM tree', { error: error instanceof Error ? error.message : String(error) })
     return {
       references: null,
       error,

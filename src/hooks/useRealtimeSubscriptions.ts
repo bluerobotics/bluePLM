@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscribeToColorSwatches, subscribeToPermissions, subscribeToVaults, unsubscribeAll } from '@/lib/realtime'
 import { buildFullPath } from '@/lib/commands/types'
+import { log } from '@/lib/logger'
 import type { Organization } from '@/types/pdm'
 
 /**
@@ -19,8 +20,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
 
   useEffect(() => {
     if (!organization || isOfflineMode) return
-    
-    console.log('[Realtime] Setting up subscriptions for org:', organization.id)
     
     const { addCloudFile, updateFilePdmData, removeCloudFile, addToast } = usePDMStore.getState()
     
@@ -146,7 +145,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
         case 'INSERT':
           // New file added by someone else
           if (newFile && newFile.created_by !== currentUserId) {
-            console.log('[Realtime] New file from another user:', newFile.file_name)
             addCloudFile(newFile)
             // Queue batched notification for new files
             queueNotification('add', newFile.created_by, newFile.file_name)
@@ -156,7 +154,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
         case 'UPDATE':
           // File updated - could be checkout, version change, state change, etc.
           if (newFile) {
-            console.log('[Realtime] File updated:', newFile.file_name, 'by:', newFile.updated_by === currentUserId ? 'me' : 'other')
             
             // Only process updates from OTHER users via realtime
             // Updates from current user are handled by the command handlers directly
@@ -220,7 +217,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
                 // If file was checked out on this machine but released by someone else
                 // OR if user checked in from a different machine (their other machine has orphaned local copy)
                 if (wasCheckedOutOnThisMachine || (oldMachineId && !currentUserDidTheCheckin)) {
-                  console.log('[Realtime] Force check-in detected! File:', newFile.file_name, 'Your local changes may need attention.')
+                  log.warn('[Realtime]', 'Force check-in detected', { file: newFile.file_name })
                   
                   // Get the machine name that did the force check-in
                   const checkedInByMachine = newFile.checked_out_by_machine_name || 'another computer'
@@ -272,7 +269,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           // Note: Supabase realtime DELETE events only include primary key by default,
           // so oldFile may not have all fields (file_name, deleted_by, etc.)
           if (oldFile?.id) {
-            console.log('[Realtime] File deleted:', oldFile.file_name || oldFile.id)
             removeCloudFile(oldFile.id)
             // Only show toast if we have a valid file name AND it wasn't deleted by current user
             // Skip toast entirely for DELETE events - they spam when bulk deleting and often lack file_name
@@ -283,10 +279,9 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
     })
     
     // Subscribe to activity feed for additional notifications
-    const unsubscribeActivity = subscribeToActivity(organization.id, (activity) => {
+    const unsubscribeActivity = subscribeToActivity(organization.id, (_activity) => {
       // Activity notifications are handled by the file subscription above
       // This could be used for additional features like showing activity in a panel
-      console.log('[Realtime] Activity:', activity.action, activity.details)
     })
     
     // Subscribe to organization settings changes (integration settings, etc.)
@@ -364,7 +359,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       
       // Log api_url changes specifically for debugging sync issues
       if (changedSettingsKeys.includes('api_url')) {
-        console.log('[Realtime] API URL changed from', oldSettings.api_url || '(empty)', 'to', newSettings.api_url || '(empty)')
+        log.info('[Realtime]', 'API URL changed', { from: oldSettings.api_url || '(empty)', to: newSettings.api_url || '(empty)' })
       }
       
       // Update the organization in the store
@@ -374,7 +369,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       
       // Show toast if any admin settings changed
       if (allChangedFields.length > 0) {
-        console.log('[Realtime] Organization settings updated:', allChangedFields)
         addToast('info', 'Organization settings updated by an admin')
       }
     })
@@ -397,14 +391,12 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
               createdAt: swatch.created_at
             }]
           })
-          console.log('[Realtime] Org color swatch added:', swatch.color)
         }
       } else if (eventType === 'DELETE') {
         // Remove deleted org swatch
         usePDMStore.setState({
           orgColorSwatches: orgColorSwatches.filter(s => s.id !== swatch.id)
         })
-        console.log('[Realtime] Org color swatch removed:', swatch.color)
       }
     })
     
@@ -415,7 +407,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       currentUserId,
       organization.id,
       async (changeType, _eventType) => {
-        console.log('[Realtime] Permission change:', changeType, _eventType)
+        log.info('[Realtime]', 'Permission change', { changeType })
         
         // Reload user permissions from the store
         const { loadUserPermissions } = usePDMStore.getState()
@@ -440,7 +432,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
     // Subscribe to vault CRUD changes (vault created/renamed/deleted)
     // This ensures all admins see vault changes in real-time
     const unsubscribeVaults = subscribeToVaults(organization.id, (eventType, vault, _oldVault) => {
-      console.log('[Realtime] Vault change:', eventType, vault?.name)
+      log.info('[Realtime]', 'Vault change', { eventType, vaultName: vault?.name })
       
       // Trigger a refresh of the vaults list
       const { triggerVaultsRefresh } = usePDMStore.getState()
@@ -457,7 +449,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
     })
     
     return () => {
-      console.log('[Realtime] Cleaning up subscriptions')
       // Clear any pending notification timeout
       if (flushTimeout) {
         clearTimeout(flushTimeout)

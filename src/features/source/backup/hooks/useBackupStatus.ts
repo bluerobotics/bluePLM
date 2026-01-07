@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { log } from '@/lib/logger'
 import {
   getBackupStatus,
   isThisDesignatedMachine,
@@ -37,7 +38,7 @@ export function useBackupStatus(
       const newStatus = await getBackupStatus(orgId)
       setStatus(newStatus)
     } catch (err) {
-      console.error('Failed to load backup status:', err)
+      log.error('[Backup]', 'Failed to load backup status', { error: err })
     }
   }, [orgId])
 

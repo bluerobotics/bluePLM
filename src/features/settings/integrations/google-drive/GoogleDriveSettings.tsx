@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { HardDrive, Loader2, Check, Eye, EyeOff, Puzzle } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 
@@ -31,7 +32,7 @@ export function GoogleDriveSettings() {
       })
       
       if (error) {
-        console.error('Error loading Google Drive settings:', error)
+        log.error('[GoogleDrive]', 'Error loading settings', { error })
         return
       }
       
@@ -42,7 +43,7 @@ export function GoogleDriveSettings() {
         setEnabled(settings.enabled || false)
       }
     } catch (err) {
-      console.error('Error loading Google Drive settings:', err)
+      log.error('[GoogleDrive]', 'Error loading settings', { error: err })
     } finally {
       setIsLoading(false)
     }
@@ -59,7 +60,6 @@ export function GoogleDriveSettings() {
     const org = organization as any
     if (org) {
       if (org.google_drive_enabled !== undefined) {
-        console.log('[GoogleDriveSettings] Syncing with realtime org settings')
         setEnabled(org.google_drive_enabled)
       }
       if (org.google_drive_client_id !== undefined) {
@@ -90,14 +90,14 @@ export function GoogleDriveSettings() {
       })
       
       if (error) {
-        console.error('Error saving Google Drive settings:', error)
+        log.error('[GoogleDrive]', 'Error saving settings', { error })
         addToast('error', 'Failed to save: ' + error.message)
         return
       }
       
       addToast('success', 'Google Drive settings saved')
     } catch (err) {
-      console.error('Error saving Google Drive settings:', err)
+      log.error('[GoogleDrive]', 'Error saving settings', { error: err })
       addToast('error', 'Failed to save Google Drive settings')
     } finally {
       setIsSaving(false)

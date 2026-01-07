@@ -20,6 +20,7 @@
  * })
  */
 import { useCallback, useMemo } from 'react'
+import { log } from '@/lib/logger'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import { executeCommand } from '@/lib/commands'
@@ -375,11 +376,11 @@ export function useFileOperations({
           renameFileInStore(file.path, newFullPath, newRelPath, true)
         } else {
           failed++
-          console.error('Move failed:', result.error)
+          log.error('[FileOps]', 'Move failed', { error: result.error })
         }
       } catch (err) {
         failed++
-        console.error('Move error:', err)
+        log.error('[FileOps]', 'Move error', { error: err })
       }
       
       removeProcessingFolder(file.relativePath)

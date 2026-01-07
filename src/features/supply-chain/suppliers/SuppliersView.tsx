@@ -13,6 +13,7 @@ import {
   Phone,
   ChevronRight
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { Supplier } from '@/stores/types'
 import { supabase } from '@/lib/supabase'
@@ -59,7 +60,7 @@ export function SuppliersView() {
       if (error) throw error
       setSuppliers(data || [])
     } catch (err) {
-      console.error('Failed to load suppliers:', err)
+      log.error('[Suppliers]', 'Failed to load suppliers', { error: err })
     } finally {
       setSuppliersLoading(false)
     }
@@ -100,13 +101,8 @@ export function SuppliersView() {
 
       const data = await response.json()
       
-      // Log debug info to console for troubleshooting
-      console.log('[Odoo Sync] Response:', response.status, data)
-      if (data.debug) {
-        console.log('[Odoo Sync] Debug:', JSON.stringify(data.debug, null, 2))
-      } else {
-        console.log('[Odoo Sync] No debug info in response')
-      }
+      // Debug info available via log.debug
+      log.debug('[Odoo Sync]', 'Sync response', { status: response.status, debug: data.debug })
 
       if (response.ok) {
         addToast('success', `Synced ${data.created} new, ${data.updated} updated suppliers`)

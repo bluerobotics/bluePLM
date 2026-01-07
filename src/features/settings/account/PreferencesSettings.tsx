@@ -27,6 +27,7 @@ import {
   Shield,
   Layers
 } from 'lucide-react'
+import { log } from '@/lib/logger'
 import { usePDMStore, ThemeMode, Language } from '@/stores/pdmStore'
 import { CalendarDays } from 'lucide-react'
 import { signOut, getSupabaseClient, endRemoteSession } from '@/lib/supabase'
@@ -145,7 +146,7 @@ export function PreferencesSettings() {
           setSessions(data as unknown as UserSession[])
         }
       } catch (err) {
-        console.error('Error loading sessions:', err)
+        log.error('[Preferences]', 'Error loading sessions', { error: err })
       } finally {
         setIsLoading(false)
       }
@@ -189,10 +190,10 @@ export function PreferencesSettings() {
         // Remove the session from state immediately
         setSessions(prev => prev.filter(s => s.id !== sessionId))
       } else {
-        console.error('Failed to sign out session:', error)
+        log.error('[Preferences]', 'Failed to sign out session', { error })
       }
     } catch (err) {
-      console.error('Error signing out session:', err)
+      log.error('[Preferences]', 'Error signing out session', { error: err })
     } finally {
       setSigningOutSessionId(null)
     }
@@ -215,7 +216,7 @@ export function PreferencesSettings() {
         setUpdateCheckResult('error')
       }
     } catch (err) {
-      console.error('Update check error:', err)
+      log.error('[Preferences]', 'Update check error', { error: err })
       setUpdateCheckResult('error')
     } finally {
       setIsCheckingUpdate(false)
