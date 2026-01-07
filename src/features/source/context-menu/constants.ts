@@ -3,6 +3,9 @@
 // SolidWorks file extensions
 export const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 
+// SolidWorks assembly extensions (for BOM/reference extraction)
+export const ASSEMBLY_EXTENSIONS = ['.sldasm']
+
 // Menu positioning constants
 export const MENU_PADDING = 10
 export const SUBMENU_WIDTH = 220

@@ -79,8 +79,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
   } = useFilePaneHandlers()
 
   // Get operation type for this file (if any operation is in progress)
-  const operationType = getProcessingOperation(file.relativePath)
-  const isProcessing = operationType !== null
+  const operationType = getProcessingOperation(file.relativePath, file.isDirectory)
 
   const isSynced = !!file.pdmData
   const isBeingRenamed = renamingFile?.path === file.path
@@ -231,27 +230,27 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         </button>
       )}
       
-      {/* Folder inline buttons - show spinner on active operation, hide others when processing */}
+      {/* Folder inline buttons - each button shows independently, only active one shows spinner */}
       {file.isDirectory && (checkoutUsers.length > 0 || cloudFilesCount > 0 || file.diffStatus === 'cloud' || checkoutableFilesCount > 0 || localOnlyFilesCount > 0 || (fm?.outdatedFilesCount || 0) > 0) && (
         <span className="flex items-center gap-1 ml-auto mr-0.5 text-[10px]">
-          {/* Sync/update button - show when outdated or when sync operation in progress */}
-          {((fm?.outdatedFilesCount || 0) > 0 && (!isProcessing || operationType === 'sync')) && (
+          {/* Sync/update button */}
+          {(fm?.outdatedFilesCount || 0) > 0 && (
             <InlineSyncButton
               onClick={(e) => handleInlineDownload(e, file)}
               count={fm?.outdatedFilesCount || 0}
               isProcessing={operationType === 'sync'}
             />
           )}
-          {/* Download button - show when cloud files or download operation in progress */}
-          {((cloudFilesCount > 0 || file.diffStatus === 'cloud') && (!isProcessing || operationType === 'download')) && (
+          {/* Download button */}
+          {(cloudFilesCount > 0 || file.diffStatus === 'cloud') && (
             <FolderDownloadButton
               onClick={(e) => handleInlineDownload(e, file)}
               cloudCount={cloudFilesCount}
               isProcessing={operationType === 'download'}
             />
           )}
-          {/* Checkin button - show when checkouts exist or checkin operation in progress */}
-          {(checkoutUsers.length > 0 && (!isProcessing || operationType === 'checkin')) && (
+          {/* Checkin button */}
+          {checkoutUsers.length > 0 && (
             <FolderCheckinButton
               onClick={(e) => handleInlineCheckin(e, file)}
               users={checkoutUsers}
@@ -260,16 +259,16 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
               isProcessing={operationType === 'checkin'}
             />
           )}
-          {/* Checkout button - show when checkoutable files or checkout operation in progress */}
-          {(checkoutableFilesCount > 0 && (!isProcessing || operationType === 'checkout')) && (
+          {/* Checkout button */}
+          {checkoutableFilesCount > 0 && (
             <InlineCheckoutButton
               onClick={(e) => handleInlineCheckout(e, file)}
               count={checkoutableFilesCount}
               isProcessing={operationType === 'checkout'}
             />
           )}
-          {/* Upload button - show when local files or upload operation in progress */}
-          {(localOnlyFilesCount > 0 && (!isProcessing || operationType === 'upload')) && (
+          {/* Upload button */}
+          {localOnlyFilesCount > 0 && (
             <FolderUploadButton
               onClick={(e) => handleInlineUpload(e, file)}
               localCount={localOnlyFilesCount}
@@ -299,8 +298,8 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         return null
       })()}
       
-      {/* Download for individual cloud files - show spinner when downloading */}
-      {!file.isDirectory && (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && (!isProcessing || operationType === 'download') && (
+      {/* Download for individual cloud files */}
+      {!file.isDirectory && (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && (
         <InlineDownloadButton
           onClick={(e) => handleInlineDownload(e, file)}
           isCloudNew={file.diffStatus === 'cloud_new'}
@@ -312,8 +311,8 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         />
       )}
       
-      {/* Sync outdated files - show spinner when syncing */}
-      {!file.isDirectory && file.diffStatus === 'outdated' && (!isProcessing || operationType === 'sync') && (
+      {/* Sync outdated files */}
+      {!file.isDirectory && file.diffStatus === 'outdated' && (
         <InlineSyncButton 
           onClick={(e) => handleInlineDownload(e, file)}
           isProcessing={operationType === 'sync'}
@@ -324,8 +323,8 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         />
       )}
       
-      {/* First Check In - for local only files - show spinner when uploading */}
-      {!file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && (!isProcessing || operationType === 'upload') && (
+      {/* First Check In - for local only files */}
+      {!file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && (
         <InlineUploadButton 
           onClick={(e) => handleInlineUpload(e, file)}
           isProcessing={operationType === 'upload'}
@@ -336,10 +335,10 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         />
       )}
       
-      {/* Checkout/Checkin buttons for FILES - show spinner on active operation */}
+      {/* Checkout/Checkin buttons for FILES - each shows independently */}
       {!file.isDirectory && (
         <span className="flex items-center gap-0.5 flex-shrink-0">
-          {file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && (!isProcessing || operationType === 'checkout') && (
+          {file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && (
             <InlineCheckoutButton
               onClick={(e) => handleInlineCheckout(e, file)}
               isProcessing={operationType === 'checkout'}
@@ -349,7 +348,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
               onMouseLeave={() => setIsCheckoutHovered(false)}
             />
           )}
-          {file.pdmData?.checked_out_by === user?.id && file.diffStatus !== 'deleted' && (!isProcessing || operationType === 'checkin') && (
+          {file.pdmData?.checked_out_by === user?.id && file.diffStatus !== 'deleted' && (
             <InlineCheckinButton
               onClick={(e) => handleInlineCheckin(e, file)}
               isProcessing={operationType === 'checkin'}

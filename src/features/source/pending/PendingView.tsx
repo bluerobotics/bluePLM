@@ -423,6 +423,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
       const interval = setInterval(loadOpenDocuments, 5000)
       return () => clearInterval(interval)
     }
+    return undefined
   }, [loadOpenDocuments, solidworksIntegrationEnabled])
   
   // Navigate to open document location in file pane (stays in current view)

@@ -42,16 +42,21 @@ export interface FolderCheckoutInfo {
 
 /**
  * Get the operation type for a file path if it's being processed
+ * For files: exact match only
+ * For folders: checks if any descendant is processing
  */
-function getProcessingOperation(processingPaths: Map<string, OperationType>, filePath: string): OperationType | null {
+function getProcessingOperation(processingPaths: Map<string, OperationType>, filePath: string, isDirectory: boolean = false): OperationType | null {
   const normalizedPath = filePath.replace(/\\/g, '/')
 
   if (processingPaths.has(filePath)) return processingPaths.get(filePath)!
   if (processingPaths.has(normalizedPath)) return processingPaths.get(normalizedPath)!
 
-  for (const [processingPath, opType] of processingPaths) {
-    const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-    if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return opType
+  // For folders, check if any descendant is being processed
+  if (isDirectory) {
+    for (const [processingPath, opType] of processingPaths) {
+      const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+      if (normalizedProcessingPath.startsWith(normalizedPath + '/')) return opType
+    }
   }
   return null
 }
@@ -253,7 +258,7 @@ export function useFileCardStatus({
   processingPaths
 }: UseFileCardStatusParams): FileCardStatus {
   return useMemo(() => {
-    const operationType = getProcessingOperation(processingPaths, file.relativePath)
+    const operationType = getProcessingOperation(processingPaths, file.relativePath, file.isDirectory)
     const isProcessing = operationType !== null
     const diffClass = getDiffClass(file.diffStatus)
     const cloudFilesCount = getCloudFilesCount(file, allFiles)

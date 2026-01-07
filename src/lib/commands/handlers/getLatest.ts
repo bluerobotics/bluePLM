@@ -11,6 +11,7 @@ import { ProgressTracker } from '../executor'
 import { getDownloadUrl } from '../../storage'
 import { usePDMStore, MissingStorageFile } from '../../../stores/pdmStore'
 import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 
 // Retry configuration
 const MAX_RETRY_ATTEMPTS = 3
@@ -205,8 +206,8 @@ export const getLatestCommand: Command<GetLatestParams> = {
     // Collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Partial<LocalFile> }> = []
     
-    // Process all files in parallel
-    const results = await Promise.all(outdatedFiles.map(async (file) => {
+    // Process files with limited concurrency
+    const results = await processWithConcurrency(outdatedFiles, CONCURRENT_OPERATIONS, async (file) => {
       const fileCtx = getFileContext(file)
       
       if (!file.pdmData?.content_hash) {
@@ -355,7 +356,7 @@ export const getLatestCommand: Command<GetLatestParams> = {
         progress.update()
         return { success: false, error: `${file.name}: ${errorMsg}` }
       }
-    }))
+    })
     
     // Apply all store updates in a single batch
     if (pendingUpdates.length > 0) {

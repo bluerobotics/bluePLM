@@ -202,7 +202,7 @@ function WorkflowsViewContent({
     setSelectedTransitionId: canvas.selectTransition,
     addToast
   })
-  const { exportWorkflow, pendingImport, confirmImport, cancelImport, isImporting } = ioOperations
+  const { exportWorkflow, requestImport: importWorkflow, pendingImport, confirmImport, cancelImport, isImporting } = ioOperations
 
   // Clipboard operations
   const clipboardOps = useClipboardOperations({

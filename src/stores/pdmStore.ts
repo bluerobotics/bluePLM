@@ -3,7 +3,15 @@
  * 
  * This file combines all slices into a single store with persistence.
  * See ./slices/ for individual slice implementations.
+ * 
+ * ## Hydration
+ * 
+ * The store uses Zustand's `persist` middleware which hydrates asynchronously
+ * from localStorage. Components that depend on persisted values (like auto-start
+ * settings) should wait for hydration using the `useHasHydrated()` hook before
+ * acting on those values.
  */
+import { useSyncExternalStore } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider } from '../types/modules'
@@ -11,6 +19,13 @@ import { getDefaultModuleConfig } from '../types/modules'
 import type { KeybindingsConfig, SettingsTab } from '../types/settings'
 import type { PDMStoreState, Tab, ConnectedVault, StagedCheckin, PendingMetadata, ThemeMode, Language } from './types'
 import { CURRENT_STORE_VERSION, runMigrations, getPersistedVersion } from './migrations'
+
+/**
+ * Hydration state - tracks whether the store has finished loading from localStorage.
+ * This is separate from the main store to avoid circular dependencies and allow
+ * synchronous access without store subscriptions.
+ */
+let storeHasHydrated = false
 
 // Re-export all types from the types file for backward compatibility
 export * from './types'
@@ -32,6 +47,7 @@ import {
   createECOsSlice,
   createOrganizationDataSlice,
   createOrganizationMetadataSlice,
+  createIntegrationsSlice,
 } from './slices'
 
 // Create the combined store
@@ -53,6 +69,7 @@ export const usePDMStore = create<PDMStoreState>()(
       ...createECOsSlice(...a),
       ...createOrganizationDataSlice(...a),
       ...createOrganizationMetadataSlice(...a),
+      ...createIntegrationsSlice(...a),
     }),
     {
       name: 'blue-plm-storage',
@@ -182,6 +199,22 @@ export const usePDMStore = create<PDMStoreState>()(
         // ═══════════════════════════════════════════════════════════════
         recentSearches: state.recentSearches.slice(0, 20),
       }),
+      /**
+       * Called when hydration starts and finishes.
+       * We track completion to allow components to wait for persisted values.
+       */
+      onRehydrateStorage: () => {
+        return (_state, error) => {
+          if (error) {
+            console.error('[PDMStore] Hydration failed:', error)
+          } else {
+            console.log('[PDMStore] Hydration complete')
+          }
+          // Mark hydration as complete regardless of error
+          // Components should handle missing/default values gracefully
+          storeHasHydrated = true
+        }
+      },
       merge: (persistedState, currentState) => {
         const rawPersisted = persistedState as Record<string, unknown>
         
@@ -243,8 +276,9 @@ export const usePDMStore = create<PDMStoreState>()(
           autoStartSolidworksService: (persisted.autoStartSolidworksService as boolean) ?? true,
           hideSolidworksTempFiles: persisted.hideSolidworksTempFiles !== undefined ? (persisted.hideSolidworksTempFiles as boolean) : true,
           ignoreSolidworksTempFiles: persisted.ignoreSolidworksTempFiles !== undefined ? (persisted.ignoreSolidworksTempFiles as boolean) : true,
-          // API Server URL - synced from org settings, not persisted locally
-          apiServerUrl: null,
+          // API Server URL - keep persisted value until org settings sync
+          // The ApiSettings component will sync from org.settings.api_url when organization loads
+          apiServerUrl: (persisted.apiServerUrl as string | null) || null,
           // Ensure lowercaseExtensions has a default (true)
           lowercaseExtensions: persisted.lowercaseExtensions !== undefined ? persisted.lowercaseExtensions as boolean : true,
           // Ensure viewMode has a default
@@ -456,4 +490,63 @@ export function useSelectedFiles() {
 
 export function useVisibleFiles() {
   return usePDMStore(s => s.getVisibleFiles())
+}
+
+/**
+ * Hook to check if the Zustand store has completed hydration from localStorage.
+ * 
+ * Use this when you need to wait for persisted values before taking action.
+ * For example, the SolidWorks auto-start hook waits for hydration to ensure
+ * it reads the user's actual preferences rather than defaults.
+ * 
+ * @returns true if hydration is complete, false if still loading from localStorage
+ * 
+ * @example
+ * ```tsx
+ * const hasHydrated = useHasHydrated()
+ * const autoStart = usePDMStore(s => s.autoStartSolidworksService)
+ * 
+ * useEffect(() => {
+ *   if (!hasHydrated) return // Wait for real preferences
+ *   if (autoStart) startService()
+ * }, [hasHydrated, autoStart])
+ * ```
+ */
+export function useHasHydrated(): boolean {
+  // Use useSyncExternalStore for React 18+ concurrent mode safety
+  // This ensures the component re-renders when hydration completes
+  return useSyncExternalStore(
+    // Subscribe: called when component mounts
+    (callback: () => void) => {
+      // If already hydrated, no need to subscribe
+      if (storeHasHydrated) return () => {}
+      
+      // Poll for hydration completion (simple approach)
+      // Zustand's persist middleware doesn't expose a subscription API
+      const interval = setInterval(() => {
+        if (storeHasHydrated) {
+          callback()
+          clearInterval(interval)
+        }
+      }, 50)
+      
+      return () => clearInterval(interval)
+    },
+    // getSnapshot: returns current hydration state
+    () => storeHasHydrated,
+    // getServerSnapshot: for SSR (not used in Electron, but required)
+    () => true
+  )
+}
+
+/**
+ * Synchronous check for hydration status.
+ * 
+ * Prefer `useHasHydrated()` hook in React components for proper reactivity.
+ * This is useful for non-React code or one-time checks.
+ * 
+ * @returns true if hydration is complete
+ */
+export function getHasHydrated(): boolean {
+  return storeHasHydrated
 }

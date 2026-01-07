@@ -173,6 +173,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       })
       return () => unsubscribe?.()
     }
+    return undefined
   }, [])
 
   // Load sessions on mount and refresh when menu is opened

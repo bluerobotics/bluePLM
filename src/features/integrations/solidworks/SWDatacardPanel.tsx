@@ -865,47 +865,72 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   }
 
   // Load preview - Priority: OLE preview -> SW service -> OS thumbnail
+  // Split into two effects to handle the race condition where status.running
+  // may not be available when the file first loads (newer SW 2022+ files don't use CFB format)
+  
+  // Effect 1: Try OLE/thumbnail preview (works for older SW files in CFB format)
   useEffect(() => {
-    const loadPreview = async () => {
+    const loadOlePreview = async () => {
       if (!file?.path) return
       
       setPreviewLoading(true)
       setPreview(null)
       
       try {
-        // 1. Try OLE preview extraction first (high quality, embedded in file)
+        // Try direct OLE preview extraction (works for older SW files)
         const oleResult = await window.electronAPI?.extractSolidWorksPreview?.(file.path)
         if (oleResult?.success && oleResult.data) {
+          console.log('[Preview] Using OLE-extracted preview')
           setPreview(oleResult.data)
           setPreviewLoading(false)
           return
         }
         
-        // 2. If SW service is running, get high-quality preview from it
-        if (status.running) {
-          const previewResult = await window.electronAPI?.solidworks?.getPreview(file.path, activeConfig?.name)
-          if (previewResult?.success && previewResult.data?.imageData) {
-            const mimeType = previewResult.data.mimeType || 'image/png'
-            setPreview(`data:${mimeType};base64,${previewResult.data.imageData}`)
-            setPreviewLoading(false)
-            return
-          }
-        }
-        
-        // 3. Fall back to OS thumbnail (lower quality but always available)
+        // OLE failed - Fall back to OS thumbnail as immediate fallback
         const thumbResult = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
         if (thumbResult?.success && thumbResult.data) {
+          console.log('[Preview] Using OS thumbnail fallback')
           setPreview(thumbResult.data)
         }
+        // Note: Don't set preview to null here - let SW service effect try next
       } catch (err) {
-        console.error('Failed to load preview:', err)
+        console.error('Failed to load OLE preview:', err)
       } finally {
         setPreviewLoading(false)
       }
     }
     
-    loadPreview()
-  }, [file?.path, activeConfig?.name, status.running])
+    loadOlePreview()
+  }, [file?.path])
+  
+  // Effect 2: Try SW service preview when service becomes available AND we don't have a preview
+  // This handles newer SW 2022+ files that don't use CFB format
+  useEffect(() => {
+    const loadServicePreview = async () => {
+      // Only try if we don't have a preview yet and service is running
+      if (preview || !file?.path || !status.running) return
+      
+      console.log('[Preview] Attempting SW service preview for:', file.name)
+      setPreviewLoading(true)
+      
+      try {
+        const previewResult = await window.electronAPI?.solidworks?.getPreview(file.path, activeConfig?.name)
+        if (previewResult?.success && previewResult.data?.imageData) {
+          const mimeType = previewResult.data.mimeType || 'image/png'
+          console.log('[Preview] Using SW service preview')
+          setPreview(`data:${mimeType};base64,${previewResult.data.imageData}`)
+        } else if (previewResult?.error) {
+          console.log('[Preview] SW service preview failed:', previewResult.error)
+        }
+      } catch (err) {
+        console.error('Failed to load SW service preview:', err)
+      } finally {
+        setPreviewLoading(false)
+      }
+    }
+    
+    loadServicePreview()
+  }, [file?.path, file?.name, activeConfig?.name, status.running, preview])
 
   // Handle mouse wheel zoom on preview
   const handlePreviewWheel = (e: React.WheelEvent) => {

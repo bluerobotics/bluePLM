@@ -3,86 +3,55 @@ import { Image, ExternalLink, FolderOpen, Info, Key, Play, Square, Loader2, Chec
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { executeCommand } from '@/lib/commands'
+import { useSolidWorksStatus } from '@/hooks/useSolidWorksStatus'
 
 // Supabase v2 type inference incomplete for SolidWorks settings
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
 
-// Extended status type that includes both SW API and DM API status
-interface ServiceStatus {
-  running: boolean
-  version?: string
-  swInstalled?: boolean
-  dmApiAvailable?: boolean
-  dmApiError?: string | null
-  error?: string
-}
-
-// Hook to manage SolidWorks service connection (minimal version for settings)
-function useSolidWorksServiceStatus() {
-  const [status, setStatus] = useState<ServiceStatus>({ running: false })
+/**
+ * Hook to manage SolidWorks service control (start/stop)
+ * 
+ * Status polling is now handled by useSolidWorksStatus hook to avoid
+ * duplicate polling and reduce service load.
+ */
+function useSolidWorksServiceControl() {
   const [isStarting, setIsStarting] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const { addToast, organization, autoStartSolidworksService } = usePDMStore()
   
+  // Use consolidated status hook
+  const { status, refreshStatus } = useSolidWorksStatus()
+  
   // Get DM license key from organization settings
   const dmLicenseKey = organization?.settings?.solidworks_dm_license_key
-
-  const checkStatus = useCallback(async () => {
-    try {
-      const result = await window.electronAPI?.solidworks?.getServiceStatus()
-      if (result?.success && result.data) {
-        const data = result.data as any
-        setStatus({ 
-          running: data.running,
-          version: data.version,
-          swInstalled: data.installed ?? data.swInstalled,
-          dmApiAvailable: data.documentManagerAvailable ?? data.fastModeEnabled,
-          dmApiError: data.documentManagerError,
-          error: undefined
-        })
-      } else if (result?.error) {
-        setStatus(prev => ({ ...prev, running: false, error: result.error }))
-      }
-    } catch (err) {
-      setStatus({ running: false, error: String(err) })
-    }
-  }, [])
 
   const startService = useCallback(async () => {
     setIsStarting(true)
     try {
       const result = await window.electronAPI?.solidworks?.startService(dmLicenseKey || undefined)
       if (result?.success) {
-        const data = result.data as any
-        setStatus({ 
-          running: true, 
-          version: data?.version,
-          swInstalled: data?.swInstalled,
-          dmApiAvailable: data?.documentManagerAvailable ?? data?.fastModeEnabled,
-          dmApiError: data?.documentManagerError,
-          error: undefined
-        })
         addToast('success', 'SolidWorks service started')
+        // Refresh status to pick up the change
+        await refreshStatus()
       } else {
-        setStatus({ running: false, error: result?.error || 'Failed to start' })
         addToast('error', result?.error || 'Failed to start SolidWorks service')
       }
     } catch (err) {
-      setStatus({ running: false, error: String(err) })
       addToast('error', `Failed to start service: ${err}`)
     } finally {
       setIsStarting(false)
     }
-  }, [addToast, dmLicenseKey])
+  }, [addToast, dmLicenseKey, refreshStatus])
 
   const stopService = useCallback(async () => {
     setIsStopping(true)
     try {
       const result = await window.electronAPI?.solidworks?.stopService()
       if (result?.success) {
-        setStatus({ running: false, error: undefined })
         addToast('info', 'SolidWorks service stopped')
+        // Refresh status to pick up the change
+        await refreshStatus()
       } else {
         addToast('error', 'Failed to stop SolidWorks service')
       }
@@ -91,19 +60,12 @@ function useSolidWorksServiceStatus() {
     } finally {
       setIsStopping(false)
     }
-  }, [addToast])
-
-  useEffect(() => {
-    checkStatus()
-    // Poll status every 5 seconds
-    const interval = setInterval(checkStatus, 5000)
-    return () => clearInterval(interval)
-  }, [checkStatus])
+  }, [addToast, refreshStatus])
 
   // Determine if we should show error state (auto-start enabled but not running with error)
   const hasError = autoStartSolidworksService && !status.running && !!status.error
 
-  return { status, isStarting, isStopping, startService, stopService, checkStatus, hasError }
+  return { status, isStarting, isStopping, startService, stopService, checkStatus: refreshStatus, hasError }
 }
 
 export function SolidWorksSettings() {
@@ -126,7 +88,7 @@ export function SolidWorksSettings() {
     getEffectiveRole
   } = usePDMStore()
   
-  const { status, isStarting, isStopping, startService, stopService, checkStatus, hasError } = useSolidWorksServiceStatus()
+  const { status, isStarting, isStopping, startService, stopService, checkStatus, hasError } = useSolidWorksServiceControl()
   const isAdmin = getEffectiveRole() === 'admin'
   
   // Local state for DM license key input

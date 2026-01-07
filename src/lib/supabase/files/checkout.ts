@@ -7,11 +7,13 @@ import { getCurrentUserEmail } from '../auth'
 
 /**
  * Checkout a file using atomic RPC to prevent race conditions
+ * Note: userEmail parameter is kept for API compatibility but no longer used
+ * (RPC handles activity logging internally)
  */
 export async function checkoutFile(
   fileId: string, 
   userId: string, 
-  userEmail: string,
+  _userEmail: string,  // Unused - RPC handles activity logging
   options?: {
     message?: string
     // Pre-computed values to avoid redundant IPC calls in batch operations
@@ -50,19 +52,7 @@ export async function checkoutFile(
     return { success: false, error: result.error }
   }
   
-  // Log activity synchronously with try/catch
-  try {
-    await client.from('activity').insert({
-      org_id: result.file.org_id,
-      file_id: fileId,
-      user_id: userId,
-      user_email: userEmail,
-      action: 'checkout',
-      details: options?.message ? { message: options.message } : {}
-    })
-  } catch (activityError) {
-    console.warn('[Checkout] Failed to log activity:', activityError)
-  }
+  // DO NOT add manual activity logging - RPC handles it!
   
   return { success: true, file: result.file, error: null }
 }
@@ -84,209 +74,101 @@ export async function checkinFile(
       config_tabs?: Record<string, string>  // Per-configuration tab numbers
       config_descriptions?: Record<string, string>  // Per-configuration descriptions
     }
+    // Performance optimizations for batch operations:
+    machineId?: string  // Pre-fetched machine ID to avoid N IPC calls for N files
+    skipMachineMismatchCheck?: boolean  // Skip the SELECT query for batch operations
   }
 ): Promise<{ success: boolean; file?: any; error?: string | null; contentChanged?: boolean; metadataChanged?: boolean; machineMismatchWarning?: string | null }> {
   const client = getSupabaseClient()
   
-  // First verify the user has the file checked out
-  const { data: file, error: fetchError } = await client
-    .from('files')
-    .select('*')
-    .eq('id', fileId)
-    .single()
-  
-  if (fetchError) {
-    return { success: false, error: fetchError.message }
-  }
-  
-  if (file.checked_out_by !== userId) {
-    return { success: false, error: 'You do not have this file checked out' }
-  }
-  
-  // Check if checking in from a different machine
-  const { getMachineId } = await import('../../backup')
-  const currentMachineId = await getMachineId()
-  const checkoutMachineId = file.checked_out_by_machine_id
-  
-  // Warn if checking in from a different machine (but allow it)
+  // Machine mismatch check is optional for batch operations (significant perf savings)
+  // When processing 80 files, this eliminates 80 SELECT queries + 80 getMachineId IPC calls
   let machineMismatchWarning: string | null = null
-  if (checkoutMachineId && checkoutMachineId !== currentMachineId) {
-    const checkoutMachineName = file.checked_out_by_machine_name || 'another computer'
-    machineMismatchWarning = `Warning: This file was checked out on ${checkoutMachineName}. You are checking it in from a different computer.`
-  }
-  
-  // Prepare update data
-  const updateData: Record<string, any> = {
-    checked_out_by: null,
-    checked_out_at: null,
-    lock_message: null,
-    checked_out_by_machine_id: null,
-    checked_out_by_machine_name: null,
-    updated_at: new Date().toISOString(),
-    updated_by: userId
-  }
-  
-  // Handle file path/name changes (for moved/renamed files)
-  if (options?.newFilePath && options.newFilePath !== file.file_path) {
-    updateData.file_path = options.newFilePath
-  }
-  if (options?.newFileName && options.newFileName !== file.file_name) {
-    updateData.file_name = options.newFileName
-  }
-  
-  // Apply pending metadata changes if any
-  const hasPendingMetadata = options?.pendingMetadata && (
-    options.pendingMetadata.part_number !== undefined ||
-    options.pendingMetadata.description !== undefined ||
-    options.pendingMetadata.revision !== undefined ||
-    options.pendingMetadata.config_tabs !== undefined ||
-    options.pendingMetadata.config_descriptions !== undefined
-  )
-  
-  if (hasPendingMetadata && options?.pendingMetadata) {
-    if (options.pendingMetadata.part_number !== undefined) {
-      updateData.part_number = options.pendingMetadata.part_number
+  if (!options?.skipMachineMismatchCheck) {
+    const { data: fileCheck, error: fetchError } = await client
+      .from('files')
+      .select('checked_out_by_machine_id, checked_out_by_machine_name')
+      .eq('id', fileId)
+      .single()
+    
+    if (fetchError) {
+      return { success: false, error: fetchError.message }
     }
-    if (options.pendingMetadata.description !== undefined) {
-      updateData.description = options.pendingMetadata.description
-    }
-    if (options.pendingMetadata.revision !== undefined) {
-      updateData.revision = options.pendingMetadata.revision
-    }
-    // Save per-configuration data to custom_properties
-    if (options.pendingMetadata.config_tabs !== undefined || options.pendingMetadata.config_descriptions !== undefined) {
-      const existingCustomProps = (file.custom_properties || {}) as Record<string, unknown>
-      updateData.custom_properties = {
-        ...existingCustomProps,
-        ...(options.pendingMetadata.config_tabs !== undefined && { _config_tabs: options.pendingMetadata.config_tabs }),
-        ...(options.pendingMetadata.config_descriptions !== undefined && { _config_descriptions: options.pendingMetadata.config_descriptions })
+    
+    // Check for machine mismatch warning
+    if (fileCheck.checked_out_by_machine_id) {
+      // Use pre-fetched machineId if provided (batch optimization), otherwise fetch
+      let currentMachineId = options?.machineId
+      if (!currentMachineId) {
+        const { getMachineId } = await import('../../backup')
+        currentMachineId = await getMachineId()
+      }
+      if (fileCheck.checked_out_by_machine_id !== currentMachineId) {
+        machineMismatchWarning = `Warning: This file was checked out on ${fileCheck.checked_out_by_machine_name || 'another computer'}. You are checking it in from a different computer.`
       }
     }
   }
   
-  // Check if content changed OR metadata changed OR user switched versions locally
-  const contentChanged = !!(options?.newContentHash && options.newContentHash !== file.content_hash)
-  const metadataChanged = hasPendingMetadata
-  // If user rolled to a different version locally (localActiveVersion set and differs from server), we need to increment
-  // This handles cases where version 7 has same hash as version 6 but user intentionally switched versions
-  const versionSwitched = options?.localActiveVersion !== undefined && options.localActiveVersion !== file.version
-  const shouldIncrementVersion = contentChanged || metadataChanged || versionSwitched
+  // NOTE: Path/name updates are now handled in the RPC (eliminates separate UPDATE query)
+  // This was a performance optimization - 1 atomic operation instead of 2 separate queries
   
-  console.debug('[Checkin] Version decision:', {
-    fileId,
-    serverVersion: file.version,
-    localActiveVersion: options?.localActiveVersion,
-    contentChanged,
-    metadataChanged,
-    versionSwitched,
-    shouldIncrementVersion
+  // Build custom_properties JSONB for config data
+  let customPropsUpdate: Record<string, Record<string, string>> | null = null
+  if (options?.pendingMetadata?.config_tabs || options?.pendingMetadata?.config_descriptions) {
+    customPropsUpdate = {}
+    if (options.pendingMetadata.config_tabs) {
+      customPropsUpdate._config_tabs = options.pendingMetadata.config_tabs
+    }
+    if (options.pendingMetadata.config_descriptions) {
+      customPropsUpdate._config_descriptions = options.pendingMetadata.config_descriptions
+    }
+  }
+  
+  // Use atomic RPC for checkin - handles versioning, path updates, and activity logging
+  // Path/name updates are now handled in the RPC (performance: eliminates separate UPDATE)
+  const { data, error } = await client.rpc('checkin_file', {
+    p_file_id: fileId,
+    p_user_id: userId,
+    p_new_content_hash: options?.newContentHash,
+    p_new_file_size: options?.newFileSize,
+    p_comment: options?.comment,
+    p_part_number: options?.pendingMetadata?.part_number ?? undefined,
+    p_description: options?.pendingMetadata?.description ?? undefined,
+    p_revision: options?.pendingMetadata?.revision,
+    p_local_active_version: options?.localActiveVersion,
+    p_custom_properties: customPropsUpdate,
+    p_new_file_path: options?.newFilePath,
+    p_new_file_name: options?.newFileName
   })
-  
-  if (shouldIncrementVersion) {
-    // Get max version from history - new version should be max + 1
-    // This handles the case where you rollback from v5 to v3, then check in -> should be v6
-    // Use maybeSingle() since file might not have version history yet (first version)
-    const { data: maxVersionData, error: maxVersionError } = await client
-      .from('file_versions')
-      .select('version')
-      .eq('file_id', fileId)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    
-    if (maxVersionError) {
-      console.warn('[Checkin] Failed to get max version from history:', maxVersionError.message)
-    }
-    
-    const maxVersionInHistory = maxVersionData?.version || file.version
-    const newVersion = maxVersionInHistory + 1
-    updateData.version = newVersion
-    
-    console.debug('[Checkin] Incrementing version:', {
-      fileId,
-      currentVersion: file.version,
-      maxVersionInHistory,
-      newVersion,
-      reason: versionSwitched ? 'version_switched' : contentChanged ? 'content_changed' : 'metadata_changed'
-    })
-    
-    if (contentChanged) {
-      updateData.content_hash = options!.newContentHash
-      if (options!.newFileSize !== undefined) {
-        updateData.file_size = options!.newFileSize
-      }
-    }
-    
-    // Create version record for changes
-    const { error: versionInsertError } = await client.from('file_versions').insert({
-      file_id: fileId,
-      version: newVersion,
-      revision: updateData.revision || file.revision,
-      content_hash: updateData.content_hash || file.content_hash,
-      file_size: updateData.file_size || file.file_size,
-      workflow_state_id: file.workflow_state_id,
-      state: file.state || 'not_tracked',
-      created_by: userId,
-      comment: options?.comment || null
-    })
-    
-    if (versionInsertError) {
-      console.error('[Checkin] Failed to insert version record:', versionInsertError.message)
-      // If version insert fails, don't update the file to the new version
-      // This prevents version mismatch between files and file_versions tables
-      return { success: false, error: `Failed to create version record: ${versionInsertError.message}` }
-    }
-    
-    // Log revision change activity if revision changed
-    if (options?.pendingMetadata?.revision && options.pendingMetadata.revision !== file.revision) {
-      try {
-        const userEmail = await getCurrentUserEmail()
-        await client.from('activity').insert({
-          org_id: file.org_id,
-          file_id: fileId,
-          user_id: userId,
-          user_email: userEmail,
-          action: 'revision_change',
-          details: { from: file.revision, to: options.pendingMetadata.revision }
-        })
-      } catch (activityError) {
-        console.warn('[Checkin] Failed to log revision change activity:', activityError)
-      }
-    }
-  }
-  
-  // Update the file
-  const { data, error } = await client
-    .from('files')
-    .update(updateData)
-    .eq('id', fileId)
-    .select()
-    .single()
   
   if (error) {
     return { success: false, error: error.message }
   }
   
-  // Log activity synchronously with try/catch
-  try {
-    const userEmail = await getCurrentUserEmail()
-    await client.from('activity').insert({
-      org_id: data.org_id,
-      file_id: fileId,
-      user_id: userId,
-      user_email: userEmail,
-      action: 'checkin',
-      details: { 
-        ...(options?.comment ? { comment: options.comment } : {}),
-        contentChanged,
-        metadataChanged
-      }
-    })
-  } catch (activityError) {
-    console.warn('[Checkin] Failed to log activity:', activityError)
+  const result = data as { 
+    success: boolean
+    error?: string
+    file?: unknown
+    new_version?: number
+    content_changed?: boolean
+    metadata_changed?: boolean
+    version_incremented?: boolean
   }
   
-  return { success: true, file: data, error: null, contentChanged, metadataChanged, machineMismatchWarning }
+  if (!result.success) {
+    return { success: false, error: result.error }
+  }
+  
+  // DO NOT add manual activity logging - RPC handles it!
+  
+  return { 
+    success: true, 
+    file: result.file, 
+    error: null, 
+    contentChanged: result.content_changed,
+    metadataChanged: result.metadata_changed,
+    machineMismatchWarning 
+  }
 }
 
 /**
@@ -350,20 +232,21 @@ export async function syncSolidWorksFileMetadata(
   }
   
   // Create a new version for metadata changes
+  // Use maybeSingle() since file might not have version history yet (first version)
   const { data: maxVersionData } = await client
     .from('file_versions')
     .select('version')
     .eq('file_id', fileId)
     .order('version', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
   
   const maxVersionInHistory = maxVersionData?.version || file.version
   const newVersion = maxVersionInHistory + 1
   updateData.version = newVersion
   
-  // Create version record
-  await client.from('file_versions').insert({
+  // Create version record with proper error handling
+  const { error: versionError } = await client.from('file_versions').insert({
     file_id: fileId,
     version: newVersion,
     revision: updateData.revision || file.revision || 'A',
@@ -374,6 +257,10 @@ export async function syncSolidWorksFileMetadata(
     created_by: userId,
     comment: 'Metadata updated from SolidWorks file properties'
   })
+  
+  if (versionError) {
+    return { success: false, error: `Failed to create version: ${versionError.message}` }
+  }
   
   // Update the file
   const { data, error } = await client

@@ -153,16 +153,16 @@ function WeatherEffectsInner() {
   
   // Apply weather theme colors
   useEffect(() => {
-    if (!isActive || !weather) return
+    if (!isActive || !weather) return undefined
     
     try {
       const colors = getWeatherThemeColors(weather)
-      if (!colors || typeof colors !== 'object') return
+      if (!colors || typeof colors !== 'object') return undefined
       
       setIsTransitioning(true)
       
       const root = document.documentElement
-      if (!root) return
+      if (!root) return undefined
       
       root.setAttribute('data-weather', weather.condition || 'unknown')
       root.setAttribute('data-weather-day', weather.isDay ? 'true' : 'false')
@@ -197,6 +197,7 @@ function WeatherEffectsInner() {
       return () => clearTimeout(timeoutId)
     } catch (err) {
       console.warn('[WeatherEffects] Apply colors error:', err)
+      return undefined
     }
   }, [isActive, weather])
   

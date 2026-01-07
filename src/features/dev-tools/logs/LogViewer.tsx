@@ -835,6 +835,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
         }
       }
     }
+    return undefined
   }, [isRecording, selectedFile])
   
   // Auto-scroll when entries change (when recording)

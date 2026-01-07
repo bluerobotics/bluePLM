@@ -5,6 +5,7 @@ import { useCallback } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { formatBytes, formatSpeed } from '@/lib/utils'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '@/lib/concurrency'
 
 interface UseDownloadOperationDeps {
   organization: { id: string } | null
@@ -185,10 +186,10 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
     if (isProgressToastCancelled(toastId)) {
       wasCancelled = true
     } else {
-      console.log(`[Download] Starting parallel download of ${total} files`)
+      console.log(`[Download] Starting parallel download of ${total} files (max ${CONCURRENT_OPERATIONS} concurrent)`)
       
-      // Download all files in parallel
-      const results = await Promise.all(uniqueFiles.map(async (f) => {
+      // Download all files with concurrency limit
+      const results = await processWithConcurrency(uniqueFiles, CONCURRENT_OPERATIONS, async (f) => {
         const result = await downloadOneFile(f)
         
         if (result.success) {
@@ -197,7 +198,7 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
         
         updateProgress()
         return result
-      }))
+      })
       
       for (const result of results) {
         if (result.success) {

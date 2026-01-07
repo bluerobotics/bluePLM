@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Monitor, RotateCcw, ChevronDown } from 'lucide-react'
+import { Monitor, RotateCcw, ChevronDown, Layers, ChevronRight } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { ReferenceDiagnostics } from '@/features/dev-tools/reference-diagnostics'
 
 interface DevicePreset {
   id: string
@@ -22,6 +23,7 @@ export function DevToolsSettings() {
   const { addToast } = usePDMStore()
   const [currentSize, setCurrentSize] = useState<{ width: number; height: number } | null>(null)
   const [selectedPreset, setSelectedPreset] = useState<string>('')
+  const [showRefDiagnostics, setShowRefDiagnostics] = useState(false)
 
   useEffect(() => {
     const fetchSize = async () => {
@@ -97,6 +99,38 @@ export function DevToolsSettings() {
               Reset
             </button>
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+          Reference Diagnostics
+        </h2>
+        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
+          <button
+            onClick={() => setShowRefDiagnostics(!showRefDiagnostics)}
+            className="w-full flex items-center gap-3 p-4 hover:bg-plm-highlight transition-colors"
+          >
+            <div className="p-2 rounded-lg bg-amber-500/10">
+              <Layers size={16} className="text-amber-400" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="text-sm font-medium text-plm-fg">BOM Reference Diagnostics</div>
+              <div className="text-xs text-plm-fg-muted">
+                Debug assembly reference extraction and path matching issues
+              </div>
+            </div>
+            <ChevronRight 
+              size={16} 
+              className={`text-plm-fg-muted transition-transform ${showRefDiagnostics ? 'rotate-90' : ''}`} 
+            />
+          </button>
+          
+          {showRefDiagnostics && (
+            <div className="h-[600px] border-t border-plm-border">
+              <ReferenceDiagnostics />
+            </div>
+          )}
         </div>
       </section>
     </div>

@@ -1598,7 +1598,24 @@ CREATE POLICY "Users can manage backup locks"
 -- HELPER FUNCTIONS
 -- ===========================================
 
+-- Helper to drop all overloads of a function (prevents signature ambiguity)
+-- Usage: SELECT drop_function_overloads('function_name');
+CREATE OR REPLACE FUNCTION drop_function_overloads(func_name TEXT)
+RETURNS void AS $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN 
+    SELECT p.oid::regprocedure as func_sig
+    FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public' AND p.proname = func_name
+  LOOP
+    EXECUTE 'DROP FUNCTION IF EXISTS ' || r.func_sig || ' CASCADE';
+  END LOOP;
+END $$ LANGUAGE plpgsql;
+
 -- Log file activity
+DROP FUNCTION IF EXISTS log_file_activity() CASCADE;
 CREATE OR REPLACE FUNCTION log_file_activity()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -1658,6 +1675,7 @@ CREATE TRIGGER log_file_changes
   FOR EACH ROW EXECUTE FUNCTION log_file_activity();
 
 -- Create default workflow
+DROP FUNCTION IF EXISTS create_default_workflow(UUID, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION create_default_workflow(p_org_id UUID, p_created_by UUID)
 RETURNS UUID AS $$
 DECLARE
@@ -1699,6 +1717,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Get available transitions
+DROP FUNCTION IF EXISTS get_available_transitions(UUID, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION get_available_transitions(p_file_id UUID, p_user_id UUID)
 RETURNS TABLE (
   transition_id UUID,
@@ -1729,6 +1748,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Generate share token
+DROP FUNCTION IF EXISTS generate_share_token() CASCADE;
 CREATE OR REPLACE FUNCTION generate_share_token()
 RETURNS TEXT AS $$
 DECLARE
@@ -1744,6 +1764,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create file share link
+SELECT drop_function_overloads('create_file_share_link');
 CREATE OR REPLACE FUNCTION create_file_share_link(
   p_org_id UUID, p_file_id UUID, p_created_by UUID,
   p_expires_in_days INTEGER DEFAULT NULL,
@@ -1774,6 +1795,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Validate share link
+DROP FUNCTION IF EXISTS validate_share_link(TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION validate_share_link(p_token TEXT)
 RETURNS TABLE (is_valid BOOLEAN, file_id UUID, org_id UUID, file_version INTEGER, error_message TEXT) AS $$
 DECLARE
@@ -1808,6 +1830,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Notify file watchers
+DROP FUNCTION IF EXISTS notify_file_watchers() CASCADE;
 CREATE OR REPLACE FUNCTION notify_file_watchers()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -1862,6 +1885,7 @@ CREATE TRIGGER notify_watchers_on_file_change
   FOR EACH ROW EXECUTE FUNCTION notify_file_watchers();
 
 -- Get user vault access
+DROP FUNCTION IF EXISTS get_user_vault_access(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION get_user_vault_access(p_user_id UUID)
 RETURNS TABLE (vault_id UUID) AS $$
 BEGIN
@@ -1885,6 +1909,8 @@ GRANT EXECUTE ON FUNCTION get_user_vault_access(UUID) TO authenticated;
 
 -- Atomic checkout: prevents race conditions when two users try to checkout same file
 -- Returns JSONB with success status, error message, or file data
+-- Drop all overloads to prevent signature ambiguity
+SELECT drop_function_overloads('checkout_file');
 CREATE OR REPLACE FUNCTION checkout_file(
   p_file_id UUID,
   p_user_id UUID,
@@ -1972,6 +1998,8 @@ GRANT EXECUTE ON FUNCTION checkout_file(UUID, UUID, TEXT, TEXT, TEXT) TO authent
 -- Atomic checkin: safely checks in a file with conditional version increment
 -- Only increments version when content, metadata, or version switch is detected
 -- Returns JSONB with success status, error message, or updated file data
+-- Drop all overloads to prevent signature ambiguity (critical for schema updates)
+SELECT drop_function_overloads('checkin_file');
 CREATE OR REPLACE FUNCTION checkin_file(
   p_file_id UUID,
   p_user_id UUID,
@@ -1983,7 +2011,12 @@ CREATE OR REPLACE FUNCTION checkin_file(
   p_description TEXT DEFAULT NULL,
   p_revision TEXT DEFAULT NULL,
   -- For version rollback detection
-  p_local_active_version INT DEFAULT NULL
+  p_local_active_version INT DEFAULT NULL,
+  -- For config_tabs, config_descriptions, etc.
+  p_custom_properties JSONB DEFAULT NULL,
+  -- Path/name updates (previously required separate UPDATE query)
+  p_new_file_path TEXT DEFAULT NULL,
+  p_new_file_name TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1995,10 +2028,12 @@ DECLARE
   v_content_changed BOOLEAN;
   v_metadata_changed BOOLEAN;
   v_version_switched BOOLEAN;
+  v_path_changed BOOLEAN;
   v_should_increment BOOLEAN;
   v_max_version INT;
   v_result JSONB;
   v_user_email TEXT;
+  v_merged_custom_props JSONB;
 BEGIN
   -- Lock and verify ownership
   SELECT * INTO v_file
@@ -2020,13 +2055,27 @@ BEGIN
   v_metadata_changed := (
     (p_part_number IS NOT NULL AND p_part_number IS DISTINCT FROM v_file.part_number) OR
     (p_description IS NOT NULL AND p_description IS DISTINCT FROM v_file.description) OR
-    (p_revision IS NOT NULL AND p_revision IS DISTINCT FROM v_file.revision)
+    (p_revision IS NOT NULL AND p_revision IS DISTINCT FROM v_file.revision) OR
+    (p_custom_properties IS NOT NULL)  -- custom_properties change triggers version
+  );
+  
+  -- Path/name changes now handled in RPC (eliminates separate UPDATE query)
+  v_path_changed := (
+    (p_new_file_path IS NOT NULL AND p_new_file_path IS DISTINCT FROM v_file.file_path) OR
+    (p_new_file_name IS NOT NULL AND p_new_file_name IS DISTINCT FROM v_file.file_name)
   );
   
   -- Version switch detection (user rolled back to different version locally)
   v_version_switched := (p_local_active_version IS NOT NULL AND p_local_active_version != v_file.version);
   
   v_should_increment := v_content_changed OR v_metadata_changed OR v_version_switched;
+  
+  -- Merge custom properties if provided (existing props + new props)
+  IF p_custom_properties IS NOT NULL THEN
+    v_merged_custom_props := COALESCE(v_file.custom_properties, '{}'::jsonb) || p_custom_properties;
+  ELSE
+    v_merged_custom_props := v_file.custom_properties;
+  END IF;
   
   -- Calculate new version only if needed
   IF v_should_increment THEN
@@ -2036,7 +2085,7 @@ BEGIN
     v_new_version := v_file.version;
   END IF;
   
-  -- Update file
+  -- Update file (now includes path/name in single atomic update)
   UPDATE files SET
     checked_out_by = NULL,
     checked_out_at = NULL,
@@ -2048,7 +2097,10 @@ BEGIN
     part_number = COALESCE(p_part_number, part_number),
     description = COALESCE(p_description, description),
     revision = COALESCE(p_revision, revision),
+    custom_properties = v_merged_custom_props,
     version = v_new_version,
+    file_path = COALESCE(p_new_file_path, file_path),
+    file_name = COALESCE(p_new_file_name, file_name),
     updated_by = p_user_id,
     updated_at = NOW()
   WHERE id = p_file_id;
@@ -2115,8 +2167,8 @@ BEGIN
 END;
 $$;
 
--- Grant for new signature with additional parameters
-GRANT EXECUTE ON FUNCTION checkin_file(UUID, UUID, TEXT, BIGINT, TEXT, TEXT, TEXT, TEXT, INT) TO authenticated;
+-- Grant for signature with custom_properties, file_path, file_name parameters
+GRANT EXECUTE ON FUNCTION checkin_file(UUID, UUID, TEXT, BIGINT, TEXT, TEXT, TEXT, TEXT, INT, JSONB, TEXT, TEXT) TO authenticated;
 
 -- ===========================================
 -- REALTIME
@@ -2159,6 +2211,7 @@ END $$;
 
 -- Preview next serial number (returns what the next auto-generated serial will look like)
 -- Used by the SerializationSettings component to show a server-side preview
+DROP FUNCTION IF EXISTS preview_next_serial_number(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION preview_next_serial_number(p_org_id UUID)
 RETURNS TEXT AS $$
 DECLARE

@@ -665,7 +665,7 @@ export interface FilesSlice {
   removeProcessingFolder: (path: string) => void
   removeProcessingFolders: (paths: string[]) => void
   clearProcessingFolders: () => void
-  getProcessingOperation: (path: string) => OperationType | null
+  getProcessingOperation: (path: string, isDirectory?: boolean) => OperationType | null
   
   // Actions - SolidWorks Configurations
   toggleConfigExpansion: (filePath: string) => void
@@ -1105,6 +1105,87 @@ export interface OrganizationDataSlice {
 }
 
 // ============================================================================
+// Integration Status Slice
+// ============================================================================
+
+/** Integration identifiers for status tracking */
+export type IntegrationId = 'supabase' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'woocommerce' | 'webhooks' | 'api'
+
+/** Status of an individual integration */
+export type IntegrationStatusValue = 'online' | 'partial' | 'offline' | 'not-configured' | 'checking' | 'coming-soon'
+
+/** Backward compatibility alias */
+export type IntegrationStatus = IntegrationStatusValue
+
+/** Backup status type alias for backward compatibility */
+export type BackupStatusValue = 'online' | 'partial' | 'offline' | 'not-configured'
+
+/** State for a single integration */
+export interface IntegrationState {
+  status: IntegrationStatusValue
+  lastChecked: number | null  // Unix timestamp ms
+  error?: string
+}
+
+export interface IntegrationsSlice {
+  // ═══════════════════════════════════════════════════════════════
+  // State
+  // ═══════════════════════════════════════════════════════════════
+  integrations: Record<IntegrationId, IntegrationState>
+  backupStatus: BackupStatusValue
+  isCheckingIntegrations: boolean
+  integrationsLastFullCheck: number | null  // Unix timestamp ms of last full check
+  
+  /** Flag to prevent integration status checks from overwriting auto-start results */
+  solidworksAutoStartInProgress: boolean
+  
+  /** Flag indicating a batch SolidWorks operation is in progress (e.g., 80-file check-in) */
+  isBatchSWOperationRunning: boolean
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Actions
+  // ═══════════════════════════════════════════════════════════════
+  /** Set the status of a specific integration */
+  setIntegrationStatus: (id: IntegrationId, status: IntegrationStatusValue, error?: string) => void
+  
+  /** Set multiple integration statuses at once */
+  setIntegrationStatuses: (statuses: Partial<Record<IntegrationId, IntegrationStatusValue>>) => void
+  
+  /** Set backup status */
+  setBackupStatus: (status: BackupStatusValue) => void
+  
+  /** Check status of a single integration */
+  checkIntegration: (id: IntegrationId) => Promise<void>
+  
+  /** Check status of all integrations */
+  checkAllIntegrations: () => Promise<void>
+  
+  /** Mark an integration as currently checking */
+  setIntegrationChecking: (id: IntegrationId) => void
+  
+  /** Reset all integration statuses to initial state */
+  resetIntegrationStatuses: () => void
+  
+  /** Set whether SolidWorks auto-start is in progress */
+  setSolidworksAutoStartInProgress: (inProgress: boolean) => void
+  
+  /** Set whether a batch SolidWorks operation is running */
+  setIsBatchSWOperationRunning: (running: boolean) => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Backward compatibility aliases
+  // ═══════════════════════════════════════════════════════════════
+  /** @deprecated Use isCheckingIntegrations state directly */
+  setIsCheckingIntegrations: (checking: boolean) => void
+  /** @deprecated Use setIntegrationChecking */
+  startIntegrationCheck: (id: IntegrationId) => void
+  /** @deprecated Use setIntegrationStatus */
+  completeIntegrationCheck: (id: IntegrationId, status: IntegrationStatusValue, error?: string) => void
+  /** @deprecated Use resetIntegrationStatuses */
+  resetAllStatuses: () => void
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
 
@@ -1123,7 +1204,8 @@ export type PDMStoreState =
   SuppliersSlice &
   ECOsSlice &
   OrganizationDataSlice &
-  OrganizationMetadataSlice
+  OrganizationMetadataSlice &
+  IntegrationsSlice
 
 // ============================================================================
 // Store Versioning

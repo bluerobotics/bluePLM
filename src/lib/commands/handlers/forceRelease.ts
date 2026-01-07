@@ -8,6 +8,7 @@
 import type { Command, ForceReleaseParams, CommandResult } from '../types'
 import { getSyncedFilesFromSelection } from '../types'
 import { adminForceDiscardCheckout } from '../../supabase'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 
 export const forceReleaseCommand: Command<ForceReleaseParams> = {
   id: 'force-release',
@@ -87,7 +88,7 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
     // Process all files in parallel, collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
-    const results = await Promise.all(filesToRelease.map(async (file) => {
+    const results = await processWithConcurrency(filesToRelease, CONCURRENT_OPERATIONS, async (file) => {
       try {
         const result = await adminForceDiscardCheckout(file.pdmData!.id, user.id)
         
@@ -115,7 +116,7 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error'
         return { success: false, error: `${file.name}: ${errorMsg}` }
       }
-    }))
+    })
     
     // Apply all store updates in a single batch (avoids N re-renders)
     if (pendingUpdates.length > 0) {

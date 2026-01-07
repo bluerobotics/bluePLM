@@ -31,6 +31,7 @@ import type { ConfigContextMenuState } from './useContextMenuState'
 import type { Organization } from '@/stores/types'
 import { getEffectiveExportSettings } from '@/features/settings/system'
 import { buildConfigTreeFlat } from '../utils/configTree'
+import { getSerializationSettings, combineBaseAndTab } from '@/lib/serialization'
 
 export interface ConfigHandlersDeps {
   // Files state (still passed - could also read from store but kept for consistency)
@@ -333,12 +334,80 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       configsToExport.push(configContextMenu.configName)
     }
     
+    // Get the file's PDM data for fallback metadata
+    const file = files.find(f => f.path === filePath)
+    
+    // Get tab number from the first selected configuration
+    const configs = fileConfigurations.get(filePath) || []
+    const firstConfigName = configsToExport[0]
+    const firstConfig = configs.find(c => c.name === firstConfigName)
+    
+    // Tab number priority: pendingMetadata > config data from store
+    const pendingTabNumber = file?.pendingMetadata?.config_tabs?.[firstConfigName] || ''
+    const configTabNumber = firstConfig?.tabNumber || ''
+    const tabNumber = pendingTabNumber || configTabNumber
+    
+    // Get config-specific description: pending metadata > config store > file-level fallback
+    const pendingConfigDesc = file?.pendingMetadata?.config_descriptions?.[firstConfigName] || ''
+    const configDescription = pendingConfigDesc || firstConfig?.description || ''
+    const finalDescription = configDescription || file?.pdmData?.description || file?.pendingMetadata?.description || ''
+    
+    // Build full item number for configuration using serialization settings
+    const baseNumber = file?.pdmData?.part_number || file?.pendingMetadata?.part_number || ''
+    let fullItemNumber = baseNumber
+    
+    if (tabNumber && organization?.id) {
+      try {
+        const serSettings = await getSerializationSettings(organization.id)
+        if (serSettings?.tab_enabled) {
+          fullItemNumber = combineBaseAndTab(baseNumber, tabNumber, serSettings)
+        } else if (baseNumber && tabNumber) {
+          // Fallback: simple concatenation with dash if tabs not formally enabled
+          fullItemNumber = `${baseNumber}-${tabNumber}`
+        }
+      } catch (err) {
+        console.warn('[Export] Failed to get serialization settings, using simple concatenation:', err)
+        if (baseNumber && tabNumber) {
+          fullItemNumber = `${baseNumber}-${tabNumber}`
+        }
+      }
+    }
+    
+    // Debug logging
+    console.log('[Export] BluePLM metadata for export:')
+    console.log('[Export]   File path:', filePath)
+    console.log('[Export]   Config name:', firstConfigName)
+    console.log('[Export]   PDM part_number:', file?.pdmData?.part_number)
+    console.log('[Export]   Pending part_number:', file?.pendingMetadata?.part_number)
+    console.log('[Export]   Base number:', baseNumber)
+    console.log('[Export]   Tab number:', tabNumber)
+    console.log('[Export]   Full item number:', fullItemNumber)
+    console.log('[Export]   PDM revision:', file?.pdmData?.revision)
+    console.log('[Export]   Config description from store:', firstConfig?.description)
+    console.log('[Export]   Pending config description:', pendingConfigDesc)
+    console.log('[Export]   Final description:', finalDescription)
+    
+    const pdmMetadata = {
+      partNumber: fullItemNumber,  // Full config-specific item number (base + tab)
+      tabNumber: tabNumber,
+      revision: file?.pdmData?.revision || '',
+      description: finalDescription  // Config-specific description
+    }
+    
+    console.log('[Export] Final pdmMetadata being sent:', pdmMetadata)
+    
     // Get filename pattern from effective export settings (user preference > org default > app default)
     const exportSettings = getEffectiveExportSettings(organization)
     const filenamePattern = exportSettings.filename_pattern
     
-    setIsExportingConfigs(true)
+    // Close context menu immediately
     setConfigContextMenu(null)
+    setIsExportingConfigs(true)
+    
+    // Show progress toast (will remain visible until export completes)
+    const fileName = filePath.split(/[\\/]/).pop() || filePath
+    const configLabel = configsToExport.length === 1 ? configsToExport[0] : `${configsToExport.length} configs`
+    addToast('info', `Exporting ${format.toUpperCase()}: ${fileName} (${configLabel})...`)
     
     try {
       let result
@@ -346,7 +415,8 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         case 'step':
           result = await window.electronAPI?.solidworks?.exportStep(filePath, { 
             configurations: configsToExport,
-            filenamePattern
+            filenamePattern,
+            pdmMetadata  // Pass PDM data as fallback for file properties
           })
           break
         case 'iges':
@@ -363,7 +433,26 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       
       if (result?.success) {
         const count = result.data && 'exportedFiles' in result.data ? result.data.exportedFiles?.length : configsToExport.length
-        addToast('success', `Exported ${count} ${format.toUpperCase()} file${count > 1 ? 's' : ''}`)
+        const exportedFiles = result.data && 'exportedFiles' in result.data ? result.data.exportedFiles : []
+        
+        // Copy the configuration's metadata to each exported STEP file
+        if (exportedFiles && exportedFiles.length > 0) {
+          for (const exportedPath of exportedFiles) {
+            usePDMStore.getState().updatePendingMetadata(exportedPath, {
+              part_number: fullItemNumber,
+              description: finalDescription,
+              revision: file?.pdmData?.revision || 'A'
+            })
+          }
+        }
+        
+        // Show success with first exported filename if available
+        if (exportedFiles && exportedFiles.length > 0) {
+          const firstFile = exportedFiles[0].split(/[\\/]/).pop()
+          addToast('success', `Exported ${count} ${format.toUpperCase()} file${count > 1 ? 's' : ''}: ${firstFile}${count > 1 ? ' ...' : ''}`)
+        } else {
+          addToast('success', `Exported ${count} ${format.toUpperCase()} file${count > 1 ? 's' : ''}`)
+        }
       } else {
         addToast('error', result?.error || `Failed to export ${format.toUpperCase()}`)
       }
@@ -372,7 +461,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     } finally {
       setIsExportingConfigs(false)
     }
-  }, [configContextMenu, getSelectedConfigsForFile, organization, setIsExportingConfigs, setConfigContextMenu, addToast])
+  }, [files, configContextMenu, getSelectedConfigsForFile, organization, setIsExportingConfigs, setConfigContextMenu, addToast])
 
   // Toggle file configuration expansion (expand/collapse config rows for a file)
   const toggleFileConfigExpansion = useCallback(async (file: LocalFile) => {

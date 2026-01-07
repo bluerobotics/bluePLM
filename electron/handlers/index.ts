@@ -3,19 +3,26 @@ import { BrowserWindow } from 'electron'
 
 import { registerFsHandlers, unregisterFsHandlers, getWorkingDirectory, FsHandlerDependencies } from './fs'
 import { registerBackupHandlers, unregisterBackupHandlers, BackupHandlerDependencies } from './backup'
-import { registerSolidWorksHandlers, unregisterSolidWorksHandlers, isFileBeingThumbnailed, getThumbnailsInProgress, SolidWorksHandlerDependencies } from './solidworks'
+import { registerSolidWorksHandlers, unregisterSolidWorksHandlers, cleanupSolidWorksService, isFileBeingThumbnailed, getThumbnailsInProgress, SolidWorksHandlerDependencies } from './solidworks'
 import { registerDialogHandlers, unregisterDialogHandlers, DialogHandlerDependencies } from './dialogs'
 import { registerSystemHandlers, unregisterSystemHandlers, SystemHandlerDependencies } from './system'
 import { registerLoggingHandlers, unregisterLoggingHandlers, writeLog, initializeLogging, LoggingHandlerDependencies } from './logging'
 import { registerUpdaterHandlers, unregisterUpdaterHandlers, UpdaterHandlerDependencies } from './updater'
 import { registerOAuthHandlers, unregisterOAuthHandlers, OAuthHandlerDependencies } from './oauth'
+import { registerCliHandlers, unregisterCliHandlers, startCliServer, cleanupCli, CliHandlerDependencies } from './cli'
 
 // Logging utilities for main.ts
 export { writeLog, initializeLogging } from './logging'
 
+// CLI exports for main.ts
+export { startCliServer, cleanupCli } from './cli'
+
 // Re-export getters
 export { getWorkingDirectory } from './fs'
 export { isFileBeingThumbnailed, getThumbnailsInProgress } from './solidworks'
+
+// SolidWorks service cleanup for app quit
+export { cleanupSolidWorksService } from './solidworks'
 
 // Convenience log functions
 const log = (message: string, data?: unknown) => {
@@ -89,6 +96,11 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
     log
   }
 
+  const cliHandlerDeps: CliHandlerDependencies = {
+    log,
+    logError
+  }
+
   // Register all handlers
   registerFsHandlers(mainWindow, fsHandlerDeps)
   registerBackupHandlers(mainWindow, backupHandlerDeps)
@@ -98,6 +110,7 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   registerLoggingHandlers(mainWindow, loggingHandlerDeps)
   registerUpdaterHandlers(mainWindow, updaterHandlerDeps)
   registerOAuthHandlers(mainWindow, oauthHandlerDeps)
+  registerCliHandlers(mainWindow, cliHandlerDeps)
 
   log('All IPC handlers registered')
 }
@@ -111,4 +124,5 @@ export function unregisterAllHandlers(): void {
   unregisterLoggingHandlers()
   unregisterUpdaterHandlers()
   unregisterOAuthHandlers()
+  unregisterCliHandlers()
 }

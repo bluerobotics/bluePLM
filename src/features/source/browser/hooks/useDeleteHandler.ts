@@ -29,6 +29,7 @@ import { useCallback, useMemo } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import type { UseDialogStateReturn } from './useDialogState'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '@/lib/concurrency'
 
 export interface UseDeleteHandlerOptions {
   // Dialog state
@@ -181,7 +182,7 @@ export function useDeleteHandler({
         const localItemsToDelete = [...itemsToDelete]
         
         if (localItemsToDelete.length > 0) {
-          const localResults = await Promise.all(localItemsToDelete.map(async (item) => {
+          const localResults = await processWithConcurrency(localItemsToDelete, CONCURRENT_OPERATIONS, async (item) => {
             try {
               // Release checkout if needed
               if (item.pdmData?.checked_out_by === user?.id && item.pdmData?.id) {
@@ -193,15 +194,15 @@ export function useDeleteHandler({
             } catch {
               return false
             }
-          }))
+          })
           deletedLocal = localResults.filter(r => r).length
         }
         
-        // STEP 2: Delete from server in parallel
+        // STEP 2: Delete from server with concurrency limit
         if (syncedFiles.length > 0) {
           const { softDeleteFile } = await import('@/lib/supabase')
           
-          const serverResults = await Promise.all(syncedFiles.map(async (file) => {
+          const serverResults = await processWithConcurrency(syncedFiles, CONCURRENT_OPERATIONS, async (file) => {
             if (!file.pdmData?.id) return false
             try {
               const result = await softDeleteFile(file.pdmData.id, user!.id)
@@ -209,16 +210,16 @@ export function useDeleteHandler({
             } catch {
               return false
             }
-          }))
+          })
           
           deletedServer = serverResults.filter(r => r).length
           failedServer = serverResults.filter(r => !r).length
         }
       } else {
-        // Regular local-only delete - in parallel
+        // Regular local-only delete - with concurrency limit
         const localItemsToDelete = itemsToDelete.filter(f => f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new')
         
-        const results = await Promise.all(localItemsToDelete.map(async (file) => {
+        const results = await processWithConcurrency(localItemsToDelete, CONCURRENT_OPERATIONS, async (file) => {
           try {
             // Release checkout if needed
             if (file.pdmData?.checked_out_by === user?.id && file.pdmData?.id) {
@@ -234,7 +235,7 @@ export function useDeleteHandler({
           } catch {
             return false
           }
-        }))
+        })
         
         deletedLocal = results.filter(r => r).length
       }

@@ -1444,6 +1444,8 @@ namespace BluePLM.SolidWorksService
 
         public CommandResult GetBillOfMaterials(string? filePath, string? configuration = null)
         {
+            var swTotal = System.Diagnostics.Stopwatch.StartNew();
+            
             if (!Initialize() || _dmApp == null)
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
 
@@ -1460,7 +1462,11 @@ namespace BluePLM.SolidWorksService
             object? doc = null;
             try
             {
+                var swOpen = System.Diagnostics.Stopwatch.StartNew();
                 doc = OpenDocument(filePath!, out var openError);
+                swOpen.Stop();
+                Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: OpenDocument took {swOpen.ElapsedMilliseconds}ms");
+                
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: error code {openError}" };
 
@@ -1480,10 +1486,14 @@ namespace BluePLM.SolidWorksService
                         dynamic dynSearchOpt = searchOpt;
                         dynSearchOpt.SearchFilters = 3; // SwDmSearchForPart | SwDmSearchForAssembly
 
+                        var swGetRefs = System.Diagnostics.Stopwatch.StartNew();
                         var dependencies = (string[]?)dynDoc.GetAllExternalReferences(searchOpt);
+                        swGetRefs.Stop();
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetAllExternalReferences took {swGetRefs.ElapsedMilliseconds}ms, found {dependencies?.Length ?? 0} refs");
 
                         if (dependencies != null)
                         {
+                            // Count quantities from all references (including duplicates)
                             foreach (var depPath in dependencies)
                             {
                                 if (string.IsNullOrEmpty(depPath)) continue;
@@ -1494,37 +1504,19 @@ namespace BluePLM.SolidWorksService
                                     quantities[depPath] = 1;
                             }
 
+                            // Build BOM - DO NOT open component files for properties (too slow!)
+                            // Frontend will look up properties from database instead
                             var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                             foreach (var depPath in dependencies)
                             {
                                 if (string.IsNullOrEmpty(depPath) || processed.Contains(depPath)) continue;
-                                if (!File.Exists(depPath)) continue;
                                 processed.Add(depPath);
 
                                 var depExt = Path.GetExtension(depPath).ToLowerInvariant();
                                 var fileType = depExt == ".sldprt" ? "Part" : depExt == ".sldasm" ? "Assembly" : "Other";
 
-                                var props = new Dictionary<string, string>();
-                                object? compDoc = null;
-                                try
-                                {
-                                    compDoc = OpenDocument(depPath, out _);
-                                    if (compDoc != null)
-                                    {
-                                        dynamic dynCompDoc = compDoc;
-                                        props = ReadProperties(dynCompDoc, null);
-                                    }
-                                }
-                                catch { }
-                                finally
-                                {
-                                    // ALWAYS close component documents
-                                    if (compDoc != null)
-                                    {
-                                        try { ((dynamic)compDoc).CloseDoc(); } catch { }
-                                    }
-                                }
-
+                                // Skip opening component files - this was causing 30+ second delays!
+                                // Just return path info, let frontend get properties from DB
                                 bom.Add(new BomItem
                                 {
                                     FileName = Path.GetFileName(depPath),
@@ -1532,16 +1524,19 @@ namespace BluePLM.SolidWorksService
                                     FileType = fileType,
                                     Quantity = quantities[depPath],
                                     Configuration = "",
-                                    PartNumber = GetPartNumber(props),
-                                    Description = GetDictValue(props, "Description") ?? "",
-                                    Material = GetDictValue(props, "Material") ?? "",
-                                    Revision = GetRevision(props),
-                                    Properties = props
+                                    PartNumber = "", // Will be filled from DB by frontend
+                                    Description = "", // Will be filled from DB by frontend
+                                    Material = "", // Will be filled from DB by frontend
+                                    Revision = "", // Will be filled from DB by frontend
+                                    Properties = new Dictionary<string, string>()
                                 });
                             }
                         }
                     }
                 }
+
+                swTotal.Stop();
+                Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Total time {swTotal.ElapsedMilliseconds}ms for {bom.Count} components");
 
                 return new CommandResult
                 {
@@ -1600,7 +1595,10 @@ namespace BluePLM.SolidWorksService
                         dynamic dynSearchOpt = searchOpt;
                         dynSearchOpt.SearchFilters = 7; // Part | Assembly | Drawing
 
+                        var swGetRefs = System.Diagnostics.Stopwatch.StartNew();
                         var dependencies = (string[]?)dynDoc.GetAllExternalReferences(searchOpt);
+                        swGetRefs.Stop();
+                        Console.Error.WriteLine($"[DM-API] GetAllExternalReferences took {swGetRefs.ElapsedMilliseconds}ms, found {dependencies?.Length ?? 0} refs");
 
                         if (dependencies != null)
                         {
@@ -1615,7 +1613,7 @@ namespace BluePLM.SolidWorksService
                                 {
                                     path = depPath,
                                     fileName = Path.GetFileName(depPath),
-                                    exists = File.Exists(depPath),
+                                    exists = true, // Skip File.Exists() check for performance - frontend handles missing files
                                     fileType = depExt == ".sldprt" ? "Part" : depExt == ".sldasm" ? "Assembly" : depExt == ".slddrw" ? "Drawing" : "Other"
                                 });
                             }

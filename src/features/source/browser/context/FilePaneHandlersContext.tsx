@@ -29,7 +29,7 @@ export interface FilePaneHandlersContextValue {
   
   // Status functions
   isBeingProcessed: (path: string) => boolean
-  getProcessingOperation: (path: string) => OperationType | null
+  getProcessingOperation: (path: string, isDirectory?: boolean) => OperationType | null
   getFolderCheckoutStatus: (path: string) => 'mine' | 'others' | 'both' | null
   isFolderSynced: (path: string) => boolean
   isFileEditable: (file: LocalFile) => boolean

@@ -248,10 +248,12 @@ export function writeLog(level: LogEntry['level'], message: string, data?: unkno
 }
 
 // Initialize logging
+// Note: We intentionally do NOT load persisted log recording state here.
+// Log recording is always re-enabled on app restart for debugging reliability.
 export function initializeLogging() {
   try {
     loadLogRetentionSettings()
-    loadLogRecordingState()
+    // logRecordingEnabled defaults to true (see line 25) - we do not persist/restore this
     
     const logsDir = path.join(app.getPath('userData'), 'logs')
     if (!fs.existsSync(logsDir)) {

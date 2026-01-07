@@ -54,11 +54,7 @@ export const InlineCheckoutButton: React.FC<CheckoutButtonProps> = ({
   const forceExpanded = isSelectionHovered
 
   if (isProcessing) {
-    return (
-      <span className="px-1.5 py-0.5 rounded-md bg-plm-success/20 text-plm-success">
-        <Loader2 size={12} className="animate-spin" />
-      </span>
-    )
+    return <Loader2 size={16} className="text-sky-400 animate-spin" />
   }
 
   return (
@@ -119,11 +115,7 @@ export const InlineDownloadButton: React.FC<DownloadButtonProps> = ({
   const forceExpanded = isSelectionHovered
 
   if (isProcessing) {
-    return (
-    <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-plm-info">
-      <Loader2 size={12} className="animate-spin" />
-    </span>
-    )
+    return <Loader2 size={16} className="text-sky-400 animate-spin" />
   }
 
   return (
@@ -186,11 +178,7 @@ export const InlineUploadButton: React.FC<UploadButtonProps> = ({
   const forceExpanded = isSelectionHovered
 
   if (isProcessing) {
-    return (
-    <span className="px-1.5 py-0.5 rounded-md bg-sky-400/20 text-plm-info">
-      <Loader2 size={12} className="animate-spin" />
-    </span>
-    )
+    return <Loader2 size={16} className="text-sky-400 animate-spin" />
   }
 
   return (
@@ -253,11 +241,7 @@ export const InlineStageCheckinButton: React.FC<StageCheckinButtonProps> = ({
   const forceExpanded = isSelectionHovered
 
   if (isProcessing) {
-    return (
-      <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-400">
-        <Loader2 size={12} className="animate-spin" />
-      </span>
-    )
+    return <Loader2 size={16} className="text-sky-400 animate-spin" />
   }
 
   // If staged, show check mark with green styling, changes to "unstage" on hover
@@ -346,11 +330,7 @@ export const InlineSyncButton: React.FC<SyncButtonProps> = ({
   const forceExpanded = isSelectionHovered
 
   if (isProcessing) {
-    return (
-      <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-400">
-        <Loader2 size={12} className="animate-spin" />
-      </span>
-    )
+    return <Loader2 size={16} className="text-sky-400 animate-spin" />
   }
 
   return (
@@ -394,11 +374,7 @@ export const FolderDownloadButton: React.FC<FolderDownloadButtonProps> = ({
     : 'Create folder locally'
 
   if (isProcessing) {
-    return (
-      <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-plm-info">
-        <Loader2 size={12} className="animate-spin" />
-      </span>
-    )
+    return <Loader2 size={16} className="text-sky-400 animate-spin" />
   }
 
   return (
@@ -436,11 +412,7 @@ export const FolderUploadButton: React.FC<FolderUploadButtonProps> = ({
   const defaultTitle = `First Check In ${localCount} local file${localCount > 1 ? 's' : ''}`
 
   if (isProcessing) {
-    return (
-    <span className="px-1.5 py-0.5 rounded-md bg-sky-400/20 text-plm-info">
-      <Loader2 size={12} className="animate-spin" />
-    </span>
-    )
+    return <Loader2 size={16} className="text-sky-400 animate-spin" />
   }
 
   return (
@@ -488,6 +460,11 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
   onMouseEnter,
   onMouseLeave
 }) => {
+  // When processing, just show a clean blue spinner - no backgrounds, no avatars, nothing else
+  if (isProcessing) {
+    return <Loader2 size={16} className="text-sky-400 animate-spin" />
+  }
+
   const canCheckin = myCheckedOutCount > 0
   // Show count if: multi-select with selectedCount > 1, OR folder with totalCheckouts > 1
   const displayCount = selectedCount !== undefined ? selectedCount : totalCheckouts
@@ -509,18 +486,18 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
   const forceExpanded = isSelectionHovered
   
   // Determine background and content styling based on state
-  const isExpanded = isProcessing || forceExpanded
+  const isExpanded = forceExpanded
   const boxBg = isExpanded ? 'bg-emerald-400/30' : 'bg-white/10 group-hover/checkin:bg-emerald-400/30'
   const boxGap = isExpanded ? 'gap-1' : 'gap-0 group-hover/checkin:gap-1'
 
   return (
     <button
       className={`group/checkin relative flex items-center ${
-        isProcessing ? 'cursor-not-allowed' : canCheckin ? 'cursor-pointer' : 'cursor-default'
+        canCheckin ? 'cursor-pointer' : 'cursor-default'
       }`}
-      onClick={canCheckin && !isProcessing ? onClick : undefined}
+      onClick={canCheckin ? onClick : undefined}
       title={title || defaultTitle || 'Check In'}
-      disabled={disabled || !canCheckin || isProcessing}
+      disabled={disabled || !canCheckin}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -570,13 +547,9 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
             {displayCount}
           </span>
         )}
-        {isProcessing ? (
-          <Loader2 size={12} className="animate-spin text-emerald-400" />
-        ) : (
-          <ArrowUp size={12} className={`overflow-hidden transition-all duration-200 ${
-            isExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkin:max-w-[1rem]'
-          } ${canCheckin ? 'text-emerald-400' : 'opacity-50'}`} />
-        )}
+        <ArrowUp size={12} className={`overflow-hidden transition-all duration-200 ${
+          isExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkin:max-w-[1rem]'
+        } ${canCheckin ? 'text-emerald-400' : 'opacity-50'}`} />
       </div>
     </button>
   )

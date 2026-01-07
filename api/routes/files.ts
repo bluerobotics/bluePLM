@@ -130,52 +130,38 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string }
     const { message } = (request.body as { message?: string }) || {}
     
-    const { data: file, error: fetchError } = await request.supabase!
-      .from('files')
-      .select('id, file_name, file_path, checked_out_by, org_id')
-      .eq('id', id)
-      .eq('org_id', request.user!.org_id)
-      .single()
-    
-    if (fetchError) throw fetchError
-    if (!file) return sendError(reply, 404, 'Not found', 'File not found')
-    
-    if (file.checked_out_by && file.checked_out_by !== request.user!.id) {
-      return sendError(reply, 409, 'Already checked out', 'File is checked out by another user')
-    }
-    
-    const { data, error } = await request.supabase!
-      .from('files')
-      .update({
-        checked_out_by: request.user!.id,
-        checked_out_at: new Date().toISOString(),
-        lock_message: message || null
-      })
-      .eq('id', id)
-      .select()
-      .single()
+    // Use atomic RPC for checkout - handles locking and activity logging
+    const { data, error } = await request.supabase!.rpc('checkout_file', {
+      p_file_id: id,
+      p_user_id: request.user!.id,
+      p_machine_id: null,
+      p_machine_name: 'API',
+      p_lock_message: message || null
+    })
     
     if (error) throw error
     
-    // Log activity
-    await request.supabase!.from('activity').insert({
-      org_id: request.user!.org_id,
-      file_id: id,
-      user_id: request.user!.id,
-      action: 'checkout',
-      details: message ? { message } : {}
-    })
+    const result = data as { success: boolean; error?: string; file?: Record<string, unknown> }
     
-    // Trigger webhooks
+    if (!result.success) {
+      // Determine appropriate error code based on error message
+      if (result.error?.includes('not found')) {
+        return sendError(reply, 404, 'Not found', result.error)
+      }
+      return sendError(reply, 409, 'Checkout failed', result.error || 'Unknown error')
+    }
+    
+    // RPC handles activity logging - DO NOT add manual logging here
+    // BUT keep the webhook trigger - webhooks are API layer responsibility
     await triggerWebhooks(request.user!.org_id!, 'file.checkout', {
       file_id: id,
-      file_path: file.file_path,
-      file_name: file.file_name,
+      file_path: (result.file as { file_path?: string })?.file_path,
+      file_name: (result.file as { file_name?: string })?.file_name,
       user_id: request.user!.id,
       user_email: request.user!.email
     }, fastify.log)
     
-    return { success: true, file: data }
+    return { success: true, file: result.file }
   })
   
   // Check in a file after editing
@@ -204,34 +190,15 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
     const { comment, content_hash, file_size, content } = 
       (request.body as { comment?: string; content_hash?: string; file_size?: number; content?: string }) || {}
     
-    const { data: file, error: fetchError } = await request.supabase!
-      .from('files')
-      .select('*')
-      .eq('id', id)
-      .eq('org_id', request.user!.org_id)
-      .single()
+    // Step 1: Handle content upload FIRST (before RPC)
+    // Storage uploads must happen before the atomic RPC call
+    let newHash = content_hash
+    let newSize = file_size
     
-    if (fetchError) throw fetchError
-    if (!file) return sendError(reply, 404, 'Not found', 'File not found')
-    
-    if (file.checked_out_by !== request.user!.id) {
-      return sendError(reply, 403, 'Forbidden', 'File is not checked out to you')
-    }
-    
-    const updateData: Record<string, unknown> = {
-      checked_out_by: null,
-      checked_out_at: null,
-      lock_message: null,
-      checked_out_by_machine_id: null,
-      checked_out_by_machine_name: null,
-      updated_at: new Date().toISOString(),
-      updated_by: request.user!.id
-    }
-    
-    // Upload new content if provided
     if (content) {
       const binaryContent = Buffer.from(content, 'base64')
-      const newHash = computeHash(binaryContent)
+      newHash = computeHash(binaryContent)
+      newSize = binaryContent.length
       const storagePath = `${request.user!.org_id}/${newHash.substring(0, 2)}/${newHash}`
       
       const { error: uploadError } = await request.supabase!.storage
@@ -241,72 +208,71 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
           upsert: false
         })
       
+      // Ignore "already exists" - content-addressable storage deduplicates
       if (uploadError && !uploadError.message.includes('already exists')) {
         throw uploadError
       }
-      
-      updateData.content_hash = newHash
-      updateData.file_size = binaryContent.length
-    } else if (content_hash) {
-      updateData.content_hash = content_hash
-      if (file_size) updateData.file_size = file_size
     }
     
-    const contentChanged = updateData.content_hash && updateData.content_hash !== file.content_hash
+    // Step 2: Call atomic RPC for checkin - handles versioning + activity logging
+    const { data, error } = await request.supabase!.rpc('checkin_file', {
+      p_file_id: id,
+      p_user_id: request.user!.id,
+      p_new_content_hash: newHash || null,
+      p_new_file_size: newSize || null,
+      p_comment: comment || null,
+      p_part_number: null,
+      p_description: null,
+      p_revision: null,
+      p_local_active_version: null
+    })
     
-    if (contentChanged) {
-      updateData.version = file.version + 1
-      
-      await request.supabase!.from('file_versions').insert({
-        file_id: id,
-        version: file.version + 1,
-        revision: file.revision,
-        content_hash: updateData.content_hash,
-        file_size: updateData.file_size || file.file_size,
-        state: file.state,
-        created_by: request.user!.id,
-        comment: comment || null
-      })
-      
-      // Trigger version webhook
+    if (error) throw error
+    
+    const result = data as { 
+      success: boolean
+      error?: string
+      file?: Record<string, unknown>
+      content_changed?: boolean
+      version_incremented?: boolean
+      new_version?: number
+    }
+    
+    if (!result.success) {
+      // Determine appropriate error code based on error message
+      if (result.error?.includes('not found')) {
+        return sendError(reply, 404, 'Not found', result.error)
+      }
+      if (result.error?.includes('not checked out')) {
+        return sendError(reply, 403, 'Forbidden', result.error)
+      }
+      return sendError(reply, 409, 'Checkin failed', result.error || 'Unknown error')
+    }
+    
+    // Step 3: Trigger webhooks (API layer responsibility)
+    // RPC handles activity logging - DO NOT duplicate
+    
+    if (result.version_incremented) {
       await triggerWebhooks(request.user!.org_id!, 'file.version', {
         file_id: id,
-        file_path: file.file_path,
-        file_name: file.file_name,
-        version: file.version + 1,
+        file_path: (result.file as { file_path?: string })?.file_path,
+        file_name: (result.file as { file_name?: string })?.file_name,
+        version: result.new_version,
         user_id: request.user!.id,
         user_email: request.user!.email
       }, fastify.log)
     }
     
-    const { data, error } = await request.supabase!
-      .from('files')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single()
-    
-    if (error) throw error
-    
-    // Log activity and trigger webhook
-    await request.supabase!.from('activity').insert({
-      org_id: request.user!.org_id,
-      file_id: id,
-      user_id: request.user!.id,
-      action: 'checkin',
-      details: { comment, contentChanged }
-    })
-    
     await triggerWebhooks(request.user!.org_id!, 'file.checkin', {
       file_id: id,
-      file_path: file.file_path,
-      file_name: file.file_name,
+      file_path: (result.file as { file_path?: string })?.file_path,
+      file_name: (result.file as { file_name?: string })?.file_name,
       user_id: request.user!.id,
       user_email: request.user!.email,
-      content_changed: contentChanged
+      content_changed: result.content_changed
     }, fastify.log)
     
-    return { success: true, file: data, contentChanged }
+    return { success: true, file: result.file, contentChanged: result.content_changed }
   })
   
   // Undo checkout (discard changes)

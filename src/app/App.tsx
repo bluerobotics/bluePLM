@@ -22,6 +22,7 @@ import {
   useAuth,
   useAutoDownload,
   useVaultManagement,
+  useIntegrationStatus,
 } from '@/hooks'
 
 // Check if we're in performance mode (pop-out window)
@@ -108,6 +109,9 @@ function App() {
   useSolidWorksAutoStart(organization)
   useAutoUpdater()
   useKeyboardShortcuts({ onOpenVault: handleOpenVault, onRefresh: loadFiles })
+  
+  // Integration status orchestration hook - handles status checks lifecycle
+  useIntegrationStatus()
 
   // Sync API URL from organization settings to store (which handles localStorage persistence)
   useEffect(() => {

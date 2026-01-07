@@ -87,97 +87,238 @@ export interface CommandResult {
 // Command Parameters
 // ============================================
 
-// Base params - all commands get target files
+/**
+ * Base parameters shared by all file commands.
+ * Commands that operate on files extend this interface.
+ */
 export interface BaseCommandParams {
+  /** Array of files to operate on. Can include directories for batch operations. */
   files: LocalFile[]
 }
 
-// Checkout
+/**
+ * Parameters for the checkout command.
+ * Locks files for exclusive editing by the current user.
+ */
 export interface CheckoutParams extends BaseCommandParams {}
 
-// Checkin with optional new content hash
+/**
+ * Parameters for the check-in command.
+ * Uploads modified files and releases the checkout lock.
+ */
 export interface CheckinParams extends BaseCommandParams {
-  // If provided, will upload new content (for modified files)
+  /**
+   * Whether to upload new file content.
+   * Set to true for modified files that need their content synced to the server.
+   * @default true for modified files
+   */
   uploadContent?: boolean
-  // Optional comment for the checkin
+  
+  /**
+   * Optional comment describing the changes made.
+   * Stored in the file's version history for audit purposes.
+   */
   comment?: string
 }
 
-// First check-in / Sync (upload new files to server)
-export interface SyncParams extends BaseCommandParams {}
+/**
+ * Parameters for the sync (first check-in) command.
+ * Uploads new local files to the server for the first time.
+ */
+export interface SyncParams extends BaseCommandParams {
+  /**
+   * Extract and store assembly references after sync completes.
+   * When enabled, SolidWorks assemblies will have their component references
+   * extracted and stored in the `file_references` table for Contains/Where-Used queries.
+   * 
+   * **Requires:** SolidWorks service to be running.
+   * **Use case:** Importing existing vaults with assemblies that need BOM data populated.
+   * 
+   * @default false
+   */
+  extractReferences?: boolean
+}
 
-// Download cloud files
+/**
+ * Parameters for the download command.
+ * Downloads cloud-only files to the local filesystem.
+ */
 export interface DownloadParams extends BaseCommandParams {}
 
-// Delete local copies (keeps server version)
+/**
+ * Parameters for the delete-local command.
+ * Removes local file copies while keeping the server version intact.
+ * Useful for freeing disk space on files you don't need locally.
+ */
 export interface DeleteLocalParams extends BaseCommandParams {}
 
-// Delete from server (soft delete - moves to trash)
+/**
+ * Parameters for the delete-server command.
+ * Performs a soft delete - moves files to trash on the server.
+ * Files can be restored from trash by an administrator.
+ */
 export interface DeleteServerParams extends BaseCommandParams {
-  // Also delete local copies
+  /**
+   * Whether to also delete local copies of the files.
+   * If false, local files are orphaned (exist locally but not on server).
+   * @default false
+   */
   deleteLocal?: boolean
 }
 
-// Discard changes (revert to server version)
+/**
+ * Parameters for the discard command.
+ * Reverts checked-out files to their last server version, discarding local changes.
+ * Also releases the checkout lock.
+ */
 export interface DiscardParams extends BaseCommandParams {}
 
-// Get latest version from server (for outdated files)
+/**
+ * Parameters for the get-latest command.
+ * Downloads the newest version of outdated files from the server.
+ * Used when someone else has checked in a newer version.
+ */
 export interface GetLatestParams extends BaseCommandParams {}
 
-// Force release checkout (admin only)
+/**
+ * Parameters for the force-release command.
+ * Releases another user's checkout lock. **Admin only.**
+ * Use with caution - the other user will lose their exclusive access.
+ */
 export interface ForceReleaseParams extends BaseCommandParams {}
 
-// Rename file or folder
+/**
+ * Parameters for the rename command.
+ * Renames a single file or folder.
+ */
 export interface RenameParams {
+  /** The file or folder to rename. */
   file: LocalFile
+  
+  /** The new name (filename only, not a path). */
   newName: string
 }
 
-// Move files to new location
+/**
+ * Parameters for the move command.
+ * Moves files to a different folder within the vault.
+ */
 export interface MoveParams extends BaseCommandParams {
+  /** 
+   * The target folder path (relative to vault root).
+   * Must be an existing directory within the vault.
+   */
   targetFolder: string
 }
 
-// Copy files
+/**
+ * Parameters for the copy command.
+ * Creates copies of files in a different folder.
+ */
 export interface CopyParams extends BaseCommandParams {
+  /** 
+   * The target folder path (relative to vault root).
+   * Must be an existing directory within the vault.
+   */
   targetFolder: string
 }
 
-// Create new folder
+/**
+ * Parameters for the new-folder command.
+ * Creates a new directory in the vault.
+ */
 export interface NewFolderParams {
+  /** Parent directory path (relative to vault root). Use '' for vault root. */
   parentPath: string
+  
+  /** Name for the new folder. */
   folderName: string
 }
 
-// Pin/Unpin
+/**
+ * Parameters for the pin command.
+ * Pins a file to the sidebar for quick access.
+ */
 export interface PinParams {
+  /** The file to pin. */
   file: LocalFile
+  
+  /** ID of the vault the file belongs to. */
   vaultId: string
+  
+  /** Display name of the vault (shown in pin UI). */
   vaultName: string
 }
 
+/**
+ * Parameters for the unpin command.
+ * Removes a file from the pinned files list.
+ */
 export interface UnpinParams {
+  /** Full path to the pinned file. */
   path: string
 }
 
-// Ignore patterns
+/**
+ * Parameters for the ignore command.
+ * Adds a pattern to the vault's ignore list (.pdmignore).
+ */
 export interface IgnoreParams {
+  /** ID of the vault to add the ignore pattern to. */
   vaultId: string
+  
+  /** 
+   * Glob pattern to ignore (e.g., "*.tmp", "node_modules/").
+   * Follows .gitignore pattern syntax.
+   */
   pattern: string
 }
 
-// Open file/folder
+/**
+ * Parameters for the open command.
+ * Opens a file with its default system application.
+ */
 export interface OpenParams {
+  /** The file to open. */
   file: LocalFile
 }
 
-// Show in Explorer/Finder
+/**
+ * Parameters for the show-in-explorer command.
+ * Opens the containing folder in the system file manager.
+ */
 export interface ShowInExplorerParams {
+  /** Full path to the file or folder to reveal. */
   path: string
 }
 
-// Sync SolidWorks metadata
+/**
+ * Parameters for the sync-sw-metadata command.
+ * Extracts and syncs SolidWorks custom properties to the database.
+ */
 export interface SyncSwMetadataParams extends BaseCommandParams {}
+
+/**
+ * Parameters for the extract-references command.
+ * Extracts assembly references from SolidWorks files and stores them in the database.
+ * This populates the file_references table for Contains/Where-Used queries.
+ * 
+ * **Requires:** SolidWorks service to be running.
+ */
+export interface ExtractReferencesParams extends BaseCommandParams {
+  /**
+   * Only process assembly files (.sldasm).
+   * If false, all selected files are passed to the extractor (parts and drawings will be skipped anyway).
+   * @default true
+   */
+  assembliesOnly?: boolean
+}
+
+// Extract assembly references (batch operation for existing vaults)
+export interface ExtractReferencesParams extends BaseCommandParams {
+  // Only process assemblies in selection (default true)
+  assembliesOnly?: boolean
+}
 
 // ============================================
 // Command Definition
@@ -203,6 +344,7 @@ export type CommandId =
   | 'open'
   | 'show-in-explorer'
   | 'sync-sw-metadata'
+  | 'extract-references'
 
 export interface Command<TParams = unknown> {
   // Identifier
@@ -246,6 +388,7 @@ export type CommandMap = {
   'open': Command<OpenParams>
   'show-in-explorer': Command<ShowInExplorerParams>
   'sync-sw-metadata': Command<SyncSwMetadataParams>
+  'extract-references': Command<ExtractReferencesParams>
 }
 
 // ============================================
@@ -349,15 +492,16 @@ export function getDiscardableFilesFromSelection(files: LocalFile[], selection: 
         (f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new')
       )
       result.push(...discardable)
-    } else if (
-      item.pdmData?.id && 
-      item.pdmData.checked_out_by === userId &&
-      item.diffStatus !== 'cloud' && 
-      item.diffStatus !== 'cloud_new'
-    ) {
-      // Look up fresh file from files array (selection may have stale reference)
+    } else if (item.pdmData?.id) {
+      // Look up fresh file from files array FIRST (selection may have stale reference)
+      // Then check on fresh data, not stale selection
       const freshFile = files.find(f => f.path === item.path)
-      result.push(freshFile || item)
+      if (freshFile && 
+          freshFile.pdmData?.checked_out_by === userId && 
+          freshFile.diffStatus !== 'cloud' && 
+          freshFile.diffStatus !== 'cloud_new') {
+        result.push(freshFile)
+      }
     }
   }
   

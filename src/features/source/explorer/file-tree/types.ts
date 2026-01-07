@@ -1,5 +1,6 @@
 // Types for FileTree components
 import type { LocalFile, ConnectedVault } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import type { CheckoutUser } from '@/components/shared/FileItem'
 
 // Tree node structure for recursive rendering
@@ -82,7 +83,7 @@ export interface FolderTreeItemProps extends TreeItemBaseProps {
   checkedOutByMeCount: number
   totalCheckouts: number
   syncedCount: number
-  isProcessing: boolean
+  operationType: OperationType | null
   isDragTarget: boolean
   children: React.ReactNode
   clipboard?: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
@@ -157,7 +158,7 @@ export interface RecentVaultsSectionProps {
 // Props for tree item inline actions
 export interface TreeItemActionsProps {
   file: LocalFile
-  isProcessing: boolean
+  operationType: OperationType | null
   onDownload: (e: React.MouseEvent) => void
   onUpload: (e: React.MouseEvent) => void
   onCheckout: (e: React.MouseEvent) => void

@@ -10,6 +10,7 @@ import {
   Info, 
   Link, 
   Loader2, 
+  Network,
   RefreshCw, 
   Send, 
   Users 
@@ -58,7 +59,9 @@ export function CollaborationActions({
 
   // Check for SolidWorks files
   const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+  const assemblyExtensions = ['.sldasm']
   const isSWFile = !isFolder && state.isSynced && swExtensions.includes(firstFile.extension.toLowerCase())
+  const isAssemblyFile = !isFolder && state.isSynced && assemblyExtensions.includes(firstFile.extension.toLowerCase())
   
   // For folders, check for SW files inside
   const getSwFilesInFolder = () => {
@@ -72,6 +75,30 @@ export function CollaborationActions({
     )
   }
   const swFilesInFolder = getSwFilesInFolder()
+  
+  // Get assembly files in folder (for Extract References)
+  const getAssemblyFilesInFolder = () => {
+    if (!isFolder || multiSelect) return []
+    const folderPath = firstFile.relativePath
+    return files.filter(f => 
+      !f.isDirectory && 
+      f.relativePath.startsWith(folderPath + '/') &&
+      assemblyExtensions.includes(f.extension.toLowerCase()) &&
+      f.pdmData?.id
+    )
+  }
+  const assemblyFilesInFolder = getAssemblyFilesInFolder()
+  
+  // Get synced assembly files from selection (for multi-select)
+  const getAssemblyFilesInSelection = () => {
+    if (!multiSelect) return []
+    return contextFiles.filter(f => 
+      !f.isDirectory && 
+      assemblyExtensions.includes(f.extension.toLowerCase()) &&
+      f.pdmData?.id
+    )
+  }
+  const assemblyFilesInSelection = getAssemblyFilesInSelection()
 
   return (
     <>
@@ -156,6 +183,49 @@ export function CollaborationActions({
         >
           <RefreshCw size={14} className="text-plm-accent" />
           Refresh Metadata ({swFilesInFolder.length} files)
+        </div>
+      )}
+      
+      {/* Extract References - for synced assembly files */}
+      {isAssemblyFile && (
+        <div 
+          className="context-menu-item"
+          onClick={() => {
+            onClose()
+            executeCommand('extract-references', { files: [firstFile] }, { onRefresh })
+          }}
+          title="Extract and store assembly component references to enable Contains/Where-Used queries"
+        >
+          <Network size={14} className="text-plm-accent" />
+          Extract References
+        </div>
+      )}
+      {/* Extract References - for multi-select with assemblies */}
+      {multiSelect && assemblyFilesInSelection.length > 0 && (
+        <div 
+          className="context-menu-item"
+          onClick={() => {
+            onClose()
+            executeCommand('extract-references', { files: assemblyFilesInSelection }, { onRefresh })
+          }}
+          title="Extract and store assembly component references to enable Contains/Where-Used queries"
+        >
+          <Network size={14} className="text-plm-accent" />
+          Extract References ({assemblyFilesInSelection.length} {assemblyFilesInSelection.length === 1 ? 'assembly' : 'assemblies'})
+        </div>
+      )}
+      {/* Extract References - for folders containing assemblies */}
+      {isFolder && !multiSelect && assemblyFilesInFolder.length > 0 && (
+        <div 
+          className="context-menu-item"
+          onClick={() => {
+            onClose()
+            executeCommand('extract-references', { files: assemblyFilesInFolder }, { onRefresh })
+          }}
+          title="Extract and store assembly component references for all assemblies in this folder"
+        >
+          <Network size={14} className="text-plm-accent" />
+          Extract References ({assemblyFilesInFolder.length} {assemblyFilesInFolder.length === 1 ? 'assembly' : 'assemblies'})
         </div>
       )}
       

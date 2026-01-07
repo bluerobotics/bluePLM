@@ -11,10 +11,28 @@ import type { Command, CheckoutParams, CommandResult } from '../types'
 import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { checkoutFile } from '../../supabase'
+import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS } from '../../concurrency'
 import type { LocalFile } from '../../../stores/pdmStore'
+import { usePDMStore } from '../../../stores/pdmStore'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+
+/**
+ * Incremental Store Update Configuration
+ * 
+ * During batch operations (checking out many files), updating the store after
+ * every single file causes excessive React re-renders and impacts performance.
+ * Updating only at the end means the UI shows no progress until completion.
+ * 
+ * We use BOTH count-based and time-based flushing:
+ * - FLUSH_INTERVAL: Flush every N files (prevents huge batches)
+ * - FLUSH_TIME_MS: Flush at least every N ms (ensures UI updates even if files are slow)
+ * 
+ * This keeps the UI responsive regardless of file processing speed.
+ */
+const FLUSH_INTERVAL = 25  // Flush every 25 files
+const FLUSH_TIME_MS = 500  // Flush at least every 500ms
 
 /**
  * Extract metadata from SolidWorks file using the SW service
@@ -259,8 +277,71 @@ export const checkoutCommand: Command<CheckoutParams> = {
     // Process all files in parallel, collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
-    const results = await Promise.all(filesToCheckout.map(async (file) => {
+    // Track flush position and timing for incremental store updates
+    let lastFlushIndex = 0
+    let lastFlushTime = Date.now()
+    
+    /**
+     * Flush pending store updates to provide real-time UI feedback.
+     * Called periodically during batch operations based on count OR time.
+     */
+    const flushPendingUpdates = () => {
+      const updateCount = pendingUpdates.length
+      if (updateCount > lastFlushIndex) {
+        const updatesToFlush = pendingUpdates.slice(lastFlushIndex)
+        ctx.updateFilesInStore(updatesToFlush)
+        lastFlushIndex = updateCount
+        lastFlushTime = Date.now()
+        logCheckout('debug', 'Incremental store flush', {
+          operationId,
+          flushedCount: updatesToFlush.length,
+          totalProcessed: updateCount
+        })
+      }
+    }
+    
+    /**
+     * Check if we should flush based on count OR time threshold.
+     * This keeps UI responsive even when individual files take a long time.
+     */
+    const shouldFlush = (): boolean => {
+      const countThreshold = pendingUpdates.length - lastFlushIndex >= FLUSH_INTERVAL
+      const timeThreshold = Date.now() - lastFlushTime >= FLUSH_TIME_MS
+      return countThreshold || (pendingUpdates.length > lastFlushIndex && timeThreshold)
+    }
+    
+    // ========================================
+    // TWO-PHASE PROCESSING: Prevent SolidWorks service flooding
+    // 
+    // The SolidWorks service uses a serial stdin/stdout pipe, so high concurrency
+    // (e.g., 20 files) overwhelms it and causes timeouts/crashes.
+    // 
+    // Strategy:
+    // 1. Process non-SW files first at high concurrency (20) - no service bottleneck
+    // 2. Process SW files second at low concurrency (3) - respects serial pipe limit
+    // ========================================
+    
+    // Split files into SW and non-SW for two-phase processing
+    const swFiles = filesToCheckout.filter(f => SW_EXTENSIONS.includes(f.extension.toLowerCase()))
+    const nonSwFiles = filesToCheckout.filter(f => !SW_EXTENSIONS.includes(f.extension.toLowerCase()))
+    
+    logCheckout('info', 'Two-phase processing strategy', {
+      operationId,
+      totalFiles: filesToCheckout.length,
+      swFiles: swFiles.length,
+      nonSwFiles: nonSwFiles.length,
+      swConcurrency: SW_CONCURRENT_OPERATIONS,
+      nonSwConcurrency: CONCURRENT_OPERATIONS
+    })
+    
+    /**
+     * Process a single file for checkout
+     * Extracted to avoid code duplication between phases
+     */
+    const processFile = async (file: LocalFile): Promise<{ success: boolean; error?: string }> => {
       const fileCtx = getFileContext(file)
+      const isSolidWorksFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
+      const swOpStartTime = isSolidWorksFile ? Date.now() : null
       
       try {
         logCheckout('debug', 'Checking out file', { operationId, ...fileCtx })
@@ -325,7 +406,22 @@ export const checkoutCommand: Command<CheckoutParams> = {
             }
           })
           
-          logCheckout('debug', 'File checkout successful', { operationId, fileName: file.name })
+          // Flush periodically for real-time UI feedback (count OR time based)
+          if (shouldFlush()) {
+            flushPendingUpdates()
+          }
+          
+          // Log timing for SW operations (helps diagnose service performance)
+          if (swOpStartTime !== null) {
+            const swOpDuration = Date.now() - swOpStartTime
+            logCheckout('info', 'SolidWorks file checkout successful', {
+              operationId,
+              fileName: file.name,
+              swOperationDurationMs: swOpDuration
+            })
+          } else {
+            logCheckout('debug', 'File checkout successful', { operationId, fileName: file.name })
+          }
           progress.update()
           return { success: true }
         } else {
@@ -347,11 +443,69 @@ export const checkoutCommand: Command<CheckoutParams> = {
         progress.update()
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
-    }))
+    }
     
-    // Apply all store updates in a single batch (avoids N re-renders)
-    if (pendingUpdates.length > 0) {
-      ctx.updateFilesInStore(pendingUpdates)
+    // ========================================
+    // PHASE 1: Process non-SolidWorks files at high concurrency (20)
+    // These files don't need SW service, so no bottleneck
+    // ========================================
+    let nonSwResults: Array<{ success: boolean; error?: string }> = []
+    if (nonSwFiles.length > 0) {
+      logCheckout('info', 'Phase 1: Processing non-SW files', {
+        operationId,
+        count: nonSwFiles.length,
+        concurrency: CONCURRENT_OPERATIONS
+      })
+      const phase1Start = Date.now()
+      nonSwResults = await processWithConcurrency(nonSwFiles, CONCURRENT_OPERATIONS, processFile)
+      logCheckout('info', 'Phase 1 complete', {
+        operationId,
+        count: nonSwFiles.length,
+        durationMs: Date.now() - phase1Start
+      })
+    }
+    
+    // ========================================
+    // PHASE 2: Process SolidWorks files at low concurrency (3)
+    // Respects the serial stdin/stdout pipe limit of the SW service
+    // Sets batch flag to pause status polling during heavy operations
+    // ========================================
+    let swResults: Array<{ success: boolean; error?: string }> = []
+    if (swFiles.length > 0) {
+      logCheckout('info', 'Phase 2: Processing SW files', {
+        operationId,
+        count: swFiles.length,
+        concurrency: SW_CONCURRENT_OPERATIONS
+      })
+      const phase2Start = Date.now()
+      
+      // Set batch operation flag to pause status polling
+      usePDMStore.getState().setIsBatchSWOperationRunning(true)
+      try {
+        swResults = await processWithConcurrency(swFiles, SW_CONCURRENT_OPERATIONS, processFile)
+      } finally {
+        // Always reset flag, even if processing fails
+        usePDMStore.getState().setIsBatchSWOperationRunning(false)
+      }
+      
+      logCheckout('info', 'Phase 2 complete', {
+        operationId,
+        count: swFiles.length,
+        durationMs: Date.now() - phase2Start
+      })
+    }
+    
+    // Combine results from both phases
+    const results = [...nonSwResults, ...swResults]
+    
+    // Flush any remaining store updates not yet flushed during incremental processing
+    if (pendingUpdates.length > lastFlushIndex) {
+      logCheckout('debug', 'Final store update flush', {
+        operationId,
+        remainingCount: pendingUpdates.length - lastFlushIndex,
+        totalUpdates: pendingUpdates.length
+      })
+      flushPendingUpdates()
     }
     
     // Count results

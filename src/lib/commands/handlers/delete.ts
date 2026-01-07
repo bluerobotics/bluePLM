@@ -17,6 +17,7 @@ import {
   getUnsyncedFilesFromSelection
 } from '../types'
 import { checkinFile, softDeleteFile } from '../../supabase'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 
 // ============================================
 // Delete Local Command
@@ -133,8 +134,8 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     let failed = 0
     const errors: string[] = []
     
-    // Process all files in parallel
-    const results = await Promise.all(filesToRemove.map(async (file) => {
+    // Process all files with concurrency limiting
+    const results = await processWithConcurrency(filesToRemove, CONCURRENT_OPERATIONS, async (file) => {
       try {
         // If checked out by current user, release the checkout first
         if (file.pdmData?.checked_out_by === user?.id && file.pdmData?.id) {
@@ -160,7 +161,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error'
         return { success: false, error: `${file.name}: ${errorMsg}` }
       }
-    }))
+    })
     
     // Count results
     for (const result of results) {
@@ -409,17 +410,25 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     await new Promise(resolve => setTimeout(resolve, 0))
     
     const toastId = `delete-server-${Date.now()}`
-    ctx.addProgressToast(toastId, `Deleting...`, 2)
+    const totalFiles = uniqueFiles.length
+    ctx.addProgressToast(toastId, `Deleting ${totalFiles} file${totalFiles !== 1 ? 's' : ''}...`, totalFiles)
     
     let deletedLocal = 0
     let deletedServer = 0
+    let completedCount = 0
     const errors: string[] = []
     
-    // STEP 1: Delete ALL local items first in parallel
+    const updateProgress = () => {
+      completedCount++
+      const percent = Math.round((completedCount / totalFiles) * 100)
+      ctx.updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${totalFiles}`)
+    }
+    
+    // STEP 1: Delete ALL local items first with concurrency limiting
     if (deleteLocal) {
       const localItemsToDelete = [...files]
       if (localItemsToDelete.length > 0) {
-        const localResults = await Promise.all(localItemsToDelete.map(async (item) => {
+        const localResults = await processWithConcurrency(localItemsToDelete, CONCURRENT_OPERATIONS, async (item) => {
           try {
             // Release checkout if needed
             if (item.pdmData?.checked_out_by === user?.id && item.pdmData?.id) {
@@ -430,19 +439,21 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
           } catch {
             return false
           }
-        }))
+        })
         deletedLocal = localResults.filter(r => r).length
       }
     }
     
-    ctx.updateProgressToast(toastId, 1, 50)
-    
-    // STEP 2: Delete from server in parallel
+    // STEP 2: Delete from server with concurrency limiting
     if (uniqueFiles.length > 0) {
-      const serverResults = await Promise.all(uniqueFiles.map(async (file) => {
-        if (!file.pdmData?.id) return false
+      const serverResults = await processWithConcurrency(uniqueFiles, CONCURRENT_OPERATIONS, async (file) => {
+        if (!file.pdmData?.id) {
+          updateProgress()
+          return false
+        }
         try {
           const result = await softDeleteFile(file.pdmData.id, user.id)
+          updateProgress()
           return result.success
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
@@ -450,13 +461,12 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
           // Log each error for debugging
           console.error('[delete-server] Failed to delete file:', file.name, errorMsg)
           window.electronAPI?.log('ERROR', '[delete-server] Failed to delete file', { fileName: file.name, error: errorMsg })
+          updateProgress()
           return false
         }
-      }))
+      })
       deletedServer = serverResults.filter(r => r).length
     }
-    
-    ctx.updateProgressToast(toastId, 2, 100)
     
     // Clean up - batch remove
     ctx.removeProcessingFolders(allPathsBeingProcessed)

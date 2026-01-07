@@ -262,6 +262,29 @@ DROP FUNCTION IF EXISTS instantiate_process_template(UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS check_gate_requirements(UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS approve_eco_gate(UUID, TEXT, TEXT) CASCADE;
 
+-- Source file functions (may have multiple overloads - use dynamic drop)
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN 
+    SELECT p.oid::regprocedure as func_sig
+    FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public' AND p.proname IN ('checkin_file', 'checkout_file', 'create_file_share_link')
+  LOOP
+    EXECUTE 'DROP FUNCTION IF EXISTS ' || r.func_sig || ' CASCADE';
+  END LOOP;
+END $$;
+DROP FUNCTION IF EXISTS drop_function_overloads(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS log_file_activity() CASCADE;
+DROP FUNCTION IF EXISTS create_default_workflow(UUID, UUID) CASCADE;
+DROP FUNCTION IF EXISTS get_available_transitions(UUID, UUID) CASCADE;
+DROP FUNCTION IF EXISTS generate_share_token() CASCADE;
+DROP FUNCTION IF EXISTS validate_share_link(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS notify_file_watchers() CASCADE;
+DROP FUNCTION IF EXISTS get_user_vault_access(UUID) CASCADE;
+DROP FUNCTION IF EXISTS preview_next_serial_number(UUID) CASCADE;
+
 -- ===========================================
 -- DROP STORAGE POLICIES
 -- ===========================================

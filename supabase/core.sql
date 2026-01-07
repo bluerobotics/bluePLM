@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 33, 'Enhanced checkin_file RPC with conditional versioning and activity logging', NOW(), 'migration')
+VALUES (1, 36, 'Added DROP before CREATE for RPC functions to prevent overload ambiguity', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,

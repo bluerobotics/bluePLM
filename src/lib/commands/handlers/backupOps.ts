@@ -16,9 +16,9 @@ import {
   getDeletedFiles,
   restoreFile,
   emptyTrash,
-  getRecentActivity
+  getRecentActivity,
+  rollbackToVersion
 } from '../../supabase'
-import { rollbackToVersion } from '../../fileService'
 import { registerTerminalCommand } from '../registry'
 import type { ParsedCommand, TerminalOutput } from '../parser'
 

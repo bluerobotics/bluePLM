@@ -56,7 +56,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
       }}
       title={canEditItemNumber ? 'Click to edit' : 'Check out file to edit'}
     >
-      {file.pdmData?.part_number || '-'}
+      {file.pdmData?.part_number || file.pendingMetadata?.part_number || '-'}
     </span>
   )
 }

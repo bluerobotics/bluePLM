@@ -68,7 +68,8 @@ export const createOperationsSlice: StateCreator<
       syncProgress: { isActive: false, operation: 'upload', current: 0, total: 0, percent: 0, speed: '', cancelRequested: false } 
     })
     // Process the queue after ending sync so the next operation can start
-    setTimeout(() => get().processQueue(), 100)
+    // Using 0ms delay to allow state to settle before processing next operation
+    setTimeout(() => get().processQueue(), 0)
   },
   
   // Actions - Queue
@@ -80,8 +81,8 @@ export const createOperationsSlice: StateCreator<
       operationQueue: [...state.operationQueue, fullOperation]
     }))
     
-    // Try to process the queue immediately
-    setTimeout(() => get().processQueue(), 0)
+    // Try to process the queue immediately (direct call, no delay)
+    get().processQueue()
     
     return id
   },
@@ -110,33 +111,55 @@ export const createOperationsSlice: StateCreator<
   },
   
   processQueue: async () => {
-    const { operationQueue, hasPathConflict, removeFromQueue, addToast, syncProgress } = get()
+    const { operationQueue, hasPathConflict, removeFromQueue, addToast } = get()
     
     if (operationQueue.length === 0) return
     
-    // Don't start a new operation if one is already running
-    if (syncProgress.isActive) return
+    // Collect all operations that can run in parallel (no path conflicts)
+    // Track paths we're about to start processing to avoid starting conflicting ops
+    const operationsToStart: QueuedOperation[] = []
+    const pathsBeingStarted = new Set<string>()
     
-    // Find the first operation that doesn't have a path conflict
-    for (const operation of operationQueue) {
-      if (!hasPathConflict(operation.paths)) {
-        // Remove from queue before executing
-        removeFromQueue(operation.id)
-        
-        try {
-          await operation.execute()
-        } catch (err) {
-          console.error('Queue operation failed:', err)
-          addToast('error', `Operation failed: ${operation.label}`)
+    // Helper to check if paths conflict with paths we're about to start
+    const conflictsWithPending = (paths: string[]): boolean => {
+      for (const path of paths) {
+        for (const pendingPath of pathsBeingStarted) {
+          // Check if paths overlap (one contains the other or they're the same)
+          if (path === pendingPath || 
+              path.startsWith(pendingPath + '/') || 
+              path.startsWith(pendingPath + '\\') ||
+              pendingPath.startsWith(path + '/') || 
+              pendingPath.startsWith(path + '\\')) {
+            return true
+          }
         }
-        
-        // After completing, try to process more from the queue
-        setTimeout(() => get().processQueue(), 100)
-        return
+      }
+      return false
+    }
+    
+    // Find all non-conflicting operations
+    for (const operation of operationQueue) {
+      // Check against currently processing AND operations we're about to start
+      if (!hasPathConflict(operation.paths) && !conflictsWithPending(operation.paths)) {
+        operationsToStart.push(operation)
+        // Add this operation's paths to the pending set
+        operation.paths.forEach(p => pathsBeingStarted.add(p))
       }
     }
     
-    // All operations have conflicts, will try again when a processing folder is removed
+    // Start all non-conflicting operations in parallel
+    for (const operation of operationsToStart) {
+      removeFromQueue(operation.id)
+      
+      // Execute without awaiting - run in parallel
+      // Each operation will call endSync() when done, which triggers processQueue()
+      operation.execute().catch(err => {
+        console.error('Queue operation failed:', err)
+        addToast('error', `Operation failed: ${operation.label}`)
+      })
+    }
+    
+    // Note: processQueue will be called again via endSync() when each operation completes
   },
   
   // Actions - Notifications & Reviews

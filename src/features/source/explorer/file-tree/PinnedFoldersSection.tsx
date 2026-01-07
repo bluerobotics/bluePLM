@@ -349,7 +349,7 @@ export function PinnedFoldersSection({
                       checkedOutByMeCount={pinnedFolderCheckedOutByMeCount}
                       totalCheckouts={pinnedFolderTotalCheckouts}
                       syncedCount={pinnedFolderSyncedCount}
-                      isProcessing={false}
+                      operationType={null}
                       onRefresh={onRefresh}
                     />
                   )}
@@ -358,7 +358,7 @@ export function PinnedFoldersSection({
                   {!pinned.isDirectory && actualFile && pinned.vaultId === activeVaultId && (
                     <FileActionButtons
                       file={actualFile}
-                      isProcessing={false}
+                      operationType={null}
                       onRefresh={onRefresh}
                       selectedFiles={selectedFiles}
                       selectedDownloadableFiles={selectedDownloadableFiles}

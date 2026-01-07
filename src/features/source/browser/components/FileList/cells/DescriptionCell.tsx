@@ -56,7 +56,7 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
       }}
       title={canEditDescription ? (file.pdmData?.description || 'Click to edit') : 'Check out file to edit'}
     >
-      {file.pdmData?.description || '-'}
+      {file.pdmData?.description || file.pendingMetadata?.description || '-'}
     </span>
   )
 }

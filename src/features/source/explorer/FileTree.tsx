@@ -103,7 +103,8 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   // Use extracted hooks
   const { 
     tree, 
-    isBeingProcessed, 
+    isBeingProcessed,
+    getProcessingOperation, 
     checkFolderSynced, 
     checkFolderCheckoutStatus, 
     getDiffCounts,
@@ -452,12 +453,9 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     await executeCommand('checkout', { files: syncedFiles }, { onRefresh })
   }
 
-  // Get file icon
+  // Get file icon - spinners are on action buttons, not icons
   const getFileIcon = (file: LocalFile) => {
     if (file.isDirectory) {
-      if (isBeingProcessed(file.relativePath)) {
-        return <Loader2 size={16} className="text-sky-400 animate-spin" />
-      }
       if (file.diffStatus === 'cloud') {
         return <FolderOpen size={16} className="text-plm-fg-muted" />
       }
@@ -470,10 +468,6 @@ export function FileTree({ onRefresh }: FileTreeProps) {
       }
       const synced = checkFolderSynced(file.relativePath)
       return <FolderOpen size={16} className={synced ? 'text-plm-success' : 'text-plm-fg-muted'} />
-    }
-    
-    if (isBeingProcessed(file.relativePath)) {
-      return <Loader2 size={16} className="text-sky-400 animate-spin" />
     }
     
     return <FileIcon file={file} size={16} />
@@ -492,7 +486,8 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     const diffClass = file.diffStatus ? `${DIFF_STATUS_CLASS_PREFIX}${file.diffStatus}` : ''
     const isSelected = selectedFiles.includes(file.path)
     const isRenaming = renamingFile?.relativePath === file.relativePath
-    const isProcessing = isBeingProcessed(file.relativePath)
+    const operationType = getProcessingOperation(file.relativePath, file.isDirectory)
+    const isProcessing = operationType !== null
     const isDragTarget = file.isDirectory && dragOverFolder === file.relativePath
     const isCut = clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)
 
@@ -677,7 +672,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
               checkedOutByMeCount={folderStats.checkedOutByMeCount}
               totalCheckouts={folderStats.totalCheckouts}
               syncedCount={folderStats.syncedCount}
-              isProcessing={isProcessing}
+              operationType={operationType}
               onRefresh={onRefresh}
             />
           )}
@@ -686,7 +681,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
           {!isRenaming && !file.isDirectory && (
             <FileActionButtons
               file={file}
-              isProcessing={isProcessing}
+              operationType={operationType}
               onRefresh={onRefresh}
               selectedFiles={selectedFiles}
               selectedDownloadableFiles={categories.downloadable}

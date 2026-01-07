@@ -15,7 +15,7 @@ import { useNavigationHistory } from './useNavigationHistory'
 import { useFileSelection } from './useFileSelection'
 import { useFolderMetrics } from './useFolderMetrics'
 import { useSorting } from './useSorting'
-import { isPathBeingProcessed, matchesKeybinding } from '../utils'
+import { getFileProcessingOperation, getFolderProcessingOperation, matchesKeybinding } from '../utils'
 import type { SortColumn, SortDirection } from '../types'
 
 export function useFilePaneView() {
@@ -137,8 +137,11 @@ export function useFilePaneView() {
   }, [folderMetrics])
 
   // Check if path is being processed
-  const isBeingProcessed = useCallback((relativePath: string) => {
-    return isPathBeingProcessed(relativePath, processingOperations)
+  const isBeingProcessed = useCallback((relativePath: string, isDirectory: boolean = false) => {
+    if (isDirectory) {
+      return getFolderProcessingOperation(relativePath, processingOperations) !== null
+    }
+    return getFileProcessingOperation(relativePath, processingOperations) !== null
   }, [processingOperations])
 
   // Load platform

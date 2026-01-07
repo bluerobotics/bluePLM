@@ -9,9 +9,15 @@ export {
   getFileVersions,
   getWhereUsed,
   getContains,
+  getContainsRecursive,
   getMyCheckedOutFiles,
-  getAllCheckedOutFiles
+  getAllCheckedOutFiles,
+  getFileReferenceDiagnostics,
+  getVaultFilesForDiagnostics
 } from './queries'
+
+// Export types for recursive BOM queries and diagnostics
+export type { BomTreeNode, FileReferenceDiagnostic, VaultFileSummary } from './queries'
 
 // Checkout functions - check out/in operations
 export {
@@ -27,8 +33,12 @@ export {
   syncFile,
   updateFileMetadata,
   updateFilePath,
-  updateFolderPath
+  updateFolderPath,
+  upsertFileReferences
 } from './mutations'
+
+// Export types for file references
+export type { SWReference, UpsertReferencesResult, SkippedReferenceReason } from './mutations'
 
 // Trash functions - soft delete, restore, permanent delete
 export {
@@ -42,3 +52,9 @@ export {
   getDeletedFilesCount,
   emptyTrash
 } from './trash'
+
+// Version functions - rollback, state transitions
+export {
+  rollbackToVersion,
+  transitionFileState
+} from './versions'

@@ -200,21 +200,6 @@ export function BackupSourceSection({
         </div>
       )}
       
-      {/* Backup Progress */}
-      {backupProgress && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs">
-            <span>{backupProgress.phase}</span>
-            <span>{backupProgress.percent}%</span>
-          </div>
-          <div className="w-full bg-plm-bg-tertiary rounded-full h-1.5">
-            <div 
-              className="bg-emerald-500 h-1.5 rounded-full transition-all"
-              style={{ width: `${backupProgress.percent}%` }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   )
 }

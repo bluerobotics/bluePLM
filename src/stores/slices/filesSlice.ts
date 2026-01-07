@@ -1,7 +1,67 @@
 import { StateCreator } from 'zustand'
-import type { PDMStoreState, FilesSlice, LocalFile, DiffStatus } from '../types'
+import type { PDMStoreState, FilesSlice, LocalFile, DiffStatus, OperationType } from '../types'
 import type { PDMFile } from '../../types/pdm'
 import { buildFullPath } from '@/lib/utils/path'
+
+// ============================================================================
+// Processing Operations Batching
+// ============================================================================
+// These variables batch processingOperations Map updates to reduce React re-renders.
+// Multiple add/remove calls within the same microtask are combined into a single state update.
+// This is critical for performance when processing 60+ files in batch operations.
+//
+// We use requestIdleCallback (when available) to schedule flushes during browser idle time,
+// which keeps the UI responsive during heavy batch operations. Falls back to queueMicrotask
+// for immediate processing when requestIdleCallback is not available.
+
+let pendingProcessingAdds = new Map<string, OperationType>()
+let pendingProcessingRemoves = new Set<string>()
+let processingFlushScheduled = false
+
+/**
+ * Schedules a flush of pending processing operations changes.
+ * Uses requestIdleCallback for better responsiveness, falling back to queueMicrotask.
+ * 
+ * requestIdleCallback schedules work during browser idle periods, allowing
+ * animations, scrolling, and other UI updates to happen without jank.
+ * 
+ * @param get - Zustand get function from slice
+ * @param set - Zustand set function from slice
+ */
+function scheduleProcessingFlush(
+  get: () => PDMStoreState, 
+  set: (state: Partial<PDMStoreState>) => void
+): void {
+  if (processingFlushScheduled) return
+  processingFlushScheduled = true
+  
+  const doFlush = () => {
+    processingFlushScheduled = false
+    
+    const currentState = get()
+    const newMap = new Map(currentState.processingOperations)
+    
+    // Apply removes first, then adds (adds override removes for same path)
+    pendingProcessingRemoves.forEach(p => newMap.delete(p))
+    pendingProcessingAdds.forEach((opType, p) => newMap.set(p, opType))
+    
+    // Clear pending batches
+    pendingProcessingRemoves.clear()
+    pendingProcessingAdds.clear()
+    
+    set({ processingOperations: newMap })
+  }
+  
+  // Use requestIdleCallback for better UI responsiveness during heavy operations
+  // Falls back to queueMicrotask for environments without requestIdleCallback
+  if (typeof requestIdleCallback !== 'undefined') {
+    // Set a timeout of 100ms to ensure updates happen even if the browser is busy
+    // This balances responsiveness with ensuring users see status updates
+    requestIdleCallback(doFlush, { timeout: 100 })
+  } else {
+    queueMicrotask(doFlush)
+  }
+}
 
 export const createFilesSlice: StateCreator<
   PDMStoreState,
@@ -508,51 +568,68 @@ export const createFilesSlice: StateCreator<
   },
   
   // Actions - Processing (with operation type for inline button spinners)
-  addProcessingFolder: (path, operationType) => set(state => {
-    const newMap = new Map(state.processingOperations)
-    newMap.set(path, operationType)
-    return { processingOperations: newMap }
-  }),
+  // These functions use batching to reduce React re-renders during bulk operations.
+  // Multiple add/remove calls within the same microtask are combined into a single state update.
+  
+  addProcessingFolder: (path, operationType) => {
+    // Add to pending batch (overrides any pending remove)
+    pendingProcessingRemoves.delete(path)
+    pendingProcessingAdds.set(path, operationType)
+    scheduleProcessingFlush(get, set)
+  },
+  
   addProcessingFolders: (paths, operationType) => {
     if (paths.length === 0) return
-    set(state => {
-      const newMap = new Map(state.processingOperations)
-      paths.forEach(p => newMap.set(p, operationType))
-      return { processingOperations: newMap }
-    })
+    // Add all to pending batch
+    for (const path of paths) {
+      pendingProcessingRemoves.delete(path)
+      pendingProcessingAdds.set(path, operationType)
+    }
+    scheduleProcessingFlush(get, set)
   },
-  removeProcessingFolder: (path) => set(state => {
-    const newMap = new Map(state.processingOperations)
-    newMap.delete(path)
-    return { processingOperations: newMap }
-  }),
+  
+  removeProcessingFolder: (path) => {
+    // Add to pending removes (cancel any pending add)
+    pendingProcessingAdds.delete(path)
+    pendingProcessingRemoves.add(path)
+    scheduleProcessingFlush(get, set)
+  },
+  
   removeProcessingFolders: (paths) => {
     if (paths.length === 0) return
-    set(state => {
-      const newMap = new Map(state.processingOperations)
-      paths.forEach(p => newMap.delete(p))
-      return { processingOperations: newMap }
-    })
+    // Add all to pending removes
+    for (const path of paths) {
+      pendingProcessingAdds.delete(path)
+      pendingProcessingRemoves.add(path)
+    }
+    scheduleProcessingFlush(get, set)
   },
   clearProcessingFolders: () => set({ processingOperations: new Map() }),
-  getProcessingOperation: (path) => {
+  getProcessingOperation: (path, isDirectory = false) => {
     const { processingOperations } = get()
-    // Direct lookup first
+    const normalizedPath = path.replace(/\\/g, '/')
+    
+    // Direct lookup first - works for both files and folders
     if (processingOperations.has(path)) {
       return processingOperations.get(path)!
     }
-    // Check normalized path
-    const normalizedPath = path.replace(/\\/g, '/')
     if (processingOperations.has(normalizedPath)) {
       return processingOperations.get(normalizedPath)!
     }
-    // Check if this path is inside a processing folder
-    for (const [processingPath, opType] of processingOperations) {
-      const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-      if (normalizedPath.startsWith(normalizedProcessingPath + '/')) {
-        return opType
+    
+    // For folders: also check if any descendant is being processed
+    if (isDirectory) {
+      for (const [processingPath, opType] of processingOperations) {
+        const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+        // Check if any processing path is INSIDE this folder
+        if (normalizedProcessingPath.startsWith(normalizedPath + '/')) {
+          return opType
+        }
       }
     }
+    
+    // For files: only exact match (no propagation from parent folders)
+    // This fixes the bug where siblings would show spinners
     return null
   },
   

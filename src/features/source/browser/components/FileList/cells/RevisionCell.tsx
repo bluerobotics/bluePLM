@@ -56,7 +56,7 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
       }}
       title={canEditRevision ? 'Click to edit' : 'Check out file to edit'}
     >
-      {file.pdmData?.revision || 'A'}
+      {file.pdmData?.revision || file.pendingMetadata?.revision || 'A'}
     </span>
   )
 }

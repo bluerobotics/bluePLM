@@ -2,14 +2,60 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [3.0.0] - 2026-01-05
+## [3.0.0] - 2026-01-07
+
+### Added
+
+#### Architecture
+- **Enterprise folder structure**: Reorganized `src/features/` to mirror database modules (source, items, change-control, supply-chain, integrations, dev-tools, settings)
+- **Component layer separation**: `components/core/` (primitives), `components/layout/` (app shell), `components/shared/` (reusable), `components/effects/` (visual)
+- **Lazy module loading**: Sidebar views and settings panels load on-demand. Disabled modules never load into memory
+
+#### Zustand Store
+- **17 specialized slices**: Decomposed monolithic store into focused slices (files, vaults, workflows, settings, UI, etc.)
+- **Versioned migrations**: `src/stores/migrations.ts` with version tracking for safe state upgrades
+- **Hydration tracking**: `onRehydrateStorage` callback prevents race conditions on app startup
+
+#### API (v2.0.0)
+- **Layered architecture**: Separated into core (types, errors), config, infrastructure (repositories), and HTTP layers
+- **Repository pattern**: `FileRepository`, `VaultRepository`, `WebhookRepository` with mappers
+- **TypeBox schemas**: Full OpenAPI documentation for all endpoints
+
+#### Database (Schema v36)
+- **Modular schema**: Split into `core.sql` + optional modules (`10-source-files.sql`, `20-change-control.sql`, `30-supply-chain.sql`, `40-integrations.sql`)
+- **Atomic RPC functions**: `checkout_file`, `checkin_file` with `FOR UPDATE` row locks and built-in activity logging
+- **Schema version tracking**: Automatic mismatch warnings between app and database versions
+
+#### Performance
+- **Concurrency limiting**: `processWithConcurrency()` utility with configurable worker pools (default: 20 concurrent ops)
+- **Batch chunking**: `BATCH_CHUNK_SIZE = 100` for bulk database operations
+- **SolidWorks optimization**: Skip service calls for files with cached hashes and no pending metadata
+- **Fire-and-forget activity logging**: Non-blocking audit trail creation
+
+#### Terminal
+- **60+ CLI commands**: Full command system with categories (navigation, search, file ops, PDM, vault, backup, collaboration, admin, batch)
+- **Self-registering commands**: `registerTerminalCommand()` with metadata, usage, examples
+- **Command categories**: `help` shows commands grouped by function
 
 ### Changed
-- **Major version bump**: BluePLM 3.0 release
-- **API v2.0.0**: Major API refactor (separate versioning from app)
+- **Database schema**: v36 with modular architecture
+- **Electron**: v39 (Chromium 142, Node.js 22, V8 14.2)
+- **React**: v19
+- **Zustand**: v5 with slice architecture
+- **Checkout/checkin**: Now use atomic PostgreSQL RPCs instead of multi-step client logic
 
 ### Fixed
-- **Circular dependency crash**: Fixed "Cannot access 'COLUMN_TRANSLATION_KEYS' before initialization" error in FilePane caused by barrel file circular import
+- **Circular dependency crash**: Fixed "Cannot access 'COLUMN_TRANSLATION_KEYS' before initialization" in FilePane
+- **Checkout race conditions**: Atomic RPCs with `FOR UPDATE` locks prevent concurrent checkout conflicts
+- **Double activity logging**: RPCs handle logging; removed duplicate client-side logging
+- **Store hydration races**: Hooks wait for Zustand rehydration before auto-starting services
+- **SolidWorks service reliability**: Polling-based startup confirmation, proper cleanup on app quit
+
+### Removed
+- **Legacy fileService.ts**: Consolidated into `src/lib/supabase/files/`
+- **Duplicate utilities**: Consolidated 9 copies of `buildFullPath`, 6 copies of `formatBytes` into single source
+- **Dead code**: `StatusBar.tsx`, `SolidWorksPreviewPanel.tsx`, unused dependencies (@tanstack/react-query, @tanstack/react-table, clsx)
+- **In-memory webhooks**: Now database-backed for persistence
 
 ---
 

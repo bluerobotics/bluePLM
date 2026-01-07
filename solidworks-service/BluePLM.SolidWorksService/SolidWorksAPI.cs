@@ -743,7 +743,7 @@ namespace BluePLM.SolidWorksService
         /// <summary>
         /// Export to STEP format
         /// </summary>
-        public CommandResult ExportToStep(string? filePath, string? outputPath, string? configuration, bool exportAllConfigs, string[]? configurations = null, string? filenamePattern = null)
+        public CommandResult ExportToStep(string? filePath, string? outputPath, string? configuration, bool exportAllConfigs, string[]? configurations = null, string? filenamePattern = null, PdmMetadata? pdmMetadata = null)
         {
             if (string.IsNullOrEmpty(filePath))
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
@@ -807,13 +807,14 @@ namespace BluePLM.SolidWorksService
                         doc.ShowConfiguration2(configName);
                         doc.EditRebuild3();
 
+                        // Get properties for pattern replacement and metadata
+                        var props = GetConfigProperties(doc, configName);
+                        
                         // Build output filename
                         string configOutputPath;
                         if (!string.IsNullOrEmpty(filenamePattern))
                         {
-                            // Get properties for pattern replacement
-                            var props = GetConfigProperties(doc, configName);
-                            var fileName = FormatExportFilename(filenamePattern, baseName, configName, props, ".step");
+                            var fileName = FormatExportFilename(filenamePattern, baseName, configName, props, ".step", pdmMetadata);
                             configOutputPath = Path.Combine(outputDir, fileName);
                         }
                         else
@@ -830,7 +831,42 @@ namespace BluePLM.SolidWorksService
                         );
 
                         if (success)
+                        {
                             exportedFiles.Add(configOutputPath);
+                            
+                            // Update STEP file metadata with part number, description, revision
+                            // Use SW file properties first, PDM metadata as fallback
+                            var partNumber = GetPartNumber(props);
+                            var revision = GetRevision(props);
+                            var description = GetDictValue(props, "Description") ?? GetDictValue(props, "DESCRIPTION") ?? "";
+                            
+                            // Apply PDM fallbacks for STEP metadata too
+                            if (string.IsNullOrEmpty(partNumber))
+                            {
+                                // pdmMetadata.PartNumber should already contain the full item number
+                                // (base + tab combined from TypeScript), but as a safety net,
+                                // combine base + tab if PartNumber looks like just the base
+                                var baseNum = pdmMetadata?.PartNumber ?? "";
+                                var tabNum = pdmMetadata?.TabNumber ?? "";
+                                
+                                // If we have both base and tab, and base doesn't already end with tab,
+                                // combine them (use dash as default separator)
+                                if (!string.IsNullOrEmpty(baseNum) && !string.IsNullOrEmpty(tabNum) 
+                                    && !baseNum.EndsWith($"-{tabNum}"))
+                                {
+                                    partNumber = $"{baseNum}-{tabNum}";
+                                    Console.Error.WriteLine($"[Export] Combined base+tab for STEP metadata: '{partNumber}'");
+                                }
+                                else
+                                {
+                                    partNumber = baseNum;
+                                }
+                            }
+                            if (string.IsNullOrEmpty(revision)) revision = pdmMetadata?.Revision ?? "";
+                            if (string.IsNullOrEmpty(description)) description = pdmMetadata?.Description ?? "";
+                            
+                            UpdateStepFileMetadata(configOutputPath, partNumber, description, revision, configName);
+                        }
                     }
                 }
                 else
@@ -1264,10 +1300,13 @@ namespace BluePLM.SolidWorksService
         private static string GetPartNumber(Dictionary<string, string> props)
         {
             // Common part number property names used in SolidWorks
+            // Note: Blue Robotics uses "Number" as the primary part number property
             string[] partNumberKeys = {
-                "PartNumber", "Part Number", "Part No", "Part No.", "PartNo",
+                "Number", "PartNumber", "Part Number", "Part No", "Part No.", "PartNo",
                 "ItemNumber", "Item Number", "Item No", "Item No.", "ItemNo",
-                "PN", "P/N", "Number", "No", "No."
+                "PN", "P/N", "No", "No.",
+                // Blue Robotics specific
+                "BR Number", "BRNumber", "BR-Number", "DrawingNumber", "Drawing Number"
             };
 
             foreach (var key in partNumberKeys)
@@ -1283,7 +1322,8 @@ namespace BluePLM.SolidWorksService
                 var lowerKey = kvp.Key.ToLowerInvariant();
                 if (lowerKey.Contains("part") && (lowerKey.Contains("number") || lowerKey.Contains("no")) ||
                     lowerKey.Contains("item") && (lowerKey.Contains("number") || lowerKey.Contains("no")) ||
-                    lowerKey == "pn" || lowerKey == "p/n")
+                    lowerKey == "pn" || lowerKey == "p/n" ||
+                    lowerKey == "number" || lowerKey == "br number" || lowerKey == "brnumber")
                 {
                     if (!string.IsNullOrEmpty(kvp.Value))
                         return kvp.Value;
@@ -1326,21 +1366,72 @@ namespace BluePLM.SolidWorksService
         }
 
         /// <summary>
-        /// Get custom properties from a configuration for export filename formatting
+        /// Get tab number from properties.
+        /// Tab number is the configuration-specific suffix (e.g., "394" in "BR-101011-394").
+        /// It can be stored as a dedicated "Tab Number" property, or parsed from the Number property.
+        /// </summary>
+        private static string GetTabNumber(Dictionary<string, string> props)
+        {
+            // Check for dedicated tab number property
+            string[] tabKeys = {
+                "Tab Number", "TabNumber", "Tab No", "Tab", "TAB",
+                "Configuration Tab", "Config Tab", "Suffix"
+            };
+
+            foreach (var key in tabKeys)
+            {
+                var value = GetDictValue(props, key);
+                if (value != null && value.Length > 0)
+                    return value;
+            }
+
+            // Try to extract from the Number/Part Number property
+            // Format: "BR-101010-394" -> extract "394"
+            var number = GetPartNumber(props);
+            if (!string.IsNullOrEmpty(number) && number.Contains("-"))
+            {
+                var parts = number.Split('-');
+                if (parts.Length >= 3)
+                {
+                    // Get the last segment after the last dash
+                    var lastPart = parts[parts.Length - 1];
+                    // Only use it if it looks like a tab number (numeric, 1-4 chars)
+                    if (lastPart.Length >= 1 && lastPart.Length <= 4)
+                    {
+                        // Check if it's mostly numeric
+                        int digitCount = 0;
+                        foreach (char c in lastPart)
+                        {
+                            if (char.IsDigit(c)) digitCount++;
+                        }
+                        if (digitCount >= lastPart.Length / 2)
+                        {
+                            return lastPart;
+                        }
+                    }
+                }
+            }
+
+            return "";
+        }
+
+        /// <summary>
+        /// Get custom properties from a configuration for export filename formatting.
+        /// Merges file-level properties with configuration-specific properties.
+        /// Configuration properties override file-level properties when both exist.
         /// </summary>
         private Dictionary<string, string> GetConfigProperties(ModelDoc2 doc, string configName)
         {
             var props = new Dictionary<string, string>();
+            
+            // First, read file-level properties (these are the base/default values)
             try
             {
-                var manager = doc.Extension.CustomPropertyManager[configName];
-                if (manager == null)
-                    manager = doc.Extension.CustomPropertyManager[""];
-                
-                if (manager != null)
+                var fileManager = doc.Extension.CustomPropertyManager[""];
+                if (fileManager != null)
                 {
-                    object names = null, values = null, resolved = null, types = null;
-                    manager.GetAll2(ref names, ref types, ref values, ref resolved);
+                    object names = null, values = null, resolved = null, types = null, linkedProps = null;
+                    fileManager.GetAll3(ref names, ref types, ref values, ref resolved, ref linkedProps);
                     
                     var propNames = names as string[];
                     var propResolved = resolved as string[];
@@ -1361,8 +1452,44 @@ namespace BluePLM.SolidWorksService
             }
             catch
             {
-                // Ignore property read errors
+                // Ignore file-level property read errors
             }
+            
+            // Then, read configuration-specific properties (these override file-level)
+            if (!string.IsNullOrEmpty(configName))
+            {
+                try
+                {
+                    var configManager = doc.Extension.CustomPropertyManager[configName];
+                    if (configManager != null)
+                    {
+                        object names = null, values = null, resolved = null, types = null, linkedProps = null;
+                        configManager.GetAll3(ref names, ref types, ref values, ref resolved, ref linkedProps);
+                        
+                        var propNames = names as string[];
+                        var propResolved = resolved as string[];
+                        
+                        if (propNames != null && propResolved != null)
+                        {
+                            for (int i = 0; i < propNames.Length && i < propResolved.Length; i++)
+                            {
+                                var name = propNames[i];
+                                var value = propResolved[i];
+                                // Override file-level props with config-specific ones
+                                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(value))
+                                {
+                                    props[name] = value;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore config-level property read errors
+                }
+            }
+            
             return props;
         }
 
@@ -1372,20 +1499,60 @@ namespace BluePLM.SolidWorksService
         /// {filename} - Original file name (without extension)
         /// {config} - Configuration name
         /// {partNumber} or {number} - Part/Item number from properties
+        /// {tab} or {tabNumber} - Tab number suffix from config properties
         /// {revision} or {rev} - Revision from properties
         /// {description} or {desc} - Description from properties
         /// {date} - Current date (YYYY-MM-DD)
         /// {time} - Current time (HH-MM-SS)
         /// {datetime} - Current date and time (YYYY-MM-DD_HH-MM-SS)
         /// </summary>
-        private string FormatExportFilename(string pattern, string baseName, string configName, Dictionary<string, string> props, string extension)
+        private string FormatExportFilename(string pattern, string baseName, string configName, Dictionary<string, string> props, string extension, PdmMetadata? pdmMetadata = null)
         {
             var now = DateTime.Now;
             
-            // Get property values
+            // Log properties for debugging
+            Console.Error.WriteLine($"[Export] Formatting filename for config '{configName}'");
+            Console.Error.WriteLine($"[Export] Pattern: {pattern}");
+            Console.Error.WriteLine($"[Export] Found {props.Count} SW file properties:");
+            foreach (var kvp in props)
+            {
+                Console.Error.WriteLine($"[Export]   '{kvp.Key}' = '{kvp.Value}'");
+            }
+            
+            if (pdmMetadata != null)
+            {
+                Console.Error.WriteLine($"[Export] PDM metadata fallback: partNumber='{pdmMetadata.PartNumber}', revision='{pdmMetadata.Revision}', description='{pdmMetadata.Description}', tabNumber='{pdmMetadata.TabNumber}'");
+            }
+            
+            // Get property values from SW file
             var partNumber = GetPartNumber(props);
+            var tabNumber = GetTabNumber(props);
             var revision = GetRevision(props);
             var description = GetDictValue(props, "Description") ?? GetDictValue(props, "DESCRIPTION") ?? "";
+            
+            // Use PDM metadata as fallback if SW file properties are empty
+            if (string.IsNullOrEmpty(partNumber) && !string.IsNullOrEmpty(pdmMetadata?.PartNumber))
+            {
+                partNumber = pdmMetadata.PartNumber;
+                Console.Error.WriteLine($"[Export] Using PDM partNumber fallback: '{partNumber}'");
+            }
+            if (string.IsNullOrEmpty(tabNumber) && !string.IsNullOrEmpty(pdmMetadata?.TabNumber))
+            {
+                tabNumber = pdmMetadata.TabNumber;
+                Console.Error.WriteLine($"[Export] Using PDM tabNumber fallback: '{tabNumber}'");
+            }
+            if (string.IsNullOrEmpty(revision) && !string.IsNullOrEmpty(pdmMetadata?.Revision))
+            {
+                revision = pdmMetadata.Revision;
+                Console.Error.WriteLine($"[Export] Using PDM revision fallback: '{revision}'");
+            }
+            if (string.IsNullOrEmpty(description) && !string.IsNullOrEmpty(pdmMetadata?.Description))
+            {
+                description = pdmMetadata.Description;
+                Console.Error.WriteLine($"[Export] Using PDM description fallback: '{description}'");
+            }
+            
+            Console.Error.WriteLine($"[Export] Final resolved: partNumber='{partNumber}', tabNumber='{tabNumber}', revision='{revision}', description='{description}'");
             
             // Replace placeholders (case-insensitive)
             var result = pattern;
@@ -1393,6 +1560,8 @@ namespace BluePLM.SolidWorksService
             result = ReplaceIgnoreCase(result, "{config}", configName);
             result = ReplaceIgnoreCase(result, "{partNumber}", partNumber);
             result = ReplaceIgnoreCase(result, "{number}", partNumber);
+            result = ReplaceIgnoreCase(result, "{tab}", tabNumber);
+            result = ReplaceIgnoreCase(result, "{tabNumber}", tabNumber);
             result = ReplaceIgnoreCase(result, "{revision}", revision);
             result = ReplaceIgnoreCase(result, "{rev}", revision);
             result = ReplaceIgnoreCase(result, "{description}", description);
@@ -1413,6 +1582,8 @@ namespace BluePLM.SolidWorksService
                 result += extension;
             }
             
+            Console.Error.WriteLine($"[Export] Final filename: {result}");
+            
             return result;
         }
 
@@ -1425,6 +1596,123 @@ namespace BluePLM.SolidWorksService
                 index = source.IndexOf(oldValue, index + newValue.Length, StringComparison.OrdinalIgnoreCase);
             }
             return source;
+        }
+
+        /// <summary>
+        /// Post-process a STEP file to update PRODUCT metadata with custom properties.
+        /// STEP files are ASCII text and contain PRODUCT entities that define the part info.
+        /// 
+        /// PRODUCT entity format: PRODUCT('id','name','description',(context));
+        /// PRODUCT_DEFINITION_FORMATION entity contains revision info
+        /// </summary>
+        private void UpdateStepFileMetadata(string stepFilePath, string partNumber, string description, string revision, string configName)
+        {
+            if (string.IsNullOrEmpty(partNumber) && string.IsNullOrEmpty(description) && string.IsNullOrEmpty(revision))
+            {
+                Console.Error.WriteLine("[Export] No metadata to embed in STEP file");
+                return;
+            }
+            
+            try
+            {
+                if (!File.Exists(stepFilePath))
+                {
+                    Console.Error.WriteLine($"[Export] STEP file not found: {stepFilePath}");
+                    return;
+                }
+                
+                var content = File.ReadAllText(stepFilePath);
+                bool modified = false;
+                
+                // STEP file uses specific encoding for special chars
+                var safePartNumber = EscapeStepString(partNumber);
+                var safeDescription = EscapeStepString(description);
+                var safeRevision = EscapeStepString(revision);
+                var safeConfigName = EscapeStepString(configName);
+                
+                Console.Error.WriteLine($"[Export] Updating STEP metadata:");
+                Console.Error.WriteLine($"[Export]   Part Number: '{safePartNumber}'");
+                Console.Error.WriteLine($"[Export]   Description: '{safeDescription}'");
+                Console.Error.WriteLine($"[Export]   Revision: '{safeRevision}'");
+                
+                // Update PRODUCT entity - format: PRODUCT('id','name','description',(#context));
+                // The 'id' field should be the part number
+                // The 'name' field is often the filename, but we can set it to part number
+                // The 'description' field is the description
+                var productPattern = @"PRODUCT\s*\(\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'\s*,";
+                var productMatches = System.Text.RegularExpressions.Regex.Matches(content, productPattern);
+                
+                if (productMatches.Count > 0)
+                {
+                    Console.Error.WriteLine($"[Export] Found {productMatches.Count} PRODUCT entities");
+                    
+                    // Replace the first PRODUCT (main product) with our values
+                    var newProductId = !string.IsNullOrEmpty(safePartNumber) ? safePartNumber : "$1";
+                    var newProductName = !string.IsNullOrEmpty(safePartNumber) ? safePartNumber : "$2";
+                    var newProductDesc = !string.IsNullOrEmpty(safeDescription) ? safeDescription : "$3";
+                    
+                    // Only replace if we have values to set
+                    if (!string.IsNullOrEmpty(partNumber) || !string.IsNullOrEmpty(description))
+                    {
+                        // Build replacement pattern
+                        var firstMatch = productMatches[0];
+                        var oldProduct = firstMatch.Value;
+                        var newProduct = $"PRODUCT('{(string.IsNullOrEmpty(safePartNumber) ? firstMatch.Groups[1].Value : safePartNumber)}','{(string.IsNullOrEmpty(safePartNumber) ? firstMatch.Groups[2].Value : safePartNumber)}','{(string.IsNullOrEmpty(safeDescription) ? firstMatch.Groups[3].Value : safeDescription)}',";
+                        
+                        content = content.Replace(oldProduct, newProduct);
+                        modified = true;
+                        Console.Error.WriteLine($"[Export] Updated PRODUCT entity");
+                    }
+                }
+                
+                // Update PRODUCT_DEFINITION_FORMATION for revision
+                // Format: PRODUCT_DEFINITION_FORMATION('id','description',#product);
+                // The 'id' field is typically the revision
+                if (!string.IsNullOrEmpty(revision))
+                {
+                    var pdfPattern = @"PRODUCT_DEFINITION_FORMATION\s*\(\s*'([^']*)'\s*,\s*'([^']*)'\s*,";
+                    var pdfMatches = System.Text.RegularExpressions.Regex.Matches(content, pdfPattern);
+                    
+                    if (pdfMatches.Count > 0)
+                    {
+                        Console.Error.WriteLine($"[Export] Found {pdfMatches.Count} PRODUCT_DEFINITION_FORMATION entities");
+                        
+                        var firstMatch = pdfMatches[0];
+                        var oldPdf = firstMatch.Value;
+                        var newPdf = $"PRODUCT_DEFINITION_FORMATION('{safeRevision}','{firstMatch.Groups[2].Value}',";
+                        
+                        content = content.Replace(oldPdf, newPdf);
+                        modified = true;
+                        Console.Error.WriteLine($"[Export] Updated PRODUCT_DEFINITION_FORMATION with revision");
+                    }
+                }
+                
+                // Write back if modified
+                if (modified)
+                {
+                    File.WriteAllText(stepFilePath, content);
+                    Console.Error.WriteLine($"[Export] STEP file metadata updated successfully");
+                }
+                else
+                {
+                    Console.Error.WriteLine($"[Export] No STEP metadata modifications needed");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Export] Failed to update STEP metadata: {ex.Message}");
+                // Don't throw - the export was successful, just metadata update failed
+            }
+        }
+        
+        /// <summary>
+        /// Escape a string for use in STEP file (single quotes need escaping)
+        /// </summary>
+        private static string EscapeStepString(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            // In STEP files, single quotes are escaped by doubling them
+            return value.Replace("'", "''");
         }
 
         #endregion

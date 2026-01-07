@@ -1,5 +1,6 @@
 // Inline action buttons for tree items
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import { getInitials } from '@/lib/utils'
 import { 
   InlineCheckoutButton, 
@@ -18,7 +19,7 @@ import type { FolderDiffCounts } from './types'
 
 interface FileActionButtonsProps {
   file: LocalFile
-  isProcessing: boolean
+  operationType: OperationType | null
   onRefresh?: (silent?: boolean) => void
   // Multi-select props
   selectedFiles: string[]
@@ -46,7 +47,7 @@ interface FileActionButtonsProps {
  */
 export function FileActionButtons({
   file,
-  isProcessing,
+  operationType,
   onRefresh,
   selectedFiles,
   selectedDownloadableFiles,
@@ -73,7 +74,7 @@ export function FileActionButtons({
     getStagedCheckin
   } = usePDMStore()
   
-  if (file.isDirectory || isProcessing) return null
+  if (file.isDirectory) return null
   
   // Inline action: Download a single file or get latest
   const handleInlineDownload = (e: React.MouseEvent) => {
@@ -168,6 +169,7 @@ export function FileActionButtons({
         <InlineDownloadButton
           onClick={handleInlineDownload}
           isCloudNew={file.diffStatus === 'cloud_new'}
+          isProcessing={operationType === 'download'}
           selectedCount={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 ? selectedDownloadableFiles.length : undefined}
           isSelectionHovered={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 && isDownloadHovered}
           onMouseEnter={() => selectedDownloadableFiles.length > 1 && selectedFiles.includes(file.path) && setIsDownloadHovered(true)}
@@ -179,6 +181,7 @@ export function FileActionButtons({
       {!isOfflineMode && file.diffStatus === 'outdated' && (
         <InlineSyncButton 
           onClick={handleInlineDownload}
+          isProcessing={operationType === 'sync'}
           selectedCount={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 ? selectedUpdatableFiles.length : undefined}
           isSelectionHovered={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 && isUpdateHovered}
           onMouseEnter={() => selectedUpdatableFiles.length > 1 && selectedFiles.includes(file.path) && setIsUpdateHovered(true)}
@@ -207,6 +210,7 @@ export function FileActionButtons({
       {!isOfflineMode && (!file.pdmData || file.diffStatus === 'added' || file.diffStatus === 'deleted_remote') && file.diffStatus !== 'cloud' && (
         <InlineUploadButton 
           onClick={handleInlineFirstCheckin}
+          isProcessing={operationType === 'upload' || operationType === 'sync'}
           selectedCount={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 ? selectedUploadableFiles.length : undefined}
           isSelectionHovered={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 && isUploadHovered}
           onMouseEnter={() => selectedUploadableFiles.length > 1 && selectedFiles.includes(file.path) && setIsUploadHovered(true)}
@@ -229,6 +233,7 @@ export function FileActionButtons({
             {showCheckout && (
               <InlineCheckoutButton 
                 onClick={handleInlineCheckout}
+                isProcessing={operationType === 'checkout'}
                 selectedCount={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 ? selectedCheckoutableFiles.length : undefined}
                 isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 && isCheckoutHovered}
                 onMouseEnter={() => selectedCheckoutableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckoutHovered(true)}
@@ -238,6 +243,7 @@ export function FileActionButtons({
             {showCheckin && (
               <InlineCheckinButton
                 onClick={handleInlineCheckin}
+                isProcessing={operationType === 'checkin'}
                 userAvatarUrl={user?.avatar_url ?? undefined}
                 userFullName={user?.full_name ?? undefined}
                 userEmail={user?.email}
@@ -312,7 +318,7 @@ interface FolderActionButtonsProps {
   checkedOutByMeCount: number
   totalCheckouts: number
   syncedCount: number
-  isProcessing: boolean
+  operationType: OperationType | null
   onRefresh?: (silent?: boolean) => void
 }
 
@@ -328,7 +334,7 @@ export function FolderActionButtons({
   checkedOutByMeCount,
   totalCheckouts,
   syncedCount,
-  isProcessing,
+  operationType,
   onRefresh
 }: FolderActionButtonsProps) {
   const { isOfflineMode } = usePDMStore()
@@ -381,15 +387,15 @@ export function FolderActionButtons({
         <InlineSyncButton
           onClick={handleInlineDownload}
           count={diffCounts.outdated}
+          isProcessing={operationType === 'sync'}
         />
       )}
       {/* 2. Cloud files to download - only when online */}
       {!isOfflineMode && ((diffCounts && diffCounts.cloud > 0) || file.diffStatus === 'cloud') && (
         <FolderDownloadButton
-          onClick={(e) => !isProcessing && handleInlineDownload(e)}
+          onClick={(e) => handleInlineDownload(e)}
           cloudCount={diffCounts?.cloud || 0}
-          isProcessing={isProcessing}
-          disabled={isProcessing}
+          isProcessing={operationType === 'download'}
         />
       )}
       {/* 3. Avatar checkout (users with check-in button) - only when online */}
@@ -399,6 +405,7 @@ export function FolderActionButtons({
           users={checkoutUsers}
           myCheckedOutCount={checkedOutByMeCount}
           totalCheckouts={totalCheckouts}
+          isProcessing={operationType === 'checkin'}
         />
       )}
       {/* 4. Green cloud - synced files ready to checkout - only when online */}
@@ -406,6 +413,7 @@ export function FolderActionButtons({
         <InlineCheckoutButton
           onClick={handleInlineCheckout}
           count={syncedCount}
+          isProcessing={operationType === 'checkout'}
         />
       )}
       {/* 5. Local files - clickable upload button when online only */}
@@ -413,6 +421,7 @@ export function FolderActionButtons({
         <FolderUploadButton
           onClick={handleInlineFirstCheckin}
           localCount={localOnlyCount}
+          isProcessing={operationType === 'upload' || operationType === 'sync'}
         />
       )}
     </span>

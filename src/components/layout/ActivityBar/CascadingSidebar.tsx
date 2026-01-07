@@ -56,6 +56,7 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
       container.addEventListener('scroll', updateScrollState)
       return () => container.removeEventListener('scroll', updateScrollState)
     }
+    return undefined
   }, [updateScrollState])
   
   // Clear timeouts on unmount

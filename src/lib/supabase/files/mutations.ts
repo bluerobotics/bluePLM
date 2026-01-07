@@ -477,3 +477,536 @@ export async function updateFolderPath(
   
   return { success: true, updated }
 }
+
+// ============================================
+// File References (BOM / Contains / Where-Used)
+// ============================================
+
+/**
+ * Reference data from SolidWorks service
+ */
+export interface SWReference {
+  /** Local file path of the referenced component */
+  childFilePath: string
+  /** Number of instances in the assembly */
+  quantity: number
+  /** SolidWorks configuration name (optional) */
+  configuration?: string
+  /** Type of reference */
+  referenceType: 'component' | 'derived' | 'reference'
+}
+
+/**
+ * Reason why a reference was skipped during upsert
+ */
+export interface SkippedReferenceReason {
+  /** Original path from SolidWorks */
+  swPath: string
+  /** Reason the reference was skipped */
+  reason: 'no_match' | 'file_not_synced' | 'ambiguous_filename'
+  /** Additional details about the skip */
+  details?: string
+}
+
+/**
+ * Result of upsertFileReferences operation
+ */
+export interface UpsertReferencesResult {
+  success: boolean
+  inserted: number
+  updated: number
+  deleted: number
+  skipped: number
+  /** Detailed reasons for skipped references (useful for debugging) */
+  skippedReasons?: SkippedReferenceReason[]
+  error?: string
+}
+
+/**
+ * Normalize a path for matching: lowercase, forward slashes, no leading/trailing slashes
+ */
+function normalizePathForMatching(path: string): string {
+  return path
+    .toLowerCase()
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '')
+}
+
+/**
+ * Extract relative path from SW absolute path by stripping vault root
+ * @param swPath - Absolute path from SolidWorks (e.g., "C:\Users\...\VaultRoot\folder\part.sldprt")
+ * @param vaultRootPath - Optional vault root path to strip (e.g., "C:\Users\...\VaultRoot")
+ * @returns Normalized relative path (e.g., "folder/part.sldprt")
+ */
+function extractRelativeFromSwPath(swPath: string, vaultRootPath?: string): string {
+  let path = normalizePathForMatching(swPath)
+  
+  // Strip vault root if provided
+  if (vaultRootPath) {
+    const normalizedRoot = normalizePathForMatching(vaultRootPath)
+    if (path.startsWith(normalizedRoot + '/')) {
+      path = path.substring(normalizedRoot.length + 1)
+    } else if (path.startsWith(normalizedRoot)) {
+      path = path.substring(normalizedRoot.length)
+    }
+  }
+  
+  // Remove leading slash if present after stripping
+  return path.replace(/^\/+/, '')
+}
+
+/**
+ * Get the last N path segments for suffix matching
+ * @param path - Normalized path
+ * @param segmentCount - Number of trailing segments to get
+ * @returns Last N segments joined by /
+ */
+function getPathSuffix(path: string, segmentCount: number): string {
+  const segments = path.split('/').filter(s => s.length > 0)
+  if (segments.length <= segmentCount) {
+    return segments.join('/')
+  }
+  return segments.slice(-segmentCount).join('/')
+}
+
+/**
+ * Upsert file references for an assembly.
+ * 
+ * This function:
+ * 1. Resolves child file paths to database file IDs (within the same vault)
+ * 2. Inserts/updates references in file_references table
+ * 3. Removes stale references that no longer exist in the assembly
+ * 
+ * @param orgId - Organization ID
+ * @param vaultId - Vault ID (to scope file lookups)
+ * @param parentFileId - Database ID of the parent assembly file
+ * @param references - Array of reference data from SolidWorks service
+ * @param vaultRootPath - Optional local vault root path (for better path matching)
+ */
+export async function upsertFileReferences(
+  orgId: string,
+  vaultId: string,
+  parentFileId: string,
+  references: SWReference[],
+  vaultRootPath?: string
+): Promise<UpsertReferencesResult> {
+  const client = getSupabaseClient()
+  
+  const logFn = typeof window !== 'undefined' && (window as any).electronAPI?.log
+    ? (level: string, msg: string, data?: any) => (window as any).electronAPI.log(level, msg, data)
+    : () => {}
+  
+  logFn('debug', '[upsertFileReferences] Starting', { 
+    orgId, 
+    vaultId, 
+    parentFileId, 
+    referenceCount: references.length,
+    vaultRootPath: vaultRootPath || '(not provided)'
+  })
+  
+  let inserted = 0
+  let updated = 0
+  let deleted = 0
+  let skipped = 0
+  const skippedReasons: SkippedReferenceReason[] = []
+  
+  try {
+    // Step 1: Get all files in the vault to build a path -> ID lookup
+    // We need to match local file paths to database records
+    const { data: vaultFiles, error: filesError } = await client
+      .from('files')
+      .select('id, file_path, file_name')
+      .eq('vault_id', vaultId)
+      .eq('org_id', orgId)
+      .is('deleted_at', null)
+    
+    if (filesError) {
+      logFn('error', '[upsertFileReferences] Failed to fetch vault files', { error: filesError.message })
+      return { success: false, inserted: 0, updated: 0, deleted: 0, skipped: 0, error: filesError.message }
+    }
+    
+    // Build lookup maps for path matching
+    // Map 1: normalized relative path -> file ID
+    // Map 2: filename -> file ID (for fallback, only unique filenames)
+    // Map 3: path suffix (last 2 segments) -> file ID (for suffix fallback)
+    const pathToFileId = new Map<string, string>()
+    const filenameToFileId = new Map<string, string>()
+    const filenameAmbiguous = new Set<string>() // Track which filenames are ambiguous
+    const suffixToFileId = new Map<string, string>()
+    const suffixAmbiguous = new Set<string>() // Track which suffixes are ambiguous
+    
+    for (const file of vaultFiles || []) {
+      // Normalize path: lowercase, forward slashes, no leading slash
+      const normalizedPath = normalizePathForMatching(file.file_path)
+      pathToFileId.set(normalizedPath, file.id)
+      
+      // Index by filename
+      const filename = file.file_name.toLowerCase()
+      if (filenameAmbiguous.has(filename)) {
+        // Already known to be ambiguous, skip
+      } else if (filenameToFileId.has(filename)) {
+        // Multiple files with same name - mark as ambiguous
+        filenameToFileId.delete(filename)
+        filenameAmbiguous.add(filename)
+      } else {
+        filenameToFileId.set(filename, file.id)
+      }
+      
+      // Index by path suffix (last 2 segments, e.g., "folder/part.sldprt")
+      const suffix = getPathSuffix(normalizedPath, 2)
+      if (suffixAmbiguous.has(suffix)) {
+        // Already known to be ambiguous, skip
+      } else if (suffixToFileId.has(suffix)) {
+        // Multiple files with same suffix - mark as ambiguous
+        suffixToFileId.delete(suffix)
+        suffixAmbiguous.add(suffix)
+      } else {
+        suffixToFileId.set(suffix, file.id)
+      }
+    }
+    
+    // Map 4: basename (without extension) -> { fileId, ext }[]
+    // This handles extensionless references like "BB120-WEATHERSTATION" that should match "BB120-WEATHERSTATION.SLDPRT"
+    const basenameToFiles = new Map<string, Array<{ fileId: string; ext: string }>>()
+    for (const file of vaultFiles || []) {
+      const basename = file.file_name.toLowerCase().replace(/\.[^.]+$/, '')
+      const ext = (file.file_name.match(/\.[^.]+$/)?.[0] || '').toLowerCase()
+      
+      const existing = basenameToFiles.get(basename) || []
+      existing.push({ fileId: file.id, ext })
+      basenameToFiles.set(basename, existing)
+    }
+    
+    logFn('debug', '[upsertFileReferences] Built lookup maps', { 
+      totalVaultFiles: vaultFiles?.length || 0,
+      exactPathCount: pathToFileId.size,
+      uniqueFilenameCount: filenameToFileId.size,
+      ambiguousFilenameCount: filenameAmbiguous.size,
+      uniqueSuffixCount: suffixToFileId.size,
+      ambiguousSuffixCount: suffixAmbiguous.size,
+      basenameCount: basenameToFiles.size
+    })
+    
+    // Step 2: Get existing references for this parent file
+    const { data: existingRefs, error: refsError } = await client
+      .from('file_references')
+      .select('id, child_file_id, configuration')
+      .eq('parent_file_id', parentFileId)
+      .eq('org_id', orgId)
+    
+    if (refsError) {
+      logFn('error', '[upsertFileReferences] Failed to fetch existing refs', { error: refsError.message })
+      return { success: false, inserted: 0, updated: 0, deleted: 0, skipped: 0, error: refsError.message }
+    }
+    
+    // Build a set of existing references for comparison
+    // Key: `${child_file_id}::${configuration || ''}`
+    const existingRefMap = new Map<string, { id: string; childFileId: string }>()
+    for (const ref of existingRefs || []) {
+      const key = `${ref.child_file_id}::${ref.configuration || ''}`
+      existingRefMap.set(key, { id: ref.id, childFileId: ref.child_file_id })
+    }
+    
+    // Step 3: Process each reference from SolidWorks
+    const processedChildIds = new Set<string>()
+    const toInsert: Array<{
+      org_id: string
+      parent_file_id: string
+      child_file_id: string
+      reference_type: 'component' | 'derived' | 'reference'
+      quantity: number
+      configuration: string | null
+    }> = []
+    
+    const toUpdate: Array<{
+      id: string
+      quantity: number
+      reference_type: 'component' | 'derived' | 'reference'
+    }> = []
+    
+    for (const ref of references) {
+      // Normalize the child file path from SolidWorks
+      // SolidWorks returns absolute paths like "C:\Users\...\VaultRoot\folder\part.sldprt"
+      // We need to extract the relative path "folder/part.sldprt"
+      
+      const normalizedSwPath = normalizePathForMatching(ref.childFilePath)
+      const relativePath = extractRelativeFromSwPath(ref.childFilePath, vaultRootPath)
+      const filename = normalizedSwPath.split('/').pop() || ''
+      const pathSuffix = getPathSuffix(normalizedSwPath, 2)
+      
+      logFn('debug', '[upsertFileReferences] Processing reference', {
+        originalPath: ref.childFilePath,
+        normalizedSwPath,
+        relativePath,
+        filename,
+        pathSuffix,
+        vaultRootStripped: vaultRootPath ? relativePath !== normalizedSwPath : false
+      })
+      
+      // Try to find a matching file in the vault using multiple strategies
+      let childFileId: string | null = null
+      let matchMethod: 'exact' | 'suffix' | 'suffix_fallback' | 'filename' | 'extension_inferred' | null = null
+      
+      // Strategy 1: Exact relative path match
+      if (pathToFileId.has(relativePath)) {
+        childFileId = pathToFileId.get(relativePath)!
+        matchMethod = 'exact'
+        logFn('debug', '[upsertFileReferences] MATCH: exact relative path', {
+          swPath: ref.childFilePath,
+          matchedPath: relativePath
+        })
+      }
+      
+      // Strategy 2: Check if normalized SW path ends with any database path
+      if (!childFileId) {
+        for (const [dbPath, fileId] of Array.from(pathToFileId.entries())) {
+          if (normalizedSwPath.endsWith('/' + dbPath) || normalizedSwPath === dbPath) {
+            childFileId = fileId
+            matchMethod = 'suffix'
+            logFn('debug', '[upsertFileReferences] MATCH: SW path ends with DB path', {
+              swPath: ref.childFilePath,
+              matchedDbPath: dbPath
+            })
+            break
+          }
+        }
+      }
+      
+      // Strategy 3: Path suffix matching (last 2 segments)
+      if (!childFileId && suffixToFileId.has(pathSuffix)) {
+        childFileId = suffixToFileId.get(pathSuffix)!
+        matchMethod = 'suffix_fallback'
+        logFn('debug', '[upsertFileReferences] MATCH: path suffix (last 2 segments)', {
+          swPath: ref.childFilePath,
+          matchedSuffix: pathSuffix
+        })
+      }
+      
+      // Strategy 4: Filename-only fallback (only if unique)
+      if (!childFileId && filenameToFileId.has(filename)) {
+        childFileId = filenameToFileId.get(filename)!
+        matchMethod = 'filename'
+        logFn('debug', '[upsertFileReferences] MATCH: unique filename fallback', {
+          swPath: ref.childFilePath,
+          matchedFilename: filename
+        })
+      }
+      
+      // Strategy 5: Extension inference (for extensionless refs like "BB120-WEATHERSTATION")
+      // SolidWorks assemblies sometimes store component references without file extensions
+      if (!childFileId && !filename.includes('.')) {
+        const basename = filename.toLowerCase()
+        const candidates = basenameToFiles.get(basename)
+        
+        if (candidates && candidates.length === 1) {
+          // Unique match - only one file with this basename
+          childFileId = candidates[0].fileId
+          matchMethod = 'extension_inferred'
+          logFn('debug', '[upsertFileReferences] MATCH: extension inferred', {
+            swPath: ref.childFilePath,
+            inferredFile: `${basename}${candidates[0].ext}`
+          })
+        } else if (candidates && candidates.length > 1) {
+          // Ambiguous - multiple files with same basename but different extensions
+          // Prefer .sldprt > .sldasm > .slddrw (most assembly refs are to parts)
+          const preferredOrder = ['.sldprt', '.sldasm', '.slddrw']
+          for (const prefExt of preferredOrder) {
+            const match = candidates.find(c => c.ext === prefExt)
+            if (match) {
+              childFileId = match.fileId
+              matchMethod = 'extension_inferred'
+              logFn('debug', '[upsertFileReferences] MATCH: extension inferred (preferred)', {
+                swPath: ref.childFilePath,
+                inferredFile: `${basename}${prefExt}`,
+                otherCandidates: candidates.filter(c => c.ext !== prefExt).map(c => c.ext)
+              })
+              break
+            }
+          }
+        }
+      }
+      
+      // No match found - log detailed reason
+      if (!childFileId) {
+        let skipReason: SkippedReferenceReason['reason'] = 'no_match'
+        let details: string
+        
+        // Check if filename exists but is ambiguous
+        if (filenameAmbiguous.has(filename)) {
+          skipReason = 'ambiguous_filename'
+          details = `Multiple files named "${filename}" in vault - cannot determine which one`
+        } else if (suffixAmbiguous.has(pathSuffix)) {
+          skipReason = 'ambiguous_filename'
+          details = `Multiple files with path suffix "${pathSuffix}" - cannot determine which one`
+        } else if (!filename.includes('.')) {
+          // Extensionless reference - check if we have candidates that don't match preferred extensions
+          const basename = filename.toLowerCase()
+          const candidates = basenameToFiles.get(basename)
+          if (candidates && candidates.length > 1) {
+            skipReason = 'ambiguous_filename'
+            details = `Multiple files match "${filename}" with different extensions: ${candidates.map(c => c.ext).join(', ')} (none matched preferred order)`
+          } else if (!candidates || candidates.length === 0) {
+            skipReason = 'file_not_synced'
+            details = `No matching file found for extensionless reference "${filename}". File may not be synced.`
+          } else {
+            // Shouldn't reach here - single candidate should have matched in Strategy 5
+            skipReason = 'file_not_synced'
+            details = `No matching file found in database. Tried: exact path "${relativePath}", suffix "${pathSuffix}", filename "${filename}" (extensionless)`
+          }
+        } else {
+          skipReason = 'file_not_synced'
+          details = `No matching file found in database. Tried: exact path "${relativePath}", suffix "${pathSuffix}", filename "${filename}"`
+        }
+        
+        logFn('debug', '[upsertFileReferences] SKIP: No match found', {
+          swPath: ref.childFilePath,
+          reason: skipReason,
+          details,
+          triedPaths: {
+            exact: relativePath,
+            suffix: pathSuffix,
+            filename
+          }
+        })
+        
+        skippedReasons.push({
+          swPath: ref.childFilePath,
+          reason: skipReason,
+          details
+        })
+        skipped++
+        continue
+      }
+      
+      logFn('debug', '[upsertFileReferences] Matched reference', {
+        swPath: ref.childFilePath,
+        childFileId,
+        matchMethod
+      })
+      
+      // Generate the unique key for this reference
+      const refKey = `${childFileId}::${ref.configuration || ''}`
+      processedChildIds.add(refKey)
+      
+      if (existingRefMap.has(refKey)) {
+        // Reference exists - queue for update
+        const existing = existingRefMap.get(refKey)!
+        toUpdate.push({
+          id: existing.id,
+          quantity: ref.quantity,
+          reference_type: ref.referenceType
+        })
+      } else {
+        // New reference - queue for insert
+        toInsert.push({
+          org_id: orgId,
+          parent_file_id: parentFileId,
+          child_file_id: childFileId,
+          reference_type: ref.referenceType,
+          quantity: ref.quantity,
+          configuration: ref.configuration || null
+        })
+      }
+    }
+    
+    // Step 4: Delete stale references (in DB but not in current assembly)
+    const staleRefIds: string[] = []
+    for (const [key, ref] of Array.from(existingRefMap.entries())) {
+      if (!processedChildIds.has(key)) {
+        staleRefIds.push(ref.id)
+      }
+    }
+    
+    if (staleRefIds.length > 0) {
+      logFn('debug', '[upsertFileReferences] Deleting stale references', { count: staleRefIds.length })
+      const { error: deleteError } = await client
+        .from('file_references')
+        .delete()
+        .in('id', staleRefIds)
+      
+      if (deleteError) {
+        logFn('warn', '[upsertFileReferences] Failed to delete stale refs', { error: deleteError.message })
+      } else {
+        deleted = staleRefIds.length
+      }
+    }
+    
+    // Step 5: Batch insert new references
+    if (toInsert.length > 0) {
+      logFn('debug', '[upsertFileReferences] Inserting new references', { count: toInsert.length })
+      const { error: insertError } = await client
+        .from('file_references')
+        .insert(toInsert)
+      
+      if (insertError) {
+        // Handle unique constraint violations (might happen in race conditions)
+        if (insertError.code === '23505') {
+          logFn('warn', '[upsertFileReferences] Some inserts conflicted (race condition)', { 
+            error: insertError.message 
+          })
+        } else {
+          logFn('error', '[upsertFileReferences] Insert failed', { error: insertError.message })
+          return { success: false, inserted: 0, updated: 0, deleted, skipped, error: insertError.message }
+        }
+      } else {
+        inserted = toInsert.length
+      }
+    }
+    
+    // Step 6: Update existing references
+    if (toUpdate.length > 0) {
+      logFn('debug', '[upsertFileReferences] Updating existing references', { count: toUpdate.length })
+      for (const upd of toUpdate) {
+        const { error: updateError } = await client
+          .from('file_references')
+          .update({
+            quantity: upd.quantity,
+            reference_type: upd.reference_type,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', upd.id)
+        
+        if (!updateError) {
+          updated++
+        } else {
+          logFn('warn', '[upsertFileReferences] Update failed for ref', { 
+            id: upd.id, 
+            error: updateError.message 
+          })
+        }
+      }
+    }
+    
+    logFn('info', '[upsertFileReferences] Complete', { 
+      parentFileId,
+      inserted, 
+      updated, 
+      deleted, 
+      skipped,
+      skippedReasons: skippedReasons.length > 0 ? skippedReasons : undefined
+    })
+    
+    return { 
+      success: true, 
+      inserted, 
+      updated, 
+      deleted, 
+      skipped,
+      skippedReasons: skippedReasons.length > 0 ? skippedReasons : undefined
+    }
+    
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    logFn('error', '[upsertFileReferences] Exception', { error: errMsg })
+    return { 
+      success: false, 
+      inserted, 
+      updated, 
+      deleted, 
+      skipped, 
+      skippedReasons: skippedReasons.length > 0 ? skippedReasons : undefined,
+      error: errMsg 
+    }
+  }
+}

@@ -14,6 +14,11 @@ export { useAuth } from './useAuth'
 export { useStagedCheckins } from './useStagedCheckins'
 export { useAutoDownload } from './useAutoDownload'
 export { useVaultManagement } from './useVaultManagement'
+export { useIntegrationStatus } from './useIntegrationStatus'
+
+// SolidWorks status management
+export { useSolidWorksStatus } from './useSolidWorksStatus'
+export type { SolidWorksServiceStatus, UseSolidWorksStatusReturn } from './useSolidWorksStatus'
 
 // Shared file operation hooks
 export { useClipboard } from './useClipboard'

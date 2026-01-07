@@ -215,6 +215,8 @@ declare global {
       downloadUrl: (url: string, destPath: string) => Promise<FileWriteResult>
       fileExists: (path: string) => Promise<boolean>
       getFileHash: (path: string) => Promise<HashResult>
+      // Streaming hash - more efficient for large files, use for checkin operations
+      hashFile: (path: string) => Promise<{ success: boolean; hash?: string; size?: number; error?: string }>
       listWorkingFiles: () => Promise<FilesListResult>
       listDirFiles: (dirPath: string) => Promise<FilesListResult>
       computeFileHashes: (files: Array<{ path: string; relativePath: string; size: number; mtime: number }>) => 
@@ -231,6 +233,10 @@ declare global {
       showInExplorer: (path: string) => Promise<OperationResult>
       openFile: (path: string) => Promise<OperationResult>
       setReadonly: (path: string, readonly: boolean) => Promise<OperationResult>
+      setReadonlyBatch: (files: Array<{ path: string; readonly: boolean }>) => Promise<{
+        success: boolean
+        results?: Array<{ path: string; success: boolean; error?: string }>
+      }>
       isReadonly: (path: string) => Promise<{ success: boolean; readonly?: boolean; error?: string }>
       startDrag: (filePaths: string[]) => void
       onDownloadProgress: (callback: (progress: { loaded: number; total: number; speed: number }) => void) => () => void
@@ -260,7 +266,7 @@ declare global {
         isInstalled: () => Promise<{ success: boolean; data?: { installed: boolean } }>
         startService: (dmLicenseKey?: string) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
         stopService: () => Promise<{ success: boolean }>
-        getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; installed?: boolean; version?: string }; error?: string }>
+        getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; installed?: boolean; version?: string; documentManagerAvailable?: boolean }; error?: string }>
         
         // Metadata operations
         getBom: (filePath: string, options?: { includeChildren?: boolean; configuration?: string }) => 
@@ -292,7 +298,7 @@ declare global {
         // Export operations
         exportPdf: (filePath: string, outputPath?: string) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
-        exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string }) => 
+        exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
           Promise<{ success: boolean; data?: { inputFile: string; exportedFiles: string[]; count: number }; error?: string }>
         exportDxf: (filePath: string, outputPath?: string) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
@@ -514,6 +520,11 @@ declare global {
       
       // Send CLI command response back to main process
       sendCliResponse: (requestId: string, result: unknown) => void
+      
+      // CLI token management
+      generateCliToken: (userEmail: string) => Promise<{ success: boolean; token?: string }>
+      revokeCliToken: () => Promise<{ success: boolean }>
+      getCliStatus: () => Promise<{ authenticated: boolean; serverRunning: boolean }>
     }
   }
 }

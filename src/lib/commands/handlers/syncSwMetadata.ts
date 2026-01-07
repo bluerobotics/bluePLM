@@ -13,6 +13,7 @@ import type { Command, CommandResult, LocalFile, SyncSwMetadataParams } from '..
 import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { syncSolidWorksFileMetadata } from '../../supabase'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -395,7 +396,7 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
     // Process files in parallel
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
-    const results = await Promise.all(filesToProcess.map(async (file) => {
+    const results = await processWithConcurrency(filesToProcess, CONCURRENT_OPERATIONS, async (file) => {
       try {
         // Extract metadata from SW file
         const swMetadata = await extractSolidWorksMetadata(file.path, file.extension)
@@ -478,7 +479,7 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
         progress.update()
         return { success: false, error: `${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}` }
       }
-    }))
+    })
     
     // Apply store updates
     if (pendingUpdates.length > 0) {

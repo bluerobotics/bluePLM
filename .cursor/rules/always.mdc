@@ -5,6 +5,12 @@ alwaysApply: true
 
 # Critical Rules
 
+## Multi-Agent Plans (READ FIRST)
+
+Before creating plans for multiple agents, you **MUST** read `.cursor/rules/plans.mdc` and follow its structure exactly.
+
+---
+
 ## Tool Usage
 
 | Task | Use This | Never This |
@@ -62,9 +68,20 @@ CHANGELOG.md             # entry added
 docs/                    # updated if user-facing
 ```
 
-## Plans Location
+## Plans Location (CRITICAL)
 
-Create `.plan.md` files in repo's `.cursor/plans/` — never user home dir.
+**ALWAYS** create plan files in the **repository's** `.cursor/plans/` folder:
+
+```
+{workspace}/.cursor/plans/{name}.plan.md
+```
+
+**NEVER** create plans in:
+- User home directory (`~/.cursor/` or `C:\Users\{user}\.cursor\`)
+- Cursor's project folder (`~/.cursor/projects/`)
+- Any location outside the repository
+
+The correct path is always **relative to the workspace root**, not the user's home directory.
 
 ## CLI Commands
 

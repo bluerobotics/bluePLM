@@ -363,6 +363,11 @@ export async function signOut() {
   // Clear cached user email
   clearCachedUserEmail()
   
+  // Revoke CLI token when user signs out
+  window.electronAPI?.revokeCliToken?.().catch(() => {
+    // Ignore CLI token errors - non-critical
+  })
+  
   const { error } = await client.auth.signOut()
   return { error }
 }

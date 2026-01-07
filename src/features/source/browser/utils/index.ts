@@ -46,7 +46,7 @@ export {
 } from './fileStatus'
 export type { DiffStatus } from './fileStatus'
 
-export { isPathBeingProcessed } from './processingStatus'
+export { getProcessingOperation, getFileProcessingOperation, getFolderProcessingOperation } from './processingStatus'
 export { matchesKeybinding } from './keybindings'
 export type { Keybinding } from './keybindings'
 export { buildConfigTreeFlat } from './configTree'

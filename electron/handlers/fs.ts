@@ -3,6 +3,7 @@ import { ipcMain, BrowserWindow, shell, dialog, nativeImage } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import { pipeline } from 'stream/promises'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -47,12 +48,38 @@ interface LocalFileInfo {
   hash?: string
 }
 
-// Calculate SHA-256 hash of a file
+// Calculate SHA-256 hash of a file (synchronous - use only for small files or when sync is required)
 function hashFileSync(filePath: string): string {
   const fileBuffer = fs.readFileSync(filePath)
   const hashSum = crypto.createHash('sha256')
   hashSum.update(fileBuffer)
   return hashSum.digest('hex')
+}
+
+/**
+ * Calculate SHA-256 hash of a file using streaming (async)
+ * This is much more memory-efficient for large files as it doesn't load
+ * the entire file into memory at once. The file is read in 64KB chunks.
+ */
+async function hashFileAsync(filePath: string): Promise<{ hash: string; size: number }> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256')
+    const stream = fs.createReadStream(filePath, { highWaterMark: 64 * 1024 }) // 64KB chunks
+    let size = 0
+    
+    stream.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      hash.update(chunk)
+    })
+    
+    stream.on('end', () => {
+      resolve({ hash: hash.digest('hex'), size })
+    })
+    
+    stream.on('error', (err) => {
+      reject(err)
+    })
+  })
 }
 
 // Helper to recursively copy a directory
@@ -356,6 +383,8 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   })
 
   // File read/write handlers
+  // Note: This handler reads the entire file into memory. For hash-only needs,
+  // use 'fs:hash-file' which uses streaming and is more memory-efficient.
   ipcMain.handle('fs:read-file', async (_, filePath: string) => {
     try {
       const data = fs.readFileSync(filePath)
@@ -366,6 +395,17 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
         size: data.length,
         hash 
       }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
+
+  // Streaming hash computation - much more efficient for large files
+  // Only returns hash and size, not file contents (for checkin operations)
+  ipcMain.handle('fs:hash-file', async (_, filePath: string) => {
+    try {
+      const { hash, size } = await hashFileAsync(filePath)
+      return { success: true, hash, size }
     } catch (err) {
       return { success: false, error: String(err) }
     }
@@ -1305,15 +1345,47 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       return { success: false, error: String(err) }
     }
   })
+
+  // Batch readonly operations - process multiple files in a single IPC call
+  // This is much more efficient than making N separate IPC calls for N files
+  ipcMain.handle('fs:set-readonly-batch', async (_, files: Array<{ path: string; readonly: boolean }>) => {
+    const results: Array<{ path: string; success: boolean; error?: string }> = []
+    
+    for (const file of files) {
+      try {
+        const stats = fs.statSync(file.path)
+        if (stats.isDirectory()) {
+          results.push({ path: file.path, success: true })
+          continue
+        }
+        
+        const currentMode = stats.mode
+        
+        if (file.readonly) {
+          const newMode = currentMode & ~0o222
+          fs.chmodSync(file.path, newMode)
+        } else {
+          const newMode = currentMode | 0o200
+          fs.chmodSync(file.path, newMode)
+        }
+        
+        results.push({ path: file.path, success: true })
+      } catch (err) {
+        results.push({ path: file.path, success: false, error: String(err) })
+      }
+    }
+    
+    return { success: true, results }
+  })
 }
 
 export function unregisterFsHandlers(): void {
   const handlers = [
     'working-dir:select', 'working-dir:get', 'working-dir:clear', 'working-dir:set', 'working-dir:create',
-    'fs:read-file', 'fs:write-file', 'fs:download-url', 'fs:file-exists', 'fs:get-hash',
+    'fs:read-file', 'fs:write-file', 'fs:download-url', 'fs:file-exists', 'fs:get-hash', 'fs:hash-file',
     'fs:list-dir-files', 'fs:list-working-files', 'fs:compute-file-hashes',
     'fs:create-folder', 'fs:is-dir-empty', 'fs:delete', 'fs:rename', 'fs:copy-file', 'fs:move-file',
-    'fs:open-in-explorer', 'fs:open-file', 'fs:set-readonly', 'fs:is-readonly'
+    'fs:open-in-explorer', 'fs:open-file', 'fs:set-readonly', 'fs:is-readonly', 'fs:set-readonly-batch'
   ]
   
   for (const handler of handlers) {

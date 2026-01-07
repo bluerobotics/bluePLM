@@ -10,50 +10,14 @@ import { getCloudOnlyFilesFromSelection, buildFullPath, getParentDir } from '../
 import { ProgressTracker } from '../executor'
 import { getDownloadUrl } from '../../storage'
 import type { LocalFile } from '../../../stores/pdmStore'
-import { isRetryableError, getNetworkErrorMessage, getBackoffDelay } from '../../network'
-
-// Concurrency limit for parallel downloads
-// Too many concurrent downloads can overwhelm network/Supabase rate limits
-const MAX_CONCURRENT_DOWNLOADS = 15
+import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 
 // Number of retry attempts for failed downloads
 const MAX_RETRY_ATTEMPTS = 3
 
 // Delay between retries (exponential backoff: 1s, 2s, 4s)
 const RETRY_BASE_DELAY_MS = 1000
-
-/**
- * Simple concurrency limiter for async operations
- * Allows running up to `limit` promises concurrently
- */
-function createConcurrencyLimiter(limit: number) {
-  let running = 0
-  const queue: Array<() => void> = []
-  
-  return async function<T>(fn: () => Promise<T>): Promise<T> {
-    // Wait for a slot if at capacity
-    if (running >= limit) {
-      await new Promise<void>(resolve => queue.push(resolve))
-    }
-    
-    running++
-    try {
-      return await fn()
-    } finally {
-      running--
-      // Release next waiting task
-      const next = queue.shift()
-      if (next) next()
-    }
-  }
-}
-
-/**
- * Sleep helper for retry delays
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
 
 // Detailed logging for download operations
 function logDownload(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
@@ -226,30 +190,10 @@ export const downloadCommand: Command<DownloadParams> = {
       }
     }
     
-    // Track cloud files, selected folders, and all cloud-only folders for spinner display
-    // This ensures:
-    // 1. Individual cloud files show spinners
-    // 2. Parent folders that were selected show spinners  
-    // 3. Child cloud-only folders also show spinners
+    // Only track actual files being processed - folders show spinners via computed state
     const cloudFilePaths = cloudFiles.map(f => f.relativePath)
     const selectedFolderPaths = files.filter(f => f.isDirectory).map(f => f.relativePath)
-    
-    // Find all cloud-only folders that are descendants of selected folders
-    const childCloudFolderPaths: string[] = []
-    for (const selectedFolder of selectedFolderPaths) {
-      const normalizedSelected = selectedFolder.replace(/\\/g, '/')
-      // Find cloud folders that are children of this selected folder
-      const childFolders = ctx.files.filter(f => {
-        if (!f.isDirectory) return false
-        if (f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new') return false
-        const normalizedPath = f.relativePath.replace(/\\/g, '/')
-        return normalizedPath.startsWith(normalizedSelected + '/')
-      }).map(f => f.relativePath)
-      childCloudFolderPaths.push(...childFolders)
-    }
-    
-    // Combine all paths that need spinners (deduplicated)
-    const allPathsToTrack = [...new Set([...cloudFilePaths, ...selectedFolderPaths, ...childCloudFolderPaths])]
+    const allPathsToTrack = [...new Set([...cloudFilePaths, ...selectedFolderPaths])]
     ctx.addProcessingFolders(allPathsToTrack, 'download')
     
     // Yield to event loop so React can render spinners before starting download
@@ -276,13 +220,10 @@ export const downloadCommand: Command<DownloadParams> = {
     let failed = 0
     const errors: string[] = []
     
-    // Create concurrency limiter to avoid overwhelming network/Supabase
-    const limit = createConcurrencyLimiter(MAX_CONCURRENT_DOWNLOADS)
-    
     logDownload('info', 'Starting parallel downloads with concurrency limit', {
       operationId,
       totalFiles: cloudFiles.length,
-      maxConcurrent: MAX_CONCURRENT_DOWNLOADS
+      maxConcurrent: CONCURRENT_OPERATIONS
     })
     
     // Helper function to download a single file with retry logic
@@ -448,13 +389,11 @@ export const downloadCommand: Command<DownloadParams> = {
     }
     
     // Process all files with concurrency limit
-    const results = await Promise.all(cloudFiles.map(file => 
-      limit(async () => {
-        const result = await downloadWithRetry(file)
-        progress.update()
-        return result
-      })
-    ))
+    const results = await processWithConcurrency(cloudFiles, CONCURRENT_OPERATIONS, async (file) => {
+      const result = await downloadWithRetry(file)
+      progress.update()
+      return result
+    })
     
     // Count results
     for (const result of results) {

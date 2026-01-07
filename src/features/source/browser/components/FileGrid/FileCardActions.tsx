@@ -9,7 +9,6 @@ import type { FolderCheckoutInfo } from './hooks/useFileCardStatus'
 
 export interface FileCardActionsProps {
   file: LocalFile
-  isProcessing: boolean
   operationType: OperationType | null
   cloudFilesCount: number
   folderCheckoutInfo: FolderCheckoutInfo | null
@@ -27,10 +26,10 @@ export interface FileCardActionsProps {
 
 /**
  * Action buttons for file cards (download, checkout, checkin, upload)
+ * Each button shows independently - only the active operation shows a spinner
  */
 export function FileCardActions({
   file,
-  isProcessing,
   operationType,
   cloudFilesCount,
   folderCheckoutInfo,
@@ -45,7 +44,6 @@ export function FileCardActions({
   onCheckin,
   onUpload
 }: FileCardActionsProps) {
-  // Show spinner for active operation, hide other buttons when processing
   const isDownloading = operationType === 'download'
   const isCheckingOut = operationType === 'checkout'
   const isCheckingIn = operationType === 'checkin'
@@ -54,53 +52,49 @@ export function FileCardActions({
 
   return (
     <div className="absolute top-1 left-1 flex items-center z-10" style={{ gap: spacing }}>
-      {/* Download for cloud files - show spinner when downloading */}
-      {(file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && !file.isDirectory && onDownload && (!isProcessing || isDownloading) && (
-        <button
-          className="group/download flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
-          onClick={(e) => !isDownloading && onDownload(e, file)}
-          title={isDownloading ? 'Downloading...' : 'Download'}
-          disabled={isDownloading}
-        >
-          {isDownloading ? (
-            <Loader2 size={buttonIconSize} className="text-plm-info animate-spin" />
-          ) : file.diffStatus === 'cloud_new' ? (
-            <Plus size={buttonIconSize} className="text-green-400 group-hover/download:text-plm-info transition-colors duration-200" />
-          ) : (
-            <Cloud size={buttonIconSize} className="text-plm-info group-hover/download:text-plm-info transition-colors duration-200" />
-          )}
-          {!isDownloading && (
+      {/* Download for cloud files */}
+      {(file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && !file.isDirectory && onDownload && (
+        isDownloading ? (
+          <Loader2 size={16} className="text-sky-400 animate-spin" />
+        ) : (
+          <button
+            className="group/download flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
+            onClick={(e) => onDownload(e, file)}
+            title="Download"
+          >
+            {file.diffStatus === 'cloud_new' ? (
+              <Plus size={buttonIconSize} className="text-green-400 group-hover/download:text-plm-info transition-colors duration-200" />
+            ) : (
+              <Cloud size={buttonIconSize} className="text-plm-info group-hover/download:text-plm-info transition-colors duration-200" />
+            )}
             <ArrowDown size={buttonIconSize} className="text-plm-info opacity-0 group-hover/download:opacity-100 -ml-1 group-hover/download:ml-0 transition-all duration-200" />
-          )}
-        </button>
+          </button>
+        )
       )}
 
-      {/* Folder download button - show spinner when downloading */}
-      {file.isDirectory && (cloudFilesCount > 0 || file.diffStatus === 'cloud') && onDownload && (!isProcessing || isDownloading || isSyncing) && (
-        <button
-          className="group/folderdownload flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
-          onClick={(e) => !(isDownloading || isSyncing) && onDownload(e, file)}
-          title={isDownloading || isSyncing ? 'Downloading...' : (cloudFilesCount > 0 ? `Download ${cloudFilesCount} files` : 'Create folder locally')}
-          disabled={isDownloading || isSyncing}
-        >
-          {isDownloading || isSyncing ? (
-            <Loader2 size={buttonIconSize} className="text-plm-info animate-spin" />
-          ) : (
-            <>
-              <Cloud size={buttonIconSize} className="text-plm-info" />
-              {cloudFilesCount > 0 && (
-                <span className="text-[10px] font-medium text-plm-info opacity-0 group-hover/folderdownload:opacity-100 transition-opacity">
-                  {cloudFilesCount}
-                </span>
-              )}
-              <ArrowDown size={buttonIconSize} className="text-plm-info opacity-0 group-hover/folderdownload:opacity-100 transition-opacity" />
-            </>
-          )}
-        </button>
+      {/* Folder download button */}
+      {file.isDirectory && (cloudFilesCount > 0 || file.diffStatus === 'cloud') && onDownload && (
+        (isDownloading || isSyncing) ? (
+          <Loader2 size={16} className="text-sky-400 animate-spin" />
+        ) : (
+          <button
+            className="group/folderdownload flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
+            onClick={(e) => onDownload(e, file)}
+            title={cloudFilesCount > 0 ? `Download ${cloudFilesCount} files` : 'Create folder locally'}
+          >
+            <Cloud size={buttonIconSize} className="text-plm-info" />
+            {cloudFilesCount > 0 && (
+              <span className="text-[10px] font-medium text-plm-info opacity-0 group-hover/folderdownload:opacity-100 transition-opacity">
+                {cloudFilesCount}
+              </span>
+            )}
+            <ArrowDown size={buttonIconSize} className="text-plm-info opacity-0 group-hover/folderdownload:opacity-100 transition-opacity" />
+          </button>
+        )
       )}
 
-      {/* File check-in button - show spinner when checking in */}
-      {!file.isDirectory && file.pdmData?.checked_out_by === userId && file.diffStatus !== 'deleted' && onCheckin && (!isProcessing || isCheckingIn) && (
+      {/* File check-in button */}
+      {!file.isDirectory && file.pdmData?.checked_out_by === userId && file.diffStatus !== 'deleted' && onCheckin && (
         <InlineCheckinButton
           onClick={(e) => onCheckin(e, file)}
           isProcessing={isCheckingIn}
@@ -111,8 +105,8 @@ export function FileCardActions({
         />
       )}
 
-      {/* Folder check-in button - show spinner when checking in */}
-      {file.isDirectory && folderCheckoutInfo && folderCheckoutInfo.checkedOutByMe > 0 && onCheckin && (!isProcessing || isCheckingIn) && (
+      {/* Folder check-in button */}
+      {file.isDirectory && folderCheckoutInfo && folderCheckoutInfo.checkedOutByMe > 0 && onCheckin && (
         <FolderCheckinButton
           onClick={(e) => onCheckin(e, file)}
           isProcessing={isCheckingIn}
@@ -123,42 +117,36 @@ export function FileCardActions({
         />
       )}
 
-      {/* File checkout button - show spinner when checking out */}
-      {!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'deleted' && onCheckout && (!isProcessing || isCheckingOut) && (
-        <button
-          className="group/checkout flex items-center gap-px p-0.5 rounded hover:bg-plm-warning/20 transition-colors cursor-pointer"
-          title={isCheckingOut ? 'Checking out...' : 'Click to check out'}
-          onClick={(e) => !isCheckingOut && onCheckout(e, file)}
-          disabled={isCheckingOut}
-        >
-          {isCheckingOut ? (
-            <Loader2 size={buttonIconSize} className="text-plm-warning animate-spin" />
-          ) : (
-            <>
-              <Cloud size={buttonIconSize} className="text-plm-success group-hover/checkout:text-plm-warning transition-colors duration-200" />
-              <ArrowDown size={buttonIconSize} className="text-plm-warning opacity-0 group-hover/checkout:opacity-100 transition-opacity" />
-            </>
-          )}
-        </button>
+      {/* File checkout button */}
+      {!file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'deleted' && onCheckout && (
+        isCheckingOut ? (
+          <Loader2 size={16} className="text-sky-400 animate-spin" />
+        ) : (
+          <button
+            className="group/checkout flex items-center gap-px p-0.5 rounded hover:bg-plm-warning/20 transition-colors cursor-pointer"
+            title="Click to check out"
+            onClick={(e) => onCheckout(e, file)}
+          >
+            <Cloud size={buttonIconSize} className="text-plm-success group-hover/checkout:text-plm-warning transition-colors duration-200" />
+            <ArrowDown size={buttonIconSize} className="text-plm-warning opacity-0 group-hover/checkout:opacity-100 transition-opacity" />
+          </button>
+        )
       )}
 
-      {/* File upload button - show spinner when uploading */}
-      {!file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && onUpload && (!isProcessing || isUploading) && (
-        <button
-          className="group/fileupload flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
-          title={isUploading ? 'Uploading...' : 'First Check In'}
-          onClick={(e) => !isUploading && onUpload(e, file)}
-          disabled={isUploading}
-        >
-          {isUploading ? (
-            <Loader2 size={buttonIconSize} className="text-plm-info animate-spin" />
-          ) : (
-            <>
-              <HardDrive size={buttonIconSize} className="text-plm-fg-muted group-hover/fileupload:text-plm-info transition-colors duration-200" />
-              <ArrowUp size={buttonIconSize} className="text-plm-info opacity-0 group-hover/fileupload:opacity-100 transition-opacity" />
-            </>
-          )}
-        </button>
+      {/* File upload button */}
+      {!file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && onUpload && (
+        isUploading ? (
+          <Loader2 size={16} className="text-sky-400 animate-spin" />
+        ) : (
+          <button
+            className="group/fileupload flex items-center gap-px p-0.5 rounded hover:bg-plm-info/30 transition-colors cursor-pointer"
+            title="First Check In"
+            onClick={(e) => onUpload(e, file)}
+          >
+            <HardDrive size={buttonIconSize} className="text-plm-fg-muted group-hover/fileupload:text-plm-info transition-colors duration-200" />
+            <ArrowUp size={buttonIconSize} className="text-plm-info opacity-0 group-hover/fileupload:opacity-100 transition-opacity" />
+          </button>
+        )
       )}
     </div>
   )

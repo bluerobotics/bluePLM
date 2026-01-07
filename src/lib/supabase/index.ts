@@ -58,6 +58,7 @@ export {
   getFileVersions,
   getWhereUsed,
   getContains,
+  getContainsRecursive,
   getMyCheckedOutFiles,
   getAllCheckedOutFiles,
   syncFile,
@@ -69,6 +70,7 @@ export {
   updateFileMetadata,
   updateFilePath,
   updateFolderPath,
+  upsertFileReferences,
   softDeleteFile,
   softDeleteFiles,
   restoreFile,
@@ -77,8 +79,14 @@ export {
   permanentlyDeleteFiles,
   getDeletedFiles,
   getDeletedFilesCount,
-  emptyTrash
+  emptyTrash,
+  rollbackToVersion,
+  transitionFileState,
+  getFileReferenceDiagnostics,
+  getVaultFilesForDiagnostics
 } from './files'
+
+export type { SWReference, UpsertReferencesResult, BomTreeNode, FileReferenceDiagnostic, VaultFileSummary } from './files'
 
 // ============================================
 // Team exports

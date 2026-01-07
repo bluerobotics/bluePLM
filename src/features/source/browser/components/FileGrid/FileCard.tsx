@@ -141,10 +141,9 @@ export const FileCard = memo(function FileCard({
         </div>
       </div>
 
-      {/* Action buttons - top left (includes spinner in active button) */}
+      {/* Action buttons - top left (each button independently shows spinner when active) */}
       <FileCardActions
         file={file}
-        isProcessing={status.isProcessing}
         operationType={status.operationType}
         cloudFilesCount={status.cloudFilesCount}
         folderCheckoutInfo={status.folderCheckoutInfo}

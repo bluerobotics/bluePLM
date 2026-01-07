@@ -47,11 +47,6 @@ export function DeleteActions({
     files,
     user,
     addToast,
-    addProcessingFolders,
-    removeProcessingFolders,
-    startSync,
-    updateSyncProgress,
-    endSync,
     removeFilesFromStore,
   } = usePDMStore()
 
@@ -220,11 +215,6 @@ export function DeleteActions({
               }
               
               const storedCloudFiles = [...uniqueCloudFiles]
-              const pathsToProcess = [
-                ...storedCloudFiles.map(f => f.relativePath),
-                ...contextFiles.filter(f => f.isDirectory && f.diffStatus === 'cloud').map(f => f.relativePath)
-              ]
-              const uniquePaths = [...new Set(pathsToProcess)]
               
               setCustomConfirm({
                 title: `Delete ${uniqueCloudFiles.length} Item${uniqueCloudFiles.length > 1 ? 's' : ''} from Server?`,
@@ -233,48 +223,7 @@ export function DeleteActions({
                 confirmText: 'Delete from Server',
                 confirmDanger: true,
                 onConfirm: async () => {
-                  const total = storedCloudFiles.length
-                  
-                  addProcessingFolders(uniquePaths, 'delete')
-                  startSync(total, 'upload')
-                  
-                  let deleted = 0
-                  let failed = 0
-                  
-                  for (const file of storedCloudFiles) {
-                    if (usePDMStore.getState().syncProgress.cancelRequested) {
-                      break
-                    }
-                    
-                    if (!file.pdmData?.id) {
-                      failed++
-                      continue
-                    }
-                    try {
-                      const { softDeleteFile } = await import('@/lib/supabase')
-                      const result = await softDeleteFile(file.pdmData.id, user!.id)
-                      
-                      if (result.success) deleted++
-                      else {
-                        console.error('Failed to delete file from server:', file.name, result.error)
-                        failed++
-                      }
-                    } catch (err) {
-                      console.error('Failed to delete file from server:', file.name, err)
-                      failed++
-                    }
-                    
-                    const percent = Math.round(((deleted + failed) / total) * 100)
-                    updateSyncProgress(deleted + failed, percent, '')
-                  }
-                  
-                  removeProcessingFolders(uniquePaths)
-                  endSync()
-                  
-                  if (deleted > 0) {
-                    addToast('success', `Deleted ${deleted} file${deleted > 1 ? 's' : ''} from server`)
-                    onRefresh(true)
-                  }
+                  executeCommand('delete-server', { files: storedCloudFiles, deleteLocal: false }, { onRefresh })
                 }
               })
             } else {

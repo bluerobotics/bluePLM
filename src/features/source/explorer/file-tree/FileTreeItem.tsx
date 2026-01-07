@@ -1,6 +1,6 @@
 // File tree item component for the explorer
-import { Loader2 } from 'lucide-react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import { FileIcon } from '@/components/shared/FileItem'
 import { FileActionButtons } from './TreeItemActions'
 import { TREE_BASE_PADDING_PX, TREE_INDENT_PX, DIFF_STATUS_CLASS_PREFIX } from './constants'
@@ -19,7 +19,7 @@ interface FileTreeItemProps {
   onContextMenu: (e: React.MouseEvent) => void
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
-  isProcessing: boolean
+  operationType: OperationType | null
   isCut: boolean
   onRefresh?: (silent?: boolean) => void
   // Multi-select props
@@ -60,7 +60,7 @@ export function FileTreeItem({
   onContextMenu,
   onDragStart,
   onDragEnd,
-  isProcessing,
+  operationType,
   isCut,
   onRefresh,
   selectedFiles,
@@ -82,13 +82,11 @@ export function FileTreeItem({
 }: FileTreeItemProps) {
   const { lowercaseExtensions } = usePDMStore()
   
+  const isProcessing = operationType !== null
   const diffClass = file.diffStatus ? `${DIFF_STATUS_CLASS_PREFIX}${file.diffStatus}` : ''
   
-  // Get file icon
+  // Get file icon - always show normal icon, spinners are on action buttons
   const getIcon = () => {
-    if (isProcessing) {
-      return <Loader2 size={16} className="text-sky-400 animate-spin" />
-    }
     return <FileIcon file={file} size={16} />
   }
   
@@ -151,7 +149,7 @@ export function FileTreeItem({
       {!isRenaming && (
         <FileActionButtons
           file={file}
-          isProcessing={isProcessing}
+          operationType={operationType}
           onRefresh={onRefresh}
           selectedFiles={selectedFiles}
           selectedDownloadableFiles={selectedDownloadableFiles}

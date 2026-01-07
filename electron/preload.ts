@@ -268,6 +268,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUrl: (url: string, destPath: string) => ipcRenderer.invoke('fs:download-url', url, destPath),
   fileExists: (path: string) => ipcRenderer.invoke('fs:file-exists', path),
   getFileHash: (path: string) => ipcRenderer.invoke('fs:get-hash', path),
+  // Streaming hash - more efficient for large files, use this for checkin operations
+  hashFile: (path: string) => ipcRenderer.invoke('fs:hash-file', path),
   listWorkingFiles: () => ipcRenderer.invoke('fs:list-working-files'),
   listDirFiles: (dirPath: string) => ipcRenderer.invoke('fs:list-dir-files', dirPath),
   computeFileHashes: (files: Array<{ path: string; relativePath: string; size: number; mtime: number }>) => 
@@ -287,6 +289,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showInExplorer: (path: string) => ipcRenderer.invoke('fs:open-in-explorer', path), // Alias
   openFile: (path: string) => ipcRenderer.invoke('fs:open-file', path),
   setReadonly: (path: string, readonly: boolean) => ipcRenderer.invoke('fs:set-readonly', path, readonly),
+  setReadonlyBatch: (files: Array<{ path: string; readonly: boolean }>) => 
+    ipcRenderer.invoke('fs:set-readonly-batch', files),
   startDrag: (filePaths: string[]) => ipcRenderer.send('fs:start-drag', filePaths),
   isReadonly: (path: string) => ipcRenderer.invoke('fs:is-readonly', path),
   
@@ -507,7 +511,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Send CLI command response back to main process
   sendCliResponse: (requestId: string, result: unknown) => {
     ipcRenderer.send('cli-response', { requestId, result })
-  }
+  },
+  
+  // CLI token management
+  generateCliToken: (userEmail: string) => ipcRenderer.invoke('cli:generate-token', userEmail),
+  revokeCliToken: () => ipcRenderer.invoke('cli:revoke-token'),
+  getCliStatus: () => ipcRenderer.invoke('cli:get-status')
 })
 
 // Type declarations for the renderer process
@@ -596,6 +605,8 @@ declare global {
       downloadUrl: (url: string, destPath: string) => Promise<FileWriteResult>
       fileExists: (path: string) => Promise<boolean>
       getFileHash: (path: string) => Promise<HashResult>
+      // Streaming hash - more efficient for large files
+      hashFile: (path: string) => Promise<{ success: boolean; hash?: string; size?: number; error?: string }>
       listWorkingFiles: () => Promise<FilesListResult>
       listDirFiles: (dirPath: string) => Promise<FilesListResult>
       computeFileHashes: (files: Array<{ path: string; relativePath: string; size: number; mtime: number }>) => 
@@ -608,6 +619,10 @@ declare global {
       openInExplorer: (path: string) => Promise<OperationResult>
       openFile: (path: string) => Promise<OperationResult>
       setReadonly: (path: string, readonly: boolean) => Promise<OperationResult>
+      setReadonlyBatch: (files: Array<{ path: string; readonly: boolean }>) => Promise<{
+        success: boolean
+        results: Array<{ path: string; success: boolean; error?: string }>
+      }>
       isReadonly: (path: string) => Promise<{ success: boolean; readonly?: boolean; error?: string }>
       onDownloadProgress: (callback: (progress: { loaded: number; total: number; speed: number }) => void) => () => void
       
@@ -719,6 +734,11 @@ declare global {
       // External CLI
       onCliCommand: (callback: (data: { requestId: string; command: string }) => void) => () => void
       sendCliResponse: (requestId: string, result: unknown) => void
+      
+      // CLI token management
+      generateCliToken: (userEmail: string) => Promise<{ success: boolean; token?: string }>
+      revokeCliToken: () => Promise<{ success: boolean }>
+      getCliStatus: () => Promise<{ authenticated: boolean; serverRunning: boolean }>
     }
   }
 }

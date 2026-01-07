@@ -48,7 +48,13 @@ export function ApiSettings() {
   const setApiUrl = (url: string) => setApiServerUrl(url || null)
   const [editingApiUrl, setEditingApiUrl] = useState(false)
   const [apiUrlInput, setApiUrlInput] = useState('')
-  const [apiStatus, setApiStatus] = useState<'unknown' | 'online' | 'offline' | 'checking'>('unknown')
+  // Start with 'checking' if we have a URL configured, to show loading state during initial check
+  const [apiStatus, setApiStatus] = useState<'unknown' | 'online' | 'offline' | 'checking'>(() => {
+    // Check if we have a URL from org settings or store on initial render
+    const orgUrl = organization?.settings?.api_url
+    const storeUrl = apiServerUrl
+    return (orgUrl || storeUrl) ? 'checking' : 'unknown'
+  })
   const [apiVersion, setApiVersion] = useState<string | null>(null)
   const [apiBuild, setApiBuild] = useState<string | null>(null)
   const [versionCheck, setVersionCheck] = useState<ApiVersionCheckResult | null>(null)
@@ -86,11 +92,19 @@ export function ApiSettings() {
   
   // Sync API URL from org settings to store (handles persistence)
   // Org value takes precedence - this handles both setting and clearing the URL
+  // Only sync when organization is actually loaded (has an id)
   useEffect(() => {
+    // Don't sync until organization is loaded
+    if (!organization?.id) {
+      console.log('[API] Waiting for organization to load before syncing API URL...')
+      return
+    }
+    
     const orgApiUrl = organization?.settings?.api_url || null
     const currentApiUrl = apiServerUrl || null
     
     console.log('[API] Checking org settings for API URL...', {
+      orgId: organization.id,
       orgApiUrl: orgApiUrl || 'none',
       storeApiUrl: currentApiUrl || 'none'
     })
@@ -99,17 +113,33 @@ export function ApiSettings() {
       console.log('[API] Syncing API URL from org settings:', orgApiUrl || '(cleared)')
       setApiServerUrl(orgApiUrl)
     }
-  }, [organization?.settings?.api_url, apiServerUrl, setApiServerUrl])
+  }, [organization?.id, organization?.settings?.api_url, apiServerUrl, setApiServerUrl])
   
-  // Check API status on mount (only if we have a URL)
+  // Check API status when organization loads or URL changes
+  // This ensures we wait for org to be ready before checking status
   useEffect(() => {
-    if (apiUrl) {
-      console.log('[API] Component mounted with API URL configured, checking status...')
-      checkApiStatus()
+    // If org settings have api_url but store doesn't yet, wait for sync
+    const orgApiUrl = organization?.settings?.api_url
+    const effectiveUrl = apiUrl || orgApiUrl
+    
+    if (effectiveUrl) {
+      console.log('[API] Checking status - URL configured:', effectiveUrl)
+      // Small delay to ensure URL sync has happened
+      const timeout = setTimeout(() => {
+        checkApiStatus()
+      }, 100)
+      return () => clearTimeout(timeout)
+    } else if (organization?.id) {
+      // Organization loaded but no API URL configured
+      console.log('[API] Organization loaded - no API URL configured')
+      setApiStatus('unknown')
+      return undefined
     } else {
-      console.log('[API] Component mounted - no API URL configured')
+      console.log('[API] Waiting for organization to load...')
+      // Keep showing 'checking' state while waiting for org
+      return undefined
     }
-  }, [])
+  }, [organization?.id, organization?.settings?.api_url, apiUrl])
   
   const checkApiStatus = async () => {
     if (!apiUrl) {

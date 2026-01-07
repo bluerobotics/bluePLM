@@ -72,6 +72,7 @@ import {
   newFolderCommand
 } from './handlers/fileOps'
 import { syncSwMetadataCommand } from './handlers/syncSwMetadata'
+import { extractReferencesCommand } from './handlers/extractReferences'
 
 // Register all commands on module load
 function initializeCommands() {
@@ -101,6 +102,7 @@ function initializeCommands() {
   
   // SolidWorks specific
   registerCommand('sync-sw-metadata', syncSwMetadataCommand)
+  registerCommand('extract-references', extractReferencesCommand)
   
   console.log('[Commands] Initialized command registry')
 }
@@ -214,6 +216,17 @@ export async function syncSwMetadata(
   onRefresh?: (silent?: boolean) => void
 ) {
   return executeCommand('sync-sw-metadata', { files }, { onRefresh })
+}
+
+/**
+ * Extract and store assembly references for Contains/Where-Used queries.
+ * Useful for importing existing vaults with assemblies.
+ */
+export async function extractReferences(
+  files: LocalFile[],
+  onRefresh?: (silent?: boolean) => void
+) {
+  return executeCommand('extract-references', { files }, { onRefresh })
 }
 
 // ============================================

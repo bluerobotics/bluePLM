@@ -223,7 +223,8 @@ namespace BluePLM.SolidWorksService
                         command["configuration"]?.ToString(),
                         command["exportAllConfigs"]?.Value<bool>() ?? false,
                         command["configurations"]?.ToObject<string[]>(),
-                        command["filenamePattern"]?.ToString()),
+                        command["filenamePattern"]?.ToString(),
+                        command["pdmMetadata"]?.ToObject<PdmMetadata>()),
                     "exportIges" => _swApi!.ExportToIges(filePath,
                         command["outputPath"]?.ToString()),
                     "exportDxf" => _swApi!.ExportToDxf(filePath,
@@ -583,5 +584,23 @@ Commands:
 
         [JsonProperty("requestId", NullValueHandling = NullValueHandling.Ignore)]
         public int? RequestId { get; set; }
+    }
+    
+    /// <summary>
+    /// PDM metadata passed from the frontend as fallback for file properties
+    /// </summary>
+    public class PdmMetadata
+    {
+        [JsonProperty("partNumber")]
+        public string? PartNumber { get; set; }
+        
+        [JsonProperty("tabNumber")]
+        public string? TabNumber { get; set; }
+        
+        [JsonProperty("revision")]
+        public string? Revision { get; set; }
+        
+        [JsonProperty("description")]
+        public string? Description { get; set; }
     }
 }

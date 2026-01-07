@@ -247,6 +247,7 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
       }, toast.duration || 5000)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [toast.duration, toast.id]) // Use toast.id instead of onClose - each toast has a stable id
 
   const handleClose = () => {

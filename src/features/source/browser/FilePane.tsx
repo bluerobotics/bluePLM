@@ -49,7 +49,8 @@ import {
   FilePaneHandlersProvider,
   type FilePaneHandlersContextValue,
   // Utilities
-  isPathBeingProcessed,
+  getFileProcessingOperation,
+  getFolderProcessingOperation,
   matchesKeybinding,
 } from './'
 
@@ -672,8 +673,11 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   }, [folderMetrics])
 
   // Check if a file/folder is affected by any processing operation
-  const isBeingProcessed = useCallback((relativePath: string) => {
-    return isPathBeingProcessed(relativePath, processingOperations)
+  const isBeingProcessed = useCallback((relativePath: string, isDirectory: boolean = false) => {
+    if (isDirectory) {
+      return getFolderProcessingOperation(relativePath, processingOperations) !== null
+    }
+    return getFileProcessingOperation(relativePath, processingOperations) !== null
   }, [processingOperations])
   
   // Load current machine ID once for multi-device checkout detection

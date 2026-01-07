@@ -1,14 +1,13 @@
 // BluePLM Electron Main Process
 // This file contains only app lifecycle, window creation, and imports handlers from modules
 
-import { app, BrowserWindow, ipcMain, shell, screen, nativeTheme, session } from 'electron'
+import { app, BrowserWindow, shell, screen, nativeTheme, session } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import http from 'http'
 import { fileURLToPath } from 'url'
 import * as Sentry from '@sentry/electron/main'
 
-import { registerAllHandlers, initializeLogging, writeLog } from './handlers'
+import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService } from './handlers'
 import { createAppMenu } from './menu'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -415,116 +414,17 @@ app.on('window-all-closed', () => {
   }
 })
 
-// ============================================
-// External CLI Server (for development/automation)
-// ============================================
-
-const CLI_PORT = 31337
-
-let cliServer: http.Server | null = null
-let pendingCliRequests: Map<string, { resolve: (result: unknown) => void, reject: (err: Error) => void }> = new Map()
-
-function startCliServer() {
-  if (cliServer) return
+// Cleanup on app quit
+app.on('before-quit', async () => {
+  log('App quitting, cleaning up...')
   
-  cliServer = http.createServer(async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-    res.setHeader('Content-Type', 'application/json')
-    
-    if (req.method === 'OPTIONS') {
-      res.writeHead(200)
-      res.end()
-      return
-    }
-    
-    if (req.method !== 'POST') {
-      res.writeHead(405)
-      res.end(JSON.stringify({ error: 'Method not allowed' }))
-      return
-    }
-    
-    let body = ''
-    req.on('data', chunk => { body += chunk })
-    req.on('end', async () => {
-      try {
-        const { command } = JSON.parse(body)
-        
-        if (!command || typeof command !== 'string') {
-          res.writeHead(400)
-          res.end(JSON.stringify({ error: 'Missing command' }))
-          return
-        }
-        
-        log(`[CLI Server] Received command: ${command}`)
-        
-        if (command === 'reload-app' || command === 'restart') {
-          log('[CLI Server] Reloading app...')
-          if (mainWindow) {
-            mainWindow.webContents.reload()
-            res.writeHead(200)
-            res.end(JSON.stringify({ success: true, result: { outputs: [{ type: 'info', content: 'Reloading app...' }] } }))
-          } else {
-            res.writeHead(503)
-            res.end(JSON.stringify({ error: 'No window' }))
-          }
-          return
-        }
-        
-        const requestId = `cli-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        
-        const resultPromise = new Promise((resolve, reject) => {
-          pendingCliRequests.set(requestId, { resolve, reject })
-          
-          setTimeout(() => {
-            if (pendingCliRequests.has(requestId)) {
-              pendingCliRequests.delete(requestId)
-              reject(new Error('Command timeout'))
-            }
-          }, 30000)
-        })
-        
-        if (mainWindow?.webContents) {
-          mainWindow.webContents.send('cli-command', { requestId, command })
-        } else {
-          res.writeHead(503)
-          res.end(JSON.stringify({ error: 'App not ready' }))
-          return
-        }
-        
-        const result = await resultPromise
-        res.writeHead(200)
-        res.end(JSON.stringify({ success: true, result }))
-        
-      } catch (err) {
-        log(`[CLI Server] Error: ${err}`)
-        res.writeHead(500)
-        res.end(JSON.stringify({ error: String(err) }))
-      }
-    })
-  })
-  
-  cliServer.listen(CLI_PORT, '127.0.0.1', () => {
-    log(`[CLI Server] Listening on http://127.0.0.1:${CLI_PORT}`)
-    console.log(`\n📟 BluePLM CLI Server running on port ${CLI_PORT}`)
-    console.log(`   Use: node cli/blueplm.js <command>\n`)
-  })
-  
-  cliServer.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      log(`[CLI Server] Port ${CLI_PORT} already in use`)
-    } else {
-      logError('[CLI Server] Error', { error: String(err) })
-    }
-  })
-}
-
-// IPC handler for CLI command responses from renderer
-ipcMain.on('cli-response', (_, { requestId, result }) => {
-  const pending = pendingCliRequests.get(requestId)
-  if (pending) {
-    pendingCliRequests.delete(requestId)
-    pending.resolve(result)
+  // Cleanup SolidWorks service
+  try {
+    await cleanupSolidWorksService()
+  } catch (err) {
+    logError('Failed to cleanup SolidWorks service', { error: String(err) })
   }
+  
+  // Cleanup CLI
+  cleanupCli()
 })

@@ -1,34 +1,15 @@
 import type { OperationType } from '@/stores/types'
 
 /**
- * Check if a file/folder is being processed by any operation
- * 
- * @param relativePath - The relative path to check
- * @param processingOperations - Map of paths to operation types currently being processed
- * @returns true if the path or any parent is being processed
+ * Get the operation type for a FILE if it's being processed (exact match only)
+ * Does NOT propagate from parent folders - only returns if this specific file is processing
  */
-export function isPathBeingProcessed(
-  relativePath: string,
-  processingOperations: Map<string, OperationType>
-): boolean {
-  return getPathProcessingOperation(relativePath, processingOperations) !== null
-}
-
-/**
- * Get the operation type for a file/folder if it's being processed
- * 
- * @param relativePath - The relative path to check
- * @param processingOperations - Map of paths to operation types
- * @returns The operation type if processing, null otherwise
- */
-export function getPathProcessingOperation(
+export function getFileProcessingOperation(
   relativePath: string,
   processingOperations: Map<string, OperationType>
 ): OperationType | null {
-  // Normalize path to use forward slashes for consistent comparison
   const normalizedPath = relativePath.replace(/\\/g, '/')
   
-  // Check if this exact path is being processed
   if (processingOperations.has(relativePath)) {
     return processingOperations.get(relativePath)!
   }
@@ -36,12 +17,50 @@ export function getPathProcessingOperation(
     return processingOperations.get(normalizedPath)!
   }
   
-  // Check if any parent folder is being processed
-  for (const [processingPath, opType] of processingOperations) {
-    const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-    if (normalizedPath.startsWith(normalizedProcessingPath + '/')) {
+  return null
+}
+
+/**
+ * Get the operation type for a FOLDER if any of its descendants are being processed
+ */
+export function getFolderProcessingOperation(
+  folderPath: string,
+  processingOperations: Map<string, OperationType>
+): OperationType | null {
+  const normalizedFolder = folderPath.replace(/\\/g, '/')
+  
+  // Check if the folder itself is being processed
+  if (processingOperations.has(folderPath)) {
+    return processingOperations.get(folderPath)!
+  }
+  if (processingOperations.has(normalizedFolder)) {
+    return processingOperations.get(normalizedFolder)!
+  }
+  
+  // Check if any descendant path is being processed
+  for (const [path, opType] of processingOperations) {
+    const normalizedPath = path.replace(/\\/g, '/')
+    if (normalizedPath.startsWith(normalizedFolder + '/')) {
       return opType
     }
   }
+  
   return null
+}
+
+/**
+ * Smart processing operation getter that handles both files and folders correctly
+ * - For files: only returns if THIS exact path is processing
+ * - For folders: returns if the folder itself OR any descendant is processing
+ */
+export function getProcessingOperation(
+  relativePath: string,
+  processingOperations: Map<string, OperationType>,
+  isDirectory: boolean
+): OperationType | null {
+  if (isDirectory) {
+    return getFolderProcessingOperation(relativePath, processingOperations)
+  } else {
+    return getFileProcessingOperation(relativePath, processingOperations)
+  }
 }

@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import { 
   getFolderCheckoutStatus, 
   isFolderSynced, 
@@ -50,19 +51,49 @@ export function useVaultTree() {
   }, [files, hideSolidworksTempFiles])
   
   // Check if a file/folder is affected by any processing operation
-  const isBeingProcessed = useCallback((relativePath: string): boolean => {
+  // For folders: returns true if any descendant is being processed
+  // For files: returns true only if this exact file is being processed
+  const isBeingProcessed = useCallback((relativePath: string, isDirectory: boolean = false): boolean => {
     const normalizedPath = relativePath.replace(/\\/g, '/')
     
     // Check if this exact path is being processed
     if (processingOperations.has(relativePath)) return true
     if (processingOperations.has(normalizedPath)) return true
     
-    // Check if any parent folder is being processed
-    for (const processingPath of processingOperations.keys()) {
-      const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-      if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return true
+    // For folders, check if any descendant is being processed
+    if (isDirectory) {
+      for (const processingPath of processingOperations.keys()) {
+        const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+        if (normalizedProcessingPath.startsWith(normalizedPath + '/')) return true
+      }
     }
     return false
+  }, [processingOperations])
+  
+  // Get the operation type for a file/folder if it's being processed
+  // Returns OperationType if processing, null otherwise
+  // For folders: checks if any descendant is being processed and returns the operation type
+  const getProcessingOperation = useCallback((relativePath: string, isDirectory: boolean = false): OperationType | null => {
+    const normalizedPath = relativePath.replace(/\\/g, '/')
+    
+    // Check if this exact path is being processed
+    if (processingOperations.has(relativePath)) {
+      return processingOperations.get(relativePath)!
+    }
+    if (processingOperations.has(normalizedPath)) {
+      return processingOperations.get(normalizedPath)!
+    }
+    
+    // For folders, check if any descendant is being processed
+    if (isDirectory) {
+      for (const [processingPath, opType] of processingOperations) {
+        const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+        if (normalizedProcessingPath.startsWith(normalizedPath + '/')) {
+          return opType
+        }
+      }
+    }
+    return null
   }, [processingOperations])
   
   // Wrapper for isFolderSynced using local files
@@ -149,6 +180,7 @@ export function useVaultTree() {
   return {
     tree,
     isBeingProcessed,
+    getProcessingOperation,
     checkFolderSynced,
     checkFolderCheckoutStatus,
     getCheckoutUsersForFolder,

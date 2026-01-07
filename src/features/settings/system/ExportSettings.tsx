@@ -21,6 +21,8 @@ const FILENAME_TOKENS = [
   { token: '{config}', label: 'Configuration', description: 'SolidWorks configuration name', example: 'Default' },
   { token: '{partNumber}', label: 'Part Number', description: 'Part/Item number from properties', example: 'BR-101011-394' },
   { token: '{number}', label: 'Number (alt)', description: 'Same as {partNumber}', example: 'BR-101011-394' },
+  { token: '{tab}', label: 'Tab Number', description: 'Configuration tab number suffix', example: '394' },
+  { token: '{tabNumber}', label: 'Tab (alt)', description: 'Same as {tab}', example: '394' },
   { token: '{revision}', label: 'Revision', description: 'Revision from properties', example: 'A' },
   { token: '{rev}', label: 'Rev (alt)', description: 'Same as {revision}', example: 'A' },
   { token: '{description}', label: 'Description', description: 'Description from properties', example: 'Thruster Housing' },
@@ -35,10 +37,11 @@ const PRESET_PATTERNS = [
   { pattern: '{filename}_{config}', label: 'File + Config', description: 'Part1_Default.step' },
   { pattern: '{partNumber}', label: 'Part Number Only', description: 'BR-101011-394.step' },
   { pattern: '{partNumber}_Rev{rev}', label: 'Part + Revision', description: 'BR-101011-394_RevA.step' },
+  { pattern: '{partNumber}-{tab}', label: 'Part + Tab', description: 'BR-101011-394.step' },
+  { pattern: '{partNumber}-{tab}_Rev{rev}', label: 'Part + Tab + Rev', description: 'BR-101011-394_RevA.step' },
   { pattern: '{partNumber}_{config}', label: 'Part + Config', description: 'BR-101011-394_Default.step' },
   { pattern: '{partNumber}_{config}_Rev{rev}', label: 'Part + Config + Rev', description: 'BR-101011-394_Default_RevA.step' },
   { pattern: '{filename}_{date}', label: 'File + Date', description: 'Part1_2026-01-01.step' },
-  { pattern: '{partNumber}_{datetime}', label: 'Part + DateTime', description: 'BR-101011-394_2026-01-01_14-30-00.step' },
 ]
 
 // Get user's export settings from localStorage
@@ -124,8 +127,10 @@ export function ExportSettings() {
     const sampleValues: Record<string, string> = {
       '{filename}': 'Part1',
       '{config}': 'Config-A',
-      '{partNumber}': 'BR-101011-394',
-      '{number}': 'BR-101011-394',
+      '{partNumber}': 'BR-101011',
+      '{number}': 'BR-101011',
+      '{tab}': '394',
+      '{tabNumber}': '394',
       '{revision}': 'A',
       '{rev}': 'A',
       '{description}': 'Thruster',

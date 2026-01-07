@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../client'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 
 // ============================================
 // Soft Delete / Restore Operations
@@ -261,9 +262,8 @@ export async function permanentlyDeleteFile(
 }
 
 /**
- * Permanently delete multiple files in batch (cannot be undone)
- * Much faster than calling permanentlyDeleteFile individually
- * Processes in chunks to avoid timeouts
+ * Permanently delete multiple files (cannot be undone)
+ * Uses concurrent individual operations for smooth progress reporting
  */
 export async function permanentlyDeleteFiles(
   fileIds: string[],
@@ -274,127 +274,41 @@ export async function permanentlyDeleteFiles(
     return { success: true, deleted: 0, failed: 0, errors: [] }
   }
 
-  const client = getSupabaseClient()
-  const CHUNK_SIZE = 100 // Process 100 files at a time
+  let completed = 0
   const errors: string[] = []
-  let deleted = 0
-  let failed = 0
 
-  // Get all file info in batches (for validation and activity logging)
-  const allFiles: { id: string; org_id: string; file_name: string; file_path: string; deleted_at: string | null }[] = []
-  
-  for (let i = 0; i < fileIds.length; i += CHUNK_SIZE) {
-    const chunkIds = fileIds.slice(i, i + CHUNK_SIZE)
-    const { data: files, error: fetchError } = await client
-      .from('files')
-      .select('id, org_id, file_name, file_path, deleted_at')
-      .in('id', chunkIds)
-    
-    if (fetchError) {
-      errors.push(`Failed to fetch files: ${fetchError.message}`)
-      continue
+  const results = await processWithConcurrency(
+    fileIds,
+    CONCURRENT_OPERATIONS,
+    async (fileId) => {
+      const result = await permanentlyDeleteFile(fileId, userId)
+      completed++
+      onProgress?.(completed, fileIds.length)
+      return result
     }
-    
-    if (files) {
-      allFiles.push(...files)
+  )
+
+  const deleted = results.filter(r => r.success).length
+  const failed = results.filter(r => !r.success).length
+
+  // Collect first few errors for reporting
+  for (const r of results) {
+    if (!r.success && r.error && errors.length < 5) {
+      errors.push(r.error)
     }
   }
-
-  // Filter to only files that are actually in trash
-  const validFiles = allFiles.filter(f => f.deleted_at !== null)
-  const invalidCount = allFiles.length - validFiles.length
-  if (invalidCount > 0) {
-    failed += invalidCount
-    errors.push(`${invalidCount} file(s) were not in trash`)
+  if (failed > errors.length) {
+    errors.push(`...and ${failed - errors.length} more errors`)
   }
 
-  // Also count files we couldn't find
-  const notFoundCount = fileIds.length - allFiles.length
-  if (notFoundCount > 0) {
-    failed += notFoundCount
-    errors.push(`${notFoundCount} file(s) not found`)
-  }
-
-  if (validFiles.length === 0) {
-    return { success: failed === 0, deleted: 0, failed, errors }
-  }
-
-  const validFileIds = validFiles.map(f => f.id)
-
-  // Process in chunks for actual deletion
-  for (let i = 0; i < validFileIds.length; i += CHUNK_SIZE) {
-    const chunkIds = validFileIds.slice(i, i + CHUNK_SIZE)
-    const chunkFiles = validFiles.filter(f => chunkIds.includes(f.id))
-
-    try {
-      // 1. Batch insert activity logs
-      const activityLogs = chunkFiles.map(file => ({
-        org_id: file.org_id,
-        file_id: null, // Set to null since file will be deleted
-        user_id: userId,
-        user_email: '',
-        action: 'delete' as const,
-        details: {
-          file_name: file.file_name,
-          file_path: file.file_path,
-          permanent: true,
-          batch_delete: true
-        }
-      }))
-      
-      await client.from('activity').insert(activityLogs)
-
-      // 2. Batch delete file versions
-      await client
-        .from('file_versions')
-        .delete()
-        .in('file_id', chunkIds)
-
-      // 3. Batch delete file references (both parent and child)
-      await client
-        .from('file_references')
-        .delete()
-        .in('parent_file_id', chunkIds)
-      
-      await client
-        .from('file_references')
-        .delete()
-        .in('child_file_id', chunkIds)
-
-      // 4. Batch delete the files
-      const { error: deleteError } = await client
-        .from('files')
-        .delete()
-        .in('id', chunkIds)
-
-      if (deleteError) {
-        errors.push(`Batch delete failed: ${deleteError.message}`)
-        failed += chunkIds.length
-      } else {
-        deleted += chunkIds.length
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
-      errors.push(`Chunk deletion error: ${errorMsg}`)
-      failed += chunkIds.length
-    }
-
-    // Report progress
-    onProgress?.(i + chunkIds.length, validFileIds.length)
-  }
-
-  return { 
-    success: failed === 0, 
-    deleted, 
-    failed,
-    errors: errors.length > 5 ? [...errors.slice(0, 5), `...and ${errors.length - 5} more errors`] : errors
-  }
+  return { success: failed === 0, deleted, failed, errors }
 }
 
 /**
  * Get deleted files (trash) for an organization
  * Optionally filter by vault or folder path
  * Returns empty array if deleted_at column doesn't exist (migration not run)
+ * Uses pagination to fetch ALL deleted files (Supabase default limit is 1000)
  */
 export async function getDeletedFiles(
   orgId: string,
@@ -406,53 +320,70 @@ export async function getDeletedFiles(
   const client = getSupabaseClient()
   
   try {
-    let query = client
-      .from('files')
-      .select(`
-        id,
-        file_path,
-        file_name,
-        extension,
-        file_type,
-        part_number,
-        description,
-        revision,
-        version,
-        content_hash,
-        file_size,
-        state,
-        deleted_at,
-        deleted_by,
-        vault_id,
-        org_id,
-        updated_at,
-        deleted_by_user:users!deleted_by(email, full_name, avatar_url)
-      `)
-      .eq('org_id', orgId)
-      .not('deleted_at', 'is', null)
-      .order('deleted_at', { ascending: false })
+    // Fetch ALL deleted files using pagination (Supabase default limit is 1000)
+    const PAGE_SIZE = 1000
+    const allFiles: any[] = []
+    let offset = 0
+    let hasMore = true
     
-    if (options?.vaultId) {
-      query = query.eq('vault_id', options.vaultId)
-    }
-    
-    if (options?.folderPath) {
-      // Match files that were in this folder or subfolders
-      query = query.ilike('file_path', `${options.folderPath}%`)
-    }
-    
-    const { data, error } = await query
-    
-    if (error) {
-      // If column doesn't exist, return empty (trash feature not available)
-      if (error.message?.includes('deleted_at') || error.message?.includes('column')) {
-        console.warn('Trash feature not available - run migration to enable')
-        return { files: [] }
+    while (hasMore) {
+      let query = client
+        .from('files')
+        .select(`
+          id,
+          file_path,
+          file_name,
+          extension,
+          file_type,
+          part_number,
+          description,
+          revision,
+          version,
+          content_hash,
+          file_size,
+          state,
+          deleted_at,
+          deleted_by,
+          vault_id,
+          org_id,
+          updated_at,
+          deleted_by_user:users!deleted_by(email, full_name, avatar_url)
+        `)
+        .eq('org_id', orgId)
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1)
+      
+      if (options?.vaultId) {
+        query = query.eq('vault_id', options.vaultId)
       }
-      return { files: [], error: error.message }
+      
+      if (options?.folderPath) {
+        // Match files that were in this folder or subfolders
+        query = query.ilike('file_path', `${options.folderPath}%`)
+      }
+      
+      const { data, error } = await query
+      
+      if (error) {
+        // If column doesn't exist, return empty (trash feature not available)
+        if (error.message?.includes('deleted_at') || error.message?.includes('column')) {
+          console.warn('Trash feature not available - run migration to enable')
+          return { files: [] }
+        }
+        return { files: allFiles, error: error.message }
+      }
+      
+      if (data && data.length > 0) {
+        allFiles.push(...data)
+        offset += PAGE_SIZE
+        hasMore = data.length === PAGE_SIZE
+      } else {
+        hasMore = false
+      }
     }
     
-    return { files: data || [] }
+    return { files: allFiles }
   } catch (err) {
     console.error('Error fetching deleted files:', err)
     return { files: [] }
@@ -500,6 +431,7 @@ export async function getDeletedFilesCount(
  * Empty the trash - permanently delete all trashed files
  * Admin only operation
  * Uses batch deletion for performance
+ * Uses pagination to fetch ALL trashed files (Supabase default limit is 1000)
  */
 export async function emptyTrash(
   orgId: string,
@@ -508,30 +440,51 @@ export async function emptyTrash(
 ): Promise<{ success: boolean; deleted: number; error?: string }> {
   const client = getSupabaseClient()
   
-  // First get all trashed files
-  let query = client
-    .from('files')
-    .select('id')
-    .eq('org_id', orgId)
-    .not('deleted_at', 'is', null)
+  // Fetch ALL trashed file IDs using pagination (Supabase default limit is 1000)
+  const PAGE_SIZE = 1000
+  const allFileIds: string[] = []
+  let offset = 0
+  let hasMore = true
   
-  if (vaultId) {
-    query = query.eq('vault_id', vaultId)
+  while (hasMore) {
+    let query = client
+      .from('files')
+      .select('id')
+      .eq('org_id', orgId)
+      .not('deleted_at', 'is', null)
+      .order('id', { ascending: true }) // Consistent ordering for pagination
+      .range(offset, offset + PAGE_SIZE - 1)
+    
+    if (vaultId) {
+      query = query.eq('vault_id', vaultId)
+    }
+    
+    const { data: trashedFiles, error: fetchError } = await query
+    
+    if (fetchError) {
+      // If we've already collected some IDs, try to delete those
+      if (allFileIds.length > 0) {
+        console.warn('[emptyTrash] Pagination error, proceeding with collected IDs:', fetchError.message)
+        break
+      }
+      return { success: false, deleted: 0, error: fetchError.message }
+    }
+    
+    if (trashedFiles && trashedFiles.length > 0) {
+      allFileIds.push(...trashedFiles.map(f => f.id))
+      offset += PAGE_SIZE
+      hasMore = trashedFiles.length === PAGE_SIZE
+    } else {
+      hasMore = false
+    }
   }
   
-  const { data: trashedFiles, error: fetchError } = await query
-  
-  if (fetchError) {
-    return { success: false, deleted: 0, error: fetchError.message }
-  }
-  
-  if (!trashedFiles || trashedFiles.length === 0) {
+  if (allFileIds.length === 0) {
     return { success: true, deleted: 0 }
   }
   
   // Use batch deletion for performance
-  const fileIds = trashedFiles.map(f => f.id)
-  const result = await permanentlyDeleteFiles(fileIds, userId)
+  const result = await permanentlyDeleteFiles(allFileIds, userId)
   
   if (!result.success && result.errors.length > 0) {
     return { success: false, deleted: result.deleted, error: result.errors[0] }

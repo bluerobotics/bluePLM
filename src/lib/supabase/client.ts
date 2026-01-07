@@ -160,6 +160,20 @@ function setupSessionListener() {
             email: data.user?.email,
             userId: data.user?.id?.substring(0, 8) + '...'
           })
+          
+          // Generate CLI token when user authenticates
+          if (data.user?.email) {
+            window.electronAPI?.generateCliToken?.(data.user.email)
+              .then(result => {
+                if (result?.success) {
+                  authLog('debug', 'CLI token generated')
+                }
+              })
+              .catch(() => {
+                // Ignore CLI token errors - non-critical
+              })
+          }
+          
           sessionResolver?.(true)
         }
       } catch (err) {

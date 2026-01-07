@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
-import { syncSolidWorksFileMetadata } from '@/lib/supabase'
+import { syncSolidWorksFileMetadata, getContainsRecursive, getWhereUsed, upsertFileReferences, getVaultFilesForDiagnostics } from '@/lib/supabase'
+import type { SWReference } from '@/lib/supabase/files/mutations'
+import type { BomTreeNode } from '@/lib/supabase/files/queries'
+import { BomTree, type BomNode } from './BomTree'
+import { matchSwPathToDb, getPathStatusFromMatch, type SWServiceReference, type BomNodePathStatus } from '@/lib/solidworks'
 import {
   FileBox,
   Layers,
@@ -12,11 +16,16 @@ import {
   Settings2,
   RefreshCw,
   AlertCircle,
+  AlertTriangle,
   Download,
   FileOutput,
   Package,
   Search,
-  ArrowUpRight
+  ArrowUpRight,
+  Database,
+  CloudOff,
+  Upload,
+  Check
 } from 'lucide-react'
 
 // Types for SolidWorks data
@@ -122,111 +131,497 @@ function SWFileIcon({ fileType, size = 16 }: { fileType: string; size?: number }
   }
 }
 
-// BOM Tree Item component
-function BomTreeItem({ 
-  item, 
-  level = 0,
-  onNavigate 
-}: { 
-  item: BomItem
-  level?: number
-  onNavigate?: (path: string) => void
-}) {
-  const [expanded, setExpanded] = useState(level < 2)
-
-  return (
-    <div className="select-none">
-      <div 
-        className="flex items-center gap-2 py-1.5 px-2 hover:bg-plm-bg-light rounded cursor-pointer group"
-        style={{ paddingLeft: `${level * 16 + 8}px` }}
-      >
-        {item.fileType === 'Assembly' ? (
-          <button 
-            onClick={() => setExpanded(!expanded)}
-            className="p-0.5 hover:bg-plm-bg rounded"
-          >
-            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </button>
-        ) : (
-          <span className="w-5" />
-        )}
-        
-        <SWFileIcon fileType={item.fileType} size={16} />
-        
-        <span className="flex-1 min-w-0 truncate text-sm">
-          {item.fileName}
-        </span>
-        
-        <span className="text-xs text-plm-fg-muted bg-plm-bg px-1.5 py-0.5 rounded">
-          ×{item.quantity}
-        </span>
-        
-        {item.partNumber && (
-          <span className="text-xs text-plm-accent">{item.partNumber}</span>
-        )}
-        
-        {onNavigate && (
-          <button
-            onClick={() => onNavigate(item.filePath)}
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-plm-accent/20 rounded"
-            title="Navigate to file"
-          >
-            <ArrowUpRight size={12} />
-          </button>
-        )}
-      </div>
-      
-      {item.configuration && (
-        <div 
-          className="text-xs text-plm-fg-muted ml-10 mb-1"
-          style={{ paddingLeft: `${level * 16 + 8}px` }}
-        >
-          Config: {item.configuration}
-          {item.description && ` • ${item.description}`}
-          {item.material && ` • ${item.material}`}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Contains/BOM Tab Component
+// Contains/BOM Tab Component - Database-First with SW Service Fallback
 export function ContainsTab({ file }: { file: LocalFile }) {
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingDb, setIsLoadingDb] = useState(false)
+  const [isLoadingSw, setIsLoadingSw] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isAutoExtracting, setIsAutoExtracting] = useState(false)  // Auto-extract state
+  const [extractionSkipReason, setExtractionSkipReason] = useState<string | null>(null)  // Why auto-extract was skipped
   const [bom, setBom] = useState<BomItem[]>([])
+  const [bomNodes, setBomNodes] = useState<BomNode[]>([])  // Direct BomNodes for recursive tree
   const [configurations, setConfigurations] = useState<Configuration[]>([])
   const [selectedConfig, setSelectedConfig] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
+  const [dataSource, setDataSource] = useState<'database' | 'solidworks' | 'sw_references' | 'none'>('none')
+  const [loadingProgress, setLoadingProgress] = useState<string | null>(null)  // Progress for deep tree loading
+  const [isValidatingPaths, setIsValidatingPaths] = useState(false)  // Path validation in progress
+  const [pathValidationStats, setPathValidationStats] = useState<{ valid: number; broken: number } | null>(null)
   const { status, startService, isStarting } = useSolidWorksService()
-  const { addToast, files, setSelectedFiles } = usePDMStore()
+  const { addToast, files, setSelectedFiles, organization, activeVaultId, vaultPath } = usePDMStore()
+  
+  // Track if we've attempted auto-extraction for this file to avoid loops
+  const autoExtractAttemptedRef = useRef<string | null>(null)
 
   const ext = file.extension?.toLowerCase() || ''
   const isAssembly = ext === '.sldasm'
+  const fileId = file.pdmData?.id
+  const isSynced = !!fileId
 
-  // Load configurations
-  useEffect(() => {
-    if (!status.running || !file.path) return
+  // Convert recursive BomTreeNode to BomNode for BomTree component
+  const convertBomTreeNodeToBomNode = useCallback((
+    node: BomTreeNode,
+    pathStatusMap?: Map<string, BomNodePathStatus>
+  ): BomNode | null => {
+    if (!node.child) return null
     
-    const loadConfigs = async () => {
-      try {
-        const result = await window.electronAPI?.solidworks?.getConfigurations(file.path)
-        if (result?.success && result.data) {
-          setConfigurations(result.data.configurations)
-          setSelectedConfig(result.data.activeConfiguration)
-        }
-      } catch (err) {
-        console.error('Failed to load configurations:', err)
-      }
+    const childExt = node.child.file_name.toLowerCase()
+    let nodeFileType: 'part' | 'assembly' | 'drawing' | 'other' = 'other'
+    if (childExt.endsWith('.sldprt')) nodeFileType = 'part'
+    else if (childExt.endsWith('.sldasm')) nodeFileType = 'assembly'
+    else if (childExt.endsWith('.slddrw')) nodeFileType = 'drawing'
+
+    // Try to find corresponding file in store to get additional info
+    const localFile = files.find(f => 
+      f.path.toLowerCase() === node.child!.file_path.toLowerCase() ||
+      f.relativePath.toLowerCase() === node.child!.file_path.toLowerCase()
+    )
+
+    // Get state from workflow_state if available
+    const stateName = localFile?.pdmData?.workflow_state?.name || node.child.state || null
+
+    // Get path status if available (keyed by lowercase file path)
+    const pathStatus = pathStatusMap?.get(node.child.file_path.toLowerCase())
+
+    // Recursively convert children
+    const childNodes = node.children
+      .map(child => convertBomTreeNodeToBomNode(child, pathStatusMap))
+      .filter((n): n is BomNode => n !== null)
+
+    return {
+      fileId: node.child.id,
+      filePath: node.child.file_path,
+      fileName: node.child.file_name,
+      fileType: nodeFileType,
+      partNumber: node.child.part_number || null,
+      description: node.child.description || null,
+      revision: node.child.revision || null,
+      state: stateName,
+      quantity: node.quantity,
+      configuration: node.configuration || null,
+      children: childNodes,  // Nested children from recursive query
+      inDatabase: !!node.child.id,
+      material: undefined,
+      pathStatus
+    }
+  }, [files])
+
+  /**
+   * Validate paths by comparing SW service references against vault files.
+   * Returns a map of file_path -> BomNodePathStatus for path validation results.
+   */
+  const validatePathsWithSwService = useCallback(async (): Promise<Map<string, BomNodePathStatus>> => {
+    const pathStatusMap = new Map<string, BomNodePathStatus>()
+    
+    if (!status.running || !organization?.id || !activeVaultId || !file.path) {
+      return pathStatusMap
     }
     
-    loadConfigs()
+    setIsValidatingPaths(true)
+    try {
+      // Get references from SolidWorks service
+      const swResult = await window.electronAPI?.solidworks?.getReferences(file.path)
+      
+      if (!swResult?.success || !swResult.data?.references) {
+        console.debug('[ContainsTab] No SW references for path validation')
+        return pathStatusMap
+      }
+      
+      const swRefs = swResult.data.references as SWServiceReference[]
+      
+      // Get vault files for path matching
+      const { files: vaultFiles, error: vaultError } = await getVaultFilesForDiagnostics(
+        organization.id,
+        activeVaultId
+      )
+      
+      if (vaultError) {
+        console.error('[ContainsTab] Failed to get vault files for path validation:', vaultError)
+        return pathStatusMap
+      }
+      
+      let validCount = 0
+      let brokenCount = 0
+      
+      // Match each SW reference to vault files
+      for (const swRef of swRefs) {
+        const matchResult = matchSwPathToDb(swRef.path, vaultFiles, vaultPath || undefined)
+        const statusResult = getPathStatusFromMatch(matchResult)
+        
+        // Build path status for this reference
+        const pathStatus: BomNodePathStatus = {
+          status: statusResult.status,
+          matchMethod: matchResult.matchMethod,
+          swPath: swRef.path,
+          expectedPath: matchResult.matchedDbFile?.file_path,
+          tooltip: statusResult.tooltip
+        }
+        
+        // Store by both the SW path (normalized) and matched DB path
+        pathStatusMap.set(matchResult.normalizedSwPath, pathStatus)
+        if (matchResult.matchedDbFile) {
+          pathStatusMap.set(matchResult.matchedDbFile.file_path.toLowerCase(), pathStatus)
+          validCount++
+        } else {
+          brokenCount++
+        }
+      }
+      
+      setPathValidationStats({ valid: validCount, broken: brokenCount })
+      console.log('[ContainsTab] Path validation complete:', { valid: validCount, broken: brokenCount })
+      
+      return pathStatusMap
+    } catch (err) {
+      console.error('[ContainsTab] Path validation error:', err)
+      return pathStatusMap
+    } finally {
+      setIsValidatingPaths(false)
+    }
+  }, [status.running, organization?.id, activeVaultId, vaultPath, file.path])
+
+  /**
+   * Convert SW service references directly to BomNodes with path validation status.
+   * Used when SW returns references that may or may not exist in vault.
+   * This allows displaying ALL references with broken/valid path indicators.
+   */
+  const createBomNodesFromSwReferences = useCallback(async (
+    swRefs: SWServiceReference[]
+  ): Promise<BomNode[]> => {
+    if (!organization?.id || !activeVaultId) {
+      return []
+    }
+    
+    // Get vault files for path matching
+    const { files: vaultFiles, error: vaultError } = await getVaultFilesForDiagnostics(
+      organization.id,
+      activeVaultId
+    )
+    
+    if (vaultError) {
+      console.error('[ContainsTab] Failed to get vault files for path matching:', vaultError)
+    }
+    
+    // [PathMatch] Log context before matching loop
+    console.log('[PathMatch] Starting match for assembly:', {
+      assemblyPath: file.path,
+      vaultPath,
+      swRefsCount: swRefs.length,
+      dbFilesCount: vaultFiles?.length || 0
+    })
+    
+    // [PathMatch] Log sample paths for visual comparison
+    if (vaultFiles && vaultFiles.length > 0) {
+      console.log('[PathMatch] Sample DB paths:', vaultFiles.slice(0, 5).map(f => f.file_path))
+    }
+    if (swRefs.length > 0) {
+      console.log('[PathMatch] Sample SW paths:', swRefs.slice(0, 5).map(r => r.path))
+    }
+    
+    return swRefs.map(ref => {
+      const matchResult = matchSwPathToDb(ref.path, vaultFiles || [], vaultPath || undefined)
+      const fileName = ref.fileName || ref.path.split(/[\\/]/).pop() || ref.path
+      const ext = fileName.toLowerCase()
+      
+      let fileType: 'part' | 'assembly' | 'drawing' | 'other' = 'other'
+      if (ext.endsWith('.sldprt')) fileType = 'part'
+      else if (ext.endsWith('.sldasm')) fileType = 'assembly'
+      else if (ext.endsWith('.slddrw')) fileType = 'drawing'
+      
+      const pathStatus: BomNodePathStatus = {
+        status: matchResult.matchMethod === 'none' ? 'broken' : 'valid',
+        matchMethod: matchResult.matchMethod,
+        swPath: ref.path,
+        expectedPath: matchResult.matchedDbFile?.file_path,
+        tooltip: matchResult.matchMethod === 'none' 
+          ? `File not found in vault. SW path: ${ref.path}`
+          : `Matched: ${matchResult.matchedDbFile?.file_path}`
+      }
+      
+      return {
+        fileId: matchResult.matchedDbFile?.id || null,
+        filePath: ref.path,
+        fileName,
+        fileType,
+        partNumber: null,
+        description: null,
+        revision: null,
+        state: null,
+        quantity: 1,
+        configuration: null,
+        children: [],
+        inDatabase: !!matchResult.matchedDbFile,
+        pathStatus
+      }
+    })
+  }, [organization?.id, activeVaultId, vaultPath])
+
+  // Convert BomItem (from SW service) to BomNode for BomTree component
+  // Used when data comes from SolidWorks service (flat list)
+  const swBomNodes = useMemo((): BomNode[] => {
+    return bom
+      .filter(item => item.fileName) // Filter out items with undefined fileName
+      .map(item => {
+        const childExt = (item.fileName || '').toLowerCase()
+        let nodeFileType: 'part' | 'assembly' | 'drawing' | 'other' = 'other'
+        if (childExt.endsWith('.sldprt')) nodeFileType = 'part'
+        else if (childExt.endsWith('.sldasm')) nodeFileType = 'assembly'
+        else if (childExt.endsWith('.slddrw')) nodeFileType = 'drawing'
+
+        // Try to find corresponding file in store to check if it's in database
+        const filePath = item.filePath || ''
+        const localFile = files.find(f => 
+          f.path.toLowerCase() === filePath.toLowerCase() ||
+          f.relativePath.toLowerCase() === filePath.toLowerCase()
+        )
+
+        // Get state from workflow_state if available
+        const stateName = localFile?.pdmData?.workflow_state?.name || null
+
+        return {
+          fileId: localFile?.pdmData?.id || null,
+          filePath: filePath,
+          fileName: item.fileName,
+          fileType: nodeFileType,
+          partNumber: item.partNumber || null,
+          description: item.description || null,
+          revision: item.revision || null,
+          state: stateName,
+          quantity: item.quantity,
+          configuration: item.configuration || null,
+          children: [], // Flat BOM from SW service (no nested structure)
+          inDatabase: !!localFile?.pdmData?.id,
+          material: item.material
+        }
+      })
+  }, [bom, files])
+
+  // Get the appropriate nodes based on data source
+  // - Database: Use bomNodes (recursive tree with nested children)
+  // - sw_references: Use bomNodes (path-validated SW references from getReferences)
+  // - SolidWorks: Use swBomNodes (flat list from getBom API)
+  const displayNodes = useMemo((): BomNode[] => {
+    if (dataSource === 'database' || dataSource === 'sw_references') {
+      return bomNodes  // Recursive tree or path-validated references
+    }
+    return swBomNodes  // Flat list from SW service getBom
+  }, [dataSource, bomNodes, swBomNodes])
+
+  // Load references from database (with recursive tree building)
+  const loadFromDatabase = useCallback(async () => {
+    if (!fileId) return
+    
+    // [PathMatch] Log vault configuration for diagnostics
+    console.log('[PathMatch] Vault config:', {
+      activeVaultId,
+      vaultPath,
+      vaultPathSource: 'usePDMStore settings',
+      organizationId: organization?.id
+    })
+    
+    setIsLoadingDb(true)
+    setError(null)
+    setLoadingProgress(null)
+    setPathValidationStats(null)
+    
+    try {
+      // Use recursive query to build full tree with nested sub-assemblies
+      const { references, error: dbError, stats } = await getContainsRecursive(
+        fileId,
+        10, // Max depth
+        (progress: string) => setLoadingProgress(progress)
+      )
+      
+      if (dbError) {
+        console.error('[ContainsTab] Database error:', dbError)
+        setError('Failed to load from database')
+        return
+      }
+      
+      if (references && references.length > 0) {
+        // If SW service is running, validate paths first
+        let pathStatusMap: Map<string, BomNodePathStatus> | undefined
+        if (status.running) {
+          setLoadingProgress('Validating component paths...')
+          pathStatusMap = await validatePathsWithSwService()
+        }
+        
+        // Convert BomTreeNode to BomNode with nested children (including pathStatus)
+        const nodes = references
+          .map((ref: BomTreeNode) => convertBomTreeNodeToBomNode(ref, pathStatusMap))
+          .filter((item: BomNode | null): item is BomNode => item !== null)
+        
+        setBomNodes(nodes)
+        setDataSource('database')
+        
+        console.log('[ContainsTab] Loaded recursive BOM:', {
+          rootComponents: nodes.length,
+          totalNodes: stats.totalNodes,
+          maxDepth: stats.maxDepthReached,
+          assembliesProcessed: stats.assembliesProcessed,
+          pathValidation: pathValidationStats
+        })
+      } else {
+        setBomNodes([])
+        setDataSource('none')
+        setExtractionSkipReason(null)  // Reset skip reason
+        
+        // AUTO-EXTRACT: If database is empty and SW service is running,
+        // automatically extract references instead of requiring user to click
+        // Track WHY we can't auto-extract to show appropriate hints
+        if (autoExtractAttemptedRef.current === fileId) {
+          // Already attempted for this file, don't try again
+          console.debug('[ContainsTab] Auto-extract already attempted for this file')
+        } else if (!status.running) {
+          setExtractionSkipReason('sw_not_running')
+          console.debug('[ContainsTab] Cannot auto-extract: SW service not running')
+        } else if (!fileId) {
+          setExtractionSkipReason('not_synced')
+          console.debug('[ContainsTab] Cannot auto-extract: File not synced to database')
+        } else if (!organization?.id) {
+          setExtractionSkipReason('no_org')
+          console.debug('[ContainsTab] Cannot auto-extract: No organization ID')
+        } else if (!activeVaultId) {
+          setExtractionSkipReason('no_vault')
+          console.debug('[ContainsTab] Cannot auto-extract: No active vault')
+        } else {
+          // All conditions met - attempt auto-extraction
+          console.log('[ContainsTab] No database references found, auto-extracting from SW...')
+          autoExtractAttemptedRef.current = fileId
+          setIsAutoExtracting(true)
+          setLoadingProgress('Extracting component references...')
+          
+          try {
+            const result = await window.electronAPI?.solidworks?.getReferences(file.path)
+            
+            if (result?.success && result.data?.references && result.data.references.length > 0) {
+              const swRefs: SWReference[] = result.data.references.map((ref: FileReference) => ({
+                childFilePath: ref.path,
+                quantity: 1,
+                referenceType: 'component' as const
+              }))
+              
+              const upsertResult = await upsertFileReferences(
+                organization.id,
+                activeVaultId,
+                fileId,
+                swRefs,
+                vaultPath || undefined
+              )
+              
+              if (upsertResult.success && upsertResult.inserted > 0) {
+                addToast('success', `Extracted ${upsertResult.inserted} component references`)
+                if (upsertResult.skippedReasons && upsertResult.skippedReasons.length > 0) {
+                  console.debug('[ContainsTab] Some references skipped:', upsertResult.skippedReasons)
+                }
+                setExtractionSkipReason(null)
+                setIsAutoExtracting(false)
+                setLoadingProgress(null)
+                // Reload from database to show the new data (won't re-attempt extract due to ref)
+                setIsLoadingDb(true)
+                const { references: newRefs, stats: newStats } = await getContainsRecursive(
+                  fileId,
+                  10,
+                  (progress: string) => setLoadingProgress(progress)
+                )
+                if (newRefs && newRefs.length > 0) {
+                  // Validate paths with SW service
+                  setLoadingProgress('Validating component paths...')
+                  const pathStatusMap = await validatePathsWithSwService()
+                  
+                  const nodes = newRefs
+                    .map((ref: BomTreeNode) => convertBomTreeNodeToBomNode(ref, pathStatusMap))
+                    .filter((item: BomNode | null): item is BomNode => item !== null)
+                  setBomNodes(nodes)
+                  setDataSource('database')
+                  console.log('[ContainsTab] Loaded BOM after auto-extract:', {
+                    rootComponents: nodes.length,
+                    totalNodes: newStats.totalNodes
+                  })
+                }
+                setIsLoadingDb(false)
+                setLoadingProgress(null)
+                return
+              } else {
+                // SW returned references but upserting failed or found nothing to insert
+                // Instead of showing generic error, display ALL SW references with path status
+                console.log('[ContainsTab] No DB matches, showing SW references with path status')
+                setLoadingProgress('Analyzing component paths...')
+                
+                // Convert SW references to BomNodes with path validation
+                const swServiceRefs: SWServiceReference[] = result.data.references.map((ref: FileReference) => ({
+                  path: ref.path,
+                  fileName: ref.fileName,
+                  exists: ref.exists,
+                  fileType: ref.fileType
+                }))
+                
+                const nodes = await createBomNodesFromSwReferences(swServiceRefs)
+                setBomNodes(nodes)
+                setDataSource('sw_references')  // Distinct from 'solidworks' to avoid triggering loadFromSolidWorks
+                
+                // Count broken vs valid paths for summary
+                const brokenCount = nodes.filter(n => n.pathStatus?.status === 'broken').length
+                const validCount = nodes.length - brokenCount
+                setPathValidationStats({ valid: validCount, broken: brokenCount })
+                
+                if (brokenCount > 0) {
+                  addToast('warning', `${brokenCount} of ${nodes.length} component paths not found in vault`)
+                }
+                
+                console.log('[ContainsTab] Displayed SW references:', {
+                  total: nodes.length,
+                  valid: validCount,
+                  broken: brokenCount
+                })
+                
+                // Exit early - we've successfully displayed the references
+                setIsAutoExtracting(false)
+                setLoadingProgress(null)
+                return
+              }
+            } else {
+              console.debug('[ContainsTab] Auto-extract: No references found in SW')
+              setExtractionSkipReason('empty_assembly')
+            }
+          } catch (err) {
+            console.debug('[ContainsTab] Auto-extract failed:', err)
+            setExtractionSkipReason('extraction_error')
+            // Fall through to show empty state - user can click button
+          } finally {
+            setIsAutoExtracting(false)
+            setLoadingProgress(null)
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[ContainsTab] Error loading from database:', err)
+      setError(String(err))
+    } finally {
+      setIsLoadingDb(false)
+      setLoadingProgress(null)
+    }
+  }, [fileId, convertBomTreeNodeToBomNode, status.running, organization?.id, activeVaultId, vaultPath, file.path, addToast, validatePathsWithSwService, createBomNodesFromSwReferences])
+
+  // Load configurations from SW service
+  const loadConfigurations = useCallback(async () => {
+    if (!status.running || !file.path) return
+    
+    try {
+      const result = await window.electronAPI?.solidworks?.getConfigurations(file.path)
+      if (result?.success && result.data) {
+        setConfigurations(result.data.configurations)
+        setSelectedConfig(result.data.activeConfiguration)
+      }
+    } catch (err) {
+      console.error('Failed to load configurations:', err)
+    }
   }, [status.running, file.path])
 
-  // Load BOM
-  const loadBom = useCallback(async () => {
+  // Load BOM from SolidWorks service (enrichment or fallback)
+  const loadFromSolidWorks = useCallback(async () => {
     if (!status.running || !file.path || !isAssembly) return
     
-    setIsLoading(true)
+    setIsLoadingSw(true)
     setError(null)
     
     try {
@@ -236,39 +631,119 @@ export function ContainsTab({ file }: { file: LocalFile }) {
       })
       
       if (result?.success && result.data) {
-        // Cast fileType to the expected union type
-        setBom(result.data.items.map((item: { fileName: string; filePath: string; fileType: string; quantity: number; configuration: string; partNumber: string; description: string; material: string; revision: string; properties: Record<string, string> }) => ({
+        const swBom = result.data.items.map((item: { fileName: string; filePath: string; fileType: string; quantity: number; configuration: string; partNumber: string; description: string; material: string; revision: string; properties: Record<string, string> }) => ({
           ...item,
           fileType: (item.fileType === 'Part' || item.fileType === 'Assembly' ? item.fileType : 'Other') as 'Part' | 'Assembly' | 'Other'
-        })))
+        }))
+        setBom(swBom)
+        setDataSource('solidworks')
       } else {
-        setError(result?.error || 'Failed to load BOM')
+        setError(result?.error || 'Failed to load BOM from SolidWorks')
       }
     } catch (err) {
       setError(String(err))
     } finally {
-      setIsLoading(false)
+      setIsLoadingSw(false)
     }
   }, [status.running, file.path, selectedConfig, isAssembly])
 
-  useEffect(() => {
-    if (selectedConfig) {
-      loadBom()
+  // Refresh: Re-extract references from SW and update database
+  const handleRefreshFromSW = useCallback(async () => {
+    if (!status.running || !file.path || !fileId || !organization?.id || !activeVaultId) {
+      addToast('info', 'Cannot refresh: file must be synced and SW service running')
+      return
     }
-  }, [selectedConfig, loadBom])
+    
+    setIsRefreshing(true)
+    
+    try {
+      // Get references from SolidWorks service
+      const result = await window.electronAPI?.solidworks?.getReferences(file.path)
+      
+      if (!result?.success || !result.data?.references) {
+        addToast('error', result?.error || 'Failed to get references from SolidWorks')
+        return
+      }
+      
+      // Convert to SWReference format and upsert to database
+      const swRefs: SWReference[] = result.data.references.map((ref: FileReference) => ({
+        childFilePath: ref.path,
+        quantity: 1, // getReferences doesn't return quantity, default to 1
+        referenceType: 'component' as const
+      }))
+      
+      const upsertResult = await upsertFileReferences(
+        organization.id,
+        activeVaultId,
+        fileId,
+        swRefs,
+        vaultPath || undefined
+      )
+      
+      if (upsertResult.success) {
+        addToast('success', `References updated: ${upsertResult.inserted} added, ${upsertResult.updated} updated, ${upsertResult.deleted} removed`)
+        if (upsertResult.skippedReasons && upsertResult.skippedReasons.length > 0) {
+          console.debug('[ContainsTab] Some references skipped during refresh:', upsertResult.skippedReasons)
+        }
+        // Reload from database to get fresh data (will also revalidate paths)
+        setPathValidationStats(null)
+        await loadFromDatabase()
+      } else {
+        addToast('error', upsertResult.error || 'Failed to update references')
+      }
+    } catch (err) {
+      addToast('error', `Refresh failed: ${err}`)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [status.running, file.path, fileId, organization?.id, activeVaultId, vaultPath, addToast, loadFromDatabase])
 
-  // Navigate to a file in the BOM
-  const handleNavigate = (filePath: string) => {
+  // Reset auto-extract tracking and skip reason when file changes
+  useEffect(() => {
+    autoExtractAttemptedRef.current = null
+    setExtractionSkipReason(null)
+  }, [fileId])
+  
+  // Initial load: try database first, then SW service if available
+  useEffect(() => {
+    if (!isAssembly) return
+    
+    if (isSynced) {
+      // File is in database - load references from there
+      loadFromDatabase()
+    } else if (status.running) {
+      // Not synced but SW service is running - load directly
+      loadFromSolidWorks()
+    }
+  }, [isAssembly, isSynced, loadFromDatabase, status.running, loadFromSolidWorks])
+
+  // Load configurations when SW service is running
+  useEffect(() => {
+    if (status.running && isAssembly) {
+      loadConfigurations()
+    }
+  }, [status.running, isAssembly, loadConfigurations])
+
+  // Reload SW BOM when configuration changes (if we're using SW data)
+  useEffect(() => {
+    if (selectedConfig && dataSource === 'solidworks') {
+      loadFromSolidWorks()
+    }
+  }, [selectedConfig, dataSource, loadFromSolidWorks])
+
+  // Navigate to a file in the BOM (for BomTree component)
+  const handleNavigateNode = useCallback((node: BomNode) => {
     const targetFile = files.find(f => 
-      f.path.toLowerCase() === filePath.toLowerCase() ||
-      f.path.toLowerCase().endsWith(filePath.toLowerCase().split('\\').pop() || '')
+      f.path.toLowerCase() === node.filePath.toLowerCase() ||
+      f.relativePath.toLowerCase() === node.filePath.toLowerCase() ||
+      f.path.toLowerCase().endsWith(node.filePath.toLowerCase().split(/[\\/]/).pop() || '')
     )
     if (targetFile) {
       setSelectedFiles([targetFile.relativePath])
     } else {
       addToast('info', 'File not found in vault')
     }
-  }
+  }, [files, setSelectedFiles, addToast])
 
   if (!isAssembly) {
     return (
@@ -280,87 +755,302 @@ export function ContainsTab({ file }: { file: LocalFile }) {
     )
   }
 
-  if (!status.running) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full py-8">
-        <Settings2 size={48} className="mb-4 text-plm-fg-muted opacity-50" />
-        <div className="text-sm text-plm-fg-muted mb-4">SolidWorks service not running</div>
-        <button 
-          onClick={startService}
-          disabled={isStarting}
-          className="btn btn-primary gap-2"
-        >
-          {isStarting ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-          Start Service
-        </button>
-        <div className="text-xs text-plm-fg-muted mt-4 text-center max-w-xs">
-          The service will start SolidWorks in the background to read assembly data.
-        </div>
-      </div>
-    )
-  }
+  const isLoading = isLoadingDb || isLoadingSw || isAutoExtracting || isValidatingPaths
 
   return (
     <div className="flex flex-col h-full">
-      {/* Configuration selector */}
-      <div className="flex items-center gap-2 mb-3 flex-shrink-0">
-        <label className="text-xs text-plm-fg-muted">Configuration:</label>
-        <select
-          value={selectedConfig}
-          onChange={(e) => setSelectedConfig(e.target.value)}
-          className="flex-1 bg-plm-bg border border-plm-border rounded px-2 py-1 text-sm"
-          disabled={configurations.length === 0}
-        >
-          {configurations.map(config => (
-            <option key={config.name} value={config.name}>
-              {config.name} {config.isActive ? '(Active)' : ''}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={loadBom}
-          disabled={isLoading}
-          className="btn btn-sm btn-ghost p-1.5"
-          title="Refresh BOM"
-        >
-          <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-        </button>
+      {/* Header with data source indicator */}
+      <div className="flex items-center justify-between mb-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          {dataSource === 'database' && (
+            <span className="flex items-center gap-1 text-xs text-plm-fg-muted bg-plm-bg px-2 py-0.5 rounded">
+              <Database size={12} />
+              Database
+            </span>
+          )}
+          {dataSource === 'solidworks' && (
+            <span className="flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+              <Settings2 size={12} />
+              Live SW
+            </span>
+          )}
+          {dataSource === 'sw_references' && (
+            <span className="flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+              <Settings2 size={12} />
+              SW References
+            </span>
+          )}
+          {dataSource === 'none' && !isLoading && (
+            <span className="flex items-center gap-1 text-xs text-plm-fg-muted">
+              <CloudOff size={12} />
+              No data
+            </span>
+          )}
+          {/* Path validation stats indicator */}
+          {pathValidationStats && (dataSource === 'database' || dataSource === 'sw_references') && (
+            <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${
+              pathValidationStats.broken > 0 
+                ? 'text-amber-400 bg-amber-500/10' 
+                : 'text-emerald-400 bg-emerald-500/10'
+            }`} title={`${pathValidationStats.valid} valid, ${pathValidationStats.broken} broken paths`}>
+              {pathValidationStats.broken > 0 ? (
+                <>
+                  <AlertCircle size={10} />
+                  {pathValidationStats.broken} path{pathValidationStats.broken !== 1 ? 's' : ''} differ
+                </>
+              ) : (
+                <>
+                  <Check size={10} />
+                  Paths verified
+                </>
+              )}
+            </span>
+          )}
+          {isValidatingPaths && (
+            <span className="flex items-center gap-1 text-xs text-plm-fg-muted">
+              <Loader2 size={10} className="animate-spin" />
+              Validating paths...
+            </span>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-1">
+          {/* Refresh from SW button - only when file is synced and SW running */}
+          {isSynced && status.running && (
+            <button
+              onClick={handleRefreshFromSW}
+              disabled={isRefreshing}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-plm-accent/10 text-plm-accent hover:bg-plm-accent/20 transition-colors disabled:opacity-50"
+              title="Re-extract references from SolidWorks and update database"
+            >
+              {isRefreshing ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Upload size={12} />
+              )}
+              Update from SW
+            </button>
+          )}
+          
+          {/* Start service button when not running */}
+          {!status.running && (
+            <button
+              onClick={startService}
+              disabled={isStarting}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+              title="Start SolidWorks service for live data"
+            >
+              {isStarting ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <RefreshCw size={12} />
+              )}
+              Start SW
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* Configuration selector - only when SW service is running */}
+      {status.running && configurations.length > 0 && (
+        <div className="flex items-center gap-2 mb-3 flex-shrink-0">
+          <label className="text-xs text-plm-fg-muted">Configuration:</label>
+          <select
+            value={selectedConfig}
+            onChange={(e) => {
+              setSelectedConfig(e.target.value)
+              // If we have database data, switch to SW for config-specific view
+              if (dataSource === 'database' && status.running) {
+                loadFromSolidWorks()
+              }
+            }}
+            className="flex-1 bg-plm-bg border border-plm-border rounded px-2 py-1 text-sm"
+          >
+            {configurations.map(config => (
+              <option key={config.name} value={config.name}>
+                {config.name} {config.isActive ? '(Active)' : ''}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={dataSource === 'database' ? loadFromDatabase : loadFromSolidWorks}
+            disabled={isLoading}
+            className="btn btn-sm btn-ghost p-1.5"
+            title="Refresh"
+          >
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      )}
+
       {/* BOM content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center justify-center py-8">
             <Loader2 className="animate-spin text-plm-accent" size={24} />
-            <span className="ml-2 text-sm text-plm-fg-muted">Loading BOM...</span>
+            <span className="mt-2 text-sm text-plm-fg-muted">
+              {isAutoExtracting 
+                ? 'Extracting references from SolidWorks...' 
+                : isValidatingPaths
+                  ? 'Validating component paths...'
+                  : isLoadingDb 
+                    ? 'Loading BOM tree...' 
+                    : 'Loading from SolidWorks...'}
+            </span>
+            {loadingProgress && (
+              <span className="mt-1 text-xs text-plm-fg-dim animate-pulse">
+                {loadingProgress}
+              </span>
+            )}
           </div>
         ) : error ? (
           <div className="flex flex-col items-center py-8 text-plm-error">
             <AlertCircle size={32} className="mb-2" />
             <div className="text-sm">{error}</div>
-            <button onClick={loadBom} className="btn btn-sm btn-ghost mt-2">
+            <button 
+              onClick={isSynced ? loadFromDatabase : loadFromSolidWorks} 
+              className="btn btn-sm btn-ghost mt-2"
+            >
               Retry
             </button>
           </div>
-        ) : bom.length === 0 ? (
-          <div className="text-sm text-plm-fg-muted text-center py-8">
-            No components found
+        ) : displayNodes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-plm-fg-muted">
+            <Layers size={32} className="mb-3 opacity-30" />
+            {/* Show context-specific messages based on why no components are shown */}
+            {extractionSkipReason === 'sw_not_running' ? (
+              <>
+                <div className="text-sm mb-1">SolidWorks service not running</div>
+                <div className="text-xs opacity-70 text-center max-w-xs">
+                  Start the SolidWorks service to extract component references from this assembly.
+                </div>
+                <button
+                  onClick={startService}
+                  disabled={isStarting}
+                  className="btn btn-sm btn-primary mt-3 gap-1"
+                >
+                  {isStarting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Settings2 size={14} />
+                  )}
+                  {isStarting ? 'Starting...' : 'Start SolidWorks Service'}
+                </button>
+              </>
+            ) : extractionSkipReason === 'not_synced' ? (
+              <>
+                <div className="text-sm mb-1">Assembly not synced to database</div>
+                <div className="text-xs opacity-70 text-center max-w-xs">
+                  Check in this file to store component references, or start SW service to view live BOM.
+                </div>
+                {!status.running && (
+                  <button
+                    onClick={startService}
+                    disabled={isStarting}
+                    className="btn btn-sm btn-ghost mt-3 gap-1"
+                  >
+                    {isStarting ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Settings2 size={14} />
+                    )}
+                    {isStarting ? 'Starting...' : 'Start SolidWorks Service'}
+                  </button>
+                )}
+              </>
+            ) : extractionSkipReason === 'no_matches' ? (
+              <>
+                <div className="text-sm mb-1">Component files not found in vault</div>
+                <div className="text-xs opacity-70 text-center max-w-xs mb-3">
+                  The assembly references parts that aren't checked in yet. Check in the component files first, then click "Update from SW".
+                </div>
+                {status.running && (
+                  <button
+                    onClick={handleRefreshFromSW}
+                    disabled={isRefreshing}
+                    className="btn btn-sm btn-primary gap-1"
+                  >
+                    {isRefreshing ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Upload size={14} />
+                    )}
+                    Update from SW
+                  </button>
+                )}
+              </>
+            ) : extractionSkipReason === 'empty_assembly' ? (
+              <>
+                <div className="text-sm mb-1">No components in assembly</div>
+                <div className="text-xs opacity-70 text-center max-w-xs">
+                  This assembly doesn't contain any part or sub-assembly references.
+                </div>
+              </>
+            ) : !isSynced && dataSource === 'none' && !status.running ? (
+              <>
+                <div className="text-sm mb-1">Assembly not synced to database</div>
+                <div className="text-xs opacity-70 text-center max-w-xs">
+                  Start SolidWorks service to view BOM, or check in to store for offline viewing.
+                </div>
+                <button
+                  onClick={startService}
+                  disabled={isStarting}
+                  className="btn btn-sm btn-ghost mt-3 gap-1"
+                >
+                  {isStarting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Settings2 size={14} />
+                  )}
+                  {isStarting ? 'Starting...' : 'Start SolidWorks Service'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-sm mb-1">No components found</div>
+                <div className="text-xs opacity-70 text-center max-w-xs mb-3">
+                  {isSynced 
+                    ? 'This assembly has no component references stored. Click "Update from SW" to extract.'
+                    : 'This assembly appears to have no components.'}
+                </div>
+                {status.running && (
+                  <button
+                    onClick={isSynced ? handleRefreshFromSW : loadFromSolidWorks}
+                    disabled={isRefreshing || isLoadingSw}
+                    className="btn btn-sm btn-primary gap-1"
+                  >
+                    {(isRefreshing || isLoadingSw) ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : isSynced ? (
+                      <Upload size={14} />
+                    ) : (
+                      <RefreshCw size={14} />
+                    )}
+                    {isSynced ? 'Update from SW' : 'Load from SolidWorks'}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         ) : (
-          <div className="space-y-0.5">
-            {/* Summary */}
-            <div className="text-xs text-plm-fg-muted mb-2 px-2">
-              {bom.length} unique parts • {bom.reduce((sum, b) => sum + b.quantity, 0)} total
-            </div>
-            
-            {/* BOM tree */}
-            {bom.map((item, idx) => (
-              <BomTreeItem 
-                key={`${item.filePath}-${idx}`} 
-                item={item} 
-                onNavigate={handleNavigate}
+          <div className="flex flex-col h-full">
+            {/* Path validation summary - show when we have broken paths */}
+            {pathValidationStats && pathValidationStats.broken > 0 && (
+              <div className="flex items-center gap-2 px-2 py-1.5 mb-2 rounded bg-amber-500/10 border border-amber-500/20 text-xs flex-shrink-0">
+                <AlertTriangle size={14} className="text-amber-400 flex-shrink-0" />
+                <span className="text-amber-300">
+                  {pathValidationStats.broken} of {pathValidationStats.valid + pathValidationStats.broken} component paths not found in vault
+                </span>
+              </div>
+            )}
+            <div className="flex-1 min-h-0">
+              <BomTree
+                nodes={displayNodes}
+                onNavigate={handleNavigateNode}
+                showExport={true}
+                assemblyName={file.name}
               />
-            ))}
+            </div>
           </div>
         )}
       </div>
@@ -368,70 +1058,71 @@ export function ContainsTab({ file }: { file: LocalFile }) {
   )
 }
 
-// Where Used Tab Component
+// Where Used Tab Component - Database-first approach
+// Queries file_references table instead of scanning all local assemblies
+
+interface WhereUsedResult {
+  id: string
+  parent_file_id: string
+  child_file_id: string
+  quantity: number
+  configuration: string | null
+  reference_type: string
+  parent: {
+    id: string
+    file_name: string
+    file_path: string
+    part_number: string | null
+    revision: string | null
+    state: string | null
+  } | null
+}
+
 export function WhereUsedTab({ file }: { file: LocalFile }) {
   const [isLoading, setIsLoading] = useState(false)
-  const [usedIn, setUsedIn] = useState<{ fileName: string; filePath: string; fileType: string }[]>([])
+  const [usedIn, setUsedIn] = useState<WhereUsedResult[]>([])
   const [error, setError] = useState<string | null>(null)
-  const { status, startService, isStarting } = useSolidWorksService()
   const { files, setSelectedFiles, addToast } = usePDMStore()
 
   const ext = file.extension?.toLowerCase() || ''
   const isSolidWorks = ['.sldprt', '.sldasm'].includes(ext)
+  const fileId = file.pdmData?.id
 
-  // Scan assemblies to find where this file is used
+  // Query database for where-used references
   const findWhereUsed = useCallback(async () => {
-    if (!status.running || !file.path) return
+    if (!fileId) return
     
     setIsLoading(true)
     setError(null)
-    const results: { fileName: string; filePath: string; fileType: string }[] = []
     
     try {
-      // Get all assembly files in the vault
-      const assemblies = files.filter(f => 
-        f.extension?.toLowerCase() === '.sldasm' && !f.isDirectory
-      )
+      const { references, error: queryError } = await getWhereUsed(fileId)
       
-      // Check each assembly for references to this file
-      for (const asm of assemblies) {
-        try {
-          const result = await window.electronAPI?.solidworks?.getReferences(asm.path)
-          if (result?.success && result.data) {
-            const refersToFile = result.data.references.some(
-              (ref: FileReference) => 
-                ref.fileName.toLowerCase() === file.name.toLowerCase() ||
-                ref.path.toLowerCase() === file.path.toLowerCase()
-            )
-            if (refersToFile) {
-              results.push({
-                fileName: asm.name,
-                filePath: asm.path,
-                fileType: 'Assembly'
-              })
-            }
-          }
-        } catch {
-          // Skip assemblies that fail to load
-        }
+      if (queryError) {
+        setError(queryError.message || 'Failed to query references')
+        return
       }
       
-      setUsedIn(results)
+      setUsedIn((references || []) as WhereUsedResult[])
     } catch (err) {
       setError(String(err))
     } finally {
       setIsLoading(false)
     }
-  }, [status.running, file.path, file.name, files])
+  }, [fileId])
 
+  // Load on mount when file is synced
   useEffect(() => {
-    if (status.running && isSolidWorks) {
+    if (isSolidWorks && fileId) {
       findWhereUsed()
     }
-  }, [status.running, isSolidWorks, findWhereUsed])
+  }, [isSolidWorks, fileId, findWhereUsed])
 
   const handleNavigate = (filePath: string) => {
-    const targetFile = files.find(f => f.path.toLowerCase() === filePath.toLowerCase())
+    const targetFile = files.find(f => 
+      f.path.toLowerCase() === filePath.toLowerCase() ||
+      f.relativePath.toLowerCase() === filePath.toLowerCase()
+    )
     if (targetFile) {
       setSelectedFiles([targetFile.relativePath])
     } else {
@@ -449,19 +1140,16 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
     )
   }
 
-  if (!status.running) {
+  // File not synced to database yet
+  if (!fileId) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-8">
-        <Settings2 size={48} className="mb-4 text-plm-fg-muted opacity-50" />
-        <div className="text-sm text-plm-fg-muted mb-4">SolidWorks service not running</div>
-        <button 
-          onClick={startService}
-          disabled={isStarting}
-          className="btn btn-primary gap-2"
-        >
-          {isStarting ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-          Start Service
-        </button>
+        <Search size={48} className="mb-4 text-plm-fg-muted opacity-50" />
+        <div className="text-sm text-plm-fg-muted mb-2">File not synced to cloud</div>
+        <div className="text-xs text-plm-fg-muted text-center max-w-xs">
+          Sync this file to the vault to view where-used relationships.
+          Assembly references are extracted during check-in.
+        </div>
       </div>
     )
   }
@@ -470,13 +1158,13 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3 flex-shrink-0">
         <span className="text-xs text-plm-fg-muted">
-          Assemblies using: <span className="text-plm-fg">{file.name}</span>
+          Used in: <span className="text-plm-accent font-medium">{usedIn.length}</span> {usedIn.length === 1 ? 'assembly' : 'assemblies'}
         </span>
         <button
           onClick={findWhereUsed}
           disabled={isLoading}
           className="btn btn-sm btn-ghost p-1.5"
-          title="Refresh"
+          title="Refresh from database"
         >
           <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
         </button>
@@ -486,28 +1174,56 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="animate-spin text-plm-accent" size={24} />
-            <span className="ml-2 text-sm text-plm-fg-muted">Scanning assemblies...</span>
+            <span className="ml-2 text-sm text-plm-fg-muted">Loading from database...</span>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center py-8 text-plm-error">
             <AlertCircle size={32} className="mb-2" />
             <div className="text-sm">{error}</div>
+            <button onClick={findWhereUsed} className="btn btn-sm btn-ghost mt-2">
+              Retry
+            </button>
           </div>
         ) : usedIn.length === 0 ? (
-          <div className="text-sm text-plm-fg-muted text-center py-8">
-            Not used in any assemblies
+          <div className="flex flex-col items-center py-8 text-plm-fg-muted">
+            <Search size={32} className="mb-2 opacity-30" />
+            <div className="text-sm">Not used in any assemblies</div>
+            <div className="text-xs mt-2 text-center max-w-xs opacity-70">
+              This file isn't referenced by any assemblies in the database.
+              Check in assemblies to populate relationships.
+            </div>
           </div>
         ) : (
           <div className="space-y-1">
-            {usedIn.map((asm, idx) => (
+            {usedIn.map((ref, idx) => (
               <div 
-                key={`${asm.filePath}-${idx}`}
-                className="flex items-center gap-2 py-1.5 px-2 hover:bg-plm-bg-light rounded cursor-pointer group"
-                onClick={() => handleNavigate(asm.filePath)}
+                key={`${ref.id}-${idx}`}
+                className="flex items-center gap-2 py-2 px-2 hover:bg-plm-bg-light rounded cursor-pointer group"
+                onClick={() => ref.parent?.file_path && handleNavigate(ref.parent.file_path)}
               >
-                <SWFileIcon fileType={asm.fileType} size={16} />
-                <span className="flex-1 text-sm truncate">{asm.fileName}</span>
-                <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 text-plm-fg-muted" />
+                <SWFileIcon fileType="Assembly" size={16} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm truncate text-plm-fg">
+                      {ref.parent?.file_name || 'Unknown'}
+                    </span>
+                    {ref.quantity > 1 && (
+                      <span className="text-xs text-plm-fg-muted bg-plm-bg px-1.5 py-0.5 rounded">
+                        ×{ref.quantity}
+                      </span>
+                    )}
+                  </div>
+                  {ref.parent?.part_number && (
+                    <div className="text-xs text-plm-accent">{ref.parent.part_number}</div>
+                  )}
+                  {ref.configuration && (
+                    <div className="text-xs text-plm-fg-muted">Config: {ref.configuration}</div>
+                  )}
+                </div>
+                {ref.parent?.revision && (
+                  <span className="text-xs text-plm-fg-muted">{ref.parent.revision}</span>
+                )}
+                <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 text-plm-fg-muted flex-shrink-0" />
               </div>
             ))}
           </div>

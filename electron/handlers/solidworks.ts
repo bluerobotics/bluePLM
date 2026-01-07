@@ -5,7 +5,29 @@ import path from 'path'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import * as CFB from 'cfb'
 
-// Module state
+// ============================================
+// Configuration Constants
+// ============================================
+
+/** Maximum time to wait for service startup (ms) */
+const SERVICE_STARTUP_TIMEOUT_MS = 10000
+
+/** Interval between ping attempts during startup (ms) */
+const SERVICE_STARTUP_POLL_INTERVAL_MS = 500
+
+/** Maximum concurrent SW commands to prevent service overload */
+const SW_MAX_CONCURRENT_COMMANDS = 3
+
+/** Ping timeout for status checks (ms) - short to avoid blocking */
+const STATUS_PING_TIMEOUT_MS = 2000
+
+/** Ping cache TTL (ms) - avoid redundant status checks */
+const PING_CACHE_TTL_MS = 1000
+
+// ============================================
+// Module State
+// ============================================
+
 let mainWindow: BrowserWindow | null = null
 
 // External log function reference
@@ -18,14 +40,261 @@ let swPendingRequests: Map<number, { resolve: (value: SWServiceResult) => void; 
 let swRequestId = 0
 let solidWorksInstalled: boolean | null = null
 
+/**
+ * Track the last known PID separately from the process reference.
+ * This allows us to detect if the process is still alive even if
+ * the Node.js ChildProcess reference was lost (e.g., due to IPC errors).
+ */
+let lastKnownServicePid: number | null = null
+
 // Thumbnail extraction tracking
 const thumbnailsInProgress = new Set<string>()
+
+// ============================================
+// Request Queue State
+// ============================================
+
+/** Queue of pending commands waiting to be sent */
+interface QueuedCommand {
+  command: Record<string, unknown>
+  options?: { timeoutMs?: number }
+  resolve: (value: SWServiceResult) => void
+  queuedAt: number
+}
+
+const commandQueue: QueuedCommand[] = []
+let activeCommandCount = 0
+
+// ============================================
+// Ping Cache State
+// ============================================
+
+interface PingCacheEntry {
+  result: SWServiceResult
+  timestamp: number
+}
+
+let pingCache: PingCacheEntry | null = null
 
 interface SWServiceResult {
   success: boolean
   data?: unknown
   error?: string
   errorDetails?: string
+}
+
+// ============================================
+// Process Management Helpers
+// ============================================
+
+/**
+ * Checks if a process exists at the OS level using signal 0.
+ * This does not kill the process, just checks if it's alive.
+ * @param pid - Process ID to check
+ * @returns true if process exists, false otherwise
+ */
+function checkProcessExists(pid: number): boolean {
+  try {
+    // Signal 0 just checks if process exists without killing it
+    process.kill(pid, 0)
+    return true
+  } catch {
+    // Process doesn't exist or we don't have permission
+    return false
+  }
+}
+
+/**
+ * Clears the SolidWorks service process state and rejects all pending requests.
+ * Call this whenever the process exits, errors, or disconnects.
+ * @param reason - The reason for clearing state (for logging and error messages)
+ * @param force - If true, clear state even if process appears alive (use for confirmed exits)
+ */
+function clearServiceState(reason: string, force: boolean = false): void {
+  // Before clearing, verify the process is actually dead (unless forced)
+  // This prevents clearing state when stdio errors occur but process is still alive
+  if (!force && lastKnownServicePid) {
+    const stillAlive = checkProcessExists(lastKnownServicePid)
+    if (stillAlive) {
+      log(`[SolidWorks] NOT clearing service state - process ${lastKnownServicePid} is still alive (reason was: ${reason})`)
+      // Don't clear the reference - the process is still running
+      // Just log the issue for debugging
+      return
+    }
+  }
+  
+  log(`[SolidWorks] Clearing service state: ${reason}`)
+  swServiceProcess = null
+  swServiceBuffer = ''
+  lastKnownServicePid = null
+  
+  // Reject all pending requests with descriptive error
+  for (const [id, req] of swPendingRequests) {
+    log(`[SolidWorks] Rejecting pending request ${id}: ${reason}`)
+    req.reject(new Error(reason))
+  }
+  swPendingRequests.clear()
+  
+  // Clear queued commands
+  for (const queued of commandQueue) {
+    queued.resolve({ success: false, error: reason })
+  }
+  commandQueue.length = 0
+  activeCommandCount = 0
+  
+  // Invalidate ping cache
+  pingCache = null
+}
+
+// ============================================
+// Request Queue Management
+// ============================================
+
+/**
+ * Returns current queue statistics for debugging and status reporting.
+ */
+function getQueueStats(): { queueDepth: number; activeCommands: number } {
+  return {
+    queueDepth: commandQueue.length,
+    activeCommands: activeCommandCount
+  }
+}
+
+/**
+ * Processes the next command in the queue if capacity is available.
+ * Called after each command completes or when new commands are queued.
+ */
+function processQueue(): void {
+  while (activeCommandCount < SW_MAX_CONCURRENT_COMMANDS && commandQueue.length > 0) {
+    const queued = commandQueue.shift()!
+    const waitTime = Date.now() - queued.queuedAt
+    
+    if (waitTime > 100) {
+      log(`[SolidWorks Queue] Command waited ${waitTime}ms in queue (active: ${activeCommandCount + 1}, remaining: ${commandQueue.length})`)
+    }
+    
+    activeCommandCount++
+    
+    // Execute the command directly (bypassing queue since we're already processing)
+    executeCommandDirect(queued.command, queued.options)
+      .then((result) => {
+        activeCommandCount--
+        queued.resolve(result)
+        // Continue processing queue
+        processQueue()
+      })
+      .catch(() => {
+        activeCommandCount--
+        queued.resolve({ success: false, error: 'Command execution failed' })
+        processQueue()
+      })
+  }
+}
+
+/**
+ * Internal function that directly sends a command to the service.
+ * Use sendSWCommand for queued execution.
+ */
+async function executeCommandDirect(
+  command: Record<string, unknown>,
+  options?: { timeoutMs?: number }
+): Promise<SWServiceResult> {
+  if (!swServiceProcess?.stdin) {
+    return { success: false, error: 'SolidWorks service not running. Start it first.' }
+  }
+  
+  const timeoutMs = options?.timeoutMs ?? 300000 // Default 5 min
+  const startTime = Date.now()
+  
+  return new Promise((resolve) => {
+    const id = ++swRequestId
+    
+    const timeout = setTimeout(() => {
+      swPendingRequests.delete(id)
+      const elapsed = Date.now() - startTime
+      log(`[SolidWorks] Command ${command.action} timed out after ${elapsed}ms`)
+      resolve({ success: false, error: 'Command timed out' })
+    }, timeoutMs)
+    
+    swPendingRequests.set(id, {
+      resolve: (result) => {
+        clearTimeout(timeout)
+        const elapsed = Date.now() - startTime
+        if (elapsed > 1000) {
+          log(`[SolidWorks] Command ${command.action} completed in ${elapsed}ms`)
+        }
+        resolve(result)
+      },
+      reject: () => {
+        clearTimeout(timeout)
+        resolve({ success: false, error: 'Request rejected' })
+      }
+    })
+    
+    // Include requestId in command for response correlation
+    const commandWithId = { ...command, requestId: id }
+    const json = JSON.stringify(commandWithId) + '\n'
+    swServiceProcess!.stdin!.write(json)
+  })
+}
+
+/**
+ * Polls the service with ping commands until it responds or timeout is reached.
+ * @param timeoutMs - Maximum time to wait (default: SERVICE_STARTUP_TIMEOUT_MS)
+ * @param pollIntervalMs - Time between ping attempts (default: SERVICE_STARTUP_POLL_INTERVAL_MS)
+ * @returns Promise resolving to ping result or timeout error
+ */
+async function pollServiceUntilReady(
+  timeoutMs: number = SERVICE_STARTUP_TIMEOUT_MS,
+  pollIntervalMs: number = SERVICE_STARTUP_POLL_INTERVAL_MS
+): Promise<SWServiceResult> {
+  const startTime = Date.now()
+  let attemptCount = 0
+  
+  log(`[SolidWorks] Starting service startup polling (timeout: ${timeoutMs}ms, interval: ${pollIntervalMs}ms)`)
+  
+  while (Date.now() - startTime < timeoutMs) {
+    attemptCount++
+    
+    // Check if process is still alive
+    if (!swServiceProcess) {
+      const elapsed = Date.now() - startTime
+      log(`[SolidWorks] Service process died during startup after ${elapsed}ms (${attemptCount} attempts)`)
+      return {
+        success: false,
+        error: 'Service process terminated unexpectedly',
+        errorDetails: `The SolidWorks service process exited during startup after ${attemptCount} ping attempts over ${elapsed}ms.`
+      }
+    }
+    
+    try {
+      // Quick ping with short timeout (slightly less than poll interval)
+      const pingResult = await sendSWCommand({ action: 'ping' }, { timeoutMs: pollIntervalMs - 50 })
+      
+      if (pingResult.success) {
+        const elapsed = Date.now() - startTime
+        log(`[SolidWorks] Service ready after ${elapsed}ms (${attemptCount} ping attempts)`)
+        return pingResult
+      }
+      
+      log(`[SolidWorks] Ping attempt ${attemptCount} failed, retrying...`)
+    } catch (err) {
+      log(`[SolidWorks] Ping attempt ${attemptCount} threw error: ${String(err)}`)
+    }
+    
+    // Wait before next attempt
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs))
+  }
+  
+  // Timeout reached
+  const elapsed = Date.now() - startTime
+  log(`[SolidWorks] Service startup timed out after ${elapsed}ms (${attemptCount} attempts)`)
+  
+  return {
+    success: false,
+    error: 'Service startup timed out',
+    errorDetails: `The SolidWorks service did not respond to ping within ${timeoutMs / 1000} seconds (${attemptCount} attempts). The service may have failed to initialize properly.`
+  }
 }
 
 // Detect if SolidWorks is installed
@@ -121,40 +390,56 @@ function handleSWServiceOutput(data: string): void {
   }
 }
 
-// Send a command to the SolidWorks service
-async function sendSWCommand(command: Record<string, unknown>): Promise<SWServiceResult> {
+/**
+ * Send a command to the SolidWorks service with queue management.
+ * Commands are queued to prevent overwhelming the service.
+ * @param command - Command object to send
+ * @param options - Optional settings including timeout and queue bypass
+ * @returns Promise resolving to command result
+ */
+async function sendSWCommand(
+  command: Record<string, unknown>,
+  options?: { timeoutMs?: number; bypassQueue?: boolean }
+): Promise<SWServiceResult> {
   if (!swServiceProcess?.stdin) {
     return { success: false, error: 'SolidWorks service not running. Start it first.' }
   }
   
+  // Ping commands bypass queue for immediate status checks
+  const bypassQueue = options?.bypassQueue || command.action === 'ping'
+  
+  if (bypassQueue) {
+    return executeCommandDirect(command, options)
+  }
+  
+  // Queue the command and process
   return new Promise((resolve) => {
-    const id = ++swRequestId
+    const stats = getQueueStats()
     
-    const timeout = setTimeout(() => {
-      swPendingRequests.delete(id)
-      resolve({ success: false, error: 'Command timed out' })
-    }, 300000)
+    if (stats.queueDepth > 10) {
+      log(`[SolidWorks Queue] High queue depth: ${stats.queueDepth} pending, ${stats.activeCommands} active`)
+    }
     
-    swPendingRequests.set(id, {
-      resolve: (result) => {
-        clearTimeout(timeout)
-        resolve(result)
-      },
-      reject: () => {
-        clearTimeout(timeout)
-        resolve({ success: false, error: 'Request rejected' })
-      }
+    commandQueue.push({
+      command,
+      options,
+      resolve,
+      queuedAt: Date.now()
     })
     
-    // Include requestId in command for response correlation
-    const commandWithId = { ...command, requestId: id }
-    const json = JSON.stringify(commandWithId) + '\n'
-    swServiceProcess!.stdin!.write(json)
+    // Trigger queue processing
+    processQueue()
   })
 }
 
-// Start the SolidWorks service process
+/**
+ * Start the SolidWorks service process.
+ * Uses polling-based startup confirmation instead of fixed delay.
+ * @param dmLicenseKey - Optional Document Manager license key
+ * @returns Promise resolving to service start result
+ */
 async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
+  const startTime = Date.now()
   log('[SolidWorks] startSWService called')
   
   if (!isSolidWorksInstalled()) {
@@ -162,19 +447,54 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
     return { 
       success: false, 
       error: 'SolidWorks not installed',
-      errorDetails: 'SolidWorks is not installed on this machine.'
+      errorDetails: 'SolidWorks is not installed on this machine. Please install SolidWorks to use this feature.'
     }
   }
 
   if (swServiceProcess) {
-    log('[SolidWorks] Service already running')
-    if (dmLicenseKey) {
-      const result = await sendSWCommand({ action: 'setDmLicense', licenseKey: dmLicenseKey })
-      if (result.success) {
-        return { success: true, data: { message: 'Service running, license key updated' } }
+    // First check if the process is still alive at the OS level
+    const pid = swServiceProcess.pid
+    const processAlive = pid && !swServiceProcess.killed && checkProcessExists(pid)
+    
+    if (processAlive) {
+      log('[SolidWorks] Process with PID ' + pid + ' is alive at OS level')
+    } else if (pid) {
+      log('[SolidWorks] Process with PID ' + pid + ' no longer exists')
+    }
+    
+    if (!processAlive) {
+      // Process is truly dead - clean up state (force since we verified it's dead)
+      log('[SolidWorks] Process is dead, cleaning up state')
+      clearServiceState('Process no longer exists', true)
+    } else {
+      // Process exists - verify it's responsive with a health ping (15 second timeout for busy service)
+      log('[SolidWorks] Checking existing process health...')
+      const pingResult = await sendSWCommand({ action: 'ping' }, { timeoutMs: 15000 })
+      
+      if (!pingResult.success) {
+        // Ping failed but process is alive - service may be busy, not stale
+        // Don't kill it! Just log a warning and return
+        log('[SolidWorks] Service process alive but not responding to ping (may be busy)')
+        log('[SolidWorks] Returning success to avoid killing busy service')
+        return { 
+          success: true, 
+          data: { 
+            message: 'Service running but busy, please wait',
+            busy: true
+          } 
+        }
+      } else {
+        // Process is alive and responsive
+        log('[SolidWorks] Service already running and healthy')
+        if (dmLicenseKey) {
+          const result = await sendSWCommand({ action: 'setDmLicense', licenseKey: dmLicenseKey })
+          if (result.success) {
+            return { success: true, data: { message: 'Service running, license key updated' } }
+          }
+        }
+        return { success: true, data: { message: 'Service already running' } }
       }
     }
-    return { success: true, data: { message: 'Service already running' } }
   }
   
   const serviceInfo = getSWServicePath()
@@ -186,13 +506,13 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
       return { 
         success: false, 
         error: 'SolidWorks service not bundled',
-        errorDetails: 'The SolidWorks service executable was not included in this build.'
+        errorDetails: 'The SolidWorks service executable was not included in this build. Please reinstall the application.'
       }
     } else {
       return { 
         success: false, 
         error: 'SolidWorks service not built',
-        errorDetails: `Expected at: ${servicePath}\n\nBuild it with: dotnet build solidworks-addin/BluePLM.SolidWorksService -c Release`
+        errorDetails: `Expected at: ${servicePath}\n\nBuild it with: dotnet build solidworks-service/BluePLM.SolidWorksService -c Release`
       }
     }
   }
@@ -204,42 +524,75 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
   
   return new Promise((resolve) => {
     try {
+      log('[SolidWorks] Spawning service process...')
       swServiceProcess = spawn(servicePath, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       })
+      
+      const pid = swServiceProcess.pid
+      // Save PID separately so we can detect if process is alive even if reference is lost
+      lastKnownServicePid = pid ?? null
+      log(`[SolidWorks] Service process spawned with PID: ${pid}`)
       
       swServiceProcess.stdout?.on('data', (data: Buffer) => {
         handleSWServiceOutput(data.toString())
       })
       
       swServiceProcess.stderr?.on('data', (data: Buffer) => {
-        log('[SolidWorks Service] ' + data.toString())
+        const stderr = data.toString().trim()
+        if (stderr) {
+          log('[SolidWorks Service stderr] ' + stderr)
+        }
       })
       
       swServiceProcess.on('error', (err) => {
+        // Error event can fire for IPC issues without the process dying
+        // Don't force clear - let clearServiceState verify process is dead
         log('[SolidWorks Service] Process error: ' + String(err))
-        swServiceProcess = null
+        clearServiceState(`Process error: ${String(err)}`, false)
       })
       
       swServiceProcess.on('close', (code, signal) => {
-        log('[SolidWorks Service] Process exited with code: ' + code + ' signal: ' + signal)
-        swServiceProcess = null
+        // Close event means process actually exited - force clear state
+        log(`[SolidWorks Service] Process exited with code: ${code}, signal: ${signal}`)
+        clearServiceState(`Process exited (code: ${code}, signal: ${signal})`, true)
       })
       
-      setTimeout(async () => {
-        try {
-          const pingResult = await sendSWCommand({ action: 'ping' })
-          log('[SolidWorks] Service started successfully')
-          resolve(pingResult)
-        } catch (err) {
-          log('[SolidWorks] Ping failed: ' + String(err))
-          resolve({ success: false, error: String(err) })
+      swServiceProcess.on('disconnect', () => {
+        // Disconnect can happen due to stdio issues without process dying
+        // Don't force clear - let clearServiceState verify process is dead
+        log('[SolidWorks Service] Process disconnected')
+        clearServiceState('Process disconnected', false)
+      })
+      
+      // Use polling to wait for service readiness instead of fixed delay
+      pollServiceUntilReady().then((result) => {
+        const totalTime = Date.now() - startTime
+        if (result.success) {
+          log(`[SolidWorks] Service started successfully in ${totalTime}ms`)
+        } else {
+          log(`[SolidWorks] Service failed to start after ${totalTime}ms: ${result.error}`)
         }
-      }, 1000)
+        resolve(result)
+      }).catch((err) => {
+        const totalTime = Date.now() - startTime
+        log(`[SolidWorks] Service startup error after ${totalTime}ms: ${String(err)}`)
+        resolve({ 
+          success: false, 
+          error: 'Service startup failed',
+          errorDetails: `An unexpected error occurred while starting the service: ${String(err)}`
+        })
+      })
       
     } catch (err) {
-      resolve({ success: false, error: String(err) })
+      const errorMsg = String(err)
+      log('[SolidWorks] Failed to spawn service process: ' + errorMsg)
+      resolve({ 
+        success: false, 
+        error: 'Failed to start service',
+        errorDetails: `Could not spawn service process: ${errorMsg}`
+      })
     }
   })
 }
@@ -436,30 +789,118 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return { success: true }
   })
 
+  ipcMain.handle('solidworks:force-restart', async (_, dmLicenseKey?: string) => {
+    log('[SolidWorks] Force restart requested')
+    
+    // Kill existing process if any
+    if (swServiceProcess) {
+      try {
+        swServiceProcess.kill('SIGKILL')
+      } catch { /* ignore */ }
+      swServiceProcess = null
+    }
+    
+    // Reject all pending requests
+    for (const [, req] of swPendingRequests) {
+      req.reject(new Error('Service force-restarted'))
+    }
+    swPendingRequests.clear()
+    
+    // Start fresh
+    return startSWService(dmLicenseKey)
+  })
+
   ipcMain.handle('solidworks:service-status', async () => {
     const swInstalled = isSolidWorksInstalled()
+    const queueStats = getQueueStats()
     
     if (!swInstalled) {
-      return { success: true, data: { running: false, installed: false } }
+      return { success: true, data: { running: false, installed: false, ...queueStats } }
     }
     
+    // If we don't have a process reference, check if we have a saved PID
+    // This handles the case where the reference was lost but process is still running
     if (!swServiceProcess) {
-      return { success: true, data: { running: false, installed: true } }
+      if (lastKnownServicePid && checkProcessExists(lastKnownServicePid)) {
+        log(`[SolidWorks] Status: No process reference but PID ${lastKnownServicePid} is alive - service is running but reference lost`)
+        // Process is alive but we lost the reference (likely due to IPC errors)
+        // Report as running but busy (we can't communicate with it reliably)
+        return { 
+          success: true, 
+          data: { 
+            running: true, 
+            busy: true, 
+            installed: true,
+            referenceRecoveryNeeded: true,
+            message: 'Service running but IPC connection lost - restart recommended',
+            ...queueStats 
+          } 
+        }
+      }
+      return { success: true, data: { running: false, installed: true, ...queueStats } }
     }
     
-    const result = await sendSWCommand({ action: 'ping' })
+    // First check if process is alive at OS level
+    const pid = swServiceProcess.pid
+    const processAlive = pid ? checkProcessExists(pid) : false
+    
+    if (!processAlive) {
+      log('[SolidWorks] Status check: process not alive at OS level, cleaning up')
+      clearServiceState('Process no longer exists (detected during status check)', true)
+      return { success: true, data: { running: false, installed: true, ...queueStats } }
+    }
+    
+    // Check ping cache to avoid redundant checks
+    const now = Date.now()
+    if (pingCache && (now - pingCache.timestamp) < PING_CACHE_TTL_MS) {
+      const cachedData = pingCache.result.data as Record<string, unknown> | undefined
+      return { 
+        success: true, 
+        data: { 
+          running: pingCache.result.success,
+          busy: !pingCache.result.success,
+          installed: true,
+          cached: true,
+          version: cachedData?.version,
+          swInstalled: cachedData?.swInstalled,
+          documentManagerAvailable: cachedData?.documentManagerAvailable,
+          documentManagerError: cachedData?.documentManagerError,
+          fastModeEnabled: cachedData?.fastModeEnabled,
+          ...queueStats
+        } 
+      }
+    }
+    
+    // Ping with short timeout (2s) to avoid blocking status checks
+    const result = await sendSWCommand(
+      { action: 'ping' }, 
+      { timeoutMs: STATUS_PING_TIMEOUT_MS, bypassQueue: true }
+    )
+    
+    // Cache the ping result
+    pingCache = { result, timestamp: now }
+    
     const data = result.data as Record<string, unknown> | undefined
+    
+    // If ping failed but process is alive, it's busy - not offline
+    const isBusy = !result.success && processAlive
+    
+    if (isBusy) {
+      log(`[SolidWorks] Status check: process alive but ping failed - marking as busy (queue: ${queueStats.queueDepth}, active: ${queueStats.activeCommands})`)
+    }
     
     return { 
       success: true, 
       data: { 
-        running: result.success, 
+        running: result.success,
+        busy: isBusy,
         installed: true, 
         version: data?.version,
         swInstalled: data?.swInstalled,
         documentManagerAvailable: data?.documentManagerAvailable,
         documentManagerError: data?.documentManagerError,
-        fastModeEnabled: data?.fastModeEnabled
+        fastModeEnabled: data?.fastModeEnabled,
+        ...queueStats
       } 
     }
   })
@@ -506,7 +947,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'exportPdf', filePath, outputPath })
   })
 
-  ipcMain.handle('solidworks:export-step', async (_, filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string }) => {
+  ipcMain.handle('solidworks:export-step', async (_, filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; revision?: string; description?: string } }) => {
     return sendSWCommand({ action: 'exportStep', filePath, ...options })
   })
 
@@ -648,7 +1089,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
 export function unregisterSolidWorksHandlers(): void {
   const handlers = [
     'solidworks:extract-thumbnail', 'solidworks:extract-preview',
-    'solidworks:start-service', 'solidworks:stop-service', 'solidworks:service-status', 'solidworks:is-installed',
+    'solidworks:start-service', 'solidworks:stop-service', 'solidworks:force-restart', 'solidworks:service-status', 'solidworks:is-installed',
     'solidworks:get-bom', 'solidworks:get-properties', 'solidworks:set-properties', 'solidworks:set-properties-batch',
     'solidworks:get-configurations', 'solidworks:get-references', 'solidworks:get-preview', 'solidworks:get-mass-properties',
     'solidworks:export-pdf', 'solidworks:export-step', 'solidworks:export-dxf', 'solidworks:export-iges', 'solidworks:export-image',
@@ -663,4 +1104,39 @@ export function unregisterSolidWorksHandlers(): void {
   for (const handler of handlers) {
     ipcMain.removeHandler(handler)
   }
+}
+
+/**
+ * Cleanup function to be called on app quit.
+ * Gracefully stops the SolidWorks service and clears all state.
+ * Should be registered with app.on('before-quit').
+ */
+export async function cleanupSolidWorksService(): Promise<void> {
+  log('[SolidWorks] Cleaning up service on app quit...')
+  
+  if (!swServiceProcess) {
+    log('[SolidWorks] No service process to clean up')
+    return
+  }
+  
+  try {
+    // Try to send quit command gracefully (short timeout)
+    log('[SolidWorks] Sending quit command to service...')
+    await sendSWCommand({ action: 'quit' }, { timeoutMs: 2000 })
+  } catch {
+    log('[SolidWorks] Quit command failed or timed out, will kill process')
+  }
+  
+  // Force kill if still running
+  if (swServiceProcess) {
+    try {
+      log('[SolidWorks] Killing service process...')
+      swServiceProcess.kill('SIGKILL')
+    } catch (err) {
+      log('[SolidWorks] Error killing process: ' + String(err))
+    }
+  }
+  
+  clearServiceState('App quit cleanup', true)
+  log('[SolidWorks] Service cleanup complete')
 }

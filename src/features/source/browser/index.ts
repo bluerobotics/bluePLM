@@ -146,7 +146,9 @@ export {
   getFolderCheckoutStatus,
   isFolderSynced,
   // Processing Status
-  isPathBeingProcessed,
+  getProcessingOperation,
+  getFileProcessingOperation,
+  getFolderProcessingOperation,
   // Keybindings
   matchesKeybinding,
   // Config Tree

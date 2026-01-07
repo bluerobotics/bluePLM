@@ -1,6 +1,7 @@
 // Folder tree item component for the explorer
-import { ChevronRight, ChevronDown, FolderOpen, Loader2 } from 'lucide-react'
+import { ChevronRight, ChevronDown, FolderOpen } from 'lucide-react'
 import { LocalFile } from '@/stores/pdmStore'
+import type { OperationType } from '@/stores/types'
 import { FolderActionButtons } from './TreeItemActions'
 import { TREE_BASE_PADDING_PX, TREE_INDENT_PX, DIFF_STATUS_CLASS_PREFIX } from './constants'
 import type { CheckoutUser } from '@/components/shared/FileItem'
@@ -21,7 +22,7 @@ interface FolderTreeItemProps {
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
-  isProcessing: boolean
+  operationType: OperationType | null
   isDragTarget: boolean
   isCut: boolean
   // Folder stats
@@ -58,7 +59,7 @@ export function FolderTreeItem({
   onDragOver,
   onDragLeave,
   onDrop,
-  isProcessing,
+  operationType,
   isDragTarget,
   isCut,
   diffCounts,
@@ -72,14 +73,11 @@ export function FolderTreeItem({
   children,
   onRefresh
 }: FolderTreeItemProps) {
+  const isProcessing = operationType !== null
   const diffClass = file.diffStatus ? `${DIFF_STATUS_CLASS_PREFIX}${file.diffStatus}` : ''
   
-  // Get folder icon with appropriate color
+  // Get folder icon with appropriate color - spinners are on action buttons, not icons
   const getFolderIcon = () => {
-    if (isProcessing) {
-      return <Loader2 size={16} className="text-sky-400 animate-spin" />
-    }
-    
     // Cloud-only folders - muted color
     if (file.diffStatus === 'cloud') {
       return <FolderOpen size={16} className="text-plm-fg-muted" />
@@ -150,7 +148,7 @@ export function FolderTreeItem({
           checkedOutByMeCount={checkedOutByMeCount}
           totalCheckouts={totalCheckouts}
           syncedCount={syncedCount}
-          isProcessing={isProcessing}
+          operationType={operationType}
           onRefresh={onRefresh}
         />
       </div>

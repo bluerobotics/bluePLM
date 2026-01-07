@@ -11,8 +11,10 @@
 import type { Command, SyncParams, CommandResult } from '../types'
 import { getUnsyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
-import { syncFile } from '../../supabase'
+import { syncFile, upsertFileReferences } from '../../supabase'
+import type { SWReference } from '../../supabase/files/mutations'
 import { usePDMStore } from '../../../stores/pdmStore'
+import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 
 // Helper to check if file is a SolidWorks temp lock file (~$filename.sldxxx)
 function isSolidworksTempFile(name: string): boolean {
@@ -21,6 +23,9 @@ function isSolidworksTempFile(name: string): boolean {
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+
+// Only assemblies have references to extract
+const ASSEMBLY_EXTENSIONS = ['.sldasm']
 
 /**
  * Extract metadata from SolidWorks file using the SW service
@@ -40,10 +45,11 @@ async function extractSolidWorksMetadata(
     return null
   }
   
-  // Check if SolidWorks service is available
+  // Check if SolidWorks service is available AND Document Manager is initialized
+  // DM requires a license key to be configured - without it, getProperties will hang
   const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
-  if (!status?.data?.running) {
-    console.debug('[Sync] SolidWorks service not running, skipping metadata extraction')
+  if (!status?.data?.running || !status?.data?.documentManagerAvailable) {
+    console.debug('[Sync] SolidWorks service not running or DM not available, skipping metadata extraction')
     return null
   }
   
@@ -233,32 +239,35 @@ async function extractSolidWorksMetadata(
   }
 }
 
-// Concurrency limiter - processes items with max N concurrent operations
-async function processWithConcurrency<T, R>(
-  items: T[],
-  maxConcurrent: number,
-  processor: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  let nextIndex = 0
-  
-  async function worker() {
-    while (nextIndex < items.length) {
-      const index = nextIndex++
-      results[index] = await processor(items[index])
-    }
+// Detailed logging for sync operations
+function logSync(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
+  const prefix = '[Sync]'
+  if (level === 'error') {
+    console.error(prefix, message, context)
+  } else if (level === 'warn') {
+    console.warn(prefix, message, context)
+  } else if (level === 'debug') {
+    console.debug(prefix, message, context)
+  } else {
+    console.log(prefix, message, context)
   }
   
-  // Start maxConcurrent workers
-  await Promise.all(
-    Array.from({ length: Math.min(maxConcurrent, items.length) }, () => worker())
-  )
-  
-  return results
+  try {
+    window.electronAPI?.log(level, `${prefix} ${message}`, context)
+  } catch {
+    // Ignore if electronAPI not available
+  }
 }
 
-// Maximum concurrent file uploads (prevents connection pool exhaustion)
-const CONCURRENT_UPLOADS = 20
+/**
+ * Synced file info for reference extraction
+ */
+interface SyncedFileInfo {
+  fileId: string
+  fileName: string
+  filePath: string  // Local absolute path
+  extension: string
+}
 
 export const syncCommand: Command<SyncParams> = {
   id: 'sync',
@@ -298,7 +307,7 @@ export const syncCommand: Command<SyncParams> = {
     return null
   },
   
-  async execute({ files }, ctx): Promise<CommandResult> {
+  async execute({ files, extractReferences }, ctx): Promise<CommandResult> {
     const user = ctx.user!
     const organization = ctx.organization!
     const activeVaultId = ctx.activeVaultId!
@@ -328,39 +337,8 @@ export const syncCommand: Command<SyncParams> = {
       .map(f => f.relativePath)
     const filesBeingProcessed = filesToSync.map(f => f.relativePath)
 
-    // Find all parent folders that contain files being synced
-    // This ensures subfolders show spinners, not just the selected root
-    const parentFolderPaths = new Set<string>()
-    for (const file of filesToSync) {
-      const parts = file.relativePath.replace(/\\/g, '/').split('/')
-      // Build each parent path level (skip the filename itself)
-      for (let i = 1; i < parts.length; i++) {
-        parentFolderPaths.add(parts.slice(0, i).join('/'))
-      }
-    }
-
-    // Also find child folders of selected folders that contain local-only files
-    const childFolderPaths: string[] = []
-    for (const selectedFolder of foldersBeingProcessed) {
-      const normalizedSelected = selectedFolder.replace(/\\/g, '/')
-      // Find folders that are children of this selected folder
-      const childFolders = ctx.files.filter(f => {
-        if (!f.isDirectory) return false
-        const normalizedPath = f.relativePath.replace(/\\/g, '/')
-        return normalizedPath.startsWith(normalizedSelected + '/')
-      }).map(f => f.relativePath)
-      childFolderPaths.push(...childFolders)
-    }
-
-    // Combine all paths that need spinners (deduplicated)
-    const allPathsBeingProcessed = [
-      ...new Set([
-        ...foldersBeingProcessed,
-        ...filesBeingProcessed,
-        ...parentFolderPaths,
-        ...childFolderPaths
-      ])
-    ]
+    // Only track actual files being processed - folders show spinners via computed state
+    const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
     ctx.addProcessingFolders(allPathsBeingProcessed, 'upload')
     
     // Yield to event loop so React can render spinners before starting operation
@@ -385,7 +363,10 @@ export const syncCommand: Command<SyncParams> = {
     // Process all files in parallel, collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
-    const results = await processWithConcurrency(filesToSync, CONCURRENT_UPLOADS, async (file) => {
+    // Track synced file info for reference extraction
+    const syncedFileInfos: SyncedFileInfo[] = []
+    
+    const results = await processWithConcurrency(filesToSync, CONCURRENT_OPERATIONS, async (file) => {
       try {
         const readResult = await window.electronAPI?.readFile(file.path)
         
@@ -418,7 +399,18 @@ export const syncCommand: Command<SyncParams> = {
           updates: { pdmData: syncedFile, localHash: readResult.hash, diffStatus: undefined }
         })
         progress.update()
-        return { success: true }
+        
+        // Track synced file info for reference extraction
+        const typedSyncedFile = syncedFile as { id: string }
+        return { 
+          success: true, 
+          fileInfo: {
+            fileId: typedSyncedFile.id,
+            fileName: file.name,
+            filePath: file.path,
+            extension: file.extension
+          }
+        }
         
       } catch (err) {
         progress.update()
@@ -431,10 +423,14 @@ export const syncCommand: Command<SyncParams> = {
       ctx.updateFilesInStore(pendingUpdates)
     }
     
-    // Count results
+    // Count results and collect synced file infos
     for (const result of results) {
-      if (result.success) succeeded++
-      else {
+      if (result.success) {
+        succeeded++
+        if (result.fileInfo) {
+          syncedFileInfos.push(result.fileInfo)
+        }
+      } else {
         failed++
         if (result.error) errors.push(result.error)
       }
@@ -444,11 +440,65 @@ export const syncCommand: Command<SyncParams> = {
     ctx.removeProcessingFolders(allPathsBeingProcessed)
     const { duration } = progress.finish()
     
-    // Show result
+    // Show sync result
     if (failed > 0) {
       ctx.addToast('warning', `Synced ${succeeded}/${total} files`)
     } else {
       ctx.addToast('success', `Synced ${succeeded} file${succeeded > 1 ? 's' : ''} to cloud`)
+    }
+    
+    // Extract assembly references if requested
+    // This is useful for importing existing vaults with assemblies
+    if (extractReferences && syncedFileInfos.length > 0) {
+      const assemblyInfos = syncedFileInfos.filter(info => 
+        ASSEMBLY_EXTENSIONS.includes(info.extension.toLowerCase())
+      )
+      
+      if (assemblyInfos.length > 0) {
+        logSync('info', 'Starting reference extraction phase', { 
+          assemblyCount: assemblyInfos.length 
+        })
+        
+        // Show progress toast for reference extraction
+        const refToastId = `sync-refs-${Date.now()}`
+        ctx.addProgressToast(
+          refToastId, 
+          `Extracting assembly references (0/${assemblyInfos.length})...`, 
+          assemblyInfos.length
+        )
+        
+        // Create a wrapper that updates progress
+        let refProgress = 0
+        const updateRefProgress = () => {
+          refProgress++
+          ctx.updateProgressToast(
+            refToastId, 
+            refProgress, 
+            Math.round((refProgress / assemblyInfos.length) * 100),
+            undefined,
+            `Extracting references (${refProgress}/${assemblyInfos.length})`
+          )
+        }
+        
+        // Process assemblies with progress tracking
+        const refResult = await extractAssemblyReferencesWithProgress(
+          assemblyInfos,
+          organization.id,
+          activeVaultId,
+          ctx.vaultPath || undefined,
+          updateRefProgress
+        )
+        
+        ctx.removeToast(refToastId)
+        
+        if (refResult.processed > 0) {
+          ctx.addToast('success', `Extracted references for ${refResult.processed} assembl${refResult.processed > 1 ? 'ies' : 'y'}`)
+        } else if (refResult.skipped > 0) {
+          ctx.addToast('info', `Skipped reference extraction (SW service not running or no references found)`)
+        }
+        
+        logSync('info', 'Reference extraction complete', refResult)
+      }
     }
     
     return {
@@ -463,3 +513,88 @@ export const syncCommand: Command<SyncParams> = {
   }
 }
 
+/**
+ * Extract references with progress callback
+ */
+async function extractAssemblyReferencesWithProgress(
+  assemblies: SyncedFileInfo[],
+  orgId: string,
+  vaultId: string,
+  vaultRootPath: string | undefined,
+  onProgress: () => void
+): Promise<{ processed: number; skipped: number; errors: number }> {
+  let processed = 0
+  let skipped = 0
+  let errors = 0
+  
+  // Check if SolidWorks service is running
+  const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+  if (!status?.data?.running) {
+    logSync('info', 'Skipping reference extraction - SW service not running', { 
+      assemblyCount: assemblies.length 
+    })
+    return { processed: 0, skipped: assemblies.length, errors: 0 }
+  }
+  
+  // Process assemblies sequentially to avoid overwhelming the SW service
+  for (const assembly of assemblies) {
+    try {
+      // Call SolidWorks service to get references
+      const result = await window.electronAPI?.solidworks?.getReferences?.(assembly.filePath)
+      
+      if (!result?.success || !result.data?.references) {
+        skipped++
+        onProgress()
+        continue
+      }
+      
+      const swRefs = result.data.references as Array<{
+        path: string
+        fileName: string
+        exists: boolean
+        fileType: string
+      }>
+      
+      if (swRefs.length === 0) {
+        skipped++
+        onProgress()
+        continue
+      }
+      
+      // Convert SW service format to our SWReference format
+      const references: SWReference[] = swRefs.map(ref => ({
+        childFilePath: ref.path,
+        quantity: 1,
+        referenceType: ref.fileType === 'assembly' ? 'component' : 
+                       ref.fileType === 'part' ? 'component' : 'reference',
+        configuration: undefined
+      }))
+      
+      // Store references in database (pass vault root for better path matching)
+      const upsertResult = await upsertFileReferences(orgId, vaultId, assembly.fileId, references, vaultRootPath)
+      
+      if (upsertResult.success) {
+        processed++
+        if (upsertResult.skippedReasons && upsertResult.skippedReasons.length > 0) {
+          logSync('debug', 'Some references skipped', {
+            fileName: assembly.fileName,
+            skippedReasons: upsertResult.skippedReasons
+          })
+        }
+      } else {
+        errors++
+      }
+      
+    } catch (err) {
+      logSync('warn', 'Reference extraction failed', {
+        fileName: assembly.fileName,
+        error: err instanceof Error ? err.message : String(err)
+      })
+      errors++
+    }
+    
+    onProgress()
+  }
+  
+  return { processed, skipped, errors }
+}

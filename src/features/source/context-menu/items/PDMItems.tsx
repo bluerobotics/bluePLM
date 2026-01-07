@@ -1,8 +1,8 @@
 // src/features/source/context-menu/items/PDMItems.tsx
-import { ArrowDown, ArrowUp, Undo2, RefreshCw } from 'lucide-react'
+import { ArrowDown, ArrowUp, Undo2, RefreshCw, Network } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { executeCommand, getSyncedFilesFromSelection } from '@/lib/commands'
-import { SW_EXTENSIONS } from '../constants'
+import { SW_EXTENSIONS, ASSEMBLY_EXTENSIONS } from '../constants'
 
 interface PDMItemsProps {
   files: LocalFile[]
@@ -89,9 +89,19 @@ export function PDMItems({
     executeCommand('sync-sw-metadata', { files: contextFiles }, { onRefresh })
   }
 
+  const handleExtractReferences = () => {
+    onClose()
+    executeCommand('extract-references', { files: contextFiles }, { onRefresh })
+  }
+
   // Get synced SolidWorks files (works for both files and folders)
   const syncedSolidWorksFiles = syncedFilesInSelection.filter(f => 
     SW_EXTENSIONS.includes(f.extension.toLowerCase())
+  )
+
+  // Get synced assembly files (for BOM/reference extraction)
+  const syncedAssemblyFiles = syncedFilesInSelection.filter(f => 
+    ASSEMBLY_EXTENSIONS.includes(f.extension.toLowerCase())
   )
 
   return (
@@ -166,6 +176,18 @@ export function PDMItems({
         >
           <RefreshCw size={14} className="text-plm-accent" />
           Refresh Metadata {syncedSolidWorksFiles.length > 1 ? `(${syncedSolidWorksFiles.length} files)` : ''}
+        </div>
+      )}
+
+      {/* Extract Assembly References - for synced assembly files */}
+      {syncedAssemblyFiles.length > 0 && (
+        <div 
+          className="context-menu-item"
+          onClick={handleExtractReferences}
+          title="Extract and store assembly component references to enable Contains/Where-Used queries"
+        >
+          <Network size={14} className="text-plm-accent" />
+          Extract References {syncedAssemblyFiles.length > 1 ? `(${syncedAssemblyFiles.length} assemblies)` : ''}
         </div>
       )}
     </>
