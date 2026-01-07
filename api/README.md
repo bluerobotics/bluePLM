@@ -95,7 +95,8 @@ The server will start on `http://127.0.0.1:3001` by default.
 | `SUPABASE_URL` | - | Supabase project URL (required) |
 | `SUPABASE_KEY` | - | Supabase anon key (required) |
 | `SUPABASE_SERVICE_KEY` | - | Service role key (required for user invites) |
-| `API_PORT` | `3001` | Port to listen on |
+| `PORT` | `3001` | Port to listen on (auto-set by Railway/Render/Fly.io) |
+| `API_PORT` | - | Override port (fallback if PORT not set) |
 | `API_HOST` | `0.0.0.0` | Host to bind to |
 | `RATE_LIMIT_MAX` | `100` | Max requests per window |
 | `RATE_LIMIT_WINDOW` | `60000` | Time window in ms (60s) |
@@ -109,7 +110,7 @@ Each organization hosts their own API server. This keeps your data under your co
 
 ### Deploy from Docker Image (Recommended)
 
-The easiest way - no repo access needed:
+The easiest way - no repo access needed. The API automatically detects the `PORT` provided by PaaS platforms.
 
 **Railway:**
 1. Go to [railway.app/new](https://railway.app/new)
@@ -117,6 +118,8 @@ The easiest way - no repo access needed:
 3. Enter: `ghcr.io/bluerobotics/blueplm-api:latest`
 4. Add variables: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_KEY`
 5. Deploy!
+
+> **Note**: The API automatically uses Railway's `PORT` environment variable. No port configuration needed.
 
 **Render:**
 1. Go to [render.com](https://render.com) → New → Web Service

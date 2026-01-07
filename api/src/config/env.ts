@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
+// PORT is the standard env var for Railway/Render/Heroku/Fly.io
+// API_PORT is our custom fallback, 3001 is the local dev default
+const portDefault = process.env.PORT || process.env.API_PORT || '3001';
+
 const envSchema = z.object({
-  API_PORT: z.coerce.number().default(3001),
+  API_PORT: z.coerce.number().default(parseInt(portDefault, 10)),
   API_HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   
