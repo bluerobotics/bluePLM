@@ -46,6 +46,7 @@ import {
   useWorkflowRoles,
   useJobTitles,
   useVaultAccess,
+  useInvites,
   // Dialog state hooks
   useTeamDialogs,
   useUserDialogs,
@@ -76,6 +77,7 @@ export function TeamMembersSettings() {
   // ===== DATA HOOKS =====
   const { teams, isLoading: teamsLoading, loadTeams, createTeam } = useTeams(orgId)
   const { members: orgUsers, isLoading: membersLoading, loadMembers } = useMembers(orgId)
+  const { loadPendingMembers } = useInvites(orgId)
   const { workflowRoles, isLoading: rolesLoading, createWorkflowRole } = useWorkflowRoles(orgId)
   const { jobTitles, isLoading: titlesLoading, createJobTitle } = useJobTitles(orgId)
   const { vaults } = useVaultAccess(orgId)
@@ -725,7 +727,10 @@ export function TeamMembersSettings() {
       {showCreateUserDialog && orgId && (
         <CreateUserDialog
           onClose={() => setShowCreateUserDialog(false)}
-          onCreated={() => loadMembers()}
+          onCreated={() => {
+            loadMembers()
+            loadPendingMembers()
+          }}
           teams={teams}
           orgId={orgId}
           currentUserId={user?.id}

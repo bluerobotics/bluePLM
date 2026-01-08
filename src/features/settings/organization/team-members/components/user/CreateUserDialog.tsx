@@ -106,8 +106,10 @@ export function CreateUserDialog({
         // If user already has an account, copy org code to clipboard
         if (result.existing_user && result.org_code) {
           await copyToClipboard(result.org_code)
+          log.info('[CreateUser]', 'User already has account, org code copied', { email: email.toLowerCase().trim() })
           addToast('success', `${result.message} (copied to clipboard)`)
         } else {
+          log.info('[CreateUser]', 'Invite sent via API', { email: email.toLowerCase().trim() })
           addToast('success', result.message || `Invite sent to ${email}`)
         }
         onCreated()
@@ -161,6 +163,7 @@ export function CreateUserDialog({
         return
       }
       
+      log.info('[CreateUser]', 'Created pending member', { email: normalizedEmail })
       addToast('success', `Created pending account for ${email}. They will be set up automatically when they sign in.`)
       onCreated()
       onClose()

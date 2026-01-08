@@ -45,7 +45,9 @@ export function useInvites(orgId: string | null) {
       if (error) throw error
       
       // Cast to our PendingMember type
-      setPendingMembers(castQueryResult<PendingMember[]>(data || []))
+      const members = castQueryResult<PendingMember[]>(data || [])
+      log.info('[Invites]', 'Loaded pending members', { count: members.length })
+      setPendingMembers(members)
     } catch (err) {
       log.error('[Invites]', 'Failed to load pending members', { error: err })
     } finally {
