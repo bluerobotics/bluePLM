@@ -26,7 +26,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 36
+export const EXPECTED_SCHEMA_VERSION = 37
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -70,6 +70,7 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   34: 'Extended checkin_file RPC with p_custom_properties for config metadata',
   35: 'Extended checkin_file RPC with p_new_file_path/p_new_file_name params for batch optimization',
   36: 'Added DROP before CREATE for RPC functions to prevent overload ambiguity',
+  37: 'Fixed file RLS policies to use module:explorer instead of undefined system:files',
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

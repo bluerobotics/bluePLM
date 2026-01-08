@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.1.2] - 2026-01-08
+
+### Fixed
+- **Non-admin users unable to sync files**: Fixed RLS policy bug where file insert/update/delete operations used `system:files` permission which didn't exist in the permission system. Only org admins could bypass this check, causing all non-admin users (engineers, etc.) to see "0 out of N files uploaded" errors. Changed policies to use `module:explorer` which is properly configurable via team permissions
+
+---
+
 ## [3.1.1] - 2026-01-07
 
 ### Added

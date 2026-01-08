@@ -1282,17 +1282,17 @@ CREATE POLICY "Users can view org files"
 DROP POLICY IF EXISTS "Engineers can insert files" ON files;
 CREATE POLICY "Engineers can insert files"
   ON files FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'create'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'create'));
 
 DROP POLICY IF EXISTS "Engineers can update files" ON files;
 CREATE POLICY "Engineers can update files"
   ON files FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'edit'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
 
 DROP POLICY IF EXISTS "Admins can delete files" ON files;
 CREATE POLICY "Admins can delete files"
   ON files FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'delete'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'delete'));
 
 -- File Versions
 DROP POLICY IF EXISTS "Users can view file versions" ON file_versions;
@@ -1303,7 +1303,7 @@ CREATE POLICY "Users can view file versions"
 DROP POLICY IF EXISTS "Engineers can manage file versions" ON file_versions;
 CREATE POLICY "Engineers can manage file versions"
   ON file_versions FOR ALL
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('system:files', 'edit'));
+  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:explorer', 'edit'));
 
 -- Release Files
 DROP POLICY IF EXISTS "Users can view org release files" ON release_files;
@@ -1314,7 +1314,7 @@ CREATE POLICY "Users can view org release files"
 DROP POLICY IF EXISTS "Engineers can manage release files" ON release_files;
 CREATE POLICY "Engineers can manage release files"
   ON release_files FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'edit'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
 
 -- File References
 DROP POLICY IF EXISTS "Users can view file references" ON file_references;
@@ -1325,7 +1325,7 @@ CREATE POLICY "Users can view file references"
 DROP POLICY IF EXISTS "Engineers can manage references" ON file_references;
 CREATE POLICY "Engineers can manage references"
   ON file_references FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'edit'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
 
 -- Activity
 DROP POLICY IF EXISTS "Users can view org activity" ON activity;
@@ -1491,7 +1491,7 @@ CREATE POLICY "Users can view share links in org"
 DROP POLICY IF EXISTS "Engineers can create share links" ON file_share_links;
 CREATE POLICY "Engineers can create share links"
   ON file_share_links FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:files', 'create'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'create'));
 
 DROP POLICY IF EXISTS "Users can update own share links" ON file_share_links;
 CREATE POLICY "Users can update own share links"
