@@ -243,7 +243,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           vault_ids: vault_ids || [],
           workflow_role_ids: workflow_role_ids || [],
           notes: notes || null,
-          created_by: user.id
+          invited_by: user.id
         })
         .select('id')
         .single()

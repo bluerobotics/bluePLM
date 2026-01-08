@@ -165,7 +165,10 @@ export function CreateUserDialog({
       onCreated()
       onClose()
     } catch (err) {
-      log.error('[CreateUser]', 'Failed to create pending user', { error: err })
+      log.error('[CreateUser]', 'Failed to create pending user', { 
+        error: err instanceof Error ? err.message : String(err),
+        code: (err as { code?: string })?.code 
+      })
       addToast('error', 'Failed to create user account')
     } finally {
       setIsSaving(false)
