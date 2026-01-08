@@ -539,6 +539,12 @@ CREATE TABLE IF NOT EXISTS pending_org_members (
   UNIQUE(org_id, email)
 );
 
+-- Ensure columns exist for tables created with older schema versions
+ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS vault_ids UUID[] DEFAULT '{}';
+ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS workflow_role_ids UUID[] DEFAULT '{}';
+ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS notes TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_pending_org_members_org_id ON pending_org_members(org_id);
 CREATE INDEX IF NOT EXISTS idx_pending_org_members_email ON pending_org_members(email);
 
