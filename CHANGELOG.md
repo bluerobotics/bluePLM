@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.2.2] - 2026-01-08
+
+### Fixed
+- **App process not terminating on window close**: Fixed issue where closing the BluePLM window would leave the process running in the task manager. The app now properly cleans up all child processes, HTTP servers, and connections before exiting
+
+---
+
 ## [3.2.1] - 2026-01-08
 
 ### Fixed

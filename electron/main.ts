@@ -7,7 +7,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import * as Sentry from '@sentry/electron/main'
 
-import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService, cleanupExtensionHost, performMigrationCheck, wasMigrationPerformed } from './handlers'
+import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService, cleanupExtensionHost, cleanupOAuth, performMigrationCheck, wasMigrationPerformed } from './handlers'
 import { createAppMenu } from './menu'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -440,8 +440,20 @@ app.on('window-all-closed', () => {
   }
 })
 
+// Track if we're already quitting to prevent re-entry
+let isQuitting = false
+
 // Cleanup on app quit
-app.on('before-quit', async () => {
+app.on('before-quit', async (event) => {
+  // Prevent re-entry during cleanup
+  if (isQuitting) {
+    return
+  }
+  
+  // Prevent default quit behavior to allow async cleanup
+  event.preventDefault()
+  isQuitting = true
+  
   log('App quitting, cleaning up...')
   
   // Cleanup Extension Host
@@ -458,6 +470,17 @@ app.on('before-quit', async () => {
     logError('Failed to cleanup SolidWorks service', { error: String(err) })
   }
   
+  // Cleanup OAuth servers
+  cleanupOAuth()
+  
   // Cleanup CLI
   cleanupCli()
+  
+  log('Cleanup complete, forcing exit...')
+  
+  // Force exit the process - app.quit() would trigger before-quit again
+  // Use a small delay to ensure logs are flushed
+  setTimeout(() => {
+    app.exit(0)
+  }, 100)
 })

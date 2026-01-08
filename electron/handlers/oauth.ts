@@ -528,3 +528,11 @@ export function unregisterOAuthHandlers(): void {
     ipcMain.removeHandler(handler)
   }
 }
+
+/**
+ * Cleanup OAuth resources on app quit.
+ * Closes any active OAuth callback servers.
+ */
+export function cleanupOAuth(): void {
+  cleanupOAuthServer()
+}

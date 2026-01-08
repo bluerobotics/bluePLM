@@ -8,7 +8,7 @@ import { registerDialogHandlers, unregisterDialogHandlers, DialogHandlerDependen
 import { registerSystemHandlers, unregisterSystemHandlers, SystemHandlerDependencies } from './system'
 import { registerLoggingHandlers, unregisterLoggingHandlers, writeLog, initializeLogging, LoggingHandlerDependencies } from './logging'
 import { registerUpdaterHandlers, unregisterUpdaterHandlers, UpdaterHandlerDependencies } from './updater'
-import { registerOAuthHandlers, unregisterOAuthHandlers, OAuthHandlerDependencies } from './oauth'
+import { registerOAuthHandlers, unregisterOAuthHandlers, cleanupOAuth, OAuthHandlerDependencies } from './oauth'
 import { registerCliHandlers, unregisterCliHandlers, startCliServer, cleanupCli, CliHandlerDependencies } from './cli'
 import { performMigrationCheck, getMigrationResult, wasMigrationPerformed, isMigrationPending, acknowledgeMigration, getMigrationStatus } from './migration'
 import { registerExtensionHostHandlers, unregisterExtensionHostHandlers, cleanupExtensionHost, onExtensionStateChange, type ExtensionHostHandlerDependencies } from './extensionHost'
@@ -24,6 +24,9 @@ export { startCliServer, cleanupCli } from './cli'
 
 // Extension Host exports for main.ts
 export { cleanupExtensionHost, onExtensionStateChange } from './extensionHost'
+
+// OAuth cleanup for main.ts
+export { cleanupOAuth } from './oauth'
 
 // Re-export getters
 export { getWorkingDirectory } from './fs'

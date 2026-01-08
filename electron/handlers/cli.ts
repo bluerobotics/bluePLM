@@ -43,6 +43,7 @@ let logError: (message: string, data?: unknown) => void = console.error
 let cliServer: http.Server | null = null
 let currentToken: string | null = null
 const pendingCliRequests: Map<string, PendingRequest> = new Map()
+const activeConnections: Set<import('net').Socket> = new Set()
 
 const CLI_PORT = 31337
 const TOKEN_LENGTH = 32 // 32 bytes = 64 hex characters
@@ -346,6 +347,14 @@ export function startCliServer(): void {
     })
   })
   
+  // Track connections so we can forcefully destroy them on shutdown
+  cliServer.on('connection', (socket) => {
+    activeConnections.add(socket)
+    socket.on('close', () => {
+      activeConnections.delete(socket)
+    })
+  })
+  
   cliServer.listen(CLI_PORT, '127.0.0.1', () => {
     log(`[CLI Server] Listening on http://127.0.0.1:${CLI_PORT}`)
     console.log(`\n📟 BluePLM CLI Server running on port ${CLI_PORT}`)
@@ -363,9 +372,16 @@ export function startCliServer(): void {
 
 /**
  * Stop the CLI server.
+ * Destroys all active connections to ensure immediate shutdown.
  */
 export function stopCliServer(): void {
   if (cliServer) {
+    // Destroy all active connections immediately
+    for (const socket of activeConnections) {
+      socket.destroy()
+    }
+    activeConnections.clear()
+    
     cliServer.close()
     cliServer = null
     log('[CLI Server] Stopped')
