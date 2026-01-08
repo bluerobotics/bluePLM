@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.2.1] - 2026-01-08
+
+### Fixed
+- **App crash on startup after update**: Fixed critical bug where Extension Host files were not bundled for production builds, causing immediate crash when opening the app after updating to 3.2.0
+
+---
+
 ## [3.2.0] - 2026-01-08
 
 ### Added

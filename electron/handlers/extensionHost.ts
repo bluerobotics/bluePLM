@@ -61,6 +61,7 @@ let hostState: ExtensionHostState = {
 let deps: ExtensionHostHandlerDependencies | null = null
 let mainWindow: BrowserWindow | null = null
 let stateCallbacks: ExtensionStateCallback[] = []
+let isShuttingDown = false
 
 // Pending API calls waiting for responses
 const pendingApiCalls: Map<string, {
@@ -96,7 +97,7 @@ function createExtensionHostWindow(): BrowserWindow {
     show: false, // Always hidden - it's a background process
     title: 'BluePLM Extension Host',
     webPreferences: {
-      preload: path.join(currentDir, '../extension-host/preload.js'),
+      preload: path.join(currentDir, 'extension-host/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false // Required for extension loading
@@ -104,7 +105,7 @@ function createExtensionHostWindow(): BrowserWindow {
   })
   
   // Load the Extension Host HTML
-  const hostHtmlPath = path.join(currentDir, '../extension-host/host.html')
+  const hostHtmlPath = path.join(currentDir, 'extension-host/host.html')
   
   hostWindow.loadFile(hostHtmlPath).catch(err => {
     deps?.logError('Failed to load Extension Host HTML', { error: String(err) })
@@ -134,6 +135,12 @@ function createExtensionHostWindow(): BrowserWindow {
  * Handle Extension Host crash with auto-restart
  */
 function handleHostCrash(reason: string): void {
+  // Don't attempt restart if app is shutting down
+  if (isShuttingDown) {
+    deps?.log('Extension Host closed during shutdown (expected)')
+    return
+  }
+  
   deps?.logError('Extension Host crashed', { reason, restartCount: hostState.restartCount })
   
   hostState.lastError = reason
@@ -147,6 +154,7 @@ function handleHostCrash(reason: string): void {
   
   // Restart after delay
   setTimeout(() => {
+    if (isShuttingDown) return // Double-check before restart
     deps?.log('Restarting Extension Host')
     initializeExtensionHost()
   }, 1000 * hostState.restartCount) // Exponential backoff
@@ -156,13 +164,19 @@ function handleHostCrash(reason: string): void {
  * Initialize the Extension Host
  */
 function initializeExtensionHost(): void {
-  if (hostState.window && !hostState.window.isDestroyed()) {
-    deps?.log('Extension Host already running')
-    return
+  try {
+    if (hostState.window && !hostState.window.isDestroyed()) {
+      deps?.log('Extension Host already running')
+      return
+    }
+    
+    hostState.startTime = Date.now()
+    hostState.window = createExtensionHostWindow()
+  } catch (err) {
+    deps?.logError('Failed to initialize Extension Host', { error: String(err) })
+    hostState.lastError = err instanceof Error ? err.message : String(err)
+    // Don't crash the app - extension system is optional
   }
-  
-  hostState.startTime = Date.now()
-  hostState.window = createExtensionHostWindow()
 }
 
 /**
@@ -853,6 +867,9 @@ export function onExtensionStateChange(callback: ExtensionStateCallback): () => 
  */
 export async function cleanupExtensionHost(): Promise<void> {
   deps?.log('Cleaning up Extension Host')
+  
+  // Set shutdown flag to prevent restart attempts
+  isShuttingDown = true
   
   if (hostState.window && !hostState.window.isDestroyed()) {
     // Send shutdown message
