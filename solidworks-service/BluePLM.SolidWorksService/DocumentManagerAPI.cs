@@ -156,8 +156,8 @@ namespace BluePLM.SolidWorksService
                     return false;
                 }
                 
-                // Log key info (masked for security)
-                var keyPrefix = key.Length > 30 ? key.Substring(0, 30) + "..." : key;
+                // Log key info (masked for security) - key is non-null after IsNullOrEmpty check
+                var keyPrefix = key!.Length > 30 ? key.Substring(0, 30) + "..." : key;
                 var keyLength = key.Length;
                 var hasCommas = key.Contains(",");
                 var hasColon = key.Contains(":");
@@ -797,7 +797,7 @@ namespace BluePLM.SolidWorksService
                                 if (!string.IsNullOrEmpty(value))
                                 {
                                     Console.Error.WriteLine($"[DM] Property '{name}' = '{value}'");
-                                    props[name] = value;
+                                    props[name!] = value;
                                 }
                                 else
                                 {
@@ -849,7 +849,7 @@ namespace BluePLM.SolidWorksService
                                 if (!string.IsNullOrEmpty(name))
                                 {
                                     Console.Error.WriteLine($"[DM] Property[{i}] '{name}' = '{value}'");
-                                    props[name] = value ?? "";
+                                    props[name!] = value ?? "";
                                 }
                             }
                             catch (Exception indexEx)
@@ -942,7 +942,7 @@ namespace BluePLM.SolidWorksService
                                         
                                         if (!string.IsNullOrEmpty(value))
                                         {
-                                            props[name] = value;
+                                            props[name!] = value;
                                             Console.Error.WriteLine($"[DM] Config property '{name}' = '{value}'");
                                         }
                                     }

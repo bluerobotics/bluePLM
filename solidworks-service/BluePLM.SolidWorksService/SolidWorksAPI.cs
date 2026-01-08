@@ -792,7 +792,7 @@ namespace BluePLM.SolidWorksService
                 else if (!string.IsNullOrEmpty(configuration))
                 {
                     // Export single configuration
-                    configsToExport = new[] { configuration };
+                    configsToExport = new[] { configuration! };
                 }
                 else
                 {
@@ -814,7 +814,7 @@ namespace BluePLM.SolidWorksService
                         string configOutputPath;
                         if (!string.IsNullOrEmpty(filenamePattern))
                         {
-                            var fileName = FormatExportFilename(filenamePattern, baseName, configName, props, ".step", pdmMetadata);
+                            var fileName = FormatExportFilename(filenamePattern!, baseName, configName, props, ".step", pdmMetadata);
                             configOutputPath = Path.Combine(outputDir, fileName);
                         }
                         else
@@ -1430,7 +1430,7 @@ namespace BluePLM.SolidWorksService
                 var fileManager = doc.Extension.CustomPropertyManager[""];
                 if (fileManager != null)
                 {
-                    object names = null, values = null, resolved = null, types = null, linkedProps = null;
+                    object? names = null, values = null, resolved = null, types = null, linkedProps = null;
                     fileManager.GetAll3(ref names, ref types, ref values, ref resolved, ref linkedProps);
                     
                     var propNames = names as string[];
@@ -1463,7 +1463,7 @@ namespace BluePLM.SolidWorksService
                     var configManager = doc.Extension.CustomPropertyManager[configName];
                     if (configManager != null)
                     {
-                        object names = null, values = null, resolved = null, types = null, linkedProps = null;
+                        object? names = null, values = null, resolved = null, types = null, linkedProps = null;
                         configManager.GetAll3(ref names, ref types, ref values, ref resolved, ref linkedProps);
                         
                         var propNames = names as string[];
