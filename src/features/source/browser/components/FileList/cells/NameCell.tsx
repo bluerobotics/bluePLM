@@ -204,7 +204,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         folderCheckoutStatus={file.isDirectory ? getFolderCheckoutStatus(file.relativePath) : undefined}
         isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
       />
-      <span className={`truncate flex-1 transition-opacity duration-200 ${isNameDimmed ? 'opacity-50' : ''} ${file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new' ? 'italic text-plm-fg-muted' : ''} ${file.diffStatus === 'cloud_new' ? 'text-green-400' : ''}`}>{displayFilename}</span>
+      <span className={`truncate flex-1 transition-opacity duration-200 ${isNameDimmed ? 'opacity-50' : ''} ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}>{displayFilename}</span>
       
       {/* Save metadata badge for SW files with pending config changes */}
       {hasConfigs && hasPendingConfigChanges(file) && file.pdmData?.checked_out_by === user?.id && (
@@ -285,7 +285,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
       
       {/* Status icon for files without checkout users */}
       {!file.isDirectory && checkoutUsers.length === 0 && !fileStatusColumnVisible && (() => {
-        if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+        if (file.diffStatus === 'cloud') {
           return null
         }
         if (isSynced && !file.pdmData?.checked_out_by) {
@@ -309,10 +309,9 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
       )}
       
       {/* Download for individual cloud files */}
-      {!file.isDirectory && operationType !== 'delete' && (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && (
+      {!file.isDirectory && operationType !== 'delete' && file.diffStatus === 'cloud' && (
         <InlineDownloadButton
           onClick={(e) => handleInlineDownload(e, file)}
-          isCloudNew={file.diffStatus === 'cloud_new'}
           isProcessing={operationType === 'download'}
           selectedCount={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 ? selectedDownloadableFiles.length : undefined}
           isSelectionHovered={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 && isDownloadHovered}
@@ -334,7 +333,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
       )}
       
       {/* First Check In - for local only files */}
-      {!file.isDirectory && operationType !== 'delete' && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && (
+      {!file.isDirectory && operationType !== 'delete' && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'ignored' && (
         <InlineUploadButton 
           onClick={(e) => handleInlineUpload(e, file)}
           isProcessing={operationType === 'upload'}
@@ -348,7 +347,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
       {/* Checkout/Checkin buttons for FILES - each shows independently */}
       {!file.isDirectory && operationType !== 'delete' && (
         <span className="flex items-center gap-0.5 flex-shrink-0">
-          {file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && (
+          {file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && (
             <InlineCheckoutButton
               onClick={(e) => handleInlineCheckout(e, file)}
               isProcessing={operationType === 'checkout'}

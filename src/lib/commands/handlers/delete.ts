@@ -53,7 +53,6 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
   
   async execute({ files }, ctx): Promise<CommandResult> {
     const user = ctx.user
-    const vaultPath = ctx.vaultPath
     
     // Get files to remove - both synced and unsynced local files
     const syncedLocalFiles = getSyncedFilesFromSelection(ctx.files, files)
@@ -177,54 +176,28 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
       }
     }
     
-    // Clean up empty parent directories (only if truly empty)
-    if (vaultPath) {
-      const parentDirs = new Set<string>()
-      for (const file of filesToRemove) {
-        let dir = file.path.substring(0, file.path.lastIndexOf('\\'))
-        while (dir && dir.length > vaultPath.length) {
-          parentDirs.add(dir)
-          const lastSlash = dir.lastIndexOf('\\')
-          if (lastSlash <= 0) break
-          dir = dir.substring(0, lastSlash)
-        }
-      }
-      
-      // Also include selected folders
-      for (const item of files) {
-        if (item.isDirectory && item.diffStatus !== 'cloud') {
-          parentDirs.add(item.path)
-        }
-      }
-      
-      // Sort by depth (deepest first)
-      const sortedDirs = Array.from(parentDirs).sort((a, b) => 
-        b.split('\\').length - a.split('\\').length
-      )
-      
-      // Only delete folders that are truly empty
-      for (const dir of sortedDirs) {
-        try {
-          const isEmpty = await window.electronAPI?.isDirEmpty(dir)
-          if (isEmpty?.empty) {
-            await window.electronAPI?.deleteItem(dir)
-          }
-        } catch {
-          // Folder might not be empty or already deleted - expected
-        }
-      }
-    }
-    
     // Clean up - batch remove
     ctx.removeProcessingFolders(allPathsBeingProcessed)
     ctx.removeToast(toastId)
     
     const duration = Date.now() - startTime
     
-    // Refresh file list
-    ctx.onRefresh?.(true)
+    // Delete selected folders in background (fire-and-forget to avoid watcher restart delay)
+    // The folders should now be empty after file deletion
+    const selectedFolderPaths = files
+      .filter(f => f.isDirectory && f.diffStatus !== 'cloud')
+      .map(f => f.path)
+    if (selectedFolderPaths.length > 0) {
+      // Don't await - let it happen in background
+      Promise.all(selectedFolderPaths.map(folderPath =>
+        window.electronAPI?.deleteItem(folderPath).catch(() => {})
+      )).then(() => {
+        // Trigger another refresh after folders are deleted
+        ctx.onRefresh?.(true)
+      })
+    }
     
-    // Show result toast - be clear this is local-only deletion
+    // Show result toast FIRST (before refresh which can be slow)
     if (failed > 0) {
       // Check if errors are due to locked files (EBUSY)
       const lockedFileErrors = errors.filter(e => e.includes('EBUSY') || e.includes('resource busy') || e.includes('locked'))
@@ -254,6 +227,9 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     } else if (succeeded > 0) {
       ctx.addToast('success', `Removed ${succeeded} local file${succeeded > 1 ? 's' : ''} (server copies preserved)`)
     }
+    
+    // Refresh file list (can be slow, so do it after showing toast)
+    ctx.onRefresh?.(true)
     
     return {
       success: failed === 0,
@@ -469,9 +445,6 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     ctx.removeProcessingFolders(allPathsBeingProcessed)
     ctx.removeToast(toastId)
     
-    // Refresh file list
-    ctx.onRefresh?.(true)
-    
     const failed = uniqueFiles.length - deletedServer
     
     // Build descriptive message
@@ -486,6 +459,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       message = 'No files deleted'
     }
     
+    // Show result toast FIRST (before refresh which can be slow)
     if (deletedServer > 0 || deletedLocal > 0) {
       if (failed > 0 && errors.length > 0) {
         // Show error info when some files failed
@@ -507,6 +481,9 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
         ctx.addToast('error', `Delete failed for ${failed} file(s) - check logs for details`)
       }
     }
+    
+    // Refresh file list (can be slow, so do it after showing toast)
+    ctx.onRefresh?.(true)
     
     return {
       success: failed === 0,

@@ -11,7 +11,6 @@ export type DiffStatus =
   | 'deleted_remote' 
   | 'outdated' 
   | 'cloud' 
-  | 'cloud_new' 
   | 'ignored'
   | 'synced'
   | undefined
@@ -35,8 +34,6 @@ export function getDiffStatusClass(status: DiffStatus): string {
       return 'diff-outdated'
     case 'cloud':
       return 'diff-cloud'
-    case 'cloud_new':
-      return 'diff-cloud-new'
     case 'ignored':
       return 'diff-ignored'
     default:
@@ -59,8 +56,6 @@ export function getDiffStatusCardClass(status: DiffStatus): string {
       return 'ring-1 ring-purple-500/50 bg-purple-500/5'
     case 'cloud':
       return 'ring-1 ring-plm-fg-muted/30 bg-plm-fg-muted/5'
-    case 'cloud_new':
-      return 'ring-1 ring-green-500/50 bg-green-500/10'
     default:
       return ''
   }
@@ -85,8 +80,6 @@ export function getDiffStatusLabel(status: DiffStatus): string {
       return 'Outdated'
     case 'cloud':
       return 'Cloud only'
-    case 'cloud_new':
-      return 'New on cloud'
     case 'ignored':
       return 'Ignored'
     case 'synced':
@@ -115,8 +108,6 @@ export function getDiffStatusColor(status: DiffStatus): string {
       return '#a855f7' // purple
     case 'cloud':
       return '#6b7280' // gray
-    case 'cloud_new':
-      return '#22c55e' // green
     case 'ignored':
       return '#6b7280' // gray
     case 'synced':
@@ -138,14 +129,14 @@ export function isFileSynced(file: LocalFile): boolean {
  * Check if a file exists only in the cloud (not downloaded)
  */
 export function isCloudOnly(file: LocalFile): boolean {
-  return file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new'
+  return file.diffStatus === 'cloud'
 }
 
 /**
  * Check if a file is local only (not synced to server)
  */
 export function isLocalOnly(file: LocalFile): boolean {
-  return file.diffStatus === 'added' || (!file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new')
+  return file.diffStatus === 'added' || (!file.pdmData && file.diffStatus !== 'cloud')
 }
 
 /**
@@ -197,7 +188,7 @@ export function getFolderCheckoutStatus(
   userId: string | undefined
 ): 'mine' | 'others' | 'both' | null {
   const folderPrefix = folderPath + '/'
-  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
+  const serverOnlyStatuses = ['cloud', 'deleted']
   
   const folderFiles = files.filter(f => {
     if (f.isDirectory) return false

@@ -96,6 +96,7 @@ export {
   removeUserFromOrg,
   addUserToOrg,
   getUserTeams,
+  getUserWorkflowRoles,
   getUserPermissions,
   loadImpersonatedUserContext,
   checkPermission,

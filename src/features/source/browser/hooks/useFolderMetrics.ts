@@ -64,21 +64,20 @@ export function useFolderMetrics({
         const m = metrics.get(currentPath)!
         
         // Cloud files
-        if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+        if (file.diffStatus === 'cloud') {
           m.cloudFilesCount++
-          if (file.diffStatus === 'cloud_new') m.cloudNewFilesCount++
         }
         
         // Local-only (unsynced) files
         if ((!file.pdmData || file.diffStatus === 'added' || file.diffStatus === 'deleted_remote') && 
-            file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored') {
+            file.diffStatus !== 'cloud' && file.diffStatus !== 'ignored') {
           m.localOnlyFilesCount++
           m.hasUnsyncedFiles = true
         }
         
         // Checkoutable files (synced, not checked out, exists locally)
         if (file.pdmData && !file.pdmData.checked_out_by && 
-            file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'deleted') {
+            file.diffStatus !== 'cloud' && file.diffStatus !== 'deleted') {
           m.checkoutableFilesCount++
           m.hasCheckoutableFiles = true
         }

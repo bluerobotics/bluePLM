@@ -899,7 +899,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     if (file.isDirectory) {
       // Navigate into folder - allow even for cloud-only folders
       navigateToFolder(file.relativePath)
-    } else if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+    } else if (file.diffStatus === 'cloud') {
       // Cloud-only file: download first, then open
       const result = await executeCommand('download', { files: [file] }, { onRefresh, silent: true })
       if (result.success && window.electronAPI) {

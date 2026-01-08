@@ -164,8 +164,8 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
     let filesToDrag: LocalFile[]
     if (selectedFiles.includes(file.path) && selectedFiles.length > 1) {
       // Multiple selection - include both files and folders (can't drag cloud-only files)
-      filesToDrag = files.filter(f => selectedFiles.includes(f.path) && f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new')
-    } else if (file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new') {
+      filesToDrag = files.filter(f => selectedFiles.includes(f.path) && f.diffStatus !== 'cloud')
+    } else if (file.diffStatus !== 'cloud') {
       filesToDrag = [file]
     } else {
       e.preventDefault()

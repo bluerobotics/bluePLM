@@ -103,7 +103,7 @@ export function useFileOperations({
     return files.filter(f => 
       selectedFiles.includes(f.path) && 
       !f.isDirectory &&
-      (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new' || f.diffStatus === 'outdated')
+      (f.diffStatus === 'cloud' || f.diffStatus === 'outdated')
     )
   }, [files, selectedFiles])
 
@@ -115,7 +115,6 @@ export function useFileOperations({
       !f.isDirectory &&
       !f.pdmData &&
       f.diffStatus !== 'cloud' &&
-      f.diffStatus !== 'cloud_new' &&
       f.diffStatus !== 'ignored'
     )
   }, [files, selectedFiles])
@@ -130,7 +129,6 @@ export function useFileOperations({
       f.pdmData && 
       !f.pdmData.checked_out_by &&
       f.diffStatus !== 'cloud' &&
-      f.diffStatus !== 'cloud_new' &&
       f.diffStatus !== 'deleted'
     )
   }, [files, selectedFiles])
@@ -147,7 +145,7 @@ export function useFileOperations({
     if (isMultiSelect) {
       // Multi-select: properly separate outdated and cloud files
       const outdatedFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'outdated')
-      const cloudFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+      const cloudFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'cloud')
       
       if (outdatedFiles.length > 0) {
         executeCommand('get-latest', { files: outdatedFiles }, { onRefresh })
@@ -164,7 +162,7 @@ export function useFileOperations({
     if (file.isDirectory) {
       const filesInFolder = files.filter(f => f.relativePath.startsWith(file.relativePath + '/'))
       const hasOutdated = filesInFolder.some(f => f.diffStatus === 'outdated')
-      const hasCloud = filesInFolder.some(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+      const hasCloud = filesInFolder.some(f => f.diffStatus === 'cloud')
       
       if (hasOutdated) {
         executeCommand('get-latest', { files: [file] }, { onRefresh })

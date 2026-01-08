@@ -372,7 +372,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     e.stopPropagation()
     if (isDownloadingAll) return
     
-    const cloudFiles = files.filter(f => !f.isDirectory && (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new'))
+    const cloudFiles = files.filter(f => !f.isDirectory && f.diffStatus === 'cloud')
     if (cloudFiles.length === 0) {
       addToast('info', 'No cloud files to download')
       return
@@ -443,7 +443,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   const handleCheckoutAllSynced = async (e: React.MouseEvent) => {
     e.stopPropagation()
     
-    const syncedFiles = files.filter(f => !f.isDirectory && f.pdmData && !f.pdmData.checked_out_by && f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new')
+    const syncedFiles = files.filter(f => !f.isDirectory && f.pdmData && !f.pdmData.checked_out_by && f.diffStatus !== 'cloud')
     if (syncedFiles.length === 0) {
       addToast('info', 'No synced files to check out')
       return
@@ -547,7 +547,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
       
       if (file.isDirectory) {
         toggleFolder(file.relativePath)
-      } else if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+      } else if (file.diffStatus === 'cloud') {
         const result = await executeCommand('download', { files: [file] }, { onRefresh, silent: true })
         if (result.success && window.electronAPI) {
           window.electronAPI.openFile(file.path)
@@ -736,7 +736,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     const isExpanded = vault.isExpanded
     
     // Calculate vault stats
-    const cloudFiles = isActive ? files.filter(f => !f.isDirectory && (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')) : []
+    const cloudFiles = isActive ? files.filter(f => !f.isDirectory && f.diffStatus === 'cloud') : []
     const cloudFilesCount = cloudFiles.length
     const isAnyCloudFileProcessing = isActive && cloudFiles.some(f => isBeingProcessed(f.relativePath))
     const outdatedFilesCount = isActive ? files.filter(f => !f.isDirectory && f.diffStatus === 'outdated').length : 0
@@ -746,7 +746,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
       f.diffStatus !== 'cloud' && f.diffStatus !== 'ignored' &&
       !(hideSolidworksTempFiles && f.name.startsWith('~$'))
     ).length : 0
-    const syncedFilesCount = isActive ? files.filter(f => !f.isDirectory && f.pdmData && !f.pdmData.checked_out_by && f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new').length : 0
+    const syncedFilesCount = isActive ? files.filter(f => !f.isDirectory && f.pdmData && !f.pdmData.checked_out_by && f.diffStatus !== 'cloud').length : 0
     const checkedOutByMeCount = isActive ? files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by === user?.id).length : 0
     const checkedOutByOthers = isActive ? files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id) : []
     

@@ -558,11 +558,24 @@ export const checkinCommand: Command<CheckinParams> = {
         
         // If SolidWorks file is open, save it first to ensure we check in the latest changes
         // Skip this if we can use cached hash and have no pending metadata
+        // Also skip if SW service is not running (avoids hanging on crashed service)
         let metadataWasWritten = false
-        if (isSolidWorksFile && !skipSolidWorksOps) {
+        if (isSolidWorksFile && !skipSolidWorksOps && swServiceStatus.running) {
           try {
             const docInfo = await window.electronAPI?.solidworks?.getDocumentInfo?.(file.path)
-            if (docInfo?.success && docInfo.data?.isOpen && docInfo.data?.isDirty) {
+            
+            // Check if service call failed (timeout or crash) - stop trying for remaining files
+            if (!docInfo?.success && docInfo?.error?.includes('timed out')) {
+              logCheckin('warn', 'SolidWorks service timed out - disabling SW calls for remaining files', {
+                operationId,
+                fileName: file.name,
+                error: docInfo?.error
+              })
+              swServiceStatus.running = false // Prevent further SW calls in this batch
+            }
+            
+            // Only proceed if SW is actually running on the machine and file is open and dirty
+            if (docInfo?.success && docInfo.data?.solidWorksRunning && docInfo.data?.isOpen && docInfo.data?.isDirty) {
               logCheckin('info', 'Saving open SolidWorks document before check-in', {
                 operationId,
                 fileName: file.name
@@ -581,8 +594,14 @@ export const checkinCommand: Command<CheckinParams> = {
                 })
               }
             }
-          } catch {
-            // SW service not available - continue with regular checkin
+          } catch (err) {
+            // SW service error - mark as not running to skip remaining SW calls
+            logCheckin('warn', 'SolidWorks service error - disabling SW calls for remaining files', {
+              operationId,
+              fileName: file.name,
+              error: err instanceof Error ? err.message : String(err)
+            })
+            swServiceStatus.running = false
           }
           
           // Write pending metadata back to SolidWorks file (syncs datacard → file)
@@ -729,7 +748,8 @@ export const checkinCommand: Command<CheckinParams> = {
             
             // If SolidWorks file is open, also set document to read-only
             // This allows checking in files without closing SolidWorks!
-            if (SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
+            // Only attempt if SW service is still running (avoids hanging if service crashed)
+            if (swServiceStatus.running && SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
               try {
                 const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
                 if (docResult?.success && docResult.data?.changed) {
@@ -739,9 +759,14 @@ export const checkinCommand: Command<CheckinParams> = {
                     wasReadOnly: docResult.data.wasReadOnly,
                     isNowReadOnly: docResult.data.isNowReadOnly
                   })
+                } else if (!docResult?.success && docResult?.error?.includes('timed out')) {
+                  // Service timed out - stop trying for remaining files
+                  swServiceStatus.running = false
                 }
               } catch {
                 // SW service not available or file not open - that's fine
+                // Mark service as unavailable to skip remaining SW calls
+                swServiceStatus.running = false
               }
             }
             
@@ -816,11 +841,17 @@ export const checkinCommand: Command<CheckinParams> = {
             filesToMakeReadonly.push(file.path)
             
             // If SolidWorks file is open, also set document to read-only
-            if (SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
+            // Only attempt if SW service is still running (avoids hanging if service crashed)
+            if (swServiceStatus.running && SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
               try {
-                await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
+                const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
+                if (!docResult?.success && docResult?.error?.includes('timed out')) {
+                  // Service timed out - stop trying for remaining files
+                  swServiceStatus.running = false
+                }
               } catch {
-                // SW service not available or file not open - that's fine
+                // SW service not available or file not open - mark as unavailable
+                swServiceStatus.running = false
               }
             }
             

@@ -80,7 +80,7 @@ export function PinnedFoldersSection({
   // Calculate multi-select file lists
   const selectedDownloadableFiles = files.filter(f => 
     selectedFiles.includes(f.path) && !f.isDirectory && 
-    (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new' || f.diffStatus === 'outdated')
+    (f.diffStatus === 'cloud' || f.diffStatus === 'outdated')
   )
   const selectedUploadableFiles = files.filter(f => 
     selectedFiles.includes(f.path) && !f.isDirectory && 
@@ -271,7 +271,7 @@ export function PinnedFoldersSection({
                   onClick={() => onNavigate(pinned, vault)}
                   onDoubleClick={async () => {
                     if (!pinned.isDirectory && actualFile) {
-                      if (actualFile.diffStatus === 'cloud' || actualFile.diffStatus === 'cloud_new') {
+                      if (actualFile.diffStatus === 'cloud') {
                         const result = await executeCommand('download', { files: [actualFile] }, { onRefresh, silent: true })
                         if (result.success && window.electronAPI) {
                           window.electronAPI.openFile(actualFile.path)

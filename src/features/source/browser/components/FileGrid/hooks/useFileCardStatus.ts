@@ -42,21 +42,18 @@ export interface FolderCheckoutInfo {
 
 /**
  * Get the operation type for a file path if it's being processed
- * For files: exact match only
- * For folders: checks if any descendant is processing
+ * Spinners propagate DOWN to children, not UP to parents
  */
-function getProcessingOperation(processingPaths: Map<string, OperationType>, filePath: string, isDirectory: boolean = false): OperationType | null {
+function getProcessingOperation(processingPaths: Map<string, OperationType>, filePath: string, _isDirectory: boolean = false): OperationType | null {
   const normalizedPath = filePath.replace(/\\/g, '/')
 
   if (processingPaths.has(filePath)) return processingPaths.get(filePath)!
   if (processingPaths.has(normalizedPath)) return processingPaths.get(normalizedPath)!
 
-  // For folders, check if any descendant is being processed
-  if (isDirectory) {
-    for (const [processingPath, opType] of processingPaths) {
-      const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-      if (normalizedProcessingPath.startsWith(normalizedPath + '/')) return opType
-    }
+  // Check if THIS path is INSIDE any processing folder (downward propagation)
+  for (const [processingPath, opType] of processingPaths) {
+    const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+    if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return opType
   }
   return null
 }
@@ -70,7 +67,6 @@ function getDiffClass(diffStatus: string | undefined): string {
   if (diffStatus === 'deleted') return 'ring-1 ring-red-500/50 bg-red-500/5'
   if (diffStatus === 'outdated') return 'ring-1 ring-purple-500/50 bg-purple-500/5'
   if (diffStatus === 'cloud') return 'ring-1 ring-plm-fg-muted/30 bg-plm-fg-muted/5'
-  if (diffStatus === 'cloud_new') return 'ring-1 ring-green-500/50 bg-green-500/10'
   return ''
 }
 
@@ -82,7 +78,7 @@ function getCloudFilesCount(file: LocalFile, allFiles: LocalFile[]): number {
   const folderPrefix = file.relativePath + '/'
   return allFiles.filter(f =>
     !f.isDirectory &&
-    (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new') &&
+    f.diffStatus === 'cloud' &&
     f.relativePath.startsWith(folderPrefix)
   ).length
 }
@@ -97,7 +93,6 @@ function getLocalOnlyFilesCount(file: LocalFile, allFiles: LocalFile[]): number 
     !f.isDirectory &&
     (!f.pdmData || f.diffStatus === 'added') &&
     f.diffStatus !== 'cloud' &&
-    f.diffStatus !== 'cloud_new' &&
     f.diffStatus !== 'ignored' &&
     f.relativePath.startsWith(folderPrefix)
   ).length
@@ -195,7 +190,7 @@ function getFolderIconColor(
 
   const folderPath = file.relativePath.replace(/\\/g, '/')
   const folderPrefix = folderPath + '/'
-  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
+  const serverOnlyStatuses = ['cloud', 'deleted']
 
   const folderFiles = allFiles.filter(f => {
     if (f.isDirectory) return false
@@ -234,7 +229,7 @@ function getFolderCheckoutInfo(
     return filePath.startsWith(folderPrefix)
   })
 
-  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
+  const serverOnlyStatuses = ['cloud', 'deleted']
   const localFiles = folderFiles.filter(f => !serverOnlyStatuses.includes(f.diffStatus || ''))
   const checkedOutByMe = localFiles.filter(f => f.pdmData?.checked_out_by === userId).length
   const checkedOutByOthers = localFiles.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId).length

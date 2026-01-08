@@ -29,11 +29,11 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
   }
   
   // 2. Cloud files (exists on server, not downloaded locally)
-  if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+  if (file.diffStatus === 'cloud') {
     return (
-      <span className={`flex items-center gap-1 ${file.diffStatus === 'cloud_new' ? 'text-green-400' : 'text-plm-info'}`} title={file.diffStatus === 'cloud_new' ? 'New file added by others' : 'Cloud file - download to work on it'}>
+      <span className="flex items-center gap-1 text-plm-info" title="Cloud file - download to work on it">
         <Cloud size={12} />
-        {file.diffStatus === 'cloud_new' ? 'New' : 'Cloud'}
+        Cloud
       </span>
     )
   }

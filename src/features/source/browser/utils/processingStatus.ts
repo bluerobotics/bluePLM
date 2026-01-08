@@ -1,8 +1,8 @@
 import type { OperationType } from '@/stores/types'
 
 /**
- * Get the operation type for a FILE if it's being processed (exact match only)
- * Does NOT propagate from parent folders - only returns if this specific file is processing
+ * Get the operation type for a FILE if it's being processed.
+ * Checks for exact match OR if this file is inside a processing folder (downward propagation).
  */
 export function getFileProcessingOperation(
   relativePath: string,
@@ -10,6 +10,7 @@ export function getFileProcessingOperation(
 ): OperationType | null {
   const normalizedPath = relativePath.replace(/\\/g, '/')
   
+  // Check exact match first
   if (processingOperations.has(relativePath)) {
     return processingOperations.get(relativePath)!
   }
@@ -17,11 +18,21 @@ export function getFileProcessingOperation(
     return processingOperations.get(normalizedPath)!
   }
   
+  // Check if this file is INSIDE any processing folder (downward propagation)
+  for (const [processingPath, opType] of processingOperations) {
+    const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+    if (normalizedPath.startsWith(normalizedProcessingPath + '/')) {
+      return opType
+    }
+  }
+  
   return null
 }
 
 /**
- * Get the operation type for a FOLDER if any of its descendants are being processed
+ * Get the operation type for a FOLDER if it's being processed.
+ * Checks for exact match OR if this folder is inside a processing folder (downward propagation).
+ * Does NOT propagate UP to parent folders.
  */
 export function getFolderProcessingOperation(
   folderPath: string,
@@ -37,10 +48,11 @@ export function getFolderProcessingOperation(
     return processingOperations.get(normalizedFolder)!
   }
   
-  // Check if any descendant path is being processed
+  // Check if this folder is INSIDE any processing folder (downward propagation)
+  // This makes spinners propagate DOWN to children, not UP to parents
   for (const [path, opType] of processingOperations) {
     const normalizedPath = path.replace(/\\/g, '/')
-    if (normalizedPath.startsWith(normalizedFolder + '/')) {
+    if (normalizedFolder.startsWith(normalizedPath + '/')) {
       return opType
     }
   }
@@ -50,8 +62,8 @@ export function getFolderProcessingOperation(
 
 /**
  * Smart processing operation getter that handles both files and folders correctly
- * - For files: only returns if THIS exact path is processing
- * - For folders: returns if the folder itself OR any descendant is processing
+ * - For both: returns if the exact path is processing OR if it's inside a processing folder
+ * - Spinners propagate DOWN to children, NOT up to parents
  */
 export function getProcessingOperation(
   relativePath: string,

@@ -47,8 +47,9 @@ export function useAutoDownload() {
       const excludedPaths = activeVaultId ? (autoDownloadExcludedFiles[activeVaultId] || []) : []
       const excludedPathsSet = new Set(excludedPaths)
       
-      // Auto-download cloud-only files (if just enabled)
+      // Auto-download cloud-only files and folders (if just enabled)
       if (cloudFilesJustEnabled) {
+        // Get cloud-only files
         const cloudOnlyFiles = files.filter(f => 
           !f.isDirectory && 
           f.diffStatus === 'cloud' && 
@@ -56,12 +57,30 @@ export function useAutoDownload() {
           !excludedPathsSet.has(f.relativePath)
         )
         
-        if (cloudOnlyFiles.length > 0) {
-          window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - downloading cloud files', { count: cloudOnlyFiles.length })
+        // Get cloud-only folders
+        const cloudOnlyFolders = files.filter(f => 
+          f.isDirectory && 
+          f.diffStatus === 'cloud' &&
+          !excludedPathsSet.has(f.relativePath)
+        )
+        
+        // Combine files and folders for download
+        const itemsToDownload = [...cloudOnlyFiles, ...cloudOnlyFolders]
+        
+        if (itemsToDownload.length > 0) {
+          const fileCount = cloudOnlyFiles.length
+          const folderCount = cloudOnlyFolders.length
+          window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - downloading cloud items', { 
+            files: fileCount, 
+            folders: folderCount 
+          })
           try {
-            const result = await executeCommand('download', { files: cloudOnlyFiles })
+            const result = await executeCommand('download', { files: itemsToDownload })
             if (result.succeeded > 0) {
-              addToast('success', `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''}`)
+              const message = folderCount > 0 
+                ? `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''} (${folderCount} folder${folderCount > 1 ? 's' : ''})`
+                : `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''}`
+              addToast('success', message)
             }
             if (result.failed > 0) {
               window.electronAPI?.log('warn', '[AutoDownload] Some downloads failed', { failed: result.failed, errors: result.errors })
@@ -70,7 +89,7 @@ export function useAutoDownload() {
             window.electronAPI?.log('error', '[AutoDownload] Failed to download cloud files', { error: String(err) })
           }
         } else {
-          window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - no cloud files to download')
+          window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - no cloud items to download')
         }
       }
       

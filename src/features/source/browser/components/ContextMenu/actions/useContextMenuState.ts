@@ -36,12 +36,12 @@ export function useContextMenuSelectionState({
         const filesInFolder = files.filter(f => 
           !f.isDirectory && 
           f.pdmData &&
-          f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new' &&
+          f.diffStatus !== 'cloud' &&
           (f.relativePath.startsWith(folderPrefix) || 
            f.relativePath.substring(0, f.relativePath.lastIndexOf('/')) === item.relativePath)
         )
         result.push(...filesInFolder)
-      } else if (item.pdmData && item.diffStatus !== 'cloud' && item.diffStatus !== 'cloud_new') {
+      } else if (item.pdmData && item.diffStatus !== 'cloud') {
         result.push(item)
       }
     }
@@ -81,10 +81,10 @@ export function useContextMenuSelectionState({
         const folderPrefix = item.relativePath + '/'
         cloudOnlyCount += files.filter(f => 
           !f.isDirectory && 
-          (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new') &&
+          f.diffStatus === 'cloud' &&
           f.relativePath.startsWith(folderPrefix)
         ).length
-      } else if (item.diffStatus === 'cloud' || item.diffStatus === 'cloud_new') {
+      } else if (item.diffStatus === 'cloud') {
         cloudOnlyCount++
       }
     }
@@ -109,7 +109,7 @@ export function useContextMenuSelectionState({
     const isFolder = firstFile?.isDirectory ?? false
     const allFolders = contextFiles.every(f => f.isDirectory)
     const allFiles = contextFiles.every(f => !f.isDirectory)
-    const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+    const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
     const isSynced = contextFiles.every(f => !!f.pdmData)
     
     // Check for synced content
@@ -120,12 +120,12 @@ export function useContextMenuSelectionState({
           const hasSyncedInFolder = files.some(f => 
             !f.isDirectory && 
             f.pdmData &&
-            f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new' &&
+            f.diffStatus !== 'cloud' &&
             (f.relativePath.startsWith(folderPrefix) || 
              f.relativePath.substring(0, f.relativePath.lastIndexOf('/')) === item.relativePath)
           )
           if (hasSyncedInFolder) return true
-        } else if (item.pdmData && item.diffStatus !== 'cloud' && item.diffStatus !== 'cloud_new') {
+        } else if (item.pdmData && item.diffStatus !== 'cloud') {
           return true
         }
       }

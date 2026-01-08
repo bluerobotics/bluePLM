@@ -164,7 +164,7 @@ export function useDeleteHandler({
     const pathsBeingDeleted = itemsToDelete.map(f => f.relativePath)
     addProcessingFolders(pathsBeingDeleted, 'delete')
     
-    const totalOps = itemsToDelete.filter(f => f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new').length + (isDeleteEverywhere ? syncedFiles.length : 0)
+    const totalOps = itemsToDelete.filter(f => f.diffStatus !== 'cloud').length + (isDeleteEverywhere ? syncedFiles.length : 0)
     const toastId = `delete-${Date.now()}`
     
     if (isDeleteEverywhere && syncedFiles.length > 0) {
@@ -217,7 +217,7 @@ export function useDeleteHandler({
         }
       } else {
         // Regular local-only delete - with concurrency limit
-        const localItemsToDelete = itemsToDelete.filter(f => f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new')
+        const localItemsToDelete = itemsToDelete.filter(f => f.diffStatus !== 'cloud')
         
         const results = await processWithConcurrency(localItemsToDelete, CONCURRENT_OPERATIONS, async (file) => {
           try {

@@ -116,6 +116,9 @@ export function useAuth() {
             
             // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
             syncUserSessionsOrgId(session.user.id, (org as any).id)
+            
+            // Load user's workflow roles for real-time sync
+            usePDMStore.getState().loadUserWorkflowRoles()
           } else if (error) {
             log.warn('[Auth]', 'No organization found', { error })
           }
@@ -212,6 +215,9 @@ export function useAuth() {
               
               // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
               syncUserSessionsOrgId(session.user.id, (org as any).id)
+              
+              // Load user's workflow roles for real-time sync
+              usePDMStore.getState().loadUserWorkflowRoles()
             } else {
               log.warn('[Auth]', 'No organization found', { error: orgError })
               if (connectingTimeout) clearTimeout(connectingTimeout)

@@ -2,6 +2,18 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.1.4] - 2026-01-07
+
+### Fixed
+- **SolidWorks service resilience**: Check-in operations now detect when the SolidWorks service crashes or times out and automatically skip remaining SW calls in the batch. Previously, a crashed service would hang the entire check-in operation
+- **Auto-download includes folders**: Auto-download setting now properly handles cloud-only folders in addition to files, ensuring complete folder structures are downloaded when enabling auto-sync
+- **Processing spinner propagation**: Fixed spinners showing on sibling files instead of child files. Spinners now correctly propagate DOWN to children within a processing folder, not UP to parents
+
+### Changed
+- **SolidWorks service logging**: Enhanced diagnostic logging with comprehensive state summaries, command tracking with IDs, queue depth monitoring, and clearer timeout/error reporting for easier debugging
+
+---
+
 ## [3.1.3] - 2026-01-07
 
 ### Fixed

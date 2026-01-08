@@ -57,7 +57,7 @@ export function useFileStatus(file: LocalFile | null, userId?: string): FileStat
     const checkedOutBy = pdmData?.checked_out_by ?? null
     
     // Sync status
-    const isCloudOnly = diffStatus === 'cloud' || diffStatus === 'cloud_new'
+    const isCloudOnly = diffStatus === 'cloud'
     const isLocalOnly = !pdmData && diffStatus !== 'ignored'
     const isSynced = !!pdmData && !isCloudOnly
     const isOutdated = diffStatus === 'outdated'
@@ -137,7 +137,7 @@ export function getFileStatus(file: LocalFile | null, userId?: string): FileStat
   const checkedOutBy = pdmData?.checked_out_by ?? null
   
   // Sync status
-  const isCloudOnly = diffStatus === 'cloud' || diffStatus === 'cloud_new'
+  const isCloudOnly = diffStatus === 'cloud'
   const isLocalOnly = !pdmData && diffStatus !== 'ignored'
   const isSynced = !!pdmData && !isCloudOnly
   const isOutdated = diffStatus === 'outdated'

@@ -161,6 +161,28 @@ export async function getUserTeams(
 }
 
 /**
+ * Get all workflow role IDs assigned to a user
+ * Used for real-time sync when admin changes workflow roles
+ */
+export async function getUserWorkflowRoles(
+  userId: string
+): Promise<{ roleIds: string[]; error?: string }> {
+  const client = getSupabaseClient()
+  
+  const { data, error } = await client
+    .from('user_workflow_roles')
+    .select('workflow_role_id')
+    .eq('user_id', userId)
+  
+  if (error) {
+    return { roleIds: [], error: error.message }
+  }
+  
+  const roleIds = (data || []).map(r => r.workflow_role_id)
+  return { roleIds }
+}
+
+/**
  * Get all effective permissions for a user (across all their teams)
  * Returns a map of resource -> array of actions
  */

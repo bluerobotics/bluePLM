@@ -73,7 +73,6 @@ export function DeleteActions({
   const syncedFilesInDelete = allFilesInSelection.filter(f => 
     f.pdmData && 
     f.diffStatus !== 'cloud' && 
-    f.diffStatus !== 'cloud_new' && 
     f.diffStatus !== 'added' && 
     f.diffStatus !== 'deleted_remote'
   )
@@ -83,14 +82,13 @@ export function DeleteActions({
     f.diffStatus === 'deleted_remote'
   )
   
-  const hasLocalFiles = contextFiles.some(f => f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new')
+  const hasLocalFiles = contextFiles.some(f => f.diffStatus !== 'cloud')
   const hasSyncedFiles = syncedFilesInDelete.length > 0 || contextFiles.some(f => 
-    f.pdmData && f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new'
+    f.pdmData && f.diffStatus !== 'cloud'
   )
   const hasUnsyncedLocalFiles = unsyncedFilesInDelete.length > 0 || contextFiles.some(f => 
     (!f.pdmData || f.diffStatus === 'added' || f.diffStatus === 'deleted_remote') && 
-    f.diffStatus !== 'cloud' && 
-    f.diffStatus !== 'cloud_new'
+    f.diffStatus !== 'cloud'
   )
 
   return (
@@ -195,7 +193,7 @@ export function DeleteActions({
                   const folderPath = item.relativePath.replace(/\\/g, '/')
                   const filesInFolder = files.filter(f => {
                     if (f.isDirectory) return false
-                    if (f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new') return false
+                    if (f.diffStatus !== 'cloud') return false
                     const filePath = f.relativePath.replace(/\\/g, '/')
                     return filePath.startsWith(folderPath + '/')
                   })

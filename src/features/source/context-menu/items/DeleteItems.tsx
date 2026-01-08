@@ -287,7 +287,7 @@ export function DeleteItems({
       )}
       
       {/* Delete Local & Server - show if any content exists on server (synced, cloud-only, or folder exists on server) */}
-      {(anySynced || allCloudOnly || contextFiles.some(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new') || hasFoldersOnServer) && (
+      {(anySynced || allCloudOnly || contextFiles.some(f => f.diffStatus === 'cloud') || hasFoldersOnServer) && (
         <div 
           className={`context-menu-item ${canDeleteServer.allowed ? 'danger' : 'disabled'}`}
           onClick={() => handleDeleteFromServer(false)}

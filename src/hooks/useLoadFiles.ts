@@ -616,8 +616,9 @@ export function useLoadFiles() {
             const excludedPaths = activeVaultId ? (autoDownloadExcludedFiles[activeVaultId] || []) : []
             const excludedPathsSet = new Set(excludedPaths)
             
-            // Auto-download cloud-only files
+            // Auto-download cloud-only files and folders
             if (autoDownloadCloudFiles) {
+              // Get cloud-only files (not in excluded paths)
               const cloudOnlyFiles = latestFiles.filter(f => 
                 !f.isDirectory && 
                 f.diffStatus === 'cloud' && 
@@ -626,14 +627,33 @@ export function useLoadFiles() {
                 !excludedPathsSet.has(f.relativePath)
               )
               
-              if (cloudOnlyFiles.length > 0) {
-                window.electronAPI?.log('info', '[AutoDownload] Downloading cloud files', { count: cloudOnlyFiles.length })
+              // Get cloud-only folders (will download all their contents)
+              const cloudOnlyFolders = latestFiles.filter(f => 
+                f.isDirectory && 
+                f.diffStatus === 'cloud' &&
+                // Exclude folders that were intentionally removed locally
+                !excludedPathsSet.has(f.relativePath)
+              )
+              
+              // Combine files and folders for download
+              const itemsToDownload = [...cloudOnlyFiles, ...cloudOnlyFolders]
+              
+              if (itemsToDownload.length > 0) {
+                const fileCount = cloudOnlyFiles.length
+                const folderCount = cloudOnlyFolders.length
+                window.electronAPI?.log('info', '[AutoDownload] Downloading cloud items', { 
+                  files: fileCount, 
+                  folders: folderCount 
+                })
                 try {
                   // Don't pass onRefresh - we already skipped auto-download on silent refreshes,
                   // and the download command will update the store. User can manually refresh if needed.
-                  const result = await executeCommand('download', { files: cloudOnlyFiles })
+                  const result = await executeCommand('download', { files: itemsToDownload })
                   if (result.succeeded > 0) {
-                    addToast('success', `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''}`)
+                    const message = folderCount > 0 
+                      ? `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''} (${folderCount} folder${folderCount > 1 ? 's' : ''})`
+                      : `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''}`
+                    addToast('success', message)
                   }
                   if (result.failed > 0) {
                     window.electronAPI?.log('warn', '[AutoDownload] Some downloads failed', { failed: result.failed, errors: result.errors })

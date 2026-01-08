@@ -45,7 +45,7 @@ export function SyncActions({
   })
 
   const anyCloudOnly = counts.cloudOnlyCount > 0 || 
-    contextFiles.some(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+    contextFiles.some(f => f.diffStatus === 'cloud')
   const currentVaultId = activeVaultId
 
   return (

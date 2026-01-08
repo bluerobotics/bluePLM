@@ -51,7 +51,7 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
         const folderPath = item.relativePath.replace(/\\/g, '/')
         const filesInFolder = files.filter(f => {
           if (f.isDirectory) return false
-          if (f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new') return false
+          if (f.diffStatus !== 'cloud') return false
           const filePath = f.relativePath.replace(/\\/g, '/')
           return filePath.startsWith(folderPath + '/')
         })
@@ -59,7 +59,7 @@ export function useDownloadOperation({ organization, onRefresh }: UseDownloadOpe
           filesToDownload.push(...filesInFolder)
           foldersWithCloudFiles.push(item.relativePath)
         }
-      } else if (item.diffStatus === 'cloud' || item.diffStatus === 'cloud_new') {
+      } else if (item.diffStatus === 'cloud') {
         filesToDownload.push(item)
       }
     }

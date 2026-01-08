@@ -169,7 +169,7 @@ export function useTreeKeyboardNav({ containerRef, tree, onRefresh }: UseTreeKey
         
         if (selectedFile.isDirectory) {
           toggleFolder(selectedFile.relativePath)
-        } else if (selectedFile.diffStatus === 'cloud' || selectedFile.diffStatus === 'cloud_new') {
+        } else if (selectedFile.diffStatus === 'cloud') {
           // Cloud-only file: download first, then open
           executeCommand('download', { files: [selectedFile] }, { onRefresh, silent: true }).then(result => {
             if (result.success && window.electronAPI) {

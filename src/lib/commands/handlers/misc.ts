@@ -34,8 +34,8 @@ export const openCommand: Command<OpenParams> = {
       return 'No file specified'
     }
     
-    // Both 'cloud' and 'cloud_new' are cloud-only files that don't exist locally
-    if (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') {
+    // Cloud-only files don't exist locally
+    if (file.diffStatus === 'cloud') {
       return 'File is cloud-only. Download first to open.'
     }
     

@@ -407,12 +407,12 @@ export function getFilesInFolder(files: LocalFile[], folderPath: string): LocalF
 
 // Helper to get synced files from selection (handles folders)
 // "Synced" means files that exist BOTH locally AND on server
-// Excludes: cloud, cloud_new, deleted (these only exist on server, not locally)
+// Excludes: cloud, deleted (these only exist on server, not locally)
 export function getSyncedFilesFromSelection(files: LocalFile[], selection: LocalFile[]): LocalFile[] {
   const result: LocalFile[] = []
   
   // Statuses that indicate file doesn't exist locally (server-only)
-  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
+  const serverOnlyStatuses = ['cloud', 'deleted']
   
   for (const item of selection) {
     if (item.isDirectory) {
@@ -456,16 +456,16 @@ export function getUnsyncedFilesFromSelection(files: LocalFile[], selection: Loc
   return [...new Map(result.map(f => [f.path, f])).values()]
 }
 
-// Helper to get cloud-only files from selection (includes both 'cloud' and 'cloud_new')
+// Helper to get cloud-only files from selection
 export function getCloudOnlyFilesFromSelection(files: LocalFile[], selection: LocalFile[]): LocalFile[] {
   const result: LocalFile[] = []
   
   for (const item of selection) {
     if (item.isDirectory) {
       const filesInFolder = getFilesInFolder(files, item.relativePath)
-      const cloudOnly = filesInFolder.filter(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+      const cloudOnly = filesInFolder.filter(f => f.diffStatus === 'cloud')
       result.push(...cloudOnly)
-    } else if ((item.diffStatus === 'cloud' || item.diffStatus === 'cloud_new') && item.pdmData) {
+    } else if (item.diffStatus === 'cloud' && item.pdmData) {
       // Look up fresh file from files array (selection may have stale reference)
       const freshFile = files.find(f => f.path === item.path)
       result.push(freshFile || item)
@@ -489,7 +489,7 @@ export function getDiscardableFilesFromSelection(files: LocalFile[], selection: 
       const discardable = filesInFolder.filter(f => 
         f.pdmData?.id && 
         f.pdmData.checked_out_by === userId &&
-        (f.diffStatus !== 'cloud' && f.diffStatus !== 'cloud_new')
+        f.diffStatus !== 'cloud'
       )
       result.push(...discardable)
     } else if (item.pdmData?.id) {
@@ -498,8 +498,7 @@ export function getDiscardableFilesFromSelection(files: LocalFile[], selection: 
       const freshFile = files.find(f => f.path === item.path)
       if (freshFile && 
           freshFile.pdmData?.checked_out_by === userId && 
-          freshFile.diffStatus !== 'cloud' && 
-          freshFile.diffStatus !== 'cloud_new') {
+          freshFile.diffStatus !== 'cloud') {
         result.push(freshFile)
       }
     }

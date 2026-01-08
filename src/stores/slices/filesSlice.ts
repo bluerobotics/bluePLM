@@ -399,7 +399,7 @@ export const createFilesSlice: StateCreator<
       }
     }
     
-    // Add the cloud file itself - mark as 'cloud_new' (green positive diff)
+    // Add the cloud file itself - mark as 'cloud' (available for download)
     newFiles.push({
       name: pdmFile.file_name,
       path: buildFullPath(vaultPath, pdmFile.file_path),
@@ -410,7 +410,7 @@ export const createFilesSlice: StateCreator<
       modifiedTime: pdmFile.updated_at || '',
       pdmData: pdmFile,
       isSynced: false,
-      diffStatus: 'cloud_new'
+      diffStatus: 'cloud'
     })
     
     set(state => ({ files: [...state.files, ...newFiles] }))
@@ -605,7 +605,7 @@ export const createFilesSlice: StateCreator<
     scheduleProcessingFlush(get, set)
   },
   clearProcessingFolders: () => set({ processingOperations: new Map() }),
-  getProcessingOperation: (path, isDirectory = false) => {
+  getProcessingOperation: (path, _isDirectory = false) => {
     const { processingOperations } = get()
     const normalizedPath = path.replace(/\\/g, '/')
     
@@ -617,19 +617,16 @@ export const createFilesSlice: StateCreator<
       return processingOperations.get(normalizedPath)!
     }
     
-    // For folders: also check if any descendant is being processed
-    if (isDirectory) {
-      for (const [processingPath, opType] of processingOperations) {
-        const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-        // Check if any processing path is INSIDE this folder
-        if (normalizedProcessingPath.startsWith(normalizedPath + '/')) {
-          return opType
-        }
+    // Check if THIS path is INSIDE any processing folder (downward propagation)
+    // This makes spinners propagate DOWN to children, not UP to parents
+    for (const [processingPath, opType] of processingOperations) {
+      const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+      // Check if THIS path is inside a processing folder
+      if (normalizedPath.startsWith(normalizedProcessingPath + '/')) {
+        return opType
       }
     }
     
-    // For files: only exact match (no propagation from parent folders)
-    // This fixes the bug where siblings would show spinners
     return null
   },
   
@@ -784,7 +781,6 @@ export const createFilesSlice: StateCreator<
       else if (file.diffStatus === 'deleted') deleted++
       else if (file.diffStatus === 'outdated') outdated++
       else if (file.diffStatus === 'cloud') cloud++
-      else if (file.diffStatus === 'cloud_new') cloudNew++
     }
     
     return { added, modified, moved, deleted, outdated, cloud, cloudNew }

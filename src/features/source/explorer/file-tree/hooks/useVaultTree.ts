@@ -51,29 +51,26 @@ export function useVaultTree() {
   }, [files, hideSolidworksTempFiles])
   
   // Check if a file/folder is affected by any processing operation
-  // For folders: returns true if any descendant is being processed
-  // For files: returns true only if this exact file is being processed
-  const isBeingProcessed = useCallback((relativePath: string, isDirectory: boolean = false): boolean => {
+  // Spinners propagate DOWN to children, not UP to parents
+  const isBeingProcessed = useCallback((relativePath: string, _isDirectory: boolean = false): boolean => {
     const normalizedPath = relativePath.replace(/\\/g, '/')
     
     // Check if this exact path is being processed
     if (processingOperations.has(relativePath)) return true
     if (processingOperations.has(normalizedPath)) return true
     
-    // For folders, check if any descendant is being processed
-    if (isDirectory) {
-      for (const processingPath of processingOperations.keys()) {
-        const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-        if (normalizedProcessingPath.startsWith(normalizedPath + '/')) return true
-      }
+    // Check if THIS path is INSIDE any processing folder (downward propagation)
+    for (const processingPath of processingOperations.keys()) {
+      const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+      if (normalizedPath.startsWith(normalizedProcessingPath + '/')) return true
     }
     return false
   }, [processingOperations])
   
   // Get the operation type for a file/folder if it's being processed
   // Returns OperationType if processing, null otherwise
-  // For folders: checks if any descendant is being processed and returns the operation type
-  const getProcessingOperation = useCallback((relativePath: string, isDirectory: boolean = false): OperationType | null => {
+  // Spinners propagate DOWN to children, not UP to parents
+  const getProcessingOperation = useCallback((relativePath: string, _isDirectory: boolean = false): OperationType | null => {
     const normalizedPath = relativePath.replace(/\\/g, '/')
     
     // Check if this exact path is being processed
@@ -84,13 +81,12 @@ export function useVaultTree() {
       return processingOperations.get(normalizedPath)!
     }
     
-    // For folders, check if any descendant is being processed
-    if (isDirectory) {
-      for (const [processingPath, opType] of processingOperations) {
-        const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
-        if (normalizedProcessingPath.startsWith(normalizedPath + '/')) {
-          return opType
-        }
+    // Check if THIS path is INSIDE any processing folder (downward propagation)
+    // This makes spinners propagate DOWN to children, not UP to parents
+    for (const [processingPath, opType] of processingOperations) {
+      const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
+      if (normalizedPath.startsWith(normalizedProcessingPath + '/')) {
+        return opType
       }
     }
     return null

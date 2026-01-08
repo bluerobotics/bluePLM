@@ -138,7 +138,7 @@ export function FileListBody({
             isCut={isCut}
             rowHeight={listRowSize + 8}
             visibleColumns={visibleColumns}
-            draggable={file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new'}
+            draggable={file.diffStatus !== 'cloud'}
             onClick={(e) => onRowClick(e, file, index)}
             onDoubleClick={() => onRowDoubleClick(file)}
             onContextMenu={(e) => onContextMenu(e, file)}

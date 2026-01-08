@@ -53,7 +53,7 @@ function analyzeFilterResults(
   for (const f of filesInFolder) {
     if (!f.pdmData?.id) {
       notSynced.push(f)
-    } else if (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new') {
+    } else if (f.diffStatus === 'cloud') {
       cloudOnly.push(f)
     } else if (f.pdmData.checked_out_by !== userId) {
       notCheckedOutByUser.push(f)

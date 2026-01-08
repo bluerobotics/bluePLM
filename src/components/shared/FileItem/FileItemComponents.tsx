@@ -154,7 +154,7 @@ export function getFolderCheckoutStatus(
 ): FolderCheckoutStatus {
   // Exclude 'deleted' files - they don't exist locally (were deleted while checked out)
   // These should be treated like cloud files, not synced/local files
-  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
+  const serverOnlyStatuses = ['cloud', 'deleted']
   const folderFiles = allFiles.filter(f => 
     !f.isDirectory && 
     f.relativePath.startsWith(folderPath + '/') &&
@@ -175,7 +175,7 @@ export function getFolderCheckoutStatus(
  */
 export function isFolderSynced(folderPath: string, allFiles: LocalFile[]): boolean {
   // Exclude files that only exist on server (not locally)
-  const serverOnlyStatuses = ['cloud', 'cloud_new', 'deleted']
+  const serverOnlyStatuses = ['cloud', 'deleted']
   const folderFiles = allFiles.filter(f => 
     !f.isDirectory && 
     f.relativePath.startsWith(folderPath + '/') &&
@@ -507,25 +507,22 @@ export function StatusIcon({ file, userId, size = 12 }: StatusIconProps) {
 // ============================================================================
 
 /**
- * Get count of cloud-only files in a folder (both 'cloud' and 'cloud_new')
+ * Get count of cloud-only files in a folder
  */
 export function getCloudFilesCount(folderPath: string, allFiles: LocalFile[]): number {
   return allFiles.filter(f => 
     !f.isDirectory && 
-    (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new') && 
+    f.diffStatus === 'cloud' && 
     f.relativePath.startsWith(folderPath + '/')
   ).length
 }
 
 /**
- * Get count of new cloud files in a folder (cloud_new - recently added by others)
+ * Get count of new cloud files in a folder (deprecated - cloud_new no longer used)
+ * @deprecated Use getCloudFilesCount instead
  */
-export function getCloudNewFilesCount(folderPath: string, allFiles: LocalFile[]): number {
-  return allFiles.filter(f => 
-    !f.isDirectory && 
-    f.diffStatus === 'cloud_new' && 
-    f.relativePath.startsWith(folderPath + '/')
-  ).length
+export function getCloudNewFilesCount(_folderPath: string, _allFiles: LocalFile[]): number {
+  return 0 // cloud_new status no longer exists
 }
 
 /**
@@ -536,7 +533,6 @@ export function getLocalOnlyFilesCount(folderPath: string, allFiles: LocalFile[]
     !f.isDirectory && 
     (!f.pdmData || f.diffStatus === 'added') && 
     f.diffStatus !== 'cloud' && 
-    f.diffStatus !== 'cloud_new' && 
     f.diffStatus !== 'ignored' &&
     f.relativePath.startsWith(folderPath + '/')
   ).length

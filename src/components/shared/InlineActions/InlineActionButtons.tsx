@@ -1,5 +1,5 @@
 import React from 'react'
-import { Cloud, ArrowDown, ArrowUp, HardDrive, RefreshCw, Plus, Loader2, Lock, Clock, Check, X } from 'lucide-react'
+import { Cloud, ArrowDown, ArrowUp, HardDrive, RefreshCw, Loader2, Lock, Clock, Check, X } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 
 interface BaseButtonProps {
@@ -83,7 +83,6 @@ export const InlineCheckoutButton: React.FC<CheckoutButtonProps> = ({
 // ============================================================================
 interface DownloadButtonProps extends BaseButtonProps {
   count?: number // For folders - number of cloud files
-  isCloudNew?: boolean // Show green Plus icon instead of Cloud
   title?: string
   selectedCount?: number // For multi-select - number of selected files
   isSelectionHovered?: boolean // For multi-select - expand when any selected item is hovered
@@ -92,7 +91,6 @@ interface DownloadButtonProps extends BaseButtonProps {
 export const InlineDownloadButton: React.FC<DownloadButtonProps> = ({
   onClick,
   count,
-  isCloudNew,
   title,
   disabled,
   isProcessing,
@@ -127,11 +125,7 @@ export const InlineDownloadButton: React.FC<DownloadButtonProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {isCloudNew ? (
-        <Plus size={12} className="text-green-400 transition-colors duration-200" />
-      ) : (
-        <Cloud size={12} className={`transition-colors duration-200 ${forceExpanded ? 'text-sky-400' : 'text-plm-info group-hover/download:text-sky-400'}`} />
-      )}
+      <Cloud size={12} className={`transition-colors duration-200 ${forceExpanded ? 'text-sky-400' : 'text-plm-info group-hover/download:text-sky-400'}`} />
       {showCount && (
         <span className={`text-[10px] font-medium text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/download:max-w-[2rem]'}`}>
           {displayCount}

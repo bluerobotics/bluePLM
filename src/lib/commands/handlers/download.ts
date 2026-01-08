@@ -64,11 +64,11 @@ export const downloadCommand: Command<DownloadParams> = {
       return 'No files selected'
     }
     
-    // Get cloud-only files (includes both 'cloud' and 'cloud_new')
+    // Get cloud-only files
     const cloudFiles = getCloudOnlyFilesFromSelection(ctx.files, files)
     
     // Also allow empty cloud-only folders (to create them locally)
-    const hasCloudOnlyFolders = files.some(f => f.isDirectory && (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new'))
+    const hasCloudOnlyFolders = files.some(f => f.isDirectory && f.diffStatus === 'cloud')
     
     if (cloudFiles.length === 0 && !hasCloudOnlyFolders) {
       return 'No cloud files to download'
@@ -92,7 +92,7 @@ export const downloadCommand: Command<DownloadParams> = {
     
     // Get cloud-only files from selection
     const cloudFiles = getCloudOnlyFilesFromSelection(ctx.files, files)
-    const cloudOnlyFolders = files.filter(f => f.isDirectory && (f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new'))
+    const cloudOnlyFolders = files.filter(f => f.isDirectory && f.diffStatus === 'cloud')
     
     logDownload('debug', 'Filtered cloud files', {
       operationId,

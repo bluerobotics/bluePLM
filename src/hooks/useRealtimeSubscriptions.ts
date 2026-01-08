@@ -410,8 +410,13 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
         log.info('[Realtime]', 'Permission change', { changeType })
         
         // Reload user permissions from the store
-        const { loadUserPermissions } = usePDMStore.getState()
+        const { loadUserPermissions, loadUserWorkflowRoles } = usePDMStore.getState()
         await loadUserPermissions()
+        
+        // Also reload workflow roles when they change
+        if (changeType === 'workflow_roles') {
+          await loadUserWorkflowRoles()
+        }
         
         // Show toast to inform user their access changed
         const messages: Record<string, string> = {

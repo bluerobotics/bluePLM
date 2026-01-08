@@ -35,7 +35,7 @@ export function getSelectionCategories(
     const { diffStatus, pdmData } = file
 
     // Downloadable: cloud-only or outdated
-    if (diffStatus === 'cloud' || diffStatus === 'cloud_new' || diffStatus === 'outdated') {
+    if (diffStatus === 'cloud' || diffStatus === 'outdated') {
       result.downloadable.push(file)
     }
 

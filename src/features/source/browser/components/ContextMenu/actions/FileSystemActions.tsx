@@ -31,7 +31,7 @@ export function FileSystemActions({
     addToast,
   } = usePDMStore()
 
-  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
   const isFolder = firstFile.isDirectory
 
   // Don't show for cloud-only files

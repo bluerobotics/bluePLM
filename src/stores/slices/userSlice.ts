@@ -18,6 +18,7 @@ export const createUserSlice: StateCreator<
   impersonatedUser: null,
   userTeams: null,
   userPermissions: null,
+  userWorkflowRoleIds: [],
   permissionsLoaded: false,
   permissionsLastUpdated: 0,
   
@@ -32,7 +33,8 @@ export const createUserSlice: StateCreator<
     isAuthenticated: false, 
     isOfflineMode: false, 
     isConnecting: false, 
-    impersonatedUser: null 
+    impersonatedUser: null,
+    userWorkflowRoleIds: []
   }),
   
   // Get effective role (considering user impersonation)
@@ -243,6 +245,22 @@ export const createUserSlice: StateCreator<
       })
     } catch (err) {
       set({ permissionsLoaded: true })
+    }
+  },
+  
+  loadUserWorkflowRoles: async () => {
+    const { user } = get()
+    if (!user) {
+      set({ userWorkflowRoleIds: [] })
+      return
+    }
+    
+    try {
+      const { getUserWorkflowRoles } = await import('../../lib/supabase')
+      const { roleIds } = await getUserWorkflowRoles(user.id)
+      set({ userWorkflowRoleIds: roleIds })
+    } catch (err) {
+      // Non-critical, just log and continue
     }
   },
   

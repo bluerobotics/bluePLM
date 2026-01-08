@@ -16,7 +16,7 @@ export function OpenActions({
   navigateToFolder,
 }: OpenActionsProps) {
   const allFiles = contextFiles.every(f => !f.isDirectory)
-  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
   const isFolder = firstFile.isDirectory
   const fileCount = contextFiles.filter(f => !f.isDirectory).length
   const folderCount = contextFiles.filter(f => f.isDirectory).length

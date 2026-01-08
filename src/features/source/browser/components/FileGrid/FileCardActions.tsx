@@ -1,4 +1,4 @@
-import { Cloud, HardDrive, ArrowDown, ArrowUp, Plus, Loader2 } from 'lucide-react'
+import { Cloud, HardDrive, ArrowDown, ArrowUp, Loader2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import {
@@ -59,7 +59,7 @@ export function FileCardActions({
       )}
 
       {/* Download for cloud files */}
-      {!isDeleting && (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && !file.isDirectory && onDownload && (
+      {!isDeleting && file.diffStatus === 'cloud' && !file.isDirectory && onDownload && (
         isDownloading ? (
           <Loader2 size={16} className="text-sky-400 animate-spin" />
         ) : (
@@ -68,11 +68,7 @@ export function FileCardActions({
             onClick={(e) => onDownload(e, file)}
             title="Download"
           >
-            {file.diffStatus === 'cloud_new' ? (
-              <Plus size={buttonIconSize} className="text-green-400 group-hover/download:text-plm-info transition-colors duration-200" />
-            ) : (
-              <Cloud size={buttonIconSize} className="text-plm-info group-hover/download:text-plm-info transition-colors duration-200" />
-            )}
+            <Cloud size={buttonIconSize} className="text-plm-info group-hover/download:text-plm-info transition-colors duration-200" />
             <ArrowDown size={buttonIconSize} className="text-plm-info opacity-0 group-hover/download:opacity-100 -ml-1 group-hover/download:ml-0 transition-all duration-200" />
           </button>
         )
@@ -124,7 +120,7 @@ export function FileCardActions({
       )}
 
       {/* File checkout button */}
-      {!isDeleting && !file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'deleted' && onCheckout && (
+      {!isDeleting && !file.isDirectory && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'deleted' && onCheckout && (
         isCheckingOut ? (
           <Loader2 size={16} className="text-sky-400 animate-spin" />
         ) : (
@@ -140,7 +136,7 @@ export function FileCardActions({
       )}
 
       {/* File upload button */}
-      {!isDeleting && !file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'cloud_new' && file.diffStatus !== 'ignored' && onUpload && (
+      {!isDeleting && !file.isDirectory && !file.pdmData && file.diffStatus !== 'cloud' && file.diffStatus !== 'ignored' && onUpload && (
         isUploading ? (
           <Loader2 size={16} className="text-sky-400 animate-spin" />
         ) : (

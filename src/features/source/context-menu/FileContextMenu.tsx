@@ -120,7 +120,7 @@ export function FileContextMenu({
   const countLabel = getCountLabel(fileCount, folderCount)
   
   // Check for cloud-only files
-  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
   const cloudOnlyCount = cloudOnlyFilesInSelection.length
   
   // Check for empty local folders

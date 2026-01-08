@@ -63,7 +63,7 @@ export function useCloudOnlyFiles() {
   const files = usePDMStore(s => s.files)
   
   return useMemo(
-    () => files.filter(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new'),
+    () => files.filter(f => f.diffStatus === 'cloud'),
     [files]
   )
 }
@@ -113,7 +113,6 @@ export function useDiffStatusCounts() {
         case 'deleted': deleted++; break
         case 'outdated': outdated++; break
         case 'cloud': cloud++; break
-        case 'cloud_new': cloudNew++; break
         case 'moved': moved++; break
       }
     }

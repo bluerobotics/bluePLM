@@ -85,7 +85,7 @@ export function FileActionButtons({
     
     if (isMultiSelect) {
       const outdatedFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'outdated')
-      const cloudFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+      const cloudFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'cloud')
       
       if (outdatedFiles.length > 0) {
         executeCommand('get-latest', { files: outdatedFiles }, { onRefresh })
@@ -171,10 +171,9 @@ export function FileActionButtons({
   return (
     <>
       {/* Download for cloud files - only when online */}
-      {!isOfflineMode && (file.diffStatus === 'cloud' || file.diffStatus === 'cloud_new') && (
+      {!isOfflineMode && file.diffStatus === 'cloud' && (
         <InlineDownloadButton
           onClick={handleInlineDownload}
-          isCloudNew={file.diffStatus === 'cloud_new'}
           isProcessing={operationType === 'download'}
           selectedCount={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 ? selectedDownloadableFiles.length : undefined}
           isSelectionHovered={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 && isDownloadHovered}
@@ -361,7 +360,7 @@ export function FolderActionButtons({
     const { files } = usePDMStore.getState()
     const filesInFolder = files.filter(f => f.relativePath.startsWith(file.relativePath + '/'))
     const hasOutdated = filesInFolder.some(f => f.diffStatus === 'outdated')
-    const hasCloud = filesInFolder.some(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new')
+    const hasCloud = filesInFolder.some(f => f.diffStatus === 'cloud')
     
     if (hasOutdated) {
       executeCommand('get-latest', { files: [file] }, { onRefresh })
