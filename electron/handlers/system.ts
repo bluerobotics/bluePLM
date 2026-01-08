@@ -95,6 +95,103 @@ export function registerSystemHandlers(window: BrowserWindow, deps: SystemHandle
     }
   })
 
+  // Read file paths from clipboard (for Ctrl+V paste from Explorer)
+  ipcMain.handle('clipboard:read-file-paths', () => {
+    try {
+      const formats = clipboard.availableFormats()
+      
+      // On Windows, copied files appear as 'FileNameW' or file URI
+      // Check for file-related formats
+      const hasFiles = formats.some(f => 
+        f.includes('FileNameW') || 
+        f.includes('text/uri-list') ||
+        f.includes('CF_HDROP')
+      )
+      
+      if (!hasFiles) {
+        return { success: true, filePaths: [] }
+      }
+      
+      // Try to read file paths based on platform
+      if (process.platform === 'win32') {
+        // On Windows, read the raw buffer and parse file paths
+        const buffer = clipboard.readBuffer('FileNameW')
+        if (buffer && buffer.length > 0) {
+          // FileNameW is null-terminated UTF-16LE strings, double-null terminated
+          const paths: string[] = []
+          let start = 0
+          
+          for (let i = 0; i < buffer.length - 1; i += 2) {
+            // Check for null character (0x00 0x00 in UTF-16LE)
+            if (buffer[i] === 0 && buffer[i + 1] === 0) {
+              if (i > start) {
+                const pathStr = buffer.slice(start, i).toString('utf16le')
+                if (pathStr && pathStr.length > 0) {
+                  paths.push(pathStr)
+                }
+              }
+              start = i + 2
+              
+              // Check for double-null (end of list)
+              if (i + 3 < buffer.length && buffer[i + 2] === 0 && buffer[i + 3] === 0) {
+                break
+              }
+            }
+          }
+          
+          // Filter to only valid file paths and verify they exist
+          const validPaths = paths.filter(p => {
+            try {
+              return p && p.length > 2 && fs.existsSync(p)
+            } catch {
+              return false
+            }
+          })
+          
+          if (validPaths.length > 0) {
+            log('[Clipboard] Read file paths from clipboard: ' + validPaths.length + ' files')
+            return { success: true, filePaths: validPaths }
+          }
+        }
+      }
+      
+      // Fallback: try text/uri-list format (works on some systems)
+      const uriList = clipboard.read('text/uri-list')
+      if (uriList) {
+        const paths = uriList
+          .split('\n')
+          .map(uri => uri.trim())
+          .filter(uri => uri.startsWith('file://'))
+          .map(uri => {
+            // Convert file:// URI to path
+            let filePath = decodeURIComponent(uri.replace('file://', ''))
+            // On Windows, remove leading slash from /C:/path
+            if (process.platform === 'win32' && filePath.startsWith('/')) {
+              filePath = filePath.substring(1)
+            }
+            return filePath
+          })
+          .filter(p => {
+            try {
+              return fs.existsSync(p)
+            } catch {
+              return false
+            }
+          })
+        
+        if (paths.length > 0) {
+          log('[Clipboard] Read file paths from URI list: ' + paths.length + ' files')
+          return { success: true, filePaths: paths }
+        }
+      }
+      
+      return { success: true, filePaths: [] }
+    } catch (err) {
+      log('[Clipboard] Error reading file paths: ' + String(err))
+      return { success: false, filePaths: [], error: String(err) }
+    }
+  })
+
   // Titlebar handlers
   ipcMain.handle('app:get-titlebar-overlay-rect', () => {
     if (!mainWindow) return { x: 0, y: 0, width: 138, height: 38 }
@@ -320,7 +417,7 @@ export function unregisterSystemHandlers(): void {
     'app:get-version', 'app:get-platform', 'app:get-app-version',
     'analytics:set-enabled', 'analytics:get-enabled',
     'app:get-machine-id', 'app:get-machine-name',
-    'clipboard:write-text', 'clipboard:read-text',
+    'clipboard:write-text', 'clipboard:read-text', 'clipboard:read-file-paths',
     'app:get-titlebar-overlay-rect', 'app:set-titlebar-overlay',
     'app:reload', 'app:request-focus', 'app:open-performance-window', 'app:create-tab-window',
     'app:get-zoom-factor', 'app:set-zoom-factor',

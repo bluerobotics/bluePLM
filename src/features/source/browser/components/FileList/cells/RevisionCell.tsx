@@ -54,6 +54,12 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
           handleStartCellEdit(file, 'revision')
         }
       }}
+      onMouseDown={(e) => {
+        // Stop mousedown from triggering row drag or file focus
+        if (canEditRevision) {
+          e.stopPropagation()
+        }
+      }}
       title={canEditRevision ? 'Click to edit' : 'Check out file to edit'}
     >
       {file.pdmData?.revision || file.pendingMetadata?.revision || 'A'}

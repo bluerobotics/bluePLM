@@ -381,15 +381,70 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   })
   
   // Wrap paste to provide current folder and show status message
+  // Also handles pasting files from Windows Explorer (Ctrl+C in Explorer, then Ctrl+V here)
   const handlePaste = useCallback(async () => {
-    if (!clipboard || !vaultPath) {
-      addToast('info', 'Nothing to paste')
+    // First check if we have internal clipboard content
+    if (clipboard && vaultPath) {
+      setStatusMessage(`Pasting ${clipboard.files.length} item${clipboard.files.length > 1 ? 's' : ''}...`)
+      await sharedHandlePaste(currentFolder || '')
+      setStatusMessage('')
       return
     }
-    setStatusMessage(`Pasting ${clipboard.files.length} item${clipboard.files.length > 1 ? 's' : ''}...`)
-    await sharedHandlePaste(currentFolder || '')
-    setStatusMessage('')
-  }, [clipboard, vaultPath, currentFolder, sharedHandlePaste, addToast, setStatusMessage])
+    
+    // No internal clipboard - check for external file paths from Windows Explorer
+    if (window.electronAPI?.readFilePathsFromClipboard && vaultPath) {
+      try {
+        const result = await window.electronAPI.readFilePathsFromClipboard()
+        if (result.success && result.filePaths && result.filePaths.length > 0) {
+          const filePaths = result.filePaths
+          const totalFiles = filePaths.length
+          const toastId = `paste-external-${Date.now()}`
+          
+          setStatusMessage(`Pasting ${totalFiles} file${totalFiles > 1 ? 's' : ''} from Explorer...`)
+          addProgressToast(toastId, `Adding ${totalFiles} file${totalFiles > 1 ? 's' : ''}...`, totalFiles)
+          
+          let successCount = 0
+          let errorCount = 0
+          
+          for (let i = 0; i < filePaths.length; i++) {
+            const sourcePath = filePaths[i]
+            const fileName = sourcePath.split(/[/\\]/).pop() || 'unknown'
+            const destPath = currentFolder 
+              ? `${vaultPath}/${currentFolder}/${fileName}`.replace(/\\/g, '/')
+              : `${vaultPath}/${fileName}`.replace(/\\/g, '/')
+            
+            const copyResult = await window.electronAPI.copyFile(sourcePath, destPath)
+            if (copyResult.success) {
+              successCount++
+            } else {
+              errorCount++
+              log.error('[Paste]', `Failed to copy ${fileName}`, { error: copyResult.error })
+            }
+            
+            const percent = Math.round(((i + 1) / totalFiles) * 100)
+            updateProgressToast(toastId, i + 1, percent)
+          }
+          
+          removeToast(toastId)
+          setStatusMessage('')
+          
+          if (errorCount === 0) {
+            addToast('success', `Pasted ${successCount} file${successCount > 1 ? 's' : ''} from Explorer`)
+          } else {
+            addToast('warning', `Pasted ${successCount}, failed ${errorCount}`)
+          }
+          
+          // Refresh file list
+          setTimeout(() => onRefresh(true), 100)
+          return
+        }
+      } catch (err) {
+        log.error('[Paste]', 'Failed to read clipboard file paths', { error: err })
+      }
+    }
+    
+    addToast('info', 'Nothing to paste')
+  }, [clipboard, vaultPath, currentFolder, sharedHandlePaste, addToast, setStatusMessage, addProgressToast, updateProgressToast, removeToast, onRefresh])
 
   const tableRef = useRef<HTMLDivElement>(null)
 

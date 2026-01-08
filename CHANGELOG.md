@@ -6,6 +6,16 @@ All notable changes to BluePLM will be documented in this file.
 
 ### Added
 - **Paste files from Windows Explorer**: You can now Ctrl+C files or folders in Windows Explorer and Ctrl+V to paste them directly into BluePLM. Previously only drag-and-drop was supported. Files are copied to the current folder with progress tracking and error handling
+- **Extension System Architecture**: New plugin architecture for third-party and first-party extensions
+  - **Extension Host**: Isolated Electron renderer process for client-side extension code with per-extension sandboxing and watchdog monitoring
+  - **API Sandbox**: V8 isolate pool on organization API servers for server-side extension handlers with rate limits and secure storage
+  - **Extension Registry**: Central coordinator for discovery, installation, activation, updates, and rollback
+  - **IPC Bridge**: Secure message-passing between Main Process, Extension Host, and App Renderer
+  - **Extension Manifest** (`extension.json`): Declarative format for metadata, capabilities, permissions, and contributions (views, commands, settings, API routes)
+  - **`.bpx` Package Format**: ZIP-based distribution format for extensions with manifest validation and signing
+- **Extension Store Database**: New Supabase schema for publishers, extensions, versions, reviews, reports, and analytics (in `blueplm-site`)
+- **Extension Store API**: Cloudflare Workers API for extension publishing, discovery, and management
+- **Marketplace UI**: Extension store frontend at marketplace.blueplm.io with search, categories, and publisher dashboards
 
 ### Changed
 - **Google Drive extension moved to separate repository**: The Google Drive extension is now maintained in its own repository at [blueplm-ext-google-drive](https://github.com/bluerobotics/blueplm-ext-google-drive). This establishes the pattern for all BluePLM extensions to be standalone packages that install from the Extension Store

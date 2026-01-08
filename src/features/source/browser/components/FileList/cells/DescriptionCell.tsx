@@ -54,6 +54,12 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
           handleStartCellEdit(file, 'description')
         }
       }}
+      onMouseDown={(e) => {
+        // Stop mousedown from triggering row drag or file focus
+        if (canEditDescription) {
+          e.stopPropagation()
+        }
+      }}
       title={canEditDescription ? (file.pdmData?.description || 'Click to edit') : 'Check out file to edit'}
     >
       {file.pdmData?.description || file.pendingMetadata?.description || '-'}

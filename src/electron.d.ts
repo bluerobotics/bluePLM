@@ -388,6 +388,8 @@ declare global {
       // Clipboard operations (more reliable than navigator.clipboard in Electron)
       copyToClipboard: (text: string) => Promise<{ success: boolean; error?: string }>
       readFromClipboard: () => Promise<{ success: boolean; text?: string; error?: string }>
+      // Read file paths from clipboard (for Ctrl+V paste from Windows Explorer)
+      readFilePathsFromClipboard: () => Promise<{ success: boolean; filePaths: string[]; error?: string }>
       
       // Backup execution
       checkResticInstalled: () => Promise<{ installed: boolean; version?: string; error?: string }>

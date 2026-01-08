@@ -2280,6 +2280,75 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION preview_next_serial_number(UUID) TO authenticated;
 
+-- Get next serial number (atomically increments counter and returns the new serial)
+-- Used when actually assigning a serial number to a file
+DROP FUNCTION IF EXISTS get_next_serial_number(UUID) CASCADE;
+CREATE OR REPLACE FUNCTION get_next_serial_number(p_org_id UUID)
+RETURNS TEXT AS $$
+DECLARE
+  settings JSONB;
+  current_counter INTEGER;
+  next_counter INTEGER;
+  keepout_zones JSONB;
+  zone JSONB;
+  zone_start INTEGER;
+  zone_end INTEGER;
+  result TEXT;
+  prefix TEXT;
+  suffix TEXT;
+  letter_prefix TEXT;
+  padding_digits INTEGER;
+BEGIN
+  -- Get serialization settings for the organization (with lock for update)
+  SELECT serialization_settings INTO settings
+  FROM organizations WHERE id = p_org_id
+  FOR UPDATE;
+  
+  -- Return null if no settings or serialization is disabled
+  IF settings IS NULL OR NOT COALESCE((settings->>'enabled')::boolean, false) THEN
+    RETURN NULL;
+  END IF;
+  
+  -- Extract settings
+  prefix := COALESCE(settings->>'prefix', '');
+  suffix := COALESCE(settings->>'suffix', '');
+  letter_prefix := COALESCE(settings->>'letter_prefix', '');
+  padding_digits := COALESCE((settings->>'padding_digits')::integer, 5);
+  
+  -- Get current counter and calculate next
+  current_counter := COALESCE((settings->>'current_counter')::integer, 0);
+  next_counter := current_counter + 1;
+  
+  -- Skip keepout zones
+  keepout_zones := COALESCE(settings->'keepout_zones', '[]'::jsonb);
+  FOR zone IN SELECT * FROM jsonb_array_elements(keepout_zones)
+  LOOP
+    zone_start := (zone->>'start')::integer;
+    zone_end := COALESCE((zone->>'end_num')::integer, (zone->>'end')::integer);
+    
+    IF next_counter >= zone_start AND next_counter <= zone_end THEN
+      next_counter := zone_end + 1;
+    END IF;
+  END LOOP;
+  
+  -- Update the counter in the database
+  UPDATE organizations
+  SET serialization_settings = jsonb_set(
+    serialization_settings,
+    '{current_counter}',
+    to_jsonb(next_counter)
+  )
+  WHERE id = p_org_id;
+  
+  -- Build the serial number (without tab - that's added separately)
+  result := prefix || letter_prefix || LPAD(next_counter::text, padding_digits, '0') || suffix;
+  
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_next_serial_number(UUID) TO authenticated;
+
 -- ===========================================
 -- END OF SOURCE FILES MODULE
 -- ===========================================

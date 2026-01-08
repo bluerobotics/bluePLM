@@ -61,6 +61,8 @@ export function ConfigRow({
               value={config.description || ''}
               onChange={(e) => onDescriptionChange(e.target.value)}
               onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
               disabled={!isEditable}
               placeholder="Description"
               className={`w-full px-1.5 py-0.5 text-xs rounded border transition-colors bg-transparent
@@ -100,6 +102,8 @@ export function ConfigRow({
                   value={tabNumber}
                   onChange={(e) => onTabChange(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
                   placeholder={basePartNumber ? 'Tab' : 'Item #'}
                   className="w-14 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
                 />

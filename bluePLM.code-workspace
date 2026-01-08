@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../blueplm-site"
+		},
+		{
+			"path": "../blueplm-ext-google-drive"
 		}
 	],
 	"settings": {}

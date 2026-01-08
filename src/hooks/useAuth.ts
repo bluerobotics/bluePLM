@@ -117,6 +117,9 @@ export function useAuth() {
             // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
             syncUserSessionsOrgId(session.user.id, (org as any).id)
             
+            // Load user's team permissions
+            usePDMStore.getState().loadUserPermissions()
+            
             // Load user's workflow roles for real-time sync
             usePDMStore.getState().loadUserWorkflowRoles()
           } else if (error) {
@@ -215,6 +218,9 @@ export function useAuth() {
               
               // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
               syncUserSessionsOrgId(session.user.id, (org as any).id)
+              
+              // Load user's team permissions
+              usePDMStore.getState().loadUserPermissions()
               
               // Load user's workflow roles for real-time sync
               usePDMStore.getState().loadUserWorkflowRoles()

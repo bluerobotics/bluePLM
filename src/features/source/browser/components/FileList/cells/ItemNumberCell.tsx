@@ -54,6 +54,12 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
           handleStartCellEdit(file, 'itemNumber')
         }
       }}
+      onMouseDown={(e) => {
+        // Stop mousedown from triggering row drag or file focus
+        if (canEditItemNumber) {
+          e.stopPropagation()
+        }
+      }}
       title={canEditItemNumber ? 'Click to edit' : 'Check out file to edit'}
     >
       {file.pdmData?.part_number || file.pendingMetadata?.part_number || '-'}

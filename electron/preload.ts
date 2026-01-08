@@ -124,6 +124,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Clipboard operations (more reliable than navigator.clipboard in Electron)
   copyToClipboard: (text: string) => ipcRenderer.invoke('clipboard:write-text', text),
   readFromClipboard: () => ipcRenderer.invoke('clipboard:read-text'),
+  // Read file paths from clipboard (for Ctrl+V paste from Windows Explorer)
+  readFilePathsFromClipboard: () => ipcRenderer.invoke('clipboard:read-file-paths'),
   
   // Backup execution
   checkResticInstalled: () => ipcRenderer.invoke('backup:check-restic'),

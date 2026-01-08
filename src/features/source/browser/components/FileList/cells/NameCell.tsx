@@ -110,9 +110,13 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
               setRenamingFile(null)
               setRenameValue('')
             }
+            e.stopPropagation()
           }}
           onBlur={handleRename}
           onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDragStart={(e) => e.preventDefault()}
+          draggable={false}
           className="flex-1 bg-plm-bg border border-plm-accent rounded px-2 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
         />
       </div>
