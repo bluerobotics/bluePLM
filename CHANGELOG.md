@@ -2,6 +2,16 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.2.0] - 2026-01-08
+
+### Added
+- **Paste files from Windows Explorer**: You can now Ctrl+C files or folders in Windows Explorer and Ctrl+V to paste them directly into BluePLM. Previously only drag-and-drop was supported. Files are copied to the current folder with progress tracking and error handling
+
+### Changed
+- **Google Drive extension moved to separate repository**: The Google Drive extension is now maintained in its own repository at [blueplm-ext-google-drive](https://github.com/bluerobotics/blueplm-ext-google-drive). This establishes the pattern for all BluePLM extensions to be standalone packages that install from the Extension Store
+
+---
+
 ## [3.1.5] - 2026-01-07
 
 ### Added
