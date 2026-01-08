@@ -13,7 +13,7 @@
  */
 
 import { useState } from 'react'
-import { HardDrive, CloudDownload, Download, Check, X, ToggleLeft, ToggleRight, FileText, Cloud, MonitorSmartphone, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { HardDrive, CloudDownload, Download, Check, X, ToggleLeft, ToggleRight, FileText, Cloud, MonitorSmartphone, CheckCircle2, AlertCircle, Loader2, Scale } from 'lucide-react'
 import { formatFileSize } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
 import { log } from '@/lib/logger'
@@ -55,7 +55,9 @@ interface VaultSetupDialogProps {
   stats?: VaultStats
   /** Extended sync stats - used when reconnecting with existing local files */
   syncStats?: VaultSyncStats
-  onComplete: (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean }) => void
+  /** Initial size limit value (from store) */
+  initialSizeLimit?: number
+  onComplete: (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean; autoDownloadSizeLimit: number }) => void
   onCancel: () => void
 }
 
@@ -69,6 +71,7 @@ export function VaultSetupDialog({
   vaultDescription,
   stats,
   syncStats,
+  initialSizeLimit = 1024,
   onComplete,
   onCancel
 }: VaultSetupDialogProps) {
@@ -77,6 +80,8 @@ export function VaultSetupDialog({
   // Default both toggles to ON for better user experience
   const [autoDownloadCloudFiles, setAutoDownloadCloudFiles] = useState(true)
   const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(true)
+  const [sizeLimit, setSizeLimit] = useState(initialSizeLimit)
+  const [sizeLimitEnabled, setSizeLimitEnabled] = useState(initialSizeLimit > 0)
   
   const handleConnect = () => {
     log.info('[VaultSetup]', 'User completed setup', {
@@ -84,15 +89,20 @@ export function VaultSetupDialog({
       vaultName,
       autoDownloadCloudFiles,
       autoDownloadUpdates,
+      autoDownloadSizeLimit: sizeLimitEnabled ? sizeLimit : 0,
       fileCount: syncStats?.serverFileCount ?? stats?.fileCount ?? 0
     })
-    onComplete({ autoDownloadCloudFiles, autoDownloadUpdates })
+    onComplete({ 
+      autoDownloadCloudFiles, 
+      autoDownloadUpdates,
+      autoDownloadSizeLimit: sizeLimitEnabled ? sizeLimit : 0
+    })
   }
   
   const handleSkip = () => {
     log.info('[VaultSetup]', 'User skipped setup', { vaultId, vaultName })
     // When skipping, use defaults (OFF) - don't change existing settings
-    onComplete({ autoDownloadCloudFiles: false, autoDownloadUpdates: false })
+    onComplete({ autoDownloadCloudFiles: false, autoDownloadUpdates: false, autoDownloadSizeLimit: 1024 })
   }
   
   // Determine which stats to use - prefer syncStats if available
@@ -310,6 +320,53 @@ export function VaultSetupDialog({
                 )}
               </button>
             </div>
+            
+            {/* Size limit for auto-downloads */}
+            {(autoDownloadCloudFiles || autoDownloadUpdates) && (
+              <div className="p-3 bg-plm-bg rounded-lg border border-plm-border space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-plm-highlight mt-0.5">
+                      <Scale size={16} className="text-plm-fg-muted" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-plm-fg">
+                        {t('vaultSetup.sizeLimitTitle', 'Skip large files')}
+                      </div>
+                      <div className="text-xs text-plm-fg-muted mt-0.5">
+                        {t('vaultSetup.sizeLimitDesc', 'Avoid auto-downloading files larger than a specified size')}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSizeLimitEnabled(!sizeLimitEnabled)}
+                    className="flex-shrink-0 text-plm-accent"
+                  >
+                    {sizeLimitEnabled ? (
+                      <ToggleRight size={28} />
+                    ) : (
+                      <ToggleLeft size={28} className="text-plm-fg-muted" />
+                    )}
+                  </button>
+                </div>
+                
+                {sizeLimitEnabled && (
+                  <div className="flex items-center gap-2 ml-11">
+                    <span className="text-sm text-plm-fg-muted">
+                      {t('vaultSetup.maxFileSize', 'Max file size:')}
+                    </span>
+                    <input
+                      type="number"
+                      value={sizeLimit}
+                      onChange={(e) => setSizeLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                      min={1}
+                      className="w-24 px-2 py-1 text-sm bg-plm-bg-light border border-plm-border rounded focus:border-plm-accent focus:outline-none text-plm-fg"
+                    />
+                    <span className="text-sm text-plm-fg-muted">MB</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           {/* Summary */}

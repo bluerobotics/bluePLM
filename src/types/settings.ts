@@ -4,7 +4,7 @@ export type SettingsTab =
   | 'profile' 
   | 'preferences' 
   | 'keybindings'
-  | 'modules'
+  | 'modules'           // Displays as "Sidebar" in UI
   | 'vaults'
   | 'team-members'
   | 'company-profile' 
@@ -17,8 +17,8 @@ export type SettingsTab =
   | 'solidworks' 
   | 'google-drive' 
   | 'odoo' 
-  | 'slack' 
-  | 'woocommerce'
+  | 'slack'             // Hidden from nav, coming soon
+  | 'woocommerce'       // Hidden from nav, coming soon
   | 'webhooks' 
   | 'api' 
   | 'supabase' 
@@ -28,6 +28,7 @@ export type SettingsTab =
   | 'dev-tools'
   | 'about'
   | 'delete-account'
+  | 'extension-store'
 
 // Keybinding action identifiers
 export type KeybindingAction = 

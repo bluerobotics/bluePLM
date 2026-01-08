@@ -115,7 +115,8 @@ export async function buildServer(): Promise<FastifyInstance> {
         { name: 'Trash', description: 'Deleted files' },
         { name: 'Activity', description: 'Activity feed' },
         { name: 'Integrations', description: 'External integrations (Odoo, WooCommerce)' },
-        { name: 'Webhooks', description: 'Webhook management' }
+        { name: 'Webhooks', description: 'Webhook management' },
+        { name: 'Extensions', description: 'Extension system - sandbox handlers and admin' }
       ]
     }
   })

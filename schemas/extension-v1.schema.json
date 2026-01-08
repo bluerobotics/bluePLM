@@ -1,0 +1,547 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blueplm.io/schemas/extension-v1.schema.json",
+  "title": "BluePLM Extension Manifest",
+  "description": "Schema for BluePLM extension manifest files (extension.json)",
+  "type": "object",
+  "required": ["id", "name", "version", "publisher", "license", "engines", "activationEvents", "contributes", "permissions"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for editor autocomplete"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$",
+      "description": "Unique extension identifier in format 'publisher.name' (e.g., 'blueplm.google-drive')"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Human-readable display name"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?(\\+[a-zA-Z0-9.-]+)?$",
+      "description": "Semantic version (e.g., '1.2.3', '1.0.0-beta.1')"
+    },
+    "publisher": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Publisher slug (must match the prefix of the id)"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Extension description shown in the store"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Path to extension icon (128x128 PNG recommended)"
+    },
+    "repository": {
+      "type": "string",
+      "format": "uri",
+      "description": "Source repository URL (required for store submission)"
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "description": "OSI-approved license identifier (e.g., 'MIT', 'Apache-2.0')"
+    },
+    "keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Keywords for store search"
+    },
+    "categories": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Store categories for filtering"
+    },
+    "changelog": {
+      "type": "string",
+      "description": "Changelog or release notes"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["sandboxed", "native"],
+      "default": "sandboxed",
+      "description": "Extension category: 'sandboxed' (default) runs in isolated environment, 'native' runs in main process (verified only)"
+    },
+    "native": {
+      "type": "object",
+      "description": "Native extension configuration (required when category is 'native')",
+      "required": ["platforms"],
+      "properties": {
+        "platforms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["win32", "darwin", "linux"]
+          },
+          "minItems": 1,
+          "description": "Supported platforms"
+        },
+        "electronMain": {
+          "type": "string",
+          "description": "Entry point for main process code"
+        },
+        "requiresAdmin": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether admin/elevated privileges are required"
+        },
+        "nativeDependencies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Native dependencies (bundled binaries)"
+        }
+      }
+    },
+    "engines": {
+      "type": "object",
+      "required": ["blueplm"],
+      "properties": {
+        "blueplm": {
+          "type": "string",
+          "pattern": "^[\\^~><=]*\\d+(\\.\\d+)?(\\.\\d+)?(-[a-zA-Z0-9.-]+)?$",
+          "description": "Required BluePLM app version range (e.g., '^1.0.0')"
+        }
+      },
+      "description": "Version requirements for the host application"
+    },
+    "extensionDependencies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*@[\\^~><=]*\\d+(\\.\\d+)?(\\.\\d+)?$"
+      },
+      "description": "Other extensions this extension depends on (e.g., 'blueplm.core-utils@^1.0.0')"
+    },
+    "extensionPack": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$"
+      },
+      "description": "Extensions bundled together as a pack"
+    },
+    "main": {
+      "type": "string",
+      "description": "Client-side entry point (Extension Host). Must export activate(context, api) function."
+    },
+    "serverMain": {
+      "type": "string",
+      "description": "Server-side entry point (API sandbox)"
+    },
+    "activationEvents": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "anyOf": [
+          { "const": "onExtensionEnabled" },
+          { "const": "onStartup" },
+          { "pattern": "^onNavigate:.+$" },
+          { "pattern": "^onCommand:.+$" },
+          { "pattern": "^onView:.+$" },
+          { "pattern": "^onFileType:.+$" }
+        ]
+      },
+      "description": "Events that trigger extension activation (lazy loading)"
+    },
+    "contributes": {
+      "type": "object",
+      "description": "What the extension contributes to BluePLM",
+      "properties": {
+        "views": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ViewContribution"
+          },
+          "description": "UI views (panels, tabs, dialogs)"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommandContribution"
+          },
+          "description": "Executable commands"
+        },
+        "settings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SettingsContribution"
+          },
+          "description": "Settings pages"
+        },
+        "apiRoutes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ApiRouteContribution"
+          },
+          "description": "Server API routes"
+        },
+        "configuration": {
+          "$ref": "#/definitions/ConfigurationContribution",
+          "description": "Extension configuration schema"
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "description": "Required permissions for client and server execution",
+      "properties": {
+        "client": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ui:toast",
+              "ui:dialog",
+              "ui:status",
+              "ui:progress",
+              "ui:quickpick",
+              "ui:inputbox",
+              "storage:local",
+              "network:orgApi",
+              "network:storeApi",
+              "network:fetch",
+              "commands:register",
+              "commands:execute",
+              "workspace:files",
+              "workspace:vaults",
+              "telemetry"
+            ]
+          },
+          "description": "Client-side permissions (Extension Host)"
+        },
+        "server": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "anyOf": [
+              {
+                "enum": [
+                  "storage:database",
+                  "secrets:read",
+                  "secrets:write",
+                  "http:fetch"
+                ]
+              },
+              {
+                "pattern": "^http:domain:[a-zA-Z0-9][a-zA-Z0-9.-]*\\.[a-zA-Z]{2,}$"
+              }
+            ]
+          },
+          "description": "Server-side permissions (API sandbox)"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ViewContribution": {
+      "type": "object",
+      "required": ["id", "name", "location", "component"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique view identifier"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Lucide icon name"
+        },
+        "location": {
+          "type": "string",
+          "enum": ["sidebar", "panel", "settings", "dialog"],
+          "description": "Location in UI"
+        },
+        "component": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Component path relative to extension"
+        },
+        "when": {
+          "type": "string",
+          "description": "Condition expression for when to show this view"
+        }
+      }
+    },
+    "CommandContribution": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique command identifier (scoped to extension)"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name for command palette"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Lucide icon name"
+        },
+        "keybinding": {
+          "type": "string",
+          "description": "Keyboard shortcut (e.g., 'Ctrl+Shift+G')"
+        },
+        "category": {
+          "type": "string",
+          "description": "Command category for grouping in palette"
+        },
+        "when": {
+          "type": "string",
+          "description": "Condition expression for when command is enabled"
+        }
+      }
+    },
+    "SettingsContribution": {
+      "type": "object",
+      "required": ["id", "name", "component"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Settings page identifier"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description shown in settings list"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Lucide icon name"
+        },
+        "component": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Component path for settings UI"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["account", "organization", "extensions", "system"],
+          "description": "Parent settings category"
+        }
+      }
+    },
+    "ApiRouteContribution": {
+      "type": "object",
+      "required": ["method", "path", "handler"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+          "description": "HTTP method"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Route path (relative to /extensions/{id}/)"
+        },
+        "handler": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Handler file path"
+        },
+        "public": {
+          "type": "boolean",
+          "default": false,
+          "description": "Public endpoint (no auth required) - requires admin approval"
+        },
+        "rateLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Rate limit override (requests per minute)"
+        }
+      }
+    },
+    "ConfigurationContribution": {
+      "type": "object",
+      "required": ["title", "properties"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Settings section title"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ConfigurationProperty"
+          },
+          "description": "Configuration properties"
+        }
+      }
+    },
+    "ConfigurationProperty": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "array", "object"],
+          "description": "Property type"
+        },
+        "default": {
+          "description": "Default value"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        },
+        "enum": {
+          "type": "array",
+          "description": "Allowed values"
+        },
+        "enumDescriptions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Descriptions for enum values (for UI)"
+        },
+        "minimum": {
+          "type": "number",
+          "description": "Minimum value (for numbers)"
+        },
+        "maximum": {
+          "type": "number",
+          "description": "Maximum value (for numbers)"
+        },
+        "items": {
+          "$ref": "#/definitions/ConfigurationProperty",
+          "description": "Items schema (for arrays)"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ConfigurationProperty"
+          },
+          "description": "Properties schema (for objects)"
+        },
+        "order": {
+          "type": "integer",
+          "description": "Order in settings UI"
+        },
+        "deprecationMessage": {
+          "type": "string",
+          "description": "Deprecation warning message"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "$schema": "https://blueplm.io/schemas/extension-v1.schema.json",
+      "id": "blueplm.google-drive",
+      "name": "Google Drive",
+      "version": "1.0.0",
+      "publisher": "blueplm",
+      "description": "Sync files with Google Drive",
+      "icon": "icon.png",
+      "repository": "https://github.com/bluerobotics/blueplm",
+      "license": "MIT",
+      "category": "sandboxed",
+      "engines": {
+        "blueplm": "^1.0.0"
+      },
+      "main": "client/index.js",
+      "serverMain": "server/index.js",
+      "activationEvents": [
+        "onExtensionEnabled",
+        "onNavigate:settings/extensions/google-drive"
+      ],
+      "contributes": {
+        "views": [
+          {
+            "id": "google-drive.panel",
+            "name": "Google Drive",
+            "icon": "cloud",
+            "location": "panel",
+            "component": "components/GoogleDrivePanel.js"
+          }
+        ],
+        "commands": [
+          {
+            "id": "google-drive.sync",
+            "title": "Sync with Google Drive",
+            "icon": "refresh-cw",
+            "keybinding": "Ctrl+Shift+G"
+          }
+        ],
+        "settings": [
+          {
+            "id": "google-drive.settings",
+            "name": "Google Drive",
+            "description": "Configure Google Drive integration",
+            "icon": "cloud",
+            "component": "components/GoogleDriveSettings.js",
+            "category": "extensions"
+          }
+        ],
+        "apiRoutes": [
+          {
+            "method": "POST",
+            "path": "connect",
+            "handler": "server/connect.js"
+          },
+          {
+            "method": "POST",
+            "path": "oauth-callback",
+            "handler": "server/oauth-callback.js",
+            "public": true
+          }
+        ],
+        "configuration": {
+          "title": "Google Drive",
+          "properties": {
+            "syncInterval": {
+              "type": "number",
+              "default": 300,
+              "minimum": 60,
+              "maximum": 3600,
+              "description": "Sync interval in seconds"
+            },
+            "autoSync": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable automatic synchronization"
+            }
+          }
+        }
+      },
+      "permissions": {
+        "client": [
+          "ui:toast",
+          "ui:dialog",
+          "ui:status",
+          "storage:local",
+          "network:orgApi"
+        ],
+        "server": [
+          "storage:database",
+          "secrets:read",
+          "secrets:write",
+          "http:domain:googleapis.com",
+          "http:domain:accounts.google.com"
+        ]
+      }
+    }
+  ]
+}

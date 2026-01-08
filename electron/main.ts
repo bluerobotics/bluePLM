@@ -7,7 +7,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import * as Sentry from '@sentry/electron/main'
 
-import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService, performMigrationCheck, wasMigrationPerformed } from './handlers'
+import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService, cleanupExtensionHost, performMigrationCheck, wasMigrationPerformed } from './handlers'
 import { createAppMenu } from './menu'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -443,6 +443,13 @@ app.on('window-all-closed', () => {
 // Cleanup on app quit
 app.on('before-quit', async () => {
   log('App quitting, cleaning up...')
+  
+  // Cleanup Extension Host
+  try {
+    await cleanupExtensionHost()
+  } catch (err) {
+    logError('Failed to cleanup Extension Host', { error: String(err) })
+  }
   
   // Cleanup SolidWorks service
   try {

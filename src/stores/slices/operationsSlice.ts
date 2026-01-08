@@ -44,6 +44,9 @@ export const createOperationsSlice: StateCreator<
   // Initial state - Missing storage files
   missingStorageFiles: [],
   
+  // Initial state - Pending large upload
+  pendingLargeUpload: null,
+  
   // Actions - Loading
   setIsLoading: (isLoading) => set({ isLoading }),
   setIsRefreshing: (isRefreshing) => set({ isRefreshing }),
@@ -262,4 +265,8 @@ export const createOperationsSlice: StateCreator<
   // Actions - Missing storage files
   setMissingStorageFiles: (files: MissingStorageFile[]) => set({ missingStorageFiles: files }),
   clearMissingStorageFiles: () => set({ missingStorageFiles: [] }),
+  
+  // Actions - Pending large upload
+  setPendingLargeUpload: (upload) => set({ pendingLargeUpload: upload }),
+  clearPendingLargeUpload: () => set({ pendingLargeUpload: null }),
 })

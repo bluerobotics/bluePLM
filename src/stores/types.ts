@@ -235,6 +235,26 @@ export interface MissingStorageFile {
   detectedAt: string         // When we detected this issue
 }
 
+// Pending upload with large files - waiting for user decision
+export interface PendingLargeUpload {
+  /** All files that were originally selected for upload */
+  files: LocalFile[]
+  /** Files that exceed the size threshold */
+  largeFiles: Array<{
+    name: string
+    relativePath: string
+    size: number
+  }>
+  /** Files that are under the threshold */
+  smallFiles: LocalFile[]
+  /** Command to execute ('sync' or 'checkin') */
+  command: 'sync' | 'checkin'
+  /** Original command options */
+  options?: { extractReferences?: boolean }
+  /** Callback to trigger after user decision */
+  onRefresh?: (silent?: boolean) => void
+}
+
 // Staged check-in - file modified locally while offline, queued for check-in when online
 export interface StagedCheckin {
   relativePath: string       // Relative path in vault (unique key)
@@ -417,7 +437,12 @@ export interface SettingsSlice {
   // State - Auto-download
   autoDownloadCloudFiles: boolean
   autoDownloadUpdates: boolean
+  autoDownloadSizeLimit: number  // Max file size in MB for auto-download (0 = no limit)
   autoDownloadExcludedFiles: Record<string, string[]>
+  
+  // State - Upload warnings
+  uploadSizeWarningEnabled: boolean  // Warn when uploading files over threshold
+  uploadSizeWarningThreshold: number  // File size threshold in MB (default: 100)
   
   // State - Pinned items
   pinnedFolders: { path: string; vaultId: string; vaultName: string; isDirectory: boolean }[]
@@ -481,7 +506,12 @@ export interface SettingsSlice {
   // Actions - Auto-download
   setAutoDownloadCloudFiles: (enabled: boolean) => void
   setAutoDownloadUpdates: (enabled: boolean) => void
+  setAutoDownloadSizeLimit: (sizeMB: number) => void
   addAutoDownloadExclusion: (vaultId: string, relativePath: string) => void
+  
+  // Actions - Upload warnings
+  setUploadSizeWarningEnabled: (enabled: boolean) => void
+  setUploadSizeWarningThreshold: (sizeMB: number) => void
   removeAutoDownloadExclusion: (vaultId: string, relativePath: string) => void
   clearAutoDownloadExclusions: (vaultId: string) => void
   cleanupStaleExclusions: (vaultId: string, serverFilePaths: Set<string>) => void
@@ -908,6 +938,9 @@ export interface OperationsSlice {
   // State - Missing storage files
   missingStorageFiles: MissingStorageFile[]
   
+  // State - Pending large upload (waiting for user decision)
+  pendingLargeUpload: PendingLargeUpload | null
+  
   // Actions - Loading
   setIsLoading: (loading: boolean) => void
   setIsRefreshing: (refreshing: boolean) => void
@@ -956,6 +989,10 @@ export interface OperationsSlice {
   // Actions - Missing storage files
   setMissingStorageFiles: (files: MissingStorageFile[]) => void
   clearMissingStorageFiles: () => void
+  
+  // Actions - Pending large upload
+  setPendingLargeUpload: (upload: PendingLargeUpload | null) => void
+  clearPendingLargeUpload: () => void
 }
 
 // ============================================================================
@@ -1190,6 +1227,243 @@ export interface IntegrationsSlice {
 }
 
 // ============================================================================
+// Extensions Slice
+// ============================================================================
+
+/** Extension lifecycle state */
+export type ExtensionLifecycleState = 'not-installed' | 'installed' | 'loading' | 'active' | 'error' | 'disabled'
+
+/** Extension verification status */
+export type ExtensionVerificationStatus = 'verified' | 'community' | 'sideloaded'
+
+/** Extension category */
+export type ExtensionCategoryType = 'sandboxed' | 'native'
+
+/** Install progress phase */
+export type ExtensionInstallPhase = 'downloading' | 'verifying' | 'extracting' | 'loading' | 'deploying' | 'complete' | 'error'
+
+/** Loaded extension information (from IPC) */
+export interface InstalledExtension {
+  manifest: {
+    id: string
+    name: string
+    version: string
+    publisher: string
+    description?: string
+    icon?: string
+    repository?: string
+    license: string
+    category?: ExtensionCategoryType
+    main?: string
+    serverMain?: string
+  }
+  state: ExtensionLifecycleState
+  verification: ExtensionVerificationStatus
+  error?: string
+  installedAt?: string
+  activatedAt?: string
+}
+
+/** Store extension listing (from API) */
+export interface StoreExtensionListing {
+  id: string
+  extensionId: string
+  publisher: {
+    id: string
+    name: string
+    slug: string
+    verified: boolean
+  }
+  name: string
+  description?: string
+  iconUrl?: string
+  repositoryUrl: string
+  license: string
+  category: ExtensionCategoryType
+  categories: string[]
+  tags: string[]
+  verified: boolean
+  featured: boolean
+  downloadCount: number
+  latestVersion: string
+  createdAt: string
+  updatedAt: string
+  deprecation?: {
+    deprecatedAt: string
+    reason: string
+    replacementId?: string
+    sunsetDate?: string
+  }
+}
+
+/** Available extension update */
+export interface ExtensionUpdateAvailable {
+  extensionId: string
+  currentVersion: string
+  newVersion: string
+  changelog?: string
+  breaking: boolean
+  minAppVersion?: string
+}
+
+/** Install progress state */
+export interface ExtensionInstallProgress {
+  extensionId: string
+  phase: ExtensionInstallPhase
+  percent: number
+  message: string
+  error?: string
+}
+
+export interface ExtensionsSlice {
+  // ═══════════════════════════════════════════════════════════════
+  // State
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Installed extensions keyed by extension ID */
+  installedExtensions: Record<string, InstalledExtension>
+  
+  /** Extension states for quick lookup */
+  extensionStates: Record<string, ExtensionLifecycleState>
+  
+  /** Extensions from the store (marketplace) */
+  storeExtensions: StoreExtensionListing[]
+  
+  /** Available updates for installed extensions */
+  availableUpdates: ExtensionUpdateAvailable[]
+  
+  /** Whether store is currently loading */
+  storeLoading: boolean
+  
+  /** Store search query */
+  storeSearchQuery: string
+  
+  /** Store category filter */
+  storeCategoryFilter: string | null
+  
+  /** Store verification filter */
+  storeVerifiedOnly: boolean
+  
+  /** Store sort order */
+  storeSort: 'popular' | 'recent' | 'name'
+  
+  /** Current install progress (if installing) */
+  installProgress: ExtensionInstallProgress | null
+  
+  /** Whether checking for updates */
+  checkingUpdates: boolean
+  
+  /** Last update check timestamp */
+  lastUpdateCheck: number | null
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Synchronous Actions
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Set all installed extensions */
+  setInstalledExtensions: (extensions: Record<string, InstalledExtension>) => void
+  
+  /** Update a single installed extension */
+  updateInstalledExtension: (extensionId: string, updates: Partial<InstalledExtension>) => void
+  
+  /** Remove an installed extension from state */
+  removeInstalledExtension: (extensionId: string) => void
+  
+  /** Set store extensions */
+  setStoreExtensions: (extensions: StoreExtensionListing[]) => void
+  
+  /** Set available updates */
+  setAvailableUpdates: (updates: ExtensionUpdateAvailable[]) => void
+  
+  /** Set store loading state */
+  setStoreLoading: (loading: boolean) => void
+  
+  /** Set store search query */
+  setStoreSearchQuery: (query: string) => void
+  
+  /** Set store category filter */
+  setStoreCategoryFilter: (category: string | null) => void
+  
+  /** Set store verified only filter */
+  setStoreVerifiedOnly: (verified: boolean) => void
+  
+  /** Set store sort order */
+  setStoreSort: (sort: 'popular' | 'recent' | 'name') => void
+  
+  /** Set install progress */
+  setInstallProgress: (progress: ExtensionInstallProgress | null) => void
+  
+  /** Set checking updates state */
+  setCheckingUpdates: (checking: boolean) => void
+  
+  /** Handle extension state change event */
+  handleExtensionStateChange: (extensionId: string, state: ExtensionLifecycleState, error?: string) => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Async Actions (call IPC via window.electronAPI.extensions)
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Load all installed extensions from IPC */
+  loadInstalledExtensions: () => Promise<void>
+  
+  /** Fetch store extensions from API */
+  fetchStoreExtensions: () => Promise<void>
+  
+  /** Search store extensions */
+  searchStoreExtensions: (query?: string, category?: string) => Promise<void>
+  
+  /** Install an extension from the store */
+  installExtension: (extensionId: string, version?: string) => Promise<{ success: boolean; error?: string }>
+  
+  /** Sideload an extension from a .bpx file */
+  sideloadExtension: (bpxPath: string, acknowledgeUnsigned?: boolean) => Promise<{ success: boolean; error?: string }>
+  
+  /** Uninstall an extension */
+  uninstallExtension: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+  
+  /** Enable an extension */
+  enableExtension: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+  
+  /** Disable an extension */
+  disableExtension: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+  
+  /** Update an extension to a new version */
+  updateExtension: (extensionId: string, version?: string) => Promise<{ success: boolean; error?: string }>
+  
+  /** Rollback an extension to a previous version */
+  rollbackExtension: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+  
+  /** Check for available updates */
+  checkForUpdates: () => Promise<void>
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Getters
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Get extension by ID */
+  getExtension: (extensionId: string) => InstalledExtension | undefined
+  
+  /** Get all active extensions */
+  getActiveExtensions: () => InstalledExtension[]
+  
+  /** Check if extension is installed */
+  isExtensionInstalled: (extensionId: string) => boolean
+  
+  /** Check if update is available for extension */
+  hasUpdate: (extensionId: string) => boolean
+  
+  /** Get update info for extension */
+  getUpdateInfo: (extensionId: string) => ExtensionUpdateAvailable | undefined
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Reset
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Clear all extensions state */
+  clearExtensionsState: () => void
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
 
@@ -1209,7 +1483,8 @@ export type PDMStoreState =
   ECOsSlice &
   OrganizationDataSlice &
   OrganizationMetadataSlice &
-  IntegrationsSlice
+  IntegrationsSlice &
+  ExtensionsSlice
 
 // ============================================================================
 // Store Versioning

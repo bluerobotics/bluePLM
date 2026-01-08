@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { SettingsTab } from '@/types/settings'
+import { ExtensionStoreView } from '@/features/extensions'
 
 // Lazy loaded settings panels - only loaded when the tab is selected
 // This saves memory by not loading all settings components upfront
@@ -102,6 +103,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <AboutSettings />
       case 'delete-account':
         return <DeleteAccountSettings />
+      case 'extension-store':
+        return <ExtensionStoreView />
       default:
         return <ProfileSettings />
     }

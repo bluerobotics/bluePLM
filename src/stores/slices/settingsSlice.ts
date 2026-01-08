@@ -96,7 +96,12 @@ export const createSettingsSlice: StateCreator<
   // Initial state - Auto-download
   autoDownloadCloudFiles: false,
   autoDownloadUpdates: false,
+  autoDownloadSizeLimit: 1024,  // Default: 1 GB (1024 MB) - 0 means no limit
   autoDownloadExcludedFiles: {},
+  
+  // Initial state - Upload warnings
+  uploadSizeWarningEnabled: true,  // Warn by default
+  uploadSizeWarningThreshold: 100,  // Default: 100 MB
   
   // Initial state - Pinned items
   pinnedFolders: [],
@@ -162,6 +167,12 @@ export const createSettingsSlice: StateCreator<
   // Actions - Auto-download
   setAutoDownloadCloudFiles: (autoDownloadCloudFiles) => set({ autoDownloadCloudFiles }),
   setAutoDownloadUpdates: (autoDownloadUpdates) => set({ autoDownloadUpdates }),
+  setAutoDownloadSizeLimit: (autoDownloadSizeLimit) => set({ autoDownloadSizeLimit: Math.max(0, autoDownloadSizeLimit) }),
+  
+  // Actions - Upload warnings
+  setUploadSizeWarningEnabled: (uploadSizeWarningEnabled) => set({ uploadSizeWarningEnabled }),
+  setUploadSizeWarningThreshold: (uploadSizeWarningThreshold) => set({ uploadSizeWarningThreshold: Math.max(1, uploadSizeWarningThreshold) }),
+  
   addAutoDownloadExclusion: (vaultId, relativePath) => set(state => {
     const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
     // Don't add duplicates

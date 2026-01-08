@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+  <title>BluePLM Extension Host</title>
+  <style>
+    /* Minimal styles for debugging - this window is normally hidden */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 20px;
+    }
+    
+    h1 {
+      color: #4da6ff;
+      font-size: 18px;
+      margin: 0 0 20px 0;
+    }
+    
+    .status {
+      background: #252538;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    
+    .status-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .label {
+      color: #888;
+    }
+    
+    .value {
+      color: #4da6ff;
+      font-family: monospace;
+    }
+    
+    .extensions {
+      background: #252538;
+      border-radius: 8px;
+      padding: 15px;
+    }
+    
+    .extension {
+      background: #1a1a2e;
+      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    
+    .extension:last-child {
+      margin-bottom: 0;
+    }
+    
+    .extension-name {
+      font-weight: bold;
+      color: #fff;
+    }
+    
+    .extension-state {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 8px;
+    }
+    
+    .state-active {
+      background: #2d5a3d;
+      color: #5eff5e;
+    }
+    
+    .state-installed {
+      background: #3d3d5a;
+      color: #8888ff;
+    }
+    
+    .state-error {
+      background: #5a2d2d;
+      color: #ff5e5e;
+    }
+    
+    .logs {
+      background: #0a0a15;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    
+    .log-entry {
+      margin-bottom: 4px;
+    }
+    
+    .log-info { color: #4da6ff; }
+    .log-warn { color: #ffcc00; }
+    .log-error { color: #ff5e5e; }
+    .log-debug { color: #888; }
+  </style>
+</head>
+<body>
+  <h1>🔌 BluePLM Extension Host</h1>
+  
+  <div class="status" id="status">
+    <div class="status-item">
+      <span class="label">Status:</span>
+      <span class="value" id="host-status">Initializing...</span>
+    </div>
+    <div class="status-item">
+      <span class="label">Uptime:</span>
+      <span class="value" id="host-uptime">0s</span>
+    </div>
+    <div class="status-item">
+      <span class="label">Extensions:</span>
+      <span class="value" id="extension-count">0</span>
+    </div>
+  </div>
+  
+  <div class="extensions" id="extensions">
+    <div style="color: #666; font-style: italic;">No extensions loaded</div>
+  </div>
+  
+  <div class="logs" id="logs"></div>
+  
+  <script>
+    // Extension Host initialization script
+    (function() {
+      const startTime = Date.now();
+      
+      // UI update helpers
+      function updateStatus(status) {
+        document.getElementById('host-status').textContent = status;
+      }
+      
+      function updateUptime() {
+        const uptime = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById('host-uptime').textContent = uptime + 's';
+      }
+      
+      function updateExtensionCount(count) {
+        document.getElementById('extension-count').textContent = count;
+      }
+      
+      function addLog(level, message) {
+        const logs = document.getElementById('logs');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry log-' + level;
+        entry.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
+        logs.appendChild(entry);
+        logs.scrollTop = logs.scrollHeight;
+        
+        // Keep only last 100 entries
+        while (logs.children.length > 100) {
+          logs.removeChild(logs.firstChild);
+        }
+      }
+      
+      // Start uptime counter
+      setInterval(updateUptime, 1000);
+      
+      // Check for bridge
+      if (!window.extensionHostBridge) {
+        updateStatus('Error: Bridge not available');
+        addLog('error', 'Extension Host bridge not found');
+        return;
+      }
+      
+      addLog('info', 'Extension Host preload ready');
+      
+      // Initialize the Extension Host
+      // The actual host.ts will be bundled and loaded here
+      // For now, we set up the message handling
+      
+      let extensionHost = null;
+      
+      // Message handler
+      window.extensionHostBridge.onMessage(function(message) {
+        addLog('debug', 'Received: ' + message.type);
+        
+        // Forward to host if initialized
+        if (extensionHost && extensionHost.handleMessage) {
+          extensionHost.handleMessage(message);
+        }
+      });
+      
+      updateStatus('Ready');
+      addLog('info', 'Extension Host initialized');
+      
+      // Notify main process we're ready
+      window.extensionHostBridge.send({
+        type: 'host:ready',
+        timestamp: Date.now()
+      });
+    })();
+  </script>
+</body>
+</html>

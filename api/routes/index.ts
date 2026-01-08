@@ -15,6 +15,7 @@ import partsRoutes from './parts.js'
 import supplierRoutes from './suppliers.js'
 import integrationRoutes from './integrations/index.js'
 import webhookRoutes from './webhooks.js'
+import extensionRoutes from './extensions.js'
 
 const routes: FastifyPluginAsync = async (fastify) => {
   // Health & Info (no prefix)
@@ -46,6 +47,9 @@ const routes: FastifyPluginAsync = async (fastify) => {
   
   // Webhook routes
   await fastify.register(webhookRoutes)
+  
+  // Extension routes (sandbox handlers + admin endpoints)
+  await fastify.register(extensionRoutes)
 }
 
 export default routes

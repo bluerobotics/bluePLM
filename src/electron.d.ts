@@ -535,8 +535,211 @@ declare global {
         cleanedCount: number
       }>
       acknowledgeMigration: () => Promise<{ success: boolean }>
+      
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // EXTENSION SYSTEM API
+      // ═══════════════════════════════════════════════════════════════════════════════
+      
+      extensions: {
+        // ----- Queries -----
+        getAll: () => Promise<ExtensionInfo[]>
+        getExtension: (extensionId: string) => Promise<ExtensionInfo | undefined>
+        getHostStatus: () => Promise<ExtensionHostStatus>
+        getExtensionStats: (extensionId: string) => Promise<ExtensionStats | undefined>
+        
+        // ----- Store Operations -----
+        fetchStore: () => Promise<StoreExtensionInfo[]>
+        searchStore: (request: {
+          query?: string
+          category?: string
+          verifiedOnly?: boolean
+          sort?: 'popular' | 'recent' | 'name'
+          page?: number
+          pageSize?: number
+        }) => Promise<{
+          extensions: StoreExtensionInfo[]
+          total: number
+          page: number
+          hasMore: boolean
+        }>
+        getStoreExtension: (extensionId: string) => Promise<StoreExtensionInfo | undefined>
+        
+        // ----- Installation -----
+        install: (extensionId: string, version?: string) => Promise<ExtensionInstallResult>
+        installFromFile: (bpxPath: string, acknowledgeUnsigned?: boolean) => Promise<ExtensionInstallResult>
+        uninstall: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+        
+        // ----- Lifecycle -----
+        enable: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+        disable: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+        activate: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+        deactivate: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+        kill: (extensionId: string, reason: string) => Promise<{ success: boolean; error?: string }>
+        
+        // ----- Updates -----
+        checkUpdates: () => Promise<ExtensionUpdateInfo[]>
+        update: (extensionId: string, version?: string) => Promise<ExtensionInstallResult>
+        rollback: (extensionId: string) => Promise<ExtensionInstallResult>
+        pinVersion: (extensionId: string, version: string) => Promise<{ success: boolean; error?: string }>
+        unpinVersion: (extensionId: string) => Promise<{ success: boolean; error?: string }>
+        
+        // ----- Event Listeners -----
+        onStateChange: (callback: (event: ExtensionStateChangeEvent) => void) => () => void
+        onViolation: (callback: (event: ExtensionViolationEvent) => void) => () => void
+        onUpdateAvailable: (callback: (updates: ExtensionUpdateInfo[]) => void) => () => void
+        onInstallProgress: (callback: (event: ExtensionInstallProgressEvent) => void) => () => void
+        onHostStats: (callback: (stats: ExtensionStats[]) => void) => () => void
+        onUICall: (callback: (call: ExtensionUICallEvent) => void) => () => void
+      }
     }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXTENSION SYSTEM TYPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Extension lifecycle state */
+type ExtensionState = 'not-installed' | 'installed' | 'loading' | 'active' | 'error' | 'disabled'
+
+/** Extension verification status */
+type ExtensionVerificationStatus = 'verified' | 'community' | 'sideloaded'
+
+/** Extension category */
+type ExtensionCategory = 'sandboxed' | 'native'
+
+/** Loaded extension information */
+interface ExtensionInfo {
+  manifest: {
+    id: string
+    name: string
+    version: string
+    publisher: string
+    description?: string
+    icon?: string
+    repository?: string
+    license: string
+    category?: ExtensionCategory
+    main?: string
+    serverMain?: string
+  }
+  state: ExtensionState
+  verification: ExtensionVerificationStatus
+  error?: string
+  installedAt?: string
+  activatedAt?: string
+}
+
+/** Extension Host status */
+interface ExtensionHostStatus {
+  running: boolean
+  ready: boolean
+  uptime: number
+  restartCount: number
+  lastError?: string
+}
+
+/** Extension runtime statistics */
+interface ExtensionStats {
+  extensionId: string
+  memoryUsageMB: number
+  cpuTimeMs: number
+  lastActivityMs: number
+  activationCount?: number
+  errorCount?: number
+}
+
+/** Store extension listing */
+interface StoreExtensionInfo {
+  id: string
+  extensionId: string
+  publisher: {
+    id: string
+    name: string
+    slug: string
+    verified: boolean
+  }
+  name: string
+  description?: string
+  iconUrl?: string
+  repositoryUrl: string
+  license: string
+  category: ExtensionCategory
+  categories: string[]
+  tags: string[]
+  verified: boolean
+  featured: boolean
+  downloadCount: number
+  latestVersion: string
+  createdAt: string
+  updatedAt: string
+  deprecation?: {
+    deprecatedAt: string
+    reason: string
+    replacementId?: string
+    sunsetDate?: string
+  }
+}
+
+/** Extension installation result */
+interface ExtensionInstallResult {
+  success: boolean
+  extension?: ExtensionInfo
+  error?: string
+  verification?: ExtensionVerificationStatus
+}
+
+/** Available extension update */
+interface ExtensionUpdateInfo {
+  extensionId: string
+  currentVersion: string
+  newVersion: string
+  changelog?: string
+  breaking: boolean
+  minAppVersion?: string
+}
+
+/** Extension state change event */
+interface ExtensionStateChangeEvent {
+  extensionId: string
+  state: ExtensionState
+  previousState?: ExtensionState
+  error?: string
+  timestamp: number
+}
+
+/** Watchdog violation event */
+interface ExtensionViolationEvent {
+  violation: {
+    type: 'memory_exceeded' | 'cpu_timeout' | 'unresponsive' | 'crash'
+    extensionId: string
+    timestamp: number
+    details: {
+      memoryUsage?: number
+      memoryLimit?: number
+      executionTime?: number
+      cpuLimit?: number
+      errorMessage?: string
+    }
+  }
+  killed: boolean
+}
+
+/** Install progress event */
+interface ExtensionInstallProgressEvent {
+  extensionId: string
+  phase: 'downloading' | 'verifying' | 'extracting' | 'loading' | 'deploying' | 'complete' | 'error'
+  percent: number
+  message: string
+  error?: string
+}
+
+/** UI call from extension */
+interface ExtensionUICallEvent {
+  extensionId: string
+  method: string
+  args: unknown[]
+  callId?: string
 }
 
 export {}

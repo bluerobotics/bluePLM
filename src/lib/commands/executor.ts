@@ -13,6 +13,8 @@ import { usePDMStore } from '../../stores/pdmStore'
 import type { Command, CommandContext, CommandResult, CommandId, CommandMap } from './types'
 import { logUserAction } from '../userActionLogger'
 import { log } from '../logger'
+// NOTE: checkFilesForSizeWarning is imported dynamically below to avoid circular dependency
+// (useUploadSizeWarning → @/lib/commands → executor.ts → useUploadSizeWarning)
 
 // Registry of all commands
 const commandRegistry = new Map<CommandId, Command<any>>()
@@ -222,6 +224,44 @@ export async function executeCommand<K extends CommandId>(
       total: 0,
       succeeded: 0,
       failed: 0
+    }
+  }
+  
+  // Check for large files on upload commands (sync, checkin)
+  if (commandId === 'sync' || commandId === 'checkin') {
+    const store = usePDMStore.getState()
+    const { uploadSizeWarningEnabled, uploadSizeWarningThreshold } = store
+    
+    if (uploadSizeWarningEnabled) {
+      const files = (params as any)?.files || []
+      // Dynamic import to avoid circular dependency
+      const { checkFilesForSizeWarning } = await import('../../hooks/useUploadSizeWarning')
+      const { largeFiles, smallFiles } = checkFilesForSizeWarning(
+        files,
+        uploadSizeWarningThreshold,
+        uploadSizeWarningEnabled
+      )
+      
+      // If there are large files, set pending upload and return early
+      if (largeFiles.length > 0) {
+        store.setPendingLargeUpload({
+          files,
+          largeFiles,
+          smallFiles,
+          command: commandId as 'sync' | 'checkin',
+          options: (params as any)?.extractReferences ? { extractReferences: true } : undefined,
+          onRefresh: options?.onRefresh
+        })
+        
+        // Return a "pending" result - the actual command will run after user decision
+        return {
+          success: true,
+          message: 'Waiting for user decision on large files',
+          total: 0,
+          succeeded: 0,
+          failed: 0
+        }
+      }
     }
   }
   

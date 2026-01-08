@@ -14,7 +14,13 @@ import {
   AlertTriangle,
   FolderX,
   RefreshCw,
-  Eraser
+  Eraser,
+  CloudDownload,
+  Download,
+  Scale,
+  ToggleLeft,
+  ToggleRight,
+  Upload
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
 import { supabase, getAccessibleVaults } from '@/lib/supabase'
@@ -61,8 +67,16 @@ export function VaultsSettings() {
     addToast,
     triggerVaultsRefresh,
     getEffectiveRole,
+    autoDownloadCloudFiles,
     setAutoDownloadCloudFiles,
-    setAutoDownloadUpdates
+    autoDownloadUpdates,
+    setAutoDownloadUpdates,
+    autoDownloadSizeLimit,
+    setAutoDownloadSizeLimit,
+    uploadSizeWarningEnabled,
+    setUploadSizeWarningEnabled,
+    uploadSizeWarningThreshold,
+    setUploadSizeWarningThreshold
   } = usePDMStore()
   
   const isAdmin = getEffectiveRole() === 'admin'
@@ -488,7 +502,7 @@ export function VaultsSettings() {
     }
   }
   
-  const handleVaultSetupComplete = (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean }) => {
+  const handleVaultSetupComplete = (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean; autoDownloadSizeLimit: number }) => {
     if (!setupVault || !setupVaultPath) return
     
     log.info('[VaultsSettings]', 'Vault setup complete', { 
@@ -499,6 +513,7 @@ export function VaultsSettings() {
     // Apply auto-download preferences
     setAutoDownloadCloudFiles(preferences.autoDownloadCloudFiles)
     setAutoDownloadUpdates(preferences.autoDownloadUpdates)
+    setAutoDownloadSizeLimit(preferences.autoDownloadSizeLimit)
     
     // Add vault with hasCompletedSetup flag
     const connectedVault: ConnectedVault = {
@@ -884,6 +899,163 @@ export function VaultsSettings() {
         </div>
       )}
 
+      {/* Auto-Download Settings */}
+      {connectedVaults.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+            Auto-Download Settings
+          </h3>
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
+            {/* Auto-download cloud files */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-plm-highlight">
+                  <CloudDownload size={18} className="text-plm-fg-muted" />
+                </div>
+                <div>
+                  <div className="text-base text-plm-fg">Auto-download cloud files</div>
+                  <div className="text-sm text-plm-fg-muted mt-0.5">
+                    Automatically download files that exist on the server but not on your computer
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setAutoDownloadCloudFiles(!autoDownloadCloudFiles)}
+                className="text-plm-accent"
+              >
+                {autoDownloadCloudFiles ? (
+                  <ToggleRight size={28} />
+                ) : (
+                  <ToggleLeft size={28} className="text-plm-fg-muted" />
+                )}
+              </button>
+            </div>
+            
+            {/* Auto-download updates */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-plm-highlight">
+                  <Download size={18} className="text-plm-fg-muted" />
+                </div>
+                <div>
+                  <div className="text-base text-plm-fg">Auto-download file updates</div>
+                  <div className="text-sm text-plm-fg-muted mt-0.5">
+                    Automatically download newer versions when files are updated on the server
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setAutoDownloadUpdates(!autoDownloadUpdates)}
+                className="text-plm-accent"
+              >
+                {autoDownloadUpdates ? (
+                  <ToggleRight size={28} />
+                ) : (
+                  <ToggleLeft size={28} className="text-plm-fg-muted" />
+                )}
+              </button>
+            </div>
+            
+            {/* Size limit for auto-downloads */}
+            {(autoDownloadCloudFiles || autoDownloadUpdates) && (
+              <div className="pt-3 border-t border-plm-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-plm-highlight">
+                      <Scale size={18} className="text-plm-fg-muted" />
+                    </div>
+                    <div>
+                      <div className="text-base text-plm-fg">Skip large files</div>
+                      <div className="text-sm text-plm-fg-muted mt-0.5">
+                        Avoid auto-downloading files larger than a specified size
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAutoDownloadSizeLimit(autoDownloadSizeLimit > 0 ? 0 : 1024)}
+                    className="text-plm-accent"
+                  >
+                    {autoDownloadSizeLimit > 0 ? (
+                      <ToggleRight size={28} />
+                    ) : (
+                      <ToggleLeft size={28} className="text-plm-fg-muted" />
+                    )}
+                  </button>
+                </div>
+                
+                {autoDownloadSizeLimit > 0 && (
+                  <div className="flex items-center gap-2 mt-3 ml-11">
+                    <span className="text-sm text-plm-fg-muted">
+                      Max file size:
+                    </span>
+                    <input
+                      type="number"
+                      value={autoDownloadSizeLimit}
+                      onChange={(e) => setAutoDownloadSizeLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                      min={1}
+                      className="w-24 px-2 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg focus:border-plm-accent focus:outline-none text-plm-fg"
+                    />
+                    <span className="text-sm text-plm-fg-muted">MB</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Upload Warning Settings */}
+      {connectedVaults.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+            Upload Warnings
+          </h3>
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
+            {/* Warn on large file upload */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-plm-highlight">
+                  <Upload size={18} className="text-plm-fg-muted" />
+                </div>
+                <div>
+                  <div className="text-base text-plm-fg">Warn on large file uploads</div>
+                  <div className="text-sm text-plm-fg-muted mt-0.5">
+                    Show a warning before uploading files larger than your threshold
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setUploadSizeWarningEnabled(!uploadSizeWarningEnabled)}
+                className="text-plm-accent"
+              >
+                {uploadSizeWarningEnabled ? (
+                  <ToggleRight size={28} />
+                ) : (
+                  <ToggleLeft size={28} className="text-plm-fg-muted" />
+                )}
+              </button>
+            </div>
+            
+            {/* Threshold input */}
+            {uploadSizeWarningEnabled && (
+              <div className="flex items-center gap-2 ml-11">
+                <span className="text-sm text-plm-fg-muted">
+                  Warn when file size exceeds:
+                </span>
+                <input
+                  type="number"
+                  value={uploadSizeWarningThreshold}
+                  onChange={(e) => setUploadSizeWarningThreshold(Math.max(1, parseInt(e.target.value) || 1))}
+                  min={1}
+                  className="w-24 px-2 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg focus:border-plm-accent focus:outline-none text-plm-fg"
+                />
+                <span className="text-sm text-plm-fg-muted">MB</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Delete Vault Dialog */}
       {deletingVault && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => { setDeletingVault(null); setDeleteConfirmText(''); setDeleteConfirmText2('') }}>
@@ -1078,6 +1250,7 @@ export function VaultsSettings() {
           vaultName={setupVault.name}
           vaultDescription={setupVault.description}
           syncStats={setupVaultSyncStats || undefined}
+          initialSizeLimit={autoDownloadSizeLimit}
           onComplete={handleVaultSetupComplete}
           onCancel={handleVaultSetupCancel}
         />

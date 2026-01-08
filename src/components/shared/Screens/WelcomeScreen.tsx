@@ -71,6 +71,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     permissionsLastUpdated,  // Triggers vault reload when permissions change via realtime
     setAutoDownloadCloudFiles,
     setAutoDownloadUpdates,
+    autoDownloadSizeLimit,
+    setAutoDownloadSizeLimit,
     updateConnectedVault
   } = usePDMStore()
   const { t } = useTranslation()
@@ -795,7 +797,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   }
   
   // Handle vault setup completion
-  const handleVaultSetupComplete = (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean }) => {
+  const handleVaultSetupComplete = (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean; autoDownloadSizeLimit: number }) => {
     if (!setupVault || !setupVaultPath) return
     
     log.info('[WelcomeScreen]', 'Vault setup complete', { 
@@ -806,6 +808,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     // Apply auto-download preferences
     setAutoDownloadCloudFiles(preferences.autoDownloadCloudFiles)
     setAutoDownloadUpdates(preferences.autoDownloadUpdates)
+    setAutoDownloadSizeLimit(preferences.autoDownloadSizeLimit)
     
     // Check if vault already exists (incomplete setup case)
     const existingVault = connectedVaults.find(v => v.id === setupVault.id)
@@ -2044,6 +2047,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           vaultDescription={setupVault.description}
           stats={setupVault.stats}
           syncStats={setupVaultSyncStats || undefined}
+          initialSizeLimit={autoDownloadSizeLimit}
           onComplete={handleVaultSetupComplete}
           onCancel={handleVaultSetupCancel}
         />

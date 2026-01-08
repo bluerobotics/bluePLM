@@ -25,7 +25,8 @@ import {
   Trash2,
   BarChart3,
   Shield,
-  Layers
+  Layers,
+  Scale
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore, ThemeMode, Language } from '@/stores/pdmStore'
@@ -82,6 +83,8 @@ export function PreferencesSettings() {
     setAutoDownloadCloudFiles,
     autoDownloadUpdates,
     setAutoDownloadUpdates,
+    autoDownloadSizeLimit,
+    setAutoDownloadSizeLimit,
     autoDownloadExcludedFiles,
     clearAutoDownloadExclusions,
     logSharingEnabled,
@@ -593,6 +596,51 @@ export function PreferencesSettings() {
               )}
             </button>
           </div>
+          
+          {/* Size limit for auto-downloads */}
+          {(autoDownloadCloudFiles || autoDownloadUpdates) && (
+            <div className="pt-3 border-t border-plm-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-plm-highlight">
+                    <Scale size={18} className="text-plm-fg-muted" />
+                  </div>
+                  <div>
+                    <div className="text-base text-plm-fg">{t('preferences.autoDownloadSizeLimit')}</div>
+                    <div className="text-sm text-plm-fg-muted mt-0.5">
+                      {t('preferences.autoDownloadSizeLimitDesc')}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAutoDownloadSizeLimit(autoDownloadSizeLimit > 0 ? 0 : 1024)}
+                  className="text-plm-accent"
+                >
+                  {autoDownloadSizeLimit > 0 ? (
+                    <ToggleRight size={28} />
+                  ) : (
+                    <ToggleLeft size={28} className="text-plm-fg-muted" />
+                  )}
+                </button>
+              </div>
+              
+              {autoDownloadSizeLimit > 0 && (
+                <div className="flex items-center gap-2 mt-3 ml-11">
+                  <span className="text-sm text-plm-fg-muted">
+                    {t('preferences.maxFileSize')}
+                  </span>
+                  <input
+                    type="number"
+                    value={autoDownloadSizeLimit}
+                    onChange={(e) => setAutoDownloadSizeLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                    min={1}
+                    className="w-24 px-2 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg focus:border-plm-accent focus:outline-none text-plm-fg"
+                  />
+                  <span className="text-sm text-plm-fg-muted">MB</span>
+                </div>
+              )}
+            </div>
+          )}
           
           {/* Excluded files from auto-download */}
           {activeVaultId && (autoDownloadExcludedFiles[activeVaultId]?.length || 0) > 0 && (

@@ -520,7 +520,84 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Migration status (for 2.x -> 3.0 upgrade notifications)
   getMigrationStatus: () => ipcRenderer.invoke('migration:get-status'),
-  acknowledgeMigration: () => ipcRenderer.invoke('migration:acknowledge')
+  acknowledgeMigration: () => ipcRenderer.invoke('migration:acknowledge'),
+  
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // EXTENSION SYSTEM API
+  // ═══════════════════════════════════════════════════════════════════════════════
+  
+  extensions: {
+    // ----- Queries -----
+    getAll: () => ipcRenderer.invoke('extensions:get-all'),
+    getExtension: (extensionId: string) => ipcRenderer.invoke('extensions:get-extension', extensionId),
+    getHostStatus: () => ipcRenderer.invoke('extensions:get-host-status'),
+    getExtensionStats: (extensionId: string) => ipcRenderer.invoke('extensions:get-extension-stats', extensionId),
+    
+    // ----- Store Operations -----
+    fetchStore: () => ipcRenderer.invoke('extensions:fetch-store'),
+    searchStore: (request: { query?: string; category?: string; verifiedOnly?: boolean; sort?: string; page?: number; pageSize?: number }) => 
+      ipcRenderer.invoke('extensions:search-store', request),
+    getStoreExtension: (extensionId: string) => ipcRenderer.invoke('extensions:get-store-extension', extensionId),
+    
+    // ----- Installation -----
+    install: (extensionId: string, version?: string) => 
+      ipcRenderer.invoke('extensions:install', extensionId, version),
+    installFromFile: (bpxPath: string, acknowledgeUnsigned?: boolean) => 
+      ipcRenderer.invoke('extensions:install-from-file', bpxPath, acknowledgeUnsigned),
+    uninstall: (extensionId: string) => ipcRenderer.invoke('extensions:uninstall', extensionId),
+    
+    // ----- Lifecycle -----
+    enable: (extensionId: string) => ipcRenderer.invoke('extensions:enable', extensionId),
+    disable: (extensionId: string) => ipcRenderer.invoke('extensions:disable', extensionId),
+    activate: (extensionId: string) => ipcRenderer.invoke('extensions:activate', extensionId),
+    deactivate: (extensionId: string) => ipcRenderer.invoke('extensions:deactivate', extensionId),
+    kill: (extensionId: string, reason: string) => ipcRenderer.invoke('extensions:kill', extensionId, reason),
+    
+    // ----- Updates -----
+    checkUpdates: () => ipcRenderer.invoke('extensions:check-updates'),
+    update: (extensionId: string, version?: string) => ipcRenderer.invoke('extensions:update', extensionId, version),
+    rollback: (extensionId: string) => ipcRenderer.invoke('extensions:rollback', extensionId),
+    pinVersion: (extensionId: string, version: string) => 
+      ipcRenderer.invoke('extensions:pin-version', extensionId, version),
+    unpinVersion: (extensionId: string) => ipcRenderer.invoke('extensions:unpin-version', extensionId),
+    
+    // ----- Event Listeners -----
+    onStateChange: (callback: (event: { extensionId: string; state: string; previousState?: string; error?: string; timestamp: number }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, event: { extensionId: string; state: string; previousState?: string; error?: string; timestamp: number }) => callback(event)
+      ipcRenderer.on('extension:state-change', handler)
+      return () => ipcRenderer.removeListener('extension:state-change', handler)
+    },
+    
+    onViolation: (callback: (event: { violation: { type: string; extensionId: string; timestamp: number; details: unknown }; killed: boolean }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, event: { violation: { type: string; extensionId: string; timestamp: number; details: unknown }; killed: boolean }) => callback(event)
+      ipcRenderer.on('extension:violation', handler)
+      return () => ipcRenderer.removeListener('extension:violation', handler)
+    },
+    
+    onUpdateAvailable: (callback: (updates: Array<{ extensionId: string; currentVersion: string; newVersion: string; changelog?: string; breaking: boolean }>) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, updates: Array<{ extensionId: string; currentVersion: string; newVersion: string; changelog?: string; breaking: boolean }>) => callback(updates)
+      ipcRenderer.on('extension:update-available', handler)
+      return () => ipcRenderer.removeListener('extension:update-available', handler)
+    },
+    
+    onInstallProgress: (callback: (event: { extensionId: string; phase: string; percent: number; message: string; error?: string }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, event: { extensionId: string; phase: string; percent: number; message: string; error?: string }) => callback(event)
+      ipcRenderer.on('extension:install-progress', handler)
+      return () => ipcRenderer.removeListener('extension:install-progress', handler)
+    },
+    
+    onHostStats: (callback: (stats: Array<{ extensionId: string; memoryUsageMB: number; cpuTimeMs: number; lastActivityMs: number }>) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, stats: Array<{ extensionId: string; memoryUsageMB: number; cpuTimeMs: number; lastActivityMs: number }>) => callback(stats)
+      ipcRenderer.on('extension-host:stats', handler)
+      return () => ipcRenderer.removeListener('extension-host:stats', handler)
+    },
+    
+    onUICall: (callback: (call: { extensionId: string; method: string; args: unknown[]; callId?: string }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, call: { extensionId: string; method: string; args: unknown[]; callId?: string }) => callback(call)
+      ipcRenderer.on('extension:ui-call', handler)
+      return () => ipcRenderer.removeListener('extension:ui-call', handler)
+    }
+  }
 })
 
 // Type declarations for the renderer process

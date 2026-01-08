@@ -11,6 +11,7 @@ import { registerUpdaterHandlers, unregisterUpdaterHandlers, UpdaterHandlerDepen
 import { registerOAuthHandlers, unregisterOAuthHandlers, OAuthHandlerDependencies } from './oauth'
 import { registerCliHandlers, unregisterCliHandlers, startCliServer, cleanupCli, CliHandlerDependencies } from './cli'
 import { performMigrationCheck, getMigrationResult, wasMigrationPerformed, isMigrationPending, acknowledgeMigration, getMigrationStatus } from './migration'
+import { registerExtensionHostHandlers, unregisterExtensionHostHandlers, cleanupExtensionHost, onExtensionStateChange, type ExtensionHostHandlerDependencies } from './extensionHost'
 
 // Logging utilities for main.ts
 export { writeLog, initializeLogging } from './logging'
@@ -20,6 +21,9 @@ export { performMigrationCheck, getMigrationResult, wasMigrationPerformed, isMig
 
 // CLI exports for main.ts
 export { startCliServer, cleanupCli } from './cli'
+
+// Extension Host exports for main.ts
+export { cleanupExtensionHost, onExtensionStateChange } from './extensionHost'
 
 // Re-export getters
 export { getWorkingDirectory } from './fs'
@@ -105,6 +109,11 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
     logError
   }
 
+  const extensionHostHandlerDeps: ExtensionHostHandlerDependencies = {
+    log,
+    logError
+  }
+
   // Register all handlers
   registerFsHandlers(mainWindow, fsHandlerDeps)
   registerBackupHandlers(mainWindow, backupHandlerDeps)
@@ -115,6 +124,7 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   registerUpdaterHandlers(mainWindow, updaterHandlerDeps)
   registerOAuthHandlers(mainWindow, oauthHandlerDeps)
   registerCliHandlers(mainWindow, cliHandlerDeps)
+  registerExtensionHostHandlers(mainWindow, extensionHostHandlerDeps)
   
   // Migration status handler
   ipcMain.handle('migration:get-status', () => {
@@ -140,6 +150,7 @@ export function unregisterAllHandlers(): void {
   unregisterUpdaterHandlers()
   unregisterOAuthHandlers()
   unregisterCliHandlers()
+  unregisterExtensionHostHandlers()
   
   // Unregister migration handlers
   ipcMain.removeHandler('migration:get-status')

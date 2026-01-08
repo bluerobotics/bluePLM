@@ -20,13 +20,15 @@ const settingsSections: SettingsSection[] = [
       { id: 'profile', label: 'Profile' },
       { id: 'preferences', label: 'Preferences' },
       { id: 'keybindings', label: 'Keybindings' },
-      { id: 'modules', label: 'Modules' },
+      { id: 'modules', label: 'Sidebar' },
       { id: 'delete-account', label: 'Delete Account' },
     ]
   },
   {
     category: 'Organization',
     items: [
+      { id: 'supabase', label: 'Supabase' },
+      { id: 'backup', label: 'Backups' },
       { id: 'vaults', label: 'Vaults' },
       { id: 'team-members', label: 'Members & Teams' },
       { id: 'company-profile', label: 'Company Profile' },
@@ -35,21 +37,18 @@ const settingsSections: SettingsSection[] = [
       { id: 'export', label: 'Export Options' },
       { id: 'metadata-columns', label: 'File Metadata' },
       { id: 'rfq', label: 'RFQ Settings' },
-      { id: 'backup', label: 'Backups' },
       { id: 'recovery-codes', label: 'Recovery Codes' },
     ]
   },
   {
-    category: 'Integrations',
+    category: 'Extensions',
     items: [
-      { id: 'supabase', label: 'Supabase' },
+      { id: 'extension-store', label: 'Extension Store' },
       { id: 'solidworks', label: 'SolidWorks' },
       { id: 'google-drive', label: 'Google Drive' },
       { id: 'odoo', label: 'Odoo ERP' },
-      { id: 'slack', label: 'Slack' },
-      { id: 'woocommerce', label: 'WooCommerce' },
-      { id: 'webhooks', label: 'Webhooks' },
       { id: 'api', label: 'REST API' },
+      { id: 'webhooks', label: 'Webhooks' },
     ]
   },
   {
@@ -63,7 +62,8 @@ const settingsSections: SettingsSection[] = [
   },
 ]
 
-const integrationIds = ['supabase', 'solidworks', 'google-drive', 'odoo', 'slack', 'woocommerce', 'webhooks', 'api'] as const
+// Items that show status dots (integrations + Supabase which is now in Organization)
+const integrationIds = ['supabase', 'solidworks', 'google-drive', 'odoo', 'webhooks', 'api'] as const
 
 function StatusDot({ status }: { status: IntegrationStatusValue }) {
   const colors: Record<IntegrationStatusValue, string> = {

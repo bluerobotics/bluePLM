@@ -41,20 +41,24 @@ export function useAutoDownload() {
     if (!organization || isOfflineMode || !currentVaultId) return
     
     const runAutoDownload = async () => {
-      const { files, autoDownloadExcludedFiles, addToast, activeVaultId } = usePDMStore.getState()
+      const { files, autoDownloadExcludedFiles, autoDownloadSizeLimit, addToast, activeVaultId } = usePDMStore.getState()
       
       // Get exclusion list for current vault
       const excludedPaths = activeVaultId ? (autoDownloadExcludedFiles[activeVaultId] || []) : []
       const excludedPathsSet = new Set(excludedPaths)
       
+      // Size limit in bytes (0 means no limit)
+      const sizeLimitBytes = autoDownloadSizeLimit > 0 ? autoDownloadSizeLimit * 1024 * 1024 : Infinity
+      
       // Auto-download cloud-only files and folders (if just enabled)
       if (cloudFilesJustEnabled) {
-        // Get cloud-only files
+        // Get cloud-only files (respecting size limit)
         const cloudOnlyFiles = files.filter(f => 
           !f.isDirectory && 
           f.diffStatus === 'cloud' && 
           f.pdmData?.content_hash &&
-          !excludedPathsSet.has(f.relativePath)
+          !excludedPathsSet.has(f.relativePath) &&
+          (f.size === undefined || f.size <= sizeLimitBytes)
         )
         
         // Get cloud-only folders
@@ -96,7 +100,10 @@ export function useAutoDownload() {
       // Auto-download updates for outdated files (if just enabled)
       if (updatesJustEnabled) {
         const outdatedFiles = files.filter(f => 
-          !f.isDirectory && f.diffStatus === 'outdated' && f.pdmData?.content_hash
+          !f.isDirectory && 
+          f.diffStatus === 'outdated' && 
+          f.pdmData?.content_hash &&
+          (f.size === undefined || f.size <= sizeLimitBytes)
         )
         
         if (outdatedFiles.length > 0) {

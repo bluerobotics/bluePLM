@@ -32,3 +32,10 @@ Then you'll see the **Setup Screen** where you choose your role.
 - [Understanding Vaults](/source-files/vaults) — File organization
 - [Settings Overview](/settings/) — Configuration options
 - [Integrations](/settings/integrations) — SolidWorks, Google Drive, Odoo
+
+## For Developers
+
+- [Extension Development](/extensions/) — Build extensions for BluePLM
+- [Getting Started](/extensions/getting-started) — Create your first extension
+- [API Reference](/extensions/client-api) — Client and Server APIs
+- [AI Reference](/extensions/ai-reference) — Complete reference for AI code generation

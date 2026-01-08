@@ -16,6 +16,9 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().default(100),
   RATE_LIMIT_WINDOW: z.coerce.number().default(60000),
   CORS_ORIGINS: z.string().optional(),
+  
+  // Extension system encryption key for secrets
+  EXTENSION_ENCRYPTION_KEY: z.string().min(32).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
