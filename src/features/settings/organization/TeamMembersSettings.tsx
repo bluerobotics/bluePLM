@@ -32,6 +32,7 @@ import { log } from '@/lib/logger'
 import { copyToClipboard } from '@/lib/clipboard'
 import { getCurrentConfig, supabase } from '@/lib/supabase'
 import { generateOrgCode } from '@/lib/supabaseConfig'
+import { subscribeToMemberChanges } from '@/lib/realtime'
 import { usePDMStore } from '@/stores/pdmStore'
 
 // Import components and hooks from team-members
@@ -78,8 +79,8 @@ export function TeamMembersSettings() {
   const { teams, isLoading: teamsLoading, loadTeams, createTeam } = useTeams(orgId)
   const { members: orgUsers, isLoading: membersLoading, loadMembers } = useMembers(orgId)
   const { loadPendingMembers } = useInvites(orgId)
-  const { workflowRoles, isLoading: rolesLoading, createWorkflowRole } = useWorkflowRoles(orgId)
-  const { jobTitles, isLoading: titlesLoading, createJobTitle } = useJobTitles(orgId)
+  const { workflowRoles, isLoading: rolesLoading, loadWorkflowRoles, createWorkflowRole } = useWorkflowRoles(orgId)
+  const { jobTitles, isLoading: titlesLoading, loadJobTitles, createJobTitle } = useJobTitles(orgId)
   const { vaults } = useVaultAccess(orgId)
 
   const isLoading = teamsLoading || membersLoading || rolesLoading || titlesLoading
@@ -373,6 +374,33 @@ export function TeamMembersSettings() {
       loadMembers()
     ])
   }, [loadTeams, loadMembers])
+
+  // ===== REALTIME SUBSCRIPTION =====
+  // Subscribe to member attribute changes (teams, roles, titles) for instant sync
+  useEffect(() => {
+    if (!orgId) return
+
+    const unsubscribe = subscribeToMemberChanges(orgId, (changeType, _eventType, _userId) => {
+      // Debounce rapid updates - just reload the affected data
+      log.info('[TeamMembers]', 'Realtime member change', { changeType })
+      
+      switch (changeType) {
+        case 'team_member':
+          loadMembers()
+          loadTeams() // Team member counts may have changed
+          break
+        case 'workflow_role':
+          loadWorkflowRoles()
+          break
+        case 'job_title':
+          loadJobTitles()
+          loadMembers() // Member list shows job titles
+          break
+      }
+    })
+
+    return unsubscribe
+  }, [orgId, loadMembers, loadTeams, loadWorkflowRoles, loadJobTitles])
 
   // ===== RENDER =====
   if (!organization) {

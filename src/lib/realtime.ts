@@ -51,12 +51,20 @@ let organizationChannel: RealtimeChannel | null = null
 let colorSwatchesChannel: RealtimeChannel | null = null
 let permissionsChannel: RealtimeChannel | null = null
 let vaultsChannel: RealtimeChannel | null = null
+let memberChangesChannel: RealtimeChannel | null = null
 
 // Callback type for permission/access changes
 type PermissionChangeCallback = (
-  changeType: 'vault_access' | 'team_vault_access' | 'team_members' | 'user_permissions' | 'teams',
+  changeType: 'vault_access' | 'team_vault_access' | 'team_members' | 'user_permissions' | 'teams' | 'workflow_roles' | 'job_titles',
   eventType: 'INSERT' | 'UPDATE' | 'DELETE',
   userId?: string
+) => void
+
+// Callback type for member attribute changes (org-wide, for admin views)
+type MemberChangeCallback = (
+  changeType: 'team_member' | 'workflow_role' | 'job_title',
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE',
+  userId: string
 ) => void
 
 /**
@@ -303,6 +311,95 @@ export function subscribeToVaults(
 }
 
 /**
+ * Subscribe to org-wide member attribute changes
+ * 
+ * Used by admin views (e.g., TeamMembersSettings) to see real-time updates when:
+ * - Users are added/removed from teams
+ * - Users are assigned/unassigned workflow roles
+ * - Users are assigned/unassigned job titles
+ * 
+ * Note: These tables don't have org_id directly, so we subscribe to all changes
+ * and let the callback handler filter/refresh as needed. The subscription is
+ * scoped by channel name to avoid conflicts with other orgs.
+ */
+export function subscribeToMemberChanges(
+  orgId: string,
+  onMemberChange: MemberChangeCallback
+): () => void {
+  // Unsubscribe from previous channel if exists
+  if (memberChangesChannel) {
+    memberChangesChannel.unsubscribe()
+  }
+
+  memberChangesChannel = supabase
+    .channel(`member_changes:${orgId}`)
+    // Team membership changes (all users)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'team_members'
+      },
+      (payload) => {
+        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
+        const record = (payload.new || payload.old) as { user_id?: string }
+        if (record?.user_id) {
+          onMemberChange('team_member', eventType, record.user_id)
+        }
+      }
+    )
+    // Workflow role assignment changes (all users)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_workflow_roles'
+      },
+      (payload) => {
+        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
+        const record = (payload.new || payload.old) as { user_id?: string }
+        if (record?.user_id) {
+          onMemberChange('workflow_role', eventType, record.user_id)
+        }
+      }
+    )
+    // Job title assignment changes (all users)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_job_titles'
+      },
+      (payload) => {
+        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
+        const record = (payload.new || payload.old) as { user_id?: string }
+        if (record?.user_id) {
+          onMemberChange('job_title', eventType, record.user_id)
+        }
+      }
+    )
+    .subscribe()
+
+  // Return unsubscribe function
+  return () => {
+    if (memberChangesChannel) {
+      memberChangesChannel.unsubscribe()
+      memberChangesChannel = null
+    }
+  }
+}
+
+/**
+ * Check if member changes realtime is connected
+ */
+export function isMemberChangesRealtimeConnected(): boolean {
+  return memberChangesChannel !== null
+}
+
+/**
  * Subscribe to permission-related changes for a user
  * 
  * Updates are instant for:
@@ -311,6 +408,8 @@ export function subscribeToVaults(
  * - team_members: User added/removed from teams
  * - user_permissions: Individual permission changes
  * - teams: Team created/renamed/deleted
+ * - workflow_roles: User workflow role assignments
+ * - job_titles: User job title assignments
  * 
  * This ensures users see access changes immediately without refreshing.
  * The callback is fired with the change type so the app can reload the appropriate data.
@@ -382,6 +481,34 @@ export function subscribeToPermissions(
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         onPermissionChange('user_permissions', eventType, userId)
+      }
+    )
+    // Workflow role assignment changes for this user
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_workflow_roles',
+        filter: `user_id=eq.${userId}`
+      },
+      (payload) => {
+        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
+        onPermissionChange('workflow_roles', eventType, userId)
+      }
+    )
+    // Job title assignment changes for this user
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_job_titles',
+        filter: `user_id=eq.${userId}`
+      },
+      (payload) => {
+        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
+        onPermissionChange('job_titles', eventType, userId)
       }
     )
     // Also listen for user role changes (admin making someone engineer, etc)
@@ -460,6 +587,10 @@ export function unsubscribeAll() {
   if (vaultsChannel) {
     vaultsChannel.unsubscribe()
     vaultsChannel = null
+  }
+  if (memberChangesChannel) {
+    memberChangesChannel.unsubscribe()
+    memberChangesChannel = null
   }
 }
 

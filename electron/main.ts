@@ -1,7 +1,7 @@
 // BluePLM Electron Main Process
 // This file contains only app lifecycle, window creation, and imports handlers from modules
 
-import { app, BrowserWindow, shell, screen, nativeTheme, session } from 'electron'
+import { app, BrowserWindow, shell, screen, nativeTheme, session, Menu } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -251,6 +251,21 @@ function createWindow() {
       const win = mainWindow as BrowserWindow & { getTitleBarOverlayRect?: () => { x: number; y: number; width: number; height: number } }
       const overlayRect = win.getTitleBarOverlayRect?.() || { x: 0, y: 0, width: 138, height: 38 }
       mainWindow.webContents.send('titlebar-overlay-rect', overlayRect)
+    }
+  })
+
+  // Show context menu with Cut/Copy/Paste for editable elements (inputs, textareas)
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    // Only show edit context menu for editable fields
+    if (params.isEditable) {
+      const editMenu = Menu.buildFromTemplate([
+        { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut },
+        { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy },
+        { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { label: 'Select All', role: 'selectAll', enabled: params.editFlags.canSelectAll }
+      ])
+      editMenu.popup()
     }
   })
 

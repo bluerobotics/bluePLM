@@ -1,7 +1,9 @@
 // src/features/source/context-menu/items/DeleteItems.tsx
 import { Trash2, EyeOff, FileX, FolderX, CloudOff } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
+import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand, getSyncedFilesFromSelection } from '@/lib/commands'
+import { checkOperationPermission, getPermissionRequirement } from '@/lib/permissions'
 import type { DialogName } from '../types'
 import type { ToastType } from '@/stores/types'
 
@@ -68,9 +70,19 @@ export function DeleteItems({
   addToast,
   firstFile
 }: DeleteItemsProps) {
+  const { hasPermission } = usePDMStore()
+  
+  // Permission checks
+  const canDeleteLocal = checkOperationPermission('delete-local', hasPermission)
+  const canDeleteServer = checkOperationPermission('delete-server', hasPermission)
+  
   const hasUnsyncedLocalFiles = unsyncedFilesInSelection.length > 0
 
   const handleDeleteLocal = () => {
+    if (!canDeleteLocal.allowed) {
+      addToast('error', canDeleteLocal.reason || getPermissionRequirement('delete-local'))
+      return
+    }
     // Get all synced files that will be affected (including from folders)
     const syncedFiles = getSyncedFilesFromSelection(files, contextFiles)
     
@@ -90,6 +102,10 @@ export function DeleteItems({
   }
 
   const handleDeleteFromServer = (keepLocal: boolean = false) => {
+    if (!canDeleteServer.allowed) {
+      addToast('error', canDeleteServer.reason || getPermissionRequirement('delete-server'))
+      return
+    }
     // Get all synced files to delete from server (including files inside folders)
     const allFilesToDelete: LocalFile[] = []
     
@@ -233,33 +249,53 @@ export function DeleteItems({
       
       {/* Remove Local Copy - for synced files */}
       {anySynced && !allCloudOnly && (
-        <div className="context-menu-item" onClick={handleDeleteLocal}>
+        <div 
+          className={`context-menu-item ${!canDeleteLocal.allowed ? 'disabled' : ''}`}
+          onClick={handleDeleteLocal}
+          title={!canDeleteLocal.allowed ? `Requires ${getPermissionRequirement('delete-local')}` : ''}
+        >
           <Trash2 size={14} />
           Remove Local Copy ({syncedFilesInSelection.length} file{syncedFilesInSelection.length !== 1 ? 's' : ''})
+          {!canDeleteLocal.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}
       
       {/* Delete Locally - for local files/folders (keeps server copy) */}
       {(hasUnsyncedLocalFiles || hasLocalFolders) && !allCloudOnly && !anySynced && (
-        <div className="context-menu-item danger" onClick={handleDeleteLocal}>
+        <div 
+          className={`context-menu-item ${canDeleteLocal.allowed ? 'danger' : 'disabled'}`}
+          onClick={handleDeleteLocal}
+          title={!canDeleteLocal.allowed ? `Requires ${getPermissionRequirement('delete-local')}` : ''}
+        >
           <Trash2 size={14} />
           Delete Locally ({unsyncedFilesInSelection.length} file{unsyncedFilesInSelection.length !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
+          {!canDeleteLocal.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}
       
       {/* Delete from Server (Keep Local) - for synced files that have local copies */}
       {anySynced && !allCloudOnly && (
-        <div className="context-menu-item" onClick={() => handleDeleteFromServer(true)}>
+        <div 
+          className={`context-menu-item ${!canDeleteServer.allowed ? 'disabled' : ''}`}
+          onClick={() => handleDeleteFromServer(true)}
+          title={!canDeleteServer.allowed ? `Requires ${getPermissionRequirement('delete-server')}` : ''}
+        >
           <CloudOff size={14} />
           Delete from Server ({syncedFilesInSelection.length} file{syncedFilesInSelection.length !== 1 ? 's' : ''})
+          {!canDeleteServer.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}
       
       {/* Delete Local & Server - show if any content exists on server (synced, cloud-only, or folder exists on server) */}
       {(anySynced || allCloudOnly || contextFiles.some(f => f.diffStatus === 'cloud' || f.diffStatus === 'cloud_new') || hasFoldersOnServer) && (
-        <div className="context-menu-item danger" onClick={() => handleDeleteFromServer(false)}>
+        <div 
+          className={`context-menu-item ${canDeleteServer.allowed ? 'danger' : 'disabled'}`}
+          onClick={() => handleDeleteFromServer(false)}
+          title={!canDeleteServer.allowed ? `Requires ${getPermissionRequirement('delete-server')}` : ''}
+        >
           <Trash2 size={14} />
           {allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} ({syncedFilesInSelection.length + cloudOnlyFilesInSelection.length} file{(syncedFilesInSelection.length + cloudOnlyFilesInSelection.length) !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
+          {!canDeleteServer.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}
     </>

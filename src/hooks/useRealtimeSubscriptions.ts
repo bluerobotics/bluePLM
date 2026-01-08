@@ -400,7 +400,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       }
     })
     
-    // Subscribe to permission changes (vault access, team membership, etc.)
+    // Subscribe to permission changes (vault access, team membership, workflow roles, etc.)
     // This ensures users see access changes immediately when an admin modifies them
     const currentUserId = usePDMStore.getState().user?.id
     const unsubscribePermissions = currentUserId ? subscribeToPermissions(
@@ -419,7 +419,9 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           'team_vault_access': 'Team vault access has been updated',
           'team_members': 'Your team membership has been updated',
           'user_permissions': 'Your permissions have been updated',
-          'teams': 'Team structure has been updated'
+          'teams': 'Team structure has been updated',
+          'workflow_roles': 'Your workflow roles have been updated',
+          'job_titles': 'Your job title has been updated'
         }
         addToast('info', messages[changeType] || 'Your access has been updated')
         

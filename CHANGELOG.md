@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.1.3] - 2026-01-07
+
+### Fixed
+- **Realtime sync for member attributes**: Fixed issue where team membership, workflow role, and job title changes required a manual refresh to appear. Added realtime subscriptions for `team_members`, `user_workflow_roles`, and `user_job_titles` tables. Admin views now update instantly when any admin makes changes, and affected users receive toast notifications when their roles/teams/titles are modified
+
+---
+
 ## [3.1.2] - 2026-01-08
 
 ### Fixed
