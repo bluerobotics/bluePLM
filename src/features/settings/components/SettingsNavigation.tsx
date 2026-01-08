@@ -102,7 +102,7 @@ function BackupStatusDot({ status }: { status: BackupStatusValue }) {
   
   const titles: Record<BackupStatusValue, string> = {
     'online': 'Backups working',
-    'partial': 'Not configured',
+    'partial': 'Needs attention',
     'offline': 'Backup failed',
     'not-configured': 'Not configured',
   }

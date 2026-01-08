@@ -42,9 +42,16 @@ export function useIntegrationStatus() {
   // Check backup status (backup is separate from integrations slice)
   const checkBackup = useCallback(async () => {
     const currentOrg = usePDMStore.getState().organization
+    const connectedVaults = usePDMStore.getState().connectedVaults
     
     if (!currentOrg?.id) {
       setBackupStatus('not-configured')
+      return
+    }
+    
+    // No vaults connected = nothing to back up, show warning (yellow)
+    if (connectedVaults.length === 0) {
+      setBackupStatus('partial')
       return
     }
     
@@ -67,7 +74,8 @@ export function useIntegrationStatus() {
   }, [setBackupStatus])
 
   // Main check function - delegates to slice for integration checks
-  const checkAllIntegrations = useCallback(async () => {
+  // silent=true skips the 'checking' visual state to avoid UI flickering during polling
+  const checkAllIntegrations = useCallback(async (silent = false) => {
     const currentOrg = usePDMStore.getState().organization
     
     // Don't check if organization isn't loaded yet
@@ -81,7 +89,7 @@ export function useIntegrationStatus() {
     }
     
     // Delegate to slice for all integration checks
-    await usePDMStore.getState().checkAllIntegrations()
+    await usePDMStore.getState().checkAllIntegrations(silent)
     
     // Check backup separately (not in integrations slice)
     checkBackup()
@@ -147,11 +155,12 @@ export function useIntegrationStatus() {
       return
     }
     
-    // Set up polling
+    // Set up polling with silent mode to avoid UI flickering
     pollIntervalRef.current = setInterval(() => {
       // Only poll if browser is online
       if (navigator.onLine) {
-        checkAllIntegrations()
+        // Silent check - don't flash 'checking' state during background polling
+        checkAllIntegrations(true)
       }
     }, POLLING_INTERVAL_MS)
     

@@ -492,16 +492,26 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     setSourceFilesPermsByVault({ all: sfPerms })
   }
   
-  // Toggle a specific action across ALL resources (excluding source files which are vault-specific)
+  // Toggle a specific action across ALL resources (including source files for current vault context)
   const toggleAllForAction = (action: PermissionAction) => {
     if (!isAdmin) return
     
-    // Only toggle non-source-files resources
+    // Get non-source-files resources
     const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
-    const allHave = nonSfResources
+    // Get source files resources
+    const sfResources = ALL_RESOURCES.filter(r => sourceFilesResources.includes(r.id))
+    const vaultKey = getSourceFilesVaultKey()
+    
+    // Check if all applicable resources have the action (both global and source files)
+    const allNonSfHave = nonSfResources
       .filter(r => r.applicableActions.includes(action))
       .every(r => (permissions[r.id] || []).includes(action))
+    const allSfHave = sfResources
+      .filter(r => r.applicableActions.includes(action))
+      .every(r => (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action))
+    const allHave = allNonSfHave && allSfHave
     
+    // Update non-source-files permissions
     setPermissions(prev => {
       const updated = { ...prev }
       for (const resource of nonSfResources) {
@@ -515,22 +525,56 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       }
       return updated
     })
+    
+    // Update source files permissions for current vault context
+    setSourceFilesPermsByVault(prev => {
+      const vaultPerms = prev[vaultKey] || {}
+      const updated = { ...vaultPerms }
+      for (const resource of sfResources) {
+        if (!resource.applicableActions.includes(action)) continue
+        const current = updated[resource.id] || []
+        if (allHave) {
+          updated[resource.id] = current.filter(a => a !== action)
+        } else if (!current.includes(action)) {
+          updated[resource.id] = [...current, action]
+        }
+      }
+      return { ...prev, [vaultKey]: updated }
+    })
   }
   
-  // Check if all applicable resources have a specific action (excluding source files which are vault-specific)
+  // Check if all applicable resources have a specific action (including source files for current vault)
   const allHaveAction = (action: PermissionAction): boolean => {
+    const vaultKey = getSourceFilesVaultKey()
     const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
-    return nonSfResources
+    const sfResources = ALL_RESOURCES.filter(r => sourceFilesResources.includes(r.id))
+    
+    const allNonSfHave = nonSfResources
       .filter(r => r.applicableActions.includes(action))
       .every(r => (permissions[r.id] || []).includes(action))
+    const allSfHave = sfResources
+      .filter(r => r.applicableActions.includes(action))
+      .every(r => (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action))
+    
+    return allNonSfHave && allSfHave
   }
   
-  // Check if some (but not all) applicable resources have a specific action (excluding source files)
+  // Check if some (but not all) applicable resources have a specific action (including source files)
   const someHaveAction = (action: PermissionAction): boolean => {
+    const vaultKey = getSourceFilesVaultKey()
     const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
-    const applicable = nonSfResources.filter(r => r.applicableActions.includes(action))
-    const withAction = applicable.filter(r => (permissions[r.id] || []).includes(action))
-    return withAction.length > 0 && withAction.length < applicable.length
+    const sfResources = ALL_RESOURCES.filter(r => sourceFilesResources.includes(r.id))
+    
+    const applicableNonSf = nonSfResources.filter(r => r.applicableActions.includes(action))
+    const applicableSf = sfResources.filter(r => r.applicableActions.includes(action))
+    
+    const withActionNonSf = applicableNonSf.filter(r => (permissions[r.id] || []).includes(action))
+    const withActionSf = applicableSf.filter(r => (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action))
+    
+    const totalApplicable = applicableNonSf.length + applicableSf.length
+    const totalWithAction = withActionNonSf.length + withActionSf.length
+    
+    return totalWithAction > 0 && totalWithAction < totalApplicable
   }
   
   // Filter resources by search

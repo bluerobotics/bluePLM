@@ -8,7 +8,7 @@
  * 
  * State is managed in the organizationMetadataSlice of the PDM store.
  */
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { supabase, getOrgVaultAccess, setUserVaultAccess } from '@/lib/supabase'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -30,6 +30,10 @@ export function useVaultAccess(orgId: string | null) {
   const teamVaultAccessMap = usePDMStore(s => s.teamVaultAccessMap)
   const isLoading = usePDMStore(s => s.orgVaultsLoading)
   const orgVaultsLoaded = usePDMStore(s => s.orgVaultsLoaded)
+  
+  // Listen to vaultsRefreshKey to reload when vaults are created/deleted
+  const vaultsRefreshKey = usePDMStore(s => s.vaultsRefreshKey)
+  const prevRefreshKeyRef = useRef(vaultsRefreshKey)
   
   // Vault access actions from store
   const setOrgVaults = usePDMStore(s => s.setOrgVaults)
@@ -194,6 +198,18 @@ export function useVaultAccess(orgId: string | null) {
       loadAll()
     }
   }, [orgId, orgVaultsLoaded, isLoading, loadAll])
+
+  // Reload when vaultsRefreshKey changes (vault created/deleted elsewhere)
+  useEffect(() => {
+    // Skip initial mount - only reload on actual changes
+    if (vaultsRefreshKey !== prevRefreshKeyRef.current) {
+      prevRefreshKeyRef.current = vaultsRefreshKey
+      if (orgId) {
+        log.debug('[VaultAccess]', 'Reloading vaults due to refresh trigger')
+        loadAll()
+      }
+    }
+  }, [orgId, vaultsRefreshKey, loadAll])
 
   return {
     vaults,

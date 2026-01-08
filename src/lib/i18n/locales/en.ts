@@ -383,4 +383,21 @@ export const en: TranslationDict = {
     moved: 'Moved',
     ignored: 'Ignored',
   },
+
+  // Vault Setup Dialog
+  vaultSetup: {
+    title: 'Set Up Your Vault',
+    subtitle: 'Configure how files are synced to your computer',
+    fileCount: '{{count}} files',
+    fileCountSingular: '1 file',
+    totalSize: '{{size}} total',
+    autoDownloadCloudTitle: 'Auto-download cloud files',
+    autoDownloadCloudDesc: 'Automatically download files that exist on the server but not on your computer',
+    autoDownloadUpdatesTitle: 'Auto-download file updates',
+    autoDownloadUpdatesDesc: 'Automatically download newer versions when files are updated on the server',
+    summary: 'After connecting, BluePLM will download {{count}} files ({{size}})',
+    summaryNoDownload: 'Files will only be downloaded when you request them',
+    connect: 'Connect Vault',
+    skip: 'Skip Setup',
+  },
 }

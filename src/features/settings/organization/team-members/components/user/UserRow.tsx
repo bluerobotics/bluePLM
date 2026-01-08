@@ -112,26 +112,24 @@ export function UserRow({
         <div className="relative">
           <button
             onClick={() => {
-              if (canManage && onToggleJobTitle) {
-                setTitleDropdownOpen(!titleDropdownOpen)
-                setTeamsDropdownOpen(false)
-                setRolesDropdownOpen(false)
-              }
+              // Always allow opening to view - admins can edit, others can just view
+              setTitleDropdownOpen(!titleDropdownOpen)
+              setTeamsDropdownOpen(false)
+              setRolesDropdownOpen(false)
             }}
             className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
               user.job_title 
                 ? '' 
                 : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
-            } ${canManage && onToggleJobTitle ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
+            } hover:ring-1 hover:ring-current cursor-pointer`}
             style={user.job_title ? { backgroundColor: `${user.job_title.color}15`, color: user.job_title.color } : {}}
-            disabled={!canManage || !onToggleJobTitle}
           >
             {(() => {
               const TitleIcon = getTitleIcon(user.job_title?.icon)
               return <TitleIcon size={12} />
             })()}
             {user.job_title?.name || 'No title'}
-            {canManage && onToggleJobTitle && <ChevronDown size={12} />}
+            <ChevronDown size={12} />
           </button>
           
           {titleDropdownOpen && (
@@ -153,76 +151,102 @@ export function UserRow({
                   }
                 }}
               >
-                <div className="px-2 py-1.5 border-b border-plm-border">
-                  <div className="relative">
-                    <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
-                    <input
-                      type="text"
-                      placeholder="Search titles..."
-                      value={titleSearch}
-                      onChange={(e) => setTitleSearch(e.target.value)}
-                      className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-                <div className="overflow-y-auto flex-1">
-                  {/* No title option */}
-                  {(!titleSearch || 'no title'.includes(titleSearch.toLowerCase())) && (
-                    <button
-                      onClick={async () => {
-                        if (!onToggleJobTitle || togglingTitle) return
-                        setTogglingTitle(true)
-                        await onToggleJobTitle(user, null)
-                        setTogglingTitle(false)
-                        setTitleDropdownOpen(false)
-                        setTitleSearch('')
-                      }}
-                      disabled={togglingTitle}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight ${
-                        !user.job_title ? 'text-plm-fg' : 'text-plm-fg-muted'
-                      }`}
-                    >
-                      <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 bg-plm-fg-muted/20">
-                        <X size={12} className="text-plm-fg-muted" />
+                {/* View-only mode for non-admins */}
+                {!canManage || !onToggleJobTitle ? (
+                  <div className="p-3">
+                    <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Job Title</div>
+                    {user.job_title ? (
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: `${user.job_title.color}20`, color: user.job_title.color }}
+                        >
+                          {(() => {
+                            const TitleIcon = getTitleIcon(user.job_title.icon)
+                            return <TitleIcon size={14} />
+                          })()}
+                        </div>
+                        <span className="text-sm text-plm-fg">{user.job_title.name}</span>
                       </div>
-                      <span className="flex-1 truncate">No title</span>
-                      {!user.job_title && <Check size={14} className="text-plm-success flex-shrink-0" />}
-                    </button>
-                  )}
+                    ) : (
+                      <div className="text-sm text-plm-fg-muted">No title assigned</div>
+                    )}
+                  </div>
+                ) : (
+                  /* Edit mode for admins */
+                  <>
+                    <div className="px-2 py-1.5 border-b border-plm-border">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                        <input
+                          type="text"
+                          placeholder="Search titles..."
+                          value={titleSearch}
+                          onChange={(e) => setTitleSearch(e.target.value)}
+                          className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto flex-1">
+                      {/* No title option */}
+                      {(!titleSearch || 'no title'.includes(titleSearch.toLowerCase())) && (
+                        <button
+                          onClick={async () => {
+                            if (!onToggleJobTitle || togglingTitle) return
+                            setTogglingTitle(true)
+                            await onToggleJobTitle(user, null)
+                            setTogglingTitle(false)
+                            setTitleDropdownOpen(false)
+                            setTitleSearch('')
+                          }}
+                          disabled={togglingTitle}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight ${
+                            !user.job_title ? 'text-plm-fg' : 'text-plm-fg-muted'
+                          }`}
+                        >
+                          <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 bg-plm-fg-muted/20">
+                            <X size={12} className="text-plm-fg-muted" />
+                          </div>
+                          <span className="flex-1 truncate">No title</span>
+                          {!user.job_title && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                        </button>
+                      )}
                       {jobTitles.filter(t => !titleSearch || t.name.toLowerCase().includes(titleSearch.toLowerCase())).map(title => {
                         const TitleIcon = getTitleIcon(title.icon)
                         const isSelected = user.job_title?.id === title.id
-                    return (
-                      <button
-                        key={title.id}
-                        onClick={async () => {
-                          if (!onToggleJobTitle || togglingTitle) return
-                          setTogglingTitle(true)
-                          await onToggleJobTitle(user, title.id)
-                          setTogglingTitle(false)
-                          setTitleDropdownOpen(false)
-                          setTitleSearch('')
-                        }}
-                        disabled={togglingTitle}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
-                      >
-                        <div
-                          className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: `${title.color}20`, color: title.color }}
-                        >
-                          {togglingTitle && isSelected ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <TitleIcon size={12} />
-                          )}
-                        </div>
-                        <span className="flex-1 text-plm-fg truncate">{title.name}</span>
-                        {isSelected && <Check size={14} className="text-plm-success flex-shrink-0" />}
-                      </button>
-                    )
-                  })}
-                </div>
+                        return (
+                          <button
+                            key={title.id}
+                            onClick={async () => {
+                              if (!onToggleJobTitle || togglingTitle) return
+                              setTogglingTitle(true)
+                              await onToggleJobTitle(user, title.id)
+                              setTogglingTitle(false)
+                              setTitleDropdownOpen(false)
+                              setTitleSearch('')
+                            }}
+                            disabled={togglingTitle}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                          >
+                            <div
+                              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: `${title.color}20`, color: title.color }}
+                            >
+                              {togglingTitle && isSelected ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <TitleIcon size={12} />
+                              )}
+                            </div>
+                            <span className="flex-1 text-plm-fg truncate">{title.name}</span>
+                            {isSelected && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -237,19 +261,17 @@ export function UserRow({
             <div className="relative">
               <button
                 onClick={() => {
-                  if (canManage && onToggleTeam) {
-                    setTeamsDropdownOpen(!teamsDropdownOpen)
-                    setRolesDropdownOpen(false)
-                    setTitleDropdownOpen(false)
-                  }
+                  // Always allow opening to view - admins can edit, others can just view
+                  setTeamsDropdownOpen(!teamsDropdownOpen)
+                  setRolesDropdownOpen(false)
+                  setTitleDropdownOpen(false)
                 }}
                 className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
                   (user.teams || []).length > 0
                     ? 'bg-teal-500/10 text-teal-400'
                     : 'bg-yellow-500/10 text-yellow-500 border border-dashed border-yellow-500/30'
-                } ${canManage && onToggleTeam ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
+                } hover:ring-1 hover:ring-current cursor-pointer`}
                 title={(user.teams || []).map(t => t.name).join(', ') || 'No teams assigned'}
-                disabled={!canManage || !onToggleTeam}
               >
                 {(user.teams || []).length > 0 ? (
                   <>
@@ -262,7 +284,7 @@ export function UserRow({
                     <span>Unassigned</span>
                   </>
                 )}
-                {canManage && onToggleTeam && <ChevronDown size={12} />}
+                <ChevronDown size={12} />
               </button>
               
               {teamsDropdownOpen && (
@@ -281,52 +303,82 @@ export function UserRow({
                       }
                     }}
                   >
-                    <div className="px-2 py-1.5 border-b border-plm-border">
-                      <div className="relative">
-                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
-                        <input
-                          type="text"
-                          placeholder="Search teams..."
-                          value={teamSearch}
-                          onChange={(e) => setTeamSearch(e.target.value)}
-                          className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
-                          autoFocus
-                        />
+                    {/* View-only mode for non-admins */}
+                    {!canManage || !onToggleTeam ? (
+                      <div className="p-3">
+                        <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Teams</div>
+                        {(user.teams || []).length > 0 ? (
+                          <div className="space-y-2">
+                            {(user.teams || []).map(team => {
+                              const TeamIcon = getTeamIcon(team.icon)
+                              return (
+                                <div key={team.id} className="flex items-center gap-2">
+                                  <div
+                                    className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
+                                    style={{ backgroundColor: `${team.color}20`, color: team.color }}
+                                  >
+                                    <TeamIcon size={14} />
+                                  </div>
+                                  <span className="text-sm text-plm-fg">{team.name}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-plm-fg-muted">No teams assigned</div>
+                        )}
                       </div>
-                    </div>
-                    <div className="overflow-y-auto flex-1">
-                      {teams.filter(t => !teamSearch || t.name.toLowerCase().includes(teamSearch.toLowerCase())).map(team => {
-                        const TeamIcon = getTeamIcon(team.icon)
-                        const isInTeam = (user.teams || []).some(t => t.id === team.id)
-                        const isToggling = togglingTeam === team.id
-                        return (
-                          <button
-                            key={team.id}
-                            onClick={async () => {
-                              if (!onToggleTeam || isToggling) return
-                              setTogglingTeam(team.id)
-                              await onToggleTeam(user, team.id, !isInTeam)
-                              setTogglingTeam(null)
-                            }}
-                            disabled={isToggling}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
-                          >
-                            <div
-                              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-                              style={{ backgroundColor: `${team.color}20`, color: team.color }}
-                            >
-                              {isToggling ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : (
-                                <TeamIcon size={12} />
-                              )}
-                            </div>
-                            <span className="flex-1 text-plm-fg truncate">{team.name}</span>
-                            {isInTeam && <Check size={14} className="text-plm-success flex-shrink-0" />}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    ) : (
+                      /* Edit mode for admins */
+                      <>
+                        <div className="px-2 py-1.5 border-b border-plm-border">
+                          <div className="relative">
+                            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                            <input
+                              type="text"
+                              placeholder="Search teams..."
+                              value={teamSearch}
+                              onChange={(e) => setTeamSearch(e.target.value)}
+                              className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="overflow-y-auto flex-1">
+                          {teams.filter(t => !teamSearch || t.name.toLowerCase().includes(teamSearch.toLowerCase())).map(team => {
+                            const TeamIcon = getTeamIcon(team.icon)
+                            const isInTeam = (user.teams || []).some(t => t.id === team.id)
+                            const isToggling = togglingTeam === team.id
+                            return (
+                              <button
+                                key={team.id}
+                                onClick={async () => {
+                                  if (!onToggleTeam || isToggling) return
+                                  setTogglingTeam(team.id)
+                                  await onToggleTeam(user, team.id, !isInTeam)
+                                  setTogglingTeam(null)
+                                }}
+                                disabled={isToggling}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                              >
+                                <div
+                                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                                  style={{ backgroundColor: `${team.color}20`, color: team.color }}
+                                >
+                                  {isToggling ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : (
+                                    <TeamIcon size={12} />
+                                  )}
+                                </div>
+                                <span className="flex-1 text-plm-fg truncate">{team.name}</span>
+                                {isInTeam && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -338,19 +390,17 @@ export function UserRow({
             <div className="relative">
               <button
                 onClick={() => {
-                  if (canManage && onToggleWorkflowRole) {
-                    setRolesDropdownOpen(!rolesDropdownOpen)
-                    setTeamsDropdownOpen(false)
-                    setTitleDropdownOpen(false)
-                  }
+                  // Always allow opening to view - admins can edit, others can just view
+                  setRolesDropdownOpen(!rolesDropdownOpen)
+                  setTeamsDropdownOpen(false)
+                  setTitleDropdownOpen(false)
                 }}
                 className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
                   (userWorkflowRoleIds || []).length > 0
                     ? 'bg-purple-500/10 text-purple-400'
                     : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
-                } ${canManage && onToggleWorkflowRole ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
+                } hover:ring-1 hover:ring-current cursor-pointer`}
                 title={(userWorkflowRoleIds || []).map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ') || 'No roles assigned'}
-                disabled={!canManage || !onToggleWorkflowRole}
               >
                 <Shield size={12} />
                 <span>
@@ -358,7 +408,7 @@ export function UserRow({
                     ? `${(userWorkflowRoleIds || []).length} role${(userWorkflowRoleIds || []).length !== 1 ? 's' : ''}`
                     : 'No roles'}
                 </span>
-                {canManage && onToggleWorkflowRole && <ChevronDown size={12} />}
+                <ChevronDown size={12} />
               </button>
               
               {rolesDropdownOpen && (
@@ -377,6 +427,162 @@ export function UserRow({
                       }
                     }}
                   >
+                    {/* View-only mode for non-admins */}
+                    {!canManage || !onToggleWorkflowRole ? (
+                      <div className="p-3">
+                        <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Workflow Roles</div>
+                        {(userWorkflowRoleIds || []).length > 0 ? (
+                          <div className="space-y-2">
+                            {(userWorkflowRoleIds || []).map(roleId => {
+                              const role = workflowRoles.find(r => r.id === roleId)
+                              if (!role) return null
+                              const RoleIcon = getRoleIcon(role.icon)
+                              return (
+                                <div key={roleId} className="flex items-center gap-2">
+                                  <div
+                                    className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
+                                    style={{ backgroundColor: `${role.color}20`, color: role.color }}
+                                  >
+                                    <RoleIcon size={14} />
+                                  </div>
+                                  <span className="text-sm text-plm-fg">{role.name}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-plm-fg-muted">No roles assigned</div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Edit mode for admins */
+                      <>
+                        <div className="px-2 py-1.5 border-b border-plm-border">
+                          <div className="relative">
+                            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                            <input
+                              type="text"
+                              placeholder="Search roles..."
+                              value={roleSearch}
+                              onChange={(e) => setRoleSearch(e.target.value)}
+                              className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="overflow-y-auto flex-1">
+                          {workflowRoles.filter(r => !roleSearch || r.name.toLowerCase().includes(roleSearch.toLowerCase())).map(role => {
+                            const RoleIcon = getRoleIcon(role.icon)
+                            const hasRole = (userWorkflowRoleIds || []).includes(role.id)
+                            const isToggling = togglingRole === role.id
+                            return (
+                              <button
+                                key={role.id}
+                                onClick={async () => {
+                                  if (!onToggleWorkflowRole || isToggling) return
+                                  setTogglingRole(role.id)
+                                  await onToggleWorkflowRole(user, role.id, !hasRole)
+                                  setTogglingRole(null)
+                                }}
+                                disabled={isToggling}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                              >
+                                <div
+                                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                                  style={{ backgroundColor: `${role.color}20`, color: role.color }}
+                                >
+                                  {isToggling ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : (
+                                    <RoleIcon size={12} />
+                                  )}
+                                </div>
+                                <span className="flex-1 text-plm-fg truncate">{role.name}</span>
+                                {hasRole && <Check size={14} className="text-plm-success flex-shrink-0" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Workflow roles dropdown - compact mode (team member rows) */}
+      {compact && workflowRoles && workflowRoles.length > 0 && (
+        <div className="relative">
+          <button
+            onClick={() => {
+              // Always allow opening to view - admins can edit, others can just view
+              setRolesDropdownOpen(!rolesDropdownOpen)
+            }}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
+              (userWorkflowRoleIds || []).length > 0
+                ? 'bg-purple-500/10 text-purple-400'
+                : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
+            } hover:ring-1 hover:ring-current cursor-pointer`}
+            title={(userWorkflowRoleIds || []).map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ') || 'No roles'}
+          >
+            <Shield size={12} />
+            <span>
+              {(userWorkflowRoleIds || []).length > 0
+                ? `${(userWorkflowRoleIds || []).length} role${(userWorkflowRoleIds || []).length !== 1 ? 's' : ''}`
+                : 'No roles'}
+            </span>
+            <ChevronDown size={12} />
+          </button>
+          
+          {rolesDropdownOpen && (
+            <>
+              <div className="fixed inset-0 z-[100]" onClick={() => { setRolesDropdownOpen(false); setRoleSearch('') }} />
+              <div 
+                className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                ref={(el) => {
+                  if (el) {
+                    const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
+                    if (btn) {
+                      const rect = btn.getBoundingClientRect()
+                      el.style.top = `${rect.bottom + 4}px`
+                      el.style.left = `${Math.min(rect.left, window.innerWidth - el.offsetWidth - 8)}px`
+                    }
+                  }
+                }}
+              >
+                {/* View-only mode for non-admins */}
+                {!canManage || !onToggleWorkflowRole ? (
+                  <div className="p-3">
+                    <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Workflow Roles</div>
+                    {(userWorkflowRoleIds || []).length > 0 ? (
+                      <div className="space-y-2">
+                        {(userWorkflowRoleIds || []).map(roleId => {
+                          const role = workflowRoles.find(r => r.id === roleId)
+                          if (!role) return null
+                          const RoleIcon = getRoleIcon(role.icon)
+                          return (
+                            <div key={roleId} className="flex items-center gap-2">
+                              <div
+                                className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
+                                style={{ backgroundColor: `${role.color}20`, color: role.color }}
+                              >
+                                <RoleIcon size={14} />
+                              </div>
+                              <span className="text-sm text-plm-fg">{role.name}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-plm-fg-muted">No roles assigned</div>
+                    )}
+                  </div>
+                ) : (
+                  /* Edit mode for admins */
+                  <>
                     <div className="px-2 py-1.5 border-b border-plm-border">
                       <div className="relative">
                         <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
@@ -423,102 +629,8 @@ export function UserRow({
                         )
                       })}
                     </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Workflow roles dropdown - compact mode (team member rows) */}
-      {compact && workflowRoles && workflowRoles.length > 0 && (
-        <div className="relative">
-          <button
-            onClick={() => {
-              if (canManage && onToggleWorkflowRole) {
-                setRolesDropdownOpen(!rolesDropdownOpen)
-              }
-            }}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
-              (userWorkflowRoleIds || []).length > 0
-                ? 'bg-purple-500/10 text-purple-400'
-                : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
-            } ${canManage && onToggleWorkflowRole ? 'hover:ring-1 hover:ring-current cursor-pointer' : ''}`}
-            title={(userWorkflowRoleIds || []).map(id => workflowRoles.find(r => r.id === id)?.name).filter(Boolean).join(', ') || 'No roles'}
-            disabled={!canManage || !onToggleWorkflowRole}
-          >
-            <Shield size={12} />
-            <span>
-              {(userWorkflowRoleIds || []).length > 0
-                ? `${(userWorkflowRoleIds || []).length} role${(userWorkflowRoleIds || []).length !== 1 ? 's' : ''}`
-                : 'No roles'}
-            </span>
-            {canManage && onToggleWorkflowRole && <ChevronDown size={12} />}
-          </button>
-          
-          {rolesDropdownOpen && (
-            <>
-              <div className="fixed inset-0 z-[100]" onClick={() => { setRolesDropdownOpen(false); setRoleSearch('') }} />
-              <div 
-                className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
-                ref={(el) => {
-                  if (el) {
-                    const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
-                    if (btn) {
-                      const rect = btn.getBoundingClientRect()
-                      el.style.top = `${rect.bottom + 4}px`
-                      el.style.left = `${Math.min(rect.left, window.innerWidth - el.offsetWidth - 8)}px`
-                    }
-                  }
-                }}
-              >
-                <div className="px-2 py-1.5 border-b border-plm-border">
-                  <div className="relative">
-                    <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
-                    <input
-                      type="text"
-                      placeholder="Search roles..."
-                      value={roleSearch}
-                      onChange={(e) => setRoleSearch(e.target.value)}
-                      className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-                <div className="overflow-y-auto flex-1">
-                  {workflowRoles.filter(r => !roleSearch || r.name.toLowerCase().includes(roleSearch.toLowerCase())).map(role => {
-                    const RoleIcon = getRoleIcon(role.icon)
-                    const hasRole = (userWorkflowRoleIds || []).includes(role.id)
-                    const isToggling = togglingRole === role.id
-                    return (
-                      <button
-                        key={role.id}
-                        onClick={async () => {
-                          if (!onToggleWorkflowRole || isToggling) return
-                          setTogglingRole(role.id)
-                          await onToggleWorkflowRole(user, role.id, !hasRole)
-                          setTogglingRole(null)
-                        }}
-                        disabled={isToggling}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
-                      >
-                        <div
-                          className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: `${role.color}20`, color: role.color }}
-                        >
-                          {isToggling ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <RoleIcon size={12} />
-                          )}
-                        </div>
-                        <span className="flex-1 text-plm-fg truncate">{role.name}</span>
-                        {hasRole && <Check size={14} className="text-plm-success flex-shrink-0" />}
-                      </button>
-                    )
-                  })}
-                </div>
+                  </>
+                )}
               </div>
             </>
           )}

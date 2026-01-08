@@ -117,11 +117,14 @@ export const createIntegrationsSlice: StateCreator<
     set({ isBatchSWOperationRunning: running })
   },
   
-  checkIntegration: async (id: IntegrationId) => {
+  checkIntegration: async (id: IntegrationId, silent = false) => {
     const { setIntegrationStatus, setIntegrationChecking } = get()
     
-    // Set to checking state
-    setIntegrationChecking(id)
+    // Only show 'checking' state for non-silent checks (initial load, manual refresh)
+    // Silent mode is used for background polling to avoid UI flickering
+    if (!silent) {
+      setIntegrationChecking(id)
+    }
     
     switch (id) {
       case 'supabase':
@@ -151,7 +154,7 @@ export const createIntegrationsSlice: StateCreator<
     }
   },
   
-  checkAllIntegrations: async () => {
+  checkAllIntegrations: async (silent = false) => {
     const state = get()
     const { checkIntegration, organization } = state
     
@@ -164,15 +167,16 @@ export const createIntegrationsSlice: StateCreator<
     
     try {
       // Check all integrations in parallel
+      // Pass silent flag to avoid UI flickering during background polling
       await Promise.all([
-        checkIntegration('supabase'),
-        checkIntegration('solidworks'),
-        checkIntegration('google-drive'),
-        checkIntegration('api'),
-        checkIntegration('odoo'),
-        checkIntegration('slack'),
-        checkIntegration('woocommerce'),
-        checkIntegration('webhooks'),
+        checkIntegration('supabase', silent),
+        checkIntegration('solidworks', silent),
+        checkIntegration('google-drive', silent),
+        checkIntegration('api', silent),
+        checkIntegration('odoo', silent),
+        checkIntegration('slack', silent),
+        checkIntegration('woocommerce', silent),
+        checkIntegration('webhooks', silent),
       ])
       
       set({ integrationsLastFullCheck: Date.now() })

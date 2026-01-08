@@ -252,27 +252,17 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     
     setIsDisconnecting(true)
     
-    let folderDeleted = false
-    if (disconnectingVault.localPath) {
+    // Stop file watcher if this is the active vault
+    if (disconnectingVault.id === activeVaultId) {
       const api = window.electronAPI
       if (api) {
         try {
           await api.clearWorkingDir()
-          await new Promise(resolve => setTimeout(resolve, 200))
-          
-          const result = await api.deleteItem(disconnectingVault.localPath)
-          if (result.success) {
-            folderDeleted = true
-          } else {
-            addToast('warning', `Could not delete local folder: ${result.error}`)
-          }
         } catch (err) {
-          addToast('warning', `Could not delete local folder: ${err}`)
+          // Ignore - watcher may not be running
         }
       }
-    }
-    
-    if (disconnectingVault.id === activeVaultId) {
+      
       setFiles([])
       setServerFiles([])
       setFilesLoaded(false)
@@ -284,11 +274,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     setDisconnectingVault(null)
     setIsDisconnecting(false)
     
-    if (folderDeleted) {
-      addToast('success', 'Vault disconnected and local files deleted')
-    } else {
-      addToast('info', 'Vault disconnected (local folder may still exist)')
-    }
+    addToast('success', 'Vault disconnected (local files preserved)')
   }
   
   // Handle slow double click for rename
@@ -1196,7 +1182,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
                     <p className="text-sm text-plm-fg-muted">
                       {hasBlockingIssues 
                         ? "Close this dialog and resolve the issues above."
-                        : "Local files will be deleted. You can reconnect anytime."}
+                        : "Local files will be preserved. You can reconnect anytime."}
                     </p>
                   </>
                 )

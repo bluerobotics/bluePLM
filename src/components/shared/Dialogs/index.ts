@@ -5,3 +5,4 @@ export { StagedCheckinConflictDialog, StagedCheckinConflictContainer } from './S
 export { VaultNotFoundDialog } from './VaultNotFoundDialog'
 export { UpdateModal } from './UpdateModal'
 export { VaultMigrationDialog, VaultMigrationContainer } from './VaultMigrationDialog'
+export { VaultSetupDialog, type VaultSyncStats } from './VaultSetupDialog'

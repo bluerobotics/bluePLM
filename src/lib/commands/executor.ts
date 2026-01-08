@@ -166,6 +166,7 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void): Com
     updateFileInStore: store.updateFileInStore,
     updateFilesInStore: store.updateFilesInStore,
     removeFilesFromStore: store.removeFilesFromStore,
+    clearPersistedPendingMetadataForPaths: store.clearPersistedPendingMetadataForPaths,
     addProcessingFolder: store.addProcessingFolder,
     addProcessingFolders: store.addProcessingFolders,
     removeProcessingFolder: store.removeProcessingFolder,

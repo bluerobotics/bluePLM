@@ -365,4 +365,20 @@ export const de: TranslationDict = {
     moved: 'Verschoben',
     ignored: 'Ignoriert',
   },
+
+  vaultSetup: {
+    title: 'Tresor einrichten',
+    subtitle: 'Konfigurieren Sie, wie Dateien auf Ihren Computer synchronisiert werden',
+    fileCount: '{{count}} Dateien',
+    fileCountSingular: '1 Datei',
+    totalSize: '{{size}} gesamt',
+    autoDownloadCloudTitle: 'Cloud-Dateien automatisch herunterladen',
+    autoDownloadCloudDesc: 'Dateien automatisch herunterladen, die auf dem Server, aber nicht auf Ihrem Computer existieren',
+    autoDownloadUpdatesTitle: 'Datei-Updates automatisch herunterladen',
+    autoDownloadUpdatesDesc: 'Automatisch neuere Versionen herunterladen, wenn Dateien auf dem Server aktualisiert werden',
+    summary: 'Nach dem Verbinden wird BluePLM {{count}} Dateien ({{size}}) herunterladen',
+    summaryNoDownload: 'Dateien werden nur auf Anfrage heruntergeladen',
+    connect: 'Tresor verbinden',
+    skip: 'Einrichtung überspringen',
+  },
 }

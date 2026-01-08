@@ -270,6 +270,17 @@ export const createFilesSlice: StateCreator<
     })
   },
   
+  // Batch clear persisted pending metadata for multiple paths (used during checkout)
+  clearPersistedPendingMetadataForPaths: (paths) => {
+    set(state => {
+      const pathSet = new Set(paths)
+      const newPersisted = Object.fromEntries(
+        Object.entries(state.persistedPendingMetadata).filter(([p]) => !pathSet.has(p))
+      )
+      return { persistedPendingMetadata: newPersisted }
+    })
+  },
+  
   renameFileInStore: (oldPath, newPath, newNameOrRelPath, isMove = false) => {
     const { files, selectedFiles } = get()
     

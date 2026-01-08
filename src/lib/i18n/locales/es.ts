@@ -365,4 +365,20 @@ export const es: TranslationDict = {
     moved: 'Movido',
     ignored: 'Ignorado',
   },
+
+  vaultSetup: {
+    title: 'Configurar tu bóveda',
+    subtitle: 'Configura cómo se sincronizan los archivos a tu computadora',
+    fileCount: '{{count}} archivos',
+    fileCountSingular: '1 archivo',
+    totalSize: '{{size}} en total',
+    autoDownloadCloudTitle: 'Descargar archivos de la nube automáticamente',
+    autoDownloadCloudDesc: 'Descargar automáticamente archivos que existen en el servidor pero no en tu computadora',
+    autoDownloadUpdatesTitle: 'Descargar actualizaciones de archivos automáticamente',
+    autoDownloadUpdatesDesc: 'Descargar automáticamente versiones más nuevas cuando los archivos se actualicen en el servidor',
+    summary: 'Después de conectar, BluePLM descargará {{count}} archivos ({{size}})',
+    summaryNoDownload: 'Los archivos solo se descargarán cuando los solicites',
+    connect: 'Conectar bóveda',
+    skip: 'Omitir configuración',
+  },
 }

@@ -8,6 +8,8 @@ import { formatFileSize } from '@/lib/utils'
 import { logClick, logAuth } from '@/lib/userActionLogger'
 import { LogViewer } from '@/features/dev-tools/logs'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
+import { VaultSetupDialog, type VaultSyncStats } from '@/components/shared/Dialogs'
+import { calculateVaultSyncStats } from '@/lib/vaultHealthCheck'
 import { useTranslation } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import type { AccountType } from '@/types/database'
@@ -66,7 +68,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     vaultsRefreshKey,
     isConnecting: isAuthConnecting,  // Global auth connecting state
     getEffectiveRole,
-    permissionsLastUpdated  // Triggers vault reload when permissions change via realtime
+    permissionsLastUpdated,  // Triggers vault reload when permissions change via realtime
+    setAutoDownloadCloudFiles,
+    setAutoDownloadUpdates,
+    updateConnectedVault
   } = usePDMStore()
   const { t } = useTranslation()
   const isAdmin = getEffectiveRole() === 'admin'
@@ -100,6 +105,11 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   
   // Auth providers settings (fetched from org settings for sign-in screen)
   const [orgAuthProviders, setOrgAuthProviders] = useState<AuthProviders | null>(null)
+  
+  // Vault setup dialog state
+  const [setupVault, setSetupVault] = useState<Vault | null>(null)
+  const [setupVaultPath, setSetupVaultPath] = useState<string | null>(null)
+  const [setupVaultSyncStats, setSetupVaultSyncStats] = useState<VaultSyncStats | null>(null)
 
   // Get platform on mount
   useEffect(() => {
@@ -685,8 +695,36 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       // Check if this vault ID is already connected (by ID)
       const existingById = connectedVaults.find(v => v.id === vault.id)
       if (existingById) {
-        log.info('[WelcomeScreen]', 'Vault already connected by ID, opening', { vaultName: vault.name, path: existingById.localPath })
-        onOpenRecentVault(existingById.localPath)
+        // If vault was already set up before, just open it
+        // If hasCompletedSetup is undefined, treat as already set up (migration case)
+        if (existingById.hasCompletedSetup !== false) {
+          log.info('[WelcomeScreen]', 'Vault already connected by ID, opening', { vaultName: vault.name, path: existingById.localPath })
+          onOpenRecentVault(existingById.localPath)
+          return
+        }
+        // Vault exists but setup wasn't completed - show setup dialog with sync stats
+        log.info('[WelcomeScreen]', 'Vault connected but setup incomplete, showing dialog', { vaultName: vault.name })
+        setSetupVault(vault)
+        setSetupVaultPath(existingById.localPath)
+        
+        // Calculate sync stats in background (show loading initially)
+        setSetupVaultSyncStats({ 
+          serverFileCount: 0, serverTotalSize: 0, localFileCount: 0, 
+          syncedCount: 0, cloudOnlyCount: 0, localOnlyCount: 0, outdatedCount: 0,
+          isLoading: true 
+        })
+        
+        // Set working directory and calculate stats
+        const orgId = organization?.id
+        if (orgId) {
+          window.electronAPI.setWorkingDir(existingById.localPath).then(async () => {
+            const stats = await calculateVaultSyncStats(existingById.localPath, vault.id, orgId)
+            setSetupVaultSyncStats(stats)
+          }).catch(err => {
+            log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', { error: String(err) })
+            setSetupVaultSyncStats(null) // Fall back to basic stats
+          })
+        }
         return
       }
       
@@ -711,7 +749,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             id: vault.id,
             name: vault.name,
             localPath: result.path,
-            isExpanded: true
+            isExpanded: true,
+            hasCompletedSetup: existingByPath.hasCompletedSetup
           }
           addConnectedVault(updatedVault)
           onOpenRecentVault(result.path)
@@ -719,19 +758,30 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           return
         }
         
-        // No existing connection - add new one
-        const connectedVault: ConnectedVault = {
-          id: vault.id,
-          name: vault.name,
-          localPath: result.path,
-          isExpanded: true
-        }
-        addConnectedVault(connectedVault)
-        log.info('[WelcomeScreen]', 'Vault connected, opening', { vaultName: vault.name })
+        // No existing connection - show setup dialog for first-time connection
+        log.info('[WelcomeScreen]', 'New vault connection, showing setup dialog', { vaultName: vault.name })
+        setSetupVault(vault)
+        setSetupVaultPath(result.path)
         
-        // Open the vault
-        onOpenRecentVault(result.path)
-        addToast('success', `Connected to "${vault.name}"`)
+        // Calculate sync stats in background (show loading initially)
+        setSetupVaultSyncStats({ 
+          serverFileCount: 0, serverTotalSize: 0, localFileCount: 0, 
+          syncedCount: 0, cloudOnlyCount: 0, localOnlyCount: 0, outdatedCount: 0,
+          isLoading: true 
+        })
+        
+        // Set working directory and calculate stats
+        const orgId = organization?.id
+        const vaultPath = result.path
+        if (orgId && vaultPath) {
+          window.electronAPI.setWorkingDir(vaultPath).then(async () => {
+            const stats = await calculateVaultSyncStats(vaultPath, vault.id, orgId)
+            setSetupVaultSyncStats(stats)
+          }).catch(err => {
+            log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', { error: String(err) })
+            setSetupVaultSyncStats(null) // Fall back to basic stats
+          })
+        }
       } else {
         log.error('[WelcomeScreen]', 'Failed to create vault folder', { error: result.error })
         addToast('error', result.error || 'Failed to create vault folder')
@@ -742,6 +792,54 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     } finally {
       setConnectingVaultId(null)
     }
+  }
+  
+  // Handle vault setup completion
+  const handleVaultSetupComplete = (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean }) => {
+    if (!setupVault || !setupVaultPath) return
+    
+    log.info('[WelcomeScreen]', 'Vault setup complete', { 
+      vaultName: setupVault.name, 
+      preferences 
+    })
+    
+    // Apply auto-download preferences
+    setAutoDownloadCloudFiles(preferences.autoDownloadCloudFiles)
+    setAutoDownloadUpdates(preferences.autoDownloadUpdates)
+    
+    // Check if vault already exists (incomplete setup case)
+    const existingVault = connectedVaults.find(v => v.id === setupVault.id)
+    if (existingVault) {
+      // Update existing vault with hasCompletedSetup flag
+      updateConnectedVault(setupVault.id, { hasCompletedSetup: true })
+    } else {
+      // Add new vault with hasCompletedSetup flag
+      const connectedVault: ConnectedVault = {
+        id: setupVault.id,
+        name: setupVault.name,
+        localPath: setupVaultPath,
+        isExpanded: true,
+        hasCompletedSetup: true
+      }
+      addConnectedVault(connectedVault)
+    }
+    
+    // Open the vault
+    onOpenRecentVault(setupVaultPath)
+    addToast('success', `Connected to "${setupVault.name}"`)
+    
+    // Clear setup state
+    setSetupVault(null)
+    setSetupVaultSyncStats(null)
+    setSetupVaultPath(null)
+  }
+  
+  // Handle vault setup cancel
+  const handleVaultSetupCancel = () => {
+    log.info('[WelcomeScreen]', 'Vault setup cancelled', { vaultName: setupVault?.name })
+    setSetupVault(null)
+    setSetupVaultPath(null)
+    setSetupVaultSyncStats(null)
   }
 
   const handleConnectLegacy = async () => {
@@ -1936,6 +2034,19 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       {/* Logs Modal */}
       {showLogsModal && (
         <LogViewer onClose={() => setShowLogsModal(false)} />
+      )}
+      
+      {/* Vault Setup Dialog */}
+      {setupVault && (
+        <VaultSetupDialog
+          vaultId={setupVault.id}
+          vaultName={setupVault.name}
+          vaultDescription={setupVault.description}
+          stats={setupVault.stats}
+          syncStats={setupVaultSyncStats || undefined}
+          onComplete={handleVaultSetupComplete}
+          onCancel={handleVaultSetupCancel}
+        />
       )}
     </div>
   )

@@ -365,4 +365,20 @@ export const zhCN: TranslationDict = {
     moved: '已移动',
     ignored: '已忽略',
   },
+
+  vaultSetup: {
+    title: '设置您的保险库',
+    subtitle: '配置文件如何同步到您的计算机',
+    fileCount: '{{count}} 个文件',
+    fileCountSingular: '1 个文件',
+    totalSize: '共 {{size}}',
+    autoDownloadCloudTitle: '自动下载云端文件',
+    autoDownloadCloudDesc: '自动下载存在于服务器但不在您计算机上的文件',
+    autoDownloadUpdatesTitle: '自动下载文件更新',
+    autoDownloadUpdatesDesc: '当服务器上的文件更新时自动下载较新版本',
+    summary: '连接后，BluePLM 将下载 {{count}} 个文件（{{size}}）',
+    summaryNoDownload: '文件仅在您请求时才会下载',
+    connect: '连接保险库',
+    skip: '跳过设置',
+  },
 }

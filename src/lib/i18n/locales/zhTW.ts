@@ -365,4 +365,20 @@ export const zhTW: TranslationDict = {
     moved: '已移動',
     ignored: '已忽略',
   },
+
+  vaultSetup: {
+    title: '設定您的保險庫',
+    subtitle: '設定檔案如何同步到您的電腦',
+    fileCount: '{{count}} 個檔案',
+    fileCountSingular: '1 個檔案',
+    totalSize: '共 {{size}}',
+    autoDownloadCloudTitle: '自動下載雲端檔案',
+    autoDownloadCloudDesc: '自動下載存在於伺服器但不在您電腦上的檔案',
+    autoDownloadUpdatesTitle: '自動下載檔案更新',
+    autoDownloadUpdatesDesc: '當伺服器上的檔案更新時自動下載較新版本',
+    summary: '連線後，BluePLM 將下載 {{count}} 個檔案（{{size}}）',
+    summaryNoDownload: '檔案僅在您請求時才會下載',
+    connect: '連接保險庫',
+    skip: '跳過設定',
+  },
 }

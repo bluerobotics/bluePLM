@@ -365,4 +365,20 @@ export const fr: TranslationDict = {
     moved: 'Déplacé',
     ignored: 'Ignoré',
   },
+
+  vaultSetup: {
+    title: 'Configurer votre coffre',
+    subtitle: 'Configurez comment les fichiers sont synchronisés sur votre ordinateur',
+    fileCount: '{{count}} fichiers',
+    fileCountSingular: '1 fichier',
+    totalSize: '{{size}} au total',
+    autoDownloadCloudTitle: 'Télécharger automatiquement les fichiers cloud',
+    autoDownloadCloudDesc: 'Télécharger automatiquement les fichiers qui existent sur le serveur mais pas sur votre ordinateur',
+    autoDownloadUpdatesTitle: 'Télécharger automatiquement les mises à jour',
+    autoDownloadUpdatesDesc: 'Télécharger automatiquement les versions plus récentes lorsque les fichiers sont mis à jour sur le serveur',
+    summary: 'Après connexion, BluePLM téléchargera {{count}} fichiers ({{size}})',
+    summaryNoDownload: 'Les fichiers ne seront téléchargés que sur demande',
+    connect: 'Connecter le coffre',
+    skip: 'Ignorer la configuration',
+  },
 }

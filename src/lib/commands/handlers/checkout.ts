@@ -374,7 +374,9 @@ export const checkoutCommand: Command<CheckoutParams> = {
           }
           
           // Queue update for batch processing
-          // Include SW metadata as pendingMetadata so it shows in UI and can be compared
+          // IMPORTANT: Explicitly clear pendingMetadata on checkout
+          // pendingMetadata should only be set when user edits the datacard
+          // The UI falls back to pdmData for display when pendingMetadata is undefined
           pendingUpdates.push({
             path: file.path,
             updates: {
@@ -383,8 +385,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
                 checked_out_by: user.id,
                 checked_out_user: { full_name: user.full_name, email: user.email, avatar_url: user.avatar_url }
               },
-              // Store extracted SW metadata - will be used on checkin if no manual edits
-              pendingMetadata: swMetadata || undefined
+              pendingMetadata: undefined  // Clear any existing pending metadata
             }
           })
           
@@ -489,6 +490,11 @@ export const checkoutCommand: Command<CheckoutParams> = {
       })
       flushPendingUpdates()
     }
+    
+    // Clear any persisted pending metadata for checked out files
+    // This ensures stale metadata from previous checkouts doesn't get restored
+    const checkedOutPaths = pendingUpdates.map(u => u.path)
+    ctx.clearPersistedPendingMetadataForPaths(checkedOutPaths)
     
     // Count results
     for (const result of results) {

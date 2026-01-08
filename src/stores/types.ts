@@ -118,6 +118,7 @@ export interface ConnectedVault {
   name: string         // Vault name
   localPath: string    // Local folder path
   isExpanded: boolean  // UI state - is this vault expanded in explorer
+  hasCompletedSetup?: boolean  // Whether user has completed the first-time setup wizard
 }
 
 export interface ToastMessage {
@@ -624,6 +625,7 @@ export interface FilesSlice {
   updatePendingMetadata: (path: string, metadata: PendingMetadata) => void
   clearPendingMetadata: (path: string) => void
   clearPendingConfigMetadata: (path: string) => void
+  clearPersistedPendingMetadataForPaths: (paths: string[]) => void
   renameFileInStore: (oldPath: string, newPath: string, newNameOrRelPath: string, isMove?: boolean) => void
   setSelectedFiles: (paths: string[]) => void
   toggleFileSelection: (path: string, multiSelect?: boolean) => void
@@ -1156,11 +1158,11 @@ export interface IntegrationsSlice {
   /** Set backup status */
   setBackupStatus: (status: BackupStatusValue) => void
   
-  /** Check status of a single integration */
-  checkIntegration: (id: IntegrationId) => Promise<void>
+  /** Check status of a single integration. When silent=true, skips the 'checking' visual state. */
+  checkIntegration: (id: IntegrationId, silent?: boolean) => Promise<void>
   
-  /** Check status of all integrations */
-  checkAllIntegrations: () => Promise<void>
+  /** Check status of all integrations. When silent=true, skips the 'checking' visual state. */
+  checkAllIntegrations: (silent?: boolean) => Promise<void>
   
   /** Mark an integration as currently checking */
   setIntegrationChecking: (id: IntegrationId) => void

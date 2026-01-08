@@ -2,6 +2,27 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.1.5] - 2026-01-07
+
+### Added
+- **Vault setup wizard**: New first-time connection dialog when connecting to a vault. Shows sync stats (files on server vs local), and lets users configure auto-download preferences before syncing begins
+- **Wipe local files action**: New "Wipe Local" button in vault settings to delete all local files without disconnecting from the vault. Cloud files remain untouched
+- **Sync stats calculation**: New `calculateVaultSyncStats` utility in vault health check to compare local and server file states
+- **i18n for vault setup**: Added translations for vault setup dialog in all supported languages (EN, DE, ES, FR, PT, ZH-CN, ZH-TW)
+
+### Changed
+- **Vault disconnect preserves files**: Disconnecting from a vault no longer deletes local files. Use the new "Wipe Local" action if you want to remove files
+- **Integration status polling**: Background polling now uses "silent" mode to avoid UI flickering from repeated "checking" states
+- **Permissions editor toggle-all**: "Toggle all" actions now properly include Source Files permissions for the current vault context
+- **Backup status indicator**: Shows yellow "Needs attention" instead of "Not configured" when no vaults are connected
+- **Delete vault confirmation**: Now requires typing the vault name twice to prevent accidental deletion
+
+### Fixed
+- **Stale pending metadata on checkout**: Checkout now clears any persisted pending metadata from previous checkouts. Previously, stale metadata could incorrectly show in the datacard after re-checking out a file
+- **Vault setup not completing**: Fixed issue where vault connections from the welcome screen would not properly mark setup as complete, causing the setup dialog to reappear
+
+---
+
 ## [3.1.4] - 2026-01-07
 
 ### Fixed

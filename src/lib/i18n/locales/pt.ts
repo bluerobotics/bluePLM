@@ -365,4 +365,20 @@ export const pt: TranslationDict = {
     moved: 'Movido',
     ignored: 'Ignorado',
   },
+
+  vaultSetup: {
+    title: 'Configurar o seu cofre',
+    subtitle: 'Configure como os ficheiros são sincronizados para o seu computador',
+    fileCount: '{{count}} ficheiros',
+    fileCountSingular: '1 ficheiro',
+    totalSize: '{{size}} no total',
+    autoDownloadCloudTitle: 'Descarregar ficheiros da nuvem automaticamente',
+    autoDownloadCloudDesc: 'Descarregar automaticamente ficheiros que existem no servidor mas não no seu computador',
+    autoDownloadUpdatesTitle: 'Descarregar atualizações de ficheiros automaticamente',
+    autoDownloadUpdatesDesc: 'Descarregar automaticamente versões mais recentes quando os ficheiros são atualizados no servidor',
+    summary: 'Após conectar, o BluePLM irá descarregar {{count}} ficheiros ({{size}})',
+    summaryNoDownload: 'Os ficheiros só serão descarregados quando os solicitar',
+    connect: 'Conectar cofre',
+    skip: 'Ignorar configuração',
+  },
 }
