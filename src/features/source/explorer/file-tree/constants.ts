@@ -22,9 +22,8 @@ export const TREE_INDENT_PX = 16
 // Base padding for tree items
 export const TREE_BASE_PADDING_PX = 8
 
-// Slow double click timing thresholds (ms)
-export const SLOW_DOUBLE_CLICK_MIN_MS = 400
-export const SLOW_DOUBLE_CLICK_MAX_MS = 1500
+// Slow double-click timing now exported from @/hooks/useSlowDoubleClick
+// Use: import { SLOW_DOUBLE_CLICK_MIN_MS, SLOW_DOUBLE_CLICK_MAX_MS } from '@/hooks'
 
 // Diff status class prefix
 export const DIFF_STATUS_CLASS_PREFIX = 'sidebar-diff-'

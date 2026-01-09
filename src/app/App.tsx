@@ -3,6 +3,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
 import { SetupScreen } from '@/components/shared/Screens'
 import { OnboardingScreen } from '@/components/shared/Screens'
+import { SplashScreen } from '@/components/core'
 import { PerformanceWindow } from '@/features/dev-tools/performance'
 import { TabWindow, isTabWindowMode, parseTabWindowParams } from '@/components/layout'
 import { AppShell } from '@/components/layout'
@@ -24,6 +25,8 @@ import {
   useAutoDownload,
   useVaultManagement,
   useIntegrationStatus,
+  useAppStartup,
+  useDeepLinkInstall,
 } from '@/hooks'
 
 // Check if we're in performance mode (pop-out window)
@@ -50,6 +53,9 @@ function App() {
   // Apply theme and language
   useTheme()
   useLanguage()
+  
+  // App startup orchestration - manages splash screen and initialization
+  const startup = useAppStartup()
   
   // Log app startup
   useEffect(() => {
@@ -110,6 +116,9 @@ function App() {
   useSolidWorksAutoStart(organization)
   useAutoUpdater()
   useKeyboardShortcuts({ onOpenVault: handleOpenVault, onRefresh: loadFiles })
+  
+  // Deep link handling - listens for blueplm:// protocol links
+  useDeepLinkInstall()
   
   // Integration status orchestration hook - handles status checks lifecycle
   useIntegrationStatus()
@@ -338,6 +347,20 @@ function App() {
   
   // Only show minimal menu bar on the sign-in screen (not authenticated)
   const isSignInScreen = !user && !isOfflineMode
+  
+  // Show splash screen during startup (before everything else)
+  // This blocks until core systems and extensions are initialized
+  if (!startup.isReady) {
+    return (
+      <SplashScreen
+        stage={startup.stage}
+        stageName={startup.stageName}
+        status={startup.status}
+        errors={startup.errors}
+        onContinue={startup.continueWithErrors}
+      />
+    )
+  }
   
   // Show onboarding screen on first app boot (before Supabase setup)
   if (!onboardingComplete) {

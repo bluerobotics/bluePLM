@@ -63,6 +63,11 @@ let mainWindow: BrowserWindow | null = null
 let stateCallbacks: ExtensionStateCallback[] = []
 let isShuttingDown = false
 
+// Restart timer reference - must be tracked and cleared on cleanup
+// CRITICAL: If this timer fires after app.quit(), it tries to restart the Extension Host
+// which keeps the event loop alive and causes the zombie process issue
+let restartTimer: ReturnType<typeof setTimeout> | null = null
+
 // Pending API calls waiting for responses
 const pendingApiCalls: Map<string, {
   resolve: (result: unknown) => void
@@ -152,8 +157,11 @@ function handleHostCrash(reason: string): void {
     return
   }
   
-  // Restart after delay
-  setTimeout(() => {
+  // Restart after delay - store the timer reference so it can be cleared on cleanup
+  // CRITICAL: This timer must be tracked and cleared during shutdown or it will
+  // fire after app.quit() and keep the event loop alive
+  restartTimer = setTimeout(() => {
+    restartTimer = null
     if (isShuttingDown) return // Double-check before restart
     deps?.log('Restarting Extension Host')
     initializeExtensionHost()
@@ -1080,19 +1088,37 @@ export function onExtensionStateChange(callback: ExtensionStateCallback): () => 
 
 /**
  * Cleanup Extension Host on app quit
+ * 
+ * CRITICAL FOR CLEAN EXIT: This function must be called during app shutdown to:
+ * 1. Set the shutdown flag FIRST to prevent restart attempts
+ * 2. Clear any pending restart timer (would keep event loop alive)
+ * 3. Gracefully shutdown the Extension Host window
+ * 
+ * Order matters: isShuttingDown must be set before any async operations
+ * to prevent race conditions where a restart timer fires during cleanup.
  */
 export async function cleanupExtensionHost(): Promise<void> {
   deps?.log('Cleaning up Extension Host')
   
-  // Set shutdown flag to prevent restart attempts
+  // CRITICAL: Set shutdown flag FIRST, before any async operations
+  // This prevents restart attempts during the cleanup process
   isShuttingDown = true
+  
+  // Clear any pending restart timer immediately
+  // CRITICAL: If this timer fires after we start cleanup, it would try to
+  // create a new Extension Host window which keeps the event loop alive
+  if (restartTimer) {
+    deps?.log('Clearing pending restart timer')
+    clearTimeout(restartTimer)
+    restartTimer = null
+  }
   
   if (hostState.window && !hostState.window.isDestroyed()) {
     // Send shutdown message
     sendToHost({ type: 'host:shutdown' })
     
-    // Wait a bit for graceful shutdown
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // Wait a bit for graceful shutdown (reduced from 1000ms to 500ms for faster exit)
+    await new Promise(resolve => setTimeout(resolve, 500))
     
     // Force close if still open
     if (!hostState.window.isDestroyed()) {

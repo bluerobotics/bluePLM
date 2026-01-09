@@ -139,7 +139,7 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 bg-plm-bg-dark rounded-full overflow-hidden">
             <div 
-              className="h-full bg-plm-accent transition-all duration-200 ease-out"
+              className="h-full bg-plm-accent transition-[width] duration-75 ease-linear will-change-[width]"
               style={{ width: `${updateProgress.percent}%` }}
             />
           </div>
@@ -218,7 +218,7 @@ function ProgressToastItem({ toast }: { toast: ToastMessage }) {
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 bg-plm-bg-dark rounded-full overflow-hidden">
             <div 
-              className="h-full transition-all duration-200 ease-out bg-plm-accent"
+              className="h-full bg-plm-accent transition-[width] duration-75 ease-linear will-change-[width]"
               style={{ width: `${progress.percent}%` }}
             />
           </div>

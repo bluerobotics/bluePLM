@@ -38,14 +38,12 @@ import { useVaultTree } from './file-tree/hooks/useVaultTree'
 import { useTreeDragDrop } from './file-tree/hooks/useTreeDragDrop'
 import { useTreeKeyboardNav } from './file-tree/hooks/useTreeKeyboardNav'
 // Shared hooks
-import { useSelectionCategories, useClipboard, useSelectionBox } from '@/hooks'
+import { useSelectionCategories, useClipboard, useSelectionBox, useSlowDoubleClick } from '@/hooks'
 // Constants
 import { 
   TREE_BASE_PADDING_PX, 
   TREE_INDENT_PX, 
   DIFF_STATUS_CLASS_PREFIX,
-  SLOW_DOUBLE_CLICK_MIN_MS,
-  SLOW_DOUBLE_CLICK_MAX_MS,
   SOLIDWORKS_EXTENSIONS,
   PDM_FILES_DATA_TYPE
 } from './file-tree/constants'
@@ -146,8 +144,6 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   const [disconnectingVault, setDisconnectingVault] = useState<ConnectedVault | null>(null)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [showVaultProperties, setShowVaultProperties] = useState<ConnectedVault | null>(null)
-  const [lastClickTime, setLastClickTime] = useState<number>(0)
-  const [lastClickPath, setLastClickPath] = useState<string | null>(null)
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   const [renamingFile, setRenamingFile] = useState<LocalFile | null>(null)
   const [platform, setPlatform] = useState<string>('win32')
@@ -277,26 +273,20 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     addToast('success', 'Vault disconnected (local files preserved)')
   }
   
-  // Handle slow double click for rename
-  const handleSlowDoubleClick = (file: LocalFile) => {
-    const now = Date.now()
-    const timeDiff = now - lastClickTime
-    const isSameFile = lastClickPath === file.relativePath
-    
-    const isSynced = !!file.pdmData
-    const isCheckedOutByMe = file.pdmData?.checked_out_by === user?.id
-    const canRename = !isSynced || isCheckedOutByMe
-    
-    if (isSameFile && timeDiff > SLOW_DOUBLE_CLICK_MIN_MS && timeDiff < SLOW_DOUBLE_CLICK_MAX_MS && !file.isDirectory && canRename) {
+  // Slow double-click to rename (Windows Explorer-style)
+  const { handleSlowDoubleClick, resetSlowDoubleClick } = useSlowDoubleClick({
+    onRename: (file) => {
       setRenamingFile(file)
       setRenameValue(file.name)
-      setLastClickTime(0)
-      setLastClickPath(null)
-    } else {
-      setLastClickTime(now)
-      setLastClickPath(file.relativePath)
-    }
-  }
+    },
+    canRename: (file) => {
+      // Can rename if: not synced OR checked out by current user
+      const isSynced = !!file.pdmData
+      const isCheckedOutByMe = file.pdmData?.checked_out_by === user?.id
+      return !isSynced || isCheckedOutByMe
+    },
+    allowDirectories: true  // Allow renaming folders too
+  })
   
   const handleRenameSubmit = async () => {
     if (!renamingFile || !renameValue.trim()) {
@@ -531,6 +521,9 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     const handleDoubleClick = async () => {
       if (isRenaming) return
       
+      // Reset slow double-click state on fast double-click (prevents rename trigger)
+      resetSlowDoubleClick()
+      
       if (file.isDirectory) {
         toggleFolder(file.relativePath)
       } else if (file.diffStatus === 'cloud') {
@@ -538,12 +531,8 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         if (result.success && window.electronAPI) {
           window.electronAPI.openFile(file.path)
         }
-        setLastClickTime(0)
-        setLastClickPath(null)
       } else if (window.electronAPI) {
         window.electronAPI.openFile(file.path)
-        setLastClickTime(0)
-        setLastClickPath(null)
       }
     }
 

@@ -1398,17 +1398,35 @@ export function unregisterFsHandlers(): void {
 /**
  * Cleanup file system resources on app quit.
  * Stops the file watcher to allow the process to exit cleanly.
+ * 
+ * CRITICAL FOR CLEAN EXIT: The file watcher uses chokidar which can sometimes
+ * hang during close() if there are pending file system operations. We add a
+ * hard timeout to ensure this cleanup doesn't block app exit indefinitely.
+ * 
+ * @param timeoutMs - Maximum time to wait for watcher.close() (default: 2000ms)
  */
-export async function cleanupFs(): Promise<void> {
+export async function cleanupFs(timeoutMs: number = 2000): Promise<void> {
   if (fileWatcher) {
     log('Stopping file watcher for cleanup')
     const watcher = fileWatcher
     fileWatcher = null
+    
     try {
-      await watcher.close()
-      log('File watcher closed')
+      // Race between watcher.close() and a hard timeout
+      // This ensures we don't hang forever if the watcher is stuck
+      await Promise.race([
+        watcher.close().then(() => {
+          log('File watcher closed successfully')
+        }),
+        new Promise<void>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('File watcher close timed out'))
+          }, timeoutMs)
+        })
+      ])
     } catch (err) {
-      logError('Error closing file watcher', { error: String(err) })
+      // Log error but don't throw - we need cleanup to continue even if watcher is stuck
+      logError('Error closing file watcher (continuing with cleanup)', { error: String(err) })
     }
   }
 }

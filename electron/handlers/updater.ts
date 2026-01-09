@@ -21,6 +21,14 @@ const UPDATE_CHECK_COOLDOWN = 30 * 1000
 const UPDATE_CHECK_INTERVAL = 2 * 60 * 1000
 let updateCheckTimer: ReturnType<typeof setInterval> | null = null
 
+// Startup check timer (cleared on cleanup to prevent zombie process)
+let startupCheckTimer: ReturnType<typeof setTimeout> | null = null
+
+// Focus event handler reference (must be stored to remove on cleanup)
+// CRITICAL: Without removing this, the handler holds a reference to mainWindow
+// which prevents garbage collection and keeps the event loop alive on quit
+let focusHandler: (() => void) | null = null
+
 // Update reminder state
 interface UpdateReminder {
   version: string
@@ -404,7 +412,9 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
 
   // Start periodic update checks
   if (!isDev) {
-    setTimeout(() => {
+    // Store startup timer reference so it can be cleared on cleanup
+    startupCheckTimer = setTimeout(() => {
+      startupCheckTimer = null
       performAutoUpdateCheck('startup')
     }, 5000)
     
@@ -412,9 +422,13 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
       performAutoUpdateCheck('periodic')
     }, UPDATE_CHECK_INTERVAL)
     
-    mainWindow?.on('focus', () => {
+    // Store focus handler reference so it can be removed on cleanup
+    // CRITICAL: Without storing and removing this handler, it holds a reference
+    // to mainWindow that prevents the process from exiting cleanly
+    focusHandler = () => {
       performAutoUpdateCheck('window-focus')
-    })
+    }
+    mainWindow?.on('focus', focusHandler)
   }
 }
 
@@ -437,12 +451,35 @@ export function unregisterUpdaterHandlers(): void {
 
 /**
  * Cleanup updater resources on app quit.
- * Clears the periodic update check timer that would otherwise keep the process alive.
+ * 
+ * CRITICAL FOR CLEAN EXIT: This function must be called during app shutdown to:
+ * 1. Clear the periodic update check timer (keeps event loop alive)
+ * 2. Clear any pending startup check timer
+ * 3. Remove the focus event handler from mainWindow (holds reference, prevents GC)
+ * 
+ * Without proper cleanup, the process becomes a zombie that holds the single-instance lock.
  */
 export function cleanupUpdater(): void {
+  // Clear the periodic update check timer
   if (updateCheckTimer) {
     log('[Update] Clearing update check timer')
     clearInterval(updateCheckTimer)
     updateCheckTimer = null
+  }
+  
+  // Clear startup check timer if still pending
+  if (startupCheckTimer) {
+    log('[Update] Clearing startup check timer')
+    clearTimeout(startupCheckTimer)
+    startupCheckTimer = null
+  }
+  
+  // Remove the focus event handler from mainWindow
+  // CRITICAL: This handler holds a reference to mainWindow and prevents garbage collection
+  // which keeps the event loop alive and causes the zombie process issue
+  if (mainWindow && focusHandler) {
+    log('[Update] Removing focus event handler from mainWindow')
+    mainWindow.removeListener('focus', focusHandler)
+    focusHandler = null
   }
 }

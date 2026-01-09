@@ -794,10 +794,10 @@ namespace BluePLM.SolidWorksService
                                     catch { }
                                 }
                                 
-                                if (!string.IsNullOrEmpty(value))
+                                if (!string.IsNullOrEmpty(value) && !string.IsNullOrEmpty(name))
                                 {
                                     Console.Error.WriteLine($"[DM] Property '{name}' = '{value}'");
-                                    props[name!] = value;
+                                    props[name] = value;
                                 }
                                 else
                                 {
@@ -940,9 +940,9 @@ namespace BluePLM.SolidWorksService
                                             catch { }
                                         }
                                         
-                                        if (!string.IsNullOrEmpty(value))
+                                        if (!string.IsNullOrEmpty(value) && !string.IsNullOrEmpty(name))
                                         {
-                                            props[name!] = value;
+                                            props[name] = value;
                                             Console.Error.WriteLine($"[DM] Config property '{name}' = '{value}'");
                                         }
                                     }

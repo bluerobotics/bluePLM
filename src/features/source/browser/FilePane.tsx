@@ -19,6 +19,7 @@ import { useTranslation } from '@/lib/i18n'
 import { useClipboard } from '@/hooks/useClipboard'
 import { useSelectionCategories } from '@/hooks/useSelectionCategories'
 import { useSelectionBox } from '@/hooks/useSelectionBox'
+import { useSlowDoubleClick } from '@/hooks/useSlowDoubleClick'
 
 // Import extracted components from this feature module
 import { 
@@ -629,13 +630,35 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   const {
     lastClickedIndex,
     setLastClickedIndex,
-    handleRowClick,
+    handleRowClick: baseHandleRowClick,
   } = useFileSelection({
     sortedFiles,
     selectedFiles,
     setSelectedFiles,
     toggleFileSelection
   })
+
+  // Slow double-click to rename (Windows Explorer-style)
+  const { handleSlowDoubleClick, resetSlowDoubleClick } = useSlowDoubleClick({
+    onRename: startRenaming,
+    canRename: (file) => {
+      // Can rename if: not synced OR checked out by current user
+      const isSynced = !!file.pdmData
+      const isCheckedOutByMe = file.pdmData?.checked_out_by === user?.id
+      return !isSynced || isCheckedOutByMe
+    },
+    allowDirectories: true  // Allow renaming folders too
+  })
+
+  // Combined row click handler: selection + slow double-click detection
+  const handleRowClick = useCallback((e: React.MouseEvent, file: LocalFile, index: number) => {
+    baseHandleRowClick(e, file, index)
+    
+    // Only trigger slow double-click for normal clicks (not shift/ctrl selections)
+    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      handleSlowDoubleClick(file)
+    }
+  }, [baseHandleRowClick, handleSlowDoubleClick])
 
   // Selection box (marquee/drag-box selection)
   const { selectionBox, selectionHandlers } = useSelectionBox({
@@ -951,6 +974,9 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   })
 
   const handleRowDoubleClick = async (file: LocalFile) => {
+    // Reset slow double-click state on fast double-click (prevents rename trigger)
+    resetSlowDoubleClick()
+    
     if (file.isDirectory) {
       // Navigate into folder - allow even for cloud-only folders
       navigateToFolder(file.relativePath)

@@ -1525,30 +1525,30 @@ namespace BluePLM.SolidWorksService
             }
             
             // Get property values from SW file
-            var partNumber = GetPartNumber(props);
-            var tabNumber = GetTabNumber(props);
-            var revision = GetRevision(props);
+            var partNumber = GetPartNumber(props) ?? "";
+            var tabNumber = GetTabNumber(props) ?? "";
+            var revision = GetRevision(props) ?? "";
             var description = GetDictValue(props, "Description") ?? GetDictValue(props, "DESCRIPTION") ?? "";
             
             // Use PDM metadata as fallback if SW file properties are empty
             if (string.IsNullOrEmpty(partNumber) && !string.IsNullOrEmpty(pdmMetadata?.PartNumber))
             {
-                partNumber = pdmMetadata.PartNumber;
+                partNumber = pdmMetadata!.PartNumber;
                 Console.Error.WriteLine($"[Export] Using PDM partNumber fallback: '{partNumber}'");
             }
             if (string.IsNullOrEmpty(tabNumber) && !string.IsNullOrEmpty(pdmMetadata?.TabNumber))
             {
-                tabNumber = pdmMetadata.TabNumber;
+                tabNumber = pdmMetadata!.TabNumber;
                 Console.Error.WriteLine($"[Export] Using PDM tabNumber fallback: '{tabNumber}'");
             }
             if (string.IsNullOrEmpty(revision) && !string.IsNullOrEmpty(pdmMetadata?.Revision))
             {
-                revision = pdmMetadata.Revision;
+                revision = pdmMetadata!.Revision;
                 Console.Error.WriteLine($"[Export] Using PDM revision fallback: '{revision}'");
             }
             if (string.IsNullOrEmpty(description) && !string.IsNullOrEmpty(pdmMetadata?.Description))
             {
-                description = pdmMetadata.Description;
+                description = pdmMetadata!.Description;
                 Console.Error.WriteLine($"[Export] Using PDM description fallback: '{description}'");
             }
             

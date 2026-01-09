@@ -39,6 +39,9 @@ export const createUISlice: StateCreator<
   terminalHeight: 250,
   terminalHistory: [],
   
+  // Initial state - Deep Link
+  pendingDeepLinkInstall: null,
+  
   // Actions - Sidebar
   toggleSidebar: () => {
     const { sidebarVisible, tabsEnabled, activeTabId, tabs } = get()
@@ -181,4 +184,8 @@ export const createUISlice: StateCreator<
   
   // Actions - Settings navigation
   setSettingsTab: (tab: SettingsTab) => set({ settingsTab: tab }),
+  
+  // Actions - Deep Link
+  setPendingDeepLinkInstall: (data) => set({ pendingDeepLinkInstall: data }),
+  clearPendingDeepLinkInstall: () => set({ pendingDeepLinkInstall: null }),
 })

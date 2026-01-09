@@ -1666,12 +1666,20 @@ tr.selected.diff-cloud {
   border-top-color: var(--plm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+  will-change: transform;
+  contain: layout style;
 }
 
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* GPU-accelerate Tailwind's animate-spin for smooth rotation during heavy JS work */
+.animate-spin {
+  will-change: transform;
+  contain: layout style;
 }
 
 /* Tooltip */

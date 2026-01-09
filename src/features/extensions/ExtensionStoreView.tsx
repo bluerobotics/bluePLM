@@ -13,6 +13,7 @@ import { UpdateDialog } from './UpdateDialog'
 import { SideloadDialog } from './SideloadDialog'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useExtensions } from '@/hooks/useExtensions'
+import { log } from '@/lib/logger'
 
 type TabId = 'store' | 'installed'
 
@@ -40,6 +41,8 @@ export function ExtensionStoreView() {
     enableExtension,
     disableExtension,
     checkForUpdates,
+    pendingDeepLinkInstall,
+    clearPendingDeepLinkInstall,
   } = usePDMStore()
 
   // Load data on mount
@@ -48,6 +51,28 @@ export function ExtensionStoreView() {
     fetchStoreExtensions()
     checkForUpdates()
   }, [])
+
+  // Handle pending deep link install
+  // When the user clicks "Install in BluePLM" from the website, this triggers
+  useEffect(() => {
+    if (pendingDeepLinkInstall && storeExtensions.length > 0) {
+      const { extensionId } = pendingDeepLinkInstall
+      log.info('[ExtensionStore]', 'Processing deep link install', { extensionId })
+      
+      // Check if extension exists in store
+      const storeExt = storeExtensions.find(e => e.extensionId === extensionId)
+      if (storeExt) {
+        // Open install dialog for this extension
+        setInstallExtensionId(extensionId)
+        setShowInstallDialog(true)
+      } else {
+        log.warn('[ExtensionStore]', 'Extension not found in store', { extensionId })
+      }
+      
+      // Clear the pending install regardless (don't re-trigger)
+      clearPendingDeepLinkInstall()
+    }
+  }, [pendingDeepLinkInstall, storeExtensions, clearPendingDeepLinkInstall])
 
   // Convert installed extensions record to array
   const installedArray = Object.values(installedExtensions)

@@ -355,6 +355,9 @@ export interface UISlice {
   terminalHeight: number
   terminalHistory: string[]
   
+  // Deep Link
+  pendingDeepLinkInstall: { extensionId: string; version?: string } | null
+  
   // Actions
   toggleSidebar: () => void
   setSidebarWidth: (width: number) => void
@@ -378,6 +381,10 @@ export interface UISlice {
   
   // Settings navigation
   setSettingsTab: (tab: SettingsTab) => void
+  
+  // Deep Link
+  setPendingDeepLinkInstall: (data: { extensionId: string; version?: string } | null) => void
+  clearPendingDeepLinkInstall: () => void
 }
 
 export interface SettingsSlice {

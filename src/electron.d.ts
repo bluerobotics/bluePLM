@@ -528,6 +528,10 @@ declare global {
       revokeCliToken: () => Promise<{ success: boolean }>
       getCliStatus: () => Promise<{ authenticated: boolean; serverRunning: boolean }>
       
+      // Deep Link handling
+      onDeepLinkInstall: (callback: (data: { extensionId: string; version?: string; timestamp: number }) => void) => () => void
+      acknowledgeDeepLink: (extensionId: string, success: boolean, error?: string) => Promise<{ success: boolean }>
+      
       // ═══════════════════════════════════════════════════════════════════════════════
       // EXTENSION SYSTEM API
       // ═══════════════════════════════════════════════════════════════════════════════
