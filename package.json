@@ -1,9 +1,10 @@
 {
   "name": "blue-plm",
-  "version": "3.2.2",
+  "version": "3.2.3",
   "description": "Product Lifecycle Management for everyone who builds",
   "main": "dist-electron/main.js",
   "scripts": {
+    "predev": "node scripts/copy-extension-host.js",
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
     "preview": "vite preview",

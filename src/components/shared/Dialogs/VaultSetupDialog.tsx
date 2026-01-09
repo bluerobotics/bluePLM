@@ -77,9 +77,9 @@ export function VaultSetupDialog({
 }: VaultSetupDialogProps) {
   const { t } = useTranslation()
   
-  // Default both toggles to ON for better user experience
-  const [autoDownloadCloudFiles, setAutoDownloadCloudFiles] = useState(true)
-  const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(true)
+  // Default both toggles to OFF - users must explicitly opt-in to automatic downloads
+  const [autoDownloadCloudFiles, setAutoDownloadCloudFiles] = useState(false)
+  const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(false)
   const [sizeLimit, setSizeLimit] = useState(initialSizeLimit)
   const [sizeLimitEnabled, setSizeLimitEnabled] = useState(initialSizeLimit > 0)
   

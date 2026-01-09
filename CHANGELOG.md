@@ -2,6 +2,18 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.2.3] - 2026-01-08
+
+### Fixed
+- **Complete fix for zombie process on app close**: The 3.2.2 fix was incomplete. This release fixes all remaining causes of the process not terminating:
+  - **Update check timer**: The periodic update check interval (every 2 minutes) was not being stopped, keeping the Node.js event loop alive
+  - **File watcher**: The chokidar file watcher was not being closed during shutdown
+  - **Timeout protection**: Added 5-second timeout to all cleanup operations to prevent hangs during shutdown
+- **App won't restart after close**: Fixed issue where the app would flash briefly (~20ms) then close when trying to restart. This was caused by the previous instance not releasing the single instance lock due to incomplete cleanup
+- **Improved shutdown diagnostics**: Logging is now initialized before the single instance lock check, so "another instance running" messages are captured to the log file for debugging
+
+---
+
 ## [3.2.2] - 2026-01-08
 
 ### Fixed

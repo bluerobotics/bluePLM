@@ -63,7 +63,7 @@ function App() {
   const onboardingComplete = usePDMStore(s => s.onboardingComplete)
   
   // Auth hook - handles authentication state and Supabase initialization
-  const { supabaseReady, handleSupabaseConfigured } = useAuth()
+  const { supabaseReady, handleSupabaseConfigured, handleChangeOrg } = useAuth()
   
   // Vault management hook - now gets setSettingsTab from store internally
   const {
@@ -357,6 +357,7 @@ function App() {
     <AppShell
       showWelcome={showWelcome}
       isSignInScreen={isSignInScreen}
+      handleChangeOrg={handleChangeOrg}
     />
   )
 }

@@ -47,18 +47,17 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
   
   return (
     <span
-      className={`block w-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!file.pdmData?.description || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
+      className={`block w-full h-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!file.pdmData?.description || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
       onClick={(e) => {
+        e.stopPropagation()
+        e.preventDefault()
         if (canEditDescription) {
-          e.stopPropagation()
           handleStartCellEdit(file, 'description')
         }
       }}
       onMouseDown={(e) => {
         // Stop mousedown from triggering row drag or file focus
-        if (canEditDescription) {
-          e.stopPropagation()
-        }
+        e.stopPropagation()
       }}
       title={canEditDescription ? (file.pdmData?.description || 'Click to edit') : 'Check out file to edit'}
     >

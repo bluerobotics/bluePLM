@@ -16,6 +16,7 @@ import {
   CheckoutActions,
   CollaborationActions,
   DeleteActions,
+  ExportActions,
   useContextMenuSelectionState,
 } from './actions'
 
@@ -271,6 +272,14 @@ export function FileContextMenu({
           handleToggleWatch={handleToggleWatch}
           isCreatingShareLink={isCreatingShareLink}
           handleQuickShareLink={handleQuickShareLink}
+        />
+        
+        {/* Export actions (SolidWorks STEP, IGES, STL, PDF, DXF) */}
+        <ExportActions
+          contextFiles={contextFiles}
+          multiSelect={multiSelect}
+          firstFile={firstFile}
+          onClose={onClose}
         />
         
         {/* Delete actions (remove local, delete locally, delete from server, delete both, undo) */}

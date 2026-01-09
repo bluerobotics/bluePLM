@@ -3,7 +3,6 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { setAnalyticsUser, clearAnalyticsUser } from '@/lib/analytics'
 import { 
   supabase, 
-  getCurrentSession, 
   isSupabaseConfigured, 
   linkUserToOrganization, 
   getUserProfile, 
@@ -54,100 +53,31 @@ export function useAuth() {
     setSupabaseReady(false)
   }, [])
 
-  // Initialize auth state (runs in background, doesn't block UI)
+  // Initialize auth state via onAuthStateChange listener
+  // NOTE: We removed the duplicate getCurrentSession() flow that was causing a race condition
+  // Supabase fires INITIAL_SESSION or SIGNED_IN when restoring a persisted session on startup
   useEffect(() => {
     if (!supabaseReady) {
       return
     }
 
-    // Check for existing session
-    getCurrentSession().then(async ({ session }) => {
-      if (session?.user) {
-        // Store access token for raw fetch calls
-        setCurrentAccessToken(session.access_token)
-        
-        try {
-          // NOTE: ensureUserOrgId() removed - it used client.rpc() which hangs
-          // linkUserToOrganization() handles org_id setup correctly as fallback
-          
-          // Fetch user profile from database to get role
-          const { profile, error: profileError } = await getUserProfile(session.user.id)
-          if (profileError) {
-            log.warn('[Auth]', 'Error fetching profile', { error: profileError })
-          }
-          const userProfile = profile as { full_name?: string; avatar_url?: string; custom_avatar_url?: string; job_title?: string; org_id?: string; role?: string; last_sign_in?: string } | null
-          
-          // Set user from profile (includes role) or fallback to session data
-          // Note: Google OAuth stores avatar as 'picture' in user_metadata, not 'avatar_url'
-          const userData = {
-            id: session.user.id,
-            email: session.user.email || '',
-            full_name: userProfile?.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
-            avatar_url: userProfile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
-            custom_avatar_url: userProfile?.custom_avatar_url || null,
-            job_title: userProfile?.job_title || null,
-            org_id: userProfile?.org_id || null,
-            role: (userProfile?.role || 'engineer') as 'admin' | 'engineer' | 'viewer',
-            created_at: session.user.created_at,
-            last_sign_in: userProfile?.last_sign_in || null
-          }
-          setUser(userData)
-          logUserAction('auth', 'User authenticated', { email: userData.email, role: userData.role })
-          log.info('[Auth]', 'User signed in', { email: userData.email, role: userData.role })
-          
-          // Update last_online timestamp
-          updateLastOnline().catch(err => log.warn('[Auth]', 'Failed to update last_online', { error: err }))
-          
-          // Set user for Sentry analytics (uses hashed IDs for privacy)
-          setAnalyticsUser(userData.id, userData.org_id || undefined)
-          
-          // Then load organization using the working linkUserToOrganization function
-          const { org, error } = await linkUserToOrganization(session.user.id, session.user.email || '')
-          if (org) {
-            log.info('[Auth]', 'Organization loaded', { name: (org as any).name })
-            setOrganization(org as any)
-            
-            // Update user's org_id in store if it wasn't set (triggers session re-registration with correct org_id)
-            if (!userData.org_id) {
-              setUser({ ...userData, org_id: (org as any).id })
-              // Update analytics user with org_id
-              setAnalyticsUser(userData.id, (org as any).id)
-            }
-            
-            // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
-            syncUserSessionsOrgId(session.user.id, (org as any).id)
-            
-            // Load user's team permissions
-            usePDMStore.getState().loadUserPermissions()
-            
-            // Load user's workflow roles for real-time sync
-            usePDMStore.getState().loadUserWorkflowRoles()
-          } else if (error) {
-            log.warn('[Auth]', 'No organization found', { error })
-          }
-        } catch (err) {
-          log.error('[Auth]', 'Error loading user profile', { error: err })
-        }
-      }
-    }).catch(err => {
-      log.error('[Auth]', 'Error checking session', { error: err })
-    })
-
-    // Listen for auth state changes
+    // Listen for auth state changes (also handles session restoration on startup)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        // Handle session events: INITIAL_SESSION (startup restore), SIGNED_IN (new login), TOKEN_REFRESHED
+        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
           // Show connecting state while loading organization
           // Add timeout to prevent infinite hanging if network/db is slow
           let connectingTimeout: ReturnType<typeof setTimeout> | null = null
-          if (event === 'SIGNED_IN') {
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
             setIsConnecting(true)
-            // Safety timeout: clear isConnecting after 30s to prevent infinite hang
+            // Safety timeout: clear isConnecting after 90s to prevent infinite hang
+            // Increased from 30s to handle slow networks and avoid false "timeout" warnings
             connectingTimeout = setTimeout(() => {
               log.warn('[Auth]', 'Organization loading timeout - clearing connecting state')
               setIsConnecting(false)
-              addToast('warning', 'Connection timed out. You may need to sign in again.')
-            }, 30000)
+              addToast('warning', 'Loading your organization is taking longer than expected. Please check your internet connection.')
+            }, 90000)
           }
           
           // Store access token for raw fetch calls (Supabase client methods hang)
@@ -188,6 +118,7 @@ export function useAuth() {
             setAnalyticsUser(session.user.id, userProfile?.org_id || undefined)
             
             if (event === 'SIGNED_IN') {
+              // Only show welcome message for new sign-ins, not session restoration
               setStatusMessage(`Welcome, ${session.user.user_metadata?.full_name || session.user.email}!`)
               setTimeout(() => setStatusMessage(''), 3000)
               
@@ -198,10 +129,14 @@ export function useAuth() {
                 setOfflineMode(false)
                 addToast('success', 'Back online')
               }
+            } else if (event === 'INITIAL_SESSION') {
+              // Session restored from storage - user is already signed in
+              log.info('[Auth]', 'Session restored from storage', { email: session.user.email })
             }
             
             // Load organization (setOrganization will clear isConnecting)
-            const { org, error: orgError } = await linkUserToOrganization(session.user.id, session.user.email || '')
+            // Pass cached org_id to avoid duplicate profile fetch in linkUserToOrganization
+            const { org, error: orgError } = await linkUserToOrganization(session.user.id, session.user.email || '', userProfile?.org_id)
             if (org) {
               log.info('[Auth]', 'Organization loaded', { name: (org as any).name })
               if (connectingTimeout) clearTimeout(connectingTimeout)

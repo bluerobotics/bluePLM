@@ -77,9 +77,6 @@ Extensions run in isolated environments for security:
 - [Best Practices](./best-practices.md) — Patterns and recommendations
 - [Troubleshooting](./troubleshooting.md) — Common issues and solutions
 
-### For AI Assistants
-- [Complete Reference](./ai-reference.md) — Consolidated reference for AI code generation
-
 ## Quick Example
 
 Here's a minimal extension that shows a toast when activated:
@@ -159,7 +156,7 @@ All API calls require declared permissions. The system validates at runtime:
 ## Support
 
 - **GitHub Issues:** [bluerobotics/bluePLM](https://github.com/bluerobotics/bluePLM/issues)
-- **Marketplace:** [marketplace.blueplm.io](https://marketplace.blueplm.io)
+- **Extension Store:** [extensions.blueplm.io](https://extensions.blueplm.io)
 - **Documentation:** You're here!
 
 ---

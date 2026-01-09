@@ -8,6 +8,7 @@ export { SyncActions } from './SyncActions'
 export { CheckoutActions } from './CheckoutActions'
 export { CollaborationActions } from './CollaborationActions'
 export { DeleteActions } from './DeleteActions'
+export { ExportActions } from './ExportActions'
 
 // Hooks and utilities
 export { useContextMenuSelectionState } from './useContextMenuState'

@@ -9,6 +9,7 @@ import { executeCommand } from '@/lib/commands'
 import { checkOperationPermission, getPermissionRequirement } from '@/lib/permissions'
 import { getCountLabel } from '@/lib/utils'
 import type { RefreshableActionProps, SelectionCounts, SelectionState } from './types'
+import { ContextSubmenu } from '../components'
 
 interface CheckoutActionsProps extends RefreshableActionProps {
   counts: SelectionCounts
@@ -234,9 +235,8 @@ export function CheckoutActions({
           
           {/* State Submenu */}
           {showStateSubmenu && (
-            <div 
-              className="absolute left-full top-0 ml-1 min-w-[160px] bg-plm-bg-lighter border border-plm-border rounded-md py-1 shadow-lg z-[100]"
-              style={{ marginTop: '-4px' }}
+            <ContextSubmenu
+              minWidth={160}
               onMouseEnter={() => {
                 if (stateSubmenuTimeoutRef.current) {
                   clearTimeout(stateSubmenuTimeoutRef.current)
@@ -281,7 +281,7 @@ export function CheckoutActions({
                   </div>
                 )
               })}
-            </div>
+            </ContextSubmenu>
           )}
         </div>
       )}

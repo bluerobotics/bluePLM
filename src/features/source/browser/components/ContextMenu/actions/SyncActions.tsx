@@ -8,6 +8,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
 import { useDownloadOperation } from '../../../hooks/useDownloadOperation'
 import type { RefreshableActionProps, SelectionCounts, SelectionState } from './types'
+import { ContextSubmenu } from '../components'
 
 interface SyncActionsProps extends RefreshableActionProps {
   counts: SelectionCounts
@@ -93,9 +94,8 @@ export function SyncActions({
           
           {/* Submenu */}
           {showIgnoreSubmenu && (
-            <div 
-              className="absolute left-full top-0 ml-1 min-w-[200px] bg-plm-bg-lighter border border-plm-border rounded-md py-1 shadow-lg z-[100]"
-              style={{ marginTop: '-4px' }}
+            <ContextSubmenu
+              minWidth={200}
               onMouseEnter={() => {
                 if (ignoreSubmenuTimeoutRef.current) {
                   clearTimeout(ignoreSubmenuTimeoutRef.current)
@@ -162,7 +162,7 @@ export function SyncActions({
                 }
                 return null
               })()}
-            </div>
+            </ContextSubmenu>
           )}
         </div>
       )}

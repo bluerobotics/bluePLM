@@ -1042,10 +1042,30 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   
   const visibleColumns = allColumns.filter(c => c.visible)
 
+  // Prepare rename state to pass to context (fixes duplicate state bug)
+  const renameStateForContext = {
+    renamingFile,
+    setRenamingFile,
+    renameValue,
+    setRenameValue,
+    renameInputRef,
+    isCreatingFolder,
+    setIsCreatingFolder,
+    newFolderName,
+    setNewFolderName,
+    newFolderInputRef,
+    editingCell,
+    setEditingCell,
+    editValue,
+    setEditValue,
+    inlineEditInputRef
+  }
+
   return (
     <FilePaneProvider 
       onRefresh={onRefresh} 
       customMetadataColumns={customMetadataColumns}
+      renameState={renameStateForContext}
     >
     <FilePaneHandlersProvider handlers={handlersContextValue}>
     <div 

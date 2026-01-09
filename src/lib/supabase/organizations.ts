@@ -164,8 +164,9 @@ export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProvide
 }
 
 // Find and link organization by email domain, pending membership, or fetch existing org
-export async function linkUserToOrganization(userId: string, userEmail: string) {
-  authLog('info', 'linkUserToOrganization called', { userId: userId?.substring(0, 8) + '...', email: userEmail })
+// cachedOrgId: Optional org_id from already-fetched profile (avoids duplicate network request)
+export async function linkUserToOrganization(userId: string, userEmail: string, cachedOrgId?: string | null) {
+  authLog('info', 'linkUserToOrganization called', { userId: userId?.substring(0, 8) + '...', email: userEmail, hasCachedOrgId: !!cachedOrgId })
   
   // Use raw fetch - Supabase client methods hang
   const config = getCurrentConfigValues()
@@ -174,67 +175,75 @@ export async function linkUserToOrganization(userId: string, userEmail: string) 
   const accessToken = getCurrentAccessToken() || key
   
   try {
-    // First, check if user already has an org_id (with retry for new users)
-    let userProfile: { org_id?: string } | null = null
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const userResponse = await fetch(`${url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
-        headers: {
-          'apikey': key,
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const userData = await userResponse.json()
-      userProfile = userData?.[0] || null
-      
-      if (userProfile) break
-      
-      // User record might not exist yet (trigger still running), wait and retry
-      if (attempt < 2) {
-        authLog('info', 'User record not found, waiting for trigger...', { attempt: attempt + 1 })
-        await new Promise(resolve => setTimeout(resolve, 1000))
-      }
-    }
+    // Use cached org_id if provided, otherwise fetch user profile
+    let userProfile: { org_id?: string } | null = cachedOrgId !== undefined 
+      ? { org_id: cachedOrgId || undefined } 
+      : null
     
-    // If user record still doesn't exist, call ensure_user_org_id RPC to create it
-    // This handles cases where the auth trigger failed (e.g., after account deletion)
-    if (!userProfile) {
-      authLog('info', 'User record not found after retries, calling ensure_user_org_id RPC')
-      try {
-        const ensureResponse = await fetch(`${url}/rest/v1/rpc/ensure_user_org_id`, {
-          method: 'POST',
+    // Only fetch profile if we don't have cached org_id
+    if (cachedOrgId === undefined) {
+      // First, check if user already has an org_id (with retry for new users)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const userResponse = await fetch(`${url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
           headers: {
             'apikey': key,
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
-          },
-          body: '{}'
+          }
         })
-        const ensureResult = await ensureResponse.json()
-        authLog('info', 'ensure_user_org_id result', ensureResult)
+        const userData = await userResponse.json()
+        userProfile = userData?.[0] || null
         
-        if (ensureResult?.created_user) {
-          // Re-fetch user profile now that it exists
-          const userResponse = await fetch(`${url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
+        if (userProfile) break
+        
+        // User record might not exist yet (trigger still running), wait and retry
+        if (attempt < 2) {
+          authLog('info', 'User record not found, waiting for trigger...', { attempt: attempt + 1 })
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+      }
+      
+      // If user record still doesn't exist, call ensure_user_org_id RPC to create it
+      // This handles cases where the auth trigger failed (e.g., after account deletion)
+      if (!userProfile) {
+        authLog('info', 'User record not found after retries, calling ensure_user_org_id RPC')
+        try {
+          const ensureResponse = await fetch(`${url}/rest/v1/rpc/ensure_user_org_id`, {
+            method: 'POST',
             headers: {
               'apikey': key,
               'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json'
-            }
+            },
+            body: '{}'
           })
-          const userData = await userResponse.json()
-          userProfile = userData?.[0] || null
-          authLog('info', 'Re-fetched user profile after creation', { hasProfile: !!userProfile, orgId: userProfile?.org_id?.substring(0, 8) + '...' })
+          const ensureResult = await ensureResponse.json()
+          authLog('info', 'ensure_user_org_id result', ensureResult)
+          
+          if (ensureResult?.created_user) {
+            // Re-fetch user profile now that it exists
+            const userResponse = await fetch(`${url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
+              headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            })
+            const userData = await userResponse.json()
+            userProfile = userData?.[0] || null
+            authLog('info', 'Re-fetched user profile after creation', { hasProfile: !!userProfile, orgId: userProfile?.org_id?.substring(0, 8) + '...' })
+          }
+        } catch (ensureErr) {
+          authLog('warn', 'ensure_user_org_id RPC failed', { error: String(ensureErr) })
         }
-      } catch (ensureErr) {
-        authLog('warn', 'ensure_user_org_id RPC failed', { error: String(ensureErr) })
       }
     }
     
     authLog('info', 'User profile lookup result', { 
       hasProfile: !!userProfile, 
       hasOrgId: !!userProfile?.org_id,
-      orgId: userProfile?.org_id?.substring(0, 8) + '...'
+      orgId: userProfile?.org_id?.substring(0, 8) + '...',
+      usedCache: cachedOrgId !== undefined
     })
     
     if (userProfile?.org_id) {

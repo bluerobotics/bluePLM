@@ -609,6 +609,15 @@ export function useLoadFiles() {
             return
           }
           
+          // Log auto-download settings state for debugging
+          window.electronAPI?.log('info', '[AutoDownload] Settings check', {
+            autoDownloadCloudFiles,
+            autoDownloadUpdates,
+            silent,
+            hasOrg: !!organization,
+            isOfflineMode
+          })
+          
           if (!silent && (autoDownloadCloudFiles || autoDownloadUpdates) && organization && !isOfflineMode) {
             const latestFiles = usePDMStore.getState().files
             

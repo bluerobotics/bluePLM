@@ -7,7 +7,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import * as Sentry from '@sentry/electron/main'
 
-import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService, cleanupExtensionHost, cleanupOAuth, performMigrationCheck, wasMigrationPerformed } from './handlers'
+import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService, cleanupExtensionHost, cleanupOAuth, cleanupUpdater, cleanupFs, performMigrationCheck, wasMigrationPerformed, handleDeepLink, storePendingDeepLink, setDeepLinkDependencies } from './handlers'
 import { createAppMenu } from './menu'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -142,14 +142,237 @@ nativeTheme.themeSource = 'system'
 
 app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer')
 
+// ============================================
+// Deep Link Protocol Registration
+// ============================================
+
+// Register blueplm:// as the app's protocol handler
+// Must be done before requesting single instance lock
+if (process.defaultApp) {
+  // Development: need to pass the script path
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('blueplm', process.execPath, [path.resolve(process.argv[1])])
+  }
+} else {
+  // Production: just register the protocol
+  app.setAsDefaultProtocolClient('blueplm')
+}
+
+// Initialize deep link dependencies early for logging
+setDeepLinkDependencies({
+  log: (message: string, data?: unknown) => writeLog('info', `[DeepLink] ${message}`, data),
+  logError: (message: string, data?: unknown) => writeLog('error', `[DeepLink] ${message}`, data)
+})
+
+// Check for deep link in startup arguments (Windows)
+function getDeepLinkFromArgs(args: string[]): string | null {
+  for (const arg of args) {
+    if (arg.startsWith('blueplm://') || arg.startsWith('blueplm:')) {
+      return arg
+    }
+  }
+  return null
+}
+
+// ============================================
+// CRITICAL: Initialize logging BEFORE single instance lock
+// This ensures we capture "Another instance running" messages for debugging
+// ============================================
+initializeLogging()
+
+// Store initial deep link if launched via protocol
+const initialDeepLink = getDeepLinkFromArgs(process.argv)
+if (initialDeepLink) {
+  log('App launched via deep link: ' + initialDeepLink.substring(0, 80))
+  storePendingDeepLink(initialDeepLink)
+}
+
 const isTestMode = process.argv.includes('--test-mode') || process.env.BLUEPLM_TEST === '1'
 const gotTheLock = isTestMode ? true : app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
-  log('Another instance is running, quitting...')
+  // CRITICAL: This log message is now captured to file for debugging restart issues
+  log('⚠️ Another instance is running (or stale lock exists), quitting...')
   app.quit()
+  // Don't register any handlers - the app should quit immediately
 } else {
-  log(isTestMode ? 'Running in test mode (single instance lock bypassed)' : 'Got single instance lock')
+  log(isTestMode ? 'Running in test mode (single instance lock bypassed)' : '✓ Got single instance lock')
+  
+  // All app initialization happens inside this block to prevent
+  // secondary instances from doing anything after calling app.quit()
+  initializeApp()
+}
+
+function initializeApp() {
+  // ============================================
+  // App Lifecycle (only runs if we got the lock)
+  // ============================================
+
+  // Handle second instance (Windows/Linux deep links come through here)
+  app.on('second-instance', (_event, commandLine) => {
+    log('Second instance detected')
+    
+    // Check for deep link in command line args
+    const deepLink = getDeepLinkFromArgs(commandLine)
+    if (deepLink) {
+      log('Deep link from second instance: ' + deepLink.substring(0, 80))
+      handleDeepLink(deepLink)
+    }
+    
+    // Focus the main window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+  
+  // Handle deep links on macOS (open-url event)
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    log('Deep link received (open-url): ' + url.substring(0, 80))
+    
+    if (mainWindow) {
+      handleDeepLink(url)
+    } else {
+      // Window not ready yet, store for later
+      storePendingDeepLink(url)
+    }
+  })
+
+  app.whenReady().then(async () => {
+    // Note: Logging is already initialized before single instance lock check
+    // Initialize Sentry for crash reporting
+    initSentryMain()
+    
+    // Perform migration check BEFORE creating window
+    // This handles clean install when upgrading from 2.x to 3.0+
+    log('Checking for version migration...')
+    const migrationResult = await performMigrationCheck()
+    if (migrationResult.performed) {
+      log('Migration performed: cleaned ' + migrationResult.cleanedPaths.length + ' items', {
+        fromVersion: migrationResult.fromVersion,
+        toVersion: migrationResult.toVersion
+      })
+    }
+    
+    log('App ready, creating window...')
+    createWindow()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow()
+      } else if (mainWindow) {
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore()
+        }
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    })
+    
+    // Start CLI server in dev mode
+    if (isDev || process.env.BLUEPLM_CLI === '1') {
+      startCliServer()
+    }
+  }).catch(err => {
+    logError('Error during app ready', { error: String(err) })
+  })
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
+
+  // Track if we're already quitting to prevent re-entry
+  let isQuitting = false
+
+  // Cleanup on app quit
+  app.on('before-quit', async (event) => {
+    // Prevent re-entry during cleanup
+    if (isQuitting) {
+      return
+    }
+    
+    // Prevent default quit behavior to allow async cleanup
+    event.preventDefault()
+    isQuitting = true
+    
+    log('App quitting, cleaning up all resources...')
+    
+    // Maximum time to wait for cleanup before force-exiting
+    // This prevents the app from hanging on shutdown
+    const CLEANUP_TIMEOUT_MS = 5000
+    const cleanupStartTime = Date.now()
+    
+    // Wrap all cleanup in a timeout to prevent hangs
+    const cleanupWithTimeout = async () => {
+      // ================================================
+      // CRITICAL: Stop all timers/intervals FIRST
+      // These can prevent the Node.js event loop from exiting
+      // ================================================
+      
+      // Stop update check timer (ROOT CAUSE of zombie process issue)
+      cleanupUpdater()
+      log('✓ Updater cleanup complete')
+      
+      // Stop file watcher
+      try {
+        await cleanupFs()
+        log('✓ File watcher cleanup complete')
+      } catch (err) {
+        logError('Failed to cleanup file watcher', { error: String(err) })
+      }
+      
+      // ================================================
+      // Cleanup child processes and servers
+      // ================================================
+      
+      // Cleanup Extension Host (has 1 second internal timeout)
+      try {
+        await cleanupExtensionHost()
+        log('✓ Extension Host cleanup complete')
+      } catch (err) {
+        logError('Failed to cleanup Extension Host', { error: String(err) })
+      }
+      
+      // Cleanup SolidWorks service (can hang if service is stuck)
+      try {
+        await cleanupSolidWorksService()
+        log('✓ SolidWorks service cleanup complete')
+      } catch (err) {
+        logError('Failed to cleanup SolidWorks service', { error: String(err) })
+      }
+      
+      // Cleanup OAuth servers (sync, should be fast)
+      cleanupOAuth()
+      log('✓ OAuth cleanup complete')
+      
+      // Cleanup CLI server (destroys active connections)
+      cleanupCli()
+      log('✓ CLI cleanup complete')
+    }
+    
+    try {
+      // Race cleanup against timeout
+      await Promise.race([
+        cleanupWithTimeout(),
+        new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error('Cleanup timeout')), CLEANUP_TIMEOUT_MS)
+        )
+      ])
+      
+      const elapsed = Date.now() - cleanupStartTime
+      log(`All cleanup complete in ${elapsed}ms, exiting...`)
+    } catch (err) {
+      const elapsed = Date.now() - cleanupStartTime
+      logError(`Cleanup timed out or failed after ${elapsed}ms, force exiting...`, { error: String(err) })
+    }
+    
+    // Force exit the process immediately
+    // Don't use setTimeout - exit NOW to release the single instance lock
+    app.exit(0)
+  })
 }
 
 // Helper to restore focus to main window after dialogs (fixes macOS UI freeze issue)
@@ -381,106 +604,3 @@ function createWindow() {
   // Create application menu
   createAppMenu(mainWindow, { log })
 }
-
-// ============================================
-// App Lifecycle
-// ============================================
-
-app.on('second-instance', () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
-  }
-})
-
-app.whenReady().then(async () => {
-  // Initialize file-based logging
-  initializeLogging()
-  
-  // Initialize Sentry for crash reporting
-  initSentryMain()
-  
-  // Perform migration check BEFORE creating window
-  // This handles clean install when upgrading from 2.x to 3.0+
-  log('Checking for version migration...')
-  const migrationResult = await performMigrationCheck()
-  if (migrationResult.performed) {
-    log('Migration performed: cleaned ' + migrationResult.cleanedPaths.length + ' items', {
-      fromVersion: migrationResult.fromVersion,
-      toVersion: migrationResult.toVersion
-    })
-  }
-  
-  log('App ready, creating window...')
-  createWindow()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
-    } else if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore()
-      }
-      mainWindow.show()
-      mainWindow.focus()
-    }
-  })
-  
-  // Start CLI server in dev mode
-  if (isDev || process.env.BLUEPLM_CLI === '1') {
-    startCliServer()
-  }
-}).catch(err => {
-  logError('Error during app ready', { error: String(err) })
-})
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
-
-// Track if we're already quitting to prevent re-entry
-let isQuitting = false
-
-// Cleanup on app quit
-app.on('before-quit', async (event) => {
-  // Prevent re-entry during cleanup
-  if (isQuitting) {
-    return
-  }
-  
-  // Prevent default quit behavior to allow async cleanup
-  event.preventDefault()
-  isQuitting = true
-  
-  log('App quitting, cleaning up...')
-  
-  // Cleanup Extension Host
-  try {
-    await cleanupExtensionHost()
-  } catch (err) {
-    logError('Failed to cleanup Extension Host', { error: String(err) })
-  }
-  
-  // Cleanup SolidWorks service
-  try {
-    await cleanupSolidWorksService()
-  } catch (err) {
-    logError('Failed to cleanup SolidWorks service', { error: String(err) })
-  }
-  
-  // Cleanup OAuth servers
-  cleanupOAuth()
-  
-  // Cleanup CLI
-  cleanupCli()
-  
-  log('Cleanup complete, forcing exit...')
-  
-  // Force exit the process - app.quit() would trigger before-quit again
-  // Use a small delay to ensure logs are flushed
-  setTimeout(() => {
-    app.exit(0)
-  }, 100)
-})

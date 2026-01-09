@@ -434,3 +434,15 @@ export function unregisterUpdaterHandlers(): void {
     ipcMain.removeHandler(handler)
   }
 }
+
+/**
+ * Cleanup updater resources on app quit.
+ * Clears the periodic update check timer that would otherwise keep the process alive.
+ */
+export function cleanupUpdater(): void {
+  if (updateCheckTimer) {
+    log('[Update] Clearing update check timer')
+    clearInterval(updateCheckTimer)
+    updateCheckTimer = null
+  }
+}

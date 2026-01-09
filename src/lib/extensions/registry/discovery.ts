@@ -23,7 +23,7 @@ import { parseManifest } from '../manifest'
 /**
  * Default Extension Store API URL.
  */
-export const DEFAULT_STORE_API_URL = 'https://marketplace.blueplm.io/api'
+export const DEFAULT_STORE_API_URL = 'https://extensions.blueplm.io/api'
 
 /**
  * Cache duration for store listings (5 minutes).

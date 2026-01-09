@@ -47,18 +47,17 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   
   return (
     <span
-      className={`block w-full px-1 rounded ${canEditItemNumber ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!file.pdmData?.part_number || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}
+      className={`block w-full h-full px-1 rounded ${canEditItemNumber ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!file.pdmData?.part_number || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}
       onClick={(e) => {
+        e.stopPropagation()
+        e.preventDefault()
         if (canEditItemNumber) {
-          e.stopPropagation()
           handleStartCellEdit(file, 'itemNumber')
         }
       }}
       onMouseDown={(e) => {
         // Stop mousedown from triggering row drag or file focus
-        if (canEditItemNumber) {
-          e.stopPropagation()
-        }
+        e.stopPropagation()
       }}
       title={canEditItemNumber ? 'Click to edit' : 'Check out file to edit'}
     >

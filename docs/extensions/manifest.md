@@ -101,7 +101,7 @@ Publisher identifier. Must match the prefix of your extension `id`.
 "publisher": "mycompany"
 ```
 
-**Note:** Register as a publisher at [marketplace.blueplm.io](https://marketplace.blueplm.io) before publishing.
+**Note:** Register as a publisher at [extensions.blueplm.io](https://extensions.blueplm.io) before publishing.
 
 ---
 

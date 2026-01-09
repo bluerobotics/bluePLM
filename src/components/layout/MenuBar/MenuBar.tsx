@@ -351,7 +351,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     <div ref={menuBarRef} className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region grid items-center" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
       {/* Left side - Logo, Organization, and Vault (add padding on macOS for window buttons) */}
       <div 
-        className="flex items-center h-full justify-start"
+        className="flex items-center h-full justify-start titlebar-drag-region"
         style={{ paddingLeft: platform === 'darwin' ? 72 : 0 }}
       >
         <div className="flex items-center gap-1 px-3 titlebar-no-drag">
@@ -456,7 +456,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       </div>
 
       {/* Center - Search bar (truly centered, only bumps when neighbors encroach) */}
-      <div className="flex items-center justify-center px-2 min-w-0">
+      <div className="flex items-center justify-center px-2 min-w-0 titlebar-drag-region">
         {!minimal && topbarConfig.showSearch && (
           <div className={`${searchWidth} titlebar-no-drag`}>
             <CommandSearch />
@@ -466,7 +466,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
 
       {/* Right side - Settings and User (with padding for window controls on Windows) */}
       <div 
-        className="flex items-center h-full justify-end"
+        className="flex items-center h-full justify-end titlebar-drag-region"
         style={{ paddingRight: platform === 'darwin' ? 16 : titleBarPadding }}
       >
         <div className="flex items-center gap-1 px-2 titlebar-no-drag">

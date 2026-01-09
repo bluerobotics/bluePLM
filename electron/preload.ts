@@ -520,9 +520,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   revokeCliToken: () => ipcRenderer.invoke('cli:revoke-token'),
   getCliStatus: () => ipcRenderer.invoke('cli:get-status'),
   
-  // Migration status (for 2.x -> 3.0 upgrade notifications)
-  getMigrationStatus: () => ipcRenderer.invoke('migration:get-status'),
-  acknowledgeMigration: () => ipcRenderer.invoke('migration:acknowledge'),
+  // Deep Link handling
+  onDeepLinkInstall: (callback: (data: { extensionId: string; version?: string; timestamp: number }) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: { extensionId: string; version?: string; timestamp: number }) => callback(data)
+    ipcRenderer.on('deep-link:install-extension', handler)
+    return () => ipcRenderer.removeListener('deep-link:install-extension', handler)
+  },
+  acknowledgeDeepLink: (extensionId: string, success: boolean, error?: string) => 
+    ipcRenderer.invoke('deep-link:acknowledge', extensionId, success, error),
   
   // ═══════════════════════════════════════════════════════════════════════════════
   // EXTENSION SYSTEM API
@@ -823,13 +828,9 @@ declare global {
       revokeCliToken: () => Promise<{ success: boolean }>
       getCliStatus: () => Promise<{ authenticated: boolean; serverRunning: boolean }>
       
-      // Migration status (for 2.x -> 3.0 upgrade notifications)
-      getMigrationStatus: () => Promise<{
-        performed: boolean
-        fromVersion: string | null
-        toVersion: string | null
-        cleanedCount: number
-      }>
+      // Deep Link handling
+      onDeepLinkInstall: (callback: (data: { extensionId: string; version?: string; timestamp: number }) => void) => () => void
+      acknowledgeDeepLink: (extensionId: string, success: boolean, error?: string) => Promise<{ success: boolean }>
     }
   }
 }

@@ -577,4 +577,4 @@ export async function activate(context, api) {
 
 ---
 
-**[← Best Practices](./best-practices.md)** | **[AI Reference →](./ai-reference.md)**
+**[← Best Practices](./best-practices.md)**

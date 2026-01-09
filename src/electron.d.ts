@@ -528,16 +528,6 @@ declare global {
       revokeCliToken: () => Promise<{ success: boolean }>
       getCliStatus: () => Promise<{ authenticated: boolean; serverRunning: boolean }>
       
-      // Migration status (for major version upgrade handling)
-      getMigrationStatus: () => Promise<{
-        performed: boolean
-        pending: boolean
-        fromVersion: string | null
-        toVersion: string
-        cleanedCount: number
-      }>
-      acknowledgeMigration: () => Promise<{ success: boolean }>
-      
       // ═══════════════════════════════════════════════════════════════════════════════
       // EXTENSION SYSTEM API
       // ═══════════════════════════════════════════════════════════════════════════════

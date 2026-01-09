@@ -47,18 +47,17 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
   
   return (
     <span
-      className={`block w-full px-1 rounded ${canEditRevision ? 'cursor-text hover:bg-plm-bg-light' : 'text-plm-fg-muted'}`}
+      className={`block w-full h-full px-1 rounded ${canEditRevision ? 'cursor-text hover:bg-plm-bg-light' : 'text-plm-fg-muted'}`}
       onClick={(e) => {
+        e.stopPropagation()
+        e.preventDefault()
         if (canEditRevision) {
-          e.stopPropagation()
           handleStartCellEdit(file, 'revision')
         }
       }}
       onMouseDown={(e) => {
         // Stop mousedown from triggering row drag or file focus
-        if (canEditRevision) {
-          e.stopPropagation()
-        }
+        e.stopPropagation()
       }}
       title={canEditRevision ? 'Click to edit' : 'Check out file to edit'}
     >

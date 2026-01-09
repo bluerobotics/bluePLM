@@ -642,20 +642,236 @@ export function registerExtensionHostHandlers(
     return undefined
   })
   
-  // Store operations (placeholders - implemented by Agent 8)
+  // Store operations
+  const STORE_API_URL = 'https://extensions.blueplm.io/api'
+  
   ipcMain.handle('extensions:fetch-store', async () => {
-    // Placeholder - would call store API
-    return []
+    try {
+      deps?.log('Fetching extensions from store...')
+      const response = await fetch(`${STORE_API_URL}/store/extensions?limit=100`)
+      
+      if (!response.ok) {
+        throw new Error(`Store API returned ${response.status}: ${response.statusText}`)
+      }
+      
+      const result = await response.json() as {
+        success: boolean
+        data: Array<{
+          id: string
+          publisher_slug: string
+          name: string
+          display_name: string
+          description: string | null
+          icon_url: string | null
+          category: 'sandboxed' | 'native'
+          categories: string[]
+          tags: string[]
+          verified: boolean
+          featured: boolean
+          download_count: number
+          latest_version: string | null
+          created_at: string
+        }>
+        pagination: { page: number; limit: number; total: number; total_pages: number }
+      }
+      
+      if (!result.success || !result.data) {
+        throw new Error('Store API returned unsuccessful response')
+      }
+      
+      // Transform to StoreExtensionInfo format
+      const extensions = result.data.map(ext => ({
+        id: ext.id,
+        extensionId: ext.id,
+        publisher: {
+          id: ext.publisher_slug,
+          name: ext.publisher_slug,
+          slug: ext.publisher_slug,
+          verified: ext.verified,
+        },
+        name: ext.display_name || ext.name,
+        description: ext.description || undefined,
+        iconUrl: ext.icon_url || undefined,
+        repositoryUrl: '',
+        license: 'MIT',
+        category: ext.category,
+        categories: ext.categories || [],
+        tags: ext.tags || [],
+        verified: ext.verified,
+        featured: ext.featured,
+        downloadCount: ext.download_count || 0,
+        latestVersion: ext.latest_version || '0.0.0',
+        createdAt: ext.created_at,
+        updatedAt: ext.created_at,
+      }))
+      
+      deps?.log(`Fetched ${extensions.length} extensions from store`)
+      return extensions
+    } catch (err) {
+      deps?.logError('Failed to fetch store extensions', { error: String(err) })
+      return []
+    }
   })
   
-  ipcMain.handle('extensions:search-store', async (_event, request: unknown) => {
-    // Placeholder - would call store API
-    return { extensions: [], total: 0, page: 0, hasMore: false }
+  ipcMain.handle('extensions:search-store', async (_event, request: {
+    query?: string
+    category?: string
+    verifiedOnly?: boolean
+    sort?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    try {
+      const params = new URLSearchParams()
+      if (request.query) params.set('q', request.query)
+      if (request.category) params.set('categories', request.category)
+      if (request.verifiedOnly) params.set('verified', 'true')
+      if (request.sort) params.set('sort', request.sort)
+      params.set('page', String(request.page || 1))
+      params.set('limit', String(request.pageSize || 50))
+      
+      const response = await fetch(`${STORE_API_URL}/store/extensions?${params}`)
+      
+      if (!response.ok) {
+        throw new Error(`Store API returned ${response.status}`)
+      }
+      
+      const result = await response.json() as {
+        success: boolean
+        data: Array<{
+          id: string
+          publisher_slug: string
+          name: string
+          display_name: string
+          description: string | null
+          icon_url: string | null
+          category: 'sandboxed' | 'native'
+          categories: string[]
+          tags: string[]
+          verified: boolean
+          featured: boolean
+          download_count: number
+          latest_version: string | null
+          created_at: string
+        }>
+        pagination: { page: number; limit: number; total: number; total_pages: number }
+      }
+      
+      const extensions = (result.data || []).map(ext => ({
+        id: ext.id,
+        extensionId: ext.id,
+        publisher: {
+          id: ext.publisher_slug,
+          name: ext.publisher_slug,
+          slug: ext.publisher_slug,
+          verified: ext.verified,
+        },
+        name: ext.display_name || ext.name,
+        description: ext.description || undefined,
+        iconUrl: ext.icon_url || undefined,
+        repositoryUrl: '',
+        license: 'MIT',
+        category: ext.category,
+        categories: ext.categories || [],
+        tags: ext.tags || [],
+        verified: ext.verified,
+        featured: ext.featured,
+        downloadCount: ext.download_count || 0,
+        latestVersion: ext.latest_version || '0.0.0',
+        createdAt: ext.created_at,
+        updatedAt: ext.created_at,
+      }))
+      
+      return {
+        extensions,
+        total: result.pagination?.total || 0,
+        page: result.pagination?.page || 1,
+        hasMore: (result.pagination?.page || 1) < (result.pagination?.total_pages || 1),
+      }
+    } catch (err) {
+      deps?.logError('Failed to search store extensions', { error: String(err) })
+      return { extensions: [], total: 0, page: 0, hasMore: false }
+    }
   })
   
   ipcMain.handle('extensions:get-store-extension', async (_event, extensionId: string) => {
-    // Placeholder - would call store API
-    return undefined
+    try {
+      const response = await fetch(`${STORE_API_URL}/store/extensions/${encodeURIComponent(extensionId)}`)
+      
+      if (response.status === 404) {
+        return undefined
+      }
+      
+      if (!response.ok) {
+        throw new Error(`Store API returned ${response.status}`)
+      }
+      
+      const result = await response.json() as {
+        success: boolean
+        data: {
+          id: string
+          name: string
+          display_name: string
+          description: string | null
+          icon_url: string | null
+          category: 'sandboxed' | 'native'
+          categories: string[]
+          tags: string[]
+          verified: boolean
+          featured: boolean
+          download_count: number
+          created_at: string
+          updated_at?: string
+          repository_url?: string
+          license?: string
+          publisher: {
+            id: string
+            name: string
+            slug: string
+            logo_url?: string
+            verified: boolean
+          }
+          latest_version?: {
+            version: string
+            bundle_url: string
+            changelog?: string
+          } | null
+        }
+      }
+      
+      if (!result.success || !result.data) {
+        return undefined
+      }
+      
+      const ext = result.data
+      return {
+        id: ext.id,
+        extensionId: ext.id,
+        publisher: {
+          id: ext.publisher?.id || '',
+          name: ext.publisher?.name || '',
+          slug: ext.publisher?.slug || '',
+          verified: ext.publisher?.verified || false,
+        },
+        name: ext.display_name || ext.name,
+        description: ext.description || undefined,
+        iconUrl: ext.icon_url || undefined,
+        repositoryUrl: ext.repository_url || '',
+        license: ext.license || 'MIT',
+        category: ext.category,
+        categories: ext.categories || [],
+        tags: ext.tags || [],
+        verified: ext.verified,
+        featured: ext.featured,
+        downloadCount: ext.download_count || 0,
+        latestVersion: ext.latest_version?.version || '0.0.0',
+        createdAt: ext.created_at,
+        updatedAt: ext.updated_at || ext.created_at,
+      }
+    } catch (err) {
+      deps?.logError('Failed to get store extension', { error: String(err) })
+      return undefined
+    }
   })
   
   // Install extension from store

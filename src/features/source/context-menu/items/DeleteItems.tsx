@@ -1,4 +1,5 @@
 // src/features/source/context-menu/items/DeleteItems.tsx
+import { useRef, useLayoutEffect, useState, type ReactNode } from 'react'
 import { Trash2, EyeOff, FileX, FolderX, CloudOff } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -6,6 +7,55 @@ import { executeCommand, getSyncedFilesFromSelection } from '@/lib/commands'
 import { checkOperationPermission, getPermissionRequirement } from '@/lib/permissions'
 import type { DialogName } from '../types'
 import type { ToastType } from '@/stores/types'
+
+/**
+ * Viewport-aware submenu component that adjusts position to stay within screen bounds
+ */
+function ViewportAwareSubmenu({ 
+  children, 
+  position,
+  onMouseEnter,
+  onMouseLeave
+}: { 
+  children: ReactNode
+  position: 'right' | 'left'
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+}) {
+  const submenuRef = useRef<HTMLDivElement>(null)
+  const [verticalOffset, setVerticalOffset] = useState(-4)
+
+  useLayoutEffect(() => {
+    if (!submenuRef.current) return
+
+    const submenu = submenuRef.current
+    const rect = submenu.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    const padding = 16
+
+    const bottomOverflow = rect.bottom - (viewportHeight - padding)
+    
+    if (bottomOverflow > 0) {
+      const maxShift = rect.top - padding
+      const actualShift = Math.min(bottomOverflow, maxShift)
+      setVerticalOffset(-4 - actualShift)
+    }
+  }, [])
+
+  return (
+    <div 
+      ref={submenuRef}
+      className={`absolute top-0 min-w-[200px] bg-plm-bg-lighter border border-plm-border rounded-md py-1 shadow-lg z-[100] ${
+        position === 'right' ? 'left-full ml-1' : 'right-full mr-1'
+      }`}
+      style={{ marginTop: verticalOffset }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {children}
+    </div>
+  )
+}
 
 interface DeleteItemsProps {
   files: LocalFile[]
@@ -180,11 +230,8 @@ export function DeleteItems({
           
           {/* Submenu */}
           {showIgnoreSubmenu && (
-            <div 
-              className={`absolute top-0 min-w-[200px] bg-plm-bg-lighter border border-plm-border rounded-md py-1 shadow-lg z-[100] ${
-                submenuPosition === 'right' ? 'left-full ml-1' : 'right-full mr-1'
-              }`}
-              style={{ marginTop: '-4px' }}
+            <ViewportAwareSubmenu
+              position={submenuPosition}
               onMouseEnter={handleIgnoreSubmenuEnter}
               onMouseLeave={handleIgnoreSubmenuLeave}
             >
@@ -242,7 +289,7 @@ export function DeleteItems({
                 }
                 return null
               })()}
-            </div>
+            </ViewportAwareSubmenu>
           )}
         </div>
       )}

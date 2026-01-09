@@ -612,7 +612,7 @@ To publish to the Extension Store:
 
 1. Create a GitHub repository for your extension
 2. Ensure `repository` field in manifest points to it
-3. Go to [marketplace.blueplm.io/submit](https://marketplace.blueplm.io/submit)
+3. Go to [extensions.blueplm.io/submit](https://extensions.blueplm.io/submit)
 4. Register as a publisher
 5. Upload your `.bpx` file
 6. Wait for review (community) or contact Blue Robotics for verification

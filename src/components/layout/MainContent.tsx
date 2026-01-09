@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { Loader2 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { useLoadFiles, useAuth, useVaultManagement } from '@/hooks'
+import { useLoadFiles, useVaultManagement } from '@/hooks'
 import { SettingsContent } from '@/features/settings'
 import { WelcomeScreen } from '@/components/shared/Screens'
 import { TabBar } from './TabBar'
@@ -29,6 +29,7 @@ interface MainContentProps {
   isResizingSidebar: boolean
   isResizingRightPanel: boolean
   onResizeDetailsStart: () => void
+  handleChangeOrg: () => Promise<void>
 }
 
 /**
@@ -46,13 +47,13 @@ export function MainContent({
   isResizingSidebar,
   isResizingRightPanel,
   onResizeDetailsStart,
+  handleChangeOrg,
 }: MainContentProps) {
   // Get settingsTab from store
   const settingsTab = usePDMStore(s => s.settingsTab)
   
   // Call hooks directly instead of receiving as props
   const { loadFiles } = useLoadFiles()
-  const { handleChangeOrg } = useAuth()
   const { handleOpenRecentVault } = useVaultManagement()
 
   return (

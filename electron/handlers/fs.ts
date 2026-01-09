@@ -1394,3 +1394,21 @@ export function unregisterFsHandlers(): void {
   
   ipcMain.removeListener('fs:start-drag', () => {})
 }
+
+/**
+ * Cleanup file system resources on app quit.
+ * Stops the file watcher to allow the process to exit cleanly.
+ */
+export async function cleanupFs(): Promise<void> {
+  if (fileWatcher) {
+    log('Stopping file watcher for cleanup')
+    const watcher = fileWatcher
+    fileWatcher = null
+    try {
+      await watcher.close()
+      log('File watcher closed')
+    } catch (err) {
+      logError('Error closing file watcher', { error: String(err) })
+    }
+  }
+}

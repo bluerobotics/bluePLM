@@ -9,7 +9,7 @@
 import type { Command, DiscardParams, CommandResult, LocalFile } from '../types'
 import { getDiscardableFilesFromSelection, getFilesInFolder } from '../types'
 import { ProgressTracker } from '../executor'
-import { checkinFile, undoCheckout } from '../../supabase'
+import { undoCheckout } from '../../supabase'
 import { getDownloadUrl } from '../../storage'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
@@ -271,8 +271,8 @@ export const discardCommand: Command<DiscardParams> = {
             return { success: false, error: `${file.name}: Download failed` }
           }
           
-          // Release checkout using checkinFile (handles the file content properly)
-          const result = await checkinFile(file.pdmData!.id, user.id)
+          // Release checkout using undoCheckout (properly discards without saving changes)
+          const result = await undoCheckout(file.pdmData!.id, user.id)
           if (!result.success) {
             logDiscard('error', 'Failed to release checkout', { operationId, ...fileCtx })
             progress.update()
@@ -287,7 +287,8 @@ export const discardCommand: Command<DiscardParams> = {
               pdmData: { ...file.pdmData!, checked_out_by: null, checked_out_user: null },
               localHash: contentHash,
               diffStatus: undefined,
-              localActiveVersion: undefined
+              localActiveVersion: undefined,
+              pendingMetadata: undefined  // Clear any pending metadata changes
             }
           })
           logDiscard('debug', 'Discarded file successfully', { operationId, ...fileCtx })
@@ -317,13 +318,24 @@ export const discardCommand: Command<DiscardParams> = {
       ctx.removeFilesFromStore(pathsToRemove)
     }
     
-    // Count results
-    for (const result of results) {
-      if (result.success) succeeded++
-      else {
+    // Count results and collect successfully discarded paths
+    const discardedPaths: string[] = []
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
+      if (result.success) {
+        succeeded++
+        // Track path for clearing persisted pending metadata
+        discardedPaths.push(filesToDiscard[i].path)
+      } else {
         failed++
         if (result.error) errors.push(result.error)
       }
+    }
+    
+    // Clear any persisted pending metadata for successfully discarded files
+    // This ensures local metadata edits made during checkout are reverted
+    if (discardedPaths.length > 0) {
+      ctx.clearPersistedPendingMetadataForPaths(discardedPaths)
     }
     
     // Clean up - batch remove

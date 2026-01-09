@@ -144,12 +144,31 @@ export interface FilePaneProviderProps {
   onRefresh: (silent?: boolean) => void
   /** Optional custom metadata columns from organization */
   customMetadataColumns?: FileMetadataColumn[]
+  /** Rename state - passed from useRenameState hook to avoid duplicate state */
+  renameState?: {
+    renamingFile: LocalFile | null
+    setRenamingFile: (file: LocalFile | null) => void
+    renameValue: string
+    setRenameValue: (value: string) => void
+    renameInputRef: React.RefObject<HTMLInputElement | null>
+    isCreatingFolder: boolean
+    setIsCreatingFolder: (creating: boolean) => void
+    newFolderName: string
+    setNewFolderName: (name: string) => void
+    newFolderInputRef: React.RefObject<HTMLInputElement | null>
+    editingCell: { path: string; column: string } | null
+    setEditingCell: (cell: { path: string; column: string } | null) => void
+    editValue: string
+    setEditValue: (value: string) => void
+    inlineEditInputRef: React.RefObject<HTMLInputElement | null>
+  }
 }
 
 export function FilePaneProvider({ 
   children, 
   onRefresh, 
   customMetadataColumns = [],
+  renameState,
 }: FilePaneProviderProps) {
   // Get store state
   const files = usePDMStore(s => s.files)
@@ -184,9 +203,34 @@ export function FilePaneProvider({
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null)
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   
-  // Rename state
-  const [renamingFile, setRenamingFile] = useState<LocalFile | null>(null)
-  const [renameValue, setRenameValue] = useState('')
+  // Rename state - use props if provided (from useRenameState hook), otherwise create local state
+  // This avoids duplicate state between useRenameState hook and context
+  const [localRenamingFile, setLocalRenamingFile] = useState<LocalFile | null>(null)
+  const [localRenameValue, setLocalRenameValue] = useState('')
+  const [localIsCreatingFolder, setLocalIsCreatingFolder] = useState(false)
+  const [localNewFolderName, setLocalNewFolderName] = useState('')
+  const [localEditingCell, setLocalEditingCell] = useState<{ path: string; column: string } | null>(null)
+  const [localEditValue, setLocalEditValue] = useState('')
+  const localRenameInputRef = useRef<HTMLInputElement>(null)
+  const localNewFolderInputRef = useRef<HTMLInputElement>(null)
+  const localInlineEditInputRef = useRef<HTMLInputElement>(null)
+  
+  // Use passed state if available, otherwise use local state
+  const renamingFile = renameState?.renamingFile ?? localRenamingFile
+  const setRenamingFile = renameState?.setRenamingFile ?? setLocalRenamingFile
+  const renameValue = renameState?.renameValue ?? localRenameValue
+  const setRenameValue = renameState?.setRenameValue ?? setLocalRenameValue
+  const isCreatingFolder = renameState?.isCreatingFolder ?? localIsCreatingFolder
+  const setIsCreatingFolder = renameState?.setIsCreatingFolder ?? setLocalIsCreatingFolder
+  const newFolderName = renameState?.newFolderName ?? localNewFolderName
+  const setNewFolderName = renameState?.setNewFolderName ?? setLocalNewFolderName
+  const editingCell = renameState?.editingCell ?? localEditingCell
+  const setEditingCell = renameState?.setEditingCell ?? setLocalEditingCell
+  const editValue = renameState?.editValue ?? localEditValue
+  const setEditValue = renameState?.setEditValue ?? setLocalEditValue
+  const renameInputRef = renameState?.renameInputRef ?? localRenameInputRef
+  const newFolderInputRef = renameState?.newFolderInputRef ?? localNewFolderInputRef
+  const inlineEditInputRef = renameState?.inlineEditInputRef ?? localInlineEditInputRef
   
   // Delete state
   const [deleteConfirm, setDeleteConfirm] = useState<LocalFile | null>(null)
@@ -208,14 +252,6 @@ export function FilePaneProvider({
   // Clipboard
   const [clipboard, setClipboard] = useState<{ files: LocalFile[]; operation: 'copy' | 'cut' } | null>(null)
   
-  // Editing
-  const [editingCell, setEditingCell] = useState<{ path: string; column: string } | null>(null)
-  const [editValue, setEditValue] = useState('')
-  
-  // New folder
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
-  const [newFolderName, setNewFolderName] = useState('')
-  
   // Machine ID (loaded once)
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
   
@@ -232,9 +268,6 @@ export function FilePaneProvider({
   // Refs
   const tableRef = useRef<HTMLDivElement>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
-  const renameInputRef = useRef<HTMLInputElement>(null)
-  const newFolderInputRef = useRef<HTMLInputElement>(null)
-  const inlineEditInputRef = useRef<HTMLInputElement>(null)
   
   // Load machine ID on mount
   useEffect(() => {

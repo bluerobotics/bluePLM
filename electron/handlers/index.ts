@@ -1,23 +1,24 @@
 // Handler registry - registers all IPC handlers
 import { BrowserWindow, ipcMain } from 'electron'
 
-import { registerFsHandlers, unregisterFsHandlers, getWorkingDirectory, FsHandlerDependencies } from './fs'
+import { registerFsHandlers, unregisterFsHandlers, getWorkingDirectory, cleanupFs, FsHandlerDependencies } from './fs'
 import { registerBackupHandlers, unregisterBackupHandlers, BackupHandlerDependencies } from './backup'
 import { registerSolidWorksHandlers, unregisterSolidWorksHandlers, cleanupSolidWorksService, isFileBeingThumbnailed, getThumbnailsInProgress, SolidWorksHandlerDependencies } from './solidworks'
 import { registerDialogHandlers, unregisterDialogHandlers, DialogHandlerDependencies } from './dialogs'
 import { registerSystemHandlers, unregisterSystemHandlers, SystemHandlerDependencies } from './system'
 import { registerLoggingHandlers, unregisterLoggingHandlers, writeLog, initializeLogging, LoggingHandlerDependencies } from './logging'
-import { registerUpdaterHandlers, unregisterUpdaterHandlers, UpdaterHandlerDependencies } from './updater'
+import { registerUpdaterHandlers, unregisterUpdaterHandlers, cleanupUpdater, UpdaterHandlerDependencies } from './updater'
 import { registerOAuthHandlers, unregisterOAuthHandlers, cleanupOAuth, OAuthHandlerDependencies } from './oauth'
 import { registerCliHandlers, unregisterCliHandlers, startCliServer, cleanupCli, CliHandlerDependencies } from './cli'
-import { performMigrationCheck, getMigrationResult, wasMigrationPerformed, isMigrationPending, acknowledgeMigration, getMigrationStatus } from './migration'
+import { performMigrationCheck, getMigrationResult, wasMigrationPerformed } from './migration'
 import { registerExtensionHostHandlers, unregisterExtensionHostHandlers, cleanupExtensionHost, onExtensionStateChange, type ExtensionHostHandlerDependencies } from './extensionHost'
+import { registerDeepLinkHandlers, unregisterDeepLinkHandlers, handleDeepLink, parseDeepLink, storePendingDeepLink, processPendingDeepLink, hasPendingDeepLink, setDeepLinkDependencies, type DeepLinkHandlerDependencies } from './deepLink'
 
 // Logging utilities for main.ts
 export { writeLog, initializeLogging } from './logging'
 
 // Migration utilities for main.ts
-export { performMigrationCheck, getMigrationResult, wasMigrationPerformed, isMigrationPending, acknowledgeMigration, getMigrationStatus } from './migration'
+export { performMigrationCheck, getMigrationResult, wasMigrationPerformed } from './migration'
 
 // CLI exports for main.ts
 export { startCliServer, cleanupCli } from './cli'
@@ -25,8 +26,17 @@ export { startCliServer, cleanupCli } from './cli'
 // Extension Host exports for main.ts
 export { cleanupExtensionHost, onExtensionStateChange } from './extensionHost'
 
+// Deep Link exports for main.ts
+export { handleDeepLink, parseDeepLink, storePendingDeepLink, processPendingDeepLink, hasPendingDeepLink, setDeepLinkDependencies } from './deepLink'
+
 // OAuth cleanup for main.ts
 export { cleanupOAuth } from './oauth'
+
+// Updater cleanup for main.ts (clears periodic update check timer)
+export { cleanupUpdater } from './updater'
+
+// File system cleanup for main.ts (stops file watcher)
+export { cleanupFs } from './fs'
 
 // Re-export getters
 export { getWorkingDirectory } from './fs'
@@ -117,6 +127,11 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
     logError
   }
 
+  const deepLinkHandlerDeps: DeepLinkHandlerDependencies = {
+    log,
+    logError
+  }
+
   // Register all handlers
   registerFsHandlers(mainWindow, fsHandlerDeps)
   registerBackupHandlers(mainWindow, backupHandlerDeps)
@@ -128,17 +143,7 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   registerOAuthHandlers(mainWindow, oauthHandlerDeps)
   registerCliHandlers(mainWindow, cliHandlerDeps)
   registerExtensionHostHandlers(mainWindow, extensionHostHandlerDeps)
-  
-  // Migration status handler
-  ipcMain.handle('migration:get-status', () => {
-    return getMigrationStatus()
-  })
-  
-  // Migration acknowledge handler (called after vault health check)
-  ipcMain.handle('migration:acknowledge', () => {
-    acknowledgeMigration()
-    return { success: true }
-  })
+  registerDeepLinkHandlers(mainWindow, deepLinkHandlerDeps)
 
   log('All IPC handlers registered')
 }
@@ -154,8 +159,5 @@ export function unregisterAllHandlers(): void {
   unregisterOAuthHandlers()
   unregisterCliHandlers()
   unregisterExtensionHostHandlers()
-  
-  // Unregister migration handlers
-  ipcMain.removeHandler('migration:get-status')
-  ipcMain.removeHandler('migration:acknowledge')
+  unregisterDeepLinkHandlers()
 }

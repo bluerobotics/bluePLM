@@ -505,9 +505,9 @@ export const createSettingsSlice: StateCreator<
   // Actions - Onboarding
   completeOnboarding: (options) => set({ 
     onboardingComplete: true,
-    // Auto-enable these settings on first app startup for better out-of-box experience
-    autoDownloadCloudFiles: true,
-    autoDownloadUpdates: true,
+    // Note: auto-download settings are NOT force-enabled here anymore.
+    // They default to false and should only be enabled via VaultSetupDialog or Settings.
+    // Previously this was overriding user preferences made during vault setup.
     autoStartSolidworksService: options?.solidworksIntegrationEnabled ?? true,
     solidworksIntegrationEnabled: options?.solidworksIntegrationEnabled ?? true,
   }),

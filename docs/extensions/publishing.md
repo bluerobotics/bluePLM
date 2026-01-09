@@ -1,6 +1,6 @@
 # Publishing Guide
 
-This guide covers how to publish your extension to the BluePLM Extension Store at [marketplace.blueplm.io](https://marketplace.blueplm.io).
+This guide covers how to publish your extension to the BluePLM Extension Store at [extensions.blueplm.io](https://extensions.blueplm.io).
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ Before publishing:
 
 ### Create Publisher Account
 
-1. Go to [marketplace.blueplm.io/submit](https://marketplace.blueplm.io/submit)
+1. Go to [extensions.blueplm.io/submit](https://extensions.blueplm.io/submit)
 2. Click "Register as Publisher"
 3. Fill in publisher details:
    - **Name**: Your company or individual name
@@ -69,7 +69,7 @@ Your publisher slug must:
 
 ### Via Web Interface
 
-1. Log in to [marketplace.blueplm.io](https://marketplace.blueplm.io)
+1. Log in to [extensions.blueplm.io](https://extensions.blueplm.io)
 2. Go to Publisher Dashboard
 3. Click "Submit New Extension"
 4. Upload your `.bpx` file

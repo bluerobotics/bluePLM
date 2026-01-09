@@ -98,7 +98,7 @@ export interface RegistryConfig {
  * // Initialize with configuration
  * await registry.initialize({
  *   extensionsPath: '/path/to/extensions',
- *   storeApiUrl: 'https://marketplace.blueplm.io/api',
+ *   storeApiUrl: 'https://extensions.blueplm.io/api',
  *   autoCheckUpdates: true,
  * })
  * 

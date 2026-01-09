@@ -13,3 +13,6 @@ export type { FileContextMenuProps } from './FileContextMenu'
 
 // Action components (for composition)
 export * from './actions'
+
+// Shared components
+export * from './components'

@@ -16,9 +16,6 @@ import {
   Loader2,
   RefreshCw,
   ExternalLink,
-  Package,
-  FileOutput,
-  Download,
   ChevronDown,
   ChevronRight,
   Sparkles,
@@ -245,35 +242,6 @@ function PropertyDisplay({ label, value }: { label: string; value: string | null
   )
 }
 
-// Export button component
-function ExportButton({ 
-  format, 
-  icon, 
-  onClick, 
-  disabled, 
-  isExporting 
-}: { 
-  format: string
-  icon: React.ReactNode
-  onClick: () => void
-  disabled: boolean
-  isExporting: boolean
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium 
-        bg-plm-bg border border-plm-border/50 
-        hover:border-plm-border hover:bg-plm-bg-light 
-        disabled:opacity-40 disabled:cursor-not-allowed
-        transition-colors"
-    >
-      {isExporting ? <Loader2 size={12} className="animate-spin" /> : icon}
-      {format}
-    </button>
-  )
-}
 
 // Resizable divider component
 function ResizableDivider({ 
@@ -331,7 +299,6 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const [activeConfigIndex, setActiveConfigIndex] = useState(0)
   const [configsLoading, setConfigsLoading] = useState(false)
   const [showAllProps, setShowAllProps] = useState(false)
-  const [isExporting, setIsExporting] = useState<string | null>(null)
   const [isGeneratingSerial, setIsGeneratingSerial] = useState(false)
   const [isSavingToFile, setIsSavingToFile] = useState(false)
   
@@ -375,7 +342,6 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const ext = file.extension?.toLowerCase() || ''
   const fileType = ext === '.sldprt' ? 'Part' : ext === '.sldasm' ? 'Assembly' : 'Drawing'
   const isPartOrAsm = ['.sldprt', '.sldasm'].includes(ext)
-  const isDrawing = ext === '.slddrw'
   
   const activeConfig = configurations[activeConfigIndex] || null
   
@@ -1024,50 +990,6 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
     }
   }
 
-  // Handle export
-  const handleExport = async (format: 'step' | 'iges' | 'stl' | 'pdf' | 'dxf') => {
-    if (!status.running) return
-
-    setIsExporting(format)
-    try {
-      let result
-      const configName = activeConfig?.name
-
-      switch (format) {
-        case 'pdf':
-          result = await window.electronAPI?.solidworks?.exportPdf(file.path)
-          break
-        case 'step':
-          result = await window.electronAPI?.solidworks?.exportStep(file.path, { 
-            configurations: configName ? [configName] : undefined
-          })
-          break
-        case 'iges':
-          result = await window.electronAPI?.solidworks?.exportIges(file.path, {
-            configurations: configName ? [configName] : undefined
-          })
-          break
-        case 'stl':
-          result = await window.electronAPI?.solidworks?.exportStl?.(file.path, {
-            configurations: configName ? [configName] : undefined
-          })
-          break
-        case 'dxf':
-          result = await window.electronAPI?.solidworks?.exportDxf(file.path)
-          break
-      }
-
-      if (result?.success) {
-        addToast('success', `Exported to ${format.toUpperCase()}`)
-      } else {
-        addToast('error', result?.error || `Failed to export ${format.toUpperCase()}`)
-      }
-    } catch (err) {
-      addToast('error', `Export failed: ${err}`)
-    } finally {
-      setIsExporting(null)
-    }
-  }
 
   // Get property value by key with aliases
   const getPropertyValue = useCallback((key: string, aliases?: string[]): string | null => {
@@ -1392,55 +1314,6 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           </div>
         </div>
 
-        {/* Right: Export actions */}
-        <div className="w-24 flex-shrink-0 flex flex-col gap-2 p-2 rounded-lg bg-plm-bg/20">
-          <div className="text-[10px] uppercase tracking-wider text-plm-fg-muted">Export</div>
-          
-          {isPartOrAsm && (
-            <>
-              <ExportButton
-                format="STEP"
-                icon={<Package size={12} />}
-                onClick={() => handleExport('step')}
-                disabled={!!isExporting || !status.running}
-                isExporting={isExporting === 'step'}
-              />
-              <ExportButton
-                format="IGES"
-                icon={<Package size={12} />}
-                onClick={() => handleExport('iges')}
-                disabled={!!isExporting || !status.running}
-                isExporting={isExporting === 'iges'}
-              />
-              <ExportButton
-                format="STL"
-                icon={<Package size={12} />}
-                onClick={() => handleExport('stl')}
-                disabled={!!isExporting || !status.running}
-                isExporting={isExporting === 'stl'}
-              />
-            </>
-          )}
-          
-          {isDrawing && (
-            <>
-              <ExportButton
-                format="PDF"
-                icon={<FileOutput size={12} />}
-                onClick={() => handleExport('pdf')}
-                disabled={!!isExporting || !status.running}
-                isExporting={isExporting === 'pdf'}
-              />
-              <ExportButton
-                format="DXF"
-                icon={<Download size={12} />}
-                onClick={() => handleExport('dxf')}
-                disabled={!!isExporting || !status.running}
-                isExporting={isExporting === 'dxf'}
-              />
-            </>
-          )}
-        </div>
       </div>
     </div>
   )
