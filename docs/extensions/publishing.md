@@ -173,6 +173,110 @@ To publish updates:
 | New feature | Minor | 1.0.0 → 1.1.0 |
 | Breaking change | Major | 1.0.0 → 2.0.0 |
 
+### Automated Releases with GitHub Actions
+
+Automate your release process with GitHub Actions. When you push a tag, the workflow builds, packages, and creates a GitHub Release automatically.
+
+**Create `.github/workflows/release.yml`:**
+
+```yaml
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Package extension (.bpx)
+        run: npm run package
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog for version
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          CHANGELOG=$(awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.get_version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
+          files: |
+            *.bpx
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Create `.github/workflows/ci.yml` for PRs:**
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run package
+      - run: ls -la *.bpx
+```
+
+**Release workflow:**
+
+1. Update version in `package.json` and `extension.json`
+2. Update `CHANGELOG.md` with release notes
+3. Commit: `git commit -am "Release v1.0.0"`
+4. Tag and push: `git tag v1.0.0 && git push origin main --tags`
+5. GitHub Action creates the release automatically
+
+**Pre-releases:** Tags containing `-alpha`, `-beta`, or `-rc` are marked as pre-releases.
+
 ---
 
 ## Step 5: Verification (Optional)
