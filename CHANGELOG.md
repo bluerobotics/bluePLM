@@ -2,22 +2,26 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [3.2.3] - 2026-01-08
+## [3.3.0] - 2026-01-08
+
+### Added
+- **Startup splash screen**: New blocking splash screen displays during app initialization showing real-time progress through two stages:
+  - **Stage 1 (Core)**: Store hydration, configuration check, session restoration, organization loading, and permissions
+  - **Stage 2 (Extensions)**: Extension discovery and activation with 10-second timeout per extension
+  - Extensions that fail to load show a warning banner but don't block the app. Users can continue immediately or wait for auto-continue after 5 seconds
+- **Slow double-click to rename**: Just like Windows Explorer, you can now single-click a file to select it, then click again (after a short delay) to enter rename mode. This works in both the file tree sidebar and the file pane (list and grid views). The timing window is 400-1500ms between clicks, matching Windows Explorer behavior. Renaming is allowed for:
+  - Local-only files (not synced to cloud)
+  - Files checked out by you
+  - All folders (directories don't require checkout)
 
 ### Fixed
-- **Complete fix for zombie process on app close**: The 3.2.2 fix was incomplete. This release fixes all remaining causes of the process not terminating:
+- **Complete fix for zombie process on app close**: Fixed all causes of the process not terminating after closing the window:
   - **Update check timer**: The periodic update check interval (every 2 minutes) was not being stopped, keeping the Node.js event loop alive
   - **File watcher**: The chokidar file watcher was not being closed during shutdown
   - **Timeout protection**: Added 5-second timeout to all cleanup operations to prevent hangs during shutdown
+  - The app now properly cleans up all child processes, HTTP servers, and connections before exiting
 - **App won't restart after close**: Fixed issue where the app would flash briefly (~20ms) then close when trying to restart. This was caused by the previous instance not releasing the single instance lock due to incomplete cleanup
 - **Improved shutdown diagnostics**: Logging is now initialized before the single instance lock check, so "another instance running" messages are captured to the log file for debugging
-
----
-
-## [3.2.2] - 2026-01-08
-
-### Fixed
-- **App process not terminating on window close**: Fixed issue where closing the BluePLM window would leave the process running in the task manager. The app now properly cleans up all child processes, HTTP servers, and connections before exiting
 
 ---
 
