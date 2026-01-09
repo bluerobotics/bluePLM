@@ -14,6 +14,109 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // ============================================
+// Instance Lock File (for stale lock detection)
+// ============================================
+
+// Lock file stores the PID of the running instance
+// Used to detect and recover from zombie processes
+const LOCK_FILE_PATH = path.join(app.getPath('userData'), '.instance-lock')
+
+/**
+ * Check if a process with the given PID is still alive.
+ * Uses signal 0 which checks existence without actually sending a signal.
+ */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    // ESRCH = No such process, EPERM = permission denied (but process exists)
+    return false
+  }
+}
+
+/**
+ * Write the current process PID to the lock file.
+ * Called after successfully acquiring the single instance lock.
+ */
+function writeLockFile(): void {
+  try {
+    fs.writeFileSync(LOCK_FILE_PATH, String(process.pid), 'utf-8')
+  } catch (err) {
+    // Non-fatal - log but continue
+    console.error('[Main] Failed to write lock file:', err)
+  }
+}
+
+/**
+ * Read the PID from the lock file.
+ * Returns null if file doesn't exist or is invalid.
+ */
+function readLockFilePid(): number | null {
+  try {
+    if (fs.existsSync(LOCK_FILE_PATH)) {
+      const content = fs.readFileSync(LOCK_FILE_PATH, 'utf-8').trim()
+      const pid = parseInt(content, 10)
+      return isNaN(pid) ? null : pid
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return null
+}
+
+/**
+ * Delete the lock file.
+ * Called during cleanup and when recovering from stale locks.
+ */
+function deleteLockFile(): void {
+  try {
+    if (fs.existsSync(LOCK_FILE_PATH)) {
+      fs.unlinkSync(LOCK_FILE_PATH)
+    }
+  } catch {
+    // Ignore deletion errors
+  }
+}
+
+/**
+ * Attempt to kill a zombie process by PID.
+ * Returns true if the process was killed or doesn't exist.
+ */
+function tryKillZombieProcess(pid: number): boolean {
+  try {
+    // Check if process is still alive first
+    if (!isProcessAlive(pid)) {
+      return true // Already dead
+    }
+    
+    // Try to kill the zombie process
+    process.kill(pid, 'SIGTERM')
+    
+    // Wait a moment and check again
+    // Using sync sleep via busy wait (acceptable for one-time startup)
+    const start = Date.now()
+    while (Date.now() - start < 500) {
+      if (!isProcessAlive(pid)) {
+        return true
+      }
+    }
+    
+    // Force kill if still alive
+    try {
+      process.kill(pid, 'SIGKILL')
+    } catch {
+      // Ignore - may not have permission
+    }
+    
+    return !isProcessAlive(pid)
+  } catch {
+    // Permission denied or other error
+    return false
+  }
+}
+
+// ============================================
 // Sentry Error Tracking (Main Process)
 // ============================================
 
@@ -188,15 +291,85 @@ if (initialDeepLink) {
 }
 
 const isTestMode = process.argv.includes('--test-mode') || process.env.BLUEPLM_TEST === '1'
-const gotTheLock = isTestMode ? true : app.requestSingleInstanceLock()
+
+/**
+ * Attempt to acquire the single instance lock with stale lock recovery.
+ * If the lock is held by a dead process (zombie), we attempt to recover.
+ */
+function acquireSingleInstanceLock(): boolean {
+  if (isTestMode) {
+    return true
+  }
+  
+  // First attempt
+  if (app.requestSingleInstanceLock()) {
+    return true
+  }
+  
+  // Lock is held - check if it's a stale lock from a zombie process
+  log('Lock held by another process, checking for stale lock...')
+  
+  const existingPid = readLockFilePid()
+  if (existingPid === null) {
+    // No PID file - can't determine if stale, assume legitimate instance
+    log('No lock file found, assuming another instance is running')
+    return false
+  }
+  
+  log(`Lock file shows PID: ${existingPid}`)
+  
+  if (isProcessAlive(existingPid)) {
+    // Process is actually running - legitimate lock
+    log(`Process ${existingPid} is alive, another instance is running`)
+    return false
+  }
+  
+  // Process is dead! This is a stale lock from a zombie
+  log(`Process ${existingPid} is dead - stale lock detected, attempting recovery...`)
+  
+  // Delete the stale lock file
+  deleteLockFile()
+  
+  // Try to kill any remaining zombie process (belt and suspenders)
+  tryKillZombieProcess(existingPid)
+  
+  // Small delay to let OS release resources
+  const start = Date.now()
+  while (Date.now() - start < 100) {
+    // Brief busy-wait
+  }
+  
+  // Retry acquiring the lock
+  if (app.requestSingleInstanceLock()) {
+    log('✓ Successfully recovered from stale lock')
+    return true
+  }
+  
+  // Still can't get the lock - try one more time after killing
+  log('Still cannot acquire lock, attempting force cleanup...')
+  tryKillZombieProcess(existingPid)
+  
+  // Final attempt
+  const finalWaitStart = Date.now()
+  while (Date.now() - finalWaitStart < 500) {
+    // Wait for process cleanup
+  }
+  
+  return app.requestSingleInstanceLock()
+}
+
+const gotTheLock = acquireSingleInstanceLock()
 
 if (!gotTheLock) {
   // CRITICAL: This log message is now captured to file for debugging restart issues
-  log('⚠️ Another instance is running (or stale lock exists), quitting...')
+  log('⚠️ Another instance is running (could not recover), quitting...')
   app.quit()
   // Don't register any handlers - the app should quit immediately
 } else {
   log(isTestMode ? 'Running in test mode (single instance lock bypassed)' : '✓ Got single instance lock')
+  
+  // Write our PID to the lock file for future stale lock detection
+  writeLockFile()
   
   // All app initialization happens inside this block to prevent
   // secondary instances from doing anything after calling app.quit()
@@ -300,10 +473,20 @@ function initializeApp() {
     
     log('App quitting, cleaning up all resources...')
     
-    // Maximum time to wait for cleanup before force-exiting
-    // This prevents the app from hanging on shutdown
+    // ============================================
+    // HARD DEADLINE: 8 seconds maximum for cleanup
+    // This is the absolute maximum time we'll wait before force-killing
+    // ============================================
+    const HARD_DEADLINE_MS = 8000
     const CLEANUP_TIMEOUT_MS = 5000
     const cleanupStartTime = Date.now()
+    
+    // Set up hard deadline - if we're still running after 8 seconds, force exit
+    const hardDeadlineTimer = setTimeout(() => {
+      logError('HARD DEADLINE EXCEEDED - Force exiting with process.exit(1)')
+      deleteLockFile() // Ensure lock file is cleaned up
+      process.exit(1)
+    }, HARD_DEADLINE_MS)
     
     // Wrap all cleanup in a timeout to prevent hangs
     const cleanupWithTimeout = async () => {
@@ -369,9 +552,25 @@ function initializeApp() {
       logError(`Cleanup timed out or failed after ${elapsed}ms, force exiting...`, { error: String(err) })
     }
     
-    // Force exit the process immediately
-    // Don't use setTimeout - exit NOW to release the single instance lock
+    // Clear the hard deadline timer since we're about to exit
+    clearTimeout(hardDeadlineTimer)
+    
+    // Delete the lock file so next launch doesn't see stale lock
+    deleteLockFile()
+    log('✓ Lock file deleted')
+    
+    // Exit the Electron app
     app.exit(0)
+    
+    // ============================================
+    // HARD EXIT FALLBACK: 500ms after app.exit(0)
+    // If app.exit(0) doesn't actually terminate the process
+    // (e.g., due to lingering event handlers or refs), force it
+    // ============================================
+    setTimeout(() => {
+      logError('Hard exit fallback triggered - app.exit(0) did not terminate process')
+      process.exit(0)
+    }, 500)
   })
 }
 
@@ -447,10 +646,16 @@ function createWindow() {
   }
 
   // Save window state on changes
-  mainWindow.on('resize', () => saveWindowState(mainWindow!))
-  mainWindow.on('move', () => saveWindowState(mainWindow!))
-  mainWindow.on('maximize', () => saveWindowState(mainWindow!))
-  mainWindow.on('unmaximize', () => saveWindowState(mainWindow!))
+  // Store handler references so they can be removed during cleanup
+  const resizeHandler = () => saveWindowState(mainWindow!)
+  const moveHandler = () => saveWindowState(mainWindow!)
+  const maximizeHandler = () => saveWindowState(mainWindow!)
+  const unmaximizeHandler = () => saveWindowState(mainWindow!)
+  
+  mainWindow.on('resize', resizeHandler)
+  mainWindow.on('move', moveHandler)
+  mainWindow.on('maximize', maximizeHandler)
+  mainWindow.on('unmaximize', unmaximizeHandler)
 
   let windowShown = false
   const showWindow = () => {
@@ -593,7 +798,29 @@ function createWindow() {
   })
 
   mainWindow.on('closed', () => {
+    // ============================================
+    // Clean up window event handlers to prevent memory leaks
+    // and ensure the event loop can exit
+    // ============================================
+    if (mainWindow) {
+      mainWindow.removeListener('resize', resizeHandler)
+      mainWindow.removeListener('move', moveHandler)
+      mainWindow.removeListener('maximize', maximizeHandler)
+      mainWindow.removeListener('unmaximize', unmaximizeHandler)
+    }
     mainWindow = null
+    
+    // ============================================
+    // CRITICAL: Close the Extension Host window when main window closes
+    // The Extension Host is a hidden BrowserWindow that prevents the
+    // 'window-all-closed' event from firing. We must close it here
+    // to allow the app to quit properly on Windows/Linux.
+    // ============================================
+    if (process.platform !== 'darwin') {
+      // On Windows/Linux, we need to close Extension Host immediately
+      // so window-all-closed fires and triggers app.quit()
+      cleanupExtensionHost()
+    }
   })
 
   // Register all IPC handlers
