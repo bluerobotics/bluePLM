@@ -1,9 +1,11 @@
 /**
  * SplashScreen - Blocking splash screen during app startup
  * 
- * Displays during app initialization with two stages:
- * 1. Core - Store hydration, Supabase config, auth, organization
- * 2. Extensions - Discover and activate startup extensions
+ * Displays during app initialization with four stages:
+ * 1. Initializing - Store hydration, preferences
+ * 2. Connecting - Auth session restore, organization loading
+ * 3. Loading Vault - Auto-connecting to last vault, scanning files
+ * 4. Extensions - Discover and activate startup extensions
  * 
  * Shows real-time status messages and handles extension failures gracefully.
  */
@@ -17,7 +19,7 @@ export interface StartupError {
 }
 
 export interface SplashScreenProps {
-  stage: 1 | 2
+  stage: 1 | 2 | 3 | 4
   stageName: string
   status: string
   errors: StartupError[]
@@ -109,24 +111,24 @@ export function SplashScreen({ stage, stageName, status, errors, onContinue }: S
         {/* Stage indicator */}
         <div className="flex items-center justify-center gap-3 mb-6">
           <span className="text-sm text-plm-fg-muted">
-            Stage {stage} of 2: <span className="text-plm-fg font-medium">{stageName}</span>
+            Stage {stage} of 4: <span className="text-plm-fg font-medium">{stageName}</span>
           </span>
         </div>
 
-        {/* Progress bars */}
+        {/* Progress bars - 4 stages */}
         <div className="flex gap-2 mb-6">
-          <div className="w-20 h-1.5 rounded-full overflow-hidden bg-plm-border">
-            <div 
-              className={`h-full transition-all duration-500 ${stage >= 1 ? 'bg-plm-accent' : 'bg-plm-border'}`}
-              style={{ width: stage >= 1 ? '100%' : '0%' }}
-            />
-          </div>
-          <div className="w-20 h-1.5 rounded-full overflow-hidden bg-plm-border">
-            <div 
-              className={`h-full transition-all duration-500 ${stage >= 2 ? 'bg-plm-accent animate-pulse' : 'bg-plm-border'}`}
-              style={{ width: stage >= 2 ? '100%' : '0%' }}
-            />
-          </div>
+          {[1, 2, 3, 4].map((s) => (
+            <div key={s} className="w-14 h-1.5 rounded-full overflow-hidden bg-plm-border">
+              <div 
+                className={`h-full transition-all duration-500 ${
+                  stage > s ? 'bg-plm-accent' : 
+                  stage === s ? 'bg-plm-accent animate-pulse' : 
+                  'bg-plm-border'
+                }`}
+                style={{ width: stage >= s ? '100%' : '0%' }}
+              />
+            </div>
+          ))}
         </div>
 
         {/* Status message with fade animation */}

@@ -171,8 +171,10 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void): Com
     clearPersistedPendingMetadataForPaths: store.clearPersistedPendingMetadataForPaths,
     addProcessingFolder: store.addProcessingFolder,
     addProcessingFolders: store.addProcessingFolders,
+    addProcessingFoldersSync: store.addProcessingFoldersSync,
     removeProcessingFolder: store.removeProcessingFolder,
     removeProcessingFolders: store.removeProcessingFolders,
+    updateFilesAndClearProcessing: store.updateFilesAndClearProcessing,
     
     // Auto-download exclusion (scoped to active vault)
     addAutoDownloadExclusion: (relativePath: string) => {
@@ -181,6 +183,11 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void): Com
         store.addAutoDownloadExclusion(vaultId, relativePath)
       }
     },
+    
+    // File watcher suppression
+    addExpectedFileChanges: store.addExpectedFileChanges,
+    clearExpectedFileChanges: store.clearExpectedFileChanges,
+    setLastOperationCompletedAt: store.setLastOperationCompletedAt,
     
     // Refresh
     onRefresh
@@ -394,6 +401,20 @@ export class ProgressTracker {
       percent,
       undefined,
       label
+    )
+  }
+  
+  /**
+   * Set a custom status message on the progress toast.
+   * Useful for showing validation phases before the main progress starts.
+   */
+  setStatus(message: string): void {
+    this.ctx.updateProgressToast(
+      this.toastId,
+      this.completed,
+      0,
+      undefined,
+      message
     )
   }
   

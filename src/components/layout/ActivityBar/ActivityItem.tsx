@@ -25,7 +25,10 @@ export interface ActivityItemProps {
 }
 
 export function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren, isComingSoon = false, inDevBadge = false }: ActivityItemProps) {
-  const { activeView, setActiveView, activityBarMode } = usePDMStore()
+  // Selective selectors: only re-render when specific values change
+  const activeView = usePDMStore(s => s.activeView)
+  const setActiveView = usePDMStore(s => s.setActiveView)
+  const activityBarMode = usePDMStore(s => s.activityBarMode)
   const isExpanded = useContext(ExpandedContext)
   const sidebarRect = useContext(SidebarRectContext)
   const [showTooltip, setShowTooltip] = useState(false)

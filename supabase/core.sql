@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 38, 'Added get_next_serial_number function for atomic serial number generation', NOW(), 'migration')
+VALUES (1, 41, 'Added get_vault_files_fast and get_vault_files_delta RPC functions for fast vault loading', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,
@@ -167,6 +167,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   
   -- Module configuration defaults
   module_defaults JSONB DEFAULT NULL,
+  -- Timestamp when module_defaults was force-pushed to all users
+  module_defaults_forced_at TIMESTAMPTZ DEFAULT NULL,
   
   -- Auth provider settings
   auth_providers JSONB DEFAULT '{
@@ -191,6 +193,7 @@ DO $$ BEGIN ALTER TABLE organizations ADD COLUMN phone TEXT; EXCEPTION WHEN dupl
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN website TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN contact_email TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN module_defaults JSONB DEFAULT NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE organizations ADD COLUMN module_defaults_forced_at TIMESTAMPTZ DEFAULT NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN auth_providers JSONB DEFAULT '{"users": {"google": true, "email": true, "phone": true}, "suppliers": {"google": true, "email": true, "phone": true}}'::jsonb; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN default_new_user_team_id UUID; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
@@ -1666,6 +1669,296 @@ DROP POLICY IF EXISTS "Admins can update org users" ON users;
 CREATE POLICY "Admins can update org users"
   ON users FOR UPDATE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+
+-- ===========================================
+-- MODULE DEFAULTS FUNCTIONS
+-- ===========================================
+
+-- Drop existing functions first (in case signatures changed)
+DROP FUNCTION IF EXISTS get_org_module_defaults(UUID) CASCADE;
+DROP FUNCTION IF EXISTS set_org_module_defaults(UUID, JSONB, JSONB, JSONB, JSONB) CASCADE;
+DROP FUNCTION IF EXISTS set_org_module_defaults(UUID, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB) CASCADE;
+DROP FUNCTION IF EXISTS force_org_module_defaults(UUID, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB) CASCADE;
+DROP FUNCTION IF EXISTS get_team_module_defaults(UUID) CASCADE;
+DROP FUNCTION IF EXISTS set_team_module_defaults(UUID, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB) CASCADE;
+DROP FUNCTION IF EXISTS clear_team_module_defaults(UUID) CASCADE;
+DROP FUNCTION IF EXISTS get_user_module_defaults() CASCADE;
+
+-- Get organization module defaults
+CREATE OR REPLACE FUNCTION get_org_module_defaults(p_org_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_org_id UUID;
+  v_defaults JSONB;
+BEGIN
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  -- Verify user belongs to the target org
+  IF v_user_org_id IS NULL OR v_user_org_id != p_org_id THEN
+    RAISE EXCEPTION 'Not authorized to access this organization';
+  END IF;
+  
+  SELECT module_defaults INTO v_defaults
+  FROM organizations WHERE id = p_org_id;
+  
+  RETURN v_defaults;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_org_module_defaults(UUID) TO authenticated;
+
+-- Set organization module defaults (admins only)
+CREATE OR REPLACE FUNCTION set_org_module_defaults(
+  p_org_id UUID,
+  p_enabled_modules JSONB,
+  p_enabled_groups JSONB,
+  p_module_order JSONB,
+  p_dividers JSONB,
+  p_module_parents JSONB DEFAULT NULL,
+  p_module_icon_colors JSONB DEFAULT NULL,
+  p_custom_groups JSONB DEFAULT NULL
+)
+RETURNS JSON AS $$
+DECLARE
+  v_user_org_id UUID;
+BEGIN
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  -- Verify user belongs to the target org
+  IF v_user_org_id IS NULL OR v_user_org_id != p_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+  
+  -- Verify user is admin
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can set org defaults');
+  END IF;
+  
+  -- Update module defaults
+  UPDATE organizations
+  SET module_defaults = jsonb_build_object(
+    'enabled_modules', p_enabled_modules,
+    'enabled_groups', p_enabled_groups,
+    'module_order', p_module_order,
+    'dividers', p_dividers,
+    'module_parents', COALESCE(p_module_parents, '{}'::jsonb),
+    'module_icon_colors', COALESCE(p_module_icon_colors, '{}'::jsonb),
+    'custom_groups', COALESCE(p_custom_groups, '[]'::jsonb)
+  )
+  WHERE id = p_org_id;
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION set_org_module_defaults(UUID, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB) TO authenticated;
+
+-- Force organization module defaults to all users (admins only)
+-- This sets both the defaults AND the forced_at timestamp
+CREATE OR REPLACE FUNCTION force_org_module_defaults(
+  p_org_id UUID,
+  p_enabled_modules JSONB,
+  p_enabled_groups JSONB,
+  p_module_order JSONB,
+  p_dividers JSONB,
+  p_module_parents JSONB DEFAULT NULL,
+  p_module_icon_colors JSONB DEFAULT NULL,
+  p_custom_groups JSONB DEFAULT NULL
+)
+RETURNS JSON AS $$
+DECLARE
+  v_user_org_id UUID;
+BEGIN
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  -- Verify user belongs to the target org
+  IF v_user_org_id IS NULL OR v_user_org_id != p_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+  
+  -- Verify user is admin
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can force module defaults');
+  END IF;
+  
+  -- Update module defaults AND set forced_at timestamp
+  UPDATE organizations
+  SET module_defaults = jsonb_build_object(
+    'enabled_modules', p_enabled_modules,
+    'enabled_groups', p_enabled_groups,
+    'module_order', p_module_order,
+    'dividers', p_dividers,
+    'module_parents', COALESCE(p_module_parents, '{}'::jsonb),
+    'module_icon_colors', COALESCE(p_module_icon_colors, '{}'::jsonb),
+    'custom_groups', COALESCE(p_custom_groups, '[]'::jsonb)
+  ),
+  module_defaults_forced_at = NOW()
+  WHERE id = p_org_id;
+  
+  RETURN json_build_object('success', true, 'forced_at', NOW());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION force_org_module_defaults(UUID, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB) TO authenticated;
+
+-- Get team module defaults
+CREATE OR REPLACE FUNCTION get_team_module_defaults(p_team_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_org_id UUID;
+  v_team_org_id UUID;
+  v_defaults JSONB;
+BEGIN
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  -- Get team's org
+  SELECT org_id INTO v_team_org_id FROM teams WHERE id = p_team_id;
+  
+  -- Verify user belongs to the same org as the team
+  IF v_user_org_id IS NULL OR v_team_org_id IS NULL OR v_user_org_id != v_team_org_id THEN
+    RAISE EXCEPTION 'Not authorized to access this team';
+  END IF;
+  
+  SELECT module_defaults INTO v_defaults
+  FROM teams WHERE id = p_team_id;
+  
+  RETURN v_defaults;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_team_module_defaults(UUID) TO authenticated;
+
+-- Set team module defaults (admins only)
+CREATE OR REPLACE FUNCTION set_team_module_defaults(
+  p_team_id UUID,
+  p_enabled_modules JSONB,
+  p_enabled_groups JSONB,
+  p_module_order JSONB,
+  p_dividers JSONB,
+  p_module_parents JSONB DEFAULT NULL,
+  p_module_icon_colors JSONB DEFAULT NULL,
+  p_custom_groups JSONB DEFAULT NULL
+)
+RETURNS JSON AS $$
+DECLARE
+  v_user_org_id UUID;
+  v_team_org_id UUID;
+BEGIN
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  -- Get team's org
+  SELECT org_id INTO v_team_org_id FROM teams WHERE id = p_team_id;
+  
+  -- Verify user belongs to the same org as the team
+  IF v_user_org_id IS NULL OR v_team_org_id IS NULL OR v_user_org_id != v_team_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+  
+  -- Verify user is admin
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can set team defaults');
+  END IF;
+  
+  -- Update team module defaults
+  UPDATE teams
+  SET module_defaults = jsonb_build_object(
+    'enabled_modules', p_enabled_modules,
+    'enabled_groups', p_enabled_groups,
+    'module_order', p_module_order,
+    'dividers', p_dividers,
+    'module_parents', COALESCE(p_module_parents, '{}'::jsonb),
+    'module_icon_colors', COALESCE(p_module_icon_colors, '{}'::jsonb),
+    'custom_groups', COALESCE(p_custom_groups, '[]'::jsonb)
+  )
+  WHERE id = p_team_id;
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION set_team_module_defaults(UUID, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB, JSONB) TO authenticated;
+
+-- Clear team module defaults (admins only)
+CREATE OR REPLACE FUNCTION clear_team_module_defaults(p_team_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  v_user_org_id UUID;
+  v_team_org_id UUID;
+BEGIN
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  -- Get team's org
+  SELECT org_id INTO v_team_org_id FROM teams WHERE id = p_team_id;
+  
+  -- Verify user belongs to the same org as the team
+  IF v_user_org_id IS NULL OR v_team_org_id IS NULL OR v_user_org_id != v_team_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+  
+  -- Verify user is admin
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can clear team defaults');
+  END IF;
+  
+  -- Clear team module defaults
+  UPDATE teams
+  SET module_defaults = NULL
+  WHERE id = p_team_id;
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION clear_team_module_defaults(UUID) TO authenticated;
+
+-- Get user module defaults (from team or org, in priority order)
+CREATE OR REPLACE FUNCTION get_user_module_defaults()
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_user_org_id UUID;
+  v_defaults JSONB;
+BEGIN
+  v_user_id := auth.uid();
+  
+  IF v_user_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+  
+  -- Get user's org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = v_user_id;
+  
+  IF v_user_org_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+  
+  -- First, check if user is in a team with module defaults
+  SELECT t.module_defaults INTO v_defaults
+  FROM team_members tm
+  JOIN teams t ON t.id = tm.team_id
+  WHERE tm.user_id = v_user_id
+    AND t.org_id = v_user_org_id
+    AND t.module_defaults IS NOT NULL
+  ORDER BY t.name
+  LIMIT 1;
+  
+  -- If no team defaults, fall back to org defaults
+  IF v_defaults IS NULL THEN
+    SELECT module_defaults INTO v_defaults
+    FROM organizations WHERE id = v_user_org_id;
+  END IF;
+  
+  RETURN v_defaults;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_user_module_defaults() TO authenticated;
 
 -- ===========================================
 -- ENABLE REALTIME

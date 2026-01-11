@@ -14,6 +14,7 @@ import {
 import { logUserAction } from '@/lib/userActionLogger'
 import { clearConfig } from '@/lib/supabaseConfig'
 import { log } from '@/lib/logger'
+import { recordMetric } from '@/lib/performanceMetrics'
 
 /**
  * Hook to manage authentication state and initialization
@@ -88,7 +89,14 @@ export function useAuth() {
             // linkUserToOrganization() handles org_id setup correctly as fallback
             
             // Fetch user profile from database to get role
+            const profileStart = performance.now()
             const { profile, error: profileError } = await getUserProfile(session.user.id)
+            const profileDuration = performance.now() - profileStart
+            recordMetric('Startup', 'getUserProfile complete', { 
+              durationMs: Math.round(profileDuration),
+              hasProfile: !!profile,
+              hasOrgId: !!(profile as any)?.org_id
+            })
             if (profileError) {
               log.warn('[Auth]', 'Profile fetch error', { error: profileError.message })
             }
@@ -136,7 +144,14 @@ export function useAuth() {
             
             // Load organization (setOrganization will clear isConnecting)
             // Pass cached org_id to avoid duplicate profile fetch in linkUserToOrganization
+            const orgStart = performance.now()
             const { org, error: orgError } = await linkUserToOrganization(session.user.id, session.user.email || '', userProfile?.org_id)
+            const orgDuration = performance.now() - orgStart
+            recordMetric('Startup', 'linkUserToOrganization complete', { 
+              durationMs: Math.round(orgDuration),
+              hasOrg: !!org,
+              usedCachedOrgId: !!userProfile?.org_id
+            })
             if (org) {
               log.info('[Auth]', 'Organization loaded', { name: (org as any).name })
               if (connectingTimeout) clearTimeout(connectingTimeout)

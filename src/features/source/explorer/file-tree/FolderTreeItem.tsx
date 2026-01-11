@@ -1,9 +1,10 @@
 // Folder tree item component for the explorer
+import { memo } from 'react'
 import { ChevronRight, ChevronDown, FolderOpen } from 'lucide-react'
 import { LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import { FolderActionButtons } from './TreeItemActions'
-import { TREE_BASE_PADDING_PX, TREE_INDENT_PX, DIFF_STATUS_CLASS_PREFIX } from './constants'
+import { TREE_BASE_PADDING_PX, TREE_INDENT_PX } from './constants'
 import type { CheckoutUser } from '@/components/shared/FileItem'
 import type { FolderDiffCounts } from './types'
 
@@ -38,13 +39,70 @@ interface FolderTreeItemProps {
   // Children
   children: React.ReactNode
   onRefresh?: (silent?: boolean) => void
+  // Action button props (passed from parent to avoid child store subscriptions)
+  isOfflineMode: boolean
+  // NOTE: allFiles prop removed for O(N) performance optimization.
+  // FolderActionButtons now uses pre-computed diffCounts instead of filtering allFiles.
+}
+
+/**
+ * Custom comparison function for FolderTreeItem memoization.
+ * Compares props that affect rendering, skipping callback functions.
+ * Note: children prop uses reference equality since React handles child reconciliation.
+ */
+function areFolderTreeItemPropsEqual(
+  prevProps: FolderTreeItemProps,
+  nextProps: FolderTreeItemProps
+): boolean {
+  // Compare file identity and key properties
+  if (prevProps.file.path !== nextProps.file.path) return false
+  if (prevProps.file.name !== nextProps.file.name) return false
+  if (prevProps.file.diffStatus !== nextProps.file.diffStatus) return false
+  
+  // Compare primitive props
+  if (prevProps.depth !== nextProps.depth) return false
+  if (prevProps.isExpanded !== nextProps.isExpanded) return false
+  if (prevProps.isSelected !== nextProps.isSelected) return false
+  if (prevProps.isCurrentFolder !== nextProps.isCurrentFolder) return false
+  if (prevProps.operationType !== nextProps.operationType) return false
+  if (prevProps.isDragTarget !== nextProps.isDragTarget) return false
+  if (prevProps.isCut !== nextProps.isCut) return false
+  
+  // Compare folder stats
+  if (prevProps.localOnlyCount !== nextProps.localOnlyCount) return false
+  if (prevProps.checkedOutByMeCount !== nextProps.checkedOutByMeCount) return false
+  if (prevProps.totalCheckouts !== nextProps.totalCheckouts) return false
+  if (prevProps.syncedCount !== nextProps.syncedCount) return false
+  if (prevProps.checkoutStatus !== nextProps.checkoutStatus) return false
+  if (prevProps.isSynced !== nextProps.isSynced) return false
+  
+  // Compare diffCounts object
+  if (prevProps.diffCounts !== nextProps.diffCounts) {
+    if (!prevProps.diffCounts || !nextProps.diffCounts) return false
+    if (prevProps.diffCounts.added !== nextProps.diffCounts.added) return false
+    if (prevProps.diffCounts.modified !== nextProps.diffCounts.modified) return false
+    if (prevProps.diffCounts.moved !== nextProps.diffCounts.moved) return false
+    if (prevProps.diffCounts.deleted !== nextProps.diffCounts.deleted) return false
+    if (prevProps.diffCounts.outdated !== nextProps.diffCounts.outdated) return false
+  }
+  
+  // Compare checkout users array length (shallow check)
+  if (prevProps.checkoutUsers.length !== nextProps.checkoutUsers.length) return false
+  
+  // Compare children by reference (React handles child reconciliation)
+  if (prevProps.children !== nextProps.children) return false
+  
+  // Compare action button props
+  if (prevProps.isOfflineMode !== nextProps.isOfflineMode) return false
+  
+  return true
 }
 
 /**
  * Folder tree item component
  * Renders a folder in the explorer tree with status badges and expandable children
  */
-export function FolderTreeItem({
+export const FolderTreeItem = memo(function FolderTreeItem({
   file,
   depth,
   isExpanded,
@@ -71,18 +129,18 @@ export function FolderTreeItem({
   checkoutStatus,
   isSynced,
   children,
-  onRefresh
+  onRefresh,
+  isOfflineMode
 }: FolderTreeItemProps) {
   const isProcessing = operationType !== null
-  const diffClass = file.diffStatus ? `${DIFF_STATUS_CLASS_PREFIX}${file.diffStatus}` : ''
+  // Don't apply diffClass to folders - folder visual state is derived from children (via isSynced prop)
+  // The CSS sidebar-diff-cloud class would make text italic based on stale folder diffStatus
+  const diffClass = ''
   
   // Get folder icon with appropriate color - spinners are on action buttons, not icons
+  // Note: Folder color is derived from computed metrics (isSynced, checkoutStatus), not stale folder diffStatus
+  // This ensures the icon updates immediately when files are downloaded
   const getFolderIcon = () => {
-    // Cloud-only folders - muted color
-    if (file.diffStatus === 'cloud') {
-      return <FolderOpen size={16} className="text-plm-fg-muted" />
-    }
-    
     // Red for folders with files checked out by others
     if (checkoutStatus === 'others' || checkoutStatus === 'both') {
       return <FolderOpen size={16} className="text-plm-error" />
@@ -93,12 +151,12 @@ export function FolderTreeItem({
       return <FolderOpen size={16} className="text-orange-400" />
     }
     
-    // Green for synced folders
+    // Green for synced folders, grey otherwise (including cloud-only folders)
     if (isSynced) {
       return <FolderOpen size={16} className="text-plm-success" />
     }
     
-    // Default grey
+    // Default grey (includes cloud-only folders where all children have diffStatus 'cloud')
     return <FolderOpen size={16} className="text-plm-fg-muted" />
   }
   
@@ -134,8 +192,8 @@ export function FolderTreeItem({
         {/* Folder icon */}
         <span className="tree-item-icon">{getFolderIcon()}</span>
         
-        {/* Folder name */}
-        <span className={`truncate text-sm flex-1 ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}>
+        {/* Folder name - italic/muted for unsynced folders (derived from computed isSynced) */}
+        <span className={`truncate text-sm flex-1 ${!isSynced ? 'italic text-plm-fg-muted' : ''}`}>
           {file.name}
         </span>
         
@@ -150,6 +208,7 @@ export function FolderTreeItem({
           syncedCount={syncedCount}
           operationType={operationType}
           onRefresh={onRefresh}
+          isOfflineMode={isOfflineMode}
         />
       </div>
       
@@ -157,4 +216,4 @@ export function FolderTreeItem({
       {isExpanded && children}
     </div>
   )
-}
+}, areFolderTreeItemPropsEqual)

@@ -2030,6 +2030,8 @@ DECLARE
   v_version_switched BOOLEAN;
   v_path_changed BOOLEAN;
   v_should_increment BOOLEAN;
+  v_restoring_exact_version BOOLEAN;
+  v_target_version_hash TEXT;
   v_max_version INT;
   v_result JSONB;
   v_user_email TEXT;
@@ -2068,7 +2070,25 @@ BEGIN
   -- Version switch detection (user rolled back to different version locally)
   v_version_switched := (p_local_active_version IS NOT NULL AND p_local_active_version != v_file.version);
   
-  v_should_increment := v_content_changed OR v_metadata_changed OR v_version_switched;
+  -- Handle rollback/roll-forward: check if content matches the target version
+  -- If user rolled to a different version and content matches that version exactly,
+  -- just move the pointer instead of creating a new version
+  v_restoring_exact_version := FALSE;
+  IF v_version_switched THEN
+    SELECT content_hash INTO v_target_version_hash
+    FROM file_versions 
+    WHERE file_id = p_file_id AND version = p_local_active_version;
+    
+    -- If content matches the rolled-back version exactly, just move the pointer
+    IF p_new_content_hash IS NOT NULL AND p_new_content_hash = v_target_version_hash THEN
+      v_restoring_exact_version := TRUE;
+      v_new_version := p_local_active_version;  -- Move pointer, don't increment
+    END IF;
+  END IF;
+  
+  -- Only increment version if actual new content or metadata changes (not exact restore)
+  v_should_increment := (v_content_changed OR v_metadata_changed OR v_version_switched) 
+                        AND NOT v_restoring_exact_version;
   
   -- Merge custom properties if provided (existing props + new props)
   IF p_custom_properties IS NOT NULL THEN
@@ -2078,10 +2098,13 @@ BEGIN
   END IF;
   
   -- Calculate new version only if needed
+  -- Note: v_new_version may already be set if v_restoring_exact_version is TRUE
   IF v_should_increment THEN
     SELECT COALESCE(MAX(version), v_file.version) + 1 INTO v_new_version
     FROM file_versions WHERE file_id = p_file_id;
-  ELSE
+  ELSIF NOT v_restoring_exact_version THEN
+    -- Only set to current version if we're not restoring an exact version
+    -- (v_new_version was already set to p_local_active_version above)
     v_new_version := v_file.version;
   END IF;
   
@@ -2132,6 +2155,7 @@ BEGIN
       'content_changed', v_content_changed,
       'metadata_changed', v_metadata_changed,
       'version_incremented', v_should_increment,
+      'version_restored', v_restoring_exact_version,
       'old_version', v_file.version,
       'new_version', v_new_version,
       'comment', p_comment
@@ -2348,6 +2372,98 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION get_next_serial_number(UUID) TO authenticated;
+
+-- ===========================================
+-- PERFORMANCE: Fast Vault File Queries
+-- ===========================================
+
+-- Get all vault files in a single query (no pagination overhead)
+-- Returns lightweight file data for initial vault sync
+-- Much faster than paginated REST queries (1 round trip vs 25+ for large vaults)
+DROP FUNCTION IF EXISTS get_vault_files_fast(UUID, UUID) CASCADE;
+CREATE OR REPLACE FUNCTION get_vault_files_fast(
+  p_org_id UUID,
+  p_vault_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  file_path TEXT,
+  file_name TEXT,
+  extension TEXT,
+  file_type file_type,
+  part_number TEXT,
+  description TEXT,
+  revision TEXT,
+  version INT,
+  content_hash TEXT,
+  file_size BIGINT,
+  state TEXT,
+  checked_out_by UUID,
+  checked_out_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    f.id, f.file_path, f.file_name, f.extension, f.file_type,
+    f.part_number, f.description, f.revision, f.version,
+    f.content_hash, f.file_size, f.state,
+    f.checked_out_by, f.checked_out_at, f.updated_at
+  FROM files f
+  WHERE f.org_id = p_org_id
+    AND f.deleted_at IS NULL
+    AND (p_vault_id IS NULL OR f.vault_id = p_vault_id)
+  ORDER BY f.file_path;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_vault_files_fast(UUID, UUID) TO authenticated;
+
+-- Get files changed since a specific timestamp (for delta sync)
+-- Used by client-side caching to fetch only changed files after initial load
+DROP FUNCTION IF EXISTS get_vault_files_delta(UUID, UUID, TIMESTAMPTZ) CASCADE;
+CREATE OR REPLACE FUNCTION get_vault_files_delta(
+  p_org_id UUID,
+  p_vault_id UUID,
+  p_since TIMESTAMPTZ
+)
+RETURNS TABLE (
+  id UUID,
+  file_path TEXT,
+  file_name TEXT,
+  extension TEXT,
+  file_type file_type,
+  part_number TEXT,
+  description TEXT,
+  revision TEXT,
+  version INT,
+  content_hash TEXT,
+  file_size BIGINT,
+  state TEXT,
+  checked_out_by UUID,
+  checked_out_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  is_deleted BOOLEAN
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    f.id, f.file_path, f.file_name, f.extension, f.file_type,
+    f.part_number, f.description, f.revision, f.version,
+    f.content_hash, f.file_size, f.state,
+    f.checked_out_by, f.checked_out_at, f.updated_at,
+    f.deleted_at,
+    (f.deleted_at IS NOT NULL) AS is_deleted
+  FROM files f
+  WHERE f.org_id = p_org_id
+    AND f.vault_id = p_vault_id
+    AND (f.updated_at > p_since OR f.deleted_at > p_since)
+  ORDER BY f.updated_at;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_vault_files_delta(UUID, UUID, TIMESTAMPTZ) TO authenticated;
 
 -- ===========================================
 -- END OF SOURCE FILES MODULE

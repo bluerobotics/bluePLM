@@ -434,16 +434,14 @@ export const checkinCommand: Command<CheckinParams> = {
       // SW service not available
     }
     
-    // Track folders and files being processed (for spinner display) - batch add
+    // Track folders and files being processed (for spinner display)
+    // Use synchronous update to ensure spinners render before async work begins
     const foldersBeingProcessed = files
       .filter(f => f.isDirectory)
       .map(f => f.relativePath)
     const filesBeingProcessed = filesToCheckin.map(f => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
-    ctx.addProcessingFolders(allPathsBeingProcessed, 'checkin')
-    
-    // Yield to event loop so React can render spinners before starting operation
-    await new Promise(resolve => setTimeout(resolve, 0))
+    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'checkin')
     
     // Progress tracking
     const toastId = `checkin-${Date.now()}`
@@ -538,9 +536,28 @@ export const checkinCommand: Command<CheckinParams> = {
         const wasFileRenamed = file.pdmData?.file_name && 
           file.name !== file.pdmData.file_name
         
+        // ========================================
+        // FAST PATH OPTIMIZATION: Skip hash computation for truly unchanged files
+        // 
+        // If ALL of these are true:
+        // 1. We have a cached local hash
+        // 2. Local hash matches server hash (no content change)
+        // 3. No pending metadata to write
+        // 4. File wasn't moved or renamed
+        // 
+        // Then we can skip ALL expensive operations:
+        // - SolidWorks document info/save calls
+        // - Hash computation
+        // - File content upload
+        // 
+        // This is a significant optimization for files checked out but never edited.
+        // ========================================
+        const hasPendingMetadata = !!file.pendingMetadata
+        const contentUnchanged = file.localHash && file.localHash === file.pdmData?.content_hash
+        const canTakeFastPath = contentUnchanged && !hasPendingMetadata && !wasFileMoved && !wasFileRenamed
+        
         // PERFORMANCE OPTIMIZATION: Determine upfront if we can skip SW calls
         // If we have a cached hash AND no pending metadata, we don't need SW service at all
-        const hasPendingMetadata = !!file.pendingMetadata
         const canUseCachedHash = !hasPendingMetadata && !!file.localHash
         const skipSolidWorksOps = !isSolidWorksFile || (canUseCachedHash && !hasPendingMetadata)
         
@@ -553,8 +570,69 @@ export const checkinCommand: Command<CheckinParams> = {
           oldName: wasFileRenamed ? file.pdmData?.file_name : undefined,
           skipSolidWorksOps,
           canUseCachedHash,
+          canTakeFastPath,
           hasPendingMetadata
         })
+        
+        // ========================================
+        // FAST PATH: File unchanged, just release checkout
+        // ========================================
+        if (canTakeFastPath) {
+          logCheckin('info', 'Taking fast path - file unchanged', {
+            operationId,
+            fileName: file.name,
+            localHash: file.localHash?.substring(0, 12)
+          })
+          
+          const result = await checkinFile(file.pdmData!.id, user.id, {
+            // No content change - pass existing hash
+            newContentHash: file.localHash,
+            newFileSize: file.size,
+            localActiveVersion: file.localActiveVersion,
+            // Batch optimization: skip per-file machine mismatch check
+            machineId,
+            skipMachineMismatchCheck: true
+          })
+          
+          if (result.success && result.file) {
+            // Collect for batch readonly operation
+            filesToMakeReadonly.push(file.path)
+            
+            // Queue update for batch processing
+            pendingUpdates.push({
+              path: file.path,
+              updates: {
+                pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
+                localHash: file.localHash,
+                diffStatus: undefined,
+                localActiveVersion: undefined,
+                pendingMetadata: undefined
+              }
+            })
+            
+            // Flush periodically for real-time UI feedback
+            if (shouldFlush()) {
+              flushPendingUpdates()
+            }
+            
+            logCheckin('info', 'Fast path checkin successful', {
+              operationId,
+              fileName: file.name,
+              oldVersion: file.pdmData?.version,
+              newVersion: result.file.version
+            })
+            progress.update()
+            return { success: true, file }
+          } else {
+            logCheckin('error', 'Fast path checkin failed', {
+              operationId,
+              ...fileCtx,
+              error: result.error
+            })
+            progress.update()
+            return { success: false, error: `${file.name}: ${result.error || 'Check in failed'}` }
+          }
+        }
         
         // If SolidWorks file is open, save it first to ensure we check in the latest changes
         // Skip this if we can use cached hash and have no pending metadata
@@ -970,16 +1048,20 @@ export const checkinCommand: Command<CheckinParams> = {
     // Combine results from both phases
     const results = [...nonSwResults, ...swResults]
     
-    // Flush any remaining store updates not yet flushed during incremental processing
-    if (pendingUpdates.length > lastFlushIndex) {
-      logCheckin('info', 'Final store update flush', {
-        operationId,
-        remainingCount: pendingUpdates.length - lastFlushIndex,
-        totalUpdates: pendingUpdates.length,
-        paths: pendingUpdates.slice(lastFlushIndex).map(u => u.path)
-      })
-      flushPendingUpdates()
-    }
+    // ========================================
+    // ATOMIC FINAL CLEANUP: Update remaining files AND clear processing state in ONE store update
+    // This prevents the 5-second UI freeze caused by two sequential re-renders with folderMetrics recalc
+    // ========================================
+    const finalUpdateStart = performance.now()
+    const remainingUpdates = pendingUpdates.slice(lastFlushIndex)
+    ctx.updateFilesAndClearProcessing(remainingUpdates, allPathsBeingProcessed)
+    ctx.setLastOperationCompletedAt(Date.now())
+    logCheckin('info', 'Atomic store update complete', {
+      operationId,
+      remainingFilesUpdated: remainingUpdates.length,
+      processingPathsCleared: allPathsBeingProcessed.length,
+      durationMs: Math.round(performance.now() - finalUpdateStart)
+    })
     
     // Batch set readonly on all successful files (optimization: 1 IPC call instead of N)
     if (filesToMakeReadonly.length > 0) {
@@ -1084,8 +1166,6 @@ export const checkinCommand: Command<CheckinParams> = {
       }
     }
     
-    // Clean up - batch remove
-    ctx.removeProcessingFolders(allPathsBeingProcessed)
     const { duration } = progress.finish()
     
     // Log final result

@@ -19,8 +19,12 @@ export const SW_CONCURRENT_OPERATIONS = 3
 /** Default batch size for bulk database operations */
 export const BATCH_CHUNK_SIZE = 100
 
-/** Default interval for yielding to event loop during batch operations */
-export const YIELD_INTERVAL = 5
+/** 
+ * Default interval for yielding to event loop during batch operations.
+ * Lower value = more responsive UI animations, slightly higher overhead.
+ * Value of 2 provides smooth spinner animations during file operations.
+ */
+export const YIELD_INTERVAL = 2
 
 /**
  * Yield to the event loop to keep UI responsive during long-running operations.

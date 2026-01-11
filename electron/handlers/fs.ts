@@ -920,6 +920,11 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     const total = filePaths.length
     
     for (let i = 0; i < filePaths.length; i += batchSize) {
+      // Exit early if window was closed during processing
+      if (event.sender.isDestroyed()) {
+        return { success: true, results }
+      }
+      
       const batch = filePaths.slice(i, i + batchSize)
       
       for (const file of batch) {
@@ -945,7 +950,10 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       }
       
       const percent = Math.round((processed / total) * 100)
-      event.sender.send('hash-progress', { processed, total, percent })
+      // Check if sender is still valid before sending progress (window may be closed during shutdown)
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('hash-progress', { processed, total, percent })
+      }
       
       await new Promise(resolve => setImmediate(resolve))
     }
@@ -1013,6 +1021,19 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       }
       const entries = fs.readdirSync(dirPath)
       return { success: true, empty: entries.length === 0 }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
+
+  // Check if a path is a directory
+  ipcMain.handle('fs:is-directory', async (_, targetPath: string) => {
+    try {
+      if (!fs.existsSync(targetPath)) {
+        return { success: false, error: 'Path does not exist' }
+      }
+      const stats = fs.statSync(targetPath)
+      return { success: true, isDirectory: stats.isDirectory() }
     } catch (err) {
       return { success: false, error: String(err) }
     }
@@ -1176,6 +1197,238 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
         errorMsg = `File not found`
       }
       return { success: false, error: errorMsg }
+    }
+  })
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // BATCH DELETE OPERATIONS
+  // These handlers process multiple files in a single IPC call with a single
+  // watcher stop/restart cycle, significantly improving performance for bulk
+  // delete operations (e.g., deleting 33 files goes from ~10s to ~1-2s)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Batch delete files - stops watcher ONCE, deletes all files, restarts watcher ONCE.
+   * Much more efficient than calling fs:delete for each file individually.
+   * 
+   * @param paths - Array of absolute file paths to delete
+   * @param useTrash - Whether to move files to trash (default: true) or permanently delete
+   * @returns Object with overall success status and per-file results
+   */
+  ipcMain.handle('fs:delete-batch', async (_, paths: string[], useTrash: boolean = true) => {
+    const batchId = ++deleteOperationCounter
+    const startTime = Date.now()
+    
+    log(`[DeleteBatch #${batchId}] START: ${paths.length} files, useTrash=${useTrash}`)
+    
+    if (!paths || paths.length === 0) {
+      return { success: true, results: [] }
+    }
+    
+    const results: Array<{ path: string; success: boolean; error?: string }> = []
+    
+    // Check if any path is within working directory
+    const needsWatcherPause = workingDirectory && paths.some(targetPath =>
+      targetPath === workingDirectory ||
+      workingDirectory.startsWith(targetPath) ||
+      targetPath.startsWith(workingDirectory)
+    )
+    
+    // Stop watcher ONCE for the entire batch
+    if (needsWatcherPause && fileWatcher) {
+      log(`[DeleteBatch #${batchId}] Stopping file watcher for batch operation`)
+      await stopFileWatcher()
+      // Brief wait for any pending file system events to settle
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    
+    try {
+      // Wait for any thumbnailing to complete
+      if (thumbnailsInProgress.size > 0) {
+        log(`[DeleteBatch #${batchId}] Waiting for ${thumbnailsInProgress.size} thumbnails to complete`)
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+      
+      // Process all files
+      for (const targetPath of paths) {
+        const fileName = path.basename(targetPath)
+        
+        try {
+          // Skip if file doesn't exist
+          if (!fs.existsSync(targetPath)) {
+            results.push({ path: targetPath, success: true }) // Already deleted, consider success
+            continue
+          }
+          
+          // Check if file is being thumbnailed
+          if (isFileBeingThumbnailed(targetPath)) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+          
+          const stats = fs.statSync(targetPath)
+          const isFile = !stats.isDirectory()
+          
+          // Clear read-only if needed
+          if (isFile && (stats.mode & 0o200) === 0) {
+            try {
+              fs.chmodSync(targetPath, stats.mode | 0o200)
+            } catch {
+              // Ignore chmod errors, try to delete anyway
+            }
+          }
+          
+          // Try to delete with retries for locked files
+          let deleted = false
+          let lastError: string | undefined
+          
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              if (useTrash) {
+                await shell.trashItem(targetPath)
+              } else {
+                if (isFile) {
+                  fs.unlinkSync(targetPath)
+                } else {
+                  fs.rmSync(targetPath, { recursive: true, force: true })
+                }
+              }
+              deleted = true
+              break
+            } catch (err) {
+              lastError = String(err)
+              const isLocked = lastError.includes('EBUSY') || lastError.includes('resource busy')
+              
+              if (isLocked && attempt < 3) {
+                await new Promise(resolve => setTimeout(resolve, attempt * 100))
+                continue
+              }
+              
+              // If trash failed, try direct delete
+              if (useTrash && attempt === 1) {
+                try {
+                  if (isFile) {
+                    fs.unlinkSync(targetPath)
+                  } else {
+                    fs.rmSync(targetPath, { recursive: true, force: true })
+                  }
+                  deleted = true
+                  break
+                } catch (fallbackErr) {
+                  lastError = String(fallbackErr)
+                }
+              }
+            }
+          }
+          
+          if (deleted) {
+            results.push({ path: targetPath, success: true })
+          } else {
+            let errorMsg = lastError || 'Unknown error'
+            if (errorMsg.includes('EBUSY') || errorMsg.includes('resource busy')) {
+              errorMsg = `${fileName} is locked (close it in the other application)`
+            } else if (errorMsg.includes('EPERM') || errorMsg.includes('permission denied')) {
+              errorMsg = `Permission denied - ${fileName} may be read-only or in use`
+            }
+            results.push({ path: targetPath, success: false, error: errorMsg })
+            log(`[DeleteBatch #${batchId}] Failed to delete: ${fileName} - ${errorMsg}`)
+          }
+        } catch (err) {
+          const errorMsg = String(err)
+          results.push({ path: targetPath, success: false, error: errorMsg })
+          log(`[DeleteBatch #${batchId}] Exception deleting: ${fileName} - ${errorMsg}`)
+        }
+      }
+    } finally {
+      // Restart watcher ONCE after all deletions complete
+      if (needsWatcherPause && workingDirectory && fs.existsSync(workingDirectory)) {
+        log(`[DeleteBatch #${batchId}] Restarting file watcher after batch operation`)
+        startFileWatcher(workingDirectory)
+      }
+    }
+    
+    const succeeded = results.filter(r => r.success).length
+    const failed = results.filter(r => !r.success).length
+    const duration = Date.now() - startTime
+    
+    log(`[DeleteBatch #${batchId}] END: ${succeeded}/${paths.length} succeeded, ${failed} failed, ${duration}ms`)
+    
+    return {
+      success: failed === 0,
+      results,
+      summary: { total: paths.length, succeeded, failed, duration }
+    }
+  })
+
+  /**
+   * Batch trash files - optimized for moving multiple files to recycle bin.
+   * Similar to delete-batch but always uses shell.trashItem.
+   * 
+   * @param paths - Array of absolute file paths to trash
+   * @returns Object with overall success status and per-file results
+   */
+  ipcMain.handle('fs:trash-batch', async (_, paths: string[]) => {
+    const batchId = ++deleteOperationCounter
+    const startTime = Date.now()
+    
+    log(`[TrashBatch #${batchId}] START: ${paths.length} files`)
+    
+    if (!paths || paths.length === 0) {
+      return { success: true, results: [] }
+    }
+    
+    const results: Array<{ path: string; success: boolean; error?: string }> = []
+    
+    // Check if any path is within working directory
+    const needsWatcherPause = workingDirectory && paths.some(targetPath =>
+      targetPath === workingDirectory ||
+      workingDirectory.startsWith(targetPath) ||
+      targetPath.startsWith(workingDirectory)
+    )
+    
+    // Stop watcher ONCE for the entire batch
+    if (needsWatcherPause && fileWatcher) {
+      log(`[TrashBatch #${batchId}] Stopping file watcher for batch operation`)
+      await stopFileWatcher()
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    
+    try {
+      // Process all files
+      for (const targetPath of paths) {
+        const fileName = path.basename(targetPath)
+        
+        try {
+          if (!fs.existsSync(targetPath)) {
+            results.push({ path: targetPath, success: true })
+            continue
+          }
+          
+          await shell.trashItem(targetPath)
+          results.push({ path: targetPath, success: true })
+        } catch (err) {
+          const errorMsg = String(err)
+          results.push({ path: targetPath, success: false, error: errorMsg })
+          log(`[TrashBatch #${batchId}] Failed to trash: ${fileName} - ${errorMsg}`)
+        }
+      }
+    } finally {
+      // Restart watcher ONCE after all operations complete
+      if (needsWatcherPause && workingDirectory && fs.existsSync(workingDirectory)) {
+        log(`[TrashBatch #${batchId}] Restarting file watcher after batch operation`)
+        startFileWatcher(workingDirectory)
+      }
+    }
+    
+    const succeeded = results.filter(r => r.success).length
+    const failed = results.filter(r => !r.success).length
+    const duration = Date.now() - startTime
+    
+    log(`[TrashBatch #${batchId}] END: ${succeeded}/${paths.length} succeeded, ${failed} failed, ${duration}ms`)
+    
+    return {
+      success: failed === 0,
+      results,
+      summary: { total: paths.length, succeeded, failed, duration }
     }
   })
 
@@ -1384,7 +1637,8 @@ export function unregisterFsHandlers(): void {
     'working-dir:select', 'working-dir:get', 'working-dir:clear', 'working-dir:set', 'working-dir:create',
     'fs:read-file', 'fs:write-file', 'fs:download-url', 'fs:file-exists', 'fs:get-hash', 'fs:hash-file',
     'fs:list-dir-files', 'fs:list-working-files', 'fs:compute-file-hashes',
-    'fs:create-folder', 'fs:is-dir-empty', 'fs:delete', 'fs:rename', 'fs:copy-file', 'fs:move-file',
+    'fs:create-folder', 'fs:is-dir-empty', 'fs:is-directory', 'fs:delete', 'fs:delete-batch', 'fs:trash-batch',
+    'fs:rename', 'fs:copy-file', 'fs:move-file',
     'fs:open-in-explorer', 'fs:open-file', 'fs:set-readonly', 'fs:is-readonly', 'fs:set-readonly-batch'
   ]
   

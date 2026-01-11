@@ -118,11 +118,6 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
       }
     })
     
-    // Apply all store updates in a single batch (avoids N re-renders)
-    if (pendingUpdates.length > 0) {
-      ctx.updateFilesInStore(pendingUpdates)
-    }
-    
     // Count results
     for (const result of results) {
       if (result.success) {
@@ -135,13 +130,27 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
       }
     }
     
+    // Apply all store updates in a single atomic batch
+    const storeUpdateStart = performance.now()
+    if (pendingUpdates.length > 0) {
+      ctx.updateFilesAndClearProcessing(pendingUpdates, [])
+    }
+    ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - storeUpdateStart)
+    window.electronAPI?.log('info', '[ForceRelease] Store update complete', {
+      durationMs: storeUpdateDuration,
+      updateCount: pendingUpdates.length,
+      timestamp: Date.now()
+    })
+    
     // Clean up
     ctx.removeToast(toastId)
     
     const duration = Date.now() - startTime
     
-    // Refresh file list
-    ctx.onRefresh?.(true)
+    // Note: No ctx.onRefresh() call needed - the incremental store updates
+    // via ctx.updateFilesInStore(pendingUpdates) are sufficient.
+    // This avoids a redundant full filesystem rescan.
     
     // Show result toast
     if (failed > 0) {

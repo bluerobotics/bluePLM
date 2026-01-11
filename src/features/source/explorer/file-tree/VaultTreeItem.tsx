@@ -1,4 +1,5 @@
 // Vault tree item header component for the explorer
+import { memo } from 'react'
 import { ChevronRight, ChevronDown, Database } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
 import { 
@@ -49,10 +50,47 @@ interface VaultTreeItemProps {
 }
 
 /**
+ * Custom comparison function for VaultTreeItem memoization.
+ * Compares props that affect rendering, skipping callback functions.
+ */
+function areVaultTreeItemPropsEqual(
+  prevProps: VaultTreeItemProps,
+  nextProps: VaultTreeItemProps
+): boolean {
+  // Compare vault identity
+  if (prevProps.vault.id !== nextProps.vault.id) return false
+  if (prevProps.vault.name !== nextProps.vault.name) return false
+  
+  // Compare UI states
+  if (prevProps.isActive !== nextProps.isActive) return false
+  if (prevProps.isExpanded !== nextProps.isExpanded) return false
+  if (prevProps.isDragTarget !== nextProps.isDragTarget) return false
+  
+  // Compare stats
+  if (prevProps.cloudFilesCount !== nextProps.cloudFilesCount) return false
+  if (prevProps.outdatedFilesCount !== nextProps.outdatedFilesCount) return false
+  if (prevProps.localOnlyFilesCount !== nextProps.localOnlyFilesCount) return false
+  if (prevProps.syncedFilesCount !== nextProps.syncedFilesCount) return false
+  if (prevProps.checkedOutByMeCount !== nextProps.checkedOutByMeCount) return false
+  if (prevProps.totalCheckouts !== nextProps.totalCheckouts) return false
+  
+  // Compare processing states
+  if (prevProps.isDownloadingAll !== nextProps.isDownloadingAll) return false
+  if (prevProps.isCheckingInAll !== nextProps.isCheckingInAll) return false
+  if (prevProps.isCheckingInMyCheckouts !== nextProps.isCheckingInMyCheckouts) return false
+  if (prevProps.isAnyCloudFileProcessing !== nextProps.isAnyCloudFileProcessing) return false
+  
+  // Compare checkout users array length (shallow check)
+  if (prevProps.allCheckoutUsers.length !== nextProps.allCheckoutUsers.length) return false
+  
+  return true
+}
+
+/**
  * Vault tree item header component
  * Renders the vault header with expand/collapse and batch action buttons
  */
-export function VaultTreeItem({
+export const VaultTreeItem = memo(function VaultTreeItem({
   vault,
   isActive,
   isExpanded,
@@ -79,7 +117,8 @@ export function VaultTreeItem({
   onCheckInMyCheckouts,
   onCheckoutAllSynced
 }: VaultTreeItemProps) {
-  const { isOfflineMode } = usePDMStore()
+  // Selective selector: only re-render when isOfflineMode changes
+  const isOfflineMode = usePDMStore(s => s.isOfflineMode)
   
   return (
     <div 
@@ -121,6 +160,7 @@ export function VaultTreeItem({
             <InlineSyncButton
               onClick={onUpdateAllOutdated}
               count={outdatedFilesCount}
+              isProcessing={isDownloadingAll}
             />
           )}
           
@@ -165,4 +205,4 @@ export function VaultTreeItem({
       )}
     </div>
   )
-}
+}, areVaultTreeItemPropsEqual)

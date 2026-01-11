@@ -132,24 +132,28 @@ export function getFilesInFolder(
   files: LocalFile[],
   currentPath: string
 ): LocalFile[] {
+  // Normalize path separators for cross-platform compatibility (Windows uses \, Unix uses /)
+  const normalizedCurrentPath = currentPath.replace(/\\/g, '/')
+
   return files.filter(file => {
-    const fileParts = file.relativePath.split('/')
-    
-    if (currentPath === '') {
+    const normalizedPath = file.relativePath.replace(/\\/g, '/')
+    const fileParts = normalizedPath.split('/')
+
+    if (normalizedCurrentPath === '') {
       // Root level - show only top-level items
       return fileParts.length === 1
     } else {
       // In a subfolder - show direct children
-      const currentParts = currentPath.split('/')
-      
+      const currentParts = normalizedCurrentPath.split('/')
+
       // File must be exactly one level deeper than current path
       if (fileParts.length !== currentParts.length + 1) return false
-      
+
       // File must start with current path
       for (let i = 0; i < currentParts.length; i++) {
         if (fileParts[i] !== currentParts[i]) return false
       }
-      
+
       return true
     }
   })

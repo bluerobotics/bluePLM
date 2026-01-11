@@ -8,11 +8,12 @@
 import type { Command, CommandResult, LocalFile } from '../types'
 import { buildFullPath, getFilesInFolder } from '../types'
 import { ProgressTracker } from '../executor'
-import { getDownloadUrl, fileExists } from '../../storage'
+import { getDownloadUrl } from '../../storage'
 import { usePDMStore, MissingStorageFile } from '../../../stores/pdmStore'
 import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
+import { recordMetric } from '@/lib/performanceMetrics'
 
 // Retry configuration
 const MAX_RETRY_ATTEMPTS = 3
@@ -158,106 +159,51 @@ export const getLatestCommand: Command<GetLatestParams> = {
       }
     }
     
-    // Pre-validate storage blobs exist before attempting downloads
-    // This provides better UX - show missing files dialog immediately instead of after download failures
-    logGetLatest('info', 'Pre-validating storage blobs', {
-      operationId,
-      count: outdatedFiles.length
+    // Track files AND folders being updated early for immediate spinner feedback
+    // Include folder paths so folder inline buttons show spinners
+    const outdatedFilePaths = outdatedFiles.map(f => f.relativePath)
+    const selectedFolderPaths = files.filter(f => f.isDirectory).map(f => f.relativePath)
+    const allPathsToTrack = [...new Set([...outdatedFilePaths, ...selectedFolderPaths])]
+    
+    // Record operation start for DevTools monitoring
+    const operationStartTime = Date.now()
+    recordMetric('GetLatest', 'Operation started', {
+      fileCount: outdatedFiles.length,
+      folderCount: selectedFolderPaths.length
     })
     
-    const missingStorageFiles: LocalFile[] = []
-    const downloadableFiles: LocalFile[] = []
+    ctx.addProcessingFolders(allPathsToTrack, 'sync')
     
-    // Check storage existence in batches for performance
-    const VALIDATION_BATCH_SIZE = 10
-    for (let i = 0; i < outdatedFiles.length; i += VALIDATION_BATCH_SIZE) {
-      const batch = outdatedFiles.slice(i, i + VALIDATION_BATCH_SIZE)
-      const results = await Promise.all(
-        batch.map(async (file) => {
-          if (!file.pdmData?.content_hash) {
-            // No hash means we can't validate - assume downloadable
-            return { file, exists: true }
-          }
-          try {
-            const exists = await fileExists(organization.id, file.pdmData.content_hash)
-            return { file, exists }
-          } catch {
-            // If we can't check, assume it exists and let download fail naturally
-            return { file, exists: true }
-          }
-        })
-      )
-      
-      for (const { file, exists } of results) {
-        if (exists) {
-          downloadableFiles.push(file)
-        } else {
-          missingStorageFiles.push(file)
-        }
-      }
-    }
-    
-    // If any files have missing storage blobs, show the dialog immediately
-    if (missingStorageFiles.length > 0) {
-      logGetLatest('warn', 'Pre-validation found files with missing storage blobs', {
-        operationId,
-        missingCount: missingStorageFiles.length,
-        downloadableCount: downloadableFiles.length,
-        missingFiles: missingStorageFiles.map(f => f.name)
-      })
-      
-      const missingFilesData: MissingStorageFile[] = missingStorageFiles.map(f => ({
-        fileId: f.pdmData?.id || '',
-        fileName: f.name,
-        filePath: f.relativePath,
-        serverHash: f.pdmData?.content_hash || '',
-        version: f.pdmData?.version || 0,
-        detectedAt: new Date().toISOString()
-      }))
-      
-      usePDMStore.getState().setMissingStorageFiles(missingFilesData)
-    }
-    
-    // If no files are downloadable, return early
-    if (downloadableFiles.length === 0) {
-      logGetLatest('info', 'No downloadable files after pre-validation', {
-        operationId,
-        missingCount: missingStorageFiles.length
-      })
-      return {
-        success: false,
-        message: `${missingStorageFiles.length} file${missingStorageFiles.length > 1 ? 's' : ''} need to be re-uploaded`,
-        total: outdatedFiles.length,
-        succeeded: 0,
-        failed: missingStorageFiles.length
-      }
-    }
-    
-    // Continue with only the downloadable files
-    const filesToProcess = downloadableFiles
-    
-    // Track files being updated
-    const filePaths = filesToProcess.map(f => f.relativePath)
-    ctx.addProcessingFolders(filePaths, 'sync')
-    
-    // Yield to event loop so React can render spinners
+    // Yield to event loop so React can render spinners BEFORE downloads start
     await new Promise(resolve => setTimeout(resolve, 0))
     
-    const total = filesToProcess.length
-    
-    // Progress tracking
+    // Create progress toast immediately so user sees feedback
     const toastId = `get-latest-${Date.now()}`
-    const progressLabel = total === 1 
+    const progressLabel = outdatedFiles.length === 1 
       ? `Updating ${outdatedFiles[0].name}...`
-      : `Updating ${total} file${total > 1 ? 's' : ''}...`
+      : `Updating ${outdatedFiles.length} file${outdatedFiles.length > 1 ? 's' : ''}...`
     
     const progress = new ProgressTracker(
       ctx,
       'get-latest',
       toastId,
       progressLabel,
-      total
+      outdatedFiles.length
     )
+    
+    // Skip pre-validation - it was too slow (500-3000ms per file via Supabase storage list API)
+    // Missing files are detected during download and handled gracefully
+    const filesToProcess = outdatedFiles
+    const missingStorageFiles: LocalFile[] = [] // Populated during download if any fail
+    
+    // Register expected file changes to suppress file watcher during operation
+    const filePaths = filesToProcess.map(f => f.relativePath)
+    ctx.addExpectedFileChanges(filePaths)
+    
+    const total = filesToProcess.length
+    
+    // Update progress label to show download phase
+    progress.setStatus(`0/${total}`)
     
     let succeeded = 0
     let failed = 0
@@ -418,16 +364,6 @@ export const getLatestCommand: Command<GetLatestParams> = {
       }
     })
     
-    // Apply all store updates in a single batch
-    if (pendingUpdates.length > 0) {
-      logGetLatest('debug', 'Applying store updates', {
-        operationId,
-        updateCount: pendingUpdates.length,
-        paths: pendingUpdates.map(u => u.path)
-      })
-      ctx.updateFilesInStore(pendingUpdates)
-    }
-    
     // Count results
     for (const result of results) {
       if (result.success) succeeded++
@@ -437,8 +373,37 @@ export const getLatestCommand: Command<GetLatestParams> = {
       }
     }
     
-    // Clean up
-    ctx.removeProcessingFolders(filePaths)
+    // Apply store updates AND clear processing state atomically
+    // Using updateFilesAndClearProcessing() combines both updates into ONE set() call,
+    // preventing two expensive re-render cycles with O(N x depth) folderMetrics computation.
+    // This eliminates the ~5 second UI freeze that occurred with separate calls.
+    const storeUpdateStart = performance.now()
+    logGetLatest('info', 'Updates finished, starting store update', {
+      operationId,
+      updateCount: pendingUpdates.length,
+      paths: pendingUpdates.map(u => u.path),
+      pathsToTrackCount: allPathsToTrack.length,
+      timestamp: Date.now()
+    })
+    ctx.updateFilesAndClearProcessing(pendingUpdates, allPathsToTrack)
+    ctx.setLastOperationCompletedAt(Date.now())
+    logGetLatest('debug', 'Store update complete', {
+      operationId,
+      durationMs: Math.round(performance.now() - storeUpdateStart),
+      timestamp: Date.now()
+    })
+    
+    // Delay clearing expected file changes to allow file watcher suppression to work
+    // The 5 second window ensures late file system events are still suppressed
+    const pathsToClear = [...filePaths] // Only file paths, not folder paths
+    setTimeout(() => {
+      ctx.clearExpectedFileChanges(pathsToClear)
+      logGetLatest('debug', 'Expected file changes cleared (delayed)', {
+        operationId,
+        count: pathsToClear.length,
+        timestamp: Date.now()
+      })
+    }, 5000)
     const { duration } = progress.finish()
     
     // Include pre-validated missing files in totals
@@ -457,7 +422,9 @@ export const getLatestCommand: Command<GetLatestParams> = {
       pendingUpdatesApplied: pendingUpdates.length
     })
     
-    ctx.onRefresh?.(true)
+    // Note: No ctx.onRefresh() call needed here - the incremental store updates
+    // via ctx.updateFilesInStore(pendingUpdates) at line 428 are sufficient.
+    // This avoids a redundant full filesystem rescan that would add ~5s latency.
     
     // Note: Missing storage files were already detected during pre-validation
     // and the modal was already triggered. We only need to handle download errors here.
@@ -515,6 +482,15 @@ export const getLatestCommand: Command<GetLatestParams> = {
     } else {
       ctx.addToast('success', `Updated ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }
+    
+    // Record operation complete for DevTools monitoring
+    const totalOperationDuration = Date.now() - operationStartTime
+    recordMetric('GetLatest', 'Operation complete', {
+      fileCount: totalAttempted,
+      succeeded,
+      failed: totalFailed,
+      durationMs: totalOperationDuration
+    })
     
     return {
       success: totalFailed === 0,

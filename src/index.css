@@ -1270,6 +1270,73 @@ input::placeholder {
   border-radius: 4px;
   transition: background-color 0.1s ease;
   user-select: none;
+  /* CSS containment reduces reflow/repaint scope for better performance */
+  contain: layout style;
+  /* GPU acceleration hints for virtualized rows */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* GPU acceleration for virtualized list positioning */
+/* Forces GPU layer for smooth scrolling in react-window/virtualized lists */
+[style*="transform: translateY"] {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* =============================================
+   TREE ITEM ACTION BUTTONS - ALWAYS VISIBLE
+   Buttons are always visible (subtle at 0.5 opacity)
+   Full opacity on hover/selection for better feedback
+   Fast transitions (0.05s) for snappy feel
+   ============================================= */
+
+/* File action buttons - always visible but subtle */
+.tree-item > .truncate ~ button {
+  opacity: 0.5;
+  transition: opacity 0.05s ease-out;
+  pointer-events: auto;
+  /* CSS containment for isolated layout/paint - improves performance */
+  contain: layout style paint;
+}
+
+/* Folder action buttons and checkout indicators - always visible but subtle */
+.tree-item > .truncate ~ span.flex {
+  opacity: 0.5;
+  transition: opacity 0.05s ease-out;
+  pointer-events: auto;
+  /* CSS containment for isolated layout/paint - improves performance */
+  contain: layout style paint;
+}
+
+/* Full opacity on tree item hover */
+.tree-item:hover > .truncate ~ button,
+.tree-item:hover > .truncate ~ span.flex {
+  opacity: 1;
+}
+
+/* Full opacity for selected items */
+.tree-item.selected > .truncate ~ button,
+.tree-item.selected > .truncate ~ span.flex {
+  opacity: 1;
+}
+
+/* Full opacity when item is the current folder */
+.tree-item.current-folder > .truncate ~ button,
+.tree-item.current-folder > .truncate ~ span.flex {
+  opacity: 1;
+}
+
+/* Always show loading spinners (SVG elements) during processing */
+.tree-item > .truncate ~ svg {
+  opacity: 1;
+}
+
+/* Full opacity when processing (shows spinner) */
+.tree-item.processing > .truncate ~ button,
+.tree-item.processing > .truncate ~ span.flex,
+.tree-item.processing > .truncate ~ svg {
+  opacity: 1;
 }
 
 .tree-item:hover {
@@ -1658,7 +1725,7 @@ tr.selected.diff-cloud {
   animation: pulse 2s ease-in-out infinite;
 }
 
-/* Loading spinner */
+/* Loading spinner - GPU-accelerated for smooth animation during heavy JS work */
 .spinner {
   width: 20px;
   height: 20px;
@@ -1666,20 +1733,39 @@ tr.selected.diff-cloud {
   border-top-color: var(--plm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+  /* Force GPU layer composition for jank-free animation */
   will-change: transform;
-  contain: layout style;
+  transform: translateZ(0);
+  /* Prevent paint interference from sibling elements */
+  isolation: isolate;
+  contain: layout style paint;
+  /* Ensure animation persists - use visibility instead of removal */
+  animation-fill-mode: forwards;
 }
 
+/* GPU-optimized keyframes using 3D transform */
 @keyframes spin {
+  from {
+    transform: translateZ(0) rotate(0deg);
+  }
   to {
-    transform: rotate(360deg);
+    transform: translateZ(0) rotate(360deg);
   }
 }
 
 /* GPU-accelerate Tailwind's animate-spin for smooth rotation during heavy JS work */
 .animate-spin {
+  /* Force GPU layer composition - prevents main thread jank from affecting animation */
   will-change: transform;
-  contain: layout style;
+  /* Isolate stacking context to prevent paint interference */
+  isolation: isolate;
+  /* Aggressive containment for rendering performance */
+  contain: layout style paint;
+}
+
+/* Utility class to pause spinner without removing from DOM (preserves GPU layer) */
+.spinner-paused {
+  animation-play-state: paused;
 }
 
 /* Tooltip */

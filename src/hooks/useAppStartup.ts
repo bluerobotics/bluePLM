@@ -11,10 +11,18 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePDMStore, getHasHydrated } from '@/stores/pdmStore'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { log } from '@/lib/logger'
+import { recordMetric } from '@/lib/performanceMetrics'
 import type { StartupError } from '@/components/core/SplashScreen'
 
-type StartupStage = 1 | 2
-type StageName = 'Core' | 'Extensions'
+type StartupStage = 1 | 2 | 3 | 4
+type StageName = 'Initializing' | 'Connecting' | 'Loading Vault' | 'Extensions'
+
+const STAGE_NAMES: Record<StartupStage, StageName> = {
+  1: 'Initializing',
+  2: 'Connecting',
+  3: 'Loading Vault',
+  4: 'Extensions'
+}
 
 interface StartupState {
   isReady: boolean
@@ -83,6 +91,8 @@ export function useAppStartup(): StartupState {
       // Helper to ensure minimum display time before completing
       const completeStartup = async () => {
         const elapsed = Date.now() - startTime
+        // Record total startup time
+        recordMetric('Startup', 'Total startup complete', { durationMs: elapsed })
         if (elapsed < MIN_SPLASH_DISPLAY_MS) {
           await new Promise(resolve => setTimeout(resolve, MIN_SPLASH_DISPLAY_MS - elapsed))
         }
@@ -91,19 +101,22 @@ export function useAppStartup(): StartupState {
       
       try {
         // ═══════════════════════════════════════════════════════════════════════
-        // Stage 1: Core Loading
+        // Stage 1: Initializing
         // ═══════════════════════════════════════════════════════════════════════
-        log.info('[Startup]', 'Stage 1: Core loading started')
+        log.info('[Startup]', 'Stage 1: Initializing started')
+        recordMetric('Startup', 'Stage 1 started', {})
         setStage(1)
         
         // Step 1.1: Wait for store hydration
         setStatus('Loading preferences...')
+        const hydrationStart = performance.now()
         await waitForHydration()
+        const hydrationDuration = performance.now() - hydrationStart
+        recordMetric('Startup', 'Store hydration complete', { durationMs: Math.round(hydrationDuration) })
         log.debug('[Startup]', 'Store hydrated')
         
         // Step 1.2: Check Supabase configuration
         setStatus('Checking configuration...')
-        await new Promise(resolve => setTimeout(resolve, 100)) // Brief delay for UI
         
         const supabaseConfigured = isSupabaseConfigured()
         if (!supabaseConfigured) {
@@ -123,15 +136,34 @@ export function useAppStartup(): StartupState {
           return
         }
         
-        // Step 1.4: Wait for auth session (if user is already in store, we're good)
-        setStatus('Restoring session...')
-        // Auth is handled by useAuth hook in App.tsx via onAuthStateChange
-        // We just wait briefly for the listener to fire
-        await new Promise(resolve => setTimeout(resolve, 200))
+        const stage1Duration = performance.now() - startTime
+        recordMetric('Startup', 'Stage 1 complete', { durationMs: Math.round(stage1Duration) })
+        log.info('[Startup]', 'Stage 1: Initializing complete')
         
-        // Step 1.5: Check if organization is loading
+        // ═══════════════════════════════════════════════════════════════════════
+        // Stage 2: Connecting
+        // ═══════════════════════════════════════════════════════════════════════
+        log.info('[Startup]', 'Stage 2: Connecting started')
+        const stage2Start = performance.now()
+        recordMetric('Startup', 'Stage 2 started', {})
+        setStage(2)
+        
+        // Step 2.1: Wait for auth session (if user is already in store, we're good)
+        setStatus('Restoring session...')
+        const authStart = performance.now()
+        // Auth is handled by useAuth hook in App.tsx via onAuthStateChange
+        // Check if user is already in store from previous session, otherwise wait briefly
+        const existingUser = usePDMStore.getState().user
+        if (!existingUser) {
+          // Wait briefly for the auth listener to fire on cold start
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        const authDuration = performance.now() - authStart
+        recordMetric('Startup', 'Auth session restore', { durationMs: Math.round(authDuration) })
+        
+        // Step 2.2: Check if organization is loading
         // The useAuth hook handles organization loading, we monitor it
-        setStatus('Loading organization...')
+        setStatus('Connecting to organization...')
         
         // Wait for organization to be loaded (with timeout)
         const orgWaitStart = Date.now()
@@ -149,21 +181,48 @@ export function useAppStartup(): StartupState {
             log.debug('[Startup]', 'Organization loaded', { name: currentState.organization.name })
             break
           }
-          // Wait a bit and check again
-          await new Promise(resolve => setTimeout(resolve, 100))
+          // Wait a bit and check again (50ms poll interval)
+          await new Promise(resolve => setTimeout(resolve, 50))
+        }
+        const orgDuration = Date.now() - orgWaitStart
+        recordMetric('Startup', 'Organization load complete', { durationMs: orgDuration })
+        
+        // Step 2.3: Permissions are loaded by useAuth after organization
+        setStatus('Loading permissions...')
+        
+        const stage2Duration = performance.now() - stage2Start
+        recordMetric('Startup', 'Stage 2 complete', { durationMs: Math.round(stage2Duration) })
+        log.info('[Startup]', 'Stage 2: Connecting complete')
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // Stage 3: Loading Vault
+        // ═══════════════════════════════════════════════════════════════════════
+        log.info('[Startup]', 'Stage 3: Loading Vault started')
+        const stage3Start = performance.now()
+        recordMetric('Startup', 'Stage 3 started', {})
+        setStage(3)
+        
+        // Step 3.1: Check for connected vaults
+        // Note: The actual vault file loading happens in useLoadFiles after the splash screen
+        // This stage just indicates we're preparing to load a vault
+        const currentState2 = usePDMStore.getState()
+        if (currentState2.connectedVaults.length > 0 || currentState2.activeVaultId) {
+          setStatus('Preparing vault...')
+        } else {
+          setStatus('No vault connected')
         }
         
-        // Step 1.6: Permissions are loaded by useAuth after organization
-        setStatus('Loading permissions...')
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        log.info('[Startup]', 'Stage 1: Core loading complete')
+        const stage3Duration = performance.now() - stage3Start
+        recordMetric('Startup', 'Stage 3 complete', { durationMs: Math.round(stage3Duration) })
+        log.info('[Startup]', 'Stage 3: Loading Vault complete')
         
         // ═══════════════════════════════════════════════════════════════════════
-        // Stage 2: Extensions
+        // Stage 4: Extensions
         // ═══════════════════════════════════════════════════════════════════════
-        log.info('[Startup]', 'Stage 2: Extensions loading started')
-        setStage(2)
+        log.info('[Startup]', 'Stage 4: Extensions loading started')
+        const stage4Start = performance.now()
+        recordMetric('Startup', 'Stage 4 started', {})
+        setStage(4)
         
         // Step 2.1: Discover extensions
         setStatus('Discovering extensions...')
@@ -227,6 +286,9 @@ export function useAppStartup(): StartupState {
           }
         }
         
+        const stage4Duration = performance.now() - stage4Start
+        recordMetric('Startup', 'Stage 4 complete', { durationMs: Math.round(stage4Duration) })
+        
         if (failedExtensions.length > 0) {
           setStatus(`${failedExtensions.length} extension(s) failed to load`)
           setErrors(failedExtensions)
@@ -234,7 +296,7 @@ export function useAppStartup(): StartupState {
           // Don't set isReady - wait for user to continue or auto-continue timer
         } else {
           setStatus('Extensions ready')
-          log.info('[Startup]', 'Stage 2: Extensions loading complete')
+          log.info('[Startup]', 'Stage 4: Extensions loading complete')
           await completeStartup()
         }
         
@@ -258,7 +320,7 @@ export function useAppStartup(): StartupState {
   return {
     isReady,
     stage,
-    stageName: stage === 1 ? 'Core' : 'Extensions',
+    stageName: STAGE_NAMES[stage],
     status,
     errors,
     continueWithErrors,

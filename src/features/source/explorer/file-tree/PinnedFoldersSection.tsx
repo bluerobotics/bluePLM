@@ -1,5 +1,6 @@
 // Pinned folders section component for the explorer
 import { useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { ChevronRight, ChevronDown, FolderOpen, Pin, PinOff } from 'lucide-react'
 import { usePDMStore, LocalFile, ConnectedVault } from '@/stores/pdmStore'
 import { 
@@ -33,6 +34,8 @@ interface PinnedFoldersSectionProps {
   onReorder: (fromIndex: number, toIndex: number) => void
   onRefresh?: (silent?: boolean) => void
   renderTreeItem: (file: LocalFile, depth: number) => React.ReactNode
+  /** O(1) diff counts lookup from pre-computed folderMetrics Map */
+  getDiffCounts: (folderPath: string) => FolderDiffCounts
 }
 
 /**
@@ -51,17 +54,26 @@ export function PinnedFoldersSection({
   onUnpin,
   onReorder,
   onRefresh,
-  renderTreeItem
+  renderTreeItem,
+  getDiffCounts
 }: PinnedFoldersSectionProps) {
-  const {
-    user,
-    lowercaseExtensions,
-    hideSolidworksTempFiles,
-    selectedFiles,
-    setSelectedFiles,
-    getFolderDiffCounts,
-    addToast
-  } = usePDMStore()
+  // Selective state selectors - each subscription only triggers on its own changes
+  const user = usePDMStore(s => s.user)
+  const lowercaseExtensions = usePDMStore(s => s.lowercaseExtensions)
+  const hideSolidworksTempFiles = usePDMStore(s => s.hideSolidworksTempFiles)
+  const selectedFiles = usePDMStore(s => s.selectedFiles)
+  const isOfflineMode = usePDMStore(s => s.isOfflineMode)
+  
+  // Actions grouped with useShallow
+  const { setSelectedFiles, addToast, stageCheckin, unstageCheckin, getStagedCheckin } = usePDMStore(
+    useShallow(s => ({
+      setSelectedFiles: s.setSelectedFiles,
+      addToast: s.addToast,
+      stageCheckin: s.stageCheckin,
+      unstageCheckin: s.unstageCheckin,
+      getStagedCheckin: s.getStagedCheckin
+    }))
+  )
   
   // Drag state for reordering
   const [draggingPinIndex, setDraggingPinIndex] = useState<number | null>(null)
@@ -69,13 +81,6 @@ export function PinnedFoldersSection({
   
   // Expanded state for pinned folders
   const [expandedPinnedFolders, setExpandedPinnedFolders] = useState<Set<string>>(new Set())
-  
-  // Multi-select hover states
-  const [isDownloadHovered, setIsDownloadHovered] = useState(false)
-  const [isUploadHovered, setIsUploadHovered] = useState(false)
-  const [isCheckoutHovered, setIsCheckoutHovered] = useState(false)
-  const [isCheckinHovered, setIsCheckinHovered] = useState(false)
-  const [isUpdateHovered, setIsUpdateHovered] = useState(false)
   
   // Calculate multi-select file lists
   const selectedDownloadableFiles = files.filter(f => 
@@ -170,7 +175,7 @@ export function PinnedFoldersSection({
               : 0
             
             const pinnedDiffCounts = pinned.isDirectory && pinned.vaultId === activeVaultId 
-              ? getFolderDiffCounts(pinned.path) 
+              ? getDiffCounts(pinned.path) 
               : null
             
             const pinnedFolderCheckoutUsers = pinned.isDirectory && pinned.vaultId === activeVaultId 
@@ -351,6 +356,7 @@ export function PinnedFoldersSection({
                       syncedCount={pinnedFolderSyncedCount}
                       operationType={null}
                       onRefresh={onRefresh}
+                      isOfflineMode={isOfflineMode}
                     />
                   )}
                   
@@ -366,16 +372,12 @@ export function PinnedFoldersSection({
                       selectedCheckoutableFiles={selectedCheckoutableFiles}
                       selectedCheckinableFiles={selectedCheckinableFiles}
                       selectedUpdatableFiles={selectedUpdatableFiles}
-                      isDownloadHovered={isDownloadHovered}
-                      isUploadHovered={isUploadHovered}
-                      isCheckoutHovered={isCheckoutHovered}
-                      isCheckinHovered={isCheckinHovered}
-                      isUpdateHovered={isUpdateHovered}
-                      setIsDownloadHovered={setIsDownloadHovered}
-                      setIsUploadHovered={setIsUploadHovered}
-                      setIsCheckoutHovered={setIsCheckoutHovered}
-                      setIsCheckinHovered={setIsCheckinHovered}
-                      setIsUpdateHovered={setIsUpdateHovered}
+                      user={user}
+                      isOfflineMode={isOfflineMode}
+                      stageCheckin={stageCheckin}
+                      unstageCheckin={unstageCheckin}
+                      getStagedCheckin={getStagedCheckin}
+                      addToast={addToast}
                     />
                   )}
                   

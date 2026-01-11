@@ -49,6 +49,7 @@ import {
   createOrganizationMetadataSlice,
   createIntegrationsSlice,
   createExtensionsSlice,
+  createNotificationPrefsSlice,
 } from './slices'
 
 // Create the combined store
@@ -72,6 +73,7 @@ export const usePDMStore = create<PDMStoreState>()(
       ...createOrganizationMetadataSlice(...a),
       ...createIntegrationsSlice(...a),
       ...createExtensionsSlice(...a),
+      ...createNotificationPrefsSlice(...a),
     }),
     {
       name: 'blue-plm-storage',
@@ -188,6 +190,7 @@ export const usePDMStore = create<PDMStoreState>()(
         // Module Configuration
         // ═══════════════════════════════════════════════════════════════
         moduleConfig: state.moduleConfig,
+        moduleConfigLastSyncedAt: state.moduleConfigLastSyncedAt,
         
         // ═══════════════════════════════════════════════════════════════
         // Terminal
@@ -200,6 +203,13 @@ export const usePDMStore = create<PDMStoreState>()(
         // Search
         // ═══════════════════════════════════════════════════════════════
         recentSearches: state.recentSearches.slice(0, 20),
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Notification Preferences
+        // ═══════════════════════════════════════════════════════════════
+        notificationCategories: state.notificationCategories,
+        quietHours: state.quietHours,
+        soundSettings: state.soundSettings,
       }),
       /**
        * Called when hydration starts and finishes.
@@ -450,6 +460,8 @@ export const usePDMStore = create<PDMStoreState>()(
             
             return { enabledModules, enabledGroups, moduleOrder, dividers, moduleParents, moduleIconColors, customGroups }
           })(),
+          // Module config sync timestamp (when user last synced org-forced config)
+          moduleConfigLastSyncedAt: (persisted.moduleConfigLastSyncedAt as number | null) || null,
           // Ensure there's always at least one tab
           tabs: (() => {
             const persistedTabs = persisted.tabs as Tab[] | undefined
@@ -475,7 +487,19 @@ export const usePDMStore = create<PDMStoreState>()(
               return persistedActiveTabId
             }
             return persistedTabs[0]?.id || 'default-tab'
-          })()
+          })(),
+          // Notification preferences - merge with defaults to handle new categories
+          notificationCategories: (() => {
+            const persistedCategories = persisted.notificationCategories as typeof currentState.notificationCategories | undefined
+            if (!persistedCategories) return currentState.notificationCategories
+            // Merge persisted with defaults (in case new categories are added)
+            return {
+              ...currentState.notificationCategories,
+              ...persistedCategories,
+            }
+          })(),
+          quietHours: (persisted.quietHours as typeof currentState.quietHours) || currentState.quietHours,
+          soundSettings: (persisted.soundSettings as typeof currentState.soundSettings) || currentState.soundSettings,
         }
       }
     }

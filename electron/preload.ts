@@ -283,7 +283,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   createFolder: (path: string) => ipcRenderer.invoke('fs:create-folder', path),
   deleteItem: (path: string) => ipcRenderer.invoke('fs:delete', path),
+  // Batch delete operations - much faster than individual deleteItem calls
+  // Stops file watcher ONCE, deletes all files, restarts watcher ONCE
+  deleteBatch: (paths: string[], useTrash?: boolean) => 
+    ipcRenderer.invoke('fs:delete-batch', paths, useTrash ?? true),
+  trashBatch: (paths: string[]) => ipcRenderer.invoke('fs:trash-batch', paths),
   isDirEmpty: (path: string) => ipcRenderer.invoke('fs:is-dir-empty', path),
+  isDirectory: (path: string) => ipcRenderer.invoke('fs:is-directory', path),
   renameItem: (oldPath: string, newPath: string) => ipcRenderer.invoke('fs:rename', oldPath, newPath),
   copyFile: (sourcePath: string, destPath: string) => ipcRenderer.invoke('fs:copy-file', sourcePath, destPath),
   moveFile: (sourcePath: string, destPath: string) => ipcRenderer.invoke('fs:move-file', sourcePath, destPath),
@@ -702,6 +708,17 @@ declare global {
       onHashProgress: (callback: (progress: { processed: number; total: number; percent: number }) => void) => () => void
       createFolder: (path: string) => Promise<OperationResult>
       deleteItem: (path: string) => Promise<OperationResult>
+      // Batch delete operations - much faster than individual deleteItem calls
+      deleteBatch: (paths: string[], useTrash?: boolean) => Promise<{
+        success: boolean
+        results: Array<{ path: string; success: boolean; error?: string }>
+        summary: { total: number; succeeded: number; failed: number; duration: number }
+      }>
+      trashBatch: (paths: string[]) => Promise<{
+        success: boolean
+        results: Array<{ path: string; success: boolean; error?: string }>
+        summary: { total: number; succeeded: number; failed: number; duration: number }
+      }>
       renameItem: (oldPath: string, newPath: string) => Promise<OperationResult>
       copyFile: (sourcePath: string, destPath: string) => Promise<OperationResult>
       openInExplorer: (path: string) => Promise<OperationResult>

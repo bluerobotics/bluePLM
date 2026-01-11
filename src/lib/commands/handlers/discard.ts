@@ -128,11 +128,13 @@ export const discardCommand: Command<DiscardParams> = {
   },
   
   async execute({ files }, ctx): Promise<CommandResult> {
+    const operationStart = performance.now()
     const user = ctx.user!
     const organization = ctx.organization!
     const operationId = `discard-${Date.now()}`
     
     logDiscard('info', 'Starting discard operation', {
+      timestamp: Date.now(),
       operationId,
       userId: user.id,
       selectedFileCount: files.length,
@@ -308,17 +310,7 @@ export const discardCommand: Command<DiscardParams> = {
       }
     })
     
-    // Apply all store updates in a single batch (avoids N re-renders)
-    if (pendingUpdates.length > 0) {
-      ctx.updateFilesInStore(pendingUpdates)
-    }
-    
-    // Remove deleted files from store (they'll reappear as 'cloud' on next refresh)
-    if (pathsToRemove.length > 0) {
-      ctx.removeFilesFromStore(pathsToRemove)
-    }
-    
-    // Count results and collect successfully discarded paths
+    // Count results and collect successfully discarded paths (before store update for logging)
     const discardedPaths: string[] = []
     for (let i = 0; i < results.length; i++) {
       const result = results[i]
@@ -338,25 +330,39 @@ export const discardCommand: Command<DiscardParams> = {
       ctx.clearPersistedPendingMetadataForPaths(discardedPaths)
     }
     
-    // Clean up - batch remove
-    ctx.removeProcessingFolders(foldersBeingProcessed)
+    // ATOMIC UPDATE: Apply all store updates and clear processing in single render
+    const storeUpdateStart = performance.now()
+    ctx.updateFilesAndClearProcessing(pendingUpdates, foldersBeingProcessed)
+    ctx.setLastOperationCompletedAt(Date.now())
+    
+    logDiscard('info', 'Atomic store update complete', {
+      operationId,
+      updatedFiles: pendingUpdates.length,
+      processingPathsCleared: foldersBeingProcessed.length,
+      durationMs: Math.round(performance.now() - storeUpdateStart)
+    })
+    
+    // Remove deleted files from store (they'll reappear as 'cloud' on next refresh)
+    if (pathsToRemove.length > 0) {
+      ctx.removeFilesFromStore(pathsToRemove)
+      logDiscard('debug', 'Removed deleted files from store', { count: pathsToRemove.length })
+    }
+    
     const { duration } = progress.finish()
     
+    const totalDurationMs = Math.round(performance.now() - operationStart)
     logDiscard('info', 'Discard operation complete', {
       operationId,
       total,
       succeeded,
       failed,
       errors: errors.length > 0 ? errors : undefined,
-      duration
+      duration,
+      totalDurationMs
     })
     
-    // Small delay before refresh to let database changes propagate
-    // This prevents race conditions with realtime subscriptions
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
-    // Force a full refresh (not silent) to ensure correct state after discard
-    ctx.onRefresh?.(false)
+    // NO onRefresh() call - incremental store updates are sufficient
+    // The atomic updateFilesAndClearProcessing ensures correct state display
     
     // Show result
     if (failed > 0) {

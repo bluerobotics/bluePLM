@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Monitor, RotateCcw, ChevronDown, Layers, ChevronRight } from 'lucide-react'
+import { Monitor, RotateCcw, ChevronDown, Layers, ChevronRight, Timer } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { ReferenceDiagnostics } from '@/features/dev-tools/reference-diagnostics'
+import { FileOperationTiming } from '@/features/dev-tools/performance'
 
 interface DevicePreset {
   id: string
@@ -24,6 +25,7 @@ export function DevToolsSettings() {
   const [currentSize, setCurrentSize] = useState<{ width: number; height: number } | null>(null)
   const [selectedPreset, setSelectedPreset] = useState<string>('')
   const [showRefDiagnostics, setShowRefDiagnostics] = useState(false)
+  const [showTimingDashboard, setShowTimingDashboard] = useState(true)
 
   useEffect(() => {
     const fetchSize = async () => {
@@ -99,6 +101,38 @@ export function DevToolsSettings() {
               Reset
             </button>
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+          File Operation Timing
+        </h2>
+        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
+          <button
+            onClick={() => setShowTimingDashboard(!showTimingDashboard)}
+            className="w-full flex items-center gap-3 p-4 hover:bg-plm-highlight transition-colors"
+          >
+            <div className="p-2 rounded-lg bg-emerald-500/10">
+              <Timer size={16} className="text-emerald-400" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="text-sm font-medium text-plm-fg">Performance Timing Dashboard</div>
+              <div className="text-xs text-plm-fg-muted">
+                Monitor folderMetrics, store updates, and file watcher events
+              </div>
+            </div>
+            <ChevronRight 
+              size={16} 
+              className={`text-plm-fg-muted transition-transform ${showTimingDashboard ? 'rotate-90' : ''}`} 
+            />
+          </button>
+          
+          {showTimingDashboard && (
+            <div className="p-4 border-t border-plm-border">
+              <FileOperationTiming />
+            </div>
+          )}
         </div>
       </section>
 

@@ -521,6 +521,8 @@ export interface Organization {
   serialization_settings?: SerializationSettings | null
   // Module defaults for organization members
   module_defaults?: Record<string, unknown> | null
+  // Timestamp when module_defaults was force-pushed to all users
+  module_defaults_forced_at?: string | null
   // Auth provider settings
   auth_providers?: AuthProviderSettings | null
 }

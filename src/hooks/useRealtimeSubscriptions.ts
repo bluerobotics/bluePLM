@@ -4,6 +4,8 @@ import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscri
 import { buildFullPath } from '@/lib/commands/types'
 import { log } from '@/lib/logger'
 import type { Organization } from '@/types/pdm'
+import type { NotificationCategory } from '@/types/notifications'
+import { shouldShowToast, playNotificationSound } from './useNotificationFilter'
 
 /**
  * Subscribe to realtime updates from Supabase
@@ -35,6 +37,15 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       state?: string
     }
     
+    // Map notification types to notification categories
+    const notificationTypeToCategory: Record<NotificationType, NotificationCategory> = {
+      checkout: 'fileOperations',
+      checkin: 'fileOperations',
+      version: 'fileOperations',
+      state: 'workflow',
+      add: 'fileOperations',
+    }
+    
     const pendingNotifications: Map<string, PendingNotification> = new Map()
     let flushTimeout: ReturnType<typeof setTimeout> | null = null
     const userNameCache: Map<string, string> = new Map()
@@ -43,6 +54,12 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       flushTimeout = null
       
       for (const notification of pendingNotifications.values()) {
+        // Check if this notification type should be shown based on user preferences
+        const category = notificationTypeToCategory[notification.type]
+        if (!shouldShowToast(category)) {
+          continue
+        }
+        
         const count = notification.fileNames.length
         const userName = notification.userName || 'Another user'
         
@@ -88,7 +105,11 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           }
         }
         
-        addToast('info', message)
+        // Add toast with category for consistent filtering and metadata
+        addToast('info', message, 5000, category)
+        
+        // Play notification sound if enabled for this category
+        playNotificationSound(category)
       }
       
       pendingNotifications.clear()
@@ -367,9 +388,26 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       // Also triggers re-render in all components that use organization from store
       setOrganization(newOrg)
       
-      // Show toast if any admin settings changed
-      if (allChangedFields.length > 0) {
-        addToast('info', 'Organization settings updated by an admin')
+      // Check if module defaults were force-pushed (admin override)
+      const oldForcedAt = (oldOrg as any)?.module_defaults_forced_at
+      const newForcedAt = (newOrg as any)?.module_defaults_forced_at
+      if (newForcedAt && newForcedAt !== oldForcedAt) {
+        // Admin pushed new module config - apply it immediately
+        const { loadOrgModuleDefaults } = usePDMStore.getState()
+        loadOrgModuleDefaults().then(() => {
+          if (shouldShowToast('system')) {
+            addToast('info', 'Sidebar configuration updated by admin', 5000, 'system')
+            playNotificationSound('system')
+          }
+        })
+        // Don't show generic "settings updated" toast for forced module config
+        return
+      }
+      
+      // Show toast if any admin settings changed (respects notification preferences)
+      if (allChangedFields.length > 0 && shouldShowToast('system')) {
+        addToast('info', 'Organization settings updated by an admin', 5000, 'system')
+        playNotificationSound('system')
       }
     })
     
@@ -418,17 +456,20 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           await loadUserWorkflowRoles()
         }
         
-        // Show toast to inform user their access changed
-        const messages: Record<string, string> = {
-          'vault_access': 'Your vault access has been updated',
-          'team_vault_access': 'Team vault access has been updated',
-          'team_members': 'Your team membership has been updated',
-          'user_permissions': 'Your permissions have been updated',
-          'teams': 'Team structure has been updated',
-          'workflow_roles': 'Your workflow roles have been updated',
-          'job_titles': 'Your job title has been updated'
+        // Show toast to inform user their access changed (respects notification preferences)
+        if (shouldShowToast('system')) {
+          const messages: Record<string, string> = {
+            'vault_access': 'Your vault access has been updated',
+            'team_vault_access': 'Team vault access has been updated',
+            'team_members': 'Your team membership has been updated',
+            'user_permissions': 'Your permissions have been updated',
+            'teams': 'Team structure has been updated',
+            'workflow_roles': 'Your workflow roles have been updated',
+            'job_titles': 'Your job title has been updated'
+          }
+          addToast('info', messages[changeType] || 'Your access has been updated', 5000, 'system')
+          playNotificationSound('system')
         }
-        addToast('info', messages[changeType] || 'Your access has been updated')
         
         // Trigger a refresh of the vault list in WelcomeScreen by updating a timestamp
         // Components watching this will know to reload
@@ -445,14 +486,17 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       const { triggerVaultsRefresh } = usePDMStore.getState()
       triggerVaultsRefresh()
       
-      // Show toast for vault changes
-      const vaultName = vault?.name || 'A vault'
-      const messages: Record<string, string> = {
-        'INSERT': `${vaultName} was created`,
-        'UPDATE': `${vaultName} was updated`,
-        'DELETE': `A vault was deleted`
+      // Show toast for vault changes (respects notification preferences)
+      if (shouldShowToast('system')) {
+        const vaultName = vault?.name || 'A vault'
+        const messages: Record<string, string> = {
+          'INSERT': `${vaultName} was created`,
+          'UPDATE': `${vaultName} was updated`,
+          'DELETE': `A vault was deleted`
+        }
+        addToast('info', messages[eventType] || 'Vault configuration changed', 5000, 'system')
+        playNotificationSound('system')
       }
-      addToast('info', messages[eventType] || 'Vault configuration changed')
     })
     
     return () => {

@@ -264,8 +264,10 @@ export const createExtensionsSlice: StateCreator<
       log.info('[Extensions]', 'Installing extension', { extensionId, version })
       const result = await api.install(extensionId, version)
       
-      if (result.success && result.extension) {
-        get().updateInstalledExtension(extensionId, result.extension)
+      if (result.success) {
+        // Refresh the installed extensions list to pick up the new installation
+        await get().loadInstalledExtensions()
+        log.info('[Extensions]', 'Extension installed successfully', { extensionId, version: result.extension?.manifest.version })
       }
       
       return { success: result.success, error: result.error }
@@ -286,8 +288,10 @@ export const createExtensionsSlice: StateCreator<
       log.info('[Extensions]', 'Sideloading extension', { bpxPath })
       const result = await api.installFromFile(bpxPath, acknowledgeUnsigned)
       
-      if (result.success && result.extension) {
-        get().updateInstalledExtension(result.extension.manifest.id, result.extension)
+      if (result.success) {
+        // Refresh the installed extensions list to pick up the new installation
+        await get().loadInstalledExtensions()
+        log.info('[Extensions]', 'Extension sideloaded successfully', { extensionId: result.extension?.manifest.id })
       }
       
       return { success: result.success, error: result.error }

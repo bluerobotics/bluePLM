@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
 // getEffectiveExportSettings is now used in useConfigHandlers hook
@@ -103,63 +104,127 @@ interface FilePaneProps {
 export function FilePane({ onRefresh }: FilePaneProps) {
   const { t } = useTranslation()
   
-  const {
-    files,
-    selectedFiles,
-    setSelectedFiles,
-    toggleFileSelection,
-    clearSelection,
-    columns,
-    setColumnWidth,
-    reorderColumns,
-    toggleColumnVisibility,
-    sortColumn,
-    sortDirection,
-    toggleSort,
-    isLoading,
-    filesLoaded,
-    vaultPath,
-    connectedVaults,
-    setStatusMessage,
-    user,
-    organization,
-    currentFolder,
-    setCurrentFolder,
-    expandedFolders,
-    toggleFolder,
-    addToast,
-    addProgressToast,
-    updateProgressToast,
-    removeToast,
-    vaultName,
-    activeVaultId,
-    renameFileInStore,
-    updateFileInStore,
-    updatePendingMetadata,
-    searchQuery,
-    searchType,
-    lowercaseExtensions,
-    processingOperations,
-    addProcessingFolder,
-    addProcessingFolders,
-    removeProcessingFolder,
-    removeProcessingFolders,
-    getProcessingOperation,
-    setDetailsPanelTab,
-    detailsPanelVisible,
-    toggleDetailsPanel,
-    viewMode,
-    setViewMode,
-    iconSize,
-    setIconSize,
-    listRowSize,
-    setListRowSize,
-    hideSolidworksTempFiles,
-    keybindings,
-    tabsEnabled,
-    activeTabId,
-    updateTabFolder
-  } = usePDMStore()
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SELECTIVE ZUSTAND SELECTORS
+  // Split monolithic usePDMStore() into individual selectors to prevent
+  // unnecessary re-renders. Each selector only triggers re-render when its
+  // specific value changes.
+  //
+  // Pattern: Use useShallow() wrapper for object/array selectors to enable
+  // shallow equality comparison (Zustand v5+ API).
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // ─── Data Selectors (arrays/objects use useShallow wrapper) ────────────────
+  const files = usePDMStore(s => s.files)
+  const selectedFiles = usePDMStore(useShallow(s => s.selectedFiles))
+  const columns = usePDMStore(useShallow(s => s.columns))
+  const connectedVaults = usePDMStore(useShallow(s => s.connectedVaults))
+  const expandedFolders = usePDMStore(s => s.expandedFolders)
+  const processingOperations = usePDMStore(s => s.processingOperations)
+  const keybindings = usePDMStore(useShallow(s => s.keybindings))
+  
+  // ─── Primitive Selectors (no equality function needed) ─────────────────────
+  const sortColumn = usePDMStore(s => s.sortColumn)
+  const sortDirection = usePDMStore(s => s.sortDirection)
+  const isLoading = usePDMStore(s => s.isLoading)
+  const filesLoaded = usePDMStore(s => s.filesLoaded)
+  const vaultPath = usePDMStore(s => s.vaultPath)
+  const currentFolder = usePDMStore(s => s.currentFolder)
+  const vaultName = usePDMStore(s => s.vaultName)
+  const activeVaultId = usePDMStore(s => s.activeVaultId)
+  const searchQuery = usePDMStore(s => s.searchQuery)
+  const searchType = usePDMStore(s => s.searchType)
+  const lowercaseExtensions = usePDMStore(s => s.lowercaseExtensions)
+  const detailsPanelVisible = usePDMStore(s => s.detailsPanelVisible)
+  const viewMode = usePDMStore(s => s.viewMode)
+  const iconSize = usePDMStore(s => s.iconSize)
+  const listRowSize = usePDMStore(s => s.listRowSize)
+  const hideSolidworksTempFiles = usePDMStore(s => s.hideSolidworksTempFiles)
+  const tabsEnabled = usePDMStore(s => s.tabsEnabled)
+  const activeTabId = usePDMStore(s => s.activeTabId)
+  
+  // ─── User & Organization Selectors ─────────────────────────────────────────
+  const user = usePDMStore(s => s.user)
+  const organization = usePDMStore(s => s.organization)
+  
+  // ─── Action Selectors (grouped by domain, useShallow wrapper) ──────────────
+  // Selection actions
+  const { setSelectedFiles, toggleFileSelection, clearSelection } = usePDMStore(
+    useShallow(s => ({
+      setSelectedFiles: s.setSelectedFiles,
+      toggleFileSelection: s.toggleFileSelection,
+      clearSelection: s.clearSelection
+    }))
+  )
+  
+  // Column actions
+  const { setColumnWidth, reorderColumns, toggleColumnVisibility, toggleSort } = usePDMStore(
+    useShallow(s => ({
+      setColumnWidth: s.setColumnWidth,
+      reorderColumns: s.reorderColumns,
+      toggleColumnVisibility: s.toggleColumnVisibility,
+      toggleSort: s.toggleSort
+    }))
+  )
+  
+  // Folder navigation actions
+  const { setCurrentFolder, toggleFolder, updateTabFolder } = usePDMStore(
+    useShallow(s => ({
+      setCurrentFolder: s.setCurrentFolder,
+      toggleFolder: s.toggleFolder,
+      updateTabFolder: s.updateTabFolder
+    }))
+  )
+  
+  // Toast actions
+  const { addToast, addProgressToast, updateProgressToast, removeToast } = usePDMStore(
+    useShallow(s => ({
+      addToast: s.addToast,
+      addProgressToast: s.addProgressToast,
+      updateProgressToast: s.updateProgressToast,
+      removeToast: s.removeToast
+    }))
+  )
+  
+  // File mutation actions
+  const { renameFileInStore, updateFileInStore, updatePendingMetadata } = usePDMStore(
+    useShallow(s => ({
+      renameFileInStore: s.renameFileInStore,
+      updateFileInStore: s.updateFileInStore,
+      updatePendingMetadata: s.updatePendingMetadata
+    }))
+  )
+  
+  // Processing operation actions
+  const { addProcessingFolder, addProcessingFolders, removeProcessingFolder, removeProcessingFolders, getProcessingOperation } = usePDMStore(
+    useShallow(s => ({
+      addProcessingFolder: s.addProcessingFolder,
+      addProcessingFolders: s.addProcessingFolders,
+      removeProcessingFolder: s.removeProcessingFolder,
+      removeProcessingFolders: s.removeProcessingFolders,
+      getProcessingOperation: s.getProcessingOperation
+    }))
+  )
+  
+  // Details panel actions
+  const { setDetailsPanelTab, toggleDetailsPanel } = usePDMStore(
+    useShallow(s => ({
+      setDetailsPanelTab: s.setDetailsPanelTab,
+      toggleDetailsPanel: s.toggleDetailsPanel
+    }))
+  )
+  
+  // View mode actions
+  const { setViewMode, setIconSize, setListRowSize } = usePDMStore(
+    useShallow(s => ({
+      setViewMode: s.setViewMode,
+      setIconSize: s.setIconSize,
+      setListRowSize: s.setListRowSize
+    }))
+  )
+  
+  // Status message action (single function)
+  const setStatusMessage = usePDMStore(s => s.setStatusMessage)
   
   // Helper function to get translated column label
   const getColumnLabel = (columnId: string): string => {
@@ -1092,6 +1157,8 @@ export function FilePane({ onRefresh }: FilePaneProps) {
       onRefresh={onRefresh} 
       customMetadataColumns={customMetadataColumns}
       renameState={renameStateForContext}
+      tableRef={tableRef}
+      folderMetrics={folderMetrics}
     >
     <FilePaneHandlersProvider handlers={handlersContextValue}>
     <div 

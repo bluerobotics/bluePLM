@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
+import { recordMetric } from '@/lib/performanceMetrics'
 import { SetupScreen } from '@/components/shared/Screens'
 import { OnboardingScreen } from '@/components/shared/Screens'
 import { SplashScreen } from '@/components/core'
@@ -144,6 +145,23 @@ function App() {
     }
   }, [user?.id, organization?.id])
 
+  // Check if admin has force-pushed module config since last sync
+  useEffect(() => {
+    if (!organization?.module_defaults_forced_at) return
+    
+    const { moduleConfigLastSyncedAt, loadOrgModuleDefaults, addToast: storeAddToast } = usePDMStore.getState()
+    const forcedAt = new Date(organization.module_defaults_forced_at).getTime()
+    const lastSynced = moduleConfigLastSyncedAt || 0
+    
+    if (forcedAt > lastSynced) {
+      // Admin pushed new config since last sync - apply it
+      log.info('[App]', 'Force-applying org module config', { forcedAt, lastSynced })
+      loadOrgModuleDefaults().then(() => {
+        storeAddToast('info', 'Sidebar configuration updated by admin')
+      })
+    }
+  }, [organization?.module_defaults_forced_at])
+
   // Validate connected vault IDs after organization loads
   useEffect(() => {
     const validateVaults = async () => {
@@ -283,18 +301,113 @@ function App() {
   }, [handleOpenVault, toggleSidebar, toggleDetailsPanel, loadFiles])
 
   // File change watcher - auto-refresh when files change externally
+  // Enhanced suppression prevents redundant refreshes after downloads/get-latest operations
   useEffect(() => {
     if (!window.electronAPI || !vaultPath) return
+    
+    // Suppression window: ignore file watcher events for 3 seconds after an operation completes.
+    // This handles the case where the watcher's debounce timer fires AFTER the operation clears
+    // its processingOperations. The watcher would otherwise trigger a full filesystem rescan
+    // even though the operation already applied incremental store updates.
+    const SUPPRESSION_WINDOW_MS = 3000
     
     let refreshTimeout: NodeJS.Timeout | null = null
     
     const cleanup = window.electronAPI.onFilesChanged((changedFiles) => {
-      const { syncProgress, processingOperations } = usePDMStore.getState()
+      const { 
+        syncProgress, 
+        processingOperations, 
+        lastOperationCompletedAt, 
+        expectedFileChanges 
+      } = usePDMStore.getState()
+      
+      const now = Date.now()
+      const msSinceLastOp = now - lastOperationCompletedAt
+      const withinSuppressionWindow = msSinceLastOp < SUPPRESSION_WINDOW_MS
+      
+      // Enhanced state logging for diagnostics
+      window.electronAPI?.log('info', '[FileWatcher] Event received', {
+        changedCount: changedFiles.length,
+        timestamp: now
+      })
+      recordMetric('FileWatcher', 'Event received', { changedCount: changedFiles.length })
+      
+      window.electronAPI?.log('info', '[FileWatcher] State check', {
+        processingOpsCount: processingOperations.size,
+        expectedChangesCount: expectedFileChanges.size,
+        msSinceLastOp,
+        withinSuppressionWindow,
+        timestamp: now
+      })
+      recordMetric('FileWatcher', 'State check', { 
+        processingOpsCount: processingOperations.size,
+        expectedChangesCount: expectedFileChanges.size,
+        msSinceLastOp,
+        withinSuppressionWindow 
+      })
+      
+      // Suppress if a sync operation is actively running
       if (syncProgress.isActive || processingOperations.size > 0) {
+        window.electronAPI?.log('info', '[FileWatcher] Decision', {
+          willTriggerRefresh: false,
+          reason: 'operation_in_progress',
+          timestamp: now
+        })
+        recordMetric('FileWatcher', 'Decision: suppressed', { 
+          willTriggerRefresh: false, 
+          reason: 'operation_in_progress' 
+        })
         return
       }
       
-      log.debug('[FileWatcher]', 'Files changed', { count: changedFiles.length })
+      // Filter out expected file changes (files we downloaded/updated ourselves)
+      const unexpectedChanges = changedFiles.filter(filePath => {
+        // Normalize paths for comparison (handle Windows backslashes)
+        const normalizedPath = filePath.replace(/\\/g, '/')
+        return !expectedFileChanges.has(normalizedPath) && 
+               !expectedFileChanges.has(filePath)
+      })
+      
+      const unexpectedCount = unexpectedChanges.length
+      
+      log.debug('[FileWatcher]', 'Files changed', { 
+        count: changedFiles.length,
+        unexpectedCount,
+        withinSuppressionWindow,
+        expectedCount: expectedFileChanges.size
+      })
+      
+      // If all changes were expected and we're within the suppression window, skip refresh
+      if (unexpectedCount === 0 && withinSuppressionWindow) {
+        window.electronAPI?.log('info', '[FileWatcher] Decision', {
+          unexpectedCount,
+          willTriggerRefresh: false,
+          reason: 'all_expected_within_window',
+          timestamp: now
+        })
+        recordMetric('FileWatcher', 'Decision: suppressed', { 
+          willTriggerRefresh: false, 
+          reason: 'all_expected_within_window' 
+        })
+        log.debug('[FileWatcher]', 'Suppressing refresh - all changes were expected')
+        return
+      }
+      
+      // If no unexpected changes, skip refresh (even outside suppression window)
+      if (unexpectedCount === 0) {
+        window.electronAPI?.log('info', '[FileWatcher] Decision', {
+          unexpectedCount,
+          willTriggerRefresh: false,
+          reason: 'no_unexpected_changes',
+          timestamp: now
+        })
+        recordMetric('FileWatcher', 'Decision: suppressed', { 
+          willTriggerRefresh: false, 
+          reason: 'no_unexpected_changes' 
+        })
+        log.debug('[FileWatcher]', 'Skipping refresh - no unexpected changes')
+        return
+      }
       
       if (refreshTimeout) {
         clearTimeout(refreshTimeout)
@@ -303,8 +416,54 @@ function App() {
       refreshTimeout = setTimeout(() => {
         const currentState = usePDMStore.getState()
         if (currentState.syncProgress.isActive || currentState.processingOperations.size > 0) {
+          window.electronAPI?.log('info', '[FileWatcher] Decision (after debounce)', {
+            willTriggerRefresh: false,
+            reason: 'operation_started_during_debounce',
+            timestamp: Date.now()
+          })
+          recordMetric('FileWatcher', 'Decision (debounced): suppressed', { 
+            willTriggerRefresh: false, 
+            reason: 'operation_started_during_debounce' 
+          })
           return
         }
+        
+        // Re-check suppression conditions after debounce
+        const nowWithinWindow = Date.now() - currentState.lastOperationCompletedAt < SUPPRESSION_WINDOW_MS
+        const stillExpected = unexpectedChanges.every(f => 
+          currentState.expectedFileChanges.has(f.replace(/\\/g, '/')) ||
+          currentState.expectedFileChanges.has(f)
+        )
+        
+        if (stillExpected && nowWithinWindow) {
+          window.electronAPI?.log('info', '[FileWatcher] Decision (after debounce)', {
+            willTriggerRefresh: false,
+            reason: 'now_expected_within_window',
+            timestamp: Date.now()
+          })
+          recordMetric('FileWatcher', 'Decision (debounced): suppressed', { 
+            willTriggerRefresh: false, 
+            reason: 'now_expected_within_window' 
+          })
+          log.debug('[FileWatcher]', 'Suppressing refresh after debounce - changes now expected')
+          refreshTimeout = null
+          return
+        }
+        
+        window.electronAPI?.log('info', '[FileWatcher] Decision (after debounce)', {
+          unexpectedCount: unexpectedChanges.length,
+          willTriggerRefresh: true,
+          reason: 'unexpected_external_changes',
+          timestamp: Date.now()
+        })
+        recordMetric('FileWatcher', 'Decision: triggered refresh', { 
+          willTriggerRefresh: true, 
+          unexpectedCount: unexpectedChanges.length,
+          reason: 'unexpected_external_changes' 
+        })
+        log.debug('[FileWatcher]', 'Triggering loadFiles for unexpected external changes', {
+          unexpectedCount: unexpectedChanges.length
+        })
         loadFiles(true)
         refreshTimeout = null
       }, 1000)

@@ -9,7 +9,7 @@ export interface MenuItemProps {
   files: LocalFile[]
   contextFiles: LocalFile[]
   onClose: () => void
-  onRefresh: (silent?: boolean) => void
+  onRefresh: (silent?: boolean, forceHashComputation?: boolean) => void
 }
 
 export interface MenuItemConfig {
@@ -137,7 +137,7 @@ export interface FileContextMenuProps {
   files: LocalFile[]
   contextFiles: LocalFile[]
   onClose: () => void
-  onRefresh: (silent?: boolean) => void
+  onRefresh: (silent?: boolean, forceHashComputation?: boolean) => void
   clipboard?: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
   onCopy?: () => void
   onCut?: () => void

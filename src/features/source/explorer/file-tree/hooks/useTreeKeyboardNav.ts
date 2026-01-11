@@ -1,4 +1,5 @@
 import { useEffect, useCallback, RefObject } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
 import type { TreeMap } from '../types'
@@ -14,12 +15,14 @@ interface UseTreeKeyboardNavOptions {
  * Handles arrow keys for navigation, Enter for opening files, etc.
  */
 export function useTreeKeyboardNav({ containerRef, tree, onRefresh }: UseTreeKeyboardNavOptions) {
-  const {
-    expandedFolders,
-    toggleFolder,
-    selectedFiles,
-    setSelectedFiles
-  } = usePDMStore()
+  // Selective state selectors - each subscription only triggers on its own changes
+  const expandedFolders = usePDMStore(s => s.expandedFolders)
+  const selectedFiles = usePDMStore(s => s.selectedFiles)
+  
+  // Actions grouped with useShallow
+  const { toggleFolder, setSelectedFiles } = usePDMStore(
+    useShallow(s => ({ toggleFolder: s.toggleFolder, setSelectedFiles: s.setSelectedFiles }))
+  )
   
   // Get flattened list of visible files for keyboard navigation
   const getVisibleFiles = useCallback((): LocalFile[] => {

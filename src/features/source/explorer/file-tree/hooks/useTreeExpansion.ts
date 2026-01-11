@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore } from '@/stores/pdmStore'
 
 /**
@@ -6,12 +7,14 @@ import { usePDMStore } from '@/stores/pdmStore'
  * Handles both folder expansion and vault expansion
  */
 export function useTreeExpansion() {
-  const { 
-    expandedFolders, 
-    toggleFolder, 
-    toggleVaultExpanded,
-    connectedVaults
-  } = usePDMStore()
+  // Selective state selectors - each subscription only triggers on its own changes
+  const expandedFolders = usePDMStore(s => s.expandedFolders)
+  const connectedVaults = usePDMStore(s => s.connectedVaults)
+  
+  // Actions grouped with useShallow
+  const { toggleFolder, toggleVaultExpanded } = usePDMStore(
+    useShallow(s => ({ toggleFolder: s.toggleFolder, toggleVaultExpanded: s.toggleVaultExpanded }))
+  )
   
   // Check if a folder is expanded
   const isExpanded = useCallback((path: string) => {

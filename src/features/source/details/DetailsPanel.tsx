@@ -6,7 +6,7 @@ import { formatFileSize } from '@/lib/utils'
 import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/DraggableTab'
 import { format, formatDistanceToNow } from 'date-fns'
 import { getFileVersions, getRecentActivity, rollbackToVersion } from '@/lib/supabase'
-import { downloadFile } from '@/lib/storage'
+import { getDownloadUrl } from '@/lib/storage'
 import { getNextSerialNumber } from '@/lib/serialization'
 import { ContainsTab, WhereUsedTab, SWPropertiesTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
@@ -179,7 +179,10 @@ export function DetailsPanel() {
     files,
     organization,
     updateFileInStore,
-    updatePendingMetadata
+    updatePendingMetadata,
+    addExpectedFileChanges,
+    clearExpectedFileChanges,
+    setLastOperationCompletedAt
   } = usePDMStore()
 
   const selectedFileObjects = getSelectedFileObjects()
@@ -453,45 +456,48 @@ export function DetailsPanel() {
       )
       
       if (result.success && result.targetVersionRecord) {
-        // Download the content for the target version
-        const { data: contentBlob, error: downloadError } = await downloadFile(
+        // Suppress file watcher events during download to prevent state overwrites
+        addExpectedFileChanges([file.path])
+        
+        // Download the content for the target version using fast direct download
+        // This bypasses base64 conversion and downloads directly in the main process
+        const { url: downloadUrl, error: urlError } = await getDownloadUrl(
           organization.id,
           result.targetVersionRecord.content_hash
         )
         
-        if (downloadError || !contentBlob) {
-          addToast('warning', `${actionLabel} to v${targetVersion} - but could not download content: ${downloadError}`)
-        } else {
-          // Write the content to the local file
-          const arrayBuffer = await contentBlob.arrayBuffer()
-          const bytes = new Uint8Array(arrayBuffer)
-          
-          // Convert to base64 for the electron API
-          let binary = ''
-          const chunkSize = 8192
-          for (let i = 0; i < bytes.length; i += chunkSize) {
-            const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
-            binary += String.fromCharCode.apply(null, Array.from(chunk))
-          }
-          const base64 = btoa(binary)
-          
-          if (window.electronAPI) {
-            const writeResult = await window.electronAPI.writeFile(file.path, base64)
-            if (!writeResult.success) {
-              addToast('warning', `${actionLabel} to v${targetVersion} - but could not write file: ${writeResult.error}`)
-            }
+        if (urlError || !downloadUrl) {
+          addToast('warning', `${actionLabel} to v${targetVersion} - but could not get download URL: ${urlError}`)
+        } else if (window.electronAPI) {
+          // Use direct download API - much faster than blob + base64 conversion
+          const writeResult = await window.electronAPI.downloadUrl(downloadUrl, file.path)
+          if (!writeResult.success) {
+            addToast('warning', `${actionLabel} to v${targetVersion} - but could not write file: ${writeResult.error}`)
           }
         }
+        
+        // Mark operation complete for file watcher suppression window
+        setLastOperationCompletedAt(Date.now())
         
         // Update the file in the store - set localActiveVersion to track which version we rolled back to
         // The server's pdmData.version is NOT changed - only localActiveVersion tracks the local state
         // Also update localHash to match the target version's content hash
+        const serverVersion = file.pdmData.version || 0
+        const isRestoringToServerVersion = targetVersion === serverVersion
+        
         updateFileInStore(file.path, {
-          localActiveVersion: targetVersion,
-          localHash: result.targetVersionRecord.content_hash,
-          // Mark as modified since local now differs from server's current version
-          diffStatus: 'modified'
+          // Clear localActiveVersion if we're back at the server version
+          localActiveVersion: isRestoringToServerVersion ? undefined : targetVersion,
+          // Use pdmData.content_hash for server version to ensure check-in fast-path works correctly
+          localHash: isRestoringToServerVersion 
+            ? file.pdmData.content_hash 
+            : result.targetVersionRecord.content_hash,
+          // Only mark as modified if we're NOT at the server's current version
+          diffStatus: isRestoringToServerVersion ? undefined : 'modified'
         })
+        
+        // Clear expected file changes after a delay to allow file watcher suppression
+        setTimeout(() => clearExpectedFileChanges([file.path]), 5000)
         
         addToast('success', `${actionLabel} to version ${targetVersion} of ${result.maxVersion}`)
         
@@ -1246,10 +1252,12 @@ export function DetailsPanel() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {versions.map((version, index) => {
-                        const isServerVersion = index === 0 // Highest version is what's on server
+                      {versions.map((version) => {
+                        // Server version is the actual current version stored in pdmData (not necessarily the highest)
+                        const serverVersion = file.pdmData?.version || 0
+                        const isServerVersion = version.version === serverVersion
                         // Local version: use localActiveVersion if set (after rollback), otherwise use pdmData.version
-                        const localVersion = file.localActiveVersion ?? (file.pdmData?.version || 0)
+                        const localVersion = file.localActiveVersion ?? serverVersion
                         const isLocalVersion = localVersion === version.version
                         const canSwitch = !isLocalVersion && file.pdmData?.checked_out_by === user?.id
                         const isRollForward = version.version > localVersion

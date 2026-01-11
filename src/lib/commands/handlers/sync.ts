@@ -394,11 +394,6 @@ export const syncCommand: Command<SyncParams> = {
       }
     })
     
-    // Apply all store updates in a single batch (avoids N re-renders)
-    if (pendingUpdates.length > 0) {
-      ctx.updateFilesInStore(pendingUpdates)
-    }
-    
     // Count results and collect synced file infos
     for (const result of results) {
       if (result.success) {
@@ -412,8 +407,19 @@ export const syncCommand: Command<SyncParams> = {
       }
     }
     
-    // Clean up - batch remove
-    ctx.removeProcessingFolders(allPathsBeingProcessed)
+    // Apply all store updates in a single atomic batch + clear processing folders
+    const storeUpdateStart = performance.now()
+    if (pendingUpdates.length > 0) {
+      ctx.updateFilesAndClearProcessing(pendingUpdates, allPathsBeingProcessed)
+    } else {
+      ctx.removeProcessingFolders(allPathsBeingProcessed)
+    }
+    ctx.setLastOperationCompletedAt(Date.now())
+    logSync('info', 'Store update complete', {
+      durationMs: Math.round(performance.now() - storeUpdateStart),
+      updateCount: pendingUpdates.length,
+      timestamp: Date.now()
+    })
     const { duration } = progress.finish()
     
     // Show sync result

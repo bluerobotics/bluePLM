@@ -30,7 +30,6 @@ browser/
 │   ├── useFileSelection.ts       # Row selection with shift/ctrl
 │   ├── useDeleteHandler.ts       # Delete confirmation and execution
 │   ├── useAddFiles.ts            # Add files/folders with conflict resolution
-│   ├── useDownloadOperation.ts   # Download with progress tracking
 │   │
 │   │ Handler Hooks
 │   ├── useColumnHandlers.ts      # Column resize, reorder, context menu

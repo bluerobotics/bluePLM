@@ -7,14 +7,13 @@ import { log } from '@/lib/logger'
  * Hook to load and periodically refresh notification counts
  */
 export function useNotificationCounts() {
-  const { 
-    user, 
-    organization,
-    unreadNotificationCount, 
-    pendingReviewCount,
-    setUnreadNotificationCount,
-    setPendingReviewCount,
-  } = usePDMStore()
+  // Selective selectors: only re-render when specific values change
+  const user = usePDMStore(s => s.user)
+  const organization = usePDMStore(s => s.organization)
+  const unreadNotificationCount = usePDMStore(s => s.unreadNotificationCount)
+  const pendingReviewCount = usePDMStore(s => s.pendingReviewCount)
+  const setUnreadNotificationCount = usePDMStore(s => s.setUnreadNotificationCount)
+  const setPendingReviewCount = usePDMStore(s => s.setPendingReviewCount)
 
   // Load notification counts on mount and periodically
   useEffect(() => {

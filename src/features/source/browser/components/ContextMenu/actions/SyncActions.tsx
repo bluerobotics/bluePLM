@@ -6,7 +6,6 @@ import { ArrowDown, ArrowUp, EyeOff, FileX, FolderX } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
-import { useDownloadOperation } from '../../../hooks/useDownloadOperation'
 import type { RefreshableActionProps, SelectionCounts, SelectionState } from './types'
 import { ContextSubmenu } from '../components'
 
@@ -33,17 +32,11 @@ export function SyncActions({
   ignoreSubmenuTimeoutRef,
 }: SyncActionsProps) {
   const {
-    organization,
     activeVaultId,
     addIgnorePattern,
     getIgnorePatterns,
     addToast,
   } = usePDMStore()
-  
-  const { executeDownload } = useDownloadOperation({ 
-    organization, 
-    onRefresh 
-  })
 
   const anyCloudOnly = counts.cloudOnlyCount > 0 || 
     contextFiles.some(f => f.diffStatus === 'cloud')
@@ -59,7 +52,8 @@ export function SyncActions({
             className="context-menu-item text-plm-success"
             onClick={() => {
               onClose()
-              executeDownload(contextFiles)
+              // Use command system for consistent incremental store updates
+              executeCommand('download', { files: contextFiles }, { onRefresh })
             }}
           >
             <ArrowDown size={14} className="text-plm-success" />

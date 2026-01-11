@@ -35,3 +35,7 @@ export type { UseSlowDoubleClickOptions, UseSlowDoubleClickReturn } from './useS
 
 // Deep link handling
 export { useDeepLinkInstall } from './useDeepLinkInstall'
+
+// Notification filtering
+export { useNotificationFilter, shouldShowToast, playNotificationSound } from './useNotificationFilter'
+export type { NotificationFilterResult } from './useNotificationFilter'

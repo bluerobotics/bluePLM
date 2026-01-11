@@ -2,6 +2,69 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [Unreleased]
+
+---
+
+## [3.4.0] - 2026-01-10
+
+### Added
+- **Notification Center**: Full notification system with real-time updates and categorized notifications
+  - **Categories**: Reviews, Change Control, Purchasing, Quality, Workflow, System, and Collaboration
+  - **Pending reviews panel**: View and respond to reviews directly from notifications
+  - **Notification preferences**: Per-category toast and sound settings in Settings → Notifications
+  - **Quiet hours**: Suppress notifications during configurable time windows
+  - **Priority levels**: Low, Normal, High, and Urgent with visual badges
+  - **Bulk actions**: Mark all as read, delete individual or clear all notifications
+  - **Create custom notifications**: Admins can send custom notifications to specific users
+- **Push to All Users (Sidebar Settings)**: Admins can force-push their sidebar configuration to all organization members, overriding individual customizations. Includes confirmation dialog with warning about overwriting user settings
+
+### Changed
+- **Sidebar group toggle cascades to children**: When disabling a custom group, all child modules within that group are now also disabled. When enabling a group, all children are enabled. Previously, toggling a group only affected the group visibility, leaving children in their original state
+- **Push to All Users modal**: Improved modal styling with solid backgrounds for better readability (was semi-transparent)
+
+### Fixed
+- **Folder UI not updating after download**: Folders now immediately turn green when all cloud files are downloaded, instead of requiring an app restart. The folder icon color is now derived from computed child metrics (`isFolderSynced`) rather than stale folder metadata (`diffStatus`). This architectural fix also ensures folder icons update correctly for:
+  - Downloading individual files from a cloud-only folder
+  - Mixed folders (some cloud, some synced) showing correct synced state
+  - Delete local files operation (previously fixed, now verified consistent)
+- **Folder disappearing after "Delete local files"**: Folders containing cloud-only files now remain visible as cloud-only (gray icon) instead of disappearing. Delete command now preserves folders when they have cloud children remaining
+
+### Performance
+- **O(N) folder metrics computation**: Fixed O(N²) folder metrics computation - now O(N) single pass via pre-computed Map. Previously 250,000 iterations per render, now 1,000
+- **Custom memo comparator**: Added custom memo comparator to VirtualizedTreeRow comparing 15 relevant props instead of 40+, dramatically reducing re-renders
+- **Consolidated folder metrics**: Eliminated duplicate folderMetrics computation (was running twice per state change), single source of truth in useVaultTree
+- **Set-based selection checks**: Added O(1) selection checks in FileTree using Set instead of O(N) array.includes
+- **Selective Zustand selectors**: All tree item, sidebar, and activity bar components now use selective selectors instead of subscribing to the entire store
+- **File tree virtualization**: Large vaults with thousands of files now render efficiently using react-window virtualization
+- **File list virtualization**: List and grid views in the file pane now use virtualization for large directories
+- **Memoized tree components**: VirtualizedTreeRow and VirtualizedListRow are wrapped with React.memo to prevent cascading re-renders
+- **TreeHoverContext**: Refactored hover state management from prop drilling to React Context, isolating hover-triggered re-renders to only the affected components
+- **CSS-only button visibility**: Action buttons in tree items now use pure CSS `:hover` selectors for show/hide, eliminating JavaScript overhead
+- **Inline action buttons always visible**: Made buttons always visible in file tree for better discoverability (no JS-based hover state)
+- **Removed fire-and-forget callbacks**: Delete command now uses proper async/await for reliable state updates
+
+---
+
+## [3.3.2] - 2026-01-09
+
+### Performance
+- Fixed folder display in file grid view (path normalization)
+- Applied selective Zustand selectors to remaining explorer hooks
+
+---
+
+## [3.3.1] - 2026-01-09
+
+### Performance
+- Implemented selective Zustand selectors to reduce unnecessary re-renders
+- Added virtualization to file tree for improved performance with large vaults
+- Added virtualization to file list for improved performance with large directories
+- Memoized tree and list item components to prevent cascading re-renders
+- Refactored hover state management from prop drilling to React Context (TreeHoverContext) to eliminate cascading re-renders when hovering action buttons
+
+---
+
 ## [3.3.0] - 2026-01-08
 
 ### Added

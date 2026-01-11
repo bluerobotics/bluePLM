@@ -190,9 +190,21 @@ function OrderListItemComponent({
     const newGroups = (config.customGroups || []).map(g => 
       g.id === groupId ? { ...g, enabled } : g
     )
+    
+    // When toggling a group, also toggle all child modules to match
+    let newEnabledModules = config.enabledModules
+    const childModules = getChildModules(groupId, config)
+    if (childModules.length > 0) {
+      newEnabledModules = { ...config.enabledModules }
+      childModules.forEach(child => {
+        newEnabledModules[child.id] = enabled
+      })
+    }
+    
     onConfigChange({
       ...config,
-      customGroups: newGroups
+      customGroups: newGroups,
+      enabledModules: newEnabledModules
     })
   }
   

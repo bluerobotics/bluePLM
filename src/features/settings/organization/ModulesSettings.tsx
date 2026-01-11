@@ -6,7 +6,10 @@ import {
   Download,
   Loader2,
   Users,
-  ExternalLink
+  ExternalLink,
+  Upload,
+  AlertTriangle,
+  X
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -30,6 +33,7 @@ export function ModulesSettings() {
     resetModulesToDefaults,
     loadOrgModuleDefaults,
     saveOrgModuleDefaults,
+    forceOrgModuleDefaults,
     getEffectiveRole,
     organization,
     setActiveView
@@ -38,6 +42,11 @@ export function ModulesSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null)
+  
+  // Force push state
+  const [showForceConfirm, setShowForceConfirm] = useState(false)
+  const [isForcing, setIsForcing] = useState(false)
+  const [forceResult, setForceResult] = useState<'success' | 'error' | null>(null)
   
   // Teams with module defaults
   const [teamsWithModules, setTeamsWithModules] = useState<TeamWithModules[]>([])
@@ -108,6 +117,24 @@ export function ModulesSettings() {
     }
   }
   
+  const handleForceOrgDefaults = async () => {
+    setIsForcing(true)
+    setForceResult(null)
+    try {
+      const result = await forceOrgModuleDefaults()
+      setForceResult(result.success ? 'success' : 'error')
+      if (result.success) {
+        setShowForceConfirm(false)
+        setTimeout(() => setForceResult(null), 3000)
+      }
+    } catch (err) {
+      log.error('[ModulesSettings]', 'Failed to force org defaults', { error: err })
+      setForceResult('error')
+    } finally {
+      setIsForcing(false)
+    }
+  }
+  
   return (
     <div className="space-y-6">
       {/* Header with actions */}
@@ -120,25 +147,46 @@ export function ModulesSettings() {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <button
-              onClick={handleSaveOrgDefaults}
-              disabled={isSaving}
-              className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                saveResult === 'success'
-                  ? 'bg-plm-success/20 text-plm-success border border-plm-success/30'
-                  : saveResult === 'error'
-                  ? 'bg-plm-error/20 text-plm-error border border-plm-error/30'
-                  : 'bg-plm-accent text-white hover:bg-plm-accent/80'
-              }`}
-              title="Save as organization defaults for new members"
-            >
-              {isSaving ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Save size={14} />
-              )}
-              {saveResult === 'success' ? 'Saved!' : saveResult === 'error' ? 'Failed' : 'Save Defaults'}
-            </button>
+            <>
+              <button
+                onClick={() => setShowForceConfirm(true)}
+                disabled={isForcing}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                  forceResult === 'success'
+                    ? 'bg-plm-success/20 text-plm-success border border-plm-success/30'
+                    : forceResult === 'error'
+                    ? 'bg-plm-error/20 text-plm-error border border-plm-error/30'
+                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'
+                }`}
+                title="Push this configuration to all organization members, overriding their settings"
+              >
+                {isForcing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Upload size={14} />
+                )}
+                {forceResult === 'success' ? 'Pushed!' : forceResult === 'error' ? 'Failed' : 'Push to All Users'}
+              </button>
+              <button
+                onClick={handleSaveOrgDefaults}
+                disabled={isSaving}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                  saveResult === 'success'
+                    ? 'bg-plm-success/20 text-plm-success border border-plm-success/30'
+                    : saveResult === 'error'
+                    ? 'bg-plm-error/20 text-plm-error border border-plm-error/30'
+                    : 'bg-plm-accent text-white hover:bg-plm-accent/80'
+                }`}
+                title="Save as organization defaults for new members"
+              >
+                {isSaving ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Save size={14} />
+                )}
+                {saveResult === 'success' ? 'Saved!' : saveResult === 'error' ? 'Failed' : 'Save Defaults'}
+              </button>
+            </>
           )}
           <button
             onClick={handleLoadOrgDefaults}
@@ -224,6 +272,70 @@ export function ModulesSettings() {
             Team members inherit these module defaults instead of organization defaults.
           </p>
         </section>
+      )}
+      
+      {/* Force Push Confirmation Dialog */}
+      {showForceConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-plm-bg border border-plm-border rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-plm-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/20">
+                  <AlertTriangle size={20} className="text-amber-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-plm-fg">Push to All Users</h3>
+              </div>
+              <button
+                onClick={() => setShowForceConfirm(false)}
+                className="p-1.5 rounded-lg text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-plm-fg">
+                This will <strong>override</strong> the sidebar configuration for <strong>all users</strong> in your organization.
+              </p>
+              
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                <p className="text-sm text-amber-300">
+                  <strong>Warning:</strong> Users who have customized their sidebar will have their changes overwritten. 
+                  This action cannot be undone.
+                </p>
+              </div>
+              
+              <p className="text-sm text-plm-fg-muted">
+                Users who are currently online will receive the update immediately. 
+                Others will see the changes when they next open BluePLM.
+              </p>
+            </div>
+            
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-plm-border bg-plm-bg-secondary">
+              <button
+                onClick={() => setShowForceConfirm(false)}
+                className="px-4 py-2 text-sm rounded-lg border border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForceOrgDefaults}
+                disabled={isForcing}
+                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-amber-500 text-black font-medium hover:bg-amber-400 transition-colors disabled:opacity-50"
+              >
+                {isForcing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Upload size={14} />
+                )}
+                {isForcing ? 'Pushing...' : 'Push to All Users'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

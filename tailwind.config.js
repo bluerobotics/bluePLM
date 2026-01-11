@@ -53,12 +53,19 @@ module.exports = {
         'xl': '16px',
       },
       animation: {
+        // GPU-accelerated spin for smooth animation during heavy JS work
+        'spin': 'spin 1s linear infinite',
         'spin-slow': 'spin 2s linear infinite',
         'pulse-subtle': 'pulse 3s ease-in-out infinite',
         'slide-in': 'slideIn 0.2s ease-out',
         'fade-in': 'fadeIn 0.15s ease-out',
       },
       keyframes: {
+        // GPU-accelerated spin using translateZ(0) to force compositor layer
+        spin: {
+          'from': { transform: 'translateZ(0) rotate(0deg)' },
+          'to': { transform: 'translateZ(0) rotate(360deg)' },
+        },
         slideIn: {
           '0%': { transform: 'translateX(-10px)', opacity: '0' },
           '100%': { transform: 'translateX(0)', opacity: '1' },

@@ -1,8 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, startTransition } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getFilesLightweight, getCheckedOutUsers } from '@/lib/supabase'
 import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/commands/types'
+import { recordMetric } from '@/lib/performanceMetrics'
+import { getFilesWithCache } from '@/lib/cache/vaultFileCache'
+import type { LightweightFile } from '@/lib/supabase/files/queries'
 
 /**
  * Hook to load files from working directory and merge with PDM data
@@ -34,17 +37,18 @@ export function useLoadFiles() {
 
   // Load files from working directory and merge with PDM data
   // silent = true means no loading spinner (for background refreshes after downloads/uploads)
-  const loadFiles = useCallback(async (silent: boolean = false) => {
+  // forceHashComputation = true forces full hash computation on ALL synced files (for Full Refresh)
+  const loadFiles = useCallback(async (silent: boolean = false, forceHashComputation: boolean = false) => {
     // Capture vault context at start - used to detect if vault changed during async operations
     const loadingForVaultId = currentVaultId
     const loadingForVaultPath = vaultPath
     
-    window.electronAPI?.log('info', '[LoadFiles] Called with', { vaultPath: loadingForVaultPath, currentVaultId: loadingForVaultId, silent })
+    window.electronAPI?.log('info', '[LoadFiles] Called with', { vaultPath: loadingForVaultPath, currentVaultId: loadingForVaultId, silent, forceHashComputation })
     if (!window.electronAPI || !loadingForVaultPath) return
     
     if (!silent) {
       setIsLoading(true)
-      setStatusMessage('Loading files...')
+      setStatusMessage(forceHashComputation ? 'Full refresh: Loading files...' : 'Loading files...')
       // Yield to UI thread so loading state renders before heavy work
       await new Promise(resolve => setTimeout(resolve, 0))
     }
@@ -66,14 +70,58 @@ export function useLoadFiles() {
         setStatusMessage(shouldFetchServer ? 'Loading local & cloud files...' : 'Scanning local files...')
       }
       
-      // Start both operations at once
-      const localPromise = window.electronAPI.listWorkingFiles()
+      // Start timing for vault load operations
+      const vaultLoadStart = performance.now()
+      recordMetric('VaultLoad', 'Starting vault load', { silent })
+      
+      // Start both operations at once, tracking each separately
+      const localScanStart = performance.now()
+      let localScanEnd = 0
+      
+      const localPromise = window.electronAPI.listWorkingFiles().then(result => {
+        localScanEnd = performance.now()
+        return result
+      })
+      
+      // Server fetch with caching - tries IndexedDB cache first, then delta sync
+      // First load: Full fetch via RPC + cache in IndexedDB
+      // Subsequent loads: Load from cache instantly + fetch only changes (delta sync)
       const serverPromise = shouldFetchServer 
-        ? getFilesLightweight(organization.id, currentVaultId)
-        : Promise.resolve({ files: null, error: null })
+        ? getFilesWithCache(
+            organization.id, 
+            currentVaultId,
+            () => getFilesLightweight(organization.id, currentVaultId)
+          )
+        : Promise.resolve({ files: null, error: null, cacheHit: false, deltaCount: 0, timing: { cacheReadMs: 0, fetchMs: 0, mergeMs: 0 } })
       
       // Wait for both to complete
-      const [localResult, serverResult] = await Promise.all([localPromise, serverPromise])
+      const [localResult, serverResultWithCache] = await Promise.all([localPromise, serverPromise])
+      
+      // Extract files from cache result
+      const serverResult = {
+        files: serverResultWithCache.files as LightweightFile[] | null,
+        error: serverResultWithCache.error
+      }
+      
+      // Record timing for local scan
+      const localScanDuration = localScanEnd - localScanStart
+      recordMetric('VaultLoad', 'Local scan complete', { 
+        durationMs: Math.round(localScanDuration),
+        fileCount: localResult.files?.length || 0
+      })
+      
+      // Record timing for server fetch (only if we actually fetched)
+      if (shouldFetchServer) {
+        recordMetric('VaultLoad', 'Server fetch complete', { 
+          durationMs: serverResultWithCache.timing.fetchMs,
+          fileCount: serverResult.files?.length || 0,
+          cacheHit: serverResultWithCache.cacheHit,
+          deltaCount: serverResultWithCache.deltaCount,
+          cacheReadMs: serverResultWithCache.timing.cacheReadMs,
+          networkFetchMs: serverResultWithCache.timing.fetchMs,
+          deltaMergeMs: serverResultWithCache.timing.mergeMs
+        })
+      }
       
       // Process local files
       if (!localResult.success || !localResult.files) {
@@ -131,6 +179,7 @@ export function useLoadFiles() {
         : () => false
       
       // 2. If connected to Supabase, merge PDM data
+      const mergeStart = performance.now()
       if (shouldFetchServer) {
         const pdmFiles = serverResult.files
         const pdmError = serverResult.error
@@ -263,48 +312,40 @@ export function useLoadFiles() {
               // File was moved - needs check-in to update server path (but no version increment)
               diffStatus = 'moved'
             } else if (pdmData.content_hash && localFile.localHash) {
-              // File exists both places - compare hashes
-              // KEY INSIGHT: If hashes match exactly, the file is synced - regardless of timestamps.
-              // This is critical for post-upgrade reconciliation where timestamps may be unreliable.
+              // Both hashes available - use hash comparison (most accurate)
               if (pdmData.content_hash === localFile.localHash) {
                 // Hashes match - file is synced, leave diffStatus undefined
-                // This trusts content hash over timestamps for determining sync state
               } else {
                 // Hashes differ - determine if local is newer or cloud is newer
                 const localModTime = new Date(localFile.modifiedTime).getTime()
                 const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
                 
                 if (localModTime > cloudUpdateTime) {
-                  // Local file was modified more recently - local changes
                   diffStatus = 'modified'
                 } else {
-                  // Cloud was updated more recently - may need to pull
-                  // Note: getLatest will verify storage blob exists before downloading
                   diffStatus = 'outdated'
-                  // Debug: Log outdated file details
-                  window.electronAPI?.log('debug', '[LoadFiles] File marked as OUTDATED', {
-                    name: localFile.name,
-                    relativePath: localFile.relativePath,
-                    localHash: localFile.localHash?.substring(0, 16),
-                    serverHash: pdmData.content_hash?.substring(0, 16),
-                    localModTime: new Date(localModTime).toISOString(),
-                    cloudUpdateTime: new Date(cloudUpdateTime).toISOString(),
-                    fileId: pdmData.id,
-                    version: pdmData.version,
-                    checkedOutBy: pdmData.checked_out_by
-                  })
                 }
               }
-            } else if (pdmData.content_hash && !localFile.localHash) {
-              // Debug: Log files waiting for hash computation
-              window.electronAPI?.log('debug', '[LoadFiles] File waiting for hash computation', {
-                name: localFile.name,
-                relativePath: localFile.relativePath,
-                hasServerHash: !!pdmData.content_hash,
-                hasLocalHash: !!localFile.localHash
-              })
+            } else if (pdmData.content_hash) {
+              // No local hash - use TIMESTAMP-BASED diff detection (fast, no disk I/O)
+              // This avoids expensive hash computation on startup
+              const localModTime = new Date(localFile.modifiedTime).getTime()
+              const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
+              const isCheckedOutByMe = pdmData.checked_out_by === user?.id
+              
+              // Add a small tolerance (5 seconds) for timestamp comparison
+              // to account for filesystem timestamp precision differences
+              const TOLERANCE_MS = 5000
+              
+              if (isCheckedOutByMe && localModTime > cloudUpdateTime + TOLERANCE_MS) {
+                // I have it checked out and local file is newer → I modified it
+                diffStatus = 'modified'
+              } else if (!isCheckedOutByMe && cloudUpdateTime > localModTime + TOLERANCE_MS) {
+                // Someone else updated it and server is newer → outdated
+                diffStatus = 'outdated'
+              }
+              // Otherwise: timestamps are close enough → assume synced (no diff)
             }
-            // NOTE: If cloud has hash but local doesn't have one yet, leave diffStatus undefined
             // The background hash computation will set the proper status once hashes are computed
             
             return {
@@ -415,6 +456,23 @@ export function useLoadFiles() {
       // A folder should be 'cloud' if all its contents are cloud-only AND it has some cloud content
       // Empty folders that exist locally should NOT be marked as cloud
       // Process folders bottom-up (deepest first) so parent folders see updated child statuses
+      
+      // OPTIMIZATION: Build parent->children index in O(n) instead of O(n²) filtering
+      // This reduces 25,000 files × 2,500 folders = 62.5M ops down to ~27,500 ops
+      const childrenByParent = new Map<string, typeof localFiles>()
+      for (const file of localFiles) {
+        const normalizedPath = file.relativePath.replace(/\\/g, '/')
+        const lastSlash = normalizedPath.lastIndexOf('/')
+        const parentPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : ''
+        
+        const existing = childrenByParent.get(parentPath)
+        if (existing) {
+          existing.push(file)
+        } else {
+          childrenByParent.set(parentPath, [file])
+        }
+      }
+      
       const folders = localFiles.filter(f => f.isDirectory)
       
       // Sort folders by depth (deepest first)
@@ -424,22 +482,12 @@ export function useLoadFiles() {
         return depthB - depthA
       })
       
-      // Check each folder from deepest to shallowest
+      // Check each folder from deepest to shallowest - now O(1) lookup per folder
       for (const folder of folders) {
         const normalizedFolder = folder.relativePath.replace(/\\/g, '/')
         
-        // Get direct children of this folder
-        const directChildren = localFiles.filter(f => {
-          if (f.relativePath === folder.relativePath) return false // Skip self
-          const normalizedPath = f.relativePath.replace(/\\/g, '/')
-          
-          // Check if it's a direct child (not nested deeper)
-          if (!normalizedPath.startsWith(normalizedFolder + '/')) return false
-          const remainder = normalizedPath.slice(normalizedFolder.length + 1)
-          if (remainder.includes('/')) return false // It's nested deeper, not direct child
-          
-          return true
-        })
+        // O(1) lookup instead of O(n) filter
+        const directChildren = childrenByParent.get(normalizedFolder) || []
         
         const hasLocalContent = directChildren.some(f => f.diffStatus !== 'cloud')
         const hasCloudContent = directChildren.some(f => f.diffStatus === 'cloud')
@@ -447,13 +495,13 @@ export function useLoadFiles() {
         // Only mark as cloud if folder has cloud content AND no local content
         // Empty local folders should stay as normal folders
         if (!hasLocalContent && hasCloudContent) {
-          // Update this folder to cloud status
-          const folderInList = localFiles.find(f => f.relativePath === folder.relativePath)
-          if (folderInList) {
-            folderInList.diffStatus = 'cloud'
-          }
+          folder.diffStatus = 'cloud'
         }
       }
+      
+      // Record merge timing
+      const mergeDuration = performance.now() - mergeStart
+      recordMetric('VaultLoad', 'Merge complete', { durationMs: Math.round(mergeDuration) })
       
       // Check if vault changed during async operations - if so, skip setting files
       // This prevents race conditions when auto-connect switches vaults during initial load
@@ -464,6 +512,14 @@ export function useLoadFiles() {
         })
         return
       }
+      
+      // Record total vault load time
+      const vaultLoadDuration = performance.now() - vaultLoadStart
+      recordMetric('VaultLoad', 'Total vault load complete', { 
+        durationMs: Math.round(vaultLoadDuration),
+        fileCount: localFiles.filter((f: { isDirectory: boolean }) => !f.isDirectory).length,
+        folderCount: localFiles.filter((f: { isDirectory: boolean }) => f.isDirectory).length
+      })
       
       setFiles(localFiles)
       setFilesLoaded(true)  // Mark that initial load is complete
@@ -481,24 +537,28 @@ export function useLoadFiles() {
             return
           }
           
-          // 1. Set read-only status on synced files
-          for (const file of localFiles) {
-            if (file.isDirectory || !file.pdmData) continue
-            const isCheckedOutByMe = file.pdmData.checked_out_by === user.id
-            window.electronAPI.setReadonly(file.path, !isCheckedOutByMe)
-          }
+          // NOTE: We no longer set read-only status on startup.
+          // Read-only is managed at checkout/checkin time only:
+          // - Checkout: sets writable
+          // - Checkin/Download/GetLatest: sets read-only
+          // The file system preserves these attributes between sessions.
           
-          // 2. Lazy-load checked out user info for UI display
-          // This adds user names/emails without blocking initial render
+          // 1. Lazy-load checked out user info for UI display (non-blocking)
+          // This adds user names/emails to the UI without blocking initial render
+          const userInfoStart = performance.now()
           const checkedOutFileIds = localFiles
             .filter(f => !f.isDirectory && f.pdmData?.checked_out_by)
             .map(f => f.pdmData!.id)
           
           if (checkedOutFileIds.length > 0 && organization) {
+            const fetchStart = performance.now()
             const { users: userInfo } = await getCheckedOutUsers(checkedOutFileIds)
+            const fetchDuration = performance.now() - fetchStart
+            
             const userInfoMap = userInfo as Record<string, { email: string; full_name: string; avatar_url?: string }>
             if (Object.keys(userInfoMap).length > 0 && !isVaultStale()) {
               // Update files in store with user info
+              const updateStart = performance.now()
               const currentFiles = usePDMStore.getState().files
               const updatedFiles = currentFiles.map(f => {
                 const fileId = f.pdmData?.id
@@ -514,18 +574,45 @@ export function useLoadFiles() {
                 return f
               })
               setFiles(updatedFiles)
+              const updateDuration = performance.now() - updateStart
+              
+              recordMetric('VaultLoad', 'User info update complete', {
+                durationMs: Math.round(updateDuration),
+                fetchMs: Math.round(fetchDuration),
+                usersFound: Object.keys(userInfoMap).length
+              })
             }
           }
+          recordMetric('VaultLoad', 'User info task complete', {
+            durationMs: Math.round(performance.now() - userInfoStart),
+            checkedOutFiles: checkedOutFileIds.length
+          })
           
-          // 3. Background hash computation for files without hashes
-          // This runs progressively without blocking the UI
-          const filesNeedingHash = localFiles.filter(f => 
-            !f.isDirectory && !f.localHash && f.pdmData?.content_hash
+          // 2. Background hash computation - SKIPPED on startup for performance
+          // We now use timestamp-based diff detection which is instant.
+          // Hashes are computed on-demand at checkin time when accuracy is critical.
+          // This saves ~27 seconds on vaults with 25k+ files.
+          // When forceHashComputation=true (Full Refresh), compute ALL synced files for accurate sync status.
+          const skipHashComputation = !forceHashComputation
+          
+          const hashTaskStart = performance.now()
+          // When forceHashComputation, compute hashes for ALL files with server content_hash (even if local hash exists)
+          // Otherwise, only compute for files without local hash
+          const filesNeedingHash = skipHashComputation ? [] : localFiles.filter(f => 
+            !f.isDirectory && f.pdmData?.content_hash && (forceHashComputation || !f.localHash)
           )
           
+          recordMetric('VaultLoad', 'Hash computation starting', {
+            filesNeedingHash: filesNeedingHash.length,
+            totalFiles: localFiles.filter(f => !f.isDirectory).length,
+            skipped: skipHashComputation
+          })
+          
           if (filesNeedingHash.length > 0 && window.electronAPI.computeFileHashes) {
-            window.electronAPI?.log('info', '[LoadFiles] Computing hashes for', { count: filesNeedingHash.length })
-            setStatusMessage(`Checking ${filesNeedingHash.length} files for changes...`)
+            window.electronAPI?.log('info', '[LoadFiles] Computing hashes for', { count: filesNeedingHash.length, forceHashComputation })
+            setStatusMessage(forceHashComputation 
+              ? `Full refresh: Computing hashes (0/${filesNeedingHash.length})...`
+              : `Checking ${filesNeedingHash.length} files for changes...`)
             
             // Prepare file list for hash computation
             const hashRequests = filesNeedingHash.map(f => ({
@@ -537,13 +624,21 @@ export function useLoadFiles() {
             
             try {
               // Compute hashes in background (with progress updates via IPC)
+              const hashComputeStart = performance.now()
               const { results } = await window.electronAPI.computeFileHashes(hashRequests)
+              const hashComputeDuration = performance.now() - hashComputeStart
+              
+              recordMetric('VaultLoad', 'Hash IPC complete', {
+                durationMs: Math.round(hashComputeDuration),
+                filesHashed: results?.length || 0
+              })
               
               if (results && results.length > 0 && !isVaultStale()) {
                 // Create a map for quick lookup
                 const hashMap = new Map(results.map(r => [r.relativePath, r.hash]))
                 
                 // Update files with computed hashes and recompute diff status
+                const updateStart = performance.now()
                 const currentFiles = usePDMStore.getState().files
                 const updatedFiles = currentFiles.map(f => {
                   if (f.isDirectory) return f
@@ -581,8 +676,18 @@ export function useLoadFiles() {
                     diffStatus: newDiffStatus
                   }
                 })
+                const updateDuration = performance.now() - updateStart
                 
-                setFiles(updatedFiles)
+                // Use startTransition for non-blocking UI updates during background hash computation
+                // This prevents UI jank when updating many files' hash status
+                startTransition(() => {
+                  setFiles(updatedFiles)
+                })
+                
+                recordMetric('VaultLoad', 'Hash update complete', {
+                  durationMs: Math.round(updateDuration),
+                  filesUpdated: results.length
+                })
                 window.electronAPI?.log('info', '[LoadFiles] Hash computation complete', { updated: results.length })
               }
             } catch (err) {
@@ -591,9 +696,14 @@ export function useLoadFiles() {
             
             // Clear the status message after hash computation
             setStatusMessage('')
+            
+            recordMetric('VaultLoad', 'Hash task complete', {
+              durationMs: Math.round(performance.now() - hashTaskStart),
+              filesProcessed: filesNeedingHash.length
+            })
           }
           
-          // 4. Auto-download cloud files and updates (if enabled)
+          // 3. Auto-download cloud files and updates (if enabled)
           // Run after hash computation so we have accurate diff statuses
           // IMPORTANT: Skip on silent refreshes to prevent infinite loops
           // (silent refreshes are triggered by download/update commands completing)

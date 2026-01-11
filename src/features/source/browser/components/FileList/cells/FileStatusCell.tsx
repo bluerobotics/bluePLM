@@ -1,24 +1,50 @@
 /**
  * File Status column cell renderer
  */
-import { ArrowDown, Cloud, HardDrive, Monitor } from 'lucide-react'
+import { ArrowDown, Cloud, HardDrive, Loader2, Monitor } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
-import { useFilePaneContext } from '../../../context'
+import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
+
+// Map operation types to display labels for status column
+const OPERATION_LABELS: Record<string, string> = {
+  checkout: 'Checking out...',
+  checkin: 'Checking in...',
+  download: 'Downloading...',
+  upload: 'Uploading...',
+  sync: 'Syncing...',
+  delete: 'Deleting...'
+}
 
 export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode {
   const { user, currentMachineId } = useFilePaneContext()
+  const { getProcessingOperation } = useFilePaneHandlers()
   
   if (file.isDirectory) return ''
   
+  // Get operation type for this file (if any operation is in progress)
+  const operationType = getProcessingOperation(file.relativePath, false)
+  
   // Priority (highest to lowest):
+  // 0. PROCESSING - always show spinner first (prevents flickering)
   // 1. Update files (outdated) - needs update from server
   // 2. Cloud files (cloud only, not downloaded)
   // 3. Avatar checkout (checked out by someone)
   // 4. Green cloud (synced/checked in)
   // 5. Local files (not synced) - lowest priority
   
-  // 1. HIGHEST: Update files (outdated - server has newer version)
+  // 0. HIGHEST: Processing state - show spinner immediately
+  if (operationType) {
+    const label = OPERATION_LABELS[operationType] || 'Processing...'
+    return (
+      <span className="flex items-center gap-1 text-plm-fg-muted" title={label}>
+        <Loader2 size={12} className="animate-spin" />
+        {label}
+      </span>
+    )
+  }
+  
+  // 1. Update files (outdated - server has newer version)
   if (file.diffStatus === 'outdated') {
     return (
       <span className="flex items-center gap-1 text-purple-400" title="Server has a newer version - update available">

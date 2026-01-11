@@ -5,6 +5,13 @@ import type { KeybindingsConfig, KeybindingAction, Keybinding, SettingsTab } fro
 import type { WorkflowTemplate, WorkflowState, WorkflowTransition, WorkflowGate } from '../types/workflow'
 import type { OrgUser, TeamWithDetails, PendingMember } from '../features/settings/organization/team-members/types'
 import type { NotificationWithDetails } from '../types/database'
+import type { 
+  NotificationCategory, 
+  CategoryPreference,
+  CategoryPreferences,
+  QuietHoursConfig,
+  SoundSettings,
+} from '../types/notifications'
 
 // ============================================================================
 // Type Aliases
@@ -126,6 +133,8 @@ export interface ToastMessage {
   type: ToastType
   message: string
   duration?: number
+  /** Notification category for filtering (optional for backwards compatibility) */
+  category?: import('../types/notifications').NotificationCategory
   // Progress toast fields
   progress?: {
     current: number
@@ -296,7 +305,14 @@ export interface ToastsSlice {
   toasts: ToastMessage[]
   
   // Actions
-  addToast: (type: ToastType, message: string, duration?: number) => void
+  /**
+   * Add a toast notification.
+   * @param type - Toast type (error, success, info, warning, progress, update)
+   * @param message - Message to display
+   * @param duration - Duration in ms (default 5000, 0 for no auto-dismiss)
+   * @param category - Optional notification category for filtering (if provided, toast respects user preferences)
+   */
+  addToast: (type: ToastType, message: string, duration?: number, category?: import('../types/notifications').NotificationCategory) => void
   addProgressToast: (id: string, message: string, total: number) => void
   updateProgressToast: (id: string, current: number, percent: number, speed?: string, label?: string) => void
   requestCancelProgressToast: (id: string) => void
@@ -703,6 +719,8 @@ export interface FilesSlice {
   // Actions - Processing
   addProcessingFolder: (path: string, operationType: OperationType) => void
   addProcessingFolders: (paths: string[], operationType: OperationType) => void
+  /** Adds paths to processing and flushes synchronously. Use in critical paths where UI must show spinner BEFORE async work starts. */
+  addProcessingFoldersSync: (paths: string[], operationType: OperationType) => void
   removeProcessingFolder: (path: string) => void
   removeProcessingFolders: (paths: string[]) => void
   clearProcessingFolders: () => void
@@ -718,6 +736,22 @@ export interface FilesSlice {
   addLoadingConfig: (filePath: string) => void
   removeLoadingConfig: (filePath: string) => void
   
+  /**
+   * Atomic update: combines file updates + clearing processing state in a single set() call.
+   * 
+   * This prevents two sequential re-renders that would otherwise occur when calling
+   * updateFilesInStore() followed by removeProcessingFolders(). With 8000+ files,
+   * each re-render triggers expensive O(N x depth) folderMetrics computation,
+   * causing ~5 second UI freezes.
+   * 
+   * @param updates - Array of file path + partial updates to apply
+   * @param pathsToClearProcessing - Paths to remove from processingOperations Map
+   */
+  updateFilesAndClearProcessing: (
+    updates: Array<{ path: string; updates: Partial<LocalFile> }>,
+    pathsToClearProcessing: string[]
+  ) => void
+  
   // Getters
   getSelectedFileObjects: () => LocalFile[]
   getVisibleFiles: () => LocalFile[]
@@ -729,6 +763,8 @@ export interface FilesSlice {
 export interface ModulesSlice {
   // State
   moduleConfig: ModuleConfig
+  /** Timestamp when user last synced/acknowledged org-forced module config (ms since epoch) */
+  moduleConfigLastSyncedAt: number | null
   
   // Actions
   setModuleConfig: (config: ModuleConfig) => void
@@ -748,6 +784,8 @@ export interface ModulesSlice {
   resetModulesToDefaults: () => void
   loadOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
   saveOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
+  /** Force-push current module config to all org users (admin only) */
+  forceOrgModuleDefaults: () => Promise<{ success: boolean; error?: string }>
   loadTeamModuleDefaults: (teamId: string) => Promise<{ success: boolean; defaults: import('../types/modules').OrgModuleDefaults | null; error?: string }>
   saveTeamModuleDefaults: (teamId: string, config?: ModuleConfig) => Promise<{ success: boolean; error?: string }>
   clearTeamModuleDefaults: (teamId: string) => Promise<{ success: boolean; error?: string }>
@@ -948,6 +986,22 @@ export interface OperationsSlice {
   // State - Pending large upload (waiting for user decision)
   pendingLargeUpload: PendingLargeUpload | null
   
+  // State - File watcher suppression
+  /**
+   * Timestamp (ms since epoch) when the last operation completed.
+   * Used by the file watcher to suppress redundant loadFiles() calls
+   * within a configurable time window after operations finish.
+   */
+  lastOperationCompletedAt: number
+  
+  /**
+   * Set of file paths (relative to vault) that we expect to change
+   * due to an in-progress operation. The file watcher uses this to
+   * filter out expected changes and only trigger refreshes for
+   * unexpected external modifications.
+   */
+  expectedFileChanges: Set<string>
+  
   // Actions - Loading
   setIsLoading: (loading: boolean) => void
   setIsRefreshing: (refreshing: boolean) => void
@@ -1000,6 +1054,26 @@ export interface OperationsSlice {
   // Actions - Pending large upload
   setPendingLargeUpload: (upload: PendingLargeUpload | null) => void
   clearPendingLargeUpload: () => void
+  
+  // Actions - File watcher suppression
+  /**
+   * Add file paths that we expect to change during an operation.
+   * Call before starting downloads/get-latest operations.
+   */
+  addExpectedFileChanges: (paths: string[]) => void
+  
+  /**
+   * Clear file paths after an operation completes.
+   * Call after downloads/get-latest operations finish.
+   */
+  clearExpectedFileChanges: (paths: string[]) => void
+  
+  /**
+   * Set the timestamp when the last operation completed.
+   * Used by the file watcher to suppress redundant refreshes.
+   * Call at the end of each file operation (download, get-latest, etc.).
+   */
+  setLastOperationCompletedAt: (timestamp: number) => void
 }
 
 // ============================================================================
@@ -1471,6 +1545,80 @@ export interface ExtensionsSlice {
 }
 
 // ============================================================================
+// Notification Preferences Slice
+// ============================================================================
+
+export interface NotificationPrefsSlice {
+  // ═══════════════════════════════════════════════════════════════
+  // State
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Per-category notification settings */
+  notificationCategories: CategoryPreferences
+  
+  /** Quiet hours configuration */
+  quietHours: QuietHoursConfig
+  
+  /** Global sound settings */
+  soundSettings: SoundSettings
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Category Actions
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Set preference for a specific category */
+  setCategoryPreference: (category: NotificationCategory, preference: Partial<CategoryPreference>) => void
+  
+  /** Toggle toast notifications for a category */
+  toggleCategoryToast: (category: NotificationCategory) => void
+  
+  /** Toggle sound for a category */
+  toggleCategorySound: (category: NotificationCategory) => void
+  
+  /** Enable/disable toast notifications for all categories at once */
+  setAllCategoriesToastEnabled: (enabled: boolean) => void
+  
+  /** Enable/disable sound for all categories at once */
+  setAllCategoriesSoundEnabled: (enabled: boolean) => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Quiet Hours Actions
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Update quiet hours configuration */
+  setQuietHours: (config: Partial<QuietHoursConfig>) => void
+  
+  /** Toggle quiet hours on/off */
+  toggleQuietHours: () => void
+  
+  /** Set quiet hours start time (24-hour format, e.g., "22:00") */
+  setQuietHoursStart: (time: string) => void
+  
+  /** Set quiet hours end time (24-hour format, e.g., "07:00") */
+  setQuietHoursEnd: (time: string) => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Sound Actions
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Update sound settings */
+  setSoundSettings: (settings: Partial<SoundSettings>) => void
+  
+  /** Toggle sound on/off */
+  toggleSound: () => void
+  
+  /** Set sound volume (0-100) */
+  setSoundVolume: (volume: number) => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Reset Action
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Reset all notification preferences to defaults */
+  resetNotificationPreferences: () => void
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
 
@@ -1491,7 +1639,8 @@ export type PDMStoreState =
   OrganizationDataSlice &
   OrganizationMetadataSlice &
   IntegrationsSlice &
-  ExtensionsSlice
+  ExtensionsSlice &
+  NotificationPrefsSlice
 
 // ============================================================================
 // Store Versioning

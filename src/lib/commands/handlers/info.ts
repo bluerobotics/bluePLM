@@ -261,7 +261,7 @@ export async function handleSetState(
   parsed: ParsedCommand,
   files: LocalFile[],
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  _onRefresh?: (silent?: boolean) => void
 ): Promise<void> {
   const path = parsed.args[0]
   const newState = parsed.args[1]
@@ -299,7 +299,7 @@ export async function handleSetState(
     
     if (result.success) {
       addOutput('success', `State changed to: ${newState}`)
-      onRefresh?.(true)
+      // Note: Removed onRefresh?.(true) - incremental store updates are sufficient
     } else {
       addOutput('error', result.error || 'Failed to update state')
     }

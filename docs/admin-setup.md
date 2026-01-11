@@ -24,6 +24,18 @@ Once ready, go to **Settings → API** and note:
 
 You'll enter these in BluePLM later.
 
+### Increase Max Rows (Important for Large Vaults)
+
+While in the API settings, increase the maximum rows returned per query:
+
+1. In **Settings → API**, look at the left sidebar and click **Data API**
+2. Find **Max Rows** (default is 1,000)
+3. Increase this to a value well beyond your expected maximum vault size (e.g., `1000000` for 1 million rows)
+4. Click **Save**
+
+::: warning Plan for Growth
+If your vault exceeds the max rows setting, queries may return incomplete results. Set this higher than you think you'll need — there's no performance penalty for a higher limit.
+
 ## Step 2: Set Up Google OAuth (Recommended)
 
 Google Sign-In provides the smoothest authentication experience. Skip this step if you prefer email/password only.

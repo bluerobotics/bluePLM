@@ -189,6 +189,10 @@ export function isFolderSynced(folderPath: string, allFiles: LocalFile[]): boole
 /**
  * Get the Tailwind color class for a folder icon
  * Based on checkout status and sync status
+ * 
+ * Note: Folder color is derived from computed metrics (isFolderSynced, checkoutStatus),
+ * not from the folder entry's own diffStatus. This ensures the icon updates immediately
+ * when files are downloaded, without requiring an app restart.
  */
 export function getFolderIconColor(
   file: LocalFile,
@@ -196,9 +200,6 @@ export function getFolderIconColor(
   userId?: string
 ): string {
   if (!file.isDirectory) return ''
-  
-  // Cloud-only folders (exist on server but not locally) - grey and faded
-  if (file.diffStatus === 'cloud') return 'text-plm-fg-muted opacity-50'
   
   const checkoutStatus = getFolderCheckoutStatus(file.relativePath, allFiles, userId)
   
@@ -212,7 +213,8 @@ export function getFolderIconColor(
     return 'text-orange-400'
   }
   
-  // Check if folder is fully synced
+  // Check if folder is fully synced (derived from children, not stale folder diffStatus)
+  // Returns grey for cloud-only folders (all children have diffStatus 'cloud')
   const synced = isFolderSynced(file.relativePath, allFiles)
   return synced ? 'text-plm-success' : 'text-plm-fg-muted'
 }

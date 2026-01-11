@@ -224,7 +224,20 @@ declare global {
       onHashProgress: (callback: (progress: { processed: number; total: number; percent: number }) => void) => () => void
       createFolder: (path: string) => Promise<OperationResult>
       deleteItem: (path: string) => Promise<OperationResult>
+      // Batch delete operations - much faster than individual deleteItem calls
+      // Stops file watcher ONCE, deletes all files, restarts watcher ONCE
+      deleteBatch: (paths: string[], useTrash?: boolean) => Promise<{
+        success: boolean
+        results: Array<{ path: string; success: boolean; error?: string }>
+        summary: { total: number; succeeded: number; failed: number; duration: number }
+      }>
+      trashBatch: (paths: string[]) => Promise<{
+        success: boolean
+        results: Array<{ path: string; success: boolean; error?: string }>
+        summary: { total: number; succeeded: number; failed: number; duration: number }
+      }>
       isDirEmpty: (path: string) => Promise<{ success: boolean; empty?: boolean; error?: string }>
+      isDirectory: (path: string) => Promise<{ success: boolean; isDirectory?: boolean; error?: string }>
       renameItem: (oldPath: string, newPath: string) => Promise<OperationResult>
       copyFile: (sourcePath: string, destPath: string) => Promise<OperationResult>
       moveFile: (sourcePath: string, destPath: string) => Promise<OperationResult>

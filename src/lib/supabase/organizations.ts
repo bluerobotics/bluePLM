@@ -1,5 +1,6 @@
 import { getSupabaseClient, authLog, getCurrentConfigValues } from './client'
 import { getCurrentAccessToken } from './auth'
+import { recordMetric } from '@/lib/performanceMetrics'
 
 // ============================================
 // User & Organization
@@ -166,6 +167,7 @@ export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProvide
 // Find and link organization by email domain, pending membership, or fetch existing org
 // cachedOrgId: Optional org_id from already-fetched profile (avoids duplicate network request)
 export async function linkUserToOrganization(userId: string, userEmail: string, cachedOrgId?: string | null) {
+  const startTime = performance.now()
   authLog('info', 'linkUserToOrganization called', { userId: userId?.substring(0, 8) + '...', email: userEmail, hasCachedOrgId: !!cachedOrgId })
   
   // Use raw fetch - Supabase client methods hang
@@ -247,8 +249,9 @@ export async function linkUserToOrganization(userId: string, userEmail: string, 
     })
     
     if (userProfile?.org_id) {
-      // User already has org_id, just fetch the organization
-      authLog('info', 'User has org_id, fetching org details')
+      // User already has org_id, just fetch the organization (FAST PATH)
+      authLog('info', 'User has org_id, fetching org details (fast path)')
+      const orgFetchStart = performance.now()
       const orgResponse = await fetch(`${url}/rest/v1/organizations?select=*&id=eq.${userProfile.org_id}`, {
         headers: {
           'apikey': key,
@@ -257,13 +260,18 @@ export async function linkUserToOrganization(userId: string, userEmail: string, 
         }
       })
       const orgData = await orgResponse.json()
+      const orgFetchDuration = performance.now() - orgFetchStart
       
       if (orgData && orgData.length > 0) {
-        authLog('info', 'Found existing org', { 
+        const totalDuration = performance.now() - startTime
+        recordMetric('Startup', 'Organization load complete', { 
+          durationMs: Math.round(totalDuration),
+          path: 'fast',
+          orgFetchMs: Math.round(orgFetchDuration)
+        })
+        authLog('info', 'Found existing org (fast path)', { 
           orgName: orgData[0].name,
-          hasSettings: !!orgData[0].settings,
-          settingsApiUrl: orgData[0].settings?.api_url,
-          settingsKeys: Object.keys(orgData[0].settings || {})
+          durationMs: Math.round(totalDuration)
         })
         return { org: orgData[0], error: null }
       }
@@ -321,6 +329,11 @@ export async function linkUserToOrganization(userId: string, userEmail: string, 
         authLog('warn', 'Error updating user org_id', { error: String(updateErr) })
       }
       
+      const totalDuration = performance.now() - startTime
+      recordMetric('Startup', 'Organization load complete', { 
+        durationMs: Math.round(totalDuration),
+        path: 'domain_match'
+      })
       return { org: matchingOrg, error: null }
     }
     
@@ -542,10 +555,20 @@ export async function linkUserToOrganization(userId: string, userEmail: string, 
       }
     }
     
-    authLog('warn', 'No organization found for domain, pending membership, or org slug', { domain, orgsInDb: allOrgs?.length })
+    const totalDuration = performance.now() - startTime
+    recordMetric('Startup', 'Organization load complete', { 
+      durationMs: Math.round(totalDuration),
+      path: 'not_found'
+    })
+    authLog('warn', 'No organization found for domain, pending membership, or org slug', { domain, orgsInDb: allOrgs?.length, durationMs: Math.round(totalDuration) })
     return { org: null, error: new Error(`No organization found for @${domain}. If you were invited, please contact your administrator.`) }
   } catch (err) {
-    authLog('error', 'linkUserToOrganization failed', { error: String(err) })
+    const totalDuration = performance.now() - startTime
+    recordMetric('Startup', 'Organization load complete', { 
+      durationMs: Math.round(totalDuration),
+      path: 'error'
+    })
+    authLog('error', 'linkUserToOrganization failed', { error: String(err), durationMs: Math.round(totalDuration) })
     return { org: null, error: err as Error }
   }
 }

@@ -47,6 +47,10 @@ export const createOperationsSlice: StateCreator<
   // Initial state - Pending large upload
   pendingLargeUpload: null,
   
+  // Initial state - File watcher suppression
+  lastOperationCompletedAt: 0,
+  expectedFileChanges: new Set<string>(),
+  
   // Actions - Loading
   setIsLoading: (isLoading) => set({ isLoading }),
   setIsRefreshing: (isRefreshing) => set({ isRefreshing }),
@@ -68,7 +72,9 @@ export const createOperationsSlice: StateCreator<
   })),
   endSync: () => {
     set({ 
-      syncProgress: { isActive: false, operation: 'upload', current: 0, total: 0, percent: 0, speed: '', cancelRequested: false } 
+      syncProgress: { isActive: false, operation: 'upload', current: 0, total: 0, percent: 0, speed: '', cancelRequested: false },
+      // Record completion timestamp for file watcher suppression
+      lastOperationCompletedAt: Date.now()
     })
     // Process the queue after ending sync so the next operation can start
     // Using 0ms delay to allow state to settle before processing next operation
@@ -269,4 +275,23 @@ export const createOperationsSlice: StateCreator<
   // Actions - Pending large upload
   setPendingLargeUpload: (upload) => set({ pendingLargeUpload: upload }),
   clearPendingLargeUpload: () => set({ pendingLargeUpload: null }),
+  
+  // Actions - File watcher suppression
+  addExpectedFileChanges: (paths: string[]) => set(state => {
+    const newSet = new Set(state.expectedFileChanges)
+    for (const path of paths) {
+      newSet.add(path)
+    }
+    return { expectedFileChanges: newSet }
+  }),
+  
+  clearExpectedFileChanges: (paths: string[]) => set(state => {
+    const newSet = new Set(state.expectedFileChanges)
+    for (const path of paths) {
+      newSet.delete(path)
+    }
+    return { expectedFileChanges: newSet }
+  }),
+  
+  setLastOperationCompletedAt: (timestamp: number) => set({ lastOperationCompletedAt: timestamp }),
 })

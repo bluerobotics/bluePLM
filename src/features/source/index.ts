@@ -12,7 +12,6 @@ export { FileTree } from './explorer'
 export { 
   VaultTreeItem, 
   FolderTreeItem, 
-  FileTreeItem, 
   PinnedFoldersSection,
   RecentVaultsSection,
   NoVaultAccessMessage,

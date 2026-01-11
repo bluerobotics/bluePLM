@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useShallow } from 'zustand/react/shallow'
 import { 
   FolderOpen, 
   ChevronRight, 
@@ -32,9 +34,11 @@ import { SelectionBoxOverlay } from '@/features/source/browser'
 import { VaultTreeItem } from './file-tree/VaultTreeItem'
 import { PinnedFoldersSection } from './file-tree/PinnedFoldersSection'
 import { NoVaultAccessMessage } from './file-tree/RecentVaultsSection'
-import { FileActionButtons, FolderActionButtons } from './file-tree/TreeItemActions'
+import { VirtualizedTreeRow, TREE_ROW_HEIGHT } from './file-tree/VirtualizedTreeRow'
+import { TreeHoverProvider } from './file-tree/TreeHoverContext'
 // FileTree hooks
 import { useVaultTree } from './file-tree/hooks/useVaultTree'
+import { useFlattenedTree } from './file-tree/hooks/useFlattenedTree'
 import { useTreeDragDrop } from './file-tree/hooks/useTreeDragDrop'
 import { useTreeKeyboardNav } from './file-tree/hooks/useTreeKeyboardNav'
 // Shared hooks
@@ -51,44 +55,98 @@ import {
 interface FileTreeProps {
   onOpenVault?: () => void
   onOpenRecentVault?: (path: string) => void
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean, forceHashComputation?: boolean) => void
 }
 
 export function FileTree({ onRefresh }: FileTreeProps) {
-  const { 
-    files, 
-    expandedFolders, 
-    toggleFolder, 
-    vaultPath,
-    currentFolder,
-    setCurrentFolder,
-    connectedVaults,
-    toggleVaultExpanded,
-    activeVaultId,
-    switchVault,
-    addToast,
-    pinnedFolders,
-    unpinFolder,
-    pinnedSectionExpanded,
-    togglePinnedSection,
-    reorderPinnedFolders,
-    user,
-    selectedFiles,
-    setSelectedFiles,
-    toggleFileSelection,
-    lowercaseExtensions,
-    isLoading,
-    filesLoaded,
-    removeConnectedVault,
-    setFiles,
-    setServerFiles,
-    setFilesLoaded,
-    setVaultPath,
-    setVaultConnected,
-    hideSolidworksTempFiles,
-    getEffectiveVaultIds,
-    impersonatedUser,
-  } = usePDMStore()
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SELECTIVE ZUSTAND SELECTORS
+  // Split monolithic usePDMStore() into individual selectors to prevent
+  // unnecessary re-renders. Each selector only triggers re-render when its
+  // specific value changes.
+  // 
+  // Pattern: Use useShallow() wrapper for object/array selectors to enable
+  // shallow equality comparison (Zustand v5+ API).
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // ─── Data Selectors (arrays/objects use useShallow wrapper) ────────────────
+  const files = usePDMStore(s => s.files)
+  const expandedFolders = usePDMStore(s => s.expandedFolders)
+  const connectedVaults = usePDMStore(useShallow(s => s.connectedVaults))
+  const pinnedFolders = usePDMStore(useShallow(s => s.pinnedFolders))
+  const selectedFiles = usePDMStore(useShallow(s => s.selectedFiles))
+  
+  // ─── Primitive Selectors (no equality function needed) ─────────────────────
+  const vaultPath = usePDMStore(s => s.vaultPath)
+  const currentFolder = usePDMStore(s => s.currentFolder)
+  const activeVaultId = usePDMStore(s => s.activeVaultId)
+  const pinnedSectionExpanded = usePDMStore(s => s.pinnedSectionExpanded)
+  const lowercaseExtensions = usePDMStore(s => s.lowercaseExtensions)
+  const isLoading = usePDMStore(s => s.isLoading)
+  const filesLoaded = usePDMStore(s => s.filesLoaded)
+  const hideSolidworksTempFiles = usePDMStore(s => s.hideSolidworksTempFiles)
+  const tabsEnabled = usePDMStore(s => s.tabsEnabled)
+  const activeTabId = usePDMStore(s => s.activeTabId)
+  
+  // ─── User Selectors ────────────────────────────────────────────────────────
+  const user = usePDMStore(s => s.user)
+  const impersonatedUser = usePDMStore(s => s.impersonatedUser)
+  
+  // ─── Offline Mode & Staged Checkin Selectors ────────────────────────────────
+  const isOfflineMode = usePDMStore(s => s.isOfflineMode)
+  const { stageCheckin, unstageCheckin, getStagedCheckin } = usePDMStore(
+    useShallow(s => ({
+      stageCheckin: s.stageCheckin,
+      unstageCheckin: s.unstageCheckin,
+      getStagedCheckin: s.getStagedCheckin
+    }))
+  )
+  
+  // ─── Action Selectors (grouped by domain, useShallow wrapper) ──────────────
+  // Folder actions
+  const { toggleFolder, setCurrentFolder, updateTabFolder } = usePDMStore(
+    useShallow(s => ({ toggleFolder: s.toggleFolder, setCurrentFolder: s.setCurrentFolder, updateTabFolder: s.updateTabFolder }))
+  )
+  
+  // Vault actions
+  const { toggleVaultExpanded, switchVault, removeConnectedVault, setVaultPath, setVaultConnected } = usePDMStore(
+    useShallow(s => ({
+      toggleVaultExpanded: s.toggleVaultExpanded,
+      switchVault: s.switchVault,
+      removeConnectedVault: s.removeConnectedVault,
+      setVaultPath: s.setVaultPath,
+      setVaultConnected: s.setVaultConnected
+    }))
+  )
+  
+  // File state actions
+  const { setFiles, setServerFiles, setFilesLoaded } = usePDMStore(
+    useShallow(s => ({
+      setFiles: s.setFiles,
+      setServerFiles: s.setServerFiles,
+      setFilesLoaded: s.setFilesLoaded
+    }))
+  )
+  
+  // Selection actions
+  const { setSelectedFiles, toggleFileSelection } = usePDMStore(
+    useShallow(s => ({ setSelectedFiles: s.setSelectedFiles, toggleFileSelection: s.toggleFileSelection }))
+  )
+  
+  // Pinned folder actions
+  const { unpinFolder, togglePinnedSection, reorderPinnedFolders } = usePDMStore(
+    useShallow(s => ({
+      unpinFolder: s.unpinFolder,
+      togglePinnedSection: s.togglePinnedSection,
+      reorderPinnedFolders: s.reorderPinnedFolders
+    }))
+  )
+  
+  // Toast action (single function, no shallow needed)
+  const addToast = usePDMStore(s => s.addToast)
+  
+  // Computed getter (returns new array, but memoized internally)
+  const getEffectiveVaultIds = usePDMStore(s => s.getEffectiveVaultIds)
   
   // Filter connected vaults based on impersonated user's access
   const effectiveVaultIds = getEffectiveVaultIds()
@@ -98,17 +156,31 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   }, [connectedVaults, effectiveVaultIds])
   
   // Use extracted hooks
+  // folderMetrics Map provides O(1) lookups for pre-computed folder statistics
   const { 
     tree, 
+    folderMetrics,
     isBeingProcessed,
     getProcessingOperation, 
     checkFolderSynced, 
     checkFolderCheckoutStatus, 
     getDiffCounts,
-    getLocalOnlyCount,
-    getFolderCheckoutStats,
     sortChildren
   } = useVaultTree()
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // O(1) SELECTION LOOKUP
+  // Convert selectedFiles array to Set for O(1) .has() checks instead of O(N) .includes()
+  // ═══════════════════════════════════════════════════════════════════════════
+  const selectedFilesSet = useMemo(() => new Set(selectedFiles), [selectedFiles])
+  
+  // Use flattened tree for virtualization
+  const { 
+    flattenedItems, 
+    getVisibleFiles,
+    getFilesInRange,
+    totalCount
+  } = useFlattenedTree({ tree, sortChildren })
   
   const {
     draggedFilesRef,
@@ -150,41 +222,20 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   const [renameValue, setRenameValue] = useState('')
   const [isDownloadingAll, setIsDownloadingAll] = useState(false)
   const [isCheckingInAll, setIsCheckingInAll] = useState(false)
-  const [isCheckinHovered, setIsCheckinHovered] = useState(false)
-  const [isDownloadHovered, setIsDownloadHovered] = useState(false)
-  const [isUploadHovered, setIsUploadHovered] = useState(false)
   
   // New folder dialog state
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
   const [newFolderName, setNewFolderName] = useState('New Folder')
   const [newFolderParentPath, setNewFolderParentPath] = useState<string>('')
-  const [isCheckoutHovered, setIsCheckoutHovered] = useState(false)
-  const [isUpdateHovered, setIsUpdateHovered] = useState(false)
   const [isCheckingInMyCheckouts, setIsCheckingInMyCheckouts] = useState(false)
   
   // Ref for the file tree container
   const fileTreeContainerRef = useRef<HTMLDivElement>(null!)
-  // Ref for the scrollable vault list (where selection box is drawn)
+  // Ref for the scrollable vault list (where virtualization happens)
   const scrollableContainerRef = useRef<HTMLDivElement>(null!)
   
   // Use keyboard navigation hook
   useTreeKeyboardNav({ containerRef: fileTreeContainerRef, tree, onRefresh })
-  
-  // Get visible tree items (for selection box intersection)
-  const getVisibleTreeItems = useCallback((): LocalFile[] => {
-    const result: LocalFile[] = []
-    const addItems = (items: LocalFile[]) => {
-      for (const item of items) {
-        result.push(item)
-        if (item.isDirectory && expandedFolders.has(item.relativePath)) {
-          const children = tree[item.relativePath] || []
-          addItems(sortChildren(children))
-        }
-      }
-    }
-    addItems(sortChildren(tree[''] || []))
-    return result
-  }, [tree, expandedFolders, sortChildren])
   
   // Clear selection helper
   const clearSelection = useCallback(() => {
@@ -194,7 +245,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   // Selection box (marquee/drag-box selection)
   const { selectionBox, selectionHandlers } = useSelectionBox({
     containerRef: scrollableContainerRef,
-    getVisibleItems: getVisibleTreeItems,
+    getVisibleItems: getVisibleFiles,
     rowSelector: '.tree-item',
     setSelectedFiles,
     clearSelection,
@@ -210,6 +261,10 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   const switchToVault = async (vault: ConnectedVault) => {
     if (vault.id === activeVaultId) {
       setCurrentFolder('')
+      // Sync tab title when navigating to vault root
+      if (tabsEnabled && activeTabId) {
+        updateTabFolder(activeTabId, '')
+      }
       return
     }
     
@@ -227,6 +282,10 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     
     switchVault(vault.id, vault.localPath)
     setCurrentFolder('')
+    // Sync tab title when switching vaults
+    if (tabsEnabled && activeTabId) {
+      updateTabFolder(activeTabId, '')
+    }
   }
   
   // Get files that need attention before disconnect
@@ -428,284 +487,139 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     await executeCommand('checkout', { files: syncedFiles }, { onRefresh })
   }
 
-  // Get file icon - spinners are on action buttons, not icons
-  const getFileIcon = (file: LocalFile) => {
-    if (file.isDirectory) {
-      if (file.diffStatus === 'cloud') {
-        return <FolderOpen size={16} className="text-plm-fg-muted" />
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIRTUALIZED TREE ITEM CLICK HANDLER
+  // Handles selection logic including shift-click range selection
+  // ═══════════════════════════════════════════════════════════════════════════
+  const handleTreeItemClick = useCallback((e: React.MouseEvent, file: LocalFile, flatIndex: number) => {
+    if (e.shiftKey && lastClickedIndex !== null) {
+      // Range selection
+      const filesInRange = getFilesInRange(lastClickedIndex, flatIndex)
+      const rangePaths = filesInRange.map(f => f.path)
+      
+      if (e.ctrlKey || e.metaKey) {
+        const newSelection = [...new Set([...selectedFiles, ...rangePaths])]
+        setSelectedFiles(newSelection)
+      } else {
+        setSelectedFiles(rangePaths)
       }
-      const checkoutStatus = checkFolderCheckoutStatus(file.relativePath)
-      if (checkoutStatus === 'others' || checkoutStatus === 'both') {
-        return <FolderOpen size={16} className="text-plm-error" />
-      }
-      if (checkoutStatus === 'mine') {
-        return <FolderOpen size={16} className="text-orange-400" />
-      }
-      const synced = checkFolderSynced(file.relativePath)
-      return <FolderOpen size={16} className={synced ? 'text-plm-success' : 'text-plm-fg-muted'} />
+    } else if (e.ctrlKey || e.metaKey) {
+      toggleFileSelection(file.path, true)
+      setLastClickedIndex(flatIndex)
+    } else {
+      setSelectedFiles([file.path])
+      setLastClickedIndex(flatIndex)
     }
     
-    return <FileIcon file={file} size={16} />
-  }
+    const folderPath = file.isDirectory 
+      ? file.relativePath 
+      : file.relativePath.split('/').slice(0, -1).join('/') || ''
+    
+    setCurrentFolder(folderPath)
+    
+    // Sync with active tab when tabs are enabled
+    if (tabsEnabled && activeTabId) {
+      updateTabFolder(activeTabId, folderPath)
+    }
+  }, [lastClickedIndex, selectedFiles, setSelectedFiles, toggleFileSelection, setCurrentFolder, getFilesInRange, tabsEnabled, activeTabId, updateTabFolder])
 
-  // Render tree item (file or folder)
-  const renderTreeItem = (file: LocalFile, depth: number = 0): React.ReactNode => {
+  // Handle double-click on tree items
+  const handleTreeItemDoubleClick = useCallback(async (file: LocalFile) => {
+    if (file.isDirectory) {
+      toggleFolder(file.relativePath)
+    } else if (file.diffStatus === 'cloud') {
+      const result = await executeCommand('download', { files: [file] }, { onRefresh, silent: true })
+      if (result.success && window.electronAPI) {
+        window.electronAPI.openFile(file.path)
+      }
+    } else if (window.electronAPI) {
+      window.electronAPI.openFile(file.path)
+    }
+  }, [toggleFolder, onRefresh])
+
+  // Handle context menu on tree items
+  const handleTreeItemContextMenu = useCallback((e: React.MouseEvent, file: LocalFile) => {
+    if (!(selectedFiles.length > 1 && selectedFiles.includes(file.path))) {
+      setSelectedFiles([file.path])
+    }
+    setContextMenu({ x: e.clientX, y: e.clientY, file })
+  }, [selectedFiles, setSelectedFiles])
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIRTUALIZER SETUP
+  // Only render visible rows plus overscan for smooth scrolling
+  // ═══════════════════════════════════════════════════════════════════════════
+  const virtualizer = useVirtualizer({
+    count: totalCount,
+    getScrollElement: () => scrollableContainerRef.current,
+    estimateSize: () => TREE_ROW_HEIGHT,
+    overscan: 15 // Render 15 extra items above/below viewport for smooth scrolling
+  })
+
+  // Legacy renderTreeItem for PinnedFoldersSection (needs recursive rendering)
+  // This is used only for pinned folders which have a different rendering context
+  // Note: This is a simplified version without action buttons for pinned preview
+  const renderTreeItem = useCallback((file: LocalFile, depth: number = 0): React.ReactNode => {
     const isExpanded = expandedFolders.has(file.relativePath)
-    const isCurrentFolder = file.isDirectory && file.relativePath === currentFolder
+    const isCurrentFolderFlag = file.isDirectory && file.relativePath === currentFolder
     const children = tree[file.relativePath] || []
     
-    const diffCounts = file.isDirectory ? getDiffCounts(file.relativePath) : null
-    const localOnlyCount = file.isDirectory ? getLocalOnlyCount(file.relativePath) : 0
-    const folderStats = file.isDirectory ? getFolderCheckoutStats(file.relativePath) : null
-    
-    const diffClass = file.diffStatus ? `${DIFF_STATUS_CLASS_PREFIX}${file.diffStatus}` : ''
+    // Don't apply diffClass to folders - folder visual state is derived from children (via checkFolderSynced)
+    // Only files should use their own diffStatus for CSS styling
+    const diffClass = (!file.isDirectory && file.diffStatus) ? `${DIFF_STATUS_CLASS_PREFIX}${file.diffStatus}` : ''
     const isSelected = selectedFiles.includes(file.path)
-    const isRenaming = renamingFile?.relativePath === file.relativePath
     const operationType = getProcessingOperation(file.relativePath, file.isDirectory)
     const isProcessing = operationType !== null
     const isDragTarget = file.isDirectory && dragOverFolder === file.relativePath
     const isCut = clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)
 
-    // Click handler with selection logic
-    const handleClick = (e: React.MouseEvent) => {
-      if (isRenaming) return
-      if (e.shiftKey) e.preventDefault()
-      
-      const getVisibleFiles = (): LocalFile[] => {
-        const result: LocalFile[] = []
-        const addFiles = (items: LocalFile[]) => {
-          for (const item of items) {
-            result.push(item)
-            if (item.isDirectory && expandedFolders.has(item.relativePath)) {
-              const children = tree[item.relativePath] || []
-              addFiles(sortChildren(children))
-            }
-          }
-        }
-        addFiles(sortChildren(tree[''] || []))
-        return result
-      }
-      
-      const visibleFiles = getVisibleFiles()
-      const currentIndex = visibleFiles.findIndex(f => f.path === file.path)
-      
-      if (e.shiftKey && lastClickedIndex !== null) {
-        const start = Math.min(lastClickedIndex, currentIndex)
-        const end = Math.max(lastClickedIndex, currentIndex)
-        const rangePaths = visibleFiles.slice(start, end + 1).map(f => f.path)
-        
-        if (e.ctrlKey || e.metaKey) {
-          const newSelection = [...new Set([...selectedFiles, ...rangePaths])]
-          setSelectedFiles(newSelection)
-        } else {
-          setSelectedFiles(rangePaths)
-        }
-      } else if (e.ctrlKey || e.metaKey) {
-        toggleFileSelection(file.path, true)
-        setLastClickedIndex(currentIndex)
-      } else {
-        setSelectedFiles([file.path])
-        setLastClickedIndex(currentIndex)
-      }
-      
+    // Get file icon
+    const getFileIcon = () => {
       if (file.isDirectory) {
-        setCurrentFolder(file.relativePath)
-      } else {
-        const parentPath = file.relativePath.split('/').slice(0, -1).join('/') || ''
-        setCurrentFolder(parentPath)
-        handleSlowDoubleClick(file)
-      }
-    }
-
-    // Double click handler
-    const handleDoubleClick = async () => {
-      if (isRenaming) return
-      
-      // Reset slow double-click state on fast double-click (prevents rename trigger)
-      resetSlowDoubleClick()
-      
-      if (file.isDirectory) {
-        toggleFolder(file.relativePath)
-      } else if (file.diffStatus === 'cloud') {
-        const result = await executeCommand('download', { files: [file] }, { onRefresh, silent: true })
-        if (result.success && window.electronAPI) {
-          window.electronAPI.openFile(file.path)
+        if (file.diffStatus === 'cloud') {
+          return <FolderOpen size={16} className="text-plm-fg-muted" />
         }
-      } else if (window.electronAPI) {
-        window.electronAPI.openFile(file.path)
+        const checkoutStatus = checkFolderCheckoutStatus(file.relativePath)
+        if (checkoutStatus === 'others' || checkoutStatus === 'both') {
+          return <FolderOpen size={16} className="text-plm-error" />
+        }
+        if (checkoutStatus === 'mine') {
+          return <FolderOpen size={16} className="text-orange-400" />
+        }
+        const synced = checkFolderSynced(file.relativePath)
+        return <FolderOpen size={16} className={synced ? 'text-plm-success' : 'text-plm-fg-muted'} />
       }
-    }
-
-    // Context menu handler
-    const handleContextMenu = (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (!(selectedFiles.length > 1 && selectedFiles.includes(file.path))) {
-        setSelectedFiles([file.path])
-      }
-      setContextMenu({ x: e.clientX, y: e.clientY, file })
-    }
-
-    // Drag start handler
-    const onDragStart = (e: React.DragEvent) => {
-      let filesToDrag: LocalFile[]
-      if (selectedFiles.includes(file.path) && selectedFiles.length > 1) {
-        filesToDrag = files.filter(f => selectedFiles.includes(f.path) && f.diffStatus !== 'cloud')
-      } else if (file.diffStatus !== 'cloud') {
-        filesToDrag = [file]
-      } else {
-        e.preventDefault()
-        return
-      }
-      
-      handleDragStart(e, filesToDrag, file)
-    }
-
-    // Drag over handler
-    const onDragOver = (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      
-      const hasPdmFiles = e.dataTransfer.types.includes(PDM_FILES_DATA_TYPE)
-      const hasExternalFiles = e.dataTransfer.types.includes('Files') && !hasPdmFiles
-      const currentDraggedFiles = draggedFilesRef.current
-      
-      if (!hasPdmFiles && !hasExternalFiles && currentDraggedFiles.length === 0) return
-      
-      if (file.isDirectory) {
-        handleFolderDragOver(e, file, currentDraggedFiles)
-      }
+      return <FileIcon file={file} size={16} />
     }
 
     return (
       <div key={file.path}>
         <div
-          className={`tree-item group ${isCurrentFolder ? 'current-folder' : ''} ${isSelected ? 'selected' : ''} ${isProcessing ? 'processing' : ''} ${diffClass} ${isDragTarget ? 'drag-target' : ''} ${isCut ? 'opacity-50' : ''}`}
+          className={`tree-item group ${isCurrentFolderFlag ? 'current-folder' : ''} ${isSelected ? 'selected' : ''} ${isProcessing ? 'processing' : ''} ${diffClass} ${isDragTarget ? 'drag-target' : ''} ${isCut ? 'opacity-50' : ''}`}
           style={{ paddingLeft: TREE_BASE_PADDING_PX + depth * TREE_INDENT_PX }}
-          onClick={handleClick}
-          onDoubleClick={handleDoubleClick}
-          onContextMenu={handleContextMenu}
-          draggable={file.diffStatus !== 'cloud'}
-          onDragStart={onDragStart}
-          onDragEnd={handleDragEnd}
-          onDragOver={onDragOver}
-          onDragLeave={file.isDirectory ? handleFolderDragLeave : undefined}
-          onDrop={file.isDirectory ? (e) => handleDropOnFolder(e, file, onRefresh) : undefined}
         >
-          {/* Folder chevron or file spacer */}
           {file.isDirectory ? (
-            <span 
-              className="mr-1 cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation()
-                toggleFolder(file.relativePath)
-              }}
-            >
-              {isExpanded 
-                ? <ChevronDown size={14} className="text-plm-fg-muted" /> 
-                : <ChevronRight size={14} className="text-plm-fg-muted" />
-              }
+            <span className="mr-1 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleFolder(file.relativePath) }}>
+              {isExpanded ? <ChevronDown size={14} className="text-plm-fg-muted" /> : <ChevronRight size={14} className="text-plm-fg-muted" />}
             </span>
           ) : (
             <span className="w-[14px] mr-1" />
           )}
-          
-          {/* Icon */}
-          <span className="tree-item-icon">{getFileIcon(file)}</span>
-          
-          {/* Name */}
-          {isRenaming ? (
-            <input
-              type="text"
-              className="flex-1 text-sm bg-plm-bg border border-plm-accent rounded px-1 py-0.5 outline-none"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onBlur={handleRenameSubmit}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRenameSubmit()
-                if (e.key === 'Escape') setRenamingFile(null)
-              }}
-              autoFocus
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <span className={`truncate text-sm flex-1 ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}>
-              {file.isDirectory || !file.extension 
-                ? file.name 
-                : file.name.slice(0, -file.extension.length) + (lowercaseExtensions !== false ? file.extension.toLowerCase() : file.extension)}
-            </span>
-          )}
-          
-          {/* Folder action buttons */}
-          {!isRenaming && file.isDirectory && folderStats && (
-            <FolderActionButtons
-              file={file}
-              diffCounts={diffCounts}
-              localOnlyCount={localOnlyCount}
-              checkoutUsers={folderStats.checkoutUsers}
-              checkedOutByMeCount={folderStats.checkedOutByMeCount}
-              totalCheckouts={folderStats.totalCheckouts}
-              syncedCount={folderStats.syncedCount}
-              operationType={operationType}
-              onRefresh={onRefresh}
-            />
-          )}
-          
-          {/* File action buttons */}
-          {!isRenaming && !file.isDirectory && (
-            <FileActionButtons
-              file={file}
-              operationType={operationType}
-              onRefresh={onRefresh}
-              selectedFiles={selectedFiles}
-              selectedDownloadableFiles={categories.downloadable}
-              selectedUploadableFiles={categories.uploadable}
-              selectedCheckoutableFiles={categories.checkoutable}
-              selectedCheckinableFiles={categories.checkinable}
-              selectedUpdatableFiles={categories.updatable}
-              isDownloadHovered={isDownloadHovered}
-              isUploadHovered={isUploadHovered}
-              isCheckoutHovered={isCheckoutHovered}
-              isCheckinHovered={isCheckinHovered}
-              isUpdateHovered={isUpdateHovered}
-              setIsDownloadHovered={setIsDownloadHovered}
-              setIsUploadHovered={setIsUploadHovered}
-              setIsCheckoutHovered={setIsCheckoutHovered}
-              setIsCheckinHovered={setIsCheckinHovered}
-              setIsUpdateHovered={setIsUpdateHovered}
-            />
-          )}
+          <span className="tree-item-icon">{getFileIcon()}</span>
+          <span className={`truncate text-sm flex-1 ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}>
+            {file.isDirectory || !file.extension ? file.name : file.name.slice(0, -file.extension.length) + (lowercaseExtensions !== false ? file.extension.toLowerCase() : file.extension)}
+          </span>
         </div>
-        
-        {/* Children when expanded */}
         {file.isDirectory && isExpanded && (
-          <div
-            onDragOver={(e) => {
-              e.preventDefault()
-              if (draggedFilesRef.current.length > 0 || e.dataTransfer.types.includes(PDM_FILES_DATA_TYPE)) {
-                if (!dragOverFolder || dragOverFolder === file.relativePath) {
-                  setDragOverFolder(file.relativePath)
-                }
-              }
-            }}
-            onDragLeave={(e) => {
-              const relatedTarget = e.relatedTarget as HTMLElement
-              if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
-                if (dragOverFolder === file.relativePath) {
-                  setDragOverFolder(null)
-                }
-              }
-            }}
-            onDrop={(e) => handleDropOnFolder(e, file, onRefresh)}
-          >
+          <div>
             {sortChildren(children).map(child => renderTreeItem(child, depth + 1))}
           </div>
         )}
       </div>
     )
-  }
+  }, [tree, expandedFolders, currentFolder, selectedFiles, getProcessingOperation, dragOverFolder, clipboard, checkFolderCheckoutStatus, checkFolderSynced, toggleFolder, lowercaseExtensions, sortChildren])
 
-  // Render vault section
+  // Render vault section with virtualized tree
   const renderVaultSection = (vault: ConnectedVault) => {
     const isActive = activeVaultId === vault.id
     const isExpanded = vault.isExpanded
@@ -834,8 +748,9 @@ export function FileTree({ onRefresh }: FileTreeProps) {
           onCheckoutAllSynced={handleCheckoutAllSynced}
         />
         
-        {/* Vault contents */}
+        {/* Vault contents - VIRTUALIZED */}
         {isExpanded && isActive && (
+          <TreeHoverProvider>
           <div 
             className={`pb-2 min-h-[40px] ${dragOverFolder === '' ? 'bg-plm-accent/10 outline outline-2 outline-dashed outline-plm-accent/50 rounded' : ''}`}
             onDragOver={(e) => {
@@ -852,7 +767,88 @@ export function FileTree({ onRefresh }: FileTreeProps) {
             }}
             onDrop={(e) => handleVaultRootDrop(e, onRefresh)}
           >
-            {sortChildren(tree[''] || []).map(file => renderTreeItem(file, 1))}
+            {/* Virtualized tree container */}
+            {totalCount > 0 && (
+              <div
+                style={{
+                  height: virtualizer.getTotalSize(),
+                  width: '100%',
+                  position: 'relative'
+                }}
+              >
+                {virtualizer.getVirtualItems().map(virtualRow => {
+                  const item = flattenedItems[virtualRow.index]
+                  if (!item) return null
+                  
+                  const file = item.file
+                  // O(1) selection check via Set instead of O(N) array.includes()
+                  const isSelected = selectedFilesSet.has(file.path)
+                  const isRenaming = renamingFile?.relativePath === file.relativePath
+                  const operationType = getProcessingOperation(file.relativePath, file.isDirectory)
+                  // O(1) Map lookup for pre-computed folder metrics (null fallback for undefined)
+                  const metrics = file.isDirectory ? (folderMetrics.get(file.relativePath) ?? null) : null
+                  const diffCounts = file.isDirectory ? getDiffCounts(file.relativePath) : null
+                  const isDragTarget = file.isDirectory && dragOverFolder === file.relativePath
+                  
+                  return (
+                    <VirtualizedTreeRow
+                      key={file.path}
+                      item={item}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`
+                      }}
+                      isSelected={isSelected}
+                      isRenaming={isRenaming}
+                      renameValue={renameValue}
+                      onRenameChange={setRenameValue}
+                      onRenameSubmit={handleRenameSubmit}
+                      onRenameCancel={() => setRenamingFile(null)}
+                      onClick={handleTreeItemClick}
+                      onDoubleClick={handleTreeItemDoubleClick}
+                      onContextMenu={handleTreeItemContextMenu}
+                      onSlowDoubleClick={handleSlowDoubleClick}
+                      resetSlowDoubleClick={resetSlowDoubleClick}
+                      isDragTarget={isDragTarget}
+                      clipboard={clipboard}
+                      operationType={operationType}
+                      diffCounts={diffCounts}
+                      folderMetrics={metrics}
+                      onRefresh={onRefresh}
+                      selectedFiles={selectedFiles}
+                      selectedDownloadableFiles={categories.downloadable}
+                      selectedUploadableFiles={categories.uploadable}
+                      selectedCheckoutableFiles={categories.checkoutable}
+                      selectedCheckinableFiles={categories.checkinable}
+                      selectedUpdatableFiles={categories.updatable}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onFolderDragOver={handleFolderDragOver}
+                      onFolderDragLeave={handleFolderDragLeave}
+                      onDropOnFolder={handleDropOnFolder}
+                      draggedFilesRef={draggedFilesRef}
+                      files={files}
+                      checkFolderSynced={checkFolderSynced}
+                      checkFolderCheckoutStatus={checkFolderCheckoutStatus}
+                      // Props passed from parent to avoid store subscriptions
+                      currentFolder={currentFolder}
+                      lowercaseExtensions={lowercaseExtensions}
+                      toggleFolder={toggleFolder}
+                      // Action button props
+                      user={user}
+                      isOfflineMode={isOfflineMode}
+                      stageCheckin={stageCheckin}
+                      unstageCheckin={unstageCheckin}
+                      getStagedCheckin={getStagedCheckin}
+                      addToast={addToast}
+                    />
+                  )
+                })}
+              </div>
+            )}
             
             {(isLoading || !filesLoaded) && (tree[''] || []).length === 0 && (
               <div className="flex items-center justify-center py-6">
@@ -866,6 +862,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
               </div>
             )}
           </div>
+          </TreeHoverProvider>
         )}
       </div>
     )
@@ -917,6 +914,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         connectedVaults={connectedVaults}
         files={files}
         tree={tree}
+        getDiffCounts={getDiffCounts}
         onNavigate={async (pinned, vault) => {
           if (pinned.vaultId !== activeVaultId && vault) {
             setFiles([])
@@ -938,11 +936,15 @@ export function FileTree({ onRefresh }: FileTreeProps) {
             }
           }
           
-          if (pinned.isDirectory) {
-            setCurrentFolder(pinned.path)
-          } else {
-            const parentPath = pinned.path.split('/').slice(0, -1).join('/') || ''
-            setCurrentFolder(parentPath)
+          const folderPath = pinned.isDirectory 
+            ? pinned.path 
+            : pinned.path.split('/').slice(0, -1).join('/') || ''
+          
+          setCurrentFolder(folderPath)
+          
+          // Sync tab title when navigating via pinned folders
+          if (tabsEnabled && activeTabId) {
+            updateTabFolder(activeTabId, folderPath)
           }
         }}
         onUnpin={unpinFolder}
@@ -951,7 +953,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         renderTreeItem={renderTreeItem}
       />
       
-      {/* Vault list */}
+      {/* Vault list - scrollable container for virtualization */}
       <div 
         ref={scrollableContainerRef}
         className={`flex-1 overflow-y-auto relative ${selectionBox ? 'selecting' : ''}`}
@@ -1005,7 +1007,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
                 if (activeVaultId !== vault.id && vault.localPath) {
                   switchVault(vault.id, vault.localPath)
                 }
-                onRefresh?.(false)
+                onRefresh?.(false, true)
               }}
             >
               <RefreshCw size={14} />
@@ -1263,7 +1265,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
                 const cloudFiles = vaultFiles.filter(f => f.diffStatus === 'cloud')
                 const conflictFiles = vaultFiles.filter(f => f.diffStatus === 'outdated')
                 const checkedOutByMe = vaultFiles.filter(f => f.pdmData?.checked_out_by === user?.id)
-                const checkedOutByOthers = vaultFiles.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id)
+                const checkedOutByOthersVault = vaultFiles.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id)
                 
                 const totalLocalSize = vaultFiles
                   .filter(f => f.diffStatus !== 'cloud')
@@ -1352,7 +1354,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
                             <Lock size={14} className="text-plm-warning" />
                             <span className="text-sm text-plm-fg">Checked out by others</span>
                           </div>
-                          <span className="text-sm font-medium text-plm-fg">{checkedOutByOthers.length}</span>
+                          <span className="text-sm font-medium text-plm-fg">{checkedOutByOthersVault.length}</span>
                         </div>
                       </div>
                     </div>

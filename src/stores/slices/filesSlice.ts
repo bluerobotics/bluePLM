@@ -2,6 +2,7 @@ import { StateCreator } from 'zustand'
 import type { PDMStoreState, FilesSlice, LocalFile, DiffStatus, OperationType } from '../types'
 import type { PDMFile } from '../../types/pdm'
 import { buildFullPath } from '@/lib/utils/path'
+import { recordMetric } from '@/lib/performanceMetrics'
 
 // ============================================================================
 // Processing Operations Batching
@@ -10,20 +11,49 @@ import { buildFullPath } from '@/lib/utils/path'
 // Multiple add/remove calls within the same microtask are combined into a single state update.
 // This is critical for performance when processing 60+ files in batch operations.
 //
-// We use requestIdleCallback (when available) to schedule flushes during browser idle time,
-// which keeps the UI responsive during heavy batch operations. Falls back to queueMicrotask
-// for immediate processing when requestIdleCallback is not available.
+// We use queueMicrotask to schedule flushes, which runs at the end of the current
+// microtask queue. This ensures UI sees processing state immediately after the
+// synchronous code that adds the processing operation completes, preventing
+// intermediate states like "green cloud during checkin".
 
 let pendingProcessingAdds = new Map<string, OperationType>()
 let pendingProcessingRemoves = new Set<string>()
 let processingFlushScheduled = false
 
+
+/**
+ * Flushes pending processing operations changes immediately.
+ * Used internally by scheduleProcessingFlush and flushProcessingSync.
+ */
+function doProcessingFlush(
+  get: () => PDMStoreState,
+  set: (state: Partial<PDMStoreState>) => void
+): void {
+  processingFlushScheduled = false
+  
+  // Early exit if nothing to flush
+  if (pendingProcessingAdds.size === 0 && pendingProcessingRemoves.size === 0) {
+    return
+  }
+  
+  const currentState = get()
+  const newMap = new Map(currentState.processingOperations)
+  
+  // Apply removes first, then adds (adds override removes for same path)
+  pendingProcessingRemoves.forEach(p => newMap.delete(p))
+  pendingProcessingAdds.forEach((opType, p) => newMap.set(p, opType))
+  
+  // Clear pending batches
+  pendingProcessingRemoves.clear()
+  pendingProcessingAdds.clear()
+  
+  set({ processingOperations: newMap })
+}
+
 /**
  * Schedules a flush of pending processing operations changes.
- * Uses requestIdleCallback for better responsiveness, falling back to queueMicrotask.
- * 
- * requestIdleCallback schedules work during browser idle periods, allowing
- * animations, scrolling, and other UI updates to happen without jank.
+ * Uses queueMicrotask for immediate processing at the end of the current task,
+ * ensuring the UI sees processing state before any async operations start.
  * 
  * @param get - Zustand get function from slice
  * @param set - Zustand set function from slice
@@ -35,32 +65,24 @@ function scheduleProcessingFlush(
   if (processingFlushScheduled) return
   processingFlushScheduled = true
   
-  const doFlush = () => {
-    processingFlushScheduled = false
-    
-    const currentState = get()
-    const newMap = new Map(currentState.processingOperations)
-    
-    // Apply removes first, then adds (adds override removes for same path)
-    pendingProcessingRemoves.forEach(p => newMap.delete(p))
-    pendingProcessingAdds.forEach((opType, p) => newMap.set(p, opType))
-    
-    // Clear pending batches
-    pendingProcessingRemoves.clear()
-    pendingProcessingAdds.clear()
-    
-    set({ processingOperations: newMap })
-  }
-  
-  // Use requestIdleCallback for better UI responsiveness during heavy operations
-  // Falls back to queueMicrotask for environments without requestIdleCallback
-  if (typeof requestIdleCallback !== 'undefined') {
-    // Set a timeout of 100ms to ensure updates happen even if the browser is busy
-    // This balances responsiveness with ensuring users see status updates
-    requestIdleCallback(doFlush, { timeout: 100 })
-  } else {
-    queueMicrotask(doFlush)
-  }
+  queueMicrotask(() => doProcessingFlush(get, set))
+}
+
+/**
+ * Flushes pending processing operations synchronously.
+ * Use this in critical paths where the UI MUST show the processing state
+ * before any async work begins (e.g., before starting file operations).
+ * 
+ * @param get - Zustand get function from slice
+ * @param set - Zustand set function from slice
+ */
+function flushProcessingSync(
+  get: () => PDMStoreState,
+  set: (state: Partial<PDMStoreState>) => void
+): void {
+  // Cancel any scheduled flush since we're flushing now
+  processingFlushScheduled = false
+  doProcessingFlush(get, set)
 }
 
 export const createFilesSlice: StateCreator<
@@ -146,6 +168,79 @@ export const createFilesSlice: StateCreator<
         return fileUpdates ? { ...f, ...fileUpdates } : f
       })
     }))
+  },
+  
+  /**
+   * Atomic update: combines file updates + clearing processing state in a single set() call.
+   * 
+   * This prevents two sequential re-renders that would otherwise occur when calling
+   * updateFilesInStore() followed by removeProcessingFolders(). With 8000+ files,
+   * each re-render triggers expensive O(N x depth) folderMetrics computation in
+   * useVaultTree.ts, causing ~5 second UI freezes.
+   * 
+   * The key optimization is doing BOTH updates in ONE set() call, so React only
+   * re-renders once instead of twice.
+   * 
+   * @param updates - Array of file path + partial updates to apply
+   * @param pathsToClearProcessing - Paths to remove from processingOperations Map
+   */
+  updateFilesAndClearProcessing: (updates, pathsToClearProcessing) => {
+    const startTime = performance.now()
+    window.electronAPI?.log('info', '[Store] updateFilesAndClearProcessing START', { 
+      updateCount: updates.length, 
+      clearCount: pathsToClearProcessing.length,
+      timestamp: Date.now() 
+    })
+    recordMetric('Store', 'updateFilesAndClearProcessing START', { 
+      updateCount: updates.length, 
+      clearCount: pathsToClearProcessing.length 
+    })
+    
+    // Clear these paths from pending batches to avoid double processing
+    // This ensures the scheduled flush doesn't undo our direct update
+    for (const path of pathsToClearProcessing) {
+      pendingProcessingAdds.delete(path)
+      pendingProcessingRemoves.delete(path)
+    }
+    
+    // Build a map for O(1) file update lookups
+    const updateMap = updates.length > 0 
+      ? new Map(updates.map(u => [u.path, u.updates]))
+      : null
+    
+    // Build the set of paths to clear for O(1) lookups
+    const pathsToClear = new Set(pathsToClearProcessing)
+    
+    // Single atomic state update - one re-render instead of two
+    set(state => {
+      // Build new processingOperations Map with paths removed
+      const newProcessingOps = new Map(state.processingOperations)
+      for (const path of pathsToClear) {
+        newProcessingOps.delete(path)
+      }
+      
+      // Build new files array with updates applied
+      const newFiles = updateMap 
+        ? state.files.map(f => {
+            const fileUpdates = updateMap.get(f.path)
+            return fileUpdates ? { ...f, ...fileUpdates } : f
+          })
+        : state.files
+      
+      return {
+        files: newFiles,
+        processingOperations: newProcessingOps
+      }
+    })
+    
+    const durationMs = performance.now() - startTime
+    window.electronAPI?.log('info', '[Store] updateFilesAndClearProcessing COMPLETE', { 
+      durationMs: Math.round(durationMs * 100) / 100,
+      timestamp: Date.now() 
+    })
+    recordMetric('Store', 'updateFilesAndClearProcessing COMPLETE', { 
+      durationMs: Math.round(durationMs * 100) / 100 
+    })
   },
   
   removeFilesFromStore: (paths) => {
@@ -597,6 +692,17 @@ export const createFilesSlice: StateCreator<
       pendingProcessingAdds.set(path, operationType)
     }
     scheduleProcessingFlush(get, set)
+  },
+  
+  addProcessingFoldersSync: (paths, operationType) => {
+    if (paths.length === 0) return
+    // Add all to pending batch
+    for (const path of paths) {
+      pendingProcessingRemoves.delete(path)
+      pendingProcessingAdds.set(path, operationType)
+    }
+    // Flush synchronously so UI shows spinner BEFORE async operations begin
+    flushProcessingSync(get, set)
   },
   
   removeProcessingFolder: (path) => {

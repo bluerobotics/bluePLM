@@ -28,10 +28,9 @@ type SidebarItem =
   | { type: 'group'; id: string; group: ReturnType<typeof usePDMStore.getState>['getEffectiveModuleConfig'] extends () => infer R ? R extends { customGroups: (infer G)[] } ? G : never : never }
 
 export function ActivityBar() {
-  const { 
-    activityBarMode,
-    getEffectiveModuleConfig
-  } = usePDMStore()
+  // Selective selectors: only re-render when specific values change
+  const activityBarMode = usePDMStore(s => s.activityBarMode)
+  const getEffectiveModuleConfig = usePDMStore(s => s.getEffectiveModuleConfig)
   
   // Use effective module config (considers impersonation)
   const moduleConfig = getEffectiveModuleConfig()

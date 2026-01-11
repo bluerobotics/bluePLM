@@ -177,6 +177,9 @@ export const downloadCommand: Command<DownloadParams> = {
     const allPathsToTrack = [...new Set([...cloudFilePaths, ...selectedFolderPaths])]
     ctx.addProcessingFolders(allPathsToTrack, 'download')
     
+    // Register expected file changes to suppress file watcher during operation
+    ctx.addExpectedFileChanges(cloudFilePaths)
+    
     // Yield to event loop so React can render spinners before starting download
     // Use 16ms (roughly one frame) to ensure React has time to process state update and re-render
     await new Promise(resolve => setTimeout(resolve, 16))
@@ -200,6 +203,10 @@ export const downloadCommand: Command<DownloadParams> = {
     let succeeded = 0
     let failed = 0
     const errors: string[] = []
+    
+    // Collect updates for batch store update (incremental pattern from getLatest.ts)
+    // This avoids a full filesystem rescan by updating the store directly
+    const pendingUpdates: Array<{ path: string; updates: Partial<LocalFile> }> = []
     
     logDownload('info', 'Starting parallel downloads with concurrency limit', {
       operationId,
@@ -333,6 +340,17 @@ export const downloadCommand: Command<DownloadParams> = {
           attempt
         })
         
+        // Queue incremental store update - file now exists locally with matching hash
+        // This eliminates the need for a full filesystem rescan after download
+        pendingUpdates.push({
+          path: file.path,
+          updates: {
+            localHash: file.pdmData.content_hash, // Downloaded content matches server hash
+            diffStatus: undefined,                 // No longer cloud-only, now synced
+            isSynced: true                        // File exists in cloud
+          }
+        })
+        
         return { success: true }
         
       } catch (err) {
@@ -385,10 +403,40 @@ export const downloadCommand: Command<DownloadParams> = {
       }
     }
     
-    // Clean up - use batch remove to avoid N state updates
-    ctx.removeProcessingFolders(allPathsToTrack)
+    // Apply incremental store updates AND clear processing state atomically
+    // Using updateFilesAndClearProcessing() combines both updates into ONE set() call,
+    // preventing two expensive re-render cycles with O(N x depth) folderMetrics computation.
+    // This eliminates the ~5 second UI freeze that occurred with separate calls.
+    const storeUpdateStart = performance.now()
+    logDownload('info', 'Downloads finished, starting store update', {
+      operationId,
+      updateCount: pendingUpdates.length,
+      paths: pendingUpdates.map(u => u.path.split(/[/\\]/).pop()), // Just filenames for brevity
+      pathsToTrackCount: allPathsToTrack.length,
+      timestamp: Date.now()
+    })
+    ctx.updateFilesAndClearProcessing(pendingUpdates, allPathsToTrack)
+    ctx.setLastOperationCompletedAt(Date.now())
+    logDownload('debug', 'Store update complete', {
+      operationId,
+      durationMs: Math.round(performance.now() - storeUpdateStart),
+      timestamp: Date.now()
+    })
+    
+    // Delay clearing expected file changes to allow file watcher suppression to work
+    // The 5 second window ensures late file system events are still suppressed
+    const pathsToClear = [...cloudFilePaths]
+    setTimeout(() => {
+      ctx.clearExpectedFileChanges(pathsToClear)
+      logDownload('debug', 'Expected file changes cleared (delayed)', {
+        operationId,
+        count: pathsToClear.length,
+        timestamp: Date.now()
+      })
+    }, 5000)
     const { duration } = progress.finish()
-    ctx.onRefresh?.(true)
+    // Note: onRefresh() removed - incremental store updates are sufficient for file downloads
+    // The folder creation path (line 140) still uses onRefresh() since folders change structure
     
     // Log final result
     logDownload(failed > 0 ? 'warn' : 'info', 'Download operation complete', {

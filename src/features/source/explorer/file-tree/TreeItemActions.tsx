@@ -1,7 +1,8 @@
 // Inline action buttons for tree items
 import { Loader2 } from 'lucide-react'
-import { usePDMStore, LocalFile } from '@/stores/pdmStore'
-import type { OperationType } from '@/stores/types'
+import type { LocalFile } from '@/stores/pdmStore'
+import type { OperationType, StagedCheckin, ToastType } from '@/stores/types'
+import type { User } from '@/types/pdm'
 import { getInitials } from '@/lib/utils'
 import { 
   InlineCheckoutButton, 
@@ -17,6 +18,7 @@ import {
 import { executeCommand } from '@/lib/commands'
 import type { CheckoutUser } from '@/components/shared/FileItem'
 import type { FolderDiffCounts } from './types'
+import { useTreeHover } from './TreeHoverContext'
 
 interface FileActionButtonsProps {
   file: LocalFile
@@ -29,17 +31,13 @@ interface FileActionButtonsProps {
   selectedCheckoutableFiles: LocalFile[]
   selectedCheckinableFiles: LocalFile[]
   selectedUpdatableFiles: LocalFile[]
-  // Hover states
-  isDownloadHovered: boolean
-  isUploadHovered: boolean
-  isCheckoutHovered: boolean
-  isCheckinHovered: boolean
-  isUpdateHovered: boolean
-  setIsDownloadHovered: (v: boolean) => void
-  setIsUploadHovered: (v: boolean) => void
-  setIsCheckoutHovered: (v: boolean) => void
-  setIsCheckinHovered: (v: boolean) => void
-  setIsUpdateHovered: (v: boolean) => void
+  // Props passed from parent (eliminates store subscriptions)
+  user: User | null
+  isOfflineMode: boolean
+  stageCheckin: (data: StagedCheckin) => void
+  unstageCheckin: (path: string) => void
+  getStagedCheckin: (path: string) => StagedCheckin | undefined
+  addToast: (type: ToastType, message: string) => void
 }
 
 /**
@@ -56,24 +54,28 @@ export function FileActionButtons({
   selectedCheckoutableFiles,
   selectedCheckinableFiles,
   selectedUpdatableFiles,
-  isDownloadHovered,
-  isUploadHovered,
-  isCheckoutHovered,
-  isCheckinHovered,
-  isUpdateHovered,
-  setIsDownloadHovered,
-  setIsUploadHovered,
-  setIsCheckoutHovered,
-  setIsCheckinHovered,
-  setIsUpdateHovered
+  user,
+  isOfflineMode,
+  stageCheckin,
+  unstageCheckin,
+  getStagedCheckin,
+  addToast
 }: FileActionButtonsProps) {
-  const { 
-    user, 
-    isOfflineMode,
-    stageCheckin,
-    unstageCheckin,
-    getStagedCheckin
-  } = usePDMStore()
+  // Get hover refs and setters from context
+  // PERFORMANCE: Reading from refs doesn't cause re-renders. The highlight
+  // will be correct when the component renders (e.g., scrolling in virtualized list).
+  const {
+    downloadHoveredRef,
+    uploadHoveredRef,
+    checkoutHoveredRef,
+    checkinHoveredRef,
+    updateHoveredRef,
+    setIsDownloadHovered,
+    setIsUploadHovered,
+    setIsCheckoutHovered,
+    setIsCheckinHovered,
+    setIsUpdateHovered
+  } = useTreeHover()
   
   if (file.isDirectory) return null
   
@@ -144,7 +146,6 @@ export function FileActionButtons({
   const handleStageCheckin = (e: React.MouseEvent) => {
     e.stopPropagation()
     
-    const { addToast } = usePDMStore.getState()
     const existingStaged = getStagedCheckin(file.relativePath)
     
     if (existingStaged) {
@@ -176,7 +177,7 @@ export function FileActionButtons({
           onClick={handleInlineDownload}
           isProcessing={operationType === 'download'}
           selectedCount={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 ? selectedDownloadableFiles.length : undefined}
-          isSelectionHovered={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 && isDownloadHovered}
+          isSelectionHovered={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 && downloadHoveredRef.current}
           onMouseEnter={() => selectedDownloadableFiles.length > 1 && selectedFiles.includes(file.path) && setIsDownloadHovered(true)}
           onMouseLeave={() => setIsDownloadHovered(false)}
         />
@@ -188,7 +189,7 @@ export function FileActionButtons({
           onClick={handleInlineDownload}
           isProcessing={operationType === 'sync'}
           selectedCount={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 ? selectedUpdatableFiles.length : undefined}
-          isSelectionHovered={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 && isUpdateHovered}
+          isSelectionHovered={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 && updateHoveredRef.current}
           onMouseEnter={() => selectedUpdatableFiles.length > 1 && selectedFiles.includes(file.path) && setIsUpdateHovered(true)}
           onMouseLeave={() => setIsUpdateHovered(false)}
         />
@@ -217,7 +218,7 @@ export function FileActionButtons({
           onClick={handleInlineFirstCheckin}
           isProcessing={operationType === 'upload' || operationType === 'sync'}
           selectedCount={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 ? selectedUploadableFiles.length : undefined}
-          isSelectionHovered={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 && isUploadHovered}
+          isSelectionHovered={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 && uploadHoveredRef.current}
           onMouseEnter={() => selectedUploadableFiles.length > 1 && selectedFiles.includes(file.path) && setIsUploadHovered(true)}
           onMouseLeave={() => setIsUploadHovered(false)}
         />
@@ -240,7 +241,7 @@ export function FileActionButtons({
                 onClick={handleInlineCheckout}
                 isProcessing={operationType === 'checkout'}
                 selectedCount={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 ? selectedCheckoutableFiles.length : undefined}
-                isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 && isCheckoutHovered}
+                isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 && checkoutHoveredRef.current}
                 onMouseEnter={() => selectedCheckoutableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckoutHovered(true)}
                 onMouseLeave={() => setIsCheckoutHovered(false)}
               />
@@ -253,7 +254,7 @@ export function FileActionButtons({
                 userFullName={user?.full_name ?? undefined}
                 userEmail={user?.email}
                 selectedCount={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 ? selectedCheckinableFiles.length : undefined}
-                isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 && isCheckinHovered}
+                isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 && checkinHoveredRef.current}
                 onMouseEnter={() => selectedCheckinableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckinHovered(true)}
                 onMouseLeave={() => setIsCheckinHovered(false)}
               />
@@ -325,11 +326,18 @@ interface FolderActionButtonsProps {
   syncedCount: number
   operationType: OperationType | null
   onRefresh?: (silent?: boolean) => void
+  // Props passed from parent (eliminates store subscriptions)
+  isOfflineMode: boolean
+  // NOTE: allFiles prop removed for O(N) performance optimization.
+  // We now use diffCounts (pre-computed) instead of filtering allFiles.
 }
 
 /**
  * Inline action buttons for folders
  * Handles batch operations like download all, checkin all, etc.
+ * 
+ * PERFORMANCE: Uses pre-computed diffCounts instead of filtering allFiles.
+ * This reduces per-folder operations from O(N) to O(1) lookups.
  */
 export function FolderActionButtons({
   file,
@@ -340,32 +348,39 @@ export function FolderActionButtons({
   totalCheckouts,
   syncedCount,
   operationType,
-  onRefresh
+  onRefresh,
+  isOfflineMode
 }: FolderActionButtonsProps) {
-  const { isOfflineMode } = usePDMStore()
   
   if (!file.isDirectory) return null
   
+  // Use computed diffCounts.cloud instead of stale folder diffStatus
+  // diffCounts.cloud is derived from actual children, so it updates when files are downloaded
   const shouldShow = localOnlyCount > 0 || 
-    file.diffStatus === 'cloud' || 
     (diffCounts && (diffCounts.cloud > 0 || diffCounts.outdated > 0)) || 
     checkoutUsers.length > 0 || 
     syncedCount > 0
   
   if (!shouldShow) return null
   
+  /**
+   * Handle download/get-latest for folder.
+   * Uses pre-computed diffCounts to determine which commands to execute.
+   * Commands operate on the folder itself - the command system handles
+   * finding and processing files within the folder.
+   */
   const handleInlineDownload = (e: React.MouseEvent) => {
     e.stopPropagation()
     
-    const { files } = usePDMStore.getState()
-    const filesInFolder = files.filter(f => f.relativePath.startsWith(file.relativePath + '/'))
-    const hasOutdated = filesInFolder.some(f => f.diffStatus === 'outdated')
-    const hasCloud = filesInFolder.some(f => f.diffStatus === 'cloud')
+    // Use pre-computed diffCounts for O(1) lookup instead of O(N) filter
+    // diffCounts.cloud is derived from actual children, so it updates when files are downloaded
+    const hasOutdated = diffCounts && diffCounts.outdated > 0
+    const hasCloud = diffCounts && diffCounts.cloud > 0
     
     if (hasOutdated) {
       executeCommand('get-latest', { files: [file] }, { onRefresh })
     }
-    if (hasCloud || file.diffStatus === 'cloud') {
+    if (hasCloud) {
       executeCommand('download', { files: [file] }, { onRefresh })
     }
   }
@@ -401,10 +416,11 @@ export function FolderActionButtons({
         />
       )}
       {/* 2. Cloud files to download - only when online */}
-      {!isOfflineMode && ((diffCounts && diffCounts.cloud > 0) || file.diffStatus === 'cloud') && (
+      {/* Use computed diffCounts.cloud from children, not stale folder diffStatus */}
+      {!isOfflineMode && diffCounts && diffCounts.cloud > 0 && (
         <FolderDownloadButton
           onClick={(e) => handleInlineDownload(e)}
-          cloudCount={diffCounts?.cloud || 0}
+          cloudCount={diffCounts.cloud}
           isProcessing={operationType === 'download'}
         />
       )}

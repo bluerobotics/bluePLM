@@ -10,7 +10,9 @@
 
 import { BrowserWindow, ipcMain, app } from 'electron'
 import * as path from 'path'
+import * as fs from 'fs'
 import { fileURLToPath } from 'url'
+import JSZip from 'jszip'
 
 import type {
   HostInboundMessage,
@@ -83,6 +85,107 @@ const installedExtensions: Map<string, {
   activatedAt?: Date
   error?: string
 }> = new Map()
+
+// ============================================
+// Extensions Directory
+// ============================================
+
+/**
+ * Get the path to the extensions directory.
+ * Creates the directory if it doesn't exist.
+ */
+function getExtensionsPath(): string {
+  const userDataPath = app.getPath('userData')
+  const extensionsPath = path.join(userDataPath, 'extensions')
+  
+  // Ensure directory exists
+  if (!fs.existsSync(extensionsPath)) {
+    fs.mkdirSync(extensionsPath, { recursive: true })
+  }
+  
+  return extensionsPath
+}
+
+/**
+ * Load installed extensions from disk.
+ * Scans the extensions directory and populates the installedExtensions map.
+ */
+function loadExtensionsFromDisk(): void {
+  const extensionsPath = getExtensionsPath()
+  
+  try {
+    // Get all directories in the extensions folder
+    const entries = fs.readdirSync(extensionsPath, { withFileTypes: true })
+    const extensionDirs = entries.filter(entry => entry.isDirectory())
+    
+    deps?.log(`Scanning extensions directory: ${extensionsPath} (${extensionDirs.length} directories)`)
+    
+    for (const dir of extensionDirs) {
+      const extensionDir = path.join(extensionsPath, dir.name)
+      const manifestPath = path.join(extensionDir, 'extension.json')
+      const metadataPath = path.join(extensionDir, '.metadata.json')
+      
+      // Check if manifest exists
+      if (!fs.existsSync(manifestPath)) {
+        deps?.log(`Skipping ${dir.name}: no extension.json`)
+        continue
+      }
+      
+      try {
+        // Read and parse manifest
+        const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
+        const manifest = JSON.parse(manifestContent) as ExtensionManifest
+        
+        // Read metadata if it exists
+        let installedAt: Date | undefined
+        let verification: 'verified' | 'community' | 'sideloaded' = 'community'
+        
+        if (fs.existsSync(metadataPath)) {
+          try {
+            const metadataContent = fs.readFileSync(metadataPath, 'utf-8')
+            const metadata = JSON.parse(metadataContent) as {
+              installedAt?: string
+              verification?: 'verified' | 'community' | 'sideloaded'
+            }
+            
+            if (metadata.installedAt) {
+              installedAt = new Date(metadata.installedAt)
+            }
+            if (metadata.verification) {
+              verification = metadata.verification
+            }
+          } catch {
+            // Ignore metadata parsing errors
+          }
+        }
+        
+        // Check for sideloaded marker
+        const sideloadedPath = path.join(extensionDir, '.sideloaded')
+        if (fs.existsSync(sideloadedPath)) {
+          verification = 'sideloaded'
+        }
+        
+        // Register the extension
+        installedExtensions.set(manifest.id, {
+          manifest,
+          state: 'installed',
+          verification,
+          installedAt,
+        })
+        
+        deps?.log(`Loaded extension from disk: ${manifest.id} v${manifest.version}`)
+        
+      } catch (err) {
+        deps?.logError(`Failed to load extension from ${dir.name}`, { error: String(err) })
+      }
+    }
+    
+    deps?.log(`Loaded ${installedExtensions.size} extensions from disk`)
+    
+  } catch (err) {
+    deps?.logError('Failed to scan extensions directory', { error: String(err) })
+  }
+}
 
 // ============================================
 // Extension Host Window Management
@@ -553,6 +656,9 @@ export function registerExtensionHostHandlers(
   // Initialize Extension Host
   initializeExtensionHost()
   
+  // Load installed extensions from disk
+  loadExtensionsFromDisk()
+  
   // Handle messages from Extension Host
   ipcMain.on('extension-host:message', (event, message: HostOutboundMessage) => {
     handleHostMessage(message)
@@ -690,7 +796,7 @@ export function registerExtensionHostHandlers(
       // Transform to StoreExtensionInfo format
       const extensions = result.data.map(ext => ({
         id: ext.id,
-        extensionId: ext.id,
+        extensionId: `${ext.publisher_slug}.${ext.name}`,  // Must match manifest ID format
         publisher: {
           id: ext.publisher_slug,
           name: ext.publisher_slug,
@@ -767,7 +873,7 @@ export function registerExtensionHostHandlers(
       
       const extensions = (result.data || []).map(ext => ({
         id: ext.id,
-        extensionId: ext.id,
+        extensionId: `${ext.publisher_slug}.${ext.name}`,  // Must match manifest ID format
         publisher: {
           id: ext.publisher_slug,
           name: ext.publisher_slug,
@@ -852,9 +958,10 @@ export function registerExtensionHostHandlers(
       }
       
       const ext = result.data
+      const publisherSlug = ext.publisher?.slug || ext.publisher?.name || ''
       return {
         id: ext.id,
-        extensionId: ext.id,
+        extensionId: `${publisherSlug}.${ext.name}`,  // Must match manifest ID format
         publisher: {
           id: ext.publisher?.id || '',
           name: ext.publisher?.name || '',
@@ -886,28 +993,279 @@ export function registerExtensionHostHandlers(
   ipcMain.handle('extensions:install', async (_event, extensionId: string, version?: string) => {
     deps?.log(`Installing extension: ${extensionId}${version ? `@${version}` : ''}`)
     
-    // Placeholder implementation
-    // Full implementation would:
-    // 1. Download .bpx from store
-    // 2. Verify signature
-    // 3. Extract and load
-    // 4. Deploy server handlers
-    
-    return { success: false, error: 'Store installation not yet implemented' }
+    try {
+      // Step 1: Download .bpx from store
+      const downloadUrl = version 
+        ? `${STORE_API_URL}/store/extensions/${encodeURIComponent(extensionId)}/download/${encodeURIComponent(version)}`
+        : `${STORE_API_URL}/store/extensions/${encodeURIComponent(extensionId)}/download`
+      
+      deps?.log(`Downloading from: ${downloadUrl}`)
+      
+      const response = await fetch(downloadUrl, { redirect: 'follow' })
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Extension not found: ${extensionId}`)
+        }
+        throw new Error(`Download failed: ${response.status} ${response.statusText}`)
+      }
+      
+      const bpxBuffer = await response.arrayBuffer()
+      deps?.log(`Downloaded ${bpxBuffer.byteLength} bytes`)
+      
+      // Step 2: Extract .bpx using JSZip
+      let zip: JSZip
+      try {
+        zip = await JSZip.loadAsync(bpxBuffer)
+      } catch {
+        throw new Error('Invalid extension package: not a valid zip archive')
+      }
+      
+      // Step 3: Read and validate manifest
+      const manifestFile = zip.file('extension.json')
+      if (!manifestFile) {
+        throw new Error('Invalid extension package: missing extension.json')
+      }
+      
+      const manifestContent = await manifestFile.async('string')
+      let manifest: ExtensionManifest
+      try {
+        manifest = JSON.parse(manifestContent)
+      } catch {
+        throw new Error('Invalid extension package: extension.json is not valid JSON')
+      }
+      
+      // Validate required fields
+      if (!manifest.id || !manifest.name || !manifest.version) {
+        throw new Error('Invalid manifest: missing required fields (id, name, version)')
+      }
+      
+      deps?.log(`Installing: ${manifest.name} v${manifest.version}`)
+      
+      // Step 4: Write files to extensions directory
+      const extensionsPath = getExtensionsPath()
+      const extensionDir = path.join(extensionsPath, manifest.id.replace(/\./g, '-'))
+      
+      // Clean up existing installation if present
+      if (fs.existsSync(extensionDir)) {
+        fs.rmSync(extensionDir, { recursive: true, force: true })
+      }
+      
+      // Create extension directory
+      fs.mkdirSync(extensionDir, { recursive: true })
+      
+      // Extract all files from the zip
+      const files = Object.keys(zip.files)
+      for (const filename of files) {
+        const zipEntry = zip.files[filename]
+        
+        // Skip directories (they'll be created as needed)
+        if (zipEntry.dir) continue
+        
+        const filePath = path.join(extensionDir, filename)
+        const fileDir = path.dirname(filePath)
+        
+        // Ensure parent directory exists
+        if (!fs.existsSync(fileDir)) {
+          fs.mkdirSync(fileDir, { recursive: true })
+        }
+        
+        // Write file
+        const content = await zipEntry.async('nodebuffer')
+        fs.writeFileSync(filePath, content)
+      }
+      
+      // Write installation metadata
+      const metadata = {
+        installedAt: new Date().toISOString(),
+        version: manifest.version,
+        verification: 'community', // TODO: Implement signature verification
+        source: 'store',
+        extensionId: manifest.id,
+      }
+      fs.writeFileSync(
+        path.join(extensionDir, '.metadata.json'),
+        JSON.stringify(metadata, null, 2)
+      )
+      
+      deps?.log(`Extension files written to: ${extensionDir}`)
+      
+      // Step 5: Register in installed extensions
+      installedExtensions.set(manifest.id, {
+        manifest,
+        state: 'installed',
+        verification: 'community',
+        installedAt: new Date(),
+      })
+      
+      // Step 6: Notify renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('extension:state-change', {
+          extensionId: manifest.id,
+          state: 'installed',
+          timestamp: Date.now()
+        })
+      }
+      
+      deps?.log(`Successfully installed extension: ${manifest.id}`)
+      
+      return { 
+        success: true, 
+        extensionId: manifest.id,
+        version: manifest.version,
+      }
+      
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      deps?.logError(`Failed to install extension: ${extensionId}`, { error })
+      return { success: false, error }
+    }
   })
   
   // Install from file (sideload)
   ipcMain.handle('extensions:install-from-file', async (_event, bpxPath: string, acknowledgeUnsigned?: boolean) => {
     deps?.log(`Installing extension from file: ${bpxPath}`)
     
-    // Placeholder implementation
-    // Full implementation would:
-    // 1. Extract .bpx
-    // 2. Validate manifest
-    // 3. Show unsigned warning if needed
-    // 4. Load into Extension Host
-    
-    return { success: false, error: 'File installation not yet implemented' }
+    try {
+      // Require acknowledgment for sideloaded extensions
+      if (!acknowledgeUnsigned) {
+        return { 
+          success: false, 
+          error: 'Sideloaded extensions are not verified. You must acknowledge the security warning.',
+          requiresAcknowledgment: true 
+        }
+      }
+      
+      // Check file exists and has .bpx extension
+      if (!bpxPath.endsWith('.bpx')) {
+        throw new Error('Extension package must have .bpx extension')
+      }
+      
+      if (!fs.existsSync(bpxPath)) {
+        throw new Error(`File not found: ${bpxPath}`)
+      }
+      
+      // Step 1: Read the .bpx file
+      const bpxBuffer = fs.readFileSync(bpxPath)
+      deps?.log(`Read ${bpxBuffer.length} bytes from: ${bpxPath}`)
+      
+      // Step 2: Extract .bpx using JSZip
+      let zip: JSZip
+      try {
+        zip = await JSZip.loadAsync(bpxBuffer)
+      } catch {
+        throw new Error('Invalid extension package: not a valid zip archive')
+      }
+      
+      // Step 3: Read and validate manifest
+      const manifestFile = zip.file('extension.json')
+      if (!manifestFile) {
+        throw new Error('Invalid extension package: missing extension.json')
+      }
+      
+      const manifestContent = await manifestFile.async('string')
+      let manifest: ExtensionManifest
+      try {
+        manifest = JSON.parse(manifestContent)
+      } catch {
+        throw new Error('Invalid extension package: extension.json is not valid JSON')
+      }
+      
+      // Validate required fields
+      if (!manifest.id || !manifest.name || !manifest.version) {
+        throw new Error('Invalid manifest: missing required fields (id, name, version)')
+      }
+      
+      // Check for native extensions - not allowed for sideloading
+      if (manifest.category === 'native') {
+        throw new Error('Native extensions cannot be sideloaded. Install from the store only.')
+      }
+      
+      deps?.log(`Sideloading: ${manifest.name} v${manifest.version}`)
+      
+      // Step 4: Write files to extensions directory
+      const extensionsPath = getExtensionsPath()
+      const extensionDir = path.join(extensionsPath, manifest.id.replace(/\./g, '-'))
+      
+      // Clean up existing installation if present
+      if (fs.existsSync(extensionDir)) {
+        fs.rmSync(extensionDir, { recursive: true, force: true })
+      }
+      
+      // Create extension directory
+      fs.mkdirSync(extensionDir, { recursive: true })
+      
+      // Extract all files from the zip
+      const files = Object.keys(zip.files)
+      for (const filename of files) {
+        const zipEntry = zip.files[filename]
+        
+        // Skip directories
+        if (zipEntry.dir) continue
+        
+        const filePath = path.join(extensionDir, filename)
+        const fileDir = path.dirname(filePath)
+        
+        // Ensure parent directory exists
+        if (!fs.existsSync(fileDir)) {
+          fs.mkdirSync(fileDir, { recursive: true })
+        }
+        
+        // Write file
+        const content = await zipEntry.async('nodebuffer')
+        fs.writeFileSync(filePath, content)
+      }
+      
+      // Write installation metadata (marked as sideloaded)
+      const metadata = {
+        installedAt: new Date().toISOString(),
+        version: manifest.version,
+        verification: 'sideloaded',
+        source: 'file',
+        sourcePath: bpxPath,
+        extensionId: manifest.id,
+      }
+      fs.writeFileSync(
+        path.join(extensionDir, '.metadata.json'),
+        JSON.stringify(metadata, null, 2)
+      )
+      
+      // Create sideloaded marker file
+      fs.writeFileSync(path.join(extensionDir, '.sideloaded'), '')
+      
+      deps?.log(`Extension files written to: ${extensionDir}`)
+      
+      // Step 5: Register in installed extensions
+      installedExtensions.set(manifest.id, {
+        manifest,
+        state: 'installed',
+        verification: 'sideloaded',
+        installedAt: new Date(),
+      })
+      
+      // Step 6: Notify renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('extension:state-change', {
+          extensionId: manifest.id,
+          state: 'installed',
+          timestamp: Date.now()
+        })
+      }
+      
+      deps?.log(`Successfully sideloaded extension: ${manifest.id}`)
+      
+      return { 
+        success: true, 
+        extensionId: manifest.id,
+        version: manifest.version,
+        warning: 'This extension was sideloaded and has not been verified by BluePLM.',
+      }
+      
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      deps?.logError(`Failed to sideload extension from: ${bpxPath}`, { error })
+      return { success: false, error }
+    }
   })
   
   // Uninstall extension

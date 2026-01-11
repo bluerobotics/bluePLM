@@ -6,7 +6,9 @@ import { logSettings } from '@/lib/userActionLogger'
 import type { SidebarMode } from './types'
 
 export function SidebarControl() {
-  const { activityBarMode, setActivityBarMode } = usePDMStore()
+  // Selective selectors: only re-render when specific values change
+  const activityBarMode = usePDMStore(s => s.activityBarMode)
+  const setActivityBarMode = usePDMStore(s => s.setActivityBarMode)
   const { t } = useTranslation()
   const [showMenu, setShowMenu] = useState(false)
   

@@ -1,10 +1,50 @@
-import React from 'react'
+import React, { useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from 'react'
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { FolderOpen } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { ConfigWithDepth } from '../../types'
 import { FileRow } from './FileRow'
 import { ConfigRow } from './ConfigRow'
 import { useFilePaneContext } from '../../context'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** File row data */
+interface FileVirtualRow {
+  type: 'file'
+  file: LocalFile
+  index: number
+  isSelected: boolean
+  isProcessing: boolean
+  diffClass: string
+  isDragTarget: boolean
+  isCut: boolean
+  isEditable: boolean
+  basePartNumber: string
+}
+
+/** Config row data (SolidWorks configuration under a file) */
+interface ConfigVirtualRow {
+  type: 'config'
+  file: LocalFile
+  config: ConfigWithDepth
+  isSelected: boolean
+  isEditable: boolean
+  basePartNumber: string
+}
+
+/** New folder input row */
+interface NewFolderVirtualRow {
+  type: 'new-folder'
+}
+
+type VirtualRow = FileVirtualRow | ConfigVirtualRow | NewFolderVirtualRow
+
+// ============================================================================
+// Props Interface
+// ============================================================================
 
 // Slim props interface - state comes from context
 export interface FileListBodyProps {
@@ -40,7 +80,11 @@ export interface FileListBodyProps {
   renderCellContent: (file: LocalFile, columnId: string) => React.ReactNode
 }
 
-export function FileListBody({
+// ============================================================================
+// Component
+// ============================================================================
+
+export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProps>(function FileListBody({
   displayFiles,
   visibleColumns,
   isBeingProcessed,
@@ -58,7 +102,7 @@ export function FileListBody({
   onConfigDescriptionChange,
   onConfigTabChange,
   renderCellContent,
-}: FileListBodyProps) {
+}, ref) {
   // Get state from context
   const {
     selectedFiles,
@@ -74,109 +118,283 @@ export function FileListBody({
     newFolderInputRef,
     setNewFolderName,
     setIsCreatingFolder,
+    tableRef,
   } = useFilePaneContext()
 
+  // Local ref for the tbody element
+  const tbodyRef = useRef<HTMLTableSectionElement>(null)
+  
+  // Expose tbody ref to parent if needed
+  useImperativeHandle(ref, () => tbodyRef.current!, [])
+
+  // Row heights
+  const fileRowHeight = listRowSize + 8
+  const configRowHeight = listRowSize + 4
+  const newFolderRowHeight = 40 // Fixed height for new folder input
+
+  // ============================================================================
+  // Build virtual rows array
+  // ============================================================================
+  
+  const virtualRows = useMemo<VirtualRow[]>(() => {
+    const rows: VirtualRow[] = []
+    
+    // Add new folder input row at the top if creating
+    if (isCreatingFolder) {
+      rows.push({ type: 'new-folder' })
+    }
+    
+    // Build rows from display files
+    displayFiles.forEach((file, index) => {
+      // Compute derived state for this file
+      const diffClass = file.diffStatus === 'added' ? 'diff-added' 
+        : file.diffStatus === 'modified' ? 'diff-modified'
+        : file.diffStatus === 'moved' ? 'diff-moved'
+        : file.diffStatus === 'deleted' ? 'diff-deleted'
+        : file.diffStatus === 'deleted_remote' ? 'diff-deleted-remote'
+        : file.diffStatus === 'outdated' ? 'diff-outdated'
+        : file.diffStatus === 'cloud' ? 'diff-cloud' : ''
+      
+      const isProcessing = isBeingProcessed(file.relativePath)
+      const isDragTarget = file.isDirectory && dragOverFolder === file.relativePath
+      const isCut = clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)
+      const isEditable = !!file.pdmData?.id && file.pdmData?.checked_out_by === user?.id
+      const basePartNumber = file.pendingMetadata?.part_number || file.pdmData?.part_number || ''
+      
+      // Add file row
+      rows.push({
+        type: 'file',
+        file,
+        index,
+        isSelected: selectedFiles.includes(file.path),
+        isProcessing,
+        diffClass,
+        isDragTarget,
+        isCut,
+        isEditable,
+        basePartNumber,
+      })
+      
+      // Add config rows if expanded
+      if (expandedConfigFiles.has(file.path)) {
+        const configs = fileConfigurations.get(file.path) || []
+        configs.forEach((config) => {
+          const configKey = `${file.path}::${config.name}`
+          rows.push({
+            type: 'config',
+            file,
+            config,
+            isSelected: selectedConfigs.has(configKey),
+            isEditable,
+            basePartNumber,
+          })
+        })
+      }
+    })
+    
+    return rows
+  }, [
+    displayFiles,
+    isCreatingFolder,
+    selectedFiles,
+    clipboard,
+    dragOverFolder,
+    user?.id,
+    expandedConfigFiles,
+    fileConfigurations,
+    selectedConfigs,
+    isBeingProcessed,
+  ])
+
+  // ============================================================================
+  // Virtualizer setup
+  // ============================================================================
+  
+  const getRowHeight = useCallback((index: number): number => {
+    const row = virtualRows[index]
+    if (!row) return fileRowHeight
+    
+    switch (row.type) {
+      case 'new-folder':
+        return newFolderRowHeight
+      case 'config':
+        return configRowHeight
+      case 'file':
+      default:
+        return fileRowHeight
+    }
+  }, [virtualRows, fileRowHeight, configRowHeight, newFolderRowHeight])
+
+  const virtualizer = useVirtualizer({
+    count: virtualRows.length,
+    getScrollElement: () => tableRef.current,
+    estimateSize: getRowHeight,
+    overscan: 10,
+  })
+
+  const virtualItems = virtualizer.getVirtualItems()
+
+  // Calculate padding for spacer rows to maintain scroll position
+  // This technique renders only visible rows with spacer rows above/below
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0
+  const paddingBottom = virtualItems.length > 0 
+    ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end 
+    : 0
+
+  // ============================================================================
+  // Row renderers
+  // ============================================================================
+
+  const renderNewFolderRow = useCallback(() => (
+    <tr className="new-folder-row" style={{ height: newFolderRowHeight }}>
+      <td colSpan={visibleColumns.length}>
+        <div className="flex items-center gap-2 py-1">
+          <FolderOpen size={16} className="text-plm-accent" />
+          <input
+            ref={newFolderInputRef}
+            type="text"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleCreateFolder()
+              } else if (e.key === 'Escape') {
+                setIsCreatingFolder(false)
+                setNewFolderName('')
+              }
+            }}
+            onBlur={handleCreateFolder}
+            className="bg-plm-bg border border-plm-accent rounded px-2 py-1 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
+            placeholder="Folder name"
+          />
+        </div>
+      </td>
+    </tr>
+  ), [visibleColumns.length, newFolderName, newFolderRowHeight, handleCreateFolder, setNewFolderName, setIsCreatingFolder, newFolderInputRef])
+
+  const renderFileRow = useCallback((row: FileVirtualRow) => {
+    const { file, index, isSelected, isProcessing, diffClass, isDragTarget, isCut } = row
+    
+    return (
+      <FileRow
+        key={file.path}
+        file={file}
+        index={index}
+        isSelected={isSelected}
+        isProcessing={isProcessing}
+        diffClass={diffClass}
+        isDragTarget={isDragTarget}
+        isCut={isCut}
+        rowHeight={fileRowHeight}
+        visibleColumns={visibleColumns}
+        draggable={file.diffStatus !== 'cloud'}
+        onClick={(e) => onRowClick(e, file, index)}
+        onDoubleClick={() => onRowDoubleClick(file)}
+        onContextMenu={(e) => onContextMenu(e, file)}
+        onDragStart={(e) => onDragStart(e, file)}
+        onDragEnd={onDragEnd}
+        onDragOver={file.isDirectory ? (e) => onFolderDragOver(e, file) : undefined}
+        onDragLeave={file.isDirectory ? onFolderDragLeave : undefined}
+        onDrop={file.isDirectory ? (e) => onDropOnFolder(e, file) : undefined}
+        renderCell={renderCellContent}
+      />
+    )
+  }, [
+    fileRowHeight,
+    visibleColumns,
+    onRowClick,
+    onRowDoubleClick,
+    onContextMenu,
+    onDragStart,
+    onDragEnd,
+    onFolderDragOver,
+    onFolderDragLeave,
+    onDropOnFolder,
+    renderCellContent,
+  ])
+
+  const renderConfigRow = useCallback((row: ConfigVirtualRow) => {
+    const { file, config, isSelected, isEditable, basePartNumber } = row
+    const configs = fileConfigurations.get(file.path) || []
+    
+    return (
+      <ConfigRow
+        key={`${file.path}::config::${config.name}`}
+        config={config}
+        isSelected={isSelected}
+        isEditable={isEditable}
+        rowHeight={configRowHeight}
+        visibleColumns={visibleColumns}
+        basePartNumber={basePartNumber}
+        onClick={(e) => onConfigRowClick(e, file.path, config.name, configs)}
+        onContextMenu={(e) => onConfigContextMenu(e, file.path, config.name)}
+        onDescriptionChange={(value) => onConfigDescriptionChange(file.path, config.name, value)}
+        onTabChange={(value) => onConfigTabChange(file.path, config.name, value)}
+      />
+    )
+  }, [
+    configRowHeight,
+    visibleColumns,
+    fileConfigurations,
+    onConfigRowClick,
+    onConfigContextMenu,
+    onConfigDescriptionChange,
+    onConfigTabChange,
+  ])
+
+  // ============================================================================
+  // Render
+  // ============================================================================
+
+  // If no rows, render empty tbody to maintain table structure
+  if (virtualRows.length === 0) {
+    return <tbody ref={tbodyRef} />
+  }
+
   return (
-    <tbody>
-      {/* New folder input row */}
-      {isCreatingFolder && (
-        <tr className="new-folder-row">
-          <td colSpan={visibleColumns.length}>
-            <div className="flex items-center gap-2 py-1">
-              <FolderOpen size={16} className="text-plm-accent" />
-              <input
-                ref={newFolderInputRef}
-                type="text"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateFolder()
-                  } else if (e.key === 'Escape') {
-                    setIsCreatingFolder(false)
-                    setNewFolderName('')
-                  }
-                }}
-                onBlur={handleCreateFolder}
-                className="bg-plm-bg border border-plm-accent rounded px-2 py-1 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
-                placeholder="Folder name"
-              />
-            </div>
-          </td>
+    <tbody ref={tbodyRef}>
+      {/* Top spacer row for virtual scroll positioning */}
+      {paddingTop > 0 && (
+        <tr aria-hidden="true" style={{ height: paddingTop }}>
+          <td colSpan={visibleColumns.length} style={{ padding: 0, border: 0 }} />
         </tr>
       )}
-      {displayFiles.flatMap((file, index) => {
-        const diffClass = file.diffStatus === 'added' ? 'diff-added' 
-          : file.diffStatus === 'modified' ? 'diff-modified'
-          : file.diffStatus === 'moved' ? 'diff-moved'
-          : file.diffStatus === 'deleted' ? 'diff-deleted'
-          : file.diffStatus === 'deleted_remote' ? 'diff-deleted-remote'
-          : file.diffStatus === 'outdated' ? 'diff-outdated'
-          : file.diffStatus === 'cloud' ? 'diff-cloud' : ''
-        const isProcessing = isBeingProcessed(file.relativePath)
-        const isDragTarget = file.isDirectory && dragOverFolder === file.relativePath
-        const isCut = clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)
+      
+      {/* Render only visible virtual rows */}
+      {virtualItems.map((virtualRow: VirtualItem) => {
+        const row = virtualRows[virtualRow.index]
+        if (!row) return null
         
-        // Check if this file has expanded configurations
-        const isConfigExpanded = expandedConfigFiles.has(file.path)
-        const configs = fileConfigurations.get(file.path) || []
-        const isEditable = !!file.pdmData?.id && file.pdmData?.checked_out_by === user?.id
-        const basePartNumber = file.pendingMetadata?.part_number || file.pdmData?.part_number || ''
-        
-        // Build array of rows: main file row + config rows if expanded
-        const rows: React.ReactNode[] = []
-        
-        rows.push(
-          <FileRow
-            key={file.path}
-            file={file}
-            index={index}
-            isSelected={selectedFiles.includes(file.path)}
-            isProcessing={isProcessing}
-            diffClass={diffClass}
-            isDragTarget={isDragTarget}
-            isCut={isCut}
-            rowHeight={listRowSize + 8}
-            visibleColumns={visibleColumns}
-            draggable={file.diffStatus !== 'cloud'}
-            onClick={(e) => onRowClick(e, file, index)}
-            onDoubleClick={() => onRowDoubleClick(file)}
-            onContextMenu={(e) => onContextMenu(e, file)}
-            onDragStart={(e) => onDragStart(e, file)}
-            onDragEnd={onDragEnd}
-            onDragOver={file.isDirectory ? (e) => onFolderDragOver(e, file) : undefined}
-            onDragLeave={file.isDirectory ? onFolderDragLeave : undefined}
-            onDrop={file.isDirectory ? (e) => onDropOnFolder(e, file) : undefined}
-            renderCell={renderCellContent}
-          />
-        )
-        
-        // Add configuration rows if expanded
-        if (isConfigExpanded && configs.length > 0) {
-          configs.forEach((config) => {
-            const configKey = `${file.path}::${config.name}`
-            const isConfigSelected = selectedConfigs.has(configKey)
-            
-            rows.push(
-              <ConfigRow
-                key={`${file.path}::config::${config.name}`}
-                config={config}
-                isSelected={isConfigSelected}
-                isEditable={isEditable}
-                rowHeight={listRowSize + 4}
-                visibleColumns={visibleColumns}
-                basePartNumber={basePartNumber}
-                onClick={(e) => onConfigRowClick(e, file.path, config.name, configs)}
-                onContextMenu={(e) => onConfigContextMenu(e, file.path, config.name)}
-                onDescriptionChange={(value) => onConfigDescriptionChange(file.path, config.name, value)}
-                onTabChange={(value) => onConfigTabChange(file.path, config.name, value)}
-              />
+        switch (row.type) {
+          case 'new-folder':
+            return (
+              <React.Fragment key="__new-folder__">
+                {renderNewFolderRow()}
+              </React.Fragment>
             )
-          })
+          case 'file':
+            return (
+              <React.Fragment key={`file::${row.file.path}`}>
+                {renderFileRow(row)}
+              </React.Fragment>
+            )
+          case 'config':
+            return (
+              <React.Fragment key={`config::${row.file.path}::${row.config.name}`}>
+                {renderConfigRow(row)}
+              </React.Fragment>
+            )
+          default:
+            return null
         }
-        
-        return rows
       })}
+      
+      {/* Bottom spacer row for virtual scroll positioning */}
+      {paddingBottom > 0 && (
+        <tr aria-hidden="true" style={{ height: paddingBottom }}>
+          <td colSpan={visibleColumns.length} style={{ padding: 0, border: 0 }} />
+        </tr>
+      )}
     </tbody>
   )
-}
+})

@@ -136,6 +136,7 @@ export async function restoreFile(
   }
   
   // Restore - clear deleted_at and deleted_by
+  // Select full PDMFile-compatible data including workflow_state for addCloudFile()
   const { data: restoredFile, error } = await client
     .from('files')
     .update({
@@ -143,7 +144,10 @@ export async function restoreFile(
       deleted_by: null
     })
     .eq('id', fileId)
-    .select()
+    .select(`
+      *,
+      workflow_state:workflow_states(id, name, label, color, icon, is_editable, requires_checkout)
+    `)
     .single()
   
   if (error) {

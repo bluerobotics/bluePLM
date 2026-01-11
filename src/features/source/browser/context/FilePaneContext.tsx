@@ -162,6 +162,18 @@ export interface FilePaneProviderProps {
     setEditValue: (value: string) => void
     inlineEditInputRef: React.RefObject<HTMLInputElement | null>
   }
+  /** 
+   * Table container ref - passed from FilePane.tsx so the virtualizer can measure the scroll container.
+   * CRITICAL: If not provided, the virtualizer won't be able to render items because 
+   * getScrollElement() will return null.
+   */
+  tableRef?: React.RefObject<HTMLDivElement | null>
+  /**
+   * Pre-computed folder metrics from useFolderMetrics hook.
+   * CRITICAL: If not provided, folder inline action buttons won't render because
+   * the context's local folderMetrics Map will be empty.
+   */
+  folderMetrics?: Map<string, FolderMetrics>
 }
 
 export function FilePaneProvider({ 
@@ -169,6 +181,8 @@ export function FilePaneProvider({
   onRefresh, 
   customMetadataColumns = [],
   renameState,
+  tableRef: externalTableRef,
+  folderMetrics: externalFolderMetrics,
 }: FilePaneProviderProps) {
   // Get store state
   const files = usePDMStore(s => s.files)
@@ -255,8 +269,11 @@ export function FilePaneProvider({
   // Machine ID (loaded once)
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
   
-  // Folder metrics
-  const [folderMetrics, setFolderMetrics] = useState<Map<string, FolderMetrics>>(new Map())
+  // Folder metrics - use external if provided (from FilePane.tsx useFolderMetrics hook)
+  // CRITICAL: The external metrics must be used so folder inline action buttons render correctly
+  const [localFolderMetrics, setLocalFolderMetrics] = useState<Map<string, FolderMetrics>>(new Map())
+  const folderMetrics = externalFolderMetrics ?? localFolderMetrics
+  const setFolderMetrics = setLocalFolderMetrics
   
   // Inline action hover states
   const [isDownloadHovered, setIsDownloadHovered] = useState(false)
@@ -266,7 +283,10 @@ export function FilePaneProvider({
   const [isUpdateHovered, setIsUpdateHovered] = useState(false)
   
   // Refs
-  const tableRef = useRef<HTMLDivElement>(null)
+  // Use external tableRef if provided (from FilePane.tsx), otherwise create local ref
+  // CRITICAL: The external ref must be used so the virtualizer can measure the scroll container
+  const localTableRef = useRef<HTMLDivElement>(null)
+  const tableRef = externalTableRef ?? localTableRef
   const contextMenuRef = useRef<HTMLDivElement>(null)
   
   // Load machine ID on mount

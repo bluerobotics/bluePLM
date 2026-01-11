@@ -21,7 +21,9 @@
  * - `useFileSelection` - Row click, shift-select, range selection
  * - `useDeleteHandler` - Delete confirmation workflow and execution
  * - `useAddFiles` - Add files/folders with conflict resolution
- * - `useDownloadOperation` - Download with progress tracking
+ * 
+ * Note: Download operations use the command system (executeCommand('download')) for
+ * consistent incremental store updates and immediate UI feedback.
  * 
  * ## Handler Hooks
  * Event handlers for UI interactions:
@@ -163,9 +165,6 @@ export type { UseFolderMetricsOptions } from './useFolderMetrics'
 // File sorting and filtering
 export { useSorting } from './useSorting'
 export type { UseSortingOptions, UseSortingReturn } from './useSorting'
-
-// Download operation with progress tracking
-export { useDownloadOperation } from './useDownloadOperation'
 
 // File status (centralized status checks)
 export { useFileStatus, getFileStatus, getStatusLabel, getStatusColorClass } from './useFileStatus'

@@ -230,16 +230,14 @@ export const checkoutCommand: Command<CheckoutParams> = {
       }
     }
     
-    // Track folders and files being processed (for spinner display) - batch add
+    // Track folders and files being processed (for spinner display)
+    // Use synchronous update to ensure spinners render before async work begins
     const foldersBeingProcessed = files
       .filter(f => f.isDirectory)
       .map(f => f.relativePath)
     const filesBeingProcessed = filesToCheckout.map(f => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
-    ctx.addProcessingFolders(allPathsBeingProcessed, 'checkout')
-    
-    // Yield to event loop so React can render spinners before starting operation
-    await new Promise(resolve => setTimeout(resolve, 0))
+    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'checkout')
     
     // Progress tracking
     const toastId = `checkout-${Date.now()}`
@@ -481,15 +479,20 @@ export const checkoutCommand: Command<CheckoutParams> = {
     // Combine results from both phases
     const results = [...nonSwResults, ...swResults]
     
-    // Flush any remaining store updates not yet flushed during incremental processing
-    if (pendingUpdates.length > lastFlushIndex) {
-      logCheckout('debug', 'Final store update flush', {
-        operationId,
-        remainingCount: pendingUpdates.length - lastFlushIndex,
-        totalUpdates: pendingUpdates.length
-      })
-      flushPendingUpdates()
-    }
+    // ========================================
+    // ATOMIC FINAL CLEANUP: Update remaining files AND clear processing state in ONE store update
+    // This prevents the 5-second UI freeze caused by two sequential re-renders with folderMetrics recalc
+    // ========================================
+    const finalUpdateStart = performance.now()
+    const remainingUpdates = pendingUpdates.slice(lastFlushIndex)
+    ctx.updateFilesAndClearProcessing(remainingUpdates, allPathsBeingProcessed)
+    ctx.setLastOperationCompletedAt(Date.now())
+    logCheckout('info', 'Atomic store update complete', {
+      operationId,
+      remainingFilesUpdated: remainingUpdates.length,
+      processingPathsCleared: allPathsBeingProcessed.length,
+      durationMs: Math.round(performance.now() - finalUpdateStart)
+    })
     
     // Clear any persisted pending metadata for checked out files
     // This ensures stale metadata from previous checkouts doesn't get restored
@@ -505,8 +508,6 @@ export const checkoutCommand: Command<CheckoutParams> = {
       }
     }
     
-    // Clean up - batch remove
-    ctx.removeProcessingFolders(allPathsBeingProcessed)
     const { duration } = progress.finish()
     
     // Log final result

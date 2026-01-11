@@ -12,6 +12,7 @@ export const createModulesSlice: StateCreator<
 > = (set, get) => ({
   // Initial state
   moduleConfig: getDefaultModuleConfig(),
+  moduleConfigLastSyncedAt: null,
   
   // Actions
   setModuleConfig: (config) => set({ moduleConfig: config }),
@@ -235,7 +236,8 @@ export const createModulesSlice: StateCreator<
           moduleIconColors: defaults.module_icon_colors || getDefaultModuleConfig().moduleIconColors,
           customGroups: defaults.custom_groups || getDefaultModuleConfig().customGroups,
         }
-        set({ moduleConfig })
+        // Update config and track sync time
+        set({ moduleConfig, moduleConfigLastSyncedAt: Date.now() })
       }
       
       return { success: true }
@@ -266,6 +268,38 @@ export const createModulesSlice: StateCreator<
       })
       
       if (error) throw error
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    }
+  },
+  
+  forceOrgModuleDefaults: async () => {
+    const { organization, moduleConfig, getEffectiveRole } = get()
+    if (!organization?.id) {
+      return { success: false, error: 'No organization connected' }
+    }
+    if (getEffectiveRole() !== 'admin') {
+      return { success: false, error: 'Only admins can force module defaults' }
+    }
+    
+    try {
+      const { error } = await (supabase.rpc as any)('force_org_module_defaults', {
+        p_org_id: organization.id,
+        p_enabled_modules: moduleConfig.enabledModules,
+        p_enabled_groups: moduleConfig.enabledGroups,
+        p_module_order: moduleConfig.moduleOrder,
+        p_dividers: moduleConfig.dividers,
+        p_module_parents: moduleConfig.moduleParents,
+        p_module_icon_colors: moduleConfig.moduleIconColors,
+        p_custom_groups: moduleConfig.customGroups
+      })
+      
+      if (error) throw error
+      
+      // Update local sync timestamp since we just set the config
+      set({ moduleConfigLastSyncedAt: Date.now() })
+      
       return { success: true }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

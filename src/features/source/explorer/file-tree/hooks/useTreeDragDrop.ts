@@ -1,8 +1,129 @@
 import { useState, useRef, useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { buildFullPath } from '@/lib/utils'
 import { PDM_FILES_DATA_TYPE, MIME_TYPES } from '../constants'
+
+/**
+ * Interface for collected entries from DataTransfer
+ * Includes both files and folders (including empty ones)
+ */
+interface CollectedEntry {
+  path: string
+  isDirectory: boolean
+  relativePath: string  // Path relative to the dropped root for nested items
+}
+
+/**
+ * Extract all file and folder paths from a DataTransfer, including empty folders.
+ * Uses webkitGetAsEntry() API which properly handles directory structures.
+ */
+async function collectEntriesFromDataTransfer(
+  dataTransfer: DataTransfer,
+  getPathForFile: (file: File) => string
+): Promise<CollectedEntry[]> {
+  const entries: CollectedEntry[] = []
+  const items = dataTransfer.items
+  
+  // Try to use webkitGetAsEntry for proper directory support
+  if (items && items.length > 0) {
+    const itemsArray = Array.from(items)
+    
+    for (const item of itemsArray) {
+      if (item.kind !== 'file') continue
+      
+      // Try webkitGetAsEntry for directory support
+      const entry = item.webkitGetAsEntry?.()
+      if (entry) {
+        await collectFromEntry(entry, '', entries)
+      } else {
+        // Fallback: get as regular file
+        const file = item.getAsFile()
+        if (file) {
+          const path = getPathForFile(file)
+          if (path) {
+            entries.push({ path, isDirectory: false, relativePath: file.name })
+          }
+        }
+      }
+    }
+  }
+  
+  // If no entries collected via webkitGetAsEntry, fall back to files array
+  if (entries.length === 0) {
+    const files = Array.from(dataTransfer.files)
+    for (const file of files) {
+      const path = getPathForFile(file)
+      if (path) {
+        entries.push({ path, isDirectory: false, relativePath: file.name })
+      }
+    }
+  }
+  
+  return entries
+}
+
+/**
+ * Recursively collect entries from a FileSystemEntry
+ */
+async function collectFromEntry(
+  entry: FileSystemEntry,
+  parentPath: string,
+  entries: CollectedEntry[]
+): Promise<void> {
+  const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name
+  
+  if (entry.isDirectory) {
+    const dirEntry = entry as FileSystemDirectoryEntry
+    // Always add the directory entry (even if empty)
+    entries.push({ 
+      path: (entry as unknown as { fullPath?: string }).fullPath || entry.name, 
+      isDirectory: true, 
+      relativePath 
+    })
+    
+    // Read directory contents
+    const reader = dirEntry.createReader()
+    const children = await readAllDirectoryEntries(reader)
+    
+    for (const child of children) {
+      await collectFromEntry(child, relativePath, entries)
+    }
+  } else {
+    // It's a file
+    entries.push({ 
+      path: (entry as unknown as { fullPath?: string }).fullPath || entry.name,
+      isDirectory: false, 
+      relativePath 
+    })
+  }
+}
+
+/**
+ * Read all entries from a directory reader (handles batching)
+ */
+function readAllDirectoryEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const entries: FileSystemEntry[] = []
+    
+    function readBatch() {
+      reader.readEntries(
+        (batch) => {
+          if (batch.length === 0) {
+            resolve(entries)
+          } else {
+            entries.push(...batch)
+            readBatch() // Continue reading
+          }
+        },
+        (error) => reject(error)
+      )
+    }
+    
+    readBatch()
+  })
+}
 
 interface DragDropHandlers {
   // State
@@ -26,18 +147,29 @@ interface DragDropHandlers {
  * Hook for managing drag and drop operations in the explorer tree
  */
 export function useTreeDragDrop(): DragDropHandlers {
-  const {
-    files,
-    vaultPath,
-    user,
-    addToast,
-    addProgressToast,
-    updateProgressToast,
-    removeToast,
-    addProcessingFolder,
-    removeProcessingFolder,
-    renameFileInStore
-  } = usePDMStore()
+  // Selective state selectors - each subscription only triggers on its own changes
+  const files = usePDMStore(s => s.files)
+  const vaultPath = usePDMStore(s => s.vaultPath)
+  const user = usePDMStore(s => s.user)
+  
+  // Actions grouped with useShallow - toast actions
+  const { addToast, addProgressToast, updateProgressToast, removeToast } = usePDMStore(
+    useShallow(s => ({
+      addToast: s.addToast,
+      addProgressToast: s.addProgressToast,
+      updateProgressToast: s.updateProgressToast,
+      removeToast: s.removeToast
+    }))
+  )
+  
+  // Actions grouped with useShallow - processing actions
+  const { addProcessingFolder, removeProcessingFolder, renameFileInStore } = usePDMStore(
+    useShallow(s => ({
+      addProcessingFolder: s.addProcessingFolder,
+      removeProcessingFolder: s.removeProcessingFolder,
+      renameFileInStore: s.renameFileInStore
+    }))
+  )
   
   // State for drag over highlighting
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
@@ -181,54 +313,95 @@ export function useTreeDragDrop(): DragDropHandlers {
     const hasPdmFiles = e.dataTransfer.types.includes(PDM_FILES_DATA_TYPE)
     const droppedExternalFiles = Array.from(e.dataTransfer.files)
     
-    if (droppedExternalFiles.length > 0 && !hasPdmFiles) {
-      // Handle external file drop
-      const filePaths: string[] = []
-      for (const file of droppedExternalFiles) {
-        try {
-          const filePath = window.electronAPI.getPathForFile(file)
-          if (filePath) {
-            filePaths.push(filePath)
+    if ((droppedExternalFiles.length > 0 || e.dataTransfer.items.length > 0) && !hasPdmFiles) {
+      // Handle external file/folder drop - use webkitGetAsEntry for proper folder support
+      const entries = await collectEntriesFromDataTransfer(
+        e.dataTransfer,
+        (file) => window.electronAPI?.getPathForFile(file) || ''
+      )
+      
+      // If no entries from webkitGetAsEntry, fall back to traditional file handling
+      if (entries.length === 0) {
+        for (const file of droppedExternalFiles) {
+          try {
+            const filePath = window.electronAPI.getPathForFile(file)
+            if (filePath) {
+              // Check if it's a directory
+              const dirCheck = await window.electronAPI.isDirectory(filePath)
+              entries.push({ 
+                path: filePath, 
+                isDirectory: dirCheck.success && dirCheck.isDirectory === true,
+                relativePath: file.name 
+              })
+            }
+          } catch (err) {
+            log.error('[TreeDragDrop]', 'Error getting file path', { error: err })
           }
-        } catch (err) {
-          log.error('[TreeDragDrop]', 'Error getting file path', { error: err })
         }
       }
 
-      if (filePaths.length === 0) {
+      if (entries.length === 0) {
         addToast('error', 'Could not get file paths')
         return
       }
 
-      // Copy external files to the target folder
-      const totalFiles = filePaths.length
+      // Separate directories and files - process directories first
+      const directories = entries.filter(e => e.isDirectory)
+      const fileEntries = entries.filter(e => !e.isDirectory)
+      
+      const totalItems = entries.length
       const toastId = `drop-files-${Date.now()}`
-      addProgressToast(toastId, `Adding ${totalFiles} file${totalFiles > 1 ? 's' : ''} to ${targetFolder.name}...`, totalFiles)
+      addProgressToast(toastId, `Adding ${totalItems} item${totalItems > 1 ? 's' : ''} to ${targetFolder.name}...`, totalItems)
 
       try {
         let successCount = 0
         let errorCount = 0
+        let processed = 0
 
-        for (let i = 0; i < filePaths.length; i++) {
-          const sourcePath = filePaths[i]
-          const fileName = sourcePath.split(/[/\\]/).pop() || 'unknown'
-          const destPath = buildFullPath(vaultPath, targetFolder.relativePath + '/' + fileName)
+        // First create all directories (including empty ones)
+        for (const dir of directories) {
+          const destPath = buildFullPath(vaultPath, targetFolder.relativePath + '/' + dir.relativePath)
 
-          const result = await window.electronAPI.copyFile(sourcePath, destPath)
+          // First try to copy the directory (handles non-empty directories)
+          const copyResult = await window.electronAPI.copyFile(dir.path, destPath)
+          if (copyResult.success) {
+            successCount++
+          } else {
+            // If copy failed, try creating the folder directly (for empty folders)
+            const createResult = await window.electronAPI.createFolder(destPath)
+            if (createResult.success) {
+              successCount++
+            } else {
+              errorCount++
+              log.error('[TreeDragDrop]', `Failed to create directory ${dir.relativePath}`, { error: createResult.error })
+            }
+          }
+          
+          processed++
+          const percent = Math.round((processed / totalItems) * 100)
+          updateProgressToast(toastId, processed, percent)
+        }
+
+        // Then copy all files
+        for (const file of fileEntries) {
+          const destPath = buildFullPath(vaultPath, targetFolder.relativePath + '/' + file.relativePath)
+
+          const result = await window.electronAPI.copyFile(file.path, destPath)
           if (result.success) {
             successCount++
           } else {
             errorCount++
           }
           
-          const percent = Math.round(((i + 1) / totalFiles) * 100)
-          updateProgressToast(toastId, i + 1, percent)
+          processed++
+          const percent = Math.round((processed / totalItems) * 100)
+          updateProgressToast(toastId, processed, percent)
         }
 
         removeToast(toastId)
         
         if (errorCount === 0) {
-          addToast('success', `Added ${successCount} file${successCount > 1 ? 's' : ''} to ${targetFolder.name}`)
+          addToast('success', `Added ${successCount} item${successCount > 1 ? 's' : ''} to ${targetFolder.name}`)
         } else {
           addToast('warning', `Added ${successCount}, failed ${errorCount}`)
         }
@@ -342,53 +515,95 @@ export function useTreeDragDrop(): DragDropHandlers {
     const hasPdmFiles = e.dataTransfer.types.includes(PDM_FILES_DATA_TYPE)
     const droppedExternalFiles = Array.from(e.dataTransfer.files)
     
-    if (droppedExternalFiles.length > 0 && !hasPdmFiles) {
-      // Handle external file drop to vault root
-      const filePaths: string[] = []
-      for (const file of droppedExternalFiles) {
-        try {
-          const filePath = window.electronAPI.getPathForFile(file)
-          if (filePath) {
-            filePaths.push(filePath)
+    if ((droppedExternalFiles.length > 0 || e.dataTransfer.items.length > 0) && !hasPdmFiles) {
+      // Handle external file/folder drop to vault root
+      const entries = await collectEntriesFromDataTransfer(
+        e.dataTransfer,
+        (file) => window.electronAPI?.getPathForFile(file) || ''
+      )
+      
+      // If no entries from webkitGetAsEntry, fall back to traditional file handling
+      if (entries.length === 0) {
+        for (const file of droppedExternalFiles) {
+          try {
+            const filePath = window.electronAPI.getPathForFile(file)
+            if (filePath) {
+              // Check if it's a directory
+              const dirCheck = await window.electronAPI.isDirectory(filePath)
+              entries.push({ 
+                path: filePath, 
+                isDirectory: dirCheck.success && dirCheck.isDirectory === true,
+                relativePath: file.name 
+              })
+            }
+          } catch (err) {
+            log.error('[TreeDragDrop]', 'Error getting file path', { error: err })
           }
-        } catch (err) {
-          log.error('[TreeDragDrop]', 'Error getting file path', { error: err })
         }
       }
 
-      if (filePaths.length === 0) {
+      if (entries.length === 0) {
         addToast('error', 'Could not get file paths')
         return
       }
 
-      const totalFiles = filePaths.length
+      // Separate directories and files - process directories first
+      const directories = entries.filter(e => e.isDirectory)
+      const fileEntries = entries.filter(e => !e.isDirectory)
+      
+      const totalItems = entries.length
       const toastId = `drop-files-root-${Date.now()}`
-      addProgressToast(toastId, `Adding ${totalFiles} file${totalFiles > 1 ? 's' : ''} to vault root...`, totalFiles)
+      addProgressToast(toastId, `Adding ${totalItems} item${totalItems > 1 ? 's' : ''} to vault root...`, totalItems)
 
       try {
         let successCount = 0
         let errorCount = 0
+        let processed = 0
 
-        for (let i = 0; i < filePaths.length; i++) {
-          const sourcePath = filePaths[i]
-          const fileName = sourcePath.split(/[/\\]/).pop() || 'unknown'
-          const destPath = buildFullPath(vaultPath, fileName)
+        // First create all directories (including empty ones)
+        for (const dir of directories) {
+          const destPath = buildFullPath(vaultPath, dir.relativePath)
 
-          const result = await window.electronAPI.copyFile(sourcePath, destPath)
+          // First try to copy the directory (handles non-empty directories)
+          const copyResult = await window.electronAPI.copyFile(dir.path, destPath)
+          if (copyResult.success) {
+            successCount++
+          } else {
+            // If copy failed, try creating the folder directly (for empty folders)
+            const createResult = await window.electronAPI.createFolder(destPath)
+            if (createResult.success) {
+              successCount++
+            } else {
+              errorCount++
+              log.error('[TreeDragDrop]', `Failed to create directory ${dir.relativePath}`, { error: createResult.error })
+            }
+          }
+          
+          processed++
+          const percent = Math.round((processed / totalItems) * 100)
+          updateProgressToast(toastId, processed, percent)
+        }
+
+        // Then copy all files
+        for (const file of fileEntries) {
+          const destPath = buildFullPath(vaultPath, file.relativePath)
+
+          const result = await window.electronAPI.copyFile(file.path, destPath)
           if (result.success) {
             successCount++
           } else {
             errorCount++
           }
           
-          const percent = Math.round(((i + 1) / totalFiles) * 100)
-          updateProgressToast(toastId, i + 1, percent)
+          processed++
+          const percent = Math.round((processed / totalItems) * 100)
+          updateProgressToast(toastId, processed, percent)
         }
 
         removeToast(toastId)
         
         if (errorCount === 0) {
-          addToast('success', `Added ${successCount} file${successCount > 1 ? 's' : ''} to vault root`)
+          addToast('success', `Added ${successCount} item${successCount > 1 ? 's' : ''} to vault root`)
         } else {
           addToast('warning', `Added ${successCount}, failed ${errorCount}`)
         }

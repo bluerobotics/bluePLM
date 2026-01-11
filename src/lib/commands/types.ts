@@ -52,11 +52,47 @@ export interface CommandContext {
   clearPersistedPendingMetadataForPaths: (paths: string[]) => void  // Clear persisted metadata during checkout
   addProcessingFolder: (path: string, operationType: OperationType) => void
   addProcessingFolders: (paths: string[], operationType: OperationType) => void  // Batch add (single state update)
+  addProcessingFoldersSync: (paths: string[], operationType: OperationType) => void  // Synchronous state update (no batching delay)
   removeProcessingFolder: (path: string) => void
   removeProcessingFolders: (paths: string[]) => void  // Batch remove (single state update)
   
+  /**
+   * Atomic update: combines file updates + clearing processing state in ONE store update.
+   * 
+   * This prevents two sequential re-renders that occur with separate updateFilesInStore() +
+   * removeProcessingFolders() calls. With 8000+ files, each re-render triggers expensive
+   * O(N x depth) folderMetrics computation, causing ~5 second UI freezes.
+   * 
+   * Use this at the end of download/get-latest operations instead of separate calls.
+   */
+  updateFilesAndClearProcessing: (
+    updates: Array<{ path: string; updates: Partial<LocalFile> }>,
+    pathsToClearProcessing: string[]
+  ) => void
+  
   // Auto-download exclusion (for tracking intentionally removed local copies)
   addAutoDownloadExclusion: (relativePath: string) => void
+  
+  // File watcher suppression (for preventing redundant refreshes after operations)
+  /**
+   * Register file paths that we expect to change during this operation.
+   * The file watcher will filter out these paths from triggering refreshes.
+   */
+  addExpectedFileChanges: (paths: string[]) => void
+  
+  /**
+   * Clear expected file paths after operation completes.
+   * Call with the same paths passed to addExpectedFileChanges.
+   */
+  clearExpectedFileChanges: (paths: string[]) => void
+  
+  /**
+   * Set the timestamp when the operation completed.
+   * This extends the file watcher suppression window to prevent
+   * redundant refreshes from file change events that arrive after
+   * the operation finishes but before the watcher's debounce completes.
+   */
+  setLastOperationCompletedAt: (timestamp: number) => void
   
   // Refresh callback
   onRefresh?: (silent?: boolean) => void

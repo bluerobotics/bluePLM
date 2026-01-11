@@ -1,5 +1,6 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, ToastsSlice, ToastType, ToastMessage } from '../types'
+import type { NotificationCategory } from '../../types/notifications'
 
 // ============================================================================
 // Progress Toast Update Batching
@@ -78,9 +79,13 @@ export const createToastsSlice: StateCreator<
   toasts: [],
   
   // Actions
-  addToast: (type: ToastType, message: string, duration = 5000) => {
+  addToast: (type: ToastType, message: string, duration = 5000, category?: NotificationCategory) => {
     const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    set(state => ({ toasts: [...state.toasts, { id, type, message, duration }] }))
+    const toast: ToastMessage = { id, type, message, duration }
+    if (category) {
+      toast.category = category
+    }
+    set(state => ({ toasts: [...state.toasts, toast] }))
   },
   
   addProgressToast: (id: string, message: string, total: number) => {

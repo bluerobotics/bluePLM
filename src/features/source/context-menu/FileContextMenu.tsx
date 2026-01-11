@@ -40,6 +40,20 @@ import { ShareLinkDialog } from './dialogs'
 import { AddToECODialog } from './dialogs'
 
 import type { FileContextMenuProps } from './types'
+import type { LocalFile } from '@/stores/pdmStore'
+
+/**
+ * Check if a folder has any local content (files that exist locally, not just on server).
+ * This derives folder status from children rather than relying on potentially stale folder diffStatus.
+ */
+function folderHasLocalContent(folderPath: string, files: LocalFile[]): boolean {
+  const normalizedPath = folderPath.replace(/\\/g, '/')
+  return files.some(f => {
+    if (f.isDirectory) return false
+    const filePath = f.relativePath.replace(/\\/g, '/')
+    return filePath.startsWith(normalizedPath + '/') && f.diffStatus !== 'cloud'
+  })
+}
 
 export function FileContextMenu({
   x,
@@ -120,11 +134,21 @@ export function FileContextMenu({
   const countLabel = getCountLabel(fileCount, folderCount)
   
   // Check for cloud-only files
-  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
+  // For folders, derive cloud-only status from children (not stale folder diffStatus)
+  const allCloudOnly = contextFiles.every(f => {
+    if (f.isDirectory) {
+      // A folder is cloud-only if it has NO local children (all cloud or empty)
+      return !folderHasLocalContent(f.relativePath, files)
+    }
+    return f.diffStatus === 'cloud'
+  })
   const cloudOnlyCount = cloudOnlyFilesInSelection.length
   
-  // Check for empty local folders
-  const hasLocalFolders = contextFiles.some(f => f.isDirectory && f.diffStatus !== 'cloud')
+  // Check for local folders (folders with local content)
+  // Derive from children rather than relying on folder's own diffStatus
+  const hasLocalFolders = contextFiles.some(f => 
+    f.isDirectory && folderHasLocalContent(f.relativePath, files)
+  )
   
   // Check if any selected folders exist on server
   const hasFoldersOnServer = contextFiles.some(f => {
@@ -308,6 +332,7 @@ export function FileContextMenu({
           currentVaultName={currentVaultName}
           pinnedFolders={pinnedFolders}
           onClose={onClose}
+          onRefresh={onRefresh}
           openDialog={state.openDialog}
           setFolderSize={state.setFolderSize}
           setIsCalculatingSize={state.setIsCalculatingSize}

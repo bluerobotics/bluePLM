@@ -68,9 +68,11 @@ function ModuleComingSoon({ moduleName }: { moduleName: string }) {
 }
 
 export function Sidebar() {
-  const { activeView, sidebarWidth, connectedVaults, moduleConfig } = usePDMStore()
-  
-  // Get settingsTab from store
+  // Selective selectors: only re-render when specific values change
+  const activeView = usePDMStore(s => s.activeView)
+  const sidebarWidth = usePDMStore(s => s.sidebarWidth)
+  const connectedVaults = usePDMStore(s => s.connectedVaults)
+  const moduleConfig = usePDMStore(s => s.moduleConfig)
   const settingsTab = usePDMStore(s => s.settingsTab)
   const setSettingsTab = usePDMStore(s => s.setSettingsTab)
   

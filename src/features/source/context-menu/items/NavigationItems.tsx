@@ -1,5 +1,5 @@
 // src/features/source/context-menu/items/NavigationItems.tsx
-import { Pin, History, Trash2, Info } from 'lucide-react'
+import { Pin, History, Trash2, Info, RefreshCw } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { DialogName } from '../types'
@@ -15,6 +15,7 @@ interface NavigationItemsProps {
   currentVaultName: string
   pinnedFolders: { path: string; vaultId: string }[]
   onClose: () => void
+  onRefresh: (silent?: boolean, forceHashComputation?: boolean) => void
   openDialog: (name: DialogName) => void
   setFolderSize: (value: { size: number; fileCount: number; folderCount: number } | null) => void
   setIsCalculatingSize: (value: boolean) => void
@@ -32,6 +33,7 @@ export function NavigationItems({
   currentVaultName,
   pinnedFolders,
   onClose,
+  onRefresh,
   openDialog,
   setFolderSize,
   setIsCalculatingSize,
@@ -121,6 +123,18 @@ export function NavigationItems({
           Show Deleted Files
         </div>
       )}
+
+      {/* Refresh Vault */}
+      <div 
+        className="context-menu-item"
+        onClick={() => {
+          onClose()
+          onRefresh(false, true)
+        }}
+      >
+        <RefreshCw size={14} />
+        Refresh Vault
+      </div>
 
       {/* Properties */}
       <div 

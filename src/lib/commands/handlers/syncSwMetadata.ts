@@ -463,11 +463,6 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
       }
     })
     
-    // Apply store updates
-    if (pendingUpdates.length > 0) {
-      ctx.updateFilesInStore(pendingUpdates)
-    }
-    
     // Count results
     for (const result of results) {
       if (result.success) {
@@ -483,8 +478,19 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
       }
     }
     
-    // Clean up
-    ctx.removeProcessingFolders(filesBeingProcessed)
+    // Apply all store updates in a single atomic batch + clear processing folders
+    const storeUpdateStart = performance.now()
+    if (pendingUpdates.length > 0) {
+      ctx.updateFilesAndClearProcessing(pendingUpdates, filesBeingProcessed)
+    } else {
+      ctx.removeProcessingFolders(filesBeingProcessed)
+    }
+    ctx.setLastOperationCompletedAt(Date.now())
+    logSyncMeta('info', 'Store update complete', {
+      durationMs: Math.round(performance.now() - storeUpdateStart),
+      updateCount: pendingUpdates.length,
+      timestamp: Date.now()
+    })
     const { duration } = progress.finish()
     
     // Log final result

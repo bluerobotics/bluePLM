@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 import { Layers } from 'lucide-react'
 import type { ConfigWithDepth } from '../../types'
 
@@ -15,7 +15,38 @@ export interface ConfigRowProps {
   onTabChange: (value: string) => void
 }
 
-export function ConfigRow({
+/**
+ * Custom comparison function for ConfigRow memoization.
+ * Compares props that affect rendering, skipping callback functions.
+ */
+function areConfigRowPropsEqual(
+  prevProps: ConfigRowProps,
+  nextProps: ConfigRowProps
+): boolean {
+  // Compare config identity and key properties
+  if (prevProps.config.name !== nextProps.config.name) return false
+  if (prevProps.config.depth !== nextProps.config.depth) return false
+  if (prevProps.config.description !== nextProps.config.description) return false
+  if (prevProps.config.tabNumber !== nextProps.config.tabNumber) return false
+  if (prevProps.config.isActive !== nextProps.config.isActive) return false
+  
+  // Compare primitive props
+  if (prevProps.isSelected !== nextProps.isSelected) return false
+  if (prevProps.isEditable !== nextProps.isEditable) return false
+  if (prevProps.rowHeight !== nextProps.rowHeight) return false
+  if (prevProps.basePartNumber !== nextProps.basePartNumber) return false
+  
+  // Compare visibleColumns array (shallow check on length and ids)
+  if (prevProps.visibleColumns.length !== nextProps.visibleColumns.length) return false
+  for (let i = 0; i < prevProps.visibleColumns.length; i++) {
+    if (prevProps.visibleColumns[i].id !== nextProps.visibleColumns[i].id) return false
+    if (prevProps.visibleColumns[i].width !== nextProps.visibleColumns[i].width) return false
+  }
+  
+  return true
+}
+
+export const ConfigRow = memo(function ConfigRow({
   config,
   isSelected,
   isEditable,
@@ -116,4 +147,4 @@ export function ConfigRow({
       ))}
     </tr>
   )
-}
+}, areConfigRowPropsEqual)

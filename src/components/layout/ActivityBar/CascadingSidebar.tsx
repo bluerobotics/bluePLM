@@ -23,7 +23,10 @@ export interface CascadingSidebarProps {
 }
 
 export function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter, onMouseLeave }: CascadingSidebarProps) {
-  const { activeView, setActiveView, getEffectiveModuleConfig } = usePDMStore()
+  // Selective selectors: only re-render when specific values change
+  const activeView = usePDMStore(s => s.activeView)
+  const setActiveView = usePDMStore(s => s.setActiveView)
+  const getEffectiveModuleConfig = usePDMStore(s => s.getEffectiveModuleConfig)
   const moduleConfig = getEffectiveModuleConfig()
   const { t } = useTranslation()
   const isExpanded = useContext(ExpandedContext)

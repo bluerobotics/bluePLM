@@ -1,8 +1,16 @@
 /**
  * Delete Commands
  * 
+ * Optimized batch deletion using the new deleteBatch IPC handler.
+ * 
  * - delete-local: Remove local copies (keeps server version)
  * - delete-server: Soft delete from server (moves to trash)
+ * 
+ * Performance optimizations:
+ * - Uses deleteBatch() for single IPC call instead of N individual calls
+ * - Immediately updates store via removeFilesFromStore() (no file watcher wait)
+ * - Uses atomic updateFilesAndClearProcessing() for single-render updates
+ * - No onRefresh() calls - all updates are incremental
  */
 
 import type { 
@@ -19,6 +27,184 @@ import {
 import { checkinFile, softDeleteFile } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
+
+// Helper for timing-based logging
+function logDelete(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown> = {}) {
+  log[level]('[Delete]', message, { ...context, timestamp: Date.now() })
+}
+
+// ============================================
+// Type Definitions
+// ============================================
+
+/**
+ * Result from a single file deletion in the batch
+ */
+interface BatchDeleteFileResult {
+  path: string
+  success: boolean
+  error?: string
+}
+
+/**
+ * Summary statistics from the batch delete operation
+ */
+interface BatchDeleteSummary {
+  total: number
+  succeeded: number
+  failed: number
+  duration: number
+}
+
+/**
+ * Result from the deleteBatch IPC call
+ */
+interface BatchDeleteResult {
+  success: boolean
+  results: BatchDeleteFileResult[]
+  summary: BatchDeleteSummary
+}
+
+// ============================================
+// Helper Functions
+// ============================================
+
+/**
+ * Extracts human-readable error messages from batch delete results.
+ * Categorizes errors by type (locked files vs other errors).
+ */
+function extractDeleteErrors(
+  results: BatchDeleteFileResult[],
+  filesToRemove: LocalFile[]
+): { errors: string[]; lockedFileErrors: string[] } {
+  const errors: string[] = []
+  const lockedFileErrors: string[] = []
+  
+  // Build a path-to-name lookup for readable error messages
+  const pathToName = new Map(filesToRemove.map(f => [f.path, f.name]))
+  
+  for (const result of results) {
+    if (!result.success && result.error) {
+      const fileName = pathToName.get(result.path) || result.path.split(/[/\\]/).pop() || result.path
+      const errorMsg = `${fileName}: ${result.error}`
+      
+      // Check if error is due to locked file (EBUSY, resource busy, etc.)
+      if (result.error.includes('EBUSY') || 
+          result.error.includes('resource busy') || 
+          result.error.includes('locked')) {
+        lockedFileErrors.push(errorMsg)
+      }
+      errors.push(errorMsg)
+      log.error('[Delete]', 'Failed to remove local file', { path: result.path, error: result.error })
+    }
+  }
+  
+  return { errors, lockedFileErrors }
+}
+
+/**
+ * Generates appropriate toast message for delete results.
+ * Handles locked files, single file errors, and batch error summaries.
+ */
+function showDeleteResultToast(
+  ctx: { addToast: (type: 'success' | 'warning' | 'error' | 'info', message: string) => void },
+  succeeded: number,
+  failed: number,
+  total: number,
+  errors: string[],
+  lockedFileErrors: string[]
+): void {
+  if (failed > 0) {
+    const isAllLocked = lockedFileErrors.length === errors.length && errors.length > 0
+    
+    if (isAllLocked) {
+      // All failures are due to locked files - give helpful message
+      const fileNames = lockedFileErrors.map(e => e.split(':')[0]).join(', ')
+      if (succeeded === 0) {
+        ctx.addToast('error', `Cannot delete - file${failed > 1 ? 's' : ''} open in another app: ${fileNames}`)
+      } else {
+        ctx.addToast('warning', `Removed ${succeeded}/${total}. ${failed} file${failed > 1 ? 's' : ''} locked (close in SolidWorks): ${fileNames}`)
+      }
+    } else if (total === 1 && errors.length > 0) {
+      // Single file - show specific error
+      ctx.addToast('warning', `Failed to remove: ${errors[0]}`)
+    } else if (errors.length === 1) {
+      // Multiple files but only one error - show it
+      ctx.addToast('warning', `Removed ${succeeded}/${total} local files. Error: ${errors[0]}`)
+    } else if (errors.length > 0) {
+      // Multiple errors - summarize
+      ctx.addToast('warning', `Removed ${succeeded}/${total} local files. ${errors.length} error(s) - check logs for details`)
+    } else {
+      ctx.addToast('warning', `Removed ${succeeded}/${total} local files (server copies preserved)`)
+    }
+  } else if (succeeded > 0) {
+    ctx.addToast('success', `Removed ${succeeded} local file${succeeded > 1 ? 's' : ''} (server copies preserved)`)
+  }
+}
+
+/**
+ * Determines which folders should become cloud-only vs completely removed.
+ * 
+ * When deleting local files from a folder:
+ * - If the folder will have cloud-only children remaining (synced files that were deleted locally),
+ *   the folder should be updated to diffStatus: 'cloud' to remain visible in the tree
+ * - If the folder will have no children remaining, it can be safely removed from the store
+ * 
+ * @param folderPaths - Array of folder paths that were selected for deletion
+ * @param syncedFileUpdates - Files that will be updated to cloud-only status (contain path property)
+ * @returns Object containing arrays of folder paths to make cloud-only vs remove entirely
+ */
+function categorizeFoldersForDeletion(
+  folderPaths: string[],
+  syncedFileUpdates: Array<{ path: string; updates: { diffStatus: 'cloud' } }>
+): { foldersToMakeCloudOnly: string[]; foldersToRemove: string[] } {
+  const foldersToMakeCloudOnly: string[] = []
+  const foldersToRemove: string[] = []
+  
+  for (const folderPath of folderPaths) {
+    // Normalize path separators for comparison
+    const normalizedFolderPath = folderPath.replace(/\\/g, '/')
+    
+    // Check if any synced files inside this folder will become cloud-only
+    const hasCloudChildren = syncedFileUpdates.some(update => {
+      const normalizedFilePath = update.path.replace(/\\/g, '/')
+      return normalizedFilePath.startsWith(normalizedFolderPath + '/')
+    })
+    
+    if (hasCloudChildren) {
+      foldersToMakeCloudOnly.push(folderPath)
+    } else {
+      foldersToRemove.push(folderPath)
+    }
+  }
+  
+  return { foldersToMakeCloudOnly, foldersToRemove }
+}
+
+/**
+ * Releases checkouts for files checked out by the current user.
+ * Returns paths that were successfully released.
+ */
+async function releaseCheckoutsForFiles(
+  files: LocalFile[],
+  userId: string
+): Promise<void> {
+  const filesToRelease = files.filter(f => 
+    f.pdmData?.checked_out_by === userId && f.pdmData?.id
+  )
+  
+  // Release checkouts in parallel (fire-and-forget, errors are logged but don't block)
+  await Promise.all(
+    filesToRelease.map(file => 
+      checkinFile(file.pdmData!.id!, userId).catch(err => {
+        log.warn('[Delete]', 'Failed to release checkout before delete', { 
+          path: file.path, 
+          error: err instanceof Error ? err.message : String(err) 
+        })
+      })
+    )
+  )
+}
 
 // ============================================
 // Delete Local Command
@@ -52,6 +238,13 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
   },
   
   async execute({ files }, ctx): Promise<CommandResult> {
+    const operationStart = performance.now()
+    const operationId = `delete-local-${Date.now()}`
+    logDelete('info', 'Starting delete-local operation', { 
+      operationId,
+      selectedCount: files.length 
+    })
+    
     const user = ctx.user
     
     // Get files to remove - both synced and unsynced local files
@@ -66,28 +259,42 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     
     // Handle empty local folders with no files to remove
     if (filesToRemove.length === 0 && localFolders.length > 0) {
-      let deleted = 0
-      for (const folder of localFolders) {
-        try {
-          const result = await window.electronAPI?.deleteItem(folder.path)
-          if (result?.success) deleted++
-        } catch (err) {
-          log.error('[Delete]', 'Failed to delete folder', { path: folder.path, error: err instanceof Error ? err.message : String(err) })
+      const folderPaths = localFolders.map(f => f.path)
+      
+      // Use batch delete for folders
+      const batchResult = await window.electronAPI?.deleteBatch(folderPaths, true) as BatchDeleteResult | undefined
+      
+      if (batchResult) {
+        const deleted = batchResult.summary.succeeded
+        
+        // Immediately remove from store
+        const deletedPaths = batchResult.results
+          .filter(r => r.success)
+          .map(r => r.path)
+        if (deletedPaths.length > 0) {
+          ctx.removeFilesFromStore(deletedPaths)
+        }
+        
+        if (deleted > 0) {
+          ctx.addToast('success', `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''}`)
+        }
+        
+        return {
+          success: true,
+          message: `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''}`,
+          total: localFolders.length,
+          succeeded: deleted,
+          failed: localFolders.length - deleted,
+          duration: batchResult.summary.duration
         }
       }
       
-      ctx.onRefresh?.(true)
-      
-      if (deleted > 0) {
-        ctx.addToast('success', `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''}`)
-      }
-      
       return {
-        success: true,
-        message: `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''}`,
+        success: false,
+        message: 'Delete operation failed',
         total: localFolders.length,
-        succeeded: deleted,
-        failed: localFolders.length - deleted
+        succeeded: 0,
+        failed: localFolders.length
       }
     }
     
@@ -102,134 +309,179 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
       }
     }
     
-    // Track paths being processed - batch add
+    // Track paths being processed - use SYNC version for immediate spinner display
     const foldersBeingProcessed = files.filter(f => f.isDirectory).map(f => f.relativePath)
     const filesBeingProcessed = files.filter(f => !f.isDirectory).map(f => f.relativePath)
     const allPathsBeingProcessed = [...foldersBeingProcessed, ...filesBeingProcessed]
-    ctx.addProcessingFolders(allPathsBeingProcessed, 'delete')
-    
-    // Yield to event loop so React can render spinners before starting operation
-    await new Promise(resolve => setTimeout(resolve, 0))
+    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'delete')
     
     const total = filesToRemove.length
     
-    // Progress tracking with file count (not bytes)
+    // Progress tracking
     const toastId = `delete-${Date.now()}`
-    const startTime = Date.now()
     const folderName = foldersBeingProcessed.length > 0
       ? foldersBeingProcessed[0].split('/').pop()
       : 'files'
     
     ctx.addProgressToast(toastId, `Removing ${folderName}...`, total)
     
-    let completedCount = 0
-    
-    const updateProgress = () => {
-      completedCount++
-      const percent = Math.round((completedCount / total) * 100)
-      ctx.updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${total}`)
+    // Release checkouts for files checked out by current user
+    if (user?.id) {
+      await releaseCheckoutsForFiles(filesToRemove, user.id)
     }
     
-    let succeeded = 0
-    let failed = 0
-    const errors: string[] = []
+    // Perform batch delete - single IPC call for all files
+    const filePaths = filesToRemove.map(f => f.path)
+    const batchResult = await window.electronAPI?.deleteBatch(filePaths, true) as BatchDeleteResult | undefined
     
-    // Process all files with concurrency limiting
-    const results = await processWithConcurrency(filesToRemove, CONCURRENT_OPERATIONS, async (file) => {
-      try {
-        // If checked out by current user, release the checkout first
-        if (file.pdmData?.checked_out_by === user?.id && file.pdmData?.id) {
-          await checkinFile(file.pdmData.id, user!.id)
-        }
-        
-        // Delete the file
-        const result = await window.electronAPI?.deleteItem(file.path)
-        updateProgress()
-        
-        if (result?.success) {
-          // If this was a synced file (exists on server), add to auto-download exclusion list
-          // This prevents auto-download from re-downloading files the user intentionally removed
-          if (file.pdmData?.id && file.relativePath) {
-            ctx.addAutoDownloadExclusion(file.relativePath)
-          }
-          return { success: true }
-        } else {
-          return { success: false, error: `${file.name}: ${result?.error || 'Delete failed'}` }
-        }
-      } catch (err) {
-        updateProgress()
-        const errorMsg = err instanceof Error ? err.message : 'Unknown error'
-        return { success: false, error: `${file.name}: ${errorMsg}` }
+    if (!batchResult) {
+      // ATOMIC: Clear processing with no updates
+      ctx.updateFilesAndClearProcessing([], allPathsBeingProcessed)
+      ctx.setLastOperationCompletedAt(Date.now())
+      logDelete('error', 'Batch delete failed - no response from system', { total })
+      ctx.removeToast(toastId)
+      ctx.addToast('error', 'Delete operation failed - no response from system')
+      return {
+        success: false,
+        message: 'Delete operation failed',
+        total,
+        succeeded: 0,
+        failed: total
       }
+    }
+    
+    // Update progress to 100%
+    ctx.updateProgressToast(toastId, total, 100, undefined, `${total}/${total}`)
+    
+    const succeeded = batchResult.summary.succeeded
+    const failed = batchResult.summary.failed
+    
+    // Extract errors for user feedback
+    const { errors, lockedFileErrors } = extractDeleteErrors(batchResult.results, filesToRemove)
+    
+    // Immediately update store based on file type:
+    // - Synced files: Update to 'cloud' status (server copy still exists)
+    // - Unsynced files: Remove from store entirely (no server copy)
+    const storeUpdateStart = performance.now()
+    const deletedPaths = new Set(
+      batchResult.results.filter(r => r.success).map(r => r.path)
+    )
+    
+    // Separate synced and unsynced files
+    const deletedSyncedFiles = filesToRemove.filter(f => 
+      deletedPaths.has(f.path) && f.pdmData?.id
+    )
+    const deletedUnsyncedPaths = filesToRemove
+      .filter(f => deletedPaths.has(f.path) && !f.pdmData?.id)
+      .map(f => f.path)
+    
+    // Build updates for synced files (cloud-only status)
+    const syncedFileUpdates = deletedSyncedFiles.map(f => ({
+      path: f.path,
+      updates: {
+        diffStatus: 'cloud' as const,
+        localHash: undefined,
+        localMtime: undefined,
+        localSize: undefined
+      }
+    }))
+    
+    // ATOMIC UPDATE: Update files and clear processing in single render
+    ctx.updateFilesAndClearProcessing(syncedFileUpdates, allPathsBeingProcessed)
+    ctx.setLastOperationCompletedAt(Date.now())
+    
+    logDelete('info', 'Atomic store update complete', {
+      syncedFilesUpdated: syncedFileUpdates.length,
+      processingPathsCleared: allPathsBeingProcessed.length,
+      durationMs: Math.round(performance.now() - storeUpdateStart)
     })
     
-    // Count results
-    for (const result of results) {
-      if (result.success) {
-        succeeded++
-      } else {
-        failed++
-        if (result.error) {
-          errors.push(result.error)
-          log.error('[Delete]', 'Failed to remove local file', { error: result.error })
-        }
+    // Add auto-download exclusions for synced files
+    // This prevents auto-download from re-downloading files the user intentionally removed
+    for (const file of deletedSyncedFiles) {
+      if (file.relativePath) {
+        ctx.addAutoDownloadExclusion(file.relativePath)
       }
     }
     
-    // Clean up - batch remove
-    ctx.removeProcessingFolders(allPathsBeingProcessed)
+    // Remove unsynced files from store entirely (no server copy to show)
+    if (deletedUnsyncedPaths.length > 0) {
+      ctx.removeFilesFromStore(deletedUnsyncedPaths)
+      logDelete('debug', 'Removed unsynced files from store', { count: deletedUnsyncedPaths.length })
+    }
+    
     ctx.removeToast(toastId)
     
-    const duration = Date.now() - startTime
-    
-    // Delete selected folders in background (fire-and-forget to avoid watcher restart delay)
-    // The folders should now be empty after file deletion
+    // Handle folder cleanup after file deletion
+    // Folders that still have cloud-only children should become cloud-only, not removed
     const selectedFolderPaths = files
       .filter(f => f.isDirectory && f.diffStatus !== 'cloud')
       .map(f => f.path)
+    
     if (selectedFolderPaths.length > 0) {
-      // Don't await - let it happen in background
-      Promise.all(selectedFolderPaths.map(folderPath =>
-        window.electronAPI?.deleteItem(folderPath).catch(() => {})
-      )).then(() => {
-        // Trigger another refresh after folders are deleted
-        ctx.onRefresh?.(true)
-      })
-    }
-    
-    // Show result toast FIRST (before refresh which can be slow)
-    if (failed > 0) {
-      // Check if errors are due to locked files (EBUSY)
-      const lockedFileErrors = errors.filter(e => e.includes('EBUSY') || e.includes('resource busy') || e.includes('locked'))
-      const isAllLocked = lockedFileErrors.length === errors.length && errors.length > 0
+      // Categorize folders: some need to become cloud-only, others can be removed
+      const { foldersToMakeCloudOnly, foldersToRemove } = categorizeFoldersForDeletion(
+        selectedFolderPaths,
+        syncedFileUpdates
+      )
       
-      // Show specific error info when files fail to delete
-      if (isAllLocked) {
-        // All failures are due to locked files - give helpful message
-        const fileNames = lockedFileErrors.map(e => e.split(':')[0]).join(', ')
-        if (succeeded === 0) {
-          ctx.addToast('error', `Cannot delete - file${failed > 1 ? 's' : ''} open in another app: ${fileNames}`)
-        } else {
-          ctx.addToast('warning', `Removed ${succeeded}/${total}. ${failed} file${failed > 1 ? 's' : ''} locked (close in SolidWorks): ${fileNames}`)
-        }
-      } else if (total === 1 && errors.length > 0) {
-        // Single file - show specific error
-        ctx.addToast('warning', `Failed to remove: ${errors[0]}`)
-      } else if (errors.length === 1) {
-        // Multiple files but only one error - show it
-        ctx.addToast('warning', `Removed ${succeeded}/${total} local files. Error: ${errors[0]}`)
-      } else if (errors.length > 0) {
-        // Multiple errors - summarize
-        ctx.addToast('warning', `Removed ${succeeded}/${total} local files. ${errors.length} error(s) - check logs for details`)
-      } else {
-        ctx.addToast('warning', `Removed ${succeeded}/${total} local files (server copies preserved)`)
+      logDelete('debug', 'Folder categorization complete', {
+        foldersToMakeCloudOnly: foldersToMakeCloudOnly.length,
+        foldersToRemove: foldersToRemove.length
+      })
+      
+      // Update folders that have cloud children to cloud-only status
+      // This preserves the folder in the tree so cloud files remain visible
+      if (foldersToMakeCloudOnly.length > 0) {
+        const folderCloudUpdates = foldersToMakeCloudOnly.map(path => ({
+          path,
+          updates: {
+            diffStatus: 'cloud' as const,
+            localHash: undefined,
+            localMtime: undefined,
+            localSize: undefined
+          }
+        }))
+        ctx.updateFilesInStore(folderCloudUpdates)
+        logDelete('info', 'Updated folders to cloud-only status (contain cloud children)', {
+          paths: foldersToMakeCloudOnly
+        })
       }
-    } else if (succeeded > 0) {
-      ctx.addToast('success', `Removed ${succeeded} local file${succeeded > 1 ? 's' : ''} (server copies preserved)`)
+      
+      // Delete folders that have no remaining children (awaited, not fire-and-forget)
+      if (foldersToRemove.length > 0) {
+        try {
+          const folderBatchResult = await window.electronAPI?.deleteBatch(foldersToRemove, true) as BatchDeleteResult | undefined
+          if (folderBatchResult) {
+            const deletedFolderPaths = folderBatchResult.results
+              .filter(r => r.success)
+              .map(r => r.path)
+            if (deletedFolderPaths.length > 0) {
+              ctx.removeFilesFromStore(deletedFolderPaths)
+              logDelete('debug', 'Removed empty folders from store', {
+                count: deletedFolderPaths.length
+              })
+            }
+          }
+        } catch (err) {
+          // Folder deletion is best-effort, log but don't fail the operation
+          logDelete('warn', 'Failed to delete some folders', {
+            error: err instanceof Error ? err.message : String(err)
+          })
+        }
+      }
     }
     
-    // Refresh file list (can be slow, so do it after showing toast)
-    ctx.onRefresh?.(true)
+    // Show result toast
+    showDeleteResultToast(ctx, succeeded, failed, total, errors, lockedFileErrors)
+    
+    logDelete('info', 'Delete-local operation complete', {
+      operationId,
+      total,
+      succeeded,
+      failed,
+      durationMs: Math.round(performance.now() - operationStart)
+    })
     
     return {
       success: failed === 0,
@@ -240,7 +492,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
       succeeded,
       failed,
       errors: errors.length > 0 ? errors : undefined,
-      duration
+      duration: batchResult.summary.duration
     }
   }
 }
@@ -287,6 +539,14 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
   },
   
   async execute({ files, deleteLocal = true }, ctx): Promise<CommandResult> {
+    const operationStart = performance.now()
+    const operationId = `delete-server-${Date.now()}`
+    logDelete('info', 'Starting delete-server operation', { 
+      operationId,
+      selectedCount: files.length,
+      deleteLocal
+    })
+    
     const user = ctx.user!
     
     // Get all synced files to delete from server (including files inside folders)
@@ -340,49 +600,63 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       }
     }
     
-    // If only local folders with no server files, just delete locally
+    // If only local folders with no server files, just delete locally using batch
     if (uniqueFiles.length === 0 && hasLocalFolders) {
       const foldersToDelete = files.filter(f => f.isDirectory && f.diffStatus !== 'cloud')
       const folderPaths = foldersToDelete.map(f => f.relativePath)
-      ctx.addProcessingFolders(folderPaths, 'delete')
+      ctx.addProcessingFoldersSync(folderPaths, 'delete')
       
-      // Yield to event loop so React can render spinners before starting operation
-      await new Promise(resolve => setTimeout(resolve, 0))
+      // Use batch delete for folders
+      const folderAbsolutePaths = foldersToDelete.map(f => f.path)
+      const batchResult = await window.electronAPI?.deleteBatch(folderAbsolutePaths, true) as BatchDeleteResult | undefined
       
-      let deleted = 0
-      for (const folder of foldersToDelete) {
-        try {
-          const result = await window.electronAPI?.deleteItem(folder.path)
-          if (result?.success) deleted++
-        } catch (err) {
-          log.error('[Delete]', 'Failed to delete folder', { path: folder.path, error: err instanceof Error ? err.message : String(err) })
+      // ATOMIC: Clear processing with no file updates
+      ctx.updateFilesAndClearProcessing([], folderPaths)
+      ctx.setLastOperationCompletedAt(Date.now())
+      logDelete('info', 'Local folders delete complete', { 
+        folderCount: foldersToDelete.length,
+        succeeded: batchResult?.summary.succeeded ?? 0
+      })
+      
+      if (batchResult) {
+        const deleted = batchResult.summary.succeeded
+        
+        // Immediately remove from store
+        const deletedPaths = batchResult.results
+          .filter(r => r.success)
+          .map(r => r.path)
+        if (deletedPaths.length > 0) {
+          ctx.removeFilesFromStore(deletedPaths)
+        }
+        
+        if (deleted > 0) {
+          ctx.addToast('success', `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''} (not synced to server)`)
+        }
+        
+        return {
+          success: true,
+          message: `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''} (not synced to server)`,
+          total: foldersToDelete.length,
+          succeeded: deleted,
+          failed: foldersToDelete.length - deleted,
+          duration: batchResult.summary.duration
         }
       }
       
-      ctx.removeProcessingFolders(folderPaths)
-      
-      if (deleted > 0) {
-        ctx.addToast('success', `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''} (not synced to server)`)
-        ctx.onRefresh?.(true)
-      }
-      
       return {
-        success: true,
-        message: `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''} (not synced to server)`,
+        success: false,
+        message: 'Delete operation failed',
         total: foldersToDelete.length,
-        succeeded: deleted,
-        failed: foldersToDelete.length - deleted
+        succeeded: 0,
+        failed: foldersToDelete.length
       }
     }
     
-    // Track paths being processed - batch add
+    // Track paths being processed - use SYNC version for immediate spinner display
     const foldersSelected = files.filter(f => f.isDirectory).map(f => f.relativePath)
     const pathsBeingProcessed = uniqueFiles.map(f => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...pathsBeingProcessed, ...foldersSelected])]
-    ctx.addProcessingFolders(allPathsBeingProcessed, 'delete')
-    
-    // Yield to event loop so React can render spinners before starting operation
-    await new Promise(resolve => setTimeout(resolve, 0))
+    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'delete')
     
     const toastId = `delete-server-${Date.now()}`
     const totalFiles = uniqueFiles.length
@@ -390,61 +664,105 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     
     let deletedLocal = 0
     let deletedServer = 0
-    let completedCount = 0
     const errors: string[] = []
+    const startTime = Date.now()
     
-    const updateProgress = () => {
-      completedCount++
-      const percent = Math.round((completedCount / totalFiles) * 100)
-      ctx.updateProgressToast(toastId, completedCount, percent, undefined, `${completedCount}/${totalFiles}`)
-    }
-    
-    // STEP 1: Delete ALL local items first with concurrency limiting
+    // STEP 1: Delete ALL local items first using batch operation
     if (deleteLocal) {
-      const localItemsToDelete = [...files]
+      const localItemsToDelete = files.filter(f => f.diffStatus !== 'cloud')
       if (localItemsToDelete.length > 0) {
-        const localResults = await processWithConcurrency(localItemsToDelete, CONCURRENT_OPERATIONS, async (item) => {
-          try {
-            // Release checkout if needed
-            if (item.pdmData?.checked_out_by === user?.id && item.pdmData?.id) {
-              await checkinFile(item.pdmData.id, user!.id).catch(() => {})
-            }
-            const result = await window.electronAPI?.deleteItem(item.path)
-            return result?.success || false
-          } catch {
-            return false
+        // Release checkouts first
+        await releaseCheckoutsForFiles(localItemsToDelete, user.id)
+        
+        // Batch delete local files
+        const localPaths = localItemsToDelete.map(f => f.path)
+        const localBatchResult = await window.electronAPI?.deleteBatch(localPaths, true) as BatchDeleteResult | undefined
+        
+        if (localBatchResult) {
+          deletedLocal = localBatchResult.summary.succeeded
+          
+          // Immediately remove deleted files from store
+          const deletedLocalPaths = localBatchResult.results
+            .filter(r => r.success)
+            .map(r => r.path)
+          if (deletedLocalPaths.length > 0) {
+            ctx.removeFilesFromStore(deletedLocalPaths)
           }
-        })
-        deletedLocal = localResults.filter(r => r).length
+        }
       }
     }
     
     // STEP 2: Delete from server with concurrency limiting
+    // Server operations still need individual API calls (no batch endpoint)
+    let completedCount = 0
+    
     if (uniqueFiles.length > 0) {
       const serverResults = await processWithConcurrency(uniqueFiles, CONCURRENT_OPERATIONS, async (file) => {
         if (!file.pdmData?.id) {
-          updateProgress()
+          completedCount++
+          ctx.updateProgressToast(toastId, completedCount, Math.round((completedCount / totalFiles) * 100), undefined, `${completedCount}/${totalFiles}`)
           return false
         }
         try {
           const result = await softDeleteFile(file.pdmData.id, user.id)
-          updateProgress()
+          completedCount++
+          ctx.updateProgressToast(toastId, completedCount, Math.round((completedCount / totalFiles) * 100), undefined, `${completedCount}/${totalFiles}`)
           return result.success
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
           errors.push(`${file.name}: ${errorMsg}`)
           log.error('[Delete]', 'Failed to delete file from server', { fileName: file.name, error: errorMsg })
-          updateProgress()
+          completedCount++
+          ctx.updateProgressToast(toastId, completedCount, Math.round((completedCount / totalFiles) * 100), undefined, `${completedCount}/${totalFiles}`)
           return false
         }
       })
       deletedServer = serverResults.filter(r => r).length
+      
+      // Remove successfully deleted server files from store (cloud-only files that weren't deleted locally)
+      const serverDeletedPaths = uniqueFiles
+        .filter((f, i) => serverResults[i] && f.diffStatus === 'cloud')
+        .map(f => f.path)
+      if (serverDeletedPaths.length > 0) {
+        ctx.removeFilesFromStore(serverDeletedPaths)
+      }
+      
+      // Update synced files that were deleted from server but kept locally
+      // Clear pdmData so they show as local-only files (grey/italic in file tree)
+      if (!deleteLocal) {
+        const keptLocalFiles = uniqueFiles
+          .filter((f, i) => serverResults[i] && f.diffStatus !== 'cloud')
+        
+        if (keptLocalFiles.length > 0) {
+          const updates = keptLocalFiles.map(f => ({
+            path: f.path,
+            updates: {
+              pdmData: undefined,
+              isSynced: false,
+              diffStatus: 'added' as const
+            }
+          }))
+          ctx.updateFilesInStore(updates)
+          logDelete('info', 'Updated kept local files to local-only status', {
+            count: keptLocalFiles.length
+          })
+        }
+      }
     }
     
-    // Clean up - batch remove
-    ctx.removeProcessingFolders(allPathsBeingProcessed)
+    // ATOMIC: Clean up processing indicators
+    ctx.updateFilesAndClearProcessing([], allPathsBeingProcessed)
+    ctx.setLastOperationCompletedAt(Date.now())
     ctx.removeToast(toastId)
     
+    const duration = Date.now() - startTime
+    logDelete('info', 'Delete-server operation complete', {
+      operationId,
+      deletedServer,
+      deletedLocal,
+      durationMs: duration,
+      totalDurationMs: Math.round(performance.now() - operationStart)
+    })
     const failed = uniqueFiles.length - deletedServer
     
     // Build descriptive message
@@ -459,7 +777,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       message = 'No files deleted'
     }
     
-    // Show result toast FIRST (before refresh which can be slow)
+    // Show result toast
     if (deletedServer > 0 || deletedLocal > 0) {
       if (failed > 0 && errors.length > 0) {
         // Show error info when some files failed
@@ -482,8 +800,10 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       }
     }
     
-    // Refresh file list (can be slow, so do it after showing toast)
-    ctx.onRefresh?.(true)
+    // No refresh needed - store updates are handled incrementally:
+    // - Local files removed via removeFilesFromStore()
+    // - Cloud-only files removed via removeFilesFromStore()
+    // - Server deletion is reflected immediately in store updates
     
     return {
       success: failed === 0,
@@ -495,8 +815,8 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       details: [
         `Deleted from server: ${deletedServer}`,
         `Deleted locally: ${deletedLocal}`
-      ]
+      ],
+      duration
     }
   }
 }
-

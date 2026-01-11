@@ -227,8 +227,7 @@ export const ignoreCommand: Command<IgnoreParams> = {
     addIgnorePattern(vaultId, pattern)
     ctx.addToast('success', `Added ${pattern} to ignore list`)
     
-    // Refresh to update file status
-    ctx.onRefresh?.(true)
+    // Note: Removed onRefresh?.(true) - file watcher will pick up changes
     
     return {
       success: true,
