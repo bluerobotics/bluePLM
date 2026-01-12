@@ -45,9 +45,15 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
     )
   }
   
+  // Prioritize pendingMetadata over pdmData - pending edits should always show
+  const displayValue = file.pendingMetadata?.part_number !== undefined 
+    ? (file.pendingMetadata.part_number ?? '-') 
+    : (file.pdmData?.part_number || '-')
+  const hasValue = displayValue !== '-'
+  
   return (
     <span
-      className={`block w-full h-full px-1 rounded ${canEditItemNumber ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!file.pdmData?.part_number || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}
+      className={`block w-full h-full px-1 rounded ${canEditItemNumber ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
         e.preventDefault()
@@ -61,7 +67,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
       }}
       title={canEditItemNumber ? 'Click to edit' : 'Check out file to edit'}
     >
-      {file.pdmData?.part_number || file.pendingMetadata?.part_number || '-'}
+      {displayValue}
     </span>
   )
 }

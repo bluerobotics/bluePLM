@@ -6,6 +6,36 @@ All notable changes to BluePLM will be documented in this file.
 
 ---
 
+## [3.5.0] - 2026-01-12
+
+### Added
+- **STL Export Quality Settings**: New export options in Settings → Export Options for STL files:
+  - **Resolution presets**: Coarse (faster, smaller), Fine (recommended for 3D printing), or Custom
+  - **Custom deviation/angle**: Fine-grained control over mesh quality when using Custom resolution
+  - **Binary/ASCII format**: Toggle between compact binary STL or human-readable ASCII format
+- **File Operation Tracker**: New DevTools panel showing real-time progress of file operations (checkout, checkin, sync) with step-by-step timing breakdowns for debugging performance issues
+- **Serial number race condition protection**: New `update_serialization_settings_safe` RPC function prevents counter overwrites when multiple users generate part numbers simultaneously
+
+### Performance
+- **Serial file operation queue**: Checkout, checkin, sync, download, and discard operations now execute serially through a queue system. This prevents overlapping operations, provides cleaner progress feedback, and eliminates race conditions when rapidly clicking multiple files
+- **Batch setReadonly calls**: File operations now collect all paths and make a single IPC call to set file permissions, instead of one call per file
+- **Incremental flush optimization**: For large batches (50+ files), incremental UI updates are skipped during processing to avoid expensive React re-renders. Final update happens once at completion
+- **Backup panel two-phase loading**: Config loads first (~100ms) so the UI renders immediately, while snapshots load in the background (~30s for large repositories). Previously the entire panel was blocked until snapshots finished loading
+- **Debounced realtime updates**: Local file modifications are tracked for 5 seconds to prevent stale realtime events from reverting local changes
+
+### Fixed
+- **Metadata property priority**: "Number" property is now checked first when extracting part numbers from SolidWorks files. Previously "Base Item Number" was checked first, which could contain legacy/template values that incorrectly overrode user edits saved via "Save to File"
+- **Cross-machine checkout release**: Releasing a checkout from a different machine now properly updates the local UI. Previously, if you checked out a file on Machine A and released it from Machine B, Machine A would still show the file as checked out until refresh
+- **Pending metadata preserved on realtime updates**: Files with unsaved local edits (pending metadata) are now protected from realtime event overwrites. This fixes the bug where typing in a datacard field could be interrupted by a stale database update
+- **Part number not clearing on discard**: Clearing the part number field in the datacard now properly persists `null` instead of being ignored. Previously, clearing a field would revert to the original value on the next update
+- **Metadata merged on clear**: When pending metadata is cleared after save, the values are now merged into pdmData so the UI continues showing the saved values without requiring a refresh
+
+### Changed
+- **hasPendingConfigChanges → hasPendingMetadataChanges**: Renamed function to reflect that it now checks ALL pending metadata (part number, description, revision) not just config-specific changes
+- **Schema version**: Bumped to v42
+
+---
+
 ## [3.4.0] - 2026-01-10
 
 ### Added

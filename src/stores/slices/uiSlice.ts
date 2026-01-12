@@ -1,5 +1,6 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, UISlice, SidebarView, DetailsPanelTab, SettingsTab } from '../types'
+import type { Clipboard } from '@/lib/fileOperations/types'
 
 export const createUISlice: StateCreator<
   PDMStoreState,
@@ -41,6 +42,13 @@ export const createUISlice: StateCreator<
   
   // Initial state - Deep Link
   pendingDeepLinkInstall: null,
+  
+  // Initial state - Clipboard (unified across FilePane and FileTree)
+  clipboard: null,
+  
+  // Actions - Clipboard
+  setClipboard: (clipboard: Clipboard | null) => set({ clipboard }),
+  clearClipboard: () => set({ clipboard: null }),
   
   // Actions - Sidebar
   toggleSidebar: () => {

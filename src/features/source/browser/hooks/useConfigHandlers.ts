@@ -12,7 +12,7 @@
  * - handleConfigTabChange, handleConfigDescriptionChange
  * - handleConfigRowClick, handleConfigContextMenu
  * - handleExportConfigs, saveConfigsToSWFile
- * - canHaveConfigs, hasPendingConfigChanges
+ * - canHaveConfigs, hasPendingMetadataChanges
  * 
  * @example
  * const {
@@ -69,7 +69,7 @@ export interface UseConfigHandlersReturn {
   handleExportConfigs: (format: 'step' | 'iges' | 'stl') => Promise<void>
   canHaveConfigs: (file: LocalFile) => boolean
   saveConfigsToSWFile: (file: LocalFile) => Promise<void>
-  hasPendingConfigChanges: (file: LocalFile) => boolean
+  hasPendingMetadataChanges: (file: LocalFile) => boolean
   getSelectedConfigsForFile: (filePath: string) => string[]
   toggleFileConfigExpansion: (file: LocalFile) => Promise<void>
 }
@@ -147,12 +147,21 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     return ext === '.sldprt' || ext === '.sldasm'
   }, [])
 
-  // Check if file has pending config changes
-  const hasPendingConfigChanges = useCallback((file: LocalFile): boolean => {
-    const pendingTabs = file.pendingMetadata?.config_tabs
-    const pendingDescs = file.pendingMetadata?.config_descriptions
-    return !!(pendingTabs && Object.keys(pendingTabs).length > 0) || 
-           !!(pendingDescs && Object.keys(pendingDescs).length > 0)
+  // Check if file has ANY pending metadata changes (not just config changes)
+  const hasPendingMetadataChanges = useCallback((file: LocalFile): boolean => {
+    const pm = file.pendingMetadata
+    if (!pm) return false
+    
+    // Check base metadata
+    if (pm.part_number !== undefined) return true
+    if (pm.description !== undefined) return true
+    if (pm.revision !== undefined) return true
+    
+    // Check config-specific metadata
+    if (pm.config_tabs && Object.keys(pm.config_tabs).length > 0) return true
+    if (pm.config_descriptions && Object.keys(pm.config_descriptions).length > 0) return true
+    
+    return false
   }, [])
 
   // Get selected configs for the given file (for export operations)
@@ -162,66 +171,109 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       .map(key => key.split('::')[1])
   }, [selectedConfigs])
 
-  // Save config metadata to SolidWorks file
+  // Save ALL pending metadata to SolidWorks file (base + config metadata)
   const saveConfigsToSWFile = useCallback(async (file: LocalFile) => {
-    const configs = fileConfigurations.get(file.path)
-    if (!configs || configs.length === 0) return
+    const configs = fileConfigurations.get(file.path) || []
     
     setSavingConfigsToSW(prev => new Set(prev).add(file.path))
     
+    // Mark file as processing to suppress file watcher refreshes during save
+    usePDMStore.getState().addProcessingFolder(file.relativePath, 'upload')
+    
     try {
-      const baseNumber = file.pendingMetadata?.part_number || file.pdmData?.part_number || ''
-      let successCount = 0
-      let failedCount = 0
-      
-      // Only save configs that have PENDING changes (not all configs with data)
-      const pendingTabs = file.pendingMetadata?.config_tabs || {}
-      const pendingDescs = file.pendingMetadata?.config_descriptions || {}
-      const changedConfigNames = new Set([...Object.keys(pendingTabs), ...Object.keys(pendingDescs)])
-      
-      if (changedConfigNames.size === 0) {
+      // Check what pending changes we have
+      const pm = file.pendingMetadata
+      if (!pm) {
         addToast('info', 'No metadata changes to save')
         return
       }
       
-      // Filter to only configs that have pending changes
-      const configsToSave = configs.filter(c => changedConfigNames.has(c.name))
+      const hasBaseChanges = pm.part_number !== undefined || 
+                             pm.description !== undefined || 
+                             pm.revision !== undefined
+      const pendingTabs = pm.config_tabs || {}
+      const pendingDescs = pm.config_descriptions || {}
+      const hasConfigChanges = Object.keys(pendingTabs).length > 0 || 
+                               Object.keys(pendingDescs).length > 0
       
-      for (const config of configsToSave) {
-        const props: Record<string, string> = {}
+      if (!hasBaseChanges && !hasConfigChanges) {
+        addToast('info', 'No metadata changes to save')
+        return
+      }
+      
+      let successCount = 0
+      let failedCount = 0
+      
+      // Get current values (pending or existing)
+      const baseNumber = pm.part_number ?? file.pdmData?.part_number ?? ''
+      const baseDesc = pm.description ?? file.pdmData?.description ?? ''
+      const revision = pm.revision ?? file.pdmData?.revision ?? ''
+      
+      if (configs.length > 0) {
+        // Multi-config file: save to each changed config
+        const changedConfigNames = new Set([
+          ...Object.keys(pendingTabs), 
+          ...Object.keys(pendingDescs)
+        ])
         
-        // Only include properties that were actually changed
-        const tabChanged = pendingTabs[config.name] !== undefined
-        const descChanged = pendingDescs[config.name] !== undefined
-        
-        // Build full part number (base + tab)
-        if (tabChanged && config.tabNumber) {
-          if (baseNumber) {
-            props['Number'] = `${baseNumber}-${config.tabNumber}`
-          } else {
-            props['Number'] = config.tabNumber
-          }
-          props['Tab Number'] = config.tabNumber
+        // If base metadata changed, we need to update all configs (they may reference the base number)
+        if (hasBaseChanges && configs.length > 0) {
+          // Just update the first/active config for base properties
+          const activeConfig = configs.find(c => c.isActive) || configs[0]
+          changedConfigNames.add(activeConfig.name)
         }
         
-        if (descChanged && config.description) {
-          props['Description'] = config.description
-        }
-        
-        if (Object.keys(props).length === 0) continue
-        
-        try {
-          const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, config.name)
+        for (const config of configs.filter(c => changedConfigNames.has(c.name))) {
+          const props: Record<string, string> = {}
           
-          if (result?.success) {
-            successCount++
-          } else {
-            failedCount++
-            log.error('[ConfigHandlers]', `Failed to write to config ${config.name}`, { error: result?.error })
+          // Build full part number (base + tab)
+          const configTab = pendingTabs[config.name] ?? config.tabNumber ?? ''
+          if (baseNumber) {
+            props['Number'] = configTab ? `${baseNumber}-${configTab}` : baseNumber
+            if (configTab) props['Tab Number'] = configTab
           }
-        } catch (err) {
-          failedCount++
-          log.error('[ConfigHandlers]', `Exception writing to config ${config.name}`, { error: err })
+          
+          // Description - use config-specific if available, otherwise base
+          const configDesc = pendingDescs[config.name] ?? config.description ?? baseDesc
+          if (configDesc) props['Description'] = configDesc
+          
+          if (revision) props['Revision'] = revision
+          
+          if (Object.keys(props).length === 0) continue
+          
+          try {
+            const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, config.name)
+            if (result?.success) {
+              successCount++
+            } else {
+              failedCount++
+              log.error('[ConfigHandlers]', `Failed to write to config ${config.name}`, { error: result?.error })
+            }
+          } catch (err) {
+            failedCount++
+            log.error('[ConfigHandlers]', `Exception writing to config ${config.name}`, { error: err })
+          }
+        }
+      } else {
+        // Single config or no configs loaded - save file-level properties
+        const props: Record<string, string> = {}
+        if (baseNumber) props['Number'] = baseNumber
+        if (baseDesc) props['Description'] = baseDesc
+        if (revision) props['Revision'] = revision
+        
+        if (Object.keys(props).length > 0) {
+          try {
+            const result = await window.electronAPI?.solidworks?.setProperties(file.path, props)
+            if (result?.success) {
+              successCount++
+            } else {
+              failedCount++
+              log.error('[ConfigHandlers]', 'Failed to write file-level properties', { error: result?.error })
+            }
+          } catch (err) {
+            failedCount++
+            log.error('[ConfigHandlers]', 'Exception writing file-level properties', { error: err })
+          }
         }
       }
       
@@ -229,7 +281,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         if (failedCount > 0) {
           addToast('warning', `Saved ${successCount} config(s), ${failedCount} failed`)
         } else {
-          addToast('success', `Saved metadata for ${successCount} configuration${successCount > 1 ? 's' : ''}`)
+          addToast('success', `Saved metadata to file`)
         }
         
         // Mark that we just saved - prevents accidental reload from clearing our changes
@@ -238,15 +290,18 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           justSavedConfigs.current.delete(file.path)
         }, 5000) // Clear after 5 seconds
         
-        // Clear the pending config metadata since we've written it to the file
-        usePDMStore.getState().clearPendingConfigMetadata(file.path)
-      } else {
-        addToast('error', 'Failed to save metadata - check if file is open in SolidWorks')
+        // Clear pending metadata (this merges values into pdmData first)
+        usePDMStore.getState().clearPendingMetadata(file.path)
+      } else if (failedCount > 0) {
+        addToast('error', 'Failed to save metadata to file')
       }
     } catch (err) {
-      log.error('[ConfigHandlers]', 'Failed to save configs to SW', { error: err })
-      addToast('error', 'Failed to save to SolidWorks file')
+      log.error('[ConfigHandlers]', 'Failed to save to SW', { error: err })
+      addToast('error', 'Failed to save metadata to file')
     } finally {
+      // Remove processing marker so file watcher can resume normal operation
+      usePDMStore.getState().removeProcessingFolder(file.relativePath)
+      
       setSavingConfigsToSW(prev => {
         const next = new Set(prev)
         next.delete(file.path)
@@ -402,11 +457,19 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
             configurations: configsToExport 
           })
           break
-        case 'stl':
+        case 'stl': {
+          const exportSettings = getEffectiveExportSettings(organization)
           result = await window.electronAPI?.solidworks?.exportStl?.(filePath, { 
-            configurations: configsToExport 
+            configurations: configsToExport,
+            filenamePattern,
+            pdmMetadata,
+            resolution: exportSettings.stl_resolution,
+            binaryFormat: exportSettings.stl_binary_format,
+            customDeviation: exportSettings.stl_custom_deviation,
+            customAngle: exportSettings.stl_custom_angle
           })
           break
+        }
       }
       
       if (result?.success) {
@@ -544,7 +607,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     handleExportConfigs,
     canHaveConfigs,
     saveConfigsToSWFile,
-    hasPendingConfigChanges,
+    hasPendingMetadataChanges,
     getSelectedConfigsForFile,
     toggleFileConfigExpansion,
   }

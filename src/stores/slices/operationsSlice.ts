@@ -27,6 +27,7 @@ export const createOperationsSlice: StateCreator<
   
   // Initial state - Queue
   operationQueue: [],
+  isOperationRunning: false,
   
   // Initial state - Notifications & Reviews
   unreadNotificationCount: 0,
@@ -100,74 +101,36 @@ export const createOperationsSlice: StateCreator<
     operationQueue: state.operationQueue.filter(op => op.id !== id)
   })),
   
-  hasPathConflict: (paths) => {
-    const { processingOperations } = get()
-    
-    // Check if any of the requested paths overlap with currently processing paths
-    for (const path of paths) {
-      for (const processingPath of processingOperations.keys()) {
-        // Check if paths overlap (one contains the other or they're the same)
-        if (path === processingPath || 
-            path.startsWith(processingPath + '/') || 
-            path.startsWith(processingPath + '\\') ||
-            processingPath.startsWith(path + '/') || 
-            processingPath.startsWith(path + '\\')) {
-          return true
-        }
-      }
-    }
-    return false
-  },
+  setOperationRunning: (running) => set({ isOperationRunning: running }),
   
   processQueue: async () => {
-    const { operationQueue, hasPathConflict, removeFromQueue, addToast } = get()
+    const { operationQueue, isOperationRunning, removeFromQueue, addToast } = get()
+    
+    // Don't start a new operation if one is already running (serial execution)
+    if (isOperationRunning) return
     
     if (operationQueue.length === 0) return
     
-    // Collect all operations that can run in parallel (no path conflicts)
-    // Track paths we're about to start processing to avoid starting conflicting ops
-    const operationsToStart: QueuedOperation[] = []
-    const pathsBeingStarted = new Set<string>()
+    // Only process the FIRST operation (serial execution - FIFO)
+    const operation = operationQueue[0]
+    removeFromQueue(operation.id)
     
-    // Helper to check if paths conflict with paths we're about to start
-    const conflictsWithPending = (paths: string[]): boolean => {
-      for (const path of paths) {
-        for (const pendingPath of pathsBeingStarted) {
-          // Check if paths overlap (one contains the other or they're the same)
-          if (path === pendingPath || 
-              path.startsWith(pendingPath + '/') || 
-              path.startsWith(pendingPath + '\\') ||
-              pendingPath.startsWith(path + '/') || 
-              pendingPath.startsWith(path + '\\')) {
-            return true
-          }
-        }
-      }
-      return false
+    // Mark that an operation is now running
+    set({ isOperationRunning: true })
+    
+    try {
+      await operation.execute()
+    } catch (err) {
+      addToast('error', `Operation failed: ${operation.label}`)
+    } finally {
+      // Operation completed - mark as not running
+      // endSync() will call processQueue() to start the next operation
+      set({ isOperationRunning: false })
     }
     
-    // Find all non-conflicting operations
-    for (const operation of operationQueue) {
-      // Check against currently processing AND operations we're about to start
-      if (!hasPathConflict(operation.paths) && !conflictsWithPending(operation.paths)) {
-        operationsToStart.push(operation)
-        // Add this operation's paths to the pending set
-        operation.paths.forEach(p => pathsBeingStarted.add(p))
-      }
-    }
-    
-    // Start all non-conflicting operations in parallel
-    for (const operation of operationsToStart) {
-      removeFromQueue(operation.id)
-      
-      // Execute without awaiting - run in parallel
-      // Each operation will call endSync() when done, which triggers processQueue()
-      operation.execute().catch(() => {
-        addToast('error', `Operation failed: ${operation.label}`)
-      })
-    }
-    
-    // Note: processQueue will be called again via endSync() when each operation completes
+    // Process the next operation in the queue (if any)
+    // Using setTimeout to allow state to settle before processing next
+    setTimeout(() => get().processQueue(), 0)
   },
   
   // Actions - Notifications & Reviews

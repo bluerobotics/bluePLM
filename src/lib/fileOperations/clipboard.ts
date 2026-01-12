@@ -31,14 +31,19 @@ export async function executePaste(
   clipboard: Clipboard,
   targetFolder: string,
   onRefresh?: (silent?: boolean) => void
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; succeeded?: number; total?: number }> {
   try {
     const command = clipboard.operation === 'cut' ? 'move' : 'copy'
-    await executeCommand(command, {
+    const result = await executeCommand(command, {
       files: clipboard.files,
       targetFolder
     }, { onRefresh, silent: true })
-    return { success: true }
+    return { 
+      success: result.success, 
+      succeeded: result.succeeded, 
+      total: result.total,
+      error: result.success ? undefined : result.message
+    }
   } catch (error) {
     return { success: false, error: String(error) }
   }

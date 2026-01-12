@@ -613,12 +613,23 @@ export interface ExportSettings {
   include_config_in_filename: boolean
   // Default export format for parts/assemblies
   default_export_format?: 'step' | 'iges' | 'stl'
+  
+  // STL-specific settings
+  stl_resolution?: 'coarse' | 'fine' | 'custom'
+  stl_binary_format?: boolean  // true = binary (smaller), false = ASCII
+  stl_custom_deviation?: number // mm, only for custom resolution
+  stl_custom_angle?: number     // degrees, only for custom resolution
 }
 
 export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   filename_pattern: '{filename}_{config}',
   include_config_in_filename: true,
-  default_export_format: 'step'
+  default_export_format: 'step',
+  // STL defaults: Fine resolution, binary format (smaller files)
+  stl_resolution: 'fine',
+  stl_binary_format: true,
+  stl_custom_deviation: 0.1,  // mm
+  stl_custom_angle: 10        // degrees
 }
 
 // User with org membership

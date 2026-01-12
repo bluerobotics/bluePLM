@@ -61,7 +61,9 @@ export function useFilePaneOperations({
   } | null>(null)
 
   const [undoStack, setUndoStack] = useState<Array<{ type: 'delete'; file: LocalFile; originalPath: string }>>([])
-  const [clipboard, setClipboard] = useState<{ files: LocalFile[]; operation: 'copy' | 'cut' } | null>(null)
+  
+  // Clipboard is now managed by Zustand store (see usePDMStore.clipboard)
+  // Clipboard operations (handleCopy, handleCut, handlePaste) should use useClipboard hook directly
 
   // Reset hover states helper
   const resetHoverStates = useCallback(() => {
@@ -178,65 +180,8 @@ export function useFilePaneOperations({
     executeCommand('checkin', { files: [folder] }, { onRefresh })
   }, [onRefresh])
 
-  // Clipboard operations
-  const handleCopy = useCallback(() => {
-    const selectedFileObjects = files.filter(f => selectedFiles.includes(f.path))
-    if (selectedFileObjects.length > 0) {
-      setClipboard({ files: selectedFileObjects, operation: 'copy' })
-      addToast('info', `Copied ${selectedFileObjects.length} item${selectedFileObjects.length > 1 ? 's' : ''}`)
-    }
-  }, [files, selectedFiles, addToast])
-
-  const handleCut = useCallback(() => {
-    const selectedFileObjects = files.filter(f => selectedFiles.includes(f.path))
-    if (selectedFileObjects.length === 0) return
-    
-    const notAllowed = selectedFileObjects.filter(f => 
-      !f.isDirectory && 
-      f.pdmData && 
-      f.pdmData.checked_out_by !== user?.id
-    )
-    
-    if (notAllowed.length > 0) {
-      const checkedOutByOthers = notAllowed.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id)
-      const notCheckedOut = notAllowed.filter(f => !f.pdmData?.checked_out_by)
-      
-      if (checkedOutByOthers.length > 0) {
-        addToast('error', `Cannot move: ${checkedOutByOthers.length} file${checkedOutByOthers.length > 1 ? 's are' : ' is'} checked out by others`)
-      } else if (notCheckedOut.length > 0) {
-        addToast('error', `Cannot move: ${notCheckedOut.length} file${notCheckedOut.length > 1 ? 's are' : ' is'} not checked out. Check out first to move.`)
-      }
-      return
-    }
-    
-    setClipboard({ files: selectedFileObjects, operation: 'cut' })
-    addToast('info', `Cut ${selectedFileObjects.length} item${selectedFileObjects.length > 1 ? 's' : ''}`)
-  }, [files, selectedFiles, user?.id, addToast])
-
-  const handlePaste = useCallback(async () => {
-    if (!clipboard || !vaultPath) {
-      addToast('info', 'Nothing to paste')
-      return
-    }
-
-    const targetFolder = currentFolder || ''
-    setStatusMessage(`Pasting ${clipboard.files.length} item${clipboard.files.length > 1 ? 's' : ''}...`)
-
-    if (clipboard.operation === 'cut') {
-      await executeCommand('move', { 
-        files: clipboard.files, 
-        targetFolder 
-      }, { onRefresh, silent: true })
-      setClipboard(null)
-    } else {
-      await executeCommand('copy', { 
-        files: clipboard.files, 
-        targetFolder 
-      }, { onRefresh, silent: true })
-    }
-
-    setStatusMessage('')
-  }, [clipboard, vaultPath, currentFolder, onRefresh, addToast, setStatusMessage])
+  // NOTE: Clipboard operations (handleCopy, handleCut, handlePaste) have been moved to useClipboard hook
+  // which uses Zustand store for unified clipboard state across FilePane and FileTree
 
   // Undo handler
   const handleUndo = useCallback(async () => {
@@ -308,12 +253,8 @@ export function useFilePaneOperations({
     handleCheckoutFolder,
     handleCheckinFolder,
     
-    // Clipboard
-    clipboard,
-    setClipboard,
-    handleCopy,
-    handleCut,
-    handlePaste,
+    // NOTE: Clipboard operations (clipboard, setClipboard, handleCopy, handleCut, handlePaste) 
+    // are now provided by useClipboard hook which uses Zustand store
     
     // Undo
     undoStack,

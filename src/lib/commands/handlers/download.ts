@@ -13,6 +13,7 @@ import type { LocalFile } from '../../../stores/pdmStore'
 import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 // Number of retry attempts for failed downloads
 const MAX_RETRY_ATTEMPTS = 3
@@ -82,6 +83,16 @@ export const downloadCommand: Command<DownloadParams> = {
     const vaultPath = ctx.vaultPath!
     const operationId = `download-${Date.now()}`
     
+    // Get cloud-only files from selection (for tracker initialization)
+    const cloudFilesForTracker = getCloudOnlyFilesFromSelection(ctx.files, files)
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'download',
+      cloudFilesForTracker.length,
+      cloudFilesForTracker.map(f => f.relativePath)
+    )
+    
     logDownload('info', 'Starting download operation', {
       operationId,
       orgId: organization.id,
@@ -150,6 +161,7 @@ export const downloadCommand: Command<DownloadParams> = {
         errors: folderErrors
       })
       
+      tracker.endOperation('completed')
       return {
         success: true,
         message: `Created ${created} folder${created > 1 ? 's' : ''} locally`,
@@ -162,6 +174,7 @@ export const downloadCommand: Command<DownloadParams> = {
     
     if (cloudFiles.length === 0) {
       logDownload('info', 'No cloud files to download', { operationId })
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No files to download',
@@ -175,7 +188,7 @@ export const downloadCommand: Command<DownloadParams> = {
     const cloudFilePaths = cloudFiles.map(f => f.relativePath)
     const selectedFolderPaths = files.filter(f => f.isDirectory).map(f => f.relativePath)
     const allPathsToTrack = [...new Set([...cloudFilePaths, ...selectedFolderPaths])]
-    ctx.addProcessingFolders(allPathsToTrack, 'download')
+    ctx.addProcessingFoldersSync(allPathsToTrack, 'download')
     
     // Register expected file changes to suppress file watcher during operation
     ctx.addExpectedFileChanges(cloudFilePaths)
@@ -208,11 +221,21 @@ export const downloadCommand: Command<DownloadParams> = {
     // This avoids a full filesystem rescan by updating the store directly
     const pendingUpdates: Array<{ path: string; updates: Partial<LocalFile> }> = []
     
+    // Collect paths for batch setReadonly call (performance: 1 IPC call instead of N)
+    const pathsToMakeReadonly: string[] = []
+    
     logDownload('info', 'Starting parallel downloads with concurrency limit', {
       operationId,
       totalFiles: cloudFiles.length,
       maxConcurrent: CONCURRENT_OPERATIONS
     })
+    
+    // Start tracking the download phase
+    const downloadStepId = tracker.startStep('Download files', { 
+      fileCount: cloudFiles.length, 
+      concurrency: CONCURRENT_OPERATIONS 
+    })
+    const downloadPhaseStart = Date.now()
     
     // Helper function to download a single file with retry logic
     const downloadWithRetry = async (file: LocalFile, attempt: number = 1): Promise<{ success: boolean; error?: string }> => {
@@ -319,17 +342,9 @@ export const downloadCommand: Command<DownloadParams> = {
           return { success: false, error: `${file.name}: ${userMessage}` }
         }
         
-        // Set read-only
-        const readonlyResult = await window.electronAPI?.setReadonly(fullPath, true)
-        if (readonlyResult?.success === false) {
-          logDownload('warn', 'Failed to set read-only flag', {
-            operationId,
-            fileName: file.name,
-            fullPath,
-            error: readonlyResult.error
-          })
-          // Don't fail the download for this
-        }
+        // Collect for batch setReadonly call (done after all downloads complete)
+        // This reduces N IPC calls to 1, improving performance
+        pathsToMakeReadonly.push(fullPath)
         
         logDownload('debug', 'File download complete', {
           operationId,
@@ -403,10 +418,40 @@ export const downloadCommand: Command<DownloadParams> = {
       }
     }
     
+    // End download step
+    tracker.endStep(downloadStepId, 'completed', { 
+      succeeded, 
+      failed,
+      durationMs: Date.now() - downloadPhaseStart
+    })
+    
+    // Batch set readonly on all downloaded files (optimization: 1 IPC call instead of N)
+    if (pathsToMakeReadonly.length > 0) {
+      const batchResult = await window.electronAPI?.setReadonlyBatch(
+        pathsToMakeReadonly.map(path => ({ path, readonly: true }))
+      )
+      if (batchResult?.success === false || batchResult?.results?.some(r => !r.success)) {
+        const failedCount = batchResult?.results?.filter(r => !r.success).length ?? 0
+        logDownload('warn', 'Some files failed to set read-only flag', {
+          operationId,
+          totalFiles: pathsToMakeReadonly.length,
+          failedCount
+        })
+      } else {
+        logDownload('debug', 'Batch setReadonly complete', {
+          operationId,
+          fileCount: pathsToMakeReadonly.length
+        })
+      }
+    }
+    
     // Apply incremental store updates AND clear processing state atomically
     // Using updateFilesAndClearProcessing() combines both updates into ONE set() call,
     // preventing two expensive re-render cycles with O(N x depth) folderMetrics computation.
     // This eliminates the ~5 second UI freeze that occurred with separate calls.
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: pendingUpdates.length 
+    })
     const storeUpdateStart = performance.now()
     logDownload('info', 'Downloads finished, starting store update', {
       operationId,
@@ -417,9 +462,11 @@ export const downloadCommand: Command<DownloadParams> = {
     })
     ctx.updateFilesAndClearProcessing(pendingUpdates, allPathsToTrack)
     ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - storeUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     logDownload('debug', 'Store update complete', {
       operationId,
-      durationMs: Math.round(performance.now() - storeUpdateStart),
+      durationMs: storeUpdateDuration,
       timestamp: Date.now()
     })
     
@@ -463,6 +510,9 @@ export const downloadCommand: Command<DownloadParams> = {
     } else {
       ctx.addToast('success', `Downloaded ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,

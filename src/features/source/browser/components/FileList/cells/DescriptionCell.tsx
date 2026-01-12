@@ -45,9 +45,15 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
     )
   }
   
+  // Prioritize pendingMetadata over pdmData - pending edits should always show
+  const displayValue = file.pendingMetadata?.description !== undefined 
+    ? (file.pendingMetadata.description ?? '-') 
+    : (file.pdmData?.description || '-')
+  const hasValue = displayValue !== '-'
+  
   return (
     <span
-      className={`block w-full h-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!file.pdmData?.description || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
+      className={`block w-full h-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!hasValue || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
         e.preventDefault()
@@ -59,9 +65,9 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
         // Stop mousedown from triggering row drag or file focus
         e.stopPropagation()
       }}
-      title={canEditDescription ? (file.pdmData?.description || 'Click to edit') : 'Check out file to edit'}
+      title={canEditDescription ? (displayValue !== '-' ? displayValue : 'Click to edit') : 'Check out file to edit'}
     >
-      {file.pdmData?.description || file.pendingMetadata?.description || '-'}
+      {displayValue}
     </span>
   )
 }

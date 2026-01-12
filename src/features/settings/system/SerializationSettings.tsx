@@ -236,16 +236,21 @@ export function SerializationSettings() {
   }
 
   // Save settings
+  // Uses a safe RPC function that preserves the counter from the database
+  // This prevents race conditions where saving settings could overwrite a counter
+  // that was incremented by another user generating a serial number
   const handleSave = async () => {
     if (!organization?.id) return
 
     setSaving(true)
     savingRef.current = true
     try {
-      const { error } = await supabase
-        .from('organizations')
-        .update({ serialization_settings: JSON.parse(JSON.stringify(settings)) })
-        .eq('id', organization.id)
+      // Use safe RPC that preserves the current_counter from the database
+      // This prevents accidentally overwriting a counter incremented by another user
+      const { error } = await (supabase.rpc as any)('update_serialization_settings_safe', {
+        p_org_id: organization.id,
+        p_settings: JSON.parse(JSON.stringify(settings))
+      })
 
       if (error) throw error
       addToast('success', 'Serialization settings saved')

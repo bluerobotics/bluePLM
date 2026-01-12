@@ -318,8 +318,14 @@ export async function undoCheckout(fileId: string, userId: string) {
   }
   
   if (file.checked_out_by !== userId) {
+    // If file is not checked out by anyone, the user's goal is already achieved
+    // This handles stale local state gracefully (e.g., checkout released from another machine)
+    if (file.checked_out_by === null) {
+      return { success: true, file, error: null }
+    }
+    // File is checked out by someone else - that's a real conflict
     // Note: Admins should use adminForceDiscardCheckout() instead
-    return { success: false, error: 'You do not have this file checked out' }
+    return { success: false, error: 'File is checked out by another user' }
   }
   
   // Release the checkout without saving changes
@@ -338,6 +344,9 @@ export async function undoCheckout(fileId: string, userId: string) {
   
   if (error) {
     return { success: false, error: error.message }
+  }
+  if (!data) {
+    return { success: false, error: 'Update failed - no rows affected (check permissions)' }
   }
   
   return { success: true, file: data, error: null }

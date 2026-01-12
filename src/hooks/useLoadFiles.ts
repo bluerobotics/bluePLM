@@ -240,6 +240,28 @@ export function useLoadFiles() {
             }
           }
           
+          // Create a map of existing files' localHash to preserve computed hashes
+          // This prevents re-computing hashes or falling back to timestamp-based diff detection
+          // when the file watcher triggers a refresh after operations like checkin
+          const existingLocalHashes = new Map<string, string>()
+          for (const f of currentFiles) {
+            if (f.localHash) {
+              existingLocalHashes.set(f.path, f.localHash)
+            }
+          }
+          
+          // Create a map of existing files' pendingMetadata to preserve unsaved changes
+          // This prevents losing user's edits (like generated part numbers) when FileWatcher triggers refresh
+          const existingPendingMetadata = new Map<string, typeof currentFiles[0]['pendingMetadata']>()
+          for (const f of currentFiles) {
+            if (f.pendingMetadata && Object.keys(f.pendingMetadata).length > 0) {
+              existingPendingMetadata.set(f.path, f.pendingMetadata)
+            }
+          }
+          
+          // Also get persistedPendingMetadata for app restart survival
+          const { persistedPendingMetadata } = usePDMStore.getState()
+          
           // Create a map of files checked out by me, keyed by content hash for move detection
           // This allows us to detect moved files (same content, different path) and preserve their pdmData
           // IMPORTANT: Only track checked-out-by-me files - if a file isn't checked out by me,
@@ -274,13 +296,21 @@ export function useLoadFiles() {
               }
             }
             
+            // Preserve localActiveVersion from existing file (for rollback state)
+            const existingLocalActiveVersion = existingLocalActiveVersions.get(localFile.path)
+            
+            // Preserve localHash from existing file if not computed fresh
+            // This prevents falling back to timestamp-based diff detection after file watcher refreshes
+            const existingLocalHash = existingLocalHashes.get(localFile.path)
+            const effectiveLocalHash = localFile.localHash || existingLocalHash
+            
             // If no path match but file has same hash as a file CHECKED OUT BY ME,
             // this MIGHT be a moved file - but only if the original path no longer exists locally.
             // If the original path still has a file, then this is a COPY, not a move.
             // IMPORTANT: Only detect moves for files checked out by me - otherwise a new file
             // with the same content as some random server file would be incorrectly detected as moved.
-            if (!pdmData && localFile.localHash) {
-              const movedFromFile = checkedOutByMeByHash.get(localFile.localHash)
+            if (!pdmData && effectiveLocalHash) {
+              const movedFromFile = checkedOutByMeByHash.get(effectiveLocalHash)
               if (movedFromFile) {
                 // Check if the original file path still exists locally (case-insensitive)
                 // If it does, this is a copy/duplicate, not a move
@@ -295,9 +325,6 @@ export function useLoadFiles() {
               }
             }
             
-            // Preserve localActiveVersion from existing file (for rollback state)
-            const existingLocalActiveVersion = existingLocalActiveVersions.get(localFile.path)
-            
             // Determine diff status
             let diffStatus: 'added' | 'modified' | 'outdated' | 'moved' | 'ignored' | undefined
             if (!pdmData) {
@@ -311,9 +338,9 @@ export function useLoadFiles() {
             } else if (isMovedFile) {
               // File was moved - needs check-in to update server path (but no version increment)
               diffStatus = 'moved'
-            } else if (pdmData.content_hash && localFile.localHash) {
+            } else if (pdmData.content_hash && effectiveLocalHash) {
               // Both hashes available - use hash comparison (most accurate)
-              if (pdmData.content_hash === localFile.localHash) {
+              if (pdmData.content_hash === effectiveLocalHash) {
                 // Hashes match - file is synced, leave diffStatus undefined
               } else {
                 // Hashes differ - determine if local is newer or cloud is newer
@@ -327,7 +354,7 @@ export function useLoadFiles() {
                 }
               }
             } else if (pdmData.content_hash) {
-              // No local hash - use TIMESTAMP-BASED diff detection (fast, no disk I/O)
+              // No local hash (fresh or preserved) - use TIMESTAMP-BASED diff detection (fast, no disk I/O)
               // This avoids expensive hash computation on startup
               const localModTime = new Date(localFile.modifiedTime).getTime()
               const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
@@ -348,13 +375,29 @@ export function useLoadFiles() {
             }
             // The background hash computation will set the proper status once hashes are computed
             
+            // Preserve pendingMetadata from existing file OR from persistedPendingMetadata (for app restart)
+            const preservedPending = existingPendingMetadata.get(localFile.path) || persistedPendingMetadata[localFile.path]
+            
+            // If pendingMetadata exists and we have pdmData, merge pending values into pdmData for immediate UI display
+            // This ensures the UI shows the user's edits even after a file refresh
+            const finalPdmData = (preservedPending && pdmData) ? {
+              ...pdmData,
+              part_number: preservedPending.part_number !== undefined ? preservedPending.part_number : pdmData.part_number,
+              description: preservedPending.description !== undefined ? preservedPending.description : pdmData.description,
+              revision: preservedPending.revision !== undefined ? preservedPending.revision : pdmData.revision,
+            } : pdmData
+            
             return {
               ...localFile,
-              pdmData: pdmData || undefined,
+              pdmData: finalPdmData || undefined,
               isSynced: !!pdmData,
               diffStatus,
               // Preserve rollback state if it exists
-              localActiveVersion: existingLocalActiveVersion
+              localActiveVersion: existingLocalActiveVersion,
+              // Preserve localHash from existing file if not computed fresh
+              localHash: effectiveLocalHash,
+              // Preserve pendingMetadata so user's unsaved edits survive file refresh
+              pendingMetadata: preservedPending
             }
           })
           

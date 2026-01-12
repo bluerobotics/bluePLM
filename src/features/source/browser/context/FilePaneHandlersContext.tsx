@@ -37,7 +37,7 @@ export interface FilePaneHandlersContextValue {
   // Config handlers (SolidWorks configurations)
   canHaveConfigs: (file: LocalFile) => boolean
   toggleFileConfigExpansion: (file: LocalFile) => void
-  hasPendingConfigChanges: (file: LocalFile) => boolean
+  hasPendingMetadataChanges: (file: LocalFile) => boolean
   savingConfigsToSW: Set<string>
   saveConfigsToSWFile: (file: LocalFile) => void
   

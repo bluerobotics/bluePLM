@@ -125,13 +125,23 @@ export const createFilesSlice: StateCreator<
   fileConfigurations: new Map<string, import('../types').SWConfiguration[]>(),
   loadingConfigs: new Set<string>(),
   
+  // Initial state - Realtime update debouncing
+  recentlyModifiedFiles: new Map<string, number>(),
+  
   // Actions - Files
   setFiles: (files) => {
     // Restore any persisted pending metadata to the files
     const { persistedPendingMetadata } = get()
+    const persistedKeys = Object.keys(persistedPendingMetadata)
+    if (persistedKeys.length > 0) {
+      console.log('[filesSlice] setFiles: restoring pending metadata for', persistedKeys.length, 'files')
+      console.log('[filesSlice] persistedPendingMetadata keys:', persistedKeys)
+    }
+    
     const filesWithRestoredMetadata = files.map(f => {
       const persisted = persistedPendingMetadata[f.path]
       if (persisted) {
+        console.log('[filesSlice] setFiles: restoring metadata for', f.path, persisted)
         // Restore pending metadata and mark as modified if it's a synced file
         return { 
           ...f, 
@@ -252,10 +262,12 @@ export const createFilesSlice: StateCreator<
   },
   
   updatePendingMetadata: (path, metadata) => {
+    console.log('[filesSlice] updatePendingMetadata called:', path, metadata)
     set(state => {
       // Calculate new pending metadata
       const file = state.files.find(f => f.path === path)
       const existingPending = file?.pendingMetadata || state.persistedPendingMetadata[path] || {}
+      console.log('[filesSlice] updatePendingMetadata: existingPending =', existingPending)
       
       // Handle config_tabs merge specially (per-config tab numbers)
       let newConfigTabs = existingPending.config_tabs
@@ -281,6 +293,9 @@ export const createFilesSlice: StateCreator<
         config_tabs: newConfigTabs,
         config_descriptions: newConfigDescriptions
       }
+      
+      console.log('[filesSlice] updatePendingMetadata: newPending =', newPending)
+      console.log('[filesSlice] updatePendingMetadata: persisting to key:', path)
       
       return {
         // Update file in files array
@@ -313,13 +328,37 @@ export const createFilesSlice: StateCreator<
   },
   
   clearPendingMetadata: (path) => {
+    console.log('[filesSlice] clearPendingMetadata called:', path)
     set(state => {
+      const file = state.files.find(f => f.path === path)
+      const pending = file?.pendingMetadata
       // Destructure to exclude `path` key, using _ for intentionally discarded value
       const { [path]: _, ...remainingPersisted } = state.persistedPendingMetadata
+      
+      console.log('[filesSlice] clearPendingMetadata: pending =', pending)
+      console.log('[filesSlice] clearPendingMetadata: pdmData.part_number BEFORE =', file?.pdmData?.part_number)
+      console.log('[filesSlice] clearPendingMetadata: removed from persisted, remaining keys:', Object.keys(remainingPersisted))
+      
       return {
-        files: state.files.map(f => 
-          f.path === path ? { ...f, pendingMetadata: undefined } : f
-        ),
+        files: state.files.map(f => {
+          if (f.path === path) {
+            // Merge pending values into pdmData before clearing
+            // This ensures the UI still shows the new values after clearing
+            // Use !== undefined check instead of ?? to handle null values correctly
+            // (null should be preserved as the new value, not trigger fallback)
+            const mergedPdmData = f.pdmData && pending ? {
+              ...f.pdmData,
+              part_number: pending.part_number !== undefined ? pending.part_number : f.pdmData.part_number,
+              description: pending.description !== undefined ? pending.description : f.pdmData.description,
+              revision: pending.revision !== undefined ? pending.revision : f.pdmData.revision,
+            } : f.pdmData
+            
+            console.log('[filesSlice] clearPendingMetadata: mergedPdmData.part_number =', mergedPdmData?.part_number)
+            
+            return { ...f, pendingMetadata: undefined, pdmData: mergedPdmData }
+          }
+          return f
+        }),
         persistedPendingMetadata: remainingPersisted
       }
     })
@@ -526,7 +565,16 @@ export const createFilesSlice: StateCreator<
     set(state => ({
       files: state.files.map(f => {
         if (f.pdmData?.id === fileId) {
-          const updatedPdmData = { ...f.pdmData, ...pdmData } as PDMFile
+          // Defense-in-depth: Preserve pending metadata fields even if realtime tries to overwrite
+          // This prevents stale realtime events from reverting local edits
+          const preservedFields = f.pendingMetadata ? {
+            part_number: f.pendingMetadata.part_number !== undefined ? f.pdmData.part_number : pdmData.part_number,
+            description: f.pendingMetadata.description !== undefined ? f.pdmData.description : pdmData.description,
+            revision: f.pendingMetadata.revision !== undefined ? f.pdmData.revision : pdmData.revision,
+          } : {}
+          
+          const updatedPdmData = { ...f.pdmData, ...pdmData, ...preservedFields } as PDMFile
+          
           // Recompute diff status if content hash changed
           let newDiffStatus = f.diffStatus
           if (pdmData.content_hash && f.localHash) {
@@ -793,6 +841,30 @@ export const createFilesSlice: StateCreator<
     const newSet = new Set(loadingConfigs)
     newSet.delete(filePath)
     set({ loadingConfigs: newSet })
+  },
+  
+  // Actions - Realtime update debouncing
+  markFileAsRecentlyModified: (fileId: string) => {
+    const { recentlyModifiedFiles } = get()
+    const newMap = new Map(recentlyModifiedFiles)
+    newMap.set(fileId, Date.now())
+    set({ recentlyModifiedFiles: newMap })
+  },
+  
+  clearRecentlyModified: (fileId: string) => {
+    const { recentlyModifiedFiles } = get()
+    const newMap = new Map(recentlyModifiedFiles)
+    newMap.delete(fileId)
+    set({ recentlyModifiedFiles: newMap })
+  },
+  
+  isFileRecentlyModified: (fileId: string) => {
+    const { recentlyModifiedFiles } = get()
+    const timestamp = recentlyModifiedFiles.get(fileId)
+    if (!timestamp) return false
+    // 15 second window - after this, realtime updates are allowed again
+    const DEBOUNCE_WINDOW_MS = 15000
+    return Date.now() - timestamp < DEBOUNCE_WINDOW_MS
   },
   
   // Getters

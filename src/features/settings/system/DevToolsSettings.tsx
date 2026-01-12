@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Monitor, RotateCcw, ChevronDown, Layers, ChevronRight, Timer } from 'lucide-react'
+import { Monitor, RotateCcw, ChevronDown, Layers, ChevronRight, Timer, Activity } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { ReferenceDiagnostics } from '@/features/dev-tools/reference-diagnostics'
 import { FileOperationTiming } from '@/features/dev-tools/performance'
+import { FileOperationLog } from '@/features/dev-tools/operation-log'
 
 interface DevicePreset {
   id: string
@@ -26,6 +27,7 @@ export function DevToolsSettings() {
   const [selectedPreset, setSelectedPreset] = useState<string>('')
   const [showRefDiagnostics, setShowRefDiagnostics] = useState(false)
   const [showTimingDashboard, setShowTimingDashboard] = useState(true)
+  const [showOperationLog, setShowOperationLog] = useState(true)
 
   useEffect(() => {
     const fetchSize = async () => {
@@ -131,6 +133,38 @@ export function DevToolsSettings() {
           {showTimingDashboard && (
             <div className="p-4 border-t border-plm-border">
               <FileOperationTiming />
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+          Operation Log
+        </h2>
+        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
+          <button
+            onClick={() => setShowOperationLog(!showOperationLog)}
+            className="w-full flex items-center gap-3 p-4 hover:bg-plm-highlight transition-colors"
+          >
+            <div className="p-2 rounded-lg bg-plm-accent/10">
+              <Activity size={16} className="text-plm-accent" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="text-sm font-medium text-plm-fg">File Operation Log</div>
+              <div className="text-xs text-plm-fg-muted">
+                Track file operations with step-by-step timing breakdown
+              </div>
+            </div>
+            <ChevronRight 
+              size={16} 
+              className={`text-plm-fg-muted transition-transform ${showOperationLog ? 'rotate-90' : ''}`} 
+            />
+          </button>
+          
+          {showOperationLog && (
+            <div className="p-4 border-t border-plm-border">
+              <FileOperationLog />
             </div>
           )}
         </div>

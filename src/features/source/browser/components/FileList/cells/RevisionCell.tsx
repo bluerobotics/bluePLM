@@ -45,6 +45,12 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
     )
   }
   
+  // Prioritize pendingMetadata over pdmData - pending edits should always show
+  // Default to 'A' if no revision is set
+  const displayValue = file.pendingMetadata?.revision !== undefined 
+    ? file.pendingMetadata.revision 
+    : (file.pdmData?.revision || 'A')
+  
   return (
     <span
       className={`block w-full h-full px-1 rounded ${canEditRevision ? 'cursor-text hover:bg-plm-bg-light' : 'text-plm-fg-muted'}`}
@@ -61,7 +67,7 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
       }}
       title={canEditRevision ? 'Click to edit' : 'Check out file to edit'}
     >
-      {file.pdmData?.revision || file.pendingMetadata?.revision || 'A'}
+      {displayValue}
     </span>
   )
 }

@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
+import { usePDMStore } from '@/stores/pdmStore'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { ToastType } from '@/stores/types'
 import { 
-  type Clipboard, 
   getCutBlockers, 
   executePaste 
 } from '@/lib/fileOperations'
@@ -15,9 +15,17 @@ interface UseClipboardOptions {
   addToast?: (type: ToastType, message: string) => void
 }
 
+/**
+ * Unified clipboard hook that reads/writes from Zustand store.
+ * This ensures clipboard state is shared across FilePane and FileTree.
+ */
 export function useClipboard(options: UseClipboardOptions) {
   const { files, selectedFiles, userId, onRefresh, addToast } = options
-  const [clipboard, setClipboard] = useState<Clipboard | null>(null)
+  
+  // Read clipboard from Zustand store (single source of truth)
+  const clipboard = usePDMStore(s => s.clipboard)
+  const setClipboard = usePDMStore(s => s.setClipboard)
+  const clearClipboard = usePDMStore(s => s.clearClipboard)
 
   const getSelectedFileObjects = useCallback(() => {
     return files.filter(f => selectedFiles.includes(f.path))
@@ -29,7 +37,7 @@ export function useClipboard(options: UseClipboardOptions) {
 
     setClipboard({ files: selected, operation: 'copy' })
     addToast?.('info', `Copied ${selected.length} item${selected.length > 1 ? 's' : ''}`)
-  }, [getSelectedFileObjects, addToast])
+  }, [getSelectedFileObjects, setClipboard, addToast])
 
   const handleCut = useCallback(() => {
     const selected = getSelectedFileObjects()
@@ -50,7 +58,7 @@ export function useClipboard(options: UseClipboardOptions) {
 
     setClipboard({ files: selected, operation: 'cut' })
     addToast?.('info', `Cut ${selected.length} item${selected.length > 1 ? 's' : ''}`)
-  }, [getSelectedFileObjects, userId, addToast])
+  }, [getSelectedFileObjects, userId, setClipboard, addToast])
 
   const handlePaste = useCallback(async (targetFolder: string) => {
     if (!clipboard) {
@@ -61,13 +69,19 @@ export function useClipboard(options: UseClipboardOptions) {
     const result = await executePaste(clipboard, targetFolder, onRefresh)
     
     if (clipboard.operation === 'cut') {
-      setClipboard(null) // Clear after cut
+      clearClipboard() // Clear after cut
     }
 
     if (!result.success) {
       addToast?.('error', result.error || 'Paste failed')
+    } else if (result.succeeded !== undefined) {
+      if (result.succeeded === result.total) {
+        addToast?.('success', `Pasted ${result.succeeded} file${result.succeeded > 1 ? 's' : ''}`)
+      } else {
+        addToast?.('warning', `Pasted ${result.succeeded}/${result.total} files`)
+      }
     }
-  }, [clipboard, onRefresh, addToast])
+  }, [clipboard, onRefresh, clearClipboard, addToast])
 
   return {
     clipboard,

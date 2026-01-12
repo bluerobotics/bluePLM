@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 41, 'Added get_vault_files_fast and get_vault_files_delta RPC functions for fast vault loading', NOW(), 'migration')
+VALUES (1, 42, 'Added update_serialization_settings_safe RPC to prevent counter race conditions', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,

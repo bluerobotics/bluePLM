@@ -12,6 +12,7 @@ import type {
   QuietHoursConfig,
   SoundSettings,
 } from '../types/notifications'
+import type { OperationLogSlice } from './slices/operationLogSlice'
 
 // ============================================================================
 // Type Aliases
@@ -143,6 +144,7 @@ export interface ToastMessage {
     speed?: string
     cancelRequested?: boolean
     label?: string  // Custom label (e.g., "214/398 MB") - overrides default current/total display
+    queued?: boolean  // True if operation is waiting in queue (not yet started)
   }
 }
 
@@ -195,9 +197,11 @@ export interface ServerFile {
 // Queued operation for non-blocking file operations
 export interface QueuedOperation {
   id: string
-  type: 'download' | 'delete' | 'upload' | 'checkin' | 'checkout'
+  type: 'download' | 'get-latest' | 'delete' | 'upload' | 'sync' | 'checkin' | 'checkout' | 'discard' | 'force-release'
   label: string  // Human-readable description
   paths: string[]  // Folder/file paths being operated on
+  toastId: string  // ID of the progress toast for this operation
+  fileCount: number  // Number of files in this operation
   execute: () => Promise<void>
 }
 
@@ -313,7 +317,8 @@ export interface ToastsSlice {
    * @param category - Optional notification category for filtering (if provided, toast respects user preferences)
    */
   addToast: (type: ToastType, message: string, duration?: number, category?: import('../types/notifications').NotificationCategory) => void
-  addProgressToast: (id: string, message: string, total: number) => void
+  addProgressToast: (id: string, message: string, total: number, queued?: boolean) => void
+  setProgressToastActive: (id: string) => void
   updateProgressToast: (id: string, current: number, percent: number, speed?: string, label?: string) => void
   requestCancelProgressToast: (id: string) => void
   isProgressToastCancelled: (id: string) => boolean
@@ -374,6 +379,9 @@ export interface UISlice {
   // Deep Link
   pendingDeepLinkInstall: { extensionId: string; version?: string } | null
   
+  // Clipboard (unified across FilePane and FileTree)
+  clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
+  
   // Actions
   toggleSidebar: () => void
   setSidebarWidth: (width: number) => void
@@ -401,6 +409,10 @@ export interface UISlice {
   // Deep Link
   setPendingDeepLinkInstall: (data: { extensionId: string; version?: string } | null) => void
   clearPendingDeepLinkInstall: () => void
+  
+  // Clipboard
+  setClipboard: (clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null) => void
+  clearClipboard: () => void
 }
 
 export interface SettingsSlice {
@@ -668,6 +680,9 @@ export interface FilesSlice {
   fileConfigurations: Map<string, SWConfiguration[]>  // Cached configurations per file
   loadingConfigs: Set<string>                   // Files currently loading configs
   
+  // State - Realtime update debouncing (prevents state drift from stale realtime events)
+  recentlyModifiedFiles: Map<string, number>    // fileId -> timestamp of local modification
+  
   // Actions - Files
   setFiles: (files: LocalFile[]) => void
   setServerFiles: (files: ServerFile[]) => void
@@ -735,6 +750,14 @@ export interface FilesSlice {
   setLoadingConfigs: (paths: Set<string>) => void
   addLoadingConfig: (filePath: string) => void
   removeLoadingConfig: (filePath: string) => void
+  
+  // Actions - Realtime update debouncing
+  /** Mark a file as recently modified locally. Realtime updates will be skipped for this file. */
+  markFileAsRecentlyModified: (fileId: string) => void
+  /** Clear the recently modified flag for a file. */
+  clearRecentlyModified: (fileId: string) => void
+  /** Check if a file was recently modified locally (within 15s window). */
+  isFileRecentlyModified: (fileId: string) => boolean
   
   /**
    * Atomic update: combines file updates + clearing processing state in a single set() call.
@@ -966,6 +989,7 @@ export interface OperationsSlice {
   
   // State - Queue
   operationQueue: QueuedOperation[]
+  isOperationRunning: boolean
   
   // State - Notifications & Reviews
   unreadNotificationCount: number
@@ -1018,7 +1042,7 @@ export interface OperationsSlice {
   // Actions - Queue
   queueOperation: (operation: Omit<QueuedOperation, 'id'>) => string
   removeFromQueue: (id: string) => void
-  hasPathConflict: (paths: string[]) => boolean
+  setOperationRunning: (running: boolean) => void
   processQueue: () => void
   
   // Actions - Notifications & Reviews
@@ -1640,7 +1664,8 @@ export type PDMStoreState =
   OrganizationMetadataSlice &
   IntegrationsSlice &
   ExtensionsSlice &
-  NotificationPrefsSlice
+  NotificationPrefsSlice &
+  OperationLogSlice
 
 // ============================================================================
 // Store Versioning

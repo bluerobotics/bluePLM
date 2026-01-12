@@ -9,6 +9,7 @@ import type { Command, ForceReleaseParams, CommandResult } from '../types'
 import { getSyncedFilesFromSelection } from '../types'
 import { adminForceDiscardCheckout } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 export const forceReleaseCommand: Command<ForceReleaseParams> = {
   id: 'force-release',
@@ -50,6 +51,19 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
   async execute({ files }, ctx): Promise<CommandResult> {
     const user = ctx.user!
     
+    // Get files checked out by others (for tracker initialization)
+    const syncedFilesForTracker = getSyncedFilesFromSelection(ctx.files, files)
+    const filesToReleaseForTracker = syncedFilesForTracker.filter(f => 
+      f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user.id
+    )
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'force-release',
+      filesToReleaseForTracker.length,
+      filesToReleaseForTracker.map(f => f.relativePath)
+    )
+    
     // Get files checked out by others
     const syncedFiles = getSyncedFilesFromSelection(ctx.files, files)
     const filesToRelease = syncedFiles.filter(f => 
@@ -57,6 +71,7 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
     )
     
     if (filesToRelease.length === 0) {
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No files to force release',
@@ -87,6 +102,13 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
     
     // Process all files in parallel, collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
+    
+    // Start tracking the release phase
+    const releaseStepId = tracker.startStep('Force release checkouts', { 
+      fileCount: filesToRelease.length, 
+      concurrency: CONCURRENT_OPERATIONS 
+    })
+    const releasePhaseStart = Date.now()
     
     const results = await processWithConcurrency(filesToRelease, CONCURRENT_OPERATIONS, async (file) => {
       try {
@@ -130,13 +152,24 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
       }
     }
     
+    // End release step
+    tracker.endStep(releaseStepId, 'completed', { 
+      succeeded, 
+      failed,
+      durationMs: Date.now() - releasePhaseStart
+    })
+    
     // Apply all store updates in a single atomic batch
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: pendingUpdates.length 
+    })
     const storeUpdateStart = performance.now()
     if (pendingUpdates.length > 0) {
       ctx.updateFilesAndClearProcessing(pendingUpdates, [])
     }
     ctx.setLastOperationCompletedAt(Date.now())
     const storeUpdateDuration = Math.round(performance.now() - storeUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     window.electronAPI?.log('info', '[ForceRelease] Store update complete', {
       durationMs: storeUpdateDuration,
       updateCount: pendingUpdates.length,
@@ -158,6 +191,9 @@ export const forceReleaseCommand: Command<ForceReleaseParams> = {
     } else {
       ctx.addToast('success', `Force released ${succeeded} checkout${succeeded > 1 ? 's' : ''}`)
     }
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,

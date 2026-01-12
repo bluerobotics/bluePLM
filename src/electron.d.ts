@@ -317,8 +317,18 @@ declare global {
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
         exportIges: (filePath: string, options?: { outputPath?: string; exportAllConfigs?: boolean; configurations?: string[] }) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
-        exportStl: (filePath: string, options?: { outputPath?: string; exportAllConfigs?: boolean; configurations?: string[] }) => 
-          Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
+        exportStl: (filePath: string, options?: { 
+          outputPath?: string; 
+          exportAllConfigs?: boolean; 
+          configurations?: string[];
+          resolution?: 'coarse' | 'fine' | 'custom';
+          binaryFormat?: boolean;
+          customDeviation?: number;  // mm, for custom resolution
+          customAngle?: number;      // degrees, for custom resolution
+          filenamePattern?: string;
+          pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string };
+        }) => 
+          Promise<{ success: boolean; data?: { inputFile: string; exportedFiles: string[]; count: number }; error?: string }>
         exportImage: (filePath: string, options?: { outputPath?: string; width?: number; height?: number }) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; width: number; height: number; fileSize: number }; error?: string }>
         
@@ -574,7 +584,8 @@ declare global {
         getStoreExtension: (extensionId: string) => Promise<StoreExtensionInfo | undefined>
         
         // ----- Installation -----
-        install: (extensionId: string, version?: string) => Promise<ExtensionInstallResult>
+        // downloadId: database UUID for download, manifestId: expected manifest ID for validation
+        install: (downloadId: string, version?: string, manifestId?: string) => Promise<ExtensionInstallResult>
         installFromFile: (bpxPath: string, acknowledgeUnsigned?: boolean) => Promise<ExtensionInstallResult>
         uninstall: (extensionId: string) => Promise<{ success: boolean; error?: string }>
         

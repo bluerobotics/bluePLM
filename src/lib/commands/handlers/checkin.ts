@@ -17,6 +17,7 @@ import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS
 import type { LocalFile, PendingMetadata } from '../../../stores/pdmStore'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -374,6 +375,17 @@ export const checkinCommand: Command<CheckinParams> = {
     const user = ctx.user!
     const operationId = `checkin-${Date.now()}`
     
+    // Get files checked out by current user (for tracker initialization)
+    const syncedFilesForTracker = getSyncedFilesFromSelection(ctx.files, files)
+    const filesToCheckinForTracker = syncedFilesForTracker.filter(f => f.pdmData?.checked_out_by === user.id)
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'checkin',
+      filesToCheckinForTracker.length,
+      filesToCheckinForTracker.map(f => f.relativePath)
+    )
+    
     logCheckin('info', 'Starting checkin operation', {
       operationId,
       userId: user.id,
@@ -393,6 +405,7 @@ export const checkinCommand: Command<CheckinParams> = {
     
     if (filesToCheckin.length === 0) {
       logCheckin('info', 'No files to check in', { operationId })
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No files to check in',
@@ -408,13 +421,17 @@ export const checkinCommand: Command<CheckinParams> = {
     // ========================================
     
     // Pre-fetch machine ID ONCE (avoids 80 getMachineId IPC calls for 80 files)
+    const prefetchStepId = tracker.startStep('Pre-fetch machine info')
     const { getMachineId } = await import('../../backup')
     const machineId = await getMachineId()
+    tracker.endStep(prefetchStepId, 'completed', { machineId: machineId?.substring(0, 8) })
     
     // Pre-fetch serialization settings ONCE (avoids 80 DB queries for 80 files)
+    const serSettingsStepId = tracker.startStep('Pre-fetch serialization settings')
     const { getSerializationSettings } = await import('../../serialization')
     const orgId = ctx.organization?.id
     const serializationSettings = orgId ? await getSerializationSettings(orgId) : null
+    tracker.endStep(serSettingsStepId, 'completed', { hasSettings: !!serializationSettings })
     
     logCheckin('debug', 'Pre-fetched batch operation values', {
       operationId,
@@ -423,6 +440,7 @@ export const checkinCommand: Command<CheckinParams> = {
     })
     
     // Pre-check SolidWorks service status ONCE (avoid checking for every file in batch)
+    const swStatusStepId = tracker.startStep('Check SW service status')
     let swServiceStatus: SwServiceStatus = { running: false, documentManagerAvailable: false }
     try {
       const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
@@ -433,6 +451,10 @@ export const checkinCommand: Command<CheckinParams> = {
     } catch {
       // SW service not available
     }
+    tracker.endStep(swStatusStepId, 'completed', { 
+      swRunning: swServiceStatus.running,
+      documentManagerAvailable: swServiceStatus.documentManagerAvailable 
+    })
     
     // Track folders and files being processed (for spinner display)
     // Use synchronous update to ensure spinners render before async work begins
@@ -471,18 +493,26 @@ export const checkinCommand: Command<CheckinParams> = {
     /**
      * Flush pending store updates to provide real-time UI feedback.
      * Called periodically during batch operations based on count OR time.
+     * 
+     * NOTE: For large batches (50+ files), incremental flushing is SKIPPED
+     * because each flush triggers React re-renders with expensive folderMetrics
+     * computation, blocking all concurrent workers.
      */
     const flushPendingUpdates = () => {
       const updateCount = pendingUpdates.length
       if (updateCount > lastFlushIndex) {
+        const flushStart = performance.now()
         const updatesToFlush = pendingUpdates.slice(lastFlushIndex)
         ctx.updateFilesInStore(updatesToFlush)
+        const flushDuration = performance.now() - flushStart
+        recordSubstepTiming('flush', flushDuration)
         lastFlushIndex = updateCount
         lastFlushTime = Date.now()
         logCheckin('debug', 'Incremental store flush', {
           operationId,
           flushedCount: updatesToFlush.length,
-          totalProcessed: updateCount
+          totalProcessed: updateCount,
+          flushDurationMs: Math.round(flushDuration)
         })
       }
     }
@@ -490,8 +520,16 @@ export const checkinCommand: Command<CheckinParams> = {
     /**
      * Check if we should flush based on count OR time threshold.
      * This keeps UI responsive even when individual files take a long time.
+     * 
+     * PERFORMANCE OPTIMIZATION: For large batches (50+ files), skip incremental
+     * flushes entirely. Each flush triggers expensive O(N×depth) folderMetrics
+     * recomputation in useVaultTree, blocking all concurrent workers.
+     * The atomic final update at the end handles all files efficiently.
      */
     const shouldFlush = (): boolean => {
+      // Skip incremental flushes for large batches - they cause React blocking
+      if (total >= 50) return false
+      
       const countThreshold = pendingUpdates.length - lastFlushIndex >= FLUSH_INTERVAL
       const timeThreshold = Date.now() - lastFlushTime >= FLUSH_TIME_MS
       return countThreshold || (pendingUpdates.length > lastFlushIndex && timeThreshold)
@@ -520,6 +558,40 @@ export const checkinCommand: Command<CheckinParams> = {
       swConcurrency: SW_CONCURRENT_OPERATIONS,
       nonSwConcurrency: CONCURRENT_OPERATIONS
     })
+    
+    // ========================================
+    // SUBSTEP TIMING: Aggregate timing per phase
+    // Tracked separately for non-SW (Phase 1) and SW (Phase 2) files
+    // This helps identify which subprocess is the bottleneck
+    // ========================================
+    type SubstepTimings = Record<string, { totalMs: number; callCount: number }>
+    const phase1Timings: SubstepTimings = {}
+    const phase2Timings: SubstepTimings = {}
+    let currentPhaseTimings: SubstepTimings = phase1Timings
+    
+    const recordSubstepTiming = (name: string, durationMs: number) => {
+      if (!currentPhaseTimings[name]) {
+        currentPhaseTimings[name] = { totalMs: 0, callCount: 0 }
+      }
+      currentPhaseTimings[name].totalMs += durationMs
+      currentPhaseTimings[name].callCount++
+    }
+    
+    /**
+     * Add substeps to a phase step after processing is complete
+     */
+    const addSubstepsToPhase = (phaseStepId: string, timings: SubstepTimings) => {
+      const substepOrder = ['getDocInfo', 'saveDoc', 'writeMeta', 'hashFile', 'readFile', 'upload', 'checkinAPI', 'setDocRO', 'flush']
+      for (const name of substepOrder) {
+        const timing = timings[name]
+        if (timing && timing.callCount > 0) {
+          tracker.addSubstep(phaseStepId, `${name} (${timing.callCount} calls)`, timing.totalMs, {
+            avgMs: Math.round(timing.totalMs / timing.callCount),
+            callCount: timing.callCount
+          })
+        }
+      }
+    }
     
     /**
      * Process a single file for check-in
@@ -584,6 +656,7 @@ export const checkinCommand: Command<CheckinParams> = {
             localHash: file.localHash?.substring(0, 12)
           })
           
+          const checkinAPIStart = performance.now()
           const result = await checkinFile(file.pdmData!.id, user.id, {
             // No content change - pass existing hash
             newContentHash: file.localHash,
@@ -593,6 +666,7 @@ export const checkinCommand: Command<CheckinParams> = {
             machineId,
             skipMachineMismatchCheck: true
           })
+          recordSubstepTiming('checkinAPI', performance.now() - checkinAPIStart)
           
           if (result.success && result.file) {
             // Collect for batch readonly operation
@@ -640,7 +714,9 @@ export const checkinCommand: Command<CheckinParams> = {
         let metadataWasWritten = false
         if (isSolidWorksFile && !skipSolidWorksOps && swServiceStatus.running) {
           try {
+            const getDocInfoStart = performance.now()
             const docInfo = await window.electronAPI?.solidworks?.getDocumentInfo?.(file.path)
+            recordSubstepTiming('getDocInfo', performance.now() - getDocInfoStart)
             
             // Check if service call failed (timeout or crash) - stop trying for remaining files
             if (!docInfo?.success && docInfo?.error?.includes('timed out')) {
@@ -658,7 +734,9 @@ export const checkinCommand: Command<CheckinParams> = {
                 operationId,
                 fileName: file.name
               })
+              const saveDocStart = performance.now()
               const saveResult = await window.electronAPI?.solidworks?.saveDocument?.(file.path)
+              recordSubstepTiming('saveDoc', performance.now() - saveDocStart)
               if (saveResult?.success && saveResult.data?.saved) {
                 logCheckin('info', 'SolidWorks document saved successfully', {
                   operationId,
@@ -695,7 +773,9 @@ export const checkinCommand: Command<CheckinParams> = {
             })
             
             // Pass pre-fetched serialization settings (batch optimization)
+            const writeMetaStart = performance.now()
             const writeSuccess = await writeSolidWorksMetadata(file.path, file.extension, file.pendingMetadata!, swServiceStatus, serializationSettings)
+            recordSubstepTiming('writeMeta', performance.now() - writeMetaStart)
             if (writeSuccess) {
               metadataWasWritten = true
               logCheckin('info', 'Successfully wrote metadata to SolidWorks file', {
@@ -726,7 +806,9 @@ export const checkinCommand: Command<CheckinParams> = {
           })
         } else {
           // Compute fresh hash using streaming (memory-efficient for large files)
+          const hashFileStart = performance.now()
           const hashResult = await window.electronAPI?.hashFile(file.path)
+          recordSubstepTiming('hashFile', performance.now() - hashFileStart)
           
           if (!hashResult?.success) {
             logCheckin('error', 'Failed to hash local file', {
@@ -769,7 +851,9 @@ export const checkinCommand: Command<CheckinParams> = {
             })
             
             // Read file content for upload
+            const readFileStart = performance.now()
             const readResult = await window.electronAPI?.readFile(file.path)
+            recordSubstepTiming('readFile', performance.now() - readFileStart)
             if (!readResult?.success || readResult.data === undefined) {
               logCheckin('error', 'Failed to read file for upload', {
                 operationId,
@@ -781,7 +865,9 @@ export const checkinCommand: Command<CheckinParams> = {
             }
             
             // Upload to storage
+            const uploadStart = performance.now()
             const uploadResult = await uploadFileContentToStorage(orgId, fileHash, readResult.data)
+            recordSubstepTiming('upload', performance.now() - uploadStart)
             if (!uploadResult.success) {
               logCheckin('error', 'Failed to upload file to storage', {
                 operationId,
@@ -808,6 +894,7 @@ export const checkinCommand: Command<CheckinParams> = {
             contentChanged
           })
           
+          const checkinAPIStart = performance.now()
           const result = await checkinFile(file.pdmData!.id, user.id, {
             newContentHash: fileHash,
             newFileSize: fileSize || file.size,
@@ -819,6 +906,7 @@ export const checkinCommand: Command<CheckinParams> = {
             machineId,
             skipMachineMismatchCheck: true
           })
+          recordSubstepTiming('checkinAPI', performance.now() - checkinAPIStart)
           
           if (result.success && result.file) {
             // Collect for batch readonly operation (optimization: 1 IPC instead of N)
@@ -829,7 +917,9 @@ export const checkinCommand: Command<CheckinParams> = {
             // Only attempt if SW service is still running (avoids hanging if service crashed)
             if (swServiceStatus.running && SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
               try {
+                const setDocROStart = performance.now()
                 const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
+                recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
                 if (docResult?.success && docResult.data?.changed) {
                   logCheckin('info', 'Updated SolidWorks document to read-only', {
                     operationId,
@@ -904,6 +994,7 @@ export const checkinCommand: Command<CheckinParams> = {
             fileName: file.name
           })
           
+          const checkinAPIStart = performance.now()
           const result = await checkinFile(file.pdmData!.id, user.id, {
             newFilePath: wasFileMoved ? file.relativePath : undefined,
             newFileName: wasFileRenamed ? file.name : undefined,
@@ -913,6 +1004,7 @@ export const checkinCommand: Command<CheckinParams> = {
             machineId,
             skipMachineMismatchCheck: true
           })
+          recordSubstepTiming('checkinAPI', performance.now() - checkinAPIStart)
           
           if (result.success && result.file) {
             // Collect for batch readonly operation (optimization: 1 IPC instead of N)
@@ -922,7 +1014,9 @@ export const checkinCommand: Command<CheckinParams> = {
             // Only attempt if SW service is still running (avoids hanging if service crashed)
             if (swServiceStatus.running && SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
               try {
+                const setDocROStart = performance.now()
                 const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
+                recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
                 if (!docResult?.success && docResult?.error?.includes('timed out')) {
                   // Service timed out - stop trying for remaining files
                   swServiceStatus.running = false
@@ -1000,14 +1094,28 @@ export const checkinCommand: Command<CheckinParams> = {
     // These files don't need SW service, so no bottleneck
     // ========================================
     let nonSwResults: Array<{ success: boolean; error?: string; file?: LocalFile }> = []
+    let phase1StepId = ''
     if (nonSwFiles.length > 0) {
       logCheckin('info', 'Phase 1: Processing non-SW files', {
         operationId,
         count: nonSwFiles.length,
         concurrency: CONCURRENT_OPERATIONS
       })
+      currentPhaseTimings = phase1Timings
+      phase1StepId = tracker.startStep('Process non-SW files', { 
+        fileCount: nonSwFiles.length, 
+        concurrency: CONCURRENT_OPERATIONS 
+      })
       const phase1Start = Date.now()
       nonSwResults = await processWithConcurrency(nonSwFiles, CONCURRENT_OPERATIONS, processFile)
+      const phase1Succeeded = nonSwResults.filter(r => r.success).length
+      tracker.endStep(phase1StepId, 'completed', { 
+        succeeded: phase1Succeeded, 
+        failed: nonSwFiles.length - phase1Succeeded,
+        durationMs: Date.now() - phase1Start
+      })
+      // Add substeps with aggregate timing for this phase
+      addSubstepsToPhase(phase1StepId, phase1Timings)
       logCheckin('info', 'Phase 1 complete', {
         operationId,
         count: nonSwFiles.length,
@@ -1021,11 +1129,17 @@ export const checkinCommand: Command<CheckinParams> = {
     // Sets batch flag to pause status polling during heavy operations
     // ========================================
     let swResults: Array<{ success: boolean; error?: string; file?: LocalFile }> = []
+    let phase2StepId = ''
     if (swFiles.length > 0) {
       logCheckin('info', 'Phase 2: Processing SW files', {
         operationId,
         count: swFiles.length,
         concurrency: SW_CONCURRENT_OPERATIONS
+      })
+      currentPhaseTimings = phase2Timings
+      phase2StepId = tracker.startStep('Process SW files', { 
+        fileCount: swFiles.length, 
+        concurrency: SW_CONCURRENT_OPERATIONS 
       })
       const phase2Start = Date.now()
       
@@ -1038,6 +1152,14 @@ export const checkinCommand: Command<CheckinParams> = {
         usePDMStore.getState().setIsBatchSWOperationRunning(false)
       }
       
+      const phase2Succeeded = swResults.filter(r => r.success).length
+      tracker.endStep(phase2StepId, 'completed', { 
+        succeeded: phase2Succeeded, 
+        failed: swFiles.length - phase2Succeeded,
+        durationMs: Date.now() - phase2Start
+      })
+      // Add substeps with aggregate timing for this phase
+      addSubstepsToPhase(phase2StepId, phase2Timings)
       logCheckin('info', 'Phase 2 complete', {
         operationId,
         count: swFiles.length,
@@ -1052,19 +1174,27 @@ export const checkinCommand: Command<CheckinParams> = {
     // ATOMIC FINAL CLEANUP: Update remaining files AND clear processing state in ONE store update
     // This prevents the 5-second UI freeze caused by two sequential re-renders with folderMetrics recalc
     // ========================================
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: pendingUpdates.length - lastFlushIndex 
+    })
     const finalUpdateStart = performance.now()
     const remainingUpdates = pendingUpdates.slice(lastFlushIndex)
     ctx.updateFilesAndClearProcessing(remainingUpdates, allPathsBeingProcessed)
     ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - finalUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     logCheckin('info', 'Atomic store update complete', {
       operationId,
       remainingFilesUpdated: remainingUpdates.length,
       processingPathsCleared: allPathsBeingProcessed.length,
-      durationMs: Math.round(performance.now() - finalUpdateStart)
+      durationMs: storeUpdateDuration
     })
     
     // Batch set readonly on all successful files (optimization: 1 IPC call instead of N)
     if (filesToMakeReadonly.length > 0) {
+      const readonlyStepId = tracker.startStep('Set readonly batch', { 
+        fileCount: filesToMakeReadonly.length 
+      })
       logCheckin('debug', 'Setting readonly batch', {
         operationId,
         fileCount: filesToMakeReadonly.length
@@ -1072,6 +1202,11 @@ export const checkinCommand: Command<CheckinParams> = {
       const batchReadonlyResult = await window.electronAPI?.setReadonlyBatch(
         filesToMakeReadonly.map(path => ({ path, readonly: true }))
       )
+      const readonlyFailures = batchReadonlyResult?.results?.filter(r => !r.success) || []
+      tracker.endStep(readonlyStepId, 'completed', { 
+        succeeded: filesToMakeReadonly.length - readonlyFailures.length,
+        failed: readonlyFailures.length 
+      })
       if (batchReadonlyResult) {
         const failures = batchReadonlyResult.results?.filter(r => !r.success) || []
         if (failures.length > 0) {
@@ -1091,6 +1226,15 @@ export const checkinCommand: Command<CheckinParams> = {
         succeeded++
         if (result.file) {
           successfulFiles.push(result.file)
+          
+          // Mark file as recently modified to prevent realtime state drift
+          // Stale realtime UPDATE events may arrive shortly after check-in
+          // and could revert the local state to pre-check-in values
+          if (result.file.pdmData?.id) {
+            ctx.markFileAsRecentlyModified(result.file.pdmData.id)
+            // Clear the flag after 15 seconds (debounce window)
+            setTimeout(() => ctx.clearRecentlyModified(result.file!.pdmData!.id), 15000)
+          }
         }
       } else {
         failed++
@@ -1180,12 +1324,8 @@ export const checkinCommand: Command<CheckinParams> = {
       errors: errors.length > 0 ? errors : undefined
     })
     
-    // Build success message - don't mention extraction since it's async
+    // Build success message
     const checkinMsg = `Checked in ${succeeded} file${succeeded > 1 ? 's' : ''}`
-    const extractionNote = extractionStarted 
-      ? ` (extracting ${assemblyFiles.length} assembly reference${assemblyFiles.length > 1 ? 's' : ''} in background)`
-      : ''
-    const combinedSuccessMsg = `${checkinMsg}${extractionNote}`
     
     // Show result
     if (failed > 0) {
@@ -1194,12 +1334,15 @@ export const checkinCommand: Command<CheckinParams> = {
       const moreText = errors.length > 1 ? ` (+${errors.length - 1} more)` : ''
       ctx.addToast('error', `Check-in failed: ${firstError}${moreText}`)
     } else {
-      ctx.addToast('success', combinedSuccessMsg)
+      ctx.addToast('success', checkinMsg)
     }
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,
-      message: failed > 0 ? `Checked in ${succeeded}/${total} files` : combinedSuccessMsg,
+      message: failed > 0 ? `Checked in ${succeeded}/${total} files` : checkinMsg,
       total,
       succeeded,
       failed,

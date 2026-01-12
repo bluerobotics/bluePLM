@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Shield, RefreshCw, Loader2 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 
@@ -18,11 +18,15 @@ import { BackupConfigForm } from './BackupConfigForm'
 import { BackupStatusViewer } from './BackupStatusViewer'
 
 // Types
-import type { BackupPanelProps } from './types'
+import type { BackupPanelProps, BackupStatus } from './types'
 
 /**
  * Main BackupPanel component - orchestrates all backup functionality.
  * Manages backup configuration, status, history, and restore operations.
+ * 
+ * Loads in two phases for better UX:
+ * 1. Config loads first (fast) - page renders immediately
+ * 2. Snapshots load in background (slow) - history section updates when ready
  */
 export function BackupPanel({ isAdmin }: BackupPanelProps) {
   const { organization, user, addToast, activeVaultId, connectedVaults, vaultPath } = usePDMStore()
@@ -31,29 +35,51 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
   // Config section visibility
   const [showConfig, setShowConfig] = useState(false)
   
-  // Load backup status
+  // Load backup status (now loads config first, then snapshots in background)
   const {
-    status,
-    isLoading,
-    isRefreshing,
+    config,
+    isConfigured,
+    isLoadingConfig,
+    snapshots,
+    lastSnapshot,
+    totalSnapshots,
+    isLoadingSnapshots,
+    snapshotError,
     isThisDesignated,
     isDesignatedOnline,
+    isRefreshing,
     refresh,
-    loadStatus
+    refreshSnapshots
   } = useBackupStatus(organization?.id, addToast)
+  
+  // Construct a BackupStatus object for child components that expect it
+  // This maintains backward compatibility with existing components
+  const status: BackupStatus | null = useMemo(() => {
+    if (isLoadingConfig) return null
+    
+    return {
+      isConfigured,
+      config,
+      snapshots,
+      lastSnapshot,
+      totalSnapshots,
+      isLoading: isLoadingSnapshots,
+      error: snapshotError
+    }
+  }, [isLoadingConfig, isConfigured, config, snapshots, lastSnapshot, totalSnapshots, isLoadingSnapshots, snapshotError])
   
   // Config form state
   const configHook = useBackupConfig(
-    status?.config,
+    config,
     organization?.id,
     user?.id,
     addToast,
-    loadStatus
+    refreshSnapshots
   )
   
   // Operations (backup, restore, delete, designate)
   const operations = useBackupOperations(
-    status?.config,
+    config,
     organization?.id,
     user?.id,
     user?.email,
@@ -63,7 +89,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
     isThisDesignated,
     isDesignatedOnline,
     addToast,
-    loadStatus
+    refreshSnapshots
   )
   
   // Handle vault toggle for selection
@@ -75,7 +101,9 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
     }
   }
 
-  if (isLoading) {
+  // Only show loading spinner while config is loading (fast ~100ms)
+  // Snapshots load in background - BackupHistory will show its own spinner
+  if (isLoadingConfig) {
     return (
       <div className="p-4 flex items-center justify-center">
         <Loader2 className="w-5 h-5 animate-spin text-plm-fg-muted" />
@@ -104,7 +132,10 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
       {/* Status Overview */}
       <div className="space-y-4">
         {/* Configuration Status */}
-        <BackupStatusCard status={status} />
+        <BackupStatusCard 
+          status={status} 
+          isLoadingSnapshots={isLoadingSnapshots}
+        />
         
         {/* Backup Schedule Info */}
         {status?.isConfigured && (
@@ -138,7 +169,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         )}
       </div>
       
-      {/* Snapshot History */}
+      {/* Snapshot History - now shows its own loading state */}
       <BackupHistory
         status={status}
         isAdmin={isAdmin}
@@ -149,6 +180,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         historyVaultFilter={operations.historyVaultFilter}
         onHistoryVaultFilterChange={operations.setHistoryVaultFilter}
         isRestoring={operations.isRestoring}
+        isLoadingSnapshots={isLoadingSnapshots}
       />
       
       {/* Restore Action Bar */}

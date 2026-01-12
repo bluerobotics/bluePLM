@@ -338,6 +338,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const organization = usePDMStore(s => s.organization)
   const user = usePDMStore(s => s.user)
   const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
+  const clearPendingMetadata = usePDMStore(s => s.clearPendingMetadata)
   
   const ext = file.extension?.toLowerCase() || ''
   const fileType = ext === '.sldprt' ? 'Part' : ext === '.sldasm' ? 'Assembly' : 'Drawing'
@@ -611,6 +612,10 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
       return
     }
     
+    // Mark file as processing to suppress file watcher refreshes during save
+    const { addProcessingFolder, removeProcessingFolder } = usePDMStore.getState()
+    addProcessingFolder(file.relativePath, 'upload')
+    
     setIsSavingToFile(true)
     try {
       if (hasMultipleConfigs) {
@@ -673,11 +678,12 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         const result = await window.electronAPI?.solidworks?.setPropertiesBatch(file.path, configProperties)
         
         if (result?.success) {
-          const count = result.data?.configurationsProcessed || Object.keys(configProperties).length
-          addToast('success', `Saved properties to ${count} configuration${count > 1 ? 's' : ''}`)
+          addToast('success', 'Saved metadata to file')
+          // Clear pending metadata (this merges values into pdmData first)
+          clearPendingMetadata(file.path)
         } else {
           log.error('[SWDatacard]', 'Failed to batch save', { error: result?.error })
-          addToast('error', result?.error || 'Failed to save properties')
+          addToast('error', result?.error || 'Failed to save metadata to file')
         }
       } else {
         // Single config or drawing: write file-level properties
@@ -695,10 +701,12 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           const configName = activeConfig?.name
           const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, configName)
           if (result?.success) {
-            addToast('success', `Saved ${result.data?.propertiesSet || 0} properties to file`)
+            addToast('success', 'Saved metadata to file')
+            // Clear pending metadata (this merges values into pdmData first)
+            clearPendingMetadata(file.path)
           } else {
             log.error('[SWDatacard]', 'Failed to save props', { error: result?.error })
-            addToast('error', result?.error || 'Failed to save properties')
+            addToast('error', result?.error || 'Failed to save metadata to file')
           }
         } else {
           addToast('info', 'No properties to save')
@@ -706,8 +714,10 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
       }
     } catch (err) {
       log.error('[SWDatacard]', 'Failed to save to file', { error: err })
-      addToast('error', 'Failed to save properties to file')
+      addToast('error', 'Failed to save metadata to file')
     } finally {
+      // Remove processing marker so file watcher can resume normal operation
+      removeProcessingFolder(file.relativePath)
       setIsSavingToFile(false)
     }
   }

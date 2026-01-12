@@ -13,6 +13,7 @@ import { undoCheckout } from '../../supabase'
 import { getDownloadUrl } from '../../storage'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 function logDiscard(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
   log[level]('[Discard]', message, context)
@@ -133,6 +134,16 @@ export const discardCommand: Command<DiscardParams> = {
     const organization = ctx.organization!
     const operationId = `discard-${Date.now()}`
     
+    // Get discardable files for tracker initialization
+    const discardableFilesForTracker = getDiscardableFilesFromSelection(ctx.files, files, user.id)
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'discard',
+      discardableFilesForTracker.length,
+      discardableFilesForTracker.map(f => f.relativePath)
+    )
+    
     logDiscard('info', 'Starting discard operation', {
       timestamp: Date.now(),
       operationId,
@@ -172,6 +183,7 @@ export const discardCommand: Command<DiscardParams> = {
         operationId,
         inputFilesCount: files.length
       })
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No files to discard',
@@ -181,11 +193,14 @@ export const discardCommand: Command<DiscardParams> = {
       }
     }
     
-    // Track folders being processed
+    // Track folders and files being processed
     const foldersBeingProcessed = files
       .filter(f => f.isDirectory)
       .map(f => f.relativePath)
-    ctx.addProcessingFolders(foldersBeingProcessed, 'sync')
+    const filesBeingProcessed = filesToDiscard.map(f => f.relativePath)
+    const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
+    // NOTE: Don't add processing here - executor already did it via processingOperations
+    ctx.addProcessingFoldersSync(foldersBeingProcessed, 'sync')
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -210,6 +225,13 @@ export const discardCommand: Command<DiscardParams> = {
     
     // Track paths to remove from store (deleted files that will become cloud-only)
     const pathsToRemove: string[] = []
+    
+    // Start tracking the discard phase
+    const discardStepId = tracker.startStep('Discard files', { 
+      fileCount: filesToDiscard.length, 
+      concurrency: CONCURRENT_OPERATIONS 
+    })
+    const discardPhaseStart = Date.now()
     
     const results = await processWithConcurrency(filesToDiscard, CONCURRENT_OPERATIONS, async (file) => {
       const fileCtx = getFileContext(file)
@@ -276,9 +298,13 @@ export const discardCommand: Command<DiscardParams> = {
           // Release checkout using undoCheckout (properly discards without saving changes)
           const result = await undoCheckout(file.pdmData!.id, user.id)
           if (!result.success) {
-            logDiscard('error', 'Failed to release checkout', { operationId, ...fileCtx })
+            logDiscard('error', 'Failed to release checkout', { 
+              operationId, 
+              ...fileCtx,
+              error: result.error
+            })
             progress.update()
-            return { success: false, error: `${file.name}: Failed to release checkout` }
+            return { success: false, error: `${file.name}: ${result.error || 'Failed to release checkout'}` }
           }
           
           // Set to read-only and update store
@@ -318,11 +344,28 @@ export const discardCommand: Command<DiscardParams> = {
         succeeded++
         // Track path for clearing persisted pending metadata
         discardedPaths.push(filesToDiscard[i].path)
+        
+        // Mark file as recently modified to prevent realtime state drift
+        // Stale realtime UPDATE events may arrive shortly after discard
+        // and could revert the local state to pre-discard values (e.g., show as checked out again)
+        const fileId = filesToDiscard[i].pdmData?.id
+        if (fileId) {
+          ctx.markFileAsRecentlyModified(fileId)
+          // Clear the flag after 15 seconds (debounce window)
+          setTimeout(() => ctx.clearRecentlyModified(fileId), 15000)
+        }
       } else {
         failed++
         if (result.error) errors.push(result.error)
       }
     }
+    
+    // End discard step
+    tracker.endStep(discardStepId, 'completed', { 
+      succeeded, 
+      failed,
+      durationMs: Date.now() - discardPhaseStart
+    })
     
     // Clear any persisted pending metadata for successfully discarded files
     // This ensures local metadata edits made during checkout are reverted
@@ -331,15 +374,20 @@ export const discardCommand: Command<DiscardParams> = {
     }
     
     // ATOMIC UPDATE: Apply all store updates and clear processing in single render
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: pendingUpdates.length 
+    })
     const storeUpdateStart = performance.now()
-    ctx.updateFilesAndClearProcessing(pendingUpdates, foldersBeingProcessed)
+    ctx.updateFilesAndClearProcessing(pendingUpdates, allPathsBeingProcessed)
     ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - storeUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     
     logDiscard('info', 'Atomic store update complete', {
       operationId,
       updatedFiles: pendingUpdates.length,
-      processingPathsCleared: foldersBeingProcessed.length,
-      durationMs: Math.round(performance.now() - storeUpdateStart)
+      processingPathsCleared: allPathsBeingProcessed.length,
+      durationMs: storeUpdateDuration
     })
     
     // Remove deleted files from store (they'll reappear as 'cloud' on next refresh)
@@ -370,6 +418,9 @@ export const discardCommand: Command<DiscardParams> = {
     } else {
       ctx.addToast('success', `Discarded ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,

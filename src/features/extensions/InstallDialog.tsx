@@ -70,6 +70,10 @@ export function InstallDialog({
   const handleInstall = async () => {
     if (!extensionId) return
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InstallDialog.tsx:handleInstall',message:'Starting installation',data:{extensionId,storeExtName:storeExt?.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
+    
     setInstallState('installing')
     setError(null)
     

@@ -94,8 +94,32 @@ export interface CommandContext {
    */
   setLastOperationCompletedAt: (timestamp: number) => void
   
+  // Realtime update debouncing (prevents state drift from stale realtime events)
+  /**
+   * Mark a file as recently modified locally. Realtime updates will be
+   * skipped for this file for 15 seconds to prevent state drift.
+   */
+  markFileAsRecentlyModified: (fileId: string) => void
+  
+  /**
+   * Clear the recently modified flag for a file.
+   */
+  clearRecentlyModified: (fileId: string) => void
+  
   // Refresh callback
   onRefresh?: (silent?: boolean) => void
+  
+  /**
+   * Existing toast ID (when operation was queued, toast was already created).
+   * ProgressTracker will reuse this toast instead of creating a new one.
+   */
+  existingToastId?: string
+  
+  /**
+   * If true, the command should skip showing success toasts.
+   * Used when the caller wants to show its own custom message (e.g., paste operations).
+   */
+  silent?: boolean
 }
 
 // ============================================

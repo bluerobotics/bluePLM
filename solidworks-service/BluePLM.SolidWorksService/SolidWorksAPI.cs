@@ -972,6 +972,235 @@ namespace BluePLM.SolidWorksService
         }
 
         /// <summary>
+        /// Export to STL format with quality options
+        /// </summary>
+        /// <param name="filePath">Source SolidWorks file path</param>
+        /// <param name="outputPath">Output directory or file path</param>
+        /// <param name="configuration">Single configuration to export (optional)</param>
+        /// <param name="exportAllConfigs">Export all configurations</param>
+        /// <param name="configurations">Specific configurations to export (optional)</param>
+        /// <param name="resolution">STL quality: "coarse", "fine", or "custom"</param>
+        /// <param name="binaryFormat">True for binary STL, false for ASCII</param>
+        /// <param name="customDeviation">Custom chord deviation in mm (for resolution="custom")</param>
+        /// <param name="customAngle">Custom angle tolerance in degrees (for resolution="custom")</param>
+        /// <param name="filenamePattern">Filename pattern with placeholders</param>
+        /// <param name="pdmMetadata">PDM metadata fallback values</param>
+        public CommandResult ExportToStl(
+            string? filePath, 
+            string? outputPath, 
+            string? configuration, 
+            bool exportAllConfigs, 
+            string[]? configurations = null,
+            string? resolution = "fine",
+            bool binaryFormat = true,
+            double? customDeviation = null,
+            double? customAngle = null,
+            string? filenamePattern = null, 
+            PdmMetadata? pdmMetadata = null)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                return new CommandResult { Success = false, Error = "Missing 'filePath'" };
+
+            if (!File.Exists(filePath))
+                return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
+
+            ModelDoc2? doc = null;
+            ISldWorks? sw = null;
+            try
+            {
+                sw = GetSolidWorks();
+                var ext = Path.GetExtension(filePath).ToLowerInvariant();
+                
+                // STL export only works for parts and assemblies
+                if (ext != ".sldprt" && ext != ".sldasm")
+                    return new CommandResult { Success = false, Error = "STL export only works on part (.sldprt) or assembly (.sldasm) files" };
+                
+                var docType = ext == ".sldprt" ? swDocumentTypes_e.swDocPART : swDocumentTypes_e.swDocASSEMBLY;
+
+                int errors = 0, warnings = 0;
+                doc = (ModelDoc2)sw.OpenDoc6(
+                    filePath,
+                    (int)docType,
+                    (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
+                    "",
+                    ref errors,
+                    ref warnings
+                );
+
+                if (doc == null)
+                    return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
+
+                // Set STL export options
+                SetStlExportOptions(sw, resolution ?? "fine", binaryFormat, customDeviation, customAngle);
+
+                var exportedFiles = new List<string>();
+                var baseName = Path.GetFileNameWithoutExtension(filePath);
+                var outputDir = Path.GetDirectoryName(outputPath ?? filePath)!;
+                Directory.CreateDirectory(outputDir);
+
+                // Determine which configs to export
+                string[] configsToExport;
+                if (configurations != null && configurations.Length > 0)
+                {
+                    // Export specific configurations
+                    configsToExport = configurations;
+                }
+                else if (exportAllConfigs)
+                {
+                    // Export all configurations
+                    configsToExport = (string[])doc.GetConfigurationNames();
+                }
+                else if (!string.IsNullOrEmpty(configuration))
+                {
+                    // Export single configuration
+                    configsToExport = new[] { configuration! };
+                }
+                else
+                {
+                    // Export active configuration only
+                    configsToExport = new string[0];
+                }
+
+                if (configsToExport.Length > 0)
+                {
+                    foreach (var configName in configsToExport)
+                    {
+                        doc.ShowConfiguration2(configName);
+                        doc.EditRebuild3();
+
+                        // Get properties for pattern replacement and metadata
+                        var props = GetConfigProperties(doc, configName);
+                        
+                        // Build output filename
+                        string configOutputPath;
+                        if (!string.IsNullOrEmpty(filenamePattern))
+                        {
+                            var fileName = FormatExportFilename(filenamePattern!, baseName, configName, props, ".stl", pdmMetadata);
+                            configOutputPath = Path.Combine(outputDir, fileName);
+                        }
+                        else
+                        {
+                            configOutputPath = Path.Combine(outputDir, $"{baseName}_{configName}.stl");
+                        }
+
+                        bool success = doc.Extension.SaveAs3(
+                            configOutputPath,
+                            (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                            (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                            null, null,
+                            ref errors, ref warnings
+                        );
+
+                        if (success)
+                        {
+                            exportedFiles.Add(configOutputPath);
+                            Console.Error.WriteLine($"[Export] STL exported: {Path.GetFileName(configOutputPath)}");
+                        }
+                        else
+                        {
+                            Console.Error.WriteLine($"[Export] STL export failed for config '{configName}': errors={errors}, warnings={warnings}");
+                        }
+                    }
+                }
+                else
+                {
+                    // No specific config - export current/active
+                    var finalOutputPath = outputPath ?? Path.ChangeExtension(filePath, ".stl");
+                    Directory.CreateDirectory(Path.GetDirectoryName(finalOutputPath)!);
+
+                    bool success = doc.Extension.SaveAs3(
+                        finalOutputPath,
+                        (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                        (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                        null, null,
+                        ref errors, ref warnings
+                    );
+
+                    if (success)
+                        exportedFiles.Add(finalOutputPath);
+                }
+
+                return new CommandResult
+                {
+                    Success = exportedFiles.Count > 0,
+                    Data = new
+                    {
+                        inputFile = filePath,
+                        exportedFiles,
+                        count = exportedFiles.Count,
+                        resolution = resolution ?? "fine",
+                        binaryFormat
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // ALWAYS close the document to release file locks
+                if (doc != null && sw != null)
+                {
+                    try { sw.CloseDoc(filePath); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
+            }
+        }
+
+        /// <summary>
+        /// Set STL export options via SolidWorks user preferences
+        /// </summary>
+        /// <param name="sw">SolidWorks application instance</param>
+        /// <param name="resolution">Quality setting: "coarse", "fine", or "custom"</param>
+        /// <param name="binaryFormat">True for binary STL, false for ASCII</param>
+        /// <param name="customDeviation">Chord deviation in mm (for custom resolution)</param>
+        /// <param name="customAngle">Angle tolerance in degrees (for custom resolution)</param>
+        private void SetStlExportOptions(ISldWorks sw, string resolution, bool binaryFormat, double? customDeviation, double? customAngle)
+        {
+            // Set STL quality
+            // swSTLQuality: 0 = Coarse, 1 = Fine, 2 = Custom
+            int qualityValue = resolution.ToLowerInvariant() switch
+            {
+                "coarse" => 0,
+                "fine" => 1,
+                "custom" => 2,
+                _ => 1 // Default to fine
+            };
+            
+            sw.SetUserPreferenceIntegerValue((int)swUserPreferenceIntegerValue_e.swSTLQuality, qualityValue);
+            Console.Error.WriteLine($"[Export] STL quality set to: {resolution} ({qualityValue})");
+
+            // Set binary/ASCII format via user preferences
+            // swExportStlBinary (integer preference): 0 = ASCII, 1 = Binary
+            // Note: The exact enum value may vary by SW version. Using numeric value directly.
+            // swUserPreferenceIntegerValue_e value for STL binary: 73 (swExportStlBinary)
+            const int swExportStlBinary = 73;
+            sw.SetUserPreferenceIntegerValue(swExportStlBinary, binaryFormat ? 1 : 0);
+            Console.Error.WriteLine($"[Export] STL format set to: {(binaryFormat ? "Binary" : "ASCII")}");
+
+            // Set custom deviation and angle if using custom quality
+            if (qualityValue == 2)
+            {
+                if (customDeviation.HasValue && customDeviation.Value > 0)
+                {
+                    // swSTLDeviation is in meters, input is in mm
+                    double deviationMeters = customDeviation.Value / 1000.0;
+                    sw.SetUserPreferenceDoubleValue((int)swUserPreferenceDoubleValue_e.swSTLDeviation, deviationMeters);
+                    Console.Error.WriteLine($"[Export] STL custom deviation set to: {customDeviation.Value} mm");
+                }
+                
+                if (customAngle.HasValue && customAngle.Value > 0)
+                {
+                    // swSTLAngleTolerance is in radians, input is in degrees
+                    double angleRadians = customAngle.Value * (Math.PI / 180.0);
+                    sw.SetUserPreferenceDoubleValue((int)swUserPreferenceDoubleValue_e.swSTLAngleTolerance, angleRadians);
+                    Console.Error.WriteLine($"[Export] STL custom angle tolerance set to: {customAngle.Value} degrees");
+                }
+            }
+        }
+
+        /// <summary>
         /// Export drawing to DXF
         /// </summary>
         public CommandResult ExportToDxf(string? filePath, string? outputPath)
@@ -1295,16 +1524,24 @@ namespace BluePLM.SolidWorksService
         }
 
         /// <summary>
-        /// Get part number from properties, checking common property name variations
+        /// Get part number from properties, checking common property name variations.
+        /// IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
+        /// and represents the user's current/intended part number. "Base Item Number" may contain
+        /// legacy or template values that would incorrectly override user edits.
         /// </summary>
         private static string GetPartNumber(Dictionary<string, string> props)
         {
-            // Common part number property names used in SolidWorks
-            // Note: Blue Robotics uses "Number" as the primary part number property
+            // Priority order matters! "Number" is actively written by UI, check it first.
+            // "Base Item Number" (Document Manager standard) may contain stale values.
             string[] partNumberKeys = {
-                "Number", "PartNumber", "Part Number", "Part No", "Part No.", "PartNo",
+                // Blue Robotics primary - written by "Save to File"
+                "Number", "No", "No.",
+                // Document Manager standard (may be stale, check after Number)
+                "Base Item Number",
+                // Common variations
+                "PartNumber", "Part Number", "Part No", "Part No.", "PartNo",
                 "ItemNumber", "Item Number", "Item No", "Item No.", "ItemNo",
-                "PN", "P/N", "No", "No.",
+                "PN", "P/N",
                 // Blue Robotics specific
                 "BR Number", "BRNumber", "BR-Number", "DrawingNumber", "Drawing Number"
             };

@@ -91,9 +91,8 @@ export interface FilePaneContextValue {
   loadingConfigs: Set<string>
   selectedConfigs: Set<string>
   
-  // Clipboard
+  // Clipboard (read from Zustand store - single source of truth)
   clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
-  setClipboard: (clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null) => void
   
   // Editing
   editingCell: { path: string; column: string } | null
@@ -263,8 +262,8 @@ export function FilePaneProvider({
   // Configuration state is now passed as props from FilePane.tsx
   // to share state with useConfigHandlers hook
   
-  // Clipboard
-  const [clipboard, setClipboard] = useState<{ files: LocalFile[]; operation: 'copy' | 'cut' } | null>(null)
+  // Clipboard - read from Zustand store (single source of truth)
+  const clipboard = usePDMStore(s => s.clipboard)
   
   // Machine ID (loaded once)
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
@@ -352,8 +351,8 @@ export function FilePaneProvider({
     loadingConfigs,
     selectedConfigs,
     
-    // Clipboard
-    clipboard, setClipboard,
+    // Clipboard (from Zustand store)
+    clipboard,
     
     // Editing
     editingCell, setEditingCell,

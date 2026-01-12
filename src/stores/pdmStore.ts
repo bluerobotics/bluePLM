@@ -50,6 +50,7 @@ import {
   createIntegrationsSlice,
   createExtensionsSlice,
   createNotificationPrefsSlice,
+  createOperationLogSlice,
 } from './slices'
 
 // Create the combined store
@@ -74,6 +75,7 @@ export const usePDMStore = create<PDMStoreState>()(
       ...createIntegrationsSlice(...a),
       ...createExtensionsSlice(...a),
       ...createNotificationPrefsSlice(...a),
+      ...createOperationLogSlice(...a),
     }),
     {
       name: 'blue-plm-storage',

@@ -14,6 +14,7 @@ import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
 import { recordMetric } from '@/lib/performanceMetrics'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 // Retry configuration
 const MAX_RETRY_ATTEMPTS = 3
@@ -126,6 +127,16 @@ export const getLatestCommand: Command<GetLatestParams> = {
     const vaultPath = ctx.vaultPath!
     const operationId = `get-latest-${Date.now()}`
     
+    // Get outdated files for tracker initialization
+    const outdatedFilesForTracker = getOutdatedFilesFromSelection(ctx.files, files)
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'get-latest',
+      outdatedFilesForTracker.length,
+      outdatedFilesForTracker.map(f => f.relativePath)
+    )
+    
     logGetLatest('info', 'Starting get-latest operation', {
       operationId,
       orgId: organization.id,
@@ -150,6 +161,7 @@ export const getLatestCommand: Command<GetLatestParams> = {
         inputFilesCount: files.length,
         inputFileStatuses: files.map(f => ({ name: f.name, diffStatus: f.diffStatus, hasPdmData: !!f.pdmData }))
       })
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No files to update',
@@ -172,7 +184,7 @@ export const getLatestCommand: Command<GetLatestParams> = {
       folderCount: selectedFolderPaths.length
     })
     
-    ctx.addProcessingFolders(allPathsToTrack, 'sync')
+    ctx.addProcessingFoldersSync(allPathsToTrack, 'sync')
     
     // Yield to event loop so React can render spinners BEFORE downloads start
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -211,6 +223,16 @@ export const getLatestCommand: Command<GetLatestParams> = {
     
     // Collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Partial<LocalFile> }> = []
+    
+    // Collect paths for batch setReadonly call (performance: 1 IPC call instead of N)
+    const pathsToMakeReadonly: string[] = []
+    
+    // Start tracking the update phase
+    const updateStepId = tracker.startStep('Update files', { 
+      fileCount: filesToProcess.length, 
+      concurrency: CONCURRENT_OPERATIONS 
+    })
+    const updatePhaseStart = Date.now()
     
     // Process files with limited concurrency
     const results = await processWithConcurrency(filesToProcess, CONCURRENT_OPERATIONS, async (file) => {
@@ -316,22 +338,16 @@ export const getLatestCommand: Command<GetLatestParams> = {
           return { success: false, error: `${file.name}: ${userMessage}` }
         }
         
-        logGetLatest('debug', 'Download succeeded, setting read-only', {
+        logGetLatest('debug', 'Download succeeded', {
           operationId,
           fileName: file.name,
           downloadedSize: downloadResult.size,
           downloadedHash: downloadResult.hash?.substring(0, 12)
         })
         
-        // Set read-only (file is not checked out)
-        const readonlyOnResult = await window.electronAPI?.setReadonly(fullPath, true)
-        if (readonlyOnResult?.success === false) {
-          logGetLatest('warn', 'Failed to set read-only flag', {
-            operationId,
-            fileName: file.name,
-            error: readonlyOnResult.error
-          })
-        }
+        // Collect for batch setReadonly call (done after all downloads complete)
+        // This reduces N IPC calls to 1, improving performance
+        pathsToMakeReadonly.push(fullPath)
         
         // Queue update for batch processing
         pendingUpdates.push({
@@ -373,10 +389,40 @@ export const getLatestCommand: Command<GetLatestParams> = {
       }
     }
     
+    // End update step
+    tracker.endStep(updateStepId, 'completed', { 
+      succeeded, 
+      failed,
+      durationMs: Date.now() - updatePhaseStart
+    })
+    
+    // Batch set readonly on all downloaded files (optimization: 1 IPC call instead of N)
+    if (pathsToMakeReadonly.length > 0) {
+      const batchResult = await window.electronAPI?.setReadonlyBatch(
+        pathsToMakeReadonly.map(path => ({ path, readonly: true }))
+      )
+      if (batchResult?.success === false || batchResult?.results?.some(r => !r.success)) {
+        const failedCount = batchResult?.results?.filter(r => !r.success).length ?? 0
+        logGetLatest('warn', 'Some files failed to set read-only flag', {
+          operationId,
+          totalFiles: pathsToMakeReadonly.length,
+          failedCount
+        })
+      } else {
+        logGetLatest('debug', 'Batch setReadonly complete', {
+          operationId,
+          fileCount: pathsToMakeReadonly.length
+        })
+      }
+    }
+    
     // Apply store updates AND clear processing state atomically
     // Using updateFilesAndClearProcessing() combines both updates into ONE set() call,
     // preventing two expensive re-render cycles with O(N x depth) folderMetrics computation.
     // This eliminates the ~5 second UI freeze that occurred with separate calls.
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: pendingUpdates.length 
+    })
     const storeUpdateStart = performance.now()
     logGetLatest('info', 'Updates finished, starting store update', {
       operationId,
@@ -387,9 +433,11 @@ export const getLatestCommand: Command<GetLatestParams> = {
     })
     ctx.updateFilesAndClearProcessing(pendingUpdates, allPathsToTrack)
     ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - storeUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     logGetLatest('debug', 'Store update complete', {
       operationId,
-      durationMs: Math.round(performance.now() - storeUpdateStart),
+      durationMs: storeUpdateDuration,
       timestamp: Date.now()
     })
     
@@ -491,6 +539,9 @@ export const getLatestCommand: Command<GetLatestParams> = {
       failed: totalFailed,
       durationMs: totalOperationDuration
     })
+    
+    // Complete operation tracking
+    tracker.endOperation(totalFailed === 0 ? 'completed' : 'failed', totalFailed > 0 ? errors[0] : undefined)
     
     return {
       success: totalFailed === 0,

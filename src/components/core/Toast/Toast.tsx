@@ -27,8 +27,9 @@ export function Toast() {
           onDismiss={dismissUpdateToast}
         />
       ))}
-      {/* Progress toasts next */}
-      {progressToasts.map(toast => (
+      {/* Progress toasts - each operation shows its own toast, bottom is active, above are queued */}
+      {/* Reverse order so newest (queued) toasts appear at top, oldest (active) at bottom */}
+      {[...progressToasts].reverse().map(toast => (
         <ProgressToastItem 
           key={toast.id} 
           toast={toast}
@@ -207,14 +208,30 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
 
 function ProgressToastItem({ toast }: { toast: ToastMessage }) {
   const progress = toast.progress
+  const isQueued = progress?.queued
   
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 rounded-lg border shadow-lg bg-plm-panel border-plm-border min-w-[300px]">
+    <div className={`
+      flex flex-col gap-2 px-4 py-3 rounded-lg border shadow-lg min-w-[300px]
+      bg-plm-panel border-plm-border
+    `}>
       <div className="flex items-center gap-2">
-        <Loader2 size={14} className="text-plm-accent animate-spin" />
-        <span className="text-sm text-plm-fg">{toast.message}</span>
+        {isQueued ? (
+          // Queued: show clock/pause icon instead of spinner
+          <div className="w-3.5 h-3.5 rounded-full border-2 border-plm-fg-muted/50" />
+        ) : (
+          <Loader2 size={14} className="text-plm-accent animate-spin" />
+        )}
+        <span className={`text-sm ${isQueued ? 'text-plm-fg-muted' : 'text-plm-fg'}`}>
+          {toast.message}
+        </span>
+        {isQueued && (
+          <span className="text-xs text-plm-fg-muted bg-plm-bg-dark/50 px-1.5 py-0.5 rounded">
+            Queued
+          </span>
+        )}
       </div>
-      {progress && (
+      {progress && !isQueued && (
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 bg-plm-bg-dark rounded-full overflow-hidden">
             <div 

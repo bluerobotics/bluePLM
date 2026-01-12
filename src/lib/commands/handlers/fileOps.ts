@@ -159,10 +159,12 @@ export const moveCommand: Command<MoveParams> = {
     
     const { duration } = progress.finish()
     
-    if (failed > 0) {
-      ctx.addToast('error', `Moved ${succeeded}/${total} files`)
-    } else {
-      ctx.addToast('success', `Moved ${succeeded} file${succeeded > 1 ? 's' : ''}`)
+    if (!ctx.silent) {
+      if (failed > 0) {
+        ctx.addToast('error', `Moved ${succeeded}/${total} files`)
+      } else {
+        ctx.addToast('success', `Moved ${succeeded} file${succeeded > 1 ? 's' : ''}`)
+      }
     }
     
     ctx.onRefresh?.(true)
@@ -177,6 +179,48 @@ export const moveCommand: Command<MoveParams> = {
       duration
     }
   }
+}
+
+/**
+ * Generate a unique copy name for a file that already exists.
+ * e.g., "file.txt" -> "file - Copy.txt" -> "file - Copy (2).txt" -> etc.
+ */
+async function generateUniqueCopyName(basePath: string, sep: string): Promise<string> {
+  const lastSepIndex = basePath.lastIndexOf(sep)
+  const dir = basePath.substring(0, lastSepIndex)
+  const filename = basePath.substring(lastSepIndex + 1)
+  
+  // Split filename into name and extension
+  const lastDotIndex = filename.lastIndexOf('.')
+  const hasExtension = lastDotIndex > 0
+  const name = hasExtension ? filename.substring(0, lastDotIndex) : filename
+  const ext = hasExtension ? filename.substring(lastDotIndex) : ''
+  
+  // Try "name - Copy.ext" first
+  let copyName = `${name} - Copy${ext}`
+  let copyPath = `${dir}${sep}${copyName}`
+  
+  const exists = await window.electronAPI?.fileExists(copyPath)
+  if (!exists) {
+    return copyPath
+  }
+  
+  // Try "name - Copy (N).ext" for N = 2, 3, 4, ...
+  let counter = 2
+  while (counter < 1000) { // Safety limit
+    copyName = `${name} - Copy (${counter})${ext}`
+    copyPath = `${dir}${sep}${copyName}`
+    
+    const copyExists = await window.electronAPI?.fileExists(copyPath)
+    if (!copyExists) {
+      return copyPath
+    }
+    counter++
+  }
+  
+  // Fallback: use timestamp
+  copyName = `${name} - Copy (${Date.now()})${ext}`
+  return `${dir}${sep}${copyName}`
 }
 
 /**
@@ -215,11 +259,22 @@ export const copyCommand: Command<CopyParams> = {
         // Copy locally
         const sep = file.path.includes('\\') ? '\\' : '/'
         const vaultPath = ctx.vaultPath || ''
-        const newPath = targetFolder 
+        let destPath = targetFolder 
           ? `${vaultPath}${sep}${targetFolder.replace(/\//g, sep)}${sep}${file.name}`
           : `${vaultPath}${sep}${file.name}`
         
-        const copyResult = await window.electronAPI?.copyFile(file.path, newPath)
+        // Check if source and destination are the same, or if destination already exists
+        // If so, generate a unique "Copy" name
+        if (file.path === destPath) {
+          destPath = await generateUniqueCopyName(destPath, sep)
+        } else {
+          const destExists = await window.electronAPI?.fileExists(destPath)
+          if (destExists) {
+            destPath = await generateUniqueCopyName(destPath, sep)
+          }
+        }
+        
+        const copyResult = await window.electronAPI?.copyFile(file.path, destPath)
         if (!copyResult?.success) {
           failed++
           errors.push(`${file.name}: ${copyResult?.error || 'Failed to copy'}`)
@@ -235,10 +290,12 @@ export const copyCommand: Command<CopyParams> = {
     
     const { duration } = progress.finish()
     
-    if (failed > 0) {
-      ctx.addToast('error', `Copied ${succeeded}/${total} files`)
-    } else {
-      ctx.addToast('success', `Copied ${succeeded} file${succeeded > 1 ? 's' : ''}`)
+    if (!ctx.silent) {
+      if (failed > 0) {
+        ctx.addToast('error', `Copied ${succeeded}/${total} files`)
+      } else {
+        ctx.addToast('success', `Copied ${succeeded} file${succeeded > 1 ? 's' : ''}`)
+      }
     }
     
     ctx.onRefresh?.(true)

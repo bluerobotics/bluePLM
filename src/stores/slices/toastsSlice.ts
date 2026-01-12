@@ -88,15 +88,25 @@ export const createToastsSlice: StateCreator<
     set(state => ({ toasts: [...state.toasts, toast] }))
   },
   
-  addProgressToast: (id: string, message: string, total: number) => {
+  addProgressToast: (id: string, message: string, total: number, queued?: boolean) => {
     set(state => ({ 
       toasts: [...state.toasts, { 
         id, 
         type: 'progress', 
         message, 
         duration: 0, // Don't auto-dismiss progress toasts
-        progress: { current: 0, total, percent: 0 }
+        progress: { current: 0, total, percent: 0, queued }
       }] 
+    }))
+  },
+  
+  setProgressToastActive: (id: string) => {
+    set(state => ({
+      toasts: state.toasts.map(t => 
+        t.id === id && t.type === 'progress' && t.progress
+          ? { ...t, progress: { ...t.progress, queued: false } }
+          : t
+      )
     }))
   },
   

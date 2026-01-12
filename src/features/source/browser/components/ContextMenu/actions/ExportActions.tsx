@@ -121,7 +121,13 @@ export function ExportActions({
               break
             case 'stl':
               result = await window.electronAPI?.solidworks?.exportStl?.(file.path, {
-                exportAllConfigs: true
+                exportAllConfigs: true,
+                filenamePattern,
+                pdmMetadata,
+                resolution: exportSettings.stl_resolution,
+                binaryFormat: exportSettings.stl_binary_format,
+                customDeviation: exportSettings.stl_custom_deviation,
+                customAngle: exportSettings.stl_custom_angle
               })
               break
             case 'dxf':

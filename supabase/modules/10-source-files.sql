@@ -2373,6 +2373,44 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION get_next_serial_number(UUID) TO authenticated;
 
+-- Update serialization settings safely (preserves counter from race conditions)
+-- Used when admin saves settings - the counter is preserved from the database
+-- to prevent accidentally overwriting a counter that was incremented by another user
+DROP FUNCTION IF EXISTS update_serialization_settings_safe(UUID, JSONB) CASCADE;
+CREATE OR REPLACE FUNCTION update_serialization_settings_safe(
+  p_org_id UUID,
+  p_settings JSONB
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  current_settings JSONB;
+  preserved_counter INTEGER;
+  merged_settings JSONB;
+BEGIN
+  -- Get current settings with lock to prevent race conditions
+  SELECT serialization_settings INTO current_settings
+  FROM organizations WHERE id = p_org_id
+  FOR UPDATE;
+  
+  -- Preserve the current counter from the database
+  -- This ensures we don't overwrite a counter that was incremented by another user
+  preserved_counter := COALESCE((current_settings->>'current_counter')::integer, 0);
+  
+  -- Merge the input settings with the preserved counter
+  -- Remove current_counter from input (if present) and add the preserved one
+  merged_settings := (p_settings - 'current_counter') || jsonb_build_object('current_counter', preserved_counter);
+  
+  -- Update the organization with merged settings
+  UPDATE organizations
+  SET serialization_settings = merged_settings
+  WHERE id = p_org_id;
+  
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION update_serialization_settings_safe(UUID, JSONB) TO authenticated;
+
 -- ===========================================
 -- PERFORMANCE: Fast Vault File Queries
 -- ===========================================

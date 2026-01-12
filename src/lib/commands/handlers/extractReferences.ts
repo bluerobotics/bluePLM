@@ -14,6 +14,7 @@ import { ProgressTracker } from '../executor'
 import { upsertFileReferences } from '../../supabase'
 import type { SWReference } from '../../supabase/files/mutations'
 import { log } from '@/lib/logger'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 // Only assemblies have references to extract
 const ASSEMBLY_EXTENSIONS = ['.sldasm']
@@ -96,7 +97,15 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
     // Get synced assembly files
     const assemblyFiles = getSyncedAssemblyFiles(ctx.files, files)
     
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'extract-references',
+      assemblyFiles.length,
+      assemblyFiles.map(f => f.filePath)
+    )
+    
     if (assemblyFiles.length === 0) {
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No assembly files to process',
@@ -111,10 +120,16 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
     })
     
     // Check if SolidWorks service is running
+    const swStatusStepId = tracker.startStep('Check SW service status')
     const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+    tracker.endStep(swStatusStepId, status?.data?.running ? 'completed' : 'failed', { 
+      swRunning: !!status?.data?.running 
+    })
+    
     if (!status?.data?.running) {
       logExtract('warn', 'SolidWorks service not running', {})
       ctx.addToast('error', 'SolidWorks service is not running. Please start SolidWorks and try again.')
+      tracker.endOperation('failed', 'SolidWorks service is not running')
       return {
         success: false,
         message: 'SolidWorks service is not running',
@@ -142,6 +157,12 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
     let skipped = 0
     const errors: string[] = []
     const details: string[] = []
+    
+    // Start tracking the extraction phase
+    const extractStepId = tracker.startStep('Extract assembly references', { 
+      assemblyCount: assemblyFiles.length 
+    })
+    const extractPhaseStart = Date.now()
     
     // Process assemblies sequentially to avoid overwhelming the SW service
     for (let i = 0; i < assemblyFiles.length; i++) {
@@ -245,6 +266,14 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
       progress.update()
     }
     
+    // End extraction step
+    tracker.endStep(extractStepId, 'completed', { 
+      succeeded, 
+      failed,
+      skipped,
+      durationMs: Date.now() - extractPhaseStart
+    })
+    
     const { duration } = progress.finish()
     
     // Log summary
@@ -268,6 +297,9 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
     } else {
       ctx.addToast('info', `No assembly files to process`)
     }
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,

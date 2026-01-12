@@ -26,7 +26,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 41
+export const EXPECTED_SCHEMA_VERSION = 42
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -75,6 +75,7 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   39: 'Added module_defaults_forced_at column and force_org_module_defaults RPC for admin sidebar override',
   40: 'Fixed checkin_file RPC to restore exact version instead of incrementing when rolling back',
   41: 'Added get_vault_files_fast and get_vault_files_delta RPC functions for fast vault loading',
+  42: 'Added update_serialization_settings_safe RPC to prevent counter race conditions',
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

@@ -64,7 +64,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
     isFolderSynced,
     canHaveConfigs,
     toggleFileConfigExpansion,
-    hasPendingConfigChanges,
+    hasPendingMetadataChanges,
     savingConfigsToSW,
     saveConfigsToSWFile,
     selectedDownloadableFiles,
@@ -210,8 +210,8 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
       />
       <span className={`truncate flex-1 transition-opacity duration-200 ${isNameDimmed ? 'opacity-50' : ''} ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}>{displayFilename}</span>
       
-      {/* Save metadata badge for SW files with pending config changes */}
-      {hasConfigs && hasPendingConfigChanges(file) && file.pdmData?.checked_out_by === user?.id && (
+      {/* Save metadata badge for SW files with pending metadata changes */}
+      {hasConfigs && hasPendingMetadataChanges(file) && file.pdmData?.checked_out_by === user?.id && (
         <button
           onClick={(e) => {
             e.stopPropagation()

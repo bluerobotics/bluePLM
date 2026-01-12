@@ -1087,6 +1087,20 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'exportIges', filePath, outputPath })
   })
 
+  ipcMain.handle('solidworks:export-stl', async (_, filePath: string, options?: { 
+    outputPath?: string; 
+    exportAllConfigs?: boolean; 
+    configurations?: string[]; 
+    resolution?: 'coarse' | 'fine' | 'custom';
+    binaryFormat?: boolean;
+    customDeviation?: number;  // mm, for custom resolution
+    customAngle?: number;      // degrees, for custom resolution
+    filenamePattern?: string;
+    pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string };
+  }) => {
+    return sendSWCommand({ action: 'exportStl', filePath, ...options })
+  })
+
   ipcMain.handle('solidworks:export-image', async (_, filePath: string, options?: { outputPath?: string; width?: number; height?: number }) => {
     return sendSWCommand({ action: 'exportImage', filePath, ...options })
   })

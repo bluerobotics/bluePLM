@@ -261,8 +261,12 @@ export const createExtensionsSlice: StateCreator<
         return { success: false, error: 'Extensions API not available' }
       }
 
-      log.info('[Extensions]', 'Installing extension', { extensionId, version })
-      const result = await api.install(extensionId, version)
+      // Find the store extension to get the database UUID for download
+      const storeExt = get().storeExtensions.find(e => e.extensionId === extensionId)
+      const downloadId = storeExt?.id || extensionId // Use database UUID if available
+      
+      log.info('[Extensions]', 'Installing extension', { extensionId, downloadId, version })
+      const result = await api.install(downloadId, version, extensionId)
       
       if (result.success) {
         // Refresh the installed extensions list to pick up the new installation

@@ -6,7 +6,8 @@ import {
   Eye,
   RotateCcw,
   User,
-  Building2
+  Building2,
+  Box
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -417,6 +418,106 @@ export function ExportSettings() {
             Default format when exporting from file browser context menu
           </p>
         </div>
+      </div>
+
+      {/* STL Export Options */}
+      <div className="space-y-4 border-t border-plm-border/50 pt-6">
+        <div className="flex items-center gap-2">
+          <Box size={16} className="text-violet-400" />
+          <h3 className="text-sm font-medium text-plm-fg">STL Export Options</h3>
+        </div>
+        
+        {/* Resolution dropdown */}
+        <div>
+          <label className="block text-sm text-plm-fg mb-2">
+            Resolution Quality
+          </label>
+          <div className="flex gap-2">
+            {(['coarse', 'fine', 'custom'] as const).map(res => (
+              <button
+                key={res}
+                onClick={() => setSettings(prev => ({ ...prev, stl_resolution: res }))}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize
+                  ${settings.stl_resolution === res
+                    ? 'bg-violet-500/20 text-violet-300 border border-violet-500/50'
+                    : 'bg-plm-bg border border-plm-border/50 text-plm-fg-muted hover:bg-plm-bg-light/50'
+                  }`}
+              >
+                {res}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-plm-fg-muted">
+            {settings.stl_resolution === 'coarse' && 'Larger triangles, smaller file size. Good for visualization.'}
+            {settings.stl_resolution === 'fine' && 'Smaller triangles, better accuracy. Recommended for 3D printing.'}
+            {settings.stl_resolution === 'custom' && 'Specify custom deviation and angle tolerances.'}
+          </p>
+        </div>
+
+        {/* Custom resolution settings (only visible when custom is selected) */}
+        {settings.stl_resolution === 'custom' && (
+          <div className="grid grid-cols-2 gap-4 p-4 bg-plm-bg-light/20 rounded-lg border border-plm-border/30">
+            <div>
+              <label className="block text-xs text-plm-fg-muted mb-1.5">
+                Deviation (mm)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.001"
+                max="10"
+                value={settings.stl_custom_deviation ?? 0.1}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  stl_custom_deviation: parseFloat(e.target.value) || 0.1 
+                }))}
+                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg text-sm
+                  focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+              />
+              <p className="mt-1 text-[10px] text-plm-fg-muted">
+                Max distance between mesh and actual surface
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs text-plm-fg-muted mb-1.5">
+                Angle Tolerance (degrees)
+              </label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                max="45"
+                value={settings.stl_custom_angle ?? 10}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  stl_custom_angle: parseFloat(e.target.value) || 10 
+                }))}
+                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg text-sm
+                  focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+              />
+              <p className="mt-1 text-[10px] text-plm-fg-muted">
+                Angular resolution for curved surfaces
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Binary format toggle */}
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={settings.stl_binary_format ?? true}
+            onChange={(e) => setSettings(prev => ({ ...prev, stl_binary_format: e.target.checked }))}
+            className="w-4 h-4 rounded border-plm-border bg-plm-bg text-violet-500 
+              focus:ring-violet-500/20 focus:ring-offset-0"
+          />
+          <div>
+            <div className="text-sm text-plm-fg">Binary STL format</div>
+            <div className="text-xs text-plm-fg-muted">
+              Binary files are smaller and faster to write. Disable for ASCII format (human-readable).
+            </div>
+          </div>
+        </label>
       </div>
 
       {/* Token Reference */}

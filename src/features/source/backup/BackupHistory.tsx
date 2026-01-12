@@ -1,4 +1,4 @@
-import { Clock } from 'lucide-react'
+import { Clock, Loader2 } from 'lucide-react'
 import type { BackupStatus, DeleteConfirmTarget } from './types'
 import { extractVaultNamesFromSnapshots, formatDate } from './utils'
 import { BackupHistoryItem } from './BackupHistoryItem'
@@ -13,10 +13,12 @@ interface BackupHistoryProps {
   historyVaultFilter: string
   onHistoryVaultFilterChange: (filter: string) => void
   isRestoring: boolean
+  isLoadingSnapshots?: boolean
 }
 
 /**
  * Shows the backup history with filtering by vault.
+ * Displays its own loading spinner when snapshots are loading in the background.
  */
 export function BackupHistory({
   status,
@@ -27,7 +29,8 @@ export function BackupHistory({
   onRequestDelete,
   historyVaultFilter,
   onHistoryVaultFilterChange,
-  isRestoring
+  isRestoring,
+  isLoadingSnapshots
 }: BackupHistoryProps) {
   const vaultNames = status?.snapshots ? extractVaultNamesFromSnapshots(status.snapshots) : []
   
@@ -42,7 +45,9 @@ export function BackupHistory({
         <h4 className="text-sm font-medium flex items-center gap-2">
           <Clock className="w-4 h-4 text-plm-fg-muted" />
           Backup History
-          {status?.totalSnapshots ? (
+          {isLoadingSnapshots ? (
+            <Loader2 className="w-3 h-3 animate-spin text-plm-fg-muted" />
+          ) : status?.totalSnapshots ? (
             <span className="text-xs text-plm-fg-muted">({status.totalSnapshots})</span>
           ) : null}
         </h4>
@@ -66,6 +71,13 @@ export function BackupHistory({
         {!status?.isConfigured ? (
           <div className="text-sm text-plm-fg-muted py-8 text-center bg-plm-bg-secondary rounded-lg border border-plm-border">
             Configure backup settings to view history
+          </div>
+        ) : isLoadingSnapshots && filteredSnapshots.length === 0 ? (
+          <div className="text-sm text-plm-fg-muted py-8 text-center bg-plm-bg-secondary rounded-lg border border-plm-border">
+            <div className="flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Loading backup history...</span>
+            </div>
           </div>
         ) : status.error ? (
           <div className="text-sm text-red-400 py-4 text-center bg-red-500/10 rounded-lg border border-red-500/30">

@@ -197,7 +197,15 @@ function arePropsEqual(
       if (prevMetrics.syncedFilesCount !== nextMetrics.syncedFilesCount) return false
       if (prevMetrics.totalCheckedOutFilesCount !== nextMetrics.totalCheckedOutFilesCount) return false
       if (prevMetrics.myCheckedOutFilesCount !== nextMetrics.myCheckedOutFilesCount) return false
+      // Compare checkout users (length and content for avatar updates)
       if (prevMetrics.checkoutUsers.length !== nextMetrics.checkoutUsers.length) return false
+      for (let i = 0; i < prevMetrics.checkoutUsers.length; i++) {
+        const prev = prevMetrics.checkoutUsers[i]
+        const next = nextMetrics.checkoutUsers[i]
+        if (prev.id !== next.id) return false
+        if (prev.avatar_url !== next.avatar_url) return false
+        if (prev.name !== next.name) return false
+      }
     }
   }
   

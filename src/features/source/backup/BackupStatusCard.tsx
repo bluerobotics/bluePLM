@@ -1,15 +1,16 @@
-import { CheckCircle2, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
 import type { BackupStatus } from './types'
 
 interface BackupStatusCardProps {
   status: BackupStatus | null
+  isLoadingSnapshots?: boolean
 }
 
 /**
  * Shows the backup configuration status (configured/not configured)
  * and the total number of snapshots available.
  */
-export function BackupStatusCard({ status }: BackupStatusCardProps) {
+export function BackupStatusCard({ status, isLoadingSnapshots }: BackupStatusCardProps) {
   return (
     <div className={`p-4 rounded-lg border ${
       status?.isConfigured 
@@ -26,11 +27,19 @@ export function BackupStatusCard({ status }: BackupStatusCardProps) {
           <div className="font-medium">
             {status?.isConfigured ? 'Backup Configured' : 'Backup Not Configured'}
           </div>
-          <div className="text-sm text-plm-fg-muted">
-            {status?.isConfigured 
-              ? `${status.totalSnapshots} snapshot${status.totalSnapshots !== 1 ? 's' : ''} available`
-              : 'Configure backup settings below to enable backups'
-            }
+          <div className="text-sm text-plm-fg-muted flex items-center gap-2">
+            {status?.isConfigured ? (
+              isLoadingSnapshots ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Loading snapshots...</span>
+                </>
+              ) : (
+                `${status.totalSnapshots} snapshot${status.totalSnapshots !== 1 ? 's' : ''} available`
+              )
+            ) : (
+              'Configure backup settings below to enable backups'
+            )}
           </div>
         </div>
       </div>

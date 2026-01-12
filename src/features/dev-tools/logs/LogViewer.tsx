@@ -1761,156 +1761,154 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                 )}
               </div>
               
-              {/* Row 2: Controls & Actions */}
-              <div className="flex items-center gap-1.5">
+              {/* Row 2: Controls & Actions - consolidated with descriptive labels */}
+              <div className="flex items-center gap-2 flex-wrap">
                 {/* Recording toggle */}
                 <button
                   onClick={toggleRecording}
                   disabled={togglingRecording}
-                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                     isRecording
-                      ? 'bg-plm-error/20 text-plm-error'
-                      : 'bg-plm-fg-muted/10 text-plm-fg-muted'
+                      ? 'bg-plm-error/20 text-plm-error hover:bg-plm-error/30'
+                      : 'bg-plm-fg-muted/10 text-plm-fg-muted hover:bg-plm-fg-muted/20'
                   }`}
                   title={isRecording ? 'Recording: real-time updates' : 'Paused'}
                 >
                   {togglingRecording ? (
-                    <Loader2 size={10} className="animate-spin" />
+                    <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <Circle size={10} className={isRecording ? 'fill-current' : ''} />
+                    <Circle size={14} className={isRecording ? 'fill-current' : ''} />
                   )}
-                  <span>{isRecording ? 'REC' : 'OFF'}</span>
+                  <span>{isRecording ? 'Recording' : 'Paused'}</span>
                 </button>
                 
-                <div className="w-px h-4 bg-plm-border" />
+                {/* Sort order */}
+                <button
+                  onClick={() => setNewestFirst(!newestFirst)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+                >
+                  {newestFirst ? (
+                    <ArrowUpToLine size={14} />
+                  ) : (
+                    <ArrowDownToLine size={14} />
+                  )}
+                  <span>{newestFirst ? 'Newest First' : 'Oldest First'}</span>
+                </button>
                 
-                {/* View options group */}
-                <div className="flex items-center gap-0.5 bg-plm-input rounded px-0.5 py-0.5">
-                  <button
-                    onClick={() => setNewestFirst(!newestFirst)}
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                    title={newestFirst ? 'Newest first' : 'Oldest first'}
-                  >
-                    {newestFirst ? (
-                      <ArrowUpToLine size={12} className="text-plm-fg-muted" />
-                    ) : (
-                      <ArrowDownToLine size={12} className="text-plm-fg-muted" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setAutoScroll(!autoScroll)}
-                    className={`p-1 rounded transition-colors ${
-                      autoScroll ? 'bg-plm-accent/30 text-plm-accent' : 'hover:bg-plm-highlight text-plm-fg-muted'
-                    }`}
-                    title={autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'}
-                  >
-                    {autoScroll ? <Pin size={12} /> : <PinOff size={12} />}
-                  </button>
-                </div>
+                {/* Auto-scroll */}
+                <button
+                  onClick={() => setAutoScroll(!autoScroll)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    autoScroll 
+                      ? 'bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30' 
+                      : 'bg-plm-input text-plm-fg-muted hover:bg-plm-highlight'
+                  }`}
+                >
+                  {autoScroll ? <Pin size={14} /> : <PinOff size={14} />}
+                  <span>Auto-Scroll</span>
+                </button>
                 
-                <div className="w-px h-4 bg-plm-border" />
-                
-                {/* Selection controls */}
+                {/* Select all */}
                 <button
                   onClick={selectedEntries.size === filteredEntries.length ? deselectAllEntries : selectAllEntries}
-                  className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                  title={selectedEntries.size === filteredEntries.length ? 'Deselect all' : 'Select all'}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
                 >
                   {selectedEntries.size === filteredEntries.length && filteredEntries.length > 0 ? (
-                    <CheckSquare size={12} className="text-plm-accent" />
+                    <CheckSquare size={14} className="text-plm-accent" />
                   ) : (
-                    <Square size={12} className="text-plm-fg-muted" />
+                    <Square size={14} />
                   )}
+                  <span>{selectedEntries.size === filteredEntries.length && filteredEntries.length > 0 ? 'Deselect All' : 'Select All'}</span>
                 </button>
                 
+                {/* Selection actions */}
                 {selectedEntries.size > 0 && (
-                  <div className="flex items-center gap-1 bg-plm-accent/10 rounded px-1.5 py-0.5">
-                    <span className="text-[10px] text-plm-accent font-medium">
-                      {selectedEntries.size}
+                  <div className="flex items-center gap-1.5 bg-plm-accent/10 rounded-md px-2 py-1">
+                    <span className="text-xs text-plm-accent font-medium">
+                      {selectedEntries.size} selected
                     </span>
                     <button
                       onClick={copySelectedEntries}
-                      className="p-0.5 hover:bg-plm-accent/20 rounded transition-colors"
-                      title="Copy selected with content"
+                      className="flex items-center gap-1 px-2 py-0.5 text-xs text-plm-accent hover:bg-plm-accent/20 rounded transition-colors"
                     >
-                      {copiedSelected ? (
-                        <Check size={11} className="text-plm-accent" />
-                      ) : (
-                        <Copy size={11} className="text-plm-accent" />
-                      )}
+                      {copiedSelected ? <Check size={12} /> : <Copy size={12} />}
+                      <span>Copy</span>
                     </button>
                     <button
                       onClick={deselectAllEntries}
-                      className="p-0.5 hover:bg-plm-accent/20 rounded transition-colors"
+                      className="p-1 hover:bg-plm-accent/20 rounded transition-colors"
                       title="Clear selection"
                     >
-                      <X size={11} className="text-plm-accent" />
+                      <X size={12} className="text-plm-accent" />
                     </button>
                   </div>
                 )}
                 
                 <div className="flex-1" />
                 
-                {/* Actions group */}
-                <div className="flex items-center gap-0.5 bg-plm-input rounded px-0.5 py-0.5">
-                  <button
-                    onClick={copyAllFiltered}
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                    title="Copy all filtered"
-                  >
-                    {copied ? (
-                      <Check size={12} className="text-plm-success" />
-                    ) : (
-                      <Copy size={12} className="text-plm-fg-muted" />
-                    )}
-                  </button>
-                  <button
-                    onClick={exportFilteredLogs}
-                    disabled={filteredEntries.length === 0}
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors disabled:opacity-40"
-                    title="Export filtered"
-                  >
-                    <FileDown size={12} className="text-plm-fg-muted" />
-                  </button>
-                  <button
-                    onClick={startNewLogFile}
-                    disabled={startingNewLog}
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                    title="New log file"
-                  >
-                    {startingNewLog ? (
-                      <Loader2 size={12} className="animate-spin text-plm-fg-muted" />
-                    ) : (
-                      <FilePlus size={12} className="text-plm-fg-muted" />
-                    )}
-                  </button>
-                </div>
+                {/* Copy filtered */}
+                <button
+                  onClick={copyAllFiltered}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+                >
+                  {copied ? <Check size={14} className="text-plm-success" /> : <Copy size={14} />}
+                  <span>Copy All</span>
+                </button>
                 
-                <div className="flex items-center gap-0.5 bg-plm-input rounded px-0.5 py-0.5">
-                  <button
-                    onClick={() => setShowRetentionSettings(!showRetentionSettings)}
-                    className={`p-1 rounded transition-colors ${
-                      showRetentionSettings ? 'bg-plm-accent/30 text-plm-accent' : 'hover:bg-plm-highlight text-plm-fg-muted'
-                    }`}
-                    title="Retention settings"
-                  >
-                    <Settings size={12} />
-                  </button>
-                  <button
-                    onClick={() => window.electronAPI?.openLogsDir()}
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                    title="Open logs folder"
-                  >
-                    <FolderOpen size={12} className="text-plm-fg-muted" />
-                  </button>
-                  <button
-                    onClick={exportLogs}
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                    title="Export all logs"
-                  >
-                    <Download size={12} className="text-plm-fg-muted" />
-                  </button>
-                </div>
+                {/* Export filtered */}
+                <button
+                  onClick={exportFilteredLogs}
+                  disabled={filteredEntries.length === 0}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors disabled:opacity-40"
+                >
+                  <FileDown size={14} />
+                  <span>Export Filtered</span>
+                </button>
+                
+                {/* New log file */}
+                <button
+                  onClick={startNewLogFile}
+                  disabled={startingNewLog}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+                >
+                  {startingNewLog ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <FilePlus size={14} />
+                  )}
+                  <span>New Log</span>
+                </button>
+                
+                {/* Retention settings */}
+                <button
+                  onClick={() => setShowRetentionSettings(!showRetentionSettings)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    showRetentionSettings 
+                      ? 'bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30' 
+                      : 'bg-plm-input text-plm-fg-muted hover:bg-plm-highlight'
+                  }`}
+                >
+                  <Settings size={14} />
+                  <span>Settings</span>
+                </button>
+                
+                {/* Open folder */}
+                <button
+                  onClick={() => window.electronAPI?.openLogsDir()}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+                >
+                  <FolderOpen size={14} />
+                  <span>Open Folder</span>
+                </button>
+                
+                {/* Export all */}
+                <button
+                  onClick={exportLogs}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+                >
+                  <Download size={14} />
+                  <span>Export All</span>
+                </button>
               </div>
               
               {/* Histogram */}

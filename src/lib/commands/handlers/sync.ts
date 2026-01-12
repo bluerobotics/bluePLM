@@ -16,6 +16,7 @@ import type { SWReference } from '../../supabase/files/mutations'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 // Helper to check if file is a SolidWorks temp lock file (~$filename.sldxxx)
 function isSolidworksTempFile(name: string): boolean {
@@ -90,9 +91,14 @@ async function extractSolidWorksMetadata(
     
     
     // Extract part number from common property names (comprehensive list)
+    // IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
+    // and represents the user's current/intended part number. "Base Item Number" may contain
+    // legacy or template values that would incorrectly override user edits.
     const partNumberKeys = [
+      // Blue Robotics primary - this is what gets written by "Save to File"
+      'Number', 'No', 'No.',
       // SolidWorks standard/common
-      'Base Item Number',  // Document Manager standard property
+      'Base Item Number',  // Document Manager standard property (may be stale)
       'PartNumber', 'Part Number', 'PARTNUMBER', 'PART NUMBER',
       'Part No', 'Part No.', 'PartNo', 'PARTNO', 'PART NO',
       // Item number variations
@@ -101,7 +107,6 @@ async function extractSolidWorksMetadata(
       // Short forms
       'PN', 'P/N', 'pn', 'p/n',
       // Other common names
-      'Number', 'No', 'No.',
       'Document Number', 'DocumentNumber', 'Doc Number', 'DocNo',
       'Stock Code', 'StockCode', 'Stock Number', 'StockNumber',
       'Product Number', 'ProductNumber', 'SKU',
@@ -288,6 +293,16 @@ export const syncCommand: Command<SyncParams> = {
     const organization = ctx.organization!
     const activeVaultId = ctx.activeVaultId!
     
+    // Get unsynced files (for tracker initialization)
+    const unsyncedFilesForTracker = getUnsyncedFilesFromSelection(ctx.files, files)
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'sync',
+      unsyncedFilesForTracker.length,
+      unsyncedFilesForTracker.map(f => f.relativePath)
+    )
+    
     // Get unsynced files
     let filesToSync = getUnsyncedFilesFromSelection(ctx.files, files)
     
@@ -298,6 +313,7 @@ export const syncCommand: Command<SyncParams> = {
     }
     
     if (filesToSync.length === 0) {
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No files to sync',
@@ -315,7 +331,7 @@ export const syncCommand: Command<SyncParams> = {
 
     // Only track actual files being processed - folders show spinners via computed state
     const allPathsBeingProcessed = [...new Set([...foldersBeingProcessed, ...filesBeingProcessed])]
-    ctx.addProcessingFolders(allPathsBeingProcessed, 'upload')
+    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'upload')
     
     // Yield to event loop so React can render spinners before starting operation
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -341,6 +357,13 @@ export const syncCommand: Command<SyncParams> = {
     
     // Track synced file info for reference extraction
     const syncedFileInfos: SyncedFileInfo[] = []
+    
+    // Start tracking the upload phase
+    const uploadStepId = tracker.startStep('Upload files', { 
+      fileCount: filesToSync.length, 
+      concurrency: CONCURRENT_OPERATIONS 
+    })
+    const uploadPhaseStart = Date.now()
     
     const results = await processWithConcurrency(filesToSync, CONCURRENT_OPERATIONS, async (file) => {
       try {
@@ -407,7 +430,17 @@ export const syncCommand: Command<SyncParams> = {
       }
     }
     
+    // End upload step
+    tracker.endStep(uploadStepId, 'completed', { 
+      succeeded, 
+      failed,
+      durationMs: Date.now() - uploadPhaseStart
+    })
+    
     // Apply all store updates in a single atomic batch + clear processing folders
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: pendingUpdates.length 
+    })
     const storeUpdateStart = performance.now()
     if (pendingUpdates.length > 0) {
       ctx.updateFilesAndClearProcessing(pendingUpdates, allPathsBeingProcessed)
@@ -415,8 +448,10 @@ export const syncCommand: Command<SyncParams> = {
       ctx.removeProcessingFolders(allPathsBeingProcessed)
     }
     ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - storeUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     logSync('info', 'Store update complete', {
-      durationMs: Math.round(performance.now() - storeUpdateStart),
+      durationMs: storeUpdateDuration,
       updateCount: pendingUpdates.length,
       timestamp: Date.now()
     })
@@ -482,6 +517,9 @@ export const syncCommand: Command<SyncParams> = {
         logSync('info', 'Reference extraction complete', refResult)
       }
     }
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,

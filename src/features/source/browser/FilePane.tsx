@@ -415,7 +415,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     handleExportConfigs,
     canHaveConfigs,
     saveConfigsToSWFile,
-    hasPendingConfigChanges,
+    hasPendingMetadataChanges,
     getSelectedConfigsForFile,
     toggleFileConfigExpansion,
   } = useConfigHandlers({
@@ -1094,7 +1094,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     // Config handlers
     canHaveConfigs,
     toggleFileConfigExpansion,
-    hasPendingConfigChanges,
+    hasPendingMetadataChanges,
     savingConfigsToSW,
     saveConfigsToSWFile,
     // Edit handlers
@@ -1107,7 +1107,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     selectedDownloadableFiles, selectedUploadableFiles, selectedCheckoutableFiles,
     selectedCheckinableFiles, selectedUpdatableFiles,
     isBeingProcessed, getProcessingOperation, getFolderCheckoutStatus, isFolderSynced, isFileEditable,
-    canHaveConfigs, toggleFileConfigExpansion, hasPendingConfigChanges,
+    canHaveConfigs, toggleFileConfigExpansion, hasPendingMetadataChanges,
     savingConfigsToSW, saveConfigsToSWFile,
     handleRename, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit,
   ])

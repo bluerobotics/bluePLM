@@ -27,6 +27,7 @@ import {
 import { checkinFile, softDeleteFile } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 // Helper for timing-based logging
 function logDelete(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown> = {}) {
@@ -135,10 +136,10 @@ function showDeleteResultToast(
       // Multiple errors - summarize
       ctx.addToast('warning', `Removed ${succeeded}/${total} local files. ${errors.length} error(s) - check logs for details`)
     } else {
-      ctx.addToast('warning', `Removed ${succeeded}/${total} local files (server copies preserved)`)
+      ctx.addToast('warning', `Removed ${succeeded}/${total} local files`)
     }
   } else if (succeeded > 0) {
-    ctx.addToast('success', `Removed ${succeeded} local file${succeeded > 1 ? 's' : ''} (server copies preserved)`)
+    ctx.addToast('success', `Removed ${succeeded} local file${succeeded > 1 ? 's' : ''}`)
   }
 }
 
@@ -240,6 +241,21 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
   async execute({ files }, ctx): Promise<CommandResult> {
     const operationStart = performance.now()
     const operationId = `delete-local-${Date.now()}`
+    
+    // Get files to remove for tracker initialization
+    const syncedLocalFilesForTracker = getSyncedFilesFromSelection(ctx.files, files)
+      .filter(f => f.diffStatus !== 'cloud')
+    const unsyncedLocalFilesForTracker = getUnsyncedFilesFromSelection(ctx.files, files)
+      .filter(f => !f.isDirectory)
+    const filesToRemoveForTracker = [...syncedLocalFilesForTracker, ...unsyncedLocalFilesForTracker]
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'delete',
+      filesToRemoveForTracker.length,
+      filesToRemoveForTracker.map(f => f.relativePath)
+    )
+    
     logDelete('info', 'Starting delete-local operation', { 
       operationId,
       selectedCount: files.length 
@@ -279,6 +295,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
           ctx.addToast('success', `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''}`)
         }
         
+        tracker.endOperation('completed')
         return {
           success: true,
           message: `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''}`,
@@ -289,6 +306,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
         }
       }
       
+      tracker.endOperation('failed', 'Delete operation failed')
       return {
         success: false,
         message: 'Delete operation failed',
@@ -300,6 +318,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     
     if (filesToRemove.length === 0) {
       ctx.addToast('info', 'No local files to remove')
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No local files to remove',
@@ -330,17 +349,23 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
       await releaseCheckoutsForFiles(filesToRemove, user.id)
     }
     
+    // Start tracking the delete phase
+    const deleteStepId = tracker.startStep('Delete files', { fileCount: filesToRemove.length })
+    const deletePhaseStart = Date.now()
+    
     // Perform batch delete - single IPC call for all files
     const filePaths = filesToRemove.map(f => f.path)
     const batchResult = await window.electronAPI?.deleteBatch(filePaths, true) as BatchDeleteResult | undefined
     
     if (!batchResult) {
       // ATOMIC: Clear processing with no updates
+      tracker.endStep(deleteStepId, 'failed', { error: 'No response from system' })
       ctx.updateFilesAndClearProcessing([], allPathsBeingProcessed)
       ctx.setLastOperationCompletedAt(Date.now())
       logDelete('error', 'Batch delete failed - no response from system', { total })
       ctx.removeToast(toastId)
       ctx.addToast('error', 'Delete operation failed - no response from system')
+      tracker.endOperation('failed', 'No response from system')
       return {
         success: false,
         message: 'Delete operation failed',
@@ -349,6 +374,13 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
         failed: total
       }
     }
+    
+    // End delete step
+    tracker.endStep(deleteStepId, 'completed', { 
+      succeeded: batchResult.summary.succeeded, 
+      failed: batchResult.summary.failed,
+      durationMs: Date.now() - deletePhaseStart
+    })
     
     // Update progress to 100%
     ctx.updateProgressToast(toastId, total, 100, undefined, `${total}/${total}`)
@@ -387,13 +419,18 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     }))
     
     // ATOMIC UPDATE: Update files and clear processing in single render
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: syncedFileUpdates.length 
+    })
     ctx.updateFilesAndClearProcessing(syncedFileUpdates, allPathsBeingProcessed)
     ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - storeUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     
     logDelete('info', 'Atomic store update complete', {
       syncedFilesUpdated: syncedFileUpdates.length,
       processingPathsCleared: allPathsBeingProcessed.length,
-      durationMs: Math.round(performance.now() - storeUpdateStart)
+      durationMs: storeUpdateDuration
     })
     
     // Add auto-download exclusions for synced files
@@ -483,11 +520,14 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
       durationMs: Math.round(performance.now() - operationStart)
     })
     
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
+    
     return {
       success: failed === 0,
       message: failed > 0
-        ? `Removed ${succeeded}/${total} local files (server copies preserved)`
-        : `Removed ${succeeded} local file${succeeded > 1 ? 's' : ''} (server copies preserved)`,
+        ? `Removed ${succeeded}/${total} local files`
+        : `Removed ${succeeded} local file${succeeded > 1 ? 's' : ''}`,
       total,
       succeeded,
       failed,
@@ -541,6 +581,15 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
   async execute({ files, deleteLocal = true }, ctx): Promise<CommandResult> {
     const operationStart = performance.now()
     const operationId = `delete-server-${Date.now()}`
+    
+    // Initialize file operation tracker for DevTools monitoring
+    // Note: We track all selected files, actual count determined after filtering
+    const tracker = FileOperationTracker.start(
+      'delete',
+      files.length,
+      files.map(f => f.relativePath)
+    )
+    
     logDelete('info', 'Starting delete-server operation', { 
       operationId,
       selectedCount: files.length,
@@ -582,6 +631,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
         const pathsToRemove = emptyFolders.map(f => f.path)
         ctx.removeFilesFromStore(pathsToRemove)
         ctx.addToast('success', `Removed ${emptyFolders.length} empty folder${emptyFolders.length !== 1 ? 's' : ''}`)
+        tracker.endOperation('completed')
         return {
           success: true,
           message: `Removed ${emptyFolders.length} empty folder${emptyFolders.length !== 1 ? 's' : ''}`,
@@ -591,6 +641,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
         }
       }
       ctx.addToast('warning', 'No files to delete from server')
+      tracker.endOperation('completed')
       return {
         success: false,
         message: 'No files to delete from server',
@@ -633,6 +684,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
           ctx.addToast('success', `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''} (not synced to server)`)
         }
         
+        tracker.endOperation('completed')
         return {
           success: true,
           message: `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''} (not synced to server)`,
@@ -643,6 +695,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
         }
       }
       
+      tracker.endOperation('failed', 'Delete operation failed')
       return {
         success: false,
         message: 'Delete operation failed',
@@ -671,6 +724,11 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     if (deleteLocal) {
       const localItemsToDelete = files.filter(f => f.diffStatus !== 'cloud')
       if (localItemsToDelete.length > 0) {
+        const localDeleteStepId = tracker.startStep('Delete local files', { 
+          fileCount: localItemsToDelete.length 
+        })
+        const localDeleteStart = Date.now()
+        
         // Release checkouts first
         await releaseCheckoutsForFiles(localItemsToDelete, user.id)
         
@@ -689,6 +747,11 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
             ctx.removeFilesFromStore(deletedLocalPaths)
           }
         }
+        
+        tracker.endStep(localDeleteStepId, 'completed', { 
+          succeeded: deletedLocal,
+          durationMs: Date.now() - localDeleteStart
+        })
       }
     }
     
@@ -697,6 +760,12 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     let completedCount = 0
     
     if (uniqueFiles.length > 0) {
+      const serverDeleteStepId = tracker.startStep('Delete from server', { 
+        fileCount: uniqueFiles.length,
+        concurrency: CONCURRENT_OPERATIONS
+      })
+      const serverDeleteStart = Date.now()
+      
       const serverResults = await processWithConcurrency(uniqueFiles, CONCURRENT_OPERATIONS, async (file) => {
         if (!file.pdmData?.id) {
           completedCount++
@@ -718,6 +787,12 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
         }
       })
       deletedServer = serverResults.filter(r => r).length
+      
+      tracker.endStep(serverDeleteStepId, 'completed', { 
+        succeeded: deletedServer,
+        failed: uniqueFiles.length - deletedServer,
+        durationMs: Date.now() - serverDeleteStart
+      })
       
       // Remove successfully deleted server files from store (cloud-only files that weren't deleted locally)
       const serverDeletedPaths = uniqueFiles
@@ -804,6 +879,9 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     // - Local files removed via removeFilesFromStore()
     // - Cloud-only files removed via removeFilesFromStore()
     // - Server deletion is reflected immediately in store updates
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,

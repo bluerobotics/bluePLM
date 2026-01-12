@@ -175,11 +175,33 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
         case 'UPDATE':
           // File updated - could be checkout, version change, state change, etc.
           if (newFile) {
+            const { isFileRecentlyModified, files } = usePDMStore.getState()
             
-            // Only process updates from OTHER users via realtime
-            // Updates from current user are handled by the command handlers directly
-            // This prevents race conditions where realtime might interfere with local store updates
-            if (newFile.updated_by !== currentUserId) {
+            // Skip if file was recently modified locally (prevents state drift)
+            // This handles the race condition where stale realtime events arrive
+            // shortly after a local check-in/discard operation
+            if (isFileRecentlyModified(newFile.id)) {
+              log.debug('[Realtime]', 'Skipping update for recently modified file', { fileId: newFile.id })
+              break
+            }
+            
+            // Skip if file has pending metadata (local changes not yet committed)
+            // This prevents realtime events from overwriting user's unsaved edits
+            const localFile = files.find(f => f.pdmData?.id === newFile.id)
+            if (localFile?.pendingMetadata && Object.keys(localFile.pendingMetadata).length > 0) {
+              log.debug('[Realtime]', 'Skipping update for file with pending metadata', { fileId: newFile.id })
+              break
+            }
+            
+            // Check if checkout status changed (regardless of who made the change)
+            // This is critical for cross-machine scenarios where user releases checkout from another machine
+            const checkoutStatusChanged = oldFile?.checked_out_by !== newFile.checked_out_by
+            
+            // Update local state if:
+            // 1. Update is from another user (normal case)
+            // 2. OR checkout status changed (handles cross-machine checkout releases by same user)
+            // This prevents state drift between local and database
+            if (newFile.updated_by !== currentUserId || checkoutStatusChanged) {
               // Check if file is newly checked out by someone else
               // Realtime updates don't include the joined checked_out_user info,
               // so we need to fetch it separately
@@ -203,7 +225,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
                   })
                 })
               } else {
-                // No new checkout, just update normally
+                // No new checkout by others, just update normally
                 updateFilePdmData(newFile.id, newFile)
               }
             }

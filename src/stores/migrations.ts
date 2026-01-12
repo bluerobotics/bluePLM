@@ -12,21 +12,21 @@ export interface StoreMigration {
 }
 
 // Current schema version - increment when adding migrations
-export const CURRENT_STORE_VERSION = 1
+export const CURRENT_STORE_VERSION = 2
 
 /**
  * All migrations in order. Each transforms state from previous version.
  */
 export const migrations: StoreMigration[] = [
-  // Example migration for future use:
-  // {
-  //   version: 2,
-  //   description: 'Rename sidebarWidth to primarySidebarWidth',
-  //   migrate: (state) => {
-  //     const { sidebarWidth, ...rest } = state
-  //     return { ...rest, primarySidebarWidth: sidebarWidth ?? 280 }
-  //   }
-  // }
+  {
+    version: 2,
+    description: 'Force auto-download settings OFF for v3.5 (user can re-enable)',
+    migrate: (state) => ({
+      ...state,
+      autoDownloadCloudFiles: false,
+      autoDownloadUpdates: false,
+    })
+  }
 ]
 
 /**

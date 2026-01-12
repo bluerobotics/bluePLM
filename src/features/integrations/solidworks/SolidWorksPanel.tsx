@@ -1771,11 +1771,17 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
       }
 
       // Extract part number from common property names
+      // IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
+      // and represents the user's current/intended part number. "Base Item Number" may contain
+      // legacy or template values that would incorrectly override user edits.
       const partNumberKeys = [
-        'Base Item Number',  // SolidWorks Document Manager standard property
+        // Blue Robotics primary - this is what gets written by "Save to File"
+        'Number', 'No', 'No.',
+        // SolidWorks Document Manager standard property (may be stale)
+        'Base Item Number',
         'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
         'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
-        'PN', 'P/N', 'Number', 'No', 'No.'
+        'PN', 'P/N'
       ]
       let partNumber: string | null = null
       for (const key of partNumberKeys) {

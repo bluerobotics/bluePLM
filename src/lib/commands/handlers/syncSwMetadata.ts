@@ -15,6 +15,7 @@ import { ProgressTracker } from '../executor'
 import { syncSolidWorksFileMetadata } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -106,9 +107,14 @@ async function extractSolidWorksMetadata(
     logSyncMeta('debug', 'Available properties', { fullPath, properties: propKeys.join(', ') })
     
     // Extract part number from common property names (comprehensive list)
+    // IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
+    // and represents the user's current/intended part number. "Base Item Number" may contain
+    // legacy or template values that would incorrectly override user edits.
     const partNumberKeys = [
+      // Blue Robotics primary - this is what gets written by "Save to File"
+      'Number', 'No', 'No.',
       // SolidWorks standard/common
-      'Base Item Number',  // Document Manager standard property
+      'Base Item Number',  // Document Manager standard property (may be stale)
       'PartNumber', 'Part Number', 'PARTNUMBER', 'PART NUMBER',
       'Part No', 'Part No.', 'PartNo', 'PARTNO', 'PART NO',
       // Item number variations
@@ -117,7 +123,6 @@ async function extractSolidWorksMetadata(
       // Short forms
       'PN', 'P/N', 'pn', 'p/n',
       // Other common names
-      'Number', 'No', 'No.',
       'Document Number', 'DocumentNumber', 'Doc Number', 'DocNo',
       'Stock Code', 'StockCode', 'Stock Number', 'StockNumber',
       'Product Number', 'ProductNumber', 'SKU',
@@ -317,10 +322,27 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
     const user = ctx.user!
     const operationId = `sync-sw-metadata-${Date.now()}`
     
+    // Get synced SolidWorks files for tracker initialization
+    const syncedFilesForTracker = getSyncedFilesFromSelection(ctx.files, files)
+    const filesToProcessForTracker = syncedFilesForTracker.filter(f => SW_EXTENSIONS.includes(f.extension.toLowerCase()))
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'sync-metadata',
+      filesToProcessForTracker.length,
+      filesToProcessForTracker.map(f => f.relativePath)
+    )
+    
     // Check if SolidWorks service is running
+    const swStatusStepId = tracker.startStep('Check SW service status')
     const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+    tracker.endStep(swStatusStepId, status?.data?.running ? 'completed' : 'failed', { 
+      swRunning: !!status?.data?.running 
+    })
+    
     if (!status?.data?.running) {
       ctx.addToast('error', 'SolidWorks service is not running. Start it from Settings.')
+      tracker.endOperation('failed', 'SolidWorks service is not running')
       return {
         success: false,
         message: 'SolidWorks service not running',
@@ -342,6 +364,7 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
     const filesToProcess = syncedFiles.filter(f => SW_EXTENSIONS.includes(f.extension.toLowerCase()))
     
     if (filesToProcess.length === 0) {
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No SolidWorks files to process',
@@ -353,7 +376,7 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
     
     // Track files being processed
     const filesBeingProcessed = filesToProcess.map(f => f.relativePath)
-    ctx.addProcessingFolders(filesBeingProcessed, 'sync')
+    ctx.addProcessingFoldersSync(filesBeingProcessed, 'sync')
     
     // Yield to event loop
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -377,6 +400,13 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
     
     // Process files in parallel
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
+    
+    // Start tracking the metadata sync phase
+    const syncStepId = tracker.startStep('Extract and sync metadata', { 
+      fileCount: filesToProcess.length, 
+      concurrency: CONCURRENT_OPERATIONS 
+    })
+    const syncPhaseStart = Date.now()
     
     const results = await processWithConcurrency(filesToProcess, CONCURRENT_OPERATIONS, async (file) => {
       try {
@@ -478,7 +508,19 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
       }
     }
     
+    // End metadata sync step
+    tracker.endStep(syncStepId, 'completed', { 
+      succeeded, 
+      failed,
+      updated,
+      unchanged,
+      durationMs: Date.now() - syncPhaseStart
+    })
+    
     // Apply all store updates in a single atomic batch + clear processing folders
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: pendingUpdates.length 
+    })
     const storeUpdateStart = performance.now()
     if (pendingUpdates.length > 0) {
       ctx.updateFilesAndClearProcessing(pendingUpdates, filesBeingProcessed)
@@ -486,8 +528,10 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
       ctx.removeProcessingFolders(filesBeingProcessed)
     }
     ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - storeUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     logSyncMeta('info', 'Store update complete', {
-      durationMs: Math.round(performance.now() - storeUpdateStart),
+      durationMs: storeUpdateDuration,
       updateCount: pendingUpdates.length,
       timestamp: Date.now()
     })
@@ -512,6 +556,9 @@ export const syncSwMetadataCommand: Command<SyncSwMetadataParams> = {
     } else {
       ctx.addToast('info', 'Metadata already up to date')
     }
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,

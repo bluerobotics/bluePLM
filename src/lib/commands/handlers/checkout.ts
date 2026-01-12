@@ -15,6 +15,7 @@ import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS
 import type { LocalFile } from '../../../stores/pdmStore'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
+import { FileOperationTracker } from '../../fileOperationTracker'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -86,11 +87,17 @@ async function extractSolidWorksMetadata(
     }
     
     // Extract part number from common property names
+    // IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
+    // and represents the user's current/intended part number. "Base Item Number" may contain
+    // legacy or template values that would incorrectly override user edits.
     const partNumberKeys = [
-      'Base Item Number',  // SolidWorks Document Manager standard property
+      // Blue Robotics primary - this is what gets written by "Save to File"
+      'Number', 'No', 'No.',
+      // SolidWorks Document Manager standard property (may be stale)
+      'Base Item Number',
       'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
       'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
-      'PN', 'P/N', 'Number', 'No', 'No.'
+      'PN', 'P/N'
     ]
     let part_number: string | null = null
     for (const key of partNumberKeys) {
@@ -186,6 +193,17 @@ export const checkoutCommand: Command<CheckoutParams> = {
     const user = ctx.user!
     const operationId = `checkout-${Date.now()}`
     
+    // Get files that can be checked out (for tracker initialization)
+    const syncedFilesForTracker = getSyncedFilesFromSelection(ctx.files, files)
+    const filesToCheckoutForTracker = syncedFilesForTracker.filter(f => !f.pdmData?.checked_out_by)
+    
+    // Initialize file operation tracker for DevTools monitoring
+    const tracker = FileOperationTracker.start(
+      'checkout',
+      filesToCheckoutForTracker.length,
+      filesToCheckoutForTracker.map(f => f.relativePath)
+    )
+    
     logCheckout('info', 'Starting checkout operation', {
       operationId,
       userId: user.id,
@@ -193,13 +211,16 @@ export const checkoutCommand: Command<CheckoutParams> = {
     })
     
     // Pre-fetch machine info ONCE before processing files (avoid redundant IPC calls)
+    const prefetchStepId = tracker.startStep('Pre-fetch machine info')
     const { getMachineId, getMachineName } = await import('../../backup')
     const [machineId, machineName] = await Promise.all([
       getMachineId(),
       getMachineName()
     ])
+    tracker.endStep(prefetchStepId, 'completed', { machineId: machineId?.substring(0, 8) })
     
     // Pre-check SolidWorks service status ONCE (avoid checking for every file)
+    const swStatusStepId = tracker.startStep('Check SW service status')
     let swServiceRunning = false
     try {
       const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
@@ -207,6 +228,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
     } catch {
       // SW service not available
     }
+    tracker.endStep(swStatusStepId, 'completed', { swRunning: swServiceRunning })
     
     // Get files that can be checked out
     const syncedFiles = getSyncedFilesFromSelection(ctx.files, files)
@@ -221,6 +243,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
     
     if (filesToCheckout.length === 0) {
       logCheckout('info', 'No files to check out', { operationId })
+      tracker.endOperation('completed')
       return {
         success: true,
         message: 'No files to check out',
@@ -257,6 +280,9 @@ export const checkoutCommand: Command<CheckoutParams> = {
     // Process all files in parallel, collect updates for batch store update
     const pendingUpdates: Array<{ path: string; updates: Parameters<typeof ctx.updateFileInStore>[1] }> = []
     
+    // Collect paths for batch setReadonly call (performance: 1 IPC call instead of N)
+    const pathsToMakeWritable: string[] = []
+    
     // Track flush position and timing for incremental store updates
     let lastFlushIndex = 0
     let lastFlushTime = Date.now()
@@ -264,18 +290,26 @@ export const checkoutCommand: Command<CheckoutParams> = {
     /**
      * Flush pending store updates to provide real-time UI feedback.
      * Called periodically during batch operations based on count OR time.
+     * 
+     * NOTE: For large batches (50+ files), incremental flushing is SKIPPED
+     * because each flush triggers React re-renders with expensive folderMetrics
+     * computation, blocking all concurrent workers.
      */
     const flushPendingUpdates = () => {
       const updateCount = pendingUpdates.length
       if (updateCount > lastFlushIndex) {
+        const flushStart = performance.now()
         const updatesToFlush = pendingUpdates.slice(lastFlushIndex)
         ctx.updateFilesInStore(updatesToFlush)
+        const flushDuration = performance.now() - flushStart
+        recordSubstepTiming('flush', flushDuration)
         lastFlushIndex = updateCount
         lastFlushTime = Date.now()
         logCheckout('debug', 'Incremental store flush', {
           operationId,
           flushedCount: updatesToFlush.length,
-          totalProcessed: updateCount
+          totalProcessed: updateCount,
+          flushDurationMs: Math.round(flushDuration)
         })
       }
     }
@@ -283,8 +317,16 @@ export const checkoutCommand: Command<CheckoutParams> = {
     /**
      * Check if we should flush based on count OR time threshold.
      * This keeps UI responsive even when individual files take a long time.
+     * 
+     * PERFORMANCE OPTIMIZATION: For large batches (50+ files), skip incremental
+     * flushes entirely. Each flush triggers expensive O(N×depth) folderMetrics
+     * recomputation in useVaultTree, blocking all concurrent workers.
+     * The atomic final update at the end handles all files efficiently.
      */
     const shouldFlush = (): boolean => {
+      // Skip incremental flushes for large batches - they cause React blocking
+      if (total >= 50) return false
+      
       const countThreshold = pendingUpdates.length - lastFlushIndex >= FLUSH_INTERVAL
       const timeThreshold = Date.now() - lastFlushTime >= FLUSH_TIME_MS
       return countThreshold || (pendingUpdates.length > lastFlushIndex && timeThreshold)
@@ -314,6 +356,44 @@ export const checkoutCommand: Command<CheckoutParams> = {
       nonSwConcurrency: CONCURRENT_OPERATIONS
     })
     
+    // ========================================
+    // SUBSTEP TIMING: Aggregate timing per phase
+    // Tracked separately for non-SW (Phase 1) and SW (Phase 2) files
+    // This helps identify which subprocess is the bottleneck
+    // ========================================
+    type SubstepTimings = Record<string, { totalMs: number; callCount: number }>
+    const phase1Timings: SubstepTimings = {}
+    const phase2Timings: SubstepTimings = {}
+    let currentPhaseTimings: SubstepTimings = phase1Timings
+    
+    const recordSubstepTiming = (name: string, durationMs: number) => {
+      if (!currentPhaseTimings[name]) {
+        currentPhaseTimings[name] = { totalMs: 0, callCount: 0 }
+      }
+      currentPhaseTimings[name].totalMs += durationMs
+      currentPhaseTimings[name].callCount++
+    }
+    
+    /**
+     * Add substeps to a phase step after processing is complete
+     */
+    const addSubstepsToPhase = (phaseStepId: string, timings: SubstepTimings) => {
+      const substepOrder = ['checkoutAPI', 'setDocRW', 'extractMeta', 'flush']
+      for (const name of substepOrder) {
+        const timing = timings[name]
+        if (timing && timing.callCount > 0) {
+          tracker.addSubstep(phaseStepId, `${name} (${timing.callCount} calls)`, timing.totalMs, {
+            avgMs: Math.round(timing.totalMs / timing.callCount),
+            callCount: timing.callCount
+          })
+        }
+      }
+    }
+    
+    // Declare openDocumentPaths here so processFile can access it
+    // Will be populated before Phase 2 processing
+    let openDocumentPaths: Set<string> = new Set()
+    
     /**
      * Process a single file for checkout
      * Extracted to avoid code duplication between phases
@@ -326,27 +406,28 @@ export const checkoutCommand: Command<CheckoutParams> = {
       try {
         logCheckout('debug', 'Checking out file', { operationId, ...fileCtx })
         
+        const checkoutAPIStart = performance.now()
         const result = await checkoutFile(file.pdmData!.id, user.id, user.email, {
           machineId,
           machineName
         })
+        recordSubstepTiming('checkoutAPI', performance.now() - checkoutAPIStart)
         
         if (result.success) {
-          // Make file writable on file system
-          const readonlyResult = await window.electronAPI?.setReadonly(file.path, false)
-          if (readonlyResult?.success === false) {
-            logCheckout('warn', 'Failed to clear read-only flag', {
-              operationId,
-              fileName: file.name,
-              error: readonlyResult.error
-            })
-          }
+          // Collect path for batch setReadonly call (done after all files processed)
+          // This reduces N IPC calls to 1, significantly improving performance
+          pathsToMakeWritable.push(file.path)
           
           // If SolidWorks file is open, also change document read-only state
           // This allows checking out files without closing SolidWorks!
-          if (SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
+          // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
+          // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
+          const isFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
+          if (SW_EXTENSIONS.includes(file.extension.toLowerCase()) && isFileOpenInSW) {
             try {
+              const setDocRWStart = performance.now()
               const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, false)
+              recordSubstepTiming('setDocRW', performance.now() - setDocRWStart)
               if (docResult?.success && docResult.data?.changed) {
                 logCheckout('info', 'Updated SolidWorks document to read-write', {
                   operationId,
@@ -360,15 +441,26 @@ export const checkoutCommand: Command<CheckoutParams> = {
             }
           }
           
-          // Auto-extract SolidWorks metadata on checkout
-          const swMetadata = await extractSolidWorksMetadata(file.path, file.extension, swServiceRunning)
-          if (swMetadata) {
-            logCheckout('debug', 'Extracted SolidWorks metadata on checkout', {
-              operationId,
-              fileName: file.name,
-              partNumber: swMetadata.part_number,
-              description: swMetadata.description?.substring(0, 50)
-            })
+          // OPTIMIZATION: Skip metadata extraction on checkout for batch operations
+          // Rationale: 
+          // 1. On checkout, the file hasn't changed since last check-in
+          // 2. BluePLM already has correct metadata from the last check-in
+          // 3. Any user changes will be synced back on check-in via setProperties
+          // 4. For explicit sync, users can run "Sync SW Metadata" command
+          // This saves ~500-1000ms per SW file in batch operations
+          const isBatchOperation = swFiles.length > 10
+          if (!isBatchOperation) {
+            const extractMetaStart = performance.now()
+            const swMetadata = await extractSolidWorksMetadata(file.path, file.extension, swServiceRunning)
+            recordSubstepTiming('extractMeta', performance.now() - extractMetaStart)
+            if (swMetadata) {
+              logCheckout('debug', 'Extracted SolidWorks metadata on checkout', {
+                operationId,
+                fileName: file.name,
+                partNumber: swMetadata.part_number,
+                description: swMetadata.description?.substring(0, 50)
+              })
+            }
           }
           
           // Queue update for batch processing
@@ -431,14 +523,28 @@ export const checkoutCommand: Command<CheckoutParams> = {
     // These files don't need SW service, so no bottleneck
     // ========================================
     let nonSwResults: Array<{ success: boolean; error?: string }> = []
+    let phase1StepId = ''
     if (nonSwFiles.length > 0) {
       logCheckout('info', 'Phase 1: Processing non-SW files', {
         operationId,
         count: nonSwFiles.length,
         concurrency: CONCURRENT_OPERATIONS
       })
+      currentPhaseTimings = phase1Timings
+      phase1StepId = tracker.startStep('Process non-SW files', { 
+        fileCount: nonSwFiles.length, 
+        concurrency: CONCURRENT_OPERATIONS 
+      })
       const phase1Start = Date.now()
       nonSwResults = await processWithConcurrency(nonSwFiles, CONCURRENT_OPERATIONS, processFile)
+      const phase1Succeeded = nonSwResults.filter(r => r.success).length
+      tracker.endStep(phase1StepId, 'completed', { 
+        succeeded: phase1Succeeded, 
+        failed: nonSwFiles.length - phase1Succeeded,
+        durationMs: Date.now() - phase1Start
+      })
+      // Add substeps with aggregate timing for this phase
+      addSubstepsToPhase(phase1StepId, phase1Timings)
       logCheckout('info', 'Phase 1 complete', {
         operationId,
         count: nonSwFiles.length,
@@ -452,11 +558,38 @@ export const checkoutCommand: Command<CheckoutParams> = {
     // Sets batch flag to pause status polling during heavy operations
     // ========================================
     let swResults: Array<{ success: boolean; error?: string }> = []
+    
+    // OPTIMIZATION: Fetch open documents ONCE before processing SW files
+    // Then we only call setDocumentReadOnly for files that are actually open
+    // This reduces N service calls to 1 + (number of open files)
+    if (swFiles.length > 0 && swServiceRunning) {
+      try {
+        const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.()
+        if (openDocsResult?.success && Array.isArray(openDocsResult.data)) {
+          // Normalize paths for comparison (lowercase on Windows)
+          openDocumentPaths = new Set(
+            (openDocsResult.data as Array<{ path: string }>)
+              .map(doc => doc.path?.toLowerCase())
+              .filter(Boolean)
+          )
+        }
+      } catch {
+        // SW service error - continue without optimization
+      }
+    }
+    
+    let phase2StepId = ''
     if (swFiles.length > 0) {
       logCheckout('info', 'Phase 2: Processing SW files', {
         operationId,
         count: swFiles.length,
-        concurrency: SW_CONCURRENT_OPERATIONS
+        concurrency: SW_CONCURRENT_OPERATIONS,
+        openDocumentsCount: openDocumentPaths.size
+      })
+      currentPhaseTimings = phase2Timings
+      phase2StepId = tracker.startStep('Process SW files', { 
+        fileCount: swFiles.length, 
+        concurrency: SW_CONCURRENT_OPERATIONS 
       })
       const phase2Start = Date.now()
       
@@ -469,10 +602,19 @@ export const checkoutCommand: Command<CheckoutParams> = {
         usePDMStore.getState().setIsBatchSWOperationRunning(false)
       }
       
+      const phase2Succeeded = swResults.filter(r => r.success).length
+      const phase2Duration = Date.now() - phase2Start
+      tracker.endStep(phase2StepId, 'completed', { 
+        succeeded: phase2Succeeded, 
+        failed: swFiles.length - phase2Succeeded,
+        durationMs: phase2Duration
+      })
+      // Add substeps with aggregate timing for this phase
+      addSubstepsToPhase(phase2StepId, phase2Timings)
       logCheckout('info', 'Phase 2 complete', {
         operationId,
         count: swFiles.length,
-        durationMs: Date.now() - phase2Start
+        durationMs: phase2Duration
       })
     }
     
@@ -480,18 +622,60 @@ export const checkoutCommand: Command<CheckoutParams> = {
     const results = [...nonSwResults, ...swResults]
     
     // ========================================
+    // BATCH SETREADONLY: Make all files writable in one IPC call
+    // This reduces N IPC calls to 1, significantly improving performance
+    // ========================================
+    if (pathsToMakeWritable.length > 0) {
+      const setWritableStepId = tracker.startStep('Set files writable (batch)', {
+        fileCount: pathsToMakeWritable.length
+      })
+      const setWritableStart = performance.now()
+      const batchFiles = pathsToMakeWritable.map(path => ({ path, readonly: false }))
+      const batchResult = await window.electronAPI?.setReadonlyBatch(batchFiles)
+      const setWritableDuration = performance.now() - setWritableStart
+      
+      if (batchResult?.success === false || batchResult?.results?.some(r => !r.success)) {
+        const failedCount = batchResult?.results?.filter(r => !r.success).length ?? 0
+        tracker.endStep(setWritableStepId, 'completed', { 
+          failed: failedCount,
+          durationMs: Math.round(setWritableDuration)
+        })
+        logCheckout('warn', 'Some files failed to clear read-only flag', {
+          operationId,
+          totalFiles: pathsToMakeWritable.length,
+          failedCount,
+          durationMs: Math.round(setWritableDuration)
+        })
+      } else {
+        tracker.endStep(setWritableStepId, 'completed', { 
+          durationMs: Math.round(setWritableDuration)
+        })
+        logCheckout('debug', 'Batch setReadonly complete', {
+          operationId,
+          fileCount: pathsToMakeWritable.length,
+          durationMs: Math.round(setWritableDuration)
+        })
+      }
+    }
+    
+    // ========================================
     // ATOMIC FINAL CLEANUP: Update remaining files AND clear processing state in ONE store update
     // This prevents the 5-second UI freeze caused by two sequential re-renders with folderMetrics recalc
     // ========================================
+    const storeUpdateStepId = tracker.startStep('Atomic store update', { 
+      updateCount: pendingUpdates.length - lastFlushIndex 
+    })
     const finalUpdateStart = performance.now()
     const remainingUpdates = pendingUpdates.slice(lastFlushIndex)
     ctx.updateFilesAndClearProcessing(remainingUpdates, allPathsBeingProcessed)
     ctx.setLastOperationCompletedAt(Date.now())
+    const storeUpdateDuration = Math.round(performance.now() - finalUpdateStart)
+    tracker.endStep(storeUpdateStepId, 'completed', { durationMs: storeUpdateDuration })
     logCheckout('info', 'Atomic store update complete', {
       operationId,
       remainingFilesUpdated: remainingUpdates.length,
       processingPathsCleared: allPathsBeingProcessed.length,
-      durationMs: Math.round(performance.now() - finalUpdateStart)
+      durationMs: storeUpdateDuration
     })
     
     // Clear any persisted pending metadata for checked out files
@@ -529,6 +713,9 @@ export const checkoutCommand: Command<CheckoutParams> = {
     } else {
       ctx.addToast('success', `Checked out ${succeeded} file${succeeded > 1 ? 's' : ''}`)
     }
+    
+    // Complete operation tracking
+    tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)
     
     return {
       success: failed === 0,

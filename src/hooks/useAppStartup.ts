@@ -232,6 +232,10 @@ export function useAppStartup(): StartupState {
         const currentExtensions = usePDMStore.getState().installedExtensions
         const extensionIds = Object.keys(currentExtensions)
         
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppStartup.ts:extensionList',message:'Extensions discovered for activation',data:{extensionIds,count:extensionIds.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
+        
         if (extensionIds.length === 0) {
           log.debug('[Startup]', 'No extensions to activate')
           setStatus('Extensions ready')
@@ -248,6 +252,9 @@ export function useAppStartup(): StartupState {
           }
           
           const extName = ext.manifest?.name || extId
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppStartup.ts:activatingExt',message:'Attempting to activate extension',data:{extId,extName,manifestId:ext.manifest?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+          // #endregion
           setStatus(`Activating ${extName}...`)
           
           try {

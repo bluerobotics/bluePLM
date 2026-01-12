@@ -7,6 +7,7 @@ export interface ToastProgress {
   speed?: string
   cancelRequested?: boolean
   label?: string
+  queued?: boolean  // True if operation is waiting in queue (not yet started)
 }
 
 export interface ToastMessage {

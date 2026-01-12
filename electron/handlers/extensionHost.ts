@@ -113,6 +113,10 @@ function getExtensionsPath(): string {
 function loadExtensionsFromDisk(): void {
   const extensionsPath = getExtensionsPath()
   
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'extensionHost.ts:loadExtensionsFromDisk',message:'Scanning extensions directory',data:{extensionsPath},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+  
   try {
     // Get all directories in the extensions folder
     const entries = fs.readdirSync(extensionsPath, { withFileTypes: true })
@@ -172,6 +176,10 @@ function loadExtensionsFromDisk(): void {
           verification,
           installedAt,
         })
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'extensionHost.ts:loadExtensionsFromDisk:registered',message:'Registered extension from disk',data:{dirName:dir.name,manifestId:manifest.id,version:manifest.version,name:manifest.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
         
         deps?.log(`Loaded extension from disk: ${manifest.id} v${manifest.version}`)
         
@@ -793,6 +801,10 @@ export function registerExtensionHostHandlers(
         throw new Error('Store API returned unsuccessful response')
       }
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'extensionHost.ts:fetch-store:raw',message:'Raw store API response',data:{count:result.data.length,firstExt:result.data[0]},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
+      
       // Transform to StoreExtensionInfo format
       const extensions = result.data.map(ext => ({
         id: ext.id,
@@ -990,15 +1002,23 @@ export function registerExtensionHostHandlers(
   })
   
   // Install extension from store
-  ipcMain.handle('extensions:install', async (_event, extensionId: string, version?: string) => {
-    deps?.log(`Installing extension: ${extensionId}${version ? `@${version}` : ''}`)
+  // downloadId: database UUID for download URL
+  // manifestId: optional expected manifest ID (publisher.slug + name) for validation
+  ipcMain.handle('extensions:install', async (_event, downloadId: string, version?: string, manifestId?: string) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'extensionHost.ts:install:entry',message:'Install request received',data:{downloadId,manifestId,version},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
+    deps?.log(`Installing extension: ${downloadId}${version ? `@${version}` : ''}`)
     
     try {
-      // Step 1: Download .bpx from store
+      // Step 1: Download .bpx from store (use database UUID)
       const downloadUrl = version 
-        ? `${STORE_API_URL}/store/extensions/${encodeURIComponent(extensionId)}/download/${encodeURIComponent(version)}`
-        : `${STORE_API_URL}/store/extensions/${encodeURIComponent(extensionId)}/download`
+        ? `${STORE_API_URL}/store/extensions/${encodeURIComponent(downloadId)}/download/${encodeURIComponent(version)}`
+        : `${STORE_API_URL}/store/extensions/${encodeURIComponent(downloadId)}/download`
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'extensionHost.ts:install:downloadUrl',message:'Download URL constructed',data:{downloadUrl,downloadId,manifestId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
       deps?.log(`Downloading from: ${downloadUrl}`)
       
       const response = await fetch(downloadUrl, { redirect: 'follow' })

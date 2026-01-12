@@ -365,6 +365,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:export-dxf', filePath, outputPath),
     exportIges: (filePath: string, outputPath?: string) => 
       ipcRenderer.invoke('solidworks:export-iges', filePath, outputPath),
+    exportStl: (filePath: string, options?: { 
+      outputPath?: string; 
+      exportAllConfigs?: boolean; 
+      configurations?: string[]; 
+      resolution?: 'coarse' | 'fine' | 'custom';
+      binaryFormat?: boolean;
+      customDeviation?: number;  // mm, for custom resolution
+      customAngle?: number;      // degrees, for custom resolution
+      filenamePattern?: string;
+      pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string };
+    }) => 
+      ipcRenderer.invoke('solidworks:export-stl', filePath, options),
     exportImage: (filePath: string, options?: { outputPath?: string; width?: number; height?: number }) => 
       ipcRenderer.invoke('solidworks:export-image', filePath, options),
     
@@ -553,8 +565,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getStoreExtension: (extensionId: string) => ipcRenderer.invoke('extensions:get-store-extension', extensionId),
     
     // ----- Installation -----
-    install: (extensionId: string, version?: string) => 
-      ipcRenderer.invoke('extensions:install', extensionId, version),
+    // downloadId: database UUID for download, manifestId: expected manifest ID for validation
+    install: (downloadId: string, version?: string, manifestId?: string) => 
+      ipcRenderer.invoke('extensions:install', downloadId, version, manifestId),
     installFromFile: (bpxPath: string, acknowledgeUnsigned?: boolean) => 
       ipcRenderer.invoke('extensions:install-from-file', bpxPath, acknowledgeUnsigned),
     uninstall: (extensionId: string) => ipcRenderer.invoke('extensions:uninstall', extensionId),
