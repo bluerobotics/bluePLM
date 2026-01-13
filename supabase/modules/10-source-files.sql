@@ -2036,6 +2036,7 @@ DECLARE
   v_result JSONB;
   v_user_email TEXT;
   v_merged_custom_props JSONB;
+  v_versions_created_during_checkout INT;
 BEGIN
   -- Lock and verify ownership
   SELECT * INTO v_file
@@ -2086,9 +2087,20 @@ BEGIN
     END IF;
   END IF;
   
-  -- Only increment version if actual new content or metadata changes (not exact restore)
+  -- Check if a version was already created during this checkout session
+  -- If so, skip version creation to avoid double increment
+  SELECT COUNT(*) INTO v_versions_created_during_checkout
+  FROM file_versions
+  WHERE file_id = p_file_id 
+    AND created_at > v_file.checked_out_at;
+  
+  -- Only increment version if:
+  -- 1. There are actual changes (content, metadata, or version switch)
+  -- 2. We're not restoring an exact previous version
+  -- 3. No version was already created during this checkout session
   v_should_increment := (v_content_changed OR v_metadata_changed OR v_version_switched) 
-                        AND NOT v_restoring_exact_version;
+                        AND NOT v_restoring_exact_version
+                        AND v_versions_created_during_checkout = 0;
   
   -- Merge custom properties if provided (existing props + new props)
   IF p_custom_properties IS NOT NULL THEN
@@ -2158,7 +2170,8 @@ BEGIN
       'version_restored', v_restoring_exact_version,
       'old_version', v_file.version,
       'new_version', v_new_version,
-      'comment', p_comment
+      'comment', p_comment,
+      'version_already_created_during_checkout', v_versions_created_during_checkout > 0
     )
   );
   

@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 42, 'Added update_serialization_settings_safe RPC to prevent counter race conditions', NOW(), 'migration')
+VALUES (1, 43, 'Fix double version increment: checkin_file skips version if already created during checkout', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,
