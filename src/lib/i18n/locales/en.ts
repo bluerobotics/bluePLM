@@ -237,10 +237,10 @@ export const en: TranslationDict = {
     history: 'History',
     workflows: 'File Workflows',
     trash: 'Trash',
-    // Items
+    // Products
+    products: 'Product Explorer',
     items: 'Item Browser',
     boms: 'BOMs',
-    products: 'Products',
     // Change Control
     ecr: 'ECRs / Issues',
     eco: 'ECOs',

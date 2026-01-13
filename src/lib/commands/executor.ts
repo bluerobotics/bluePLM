@@ -168,6 +168,8 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void, exis
     updateFileInStore: store.updateFileInStore,
     updateFilesInStore: store.updateFilesInStore,
     removeFilesFromStore: store.removeFilesFromStore,
+    addFilesToStore: store.addFilesToStore,
+    renameFileInStore: store.renameFileInStore,
     clearPersistedPendingMetadataForPaths: store.clearPersistedPendingMetadataForPaths,
     addProcessingFolder: store.addProcessingFolder,
     addProcessingFolders: store.addProcessingFolders,
@@ -336,7 +338,7 @@ export async function executeCommand<K extends CommandId>(
     // Set processing state (spinners) immediately
     store.addProcessingFoldersSync(paths, processingType)
     
-    store.queueOperation({
+    const operationId = store.queueOperation({
       type: opType,
       label: toastMessage,
       paths,
@@ -350,6 +352,22 @@ export async function executeCommand<K extends CommandId>(
         await executeCommandDirect(commandId, params, { ...options, existingToastId: toastId })
       }
     })
+    
+    // If operation was a duplicate, clean up and return early
+    if (!operationId) {
+      // Remove the processing state we just set (spinners)
+      store.removeProcessingFolders(paths)
+      // Remove the progress toast we just created
+      store.removeToast(toastId)
+      
+      return {
+        success: true,
+        message: 'Operation already in progress',
+        total: 0,
+        succeeded: 0,
+        failed: 0
+      }
+    }
     
     // Return result immediately
     return {

@@ -473,6 +473,97 @@ const deleteQueue: Array<{
 }> = []
 let isProcessingDeleteQueue = false
 
+// ============================================
+// Snapshot Caching and Rate Limiting
+// ============================================
+
+interface SnapshotCache {
+  snapshots: BackupSnapshot[]
+  timestamp: number
+  configHash: string  // To invalidate cache if config changes
+}
+
+let snapshotCache: SnapshotCache | null = null
+let pendingSnapshotRequest: Promise<BackupSnapshot[]> | null = null
+let backoffMs = 0
+let lastErrorTime = 0
+
+const CACHE_TTL_MS = 5 * 60 * 1000       // 5 minutes
+const MAX_BACKOFF_MS = 10 * 60 * 1000    // 10 minutes
+const INITIAL_BACKOFF_MS = 30 * 1000     // 30 seconds
+const BACKOFF_MULTIPLIER = 2
+
+// Generate a simple hash of config to detect changes
+function getConfigHash(config: BackupConfig): string {
+  return `${config.provider}:${config.bucket}:${config.endpoint}:${config.region}`
+}
+
+// Check if cache is still valid
+function isCacheValid(config: BackupConfig): boolean {
+  if (!snapshotCache) return false
+  if (getConfigHash(config) !== snapshotCache.configHash) return false
+  return Date.now() - snapshotCache.timestamp < CACHE_TTL_MS
+}
+
+// Check if we're in backoff period
+function isInBackoff(): boolean {
+  if (backoffMs === 0) return false
+  return Date.now() - lastErrorTime < backoffMs
+}
+
+// Get remaining backoff time in seconds
+export function getBackoffRemaining(): number {
+  if (!isInBackoff()) return 0
+  return Math.max(0, Math.ceil((lastErrorTime + backoffMs - Date.now()) / 1000))
+}
+
+// Get cache age in seconds (for UI display)
+export function getSnapshotCacheAge(): number | null {
+  if (!snapshotCache) return null
+  return Math.floor((Date.now() - snapshotCache.timestamp) / 1000)
+}
+
+// Check if we have cached data available
+export function hasCachedSnapshots(): boolean {
+  return snapshotCache !== null && snapshotCache.snapshots.length > 0
+}
+
+// Get cached snapshots without triggering a fetch
+export function getCachedSnapshots(): BackupSnapshot[] {
+  return snapshotCache?.snapshots || []
+}
+
+// Clear the backoff (call after successful operation)
+function clearBackoff(): void {
+  backoffMs = 0
+  lastErrorTime = 0
+}
+
+// Increase backoff exponentially
+function increaseBackoff(): void {
+  if (backoffMs === 0) {
+    backoffMs = INITIAL_BACKOFF_MS
+  } else {
+    backoffMs = Math.min(backoffMs * BACKOFF_MULTIPLIER, MAX_BACKOFF_MS)
+  }
+  lastErrorTime = Date.now()
+  log.warn('[Backup]', `Rate limited - backing off for ${Math.round(backoffMs / 1000)}s`)
+}
+
+// Check if error is rate-limiting related
+function isRateLimitError(errorMsg: string): boolean {
+  const rateLimitPatterns = [
+    '503',
+    'too many requests',
+    'rate limit',
+    'service unavailable',
+    'temporarily unavailable',
+    'try again later'
+  ]
+  const lowerError = errorMsg.toLowerCase()
+  return rateLimitPatterns.some(pattern => lowerError.includes(pattern))
+}
+
 async function processDeleteQueue(): Promise<void> {
   if (isProcessingDeleteQueue || deleteQueue.length === 0) return
   
@@ -492,38 +583,92 @@ async function processDeleteQueue(): Promise<void> {
   isProcessingDeleteQueue = false
 }
 
-// List snapshots directly from restic
-export async function listSnapshots(config: BackupConfig): Promise<BackupSnapshot[]> {
+// List snapshots directly from restic (with caching, deduplication, and backoff)
+export async function listSnapshots(
+  config: BackupConfig,
+  options?: { forceRefresh?: boolean }
+): Promise<BackupSnapshot[]> {
   if (!window.electronAPI?.listBackupSnapshots) {
     log.error('[Backup]', 'listBackupSnapshots not available')
-    return []
+    return getCachedSnapshots()
   }
   
   if (!config.bucket || !config.access_key_encrypted || !config.secret_key_encrypted || !config.restic_password_encrypted) {
     log.error('[Backup]', 'Config incomplete for listing snapshots')
-    return []
+    return getCachedSnapshots()
   }
   
-  try {
-    const result = await window.electronAPI.listBackupSnapshots({
-      provider: config.provider,
-      bucket: config.bucket,
-      region: config.region || undefined,
-      endpoint: config.endpoint || undefined,
-      accessKey: config.access_key_encrypted,
-      secretKey: config.secret_key_encrypted,
-      resticPassword: config.restic_password_encrypted
+  // Return cached data if valid (unless force refresh)
+  if (!options?.forceRefresh && isCacheValid(config)) {
+    log.debug('[Backup]', 'Returning cached snapshots', { 
+      age: Math.round((Date.now() - snapshotCache!.timestamp) / 1000) + 's'
     })
-    
-    // Add short_id if missing (restic returns id but not always short_id)
-    return (result.snapshots || []).map(s => ({
-      ...s,
-      short_id: (s as any).short_id || s.id.substring(0, 8)
-    }))
-  } catch (err) {
-    log.error('[Backup]', 'Failed to list snapshots', { error: err instanceof Error ? err.message : String(err) })
-    return []
+    return snapshotCache!.snapshots
   }
+  
+  // Check if we're in backoff period
+  if (isInBackoff()) {
+    const remaining = getBackoffRemaining()
+    log.warn('[Backup]', `In backoff period, ${remaining}s remaining. Returning cached data.`)
+    return getCachedSnapshots()
+  }
+  
+  // If there's already a request in flight, wait for it instead of making a new one
+  if (pendingSnapshotRequest) {
+    log.debug('[Backup]', 'Waiting for in-flight snapshot request')
+    try {
+      return await pendingSnapshotRequest
+    } catch {
+      return getCachedSnapshots()
+    }
+  }
+  
+  // Make the actual request
+  pendingSnapshotRequest = (async () => {
+    try {
+      const result = await window.electronAPI!.listBackupSnapshots({
+        provider: config.provider,
+        bucket: config.bucket || '',
+        region: config.region || undefined,
+        endpoint: config.endpoint || undefined,
+        accessKey: config.access_key_encrypted || '',
+        secretKey: config.secret_key_encrypted || '',
+        resticPassword: config.restic_password_encrypted || ''
+      })
+      
+      // Add short_id if missing (restic returns id but not always short_id)
+      const snapshots = (result.snapshots || []).map(s => ({
+        ...s,
+        short_id: (s as any).short_id || s.id.substring(0, 8)
+      }))
+      
+      // Success! Update cache and clear backoff
+      snapshotCache = {
+        snapshots,
+        timestamp: Date.now(),
+        configHash: getConfigHash(config)
+      }
+      clearBackoff()
+      
+      log.debug('[Backup]', 'Snapshot list refreshed', { count: snapshots.length })
+      return snapshots
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      log.error('[Backup]', 'Failed to list snapshots', { error: errorMsg })
+      
+      // Check if this is a rate-limiting error
+      if (isRateLimitError(errorMsg)) {
+        increaseBackoff()
+      }
+      
+      // Return cached data if available, otherwise empty array
+      return getCachedSnapshots()
+    } finally {
+      pendingSnapshotRequest = null
+    }
+  })()
+  
+  return pendingSnapshotRequest
 }
 
 // Internal delete function (called by queue processor)

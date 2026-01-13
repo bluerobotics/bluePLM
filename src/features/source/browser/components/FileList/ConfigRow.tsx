@@ -60,11 +60,7 @@ export const ConfigRow = memo(function ConfigRow({
 }: ConfigRowProps) {
   return (
     <tr
-      className={`config-row hover:bg-plm-bg-light/10 cursor-pointer ${
-        isSelected 
-          ? 'bg-cyan-500/15 ring-1 ring-cyan-500/30 ring-inset' 
-          : 'bg-plm-bg-light/5'
-      }`}
+      className={`config-row cursor-pointer ${isSelected ? 'selected' : ''}`}
       style={{ height: rowHeight }}
       onClick={onClick}
       onContextMenu={onContextMenu}

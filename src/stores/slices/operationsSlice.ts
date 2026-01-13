@@ -2,6 +2,15 @@ import { StateCreator } from 'zustand'
 import type { PDMStoreState, OperationsSlice, QueuedOperation, OrphanedCheckout, StagedCheckin, MissingStorageFile } from '../types'
 import type { NotificationWithDetails } from '../../types/database'
 
+/**
+ * Check if two path arrays have any overlapping paths.
+ * Used for operation deduplication.
+ */
+function hasPathOverlap(paths1: string[], paths2: string[]): boolean {
+  const set1 = new Set(paths1)
+  return paths2.some(p => set1.has(p))
+}
+
 export const createOperationsSlice: StateCreator<
   PDMStoreState,
   [['zustand/persist', unknown]],
@@ -28,6 +37,7 @@ export const createOperationsSlice: StateCreator<
   // Initial state - Queue
   operationQueue: [],
   isOperationRunning: false,
+  currentOperation: null,
   
   // Initial state - Notifications & Reviews
   unreadNotificationCount: 0,
@@ -84,6 +94,22 @@ export const createOperationsSlice: StateCreator<
   
   // Actions - Queue
   queueOperation: (operation) => {
+    const { operationQueue, currentOperation } = get()
+    
+    // Check if same operation type with overlapping paths is already queued
+    const isDuplicateInQueue = operationQueue.some(op => 
+      op.type === operation.type && hasPathOverlap(op.paths, operation.paths)
+    )
+    
+    // Check if same operation type with overlapping paths is currently running
+    const isDuplicateRunning = currentOperation?.type === operation.type && 
+      hasPathOverlap(currentOperation.paths, operation.paths)
+    
+    if (isDuplicateInQueue || isDuplicateRunning) {
+      // Skip queueing duplicate operation
+      return null
+    }
+    
     const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const fullOperation: QueuedOperation = { ...operation, id }
     
@@ -115,17 +141,20 @@ export const createOperationsSlice: StateCreator<
     const operation = operationQueue[0]
     removeFromQueue(operation.id)
     
-    // Mark that an operation is now running
-    set({ isOperationRunning: true })
+    // Mark that an operation is now running and track its details for deduplication
+    set({ 
+      isOperationRunning: true,
+      currentOperation: { type: operation.type, paths: operation.paths }
+    })
     
     try {
       await operation.execute()
     } catch (err) {
       addToast('error', `Operation failed: ${operation.label}`)
     } finally {
-      // Operation completed - mark as not running
+      // Operation completed - mark as not running and clear current operation
       // endSync() will call processQueue() to start the next operation
-      set({ isOperationRunning: false })
+      set({ isOperationRunning: false, currentOperation: null })
     }
     
     // Process the next operation in the queue (if any)

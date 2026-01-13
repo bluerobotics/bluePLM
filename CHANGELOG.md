@@ -6,6 +6,13 @@ All notable changes to BluePLM will be documented in this file.
 
 ---
 
+## [3.6.1] - 2026-01-13
+
+### Fixed
+- **Schema version mismatch**: App now correctly expects schema v43 (was missing from 3.6.0 build)
+
+---
+
 ## [3.6.0] - 2026-01-13
 
 ### Added

@@ -221,10 +221,10 @@ export const zhTW: TranslationDict = {
     history: '歷史記錄',
     workflows: '檔案工作流程',
     trash: '資源回收筒',
-    // 物料
+    // 產品
+    products: '產品瀏覽器',
     items: '物料瀏覽器',
     boms: '物料清單',
-    products: '產品',
     // 變更控制
     ecr: 'ECR / 問題',
     eco: 'ECO',

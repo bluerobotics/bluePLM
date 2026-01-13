@@ -45,6 +45,10 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
     totalSnapshots,
     isLoadingSnapshots,
     snapshotError,
+    isBackoffActive,
+    backoffRemainingSeconds,
+    cacheAgeSeconds,
+    isUsingCachedData,
     isThisDesignated,
     isDesignatedOnline,
     isRefreshing,
@@ -121,9 +125,16 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         </div>
         <button
           onClick={refresh}
-          disabled={isRefreshing}
-          className="p-1.5 rounded hover:bg-plm-bg-secondary text-plm-fg-muted hover:text-plm-fg transition-colors"
-          title="Refresh from backup server"
+          disabled={isRefreshing || isBackoffActive}
+          className={`p-1.5 rounded transition-colors ${
+            isBackoffActive 
+              ? 'text-plm-fg-muted/50 cursor-not-allowed' 
+              : 'hover:bg-plm-bg-secondary text-plm-fg-muted hover:text-plm-fg'
+          }`}
+          title={isBackoffActive 
+            ? `Rate limited - retry in ${backoffRemainingSeconds}s` 
+            : 'Refresh from backup server'
+          }
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
@@ -135,6 +146,10 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         <BackupStatusCard 
           status={status} 
           isLoadingSnapshots={isLoadingSnapshots}
+          isBackoffActive={isBackoffActive}
+          backoffRemainingSeconds={backoffRemainingSeconds}
+          cacheAgeSeconds={cacheAgeSeconds}
+          isUsingCachedData={isUsingCachedData}
         />
         
         {/* Backup Schedule Info */}

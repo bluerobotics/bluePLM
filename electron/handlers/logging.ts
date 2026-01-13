@@ -446,6 +446,43 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
     }
   })
 
+  // Delete all log files (except current session)
+  ipcMain.handle('logs:delete-all-files', async () => {
+    const logsDir = path.join(app.getPath('userData'), 'logs')
+    
+    try {
+      const files = fs.readdirSync(logsDir)
+        .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
+      
+      let deletedCount = 0
+      const errors: string[] = []
+      
+      for (const filename of files) {
+        const filePath = path.join(logsDir, filename)
+        
+        // Don't delete current log file
+        if (filePath === logFilePath) {
+          continue
+        }
+        
+        try {
+          fs.unlinkSync(filePath)
+          deletedCount++
+        } catch (err) {
+          errors.push(`${filename}: ${String(err)}`)
+        }
+      }
+      
+      return { 
+        success: true, 
+        deleted: deletedCount,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    } catch (err) {
+      return { success: false, error: String(err), deleted: 0 }
+    }
+  })
+
   // Cleanup old logs
   ipcMain.handle('logs:cleanup-old', async () => {
     const logsDir = path.join(app.getPath('userData'), 'logs')
@@ -548,7 +585,7 @@ export function unregisterLoggingHandlers(): void {
   const handlers = [
     'logs:get-entries', 'logs:get-path', 'logs:export', 'logs:get-dir', 'logs:get-crashes-dir',
     'logs:list-crashes', 'logs:read-crash', 'logs:open-crashes-dir', 'logs:list-files',
-    'logs:read-file', 'logs:open-dir', 'logs:delete-file', 'logs:cleanup-old',
+    'logs:read-file', 'logs:open-dir', 'logs:delete-file', 'logs:delete-all-files', 'logs:cleanup-old',
     'logs:get-retention-settings', 'logs:set-retention-settings', 'logs:get-storage-info',
     'logs:get-recording-state', 'logs:set-recording-state', 'logs:start-new-file', 'logs:export-filtered'
   ]

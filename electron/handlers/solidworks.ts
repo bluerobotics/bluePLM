@@ -614,7 +614,20 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
       swServiceProcess.stderr?.on('data', (data: Buffer) => {
         const stderr = data.toString().trim()
         if (stderr) {
-          log('[SolidWorks Service stderr] ' + stderr)
+          // Filter out verbose ping-related messages to reduce log spam
+          // Pings happen every 5 seconds and generate 6-7 lines each
+          const isPingMessage = stderr.includes('Ping received') ||
+            stderr.includes('Received command: {"action":"ping"') ||
+            stderr.includes('DM API instance:') ||
+            stderr.includes('DM API IsAvailable:') ||
+            stderr.includes('DM API InitError:') ||
+            stderr.includes('SW API IsSolidWorksAvailable:') ||
+            (stderr.includes('Sending response') && stderr.includes('chars)')) ||
+            stderr.includes('Response sent, waiting for next command')
+          
+          if (!isPingMessage) {
+            log('[SolidWorks Service stderr] ' + stderr)
+          }
         }
       })
       

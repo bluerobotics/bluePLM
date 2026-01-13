@@ -178,11 +178,11 @@ export const MODULE_GROUPS: ModuleGroupDefinition[] = [
     isMasterToggle: true,
     defaultEnabled: true,
   },
-  // Items
+  // Products
   {
     id: 'items',
-    name: 'Items',
-    description: 'Item master, BOMs, and product structures',
+    name: 'Products',
+    description: 'Product explorer, item browser, and BOMs',
     isMasterToggle: true,
     defaultEnabled: true,
   },
@@ -326,8 +326,15 @@ export const MODULES: ModuleDefinition[] = [
   },
 
   // ============================================
-  // ITEMS
+  // PRODUCTS
   // ============================================
+  {
+    id: 'products',
+    name: 'Product Explorer',
+    group: 'items',
+    icon: 'Package',
+    defaultEnabled: true,
+  },
   {
     id: 'items',
     name: 'Item Browser',
@@ -340,13 +347,6 @@ export const MODULES: ModuleDefinition[] = [
     name: 'BOMs',
     group: 'items',
     icon: 'ListTree',
-    defaultEnabled: true,
-  },
-  {
-    id: 'products',
-    name: 'Products',
-    group: 'items',
-    icon: 'Package',
     defaultEnabled: true,
   },
 
@@ -727,10 +727,10 @@ export const DEFAULT_MODULE_ORDER: ModuleId[] = [
   'history',
   'workflows',
   'trash',
-  // Items
+  // Products
+  'products',
   'items',
   'boms',
-  'products',
   // Change Control
   'ecr',
   'eco',
@@ -808,7 +808,7 @@ export function getDefaultEnabledGroups(): Record<ModuleGroupId, boolean> {
 // Default custom groups for sidebar organization
 export const DEFAULT_CUSTOM_GROUPS: CustomGroup[] = [
   { id: 'group-source-files', name: 'Source Files', icon: 'FolderOpen', iconColor: null, position: 0, enabled: true },
-  { id: 'group-items', name: 'Items', icon: 'Database', iconColor: null, position: 5, enabled: true },
+  { id: 'group-products', name: 'Products', icon: 'Package', iconColor: null, position: 5, enabled: true },
   { id: 'group-change-control', name: 'Change Control', icon: 'GitPullRequest', iconColor: null, position: 8, enabled: true },
   { id: 'group-supply-chain', name: 'Supply Chain', icon: 'Truck', iconColor: null, position: 14, enabled: true },
   { id: 'group-production', name: 'Production', icon: 'Factory', iconColor: null, position: 21, enabled: true },
@@ -824,10 +824,10 @@ export const DEFAULT_MODULE_PARENT_MAP: Record<ModuleId, ParentId> = {
   'history': 'group-source-files',
   'workflows': 'group-source-files',
   'trash': 'group-source-files',
-  // Items group
-  'items': 'group-items',
-  'boms': 'group-items',
-  'products': 'group-items',
+  // Products group (after Source Files)
+  'products': 'group-products',
+  'items': 'group-products',
+  'boms': 'group-products',
   // Change Control group
   'ecr': 'group-change-control',
   'eco': 'group-change-control',

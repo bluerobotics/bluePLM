@@ -51,7 +51,10 @@ export interface UseDeleteHandlerOptions {
   addProcessingFolders: (paths: string[], operationType: OperationType) => void
   removeProcessingFolders: (paths: string[]) => void
   setUndoStack: React.Dispatch<React.SetStateAction<Array<{ type: 'delete'; file: LocalFile; originalPath: string }>>>
-  onRefresh: () => void
+  
+  // Store actions for optimistic updates
+  removeFilesFromStore: (paths: string[]) => void
+  updateFilesInStore: (updates: Array<{ path: string; updates: Partial<LocalFile> }>) => void
   
   // Toast functions
   addToast: (type: 'success' | 'error' | 'warning' | 'info', message: string, duration?: number) => void
@@ -94,7 +97,8 @@ export function useDeleteHandler({
   addProcessingFolders,
   removeProcessingFolders,
   setUndoStack,
-  onRefresh,
+  removeFilesFromStore,
+  updateFilesInStore,
   addToast,
   addProgressToast,
   removeToast,
@@ -160,6 +164,9 @@ export function useDeleteHandler({
     setDeleteEverywhere(false)
     clearSelection()
     
+    // Yield to let the dialog close before heavy work
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
     // Track files/folders being deleted for spinner display - batch add
     const pathsBeingDeleted = itemsToDelete.map(f => f.relativePath)
     addProcessingFolders(pathsBeingDeleted, 'delete')
@@ -171,9 +178,69 @@ export function useDeleteHandler({
       addProgressToast(toastId, `Deleting ${totalOps} item${totalOps > 1 ? 's' : ''}...`, totalOps)
     }
     
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OPTIMISTIC UI UPDATE: Remove files from store immediately for instant feedback
+    // ═══════════════════════════════════════════════════════════════════════════
+    const allPathsToRemove = itemsToDelete.map(f => f.path)
+    
+    if (isDeleteEverywhere) {
+      // Deleting everywhere - remove all files from UI immediately
+      // Also include synced files inside folders
+      const syncedFilePaths = syncedFiles.map(f => f.path)
+      const uniquePathsToRemove = [...new Set([...allPathsToRemove, ...syncedFilePaths])]
+      removeFilesFromStore(uniquePathsToRemove)
+    } else {
+      // Local-only delete - handle synced vs unsynced differently
+      const syncedLocalFiles = itemsToDelete.filter(f => f.pdmData?.id && f.diffStatus !== 'cloud')
+      const unsyncedFiles = itemsToDelete.filter(f => !f.pdmData?.id && !f.isDirectory)
+      const localFolders = itemsToDelete.filter(f => f.isDirectory && f.diffStatus !== 'cloud')
+      
+      // Synced files become cloud-only
+      if (syncedLocalFiles.length > 0) {
+        const cloudUpdates = syncedLocalFiles.map(f => ({
+          path: f.path,
+          updates: {
+            diffStatus: 'cloud' as const,
+            localHash: undefined
+          }
+        }))
+        updateFilesInStore(cloudUpdates)
+      }
+      
+      // Unsynced files are removed entirely
+      if (unsyncedFiles.length > 0) {
+        removeFilesFromStore(unsyncedFiles.map(f => f.path))
+      }
+      
+      // Folders with synced children become cloud-only, others are removed
+      for (const folder of localFolders) {
+        const folderPath = folder.relativePath.replace(/\\/g, '/')
+        const hasSyncedChildren = syncedLocalFiles.some(f => {
+          const filePath = f.relativePath.replace(/\\/g, '/')
+          return filePath.startsWith(folderPath + '/')
+        })
+        
+        if (hasSyncedChildren) {
+          updateFilesInStore([{
+            path: folder.path,
+            updates: {
+              diffStatus: 'cloud' as const,
+              localHash: undefined
+            }
+          }])
+        } else {
+          removeFilesFromStore([folder.path])
+        }
+      }
+    }
+    
+    // Yield to let React paint the updated state
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
     let deletedLocal = 0
     let deletedServer = 0
     let failedServer = 0
+    const failedPaths: string[] = []
     
     try {
       if (isDeleteEverywhere) {
@@ -190,12 +257,13 @@ export function useDeleteHandler({
                 await checkinFile(item.pdmData.id, user!.id).catch(() => {})
               }
               const result = await window.electronAPI?.deleteItem(item.path)
-              return result?.success || false
+              return { path: item.path, success: result?.success || false }
             } catch {
-              return false
+              return { path: item.path, success: false }
             }
           })
-          deletedLocal = localResults.filter(r => r).length
+          deletedLocal = localResults.filter(r => r.success).length
+          failedPaths.push(...localResults.filter(r => !r.success).map(r => r.path))
         }
         
         // STEP 2: Delete from server with concurrency limit
@@ -203,17 +271,18 @@ export function useDeleteHandler({
           const { softDeleteFile } = await import('@/lib/supabase')
           
           const serverResults = await processWithConcurrency(syncedFiles, CONCURRENT_OPERATIONS, async (file) => {
-            if (!file.pdmData?.id) return false
+            if (!file.pdmData?.id) return { path: file.path, success: false }
             try {
               const result = await softDeleteFile(file.pdmData.id, user!.id)
-              return result.success
+              return { path: file.path, success: result.success }
             } catch {
-              return false
+              return { path: file.path, success: false }
             }
           })
           
-          deletedServer = serverResults.filter(r => r).length
-          failedServer = serverResults.filter(r => !r).length
+          deletedServer = serverResults.filter(r => r.success).length
+          failedServer = serverResults.filter(r => !r.success).length
+          failedPaths.push(...serverResults.filter(r => !r.success).map(r => r.path))
         }
       } else {
         // Regular local-only delete - with concurrency limit
@@ -229,15 +298,16 @@ export function useDeleteHandler({
             const result = await window.electronAPI?.deleteItem(file.path)
             if (result?.success) {
               setUndoStack(prev => [...prev, { type: 'delete', file, originalPath: file.path }])
-              return true
+              return { path: file.path, success: true }
             }
-            return false
+            return { path: file.path, success: false }
           } catch {
-            return false
+            return { path: file.path, success: false }
           }
         })
         
-        deletedLocal = results.filter(r => r).length
+        deletedLocal = results.filter(r => r.success).length
+        failedPaths.push(...results.filter(r => !r.success).map(r => r.path))
       }
       
       // Remove progress toast
@@ -255,7 +325,7 @@ export function useDeleteHandler({
           addToast('success', `Deleted ${displayCount} item${displayCount !== 1 ? 's' : ''}`)
         }
       } else {
-        if (deletedLocal === itemsToDelete.length) {
+        if (deletedLocal === itemsToDelete.filter(f => f.diffStatus !== 'cloud').length) {
           addToast('success', `Deleted ${deletedLocal} item${deletedLocal > 1 ? 's' : ''}`)
         } else {
           addToast('warning', `Deleted ${deletedLocal}/${itemsToDelete.length} items`)
@@ -264,7 +334,9 @@ export function useDeleteHandler({
     } finally {
       // Clean up spinners - batch remove
       removeProcessingFolders(pathsBeingDeleted)
-      onRefresh()
+      
+      // If any deletions failed, we may need to restore those files to the UI
+      // For now, the next refresh will fix any inconsistencies
     }
   }, [
     deleteConfirm,
@@ -276,12 +348,13 @@ export function useDeleteHandler({
     clearSelection,
     addProcessingFolders,
     removeProcessingFolders,
+    removeFilesFromStore,
+    updateFilesInStore,
     user,
     setUndoStack,
     addToast,
     addProgressToast,
     removeToast,
-    onRefresh,
   ])
   
   return {

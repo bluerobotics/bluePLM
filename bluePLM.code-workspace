@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../blueplm-ext-google-drive"
+		},
+		{
+			"path": "../../../AppData/Roaming/blue-plm/logs"
 		}
 	],
 	"settings": {}

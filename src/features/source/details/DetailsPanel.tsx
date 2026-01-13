@@ -10,6 +10,7 @@ import { getDownloadUrl } from '@/lib/storage'
 import { getNextSerialNumber } from '@/lib/serialization'
 import { ContainsTab, WhereUsedTab, SWPropertiesTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
+import { VendorsTab } from './VendorsTab'
 import { 
   FileBox, 
   Layers, 
@@ -42,8 +43,6 @@ import {
   FolderPlus,
   MoveRight,
   Pencil,
-  Check,
-  X,
   ZoomIn,
   ZoomOut,
   RotateCw,
@@ -549,6 +548,44 @@ export function DetailsPanel() {
     setEditValue(currentValue)
   }
   
+  // Save metadata to SolidWorks file
+  const saveMetadataToSWFile = useCallback(async (targetFile: LocalFile, updates: { part_number?: string | null; description?: string | null; revision?: string }) => {
+    const ext = targetFile.extension?.toLowerCase() || ''
+    if (!['.sldprt', '.sldasm', '.slddrw'].includes(ext)) return
+    
+    try {
+      const props: Record<string, string> = {}
+      
+      // Get final values (pending or existing)
+      const partNumber = updates.part_number ?? targetFile.pendingMetadata?.part_number ?? targetFile.pdmData?.part_number ?? ''
+      const description = updates.description ?? targetFile.pendingMetadata?.description ?? targetFile.pdmData?.description ?? ''
+      const revision = updates.revision ?? targetFile.pendingMetadata?.revision ?? targetFile.pdmData?.revision ?? ''
+      
+      if (partNumber) props['Number'] = partNumber
+      if (description) props['Description'] = description
+      if (revision) props['Revision'] = revision
+      
+      if (Object.keys(props).length === 0) return
+      
+      const result = await window.electronAPI?.solidworks?.setProperties(targetFile.path, props)
+      if (result?.success) {
+        addToast('success', 'Saved metadata to file')
+        // Mark as recently modified to protect from LoadFiles overwrite
+        if (targetFile.pdmData?.id) {
+          usePDMStore.getState().markFileAsRecentlyModified(targetFile.pdmData.id)
+        }
+        // NOTE: We do NOT clear pendingMetadata here - it must persist until check-in
+        // so the server gets updated with the new values.
+        // Invalidate localHash since file content changed
+        usePDMStore.getState().updateFileInStore(targetFile.path, { localHash: undefined })
+      } else {
+        addToast('error', 'Failed to save metadata to file')
+      }
+    } catch (err) {
+      addToast('error', `Failed to save: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [addToast])
+
   // Handle saving an edited property
   const handleSaveEdit = async () => {
     if (!editingField || !file?.pdmData?.id || !user) {
@@ -605,29 +642,53 @@ export function DetailsPanel() {
         break
     }
     
-    // Update locally - will sync on check-in
+    // Update pending metadata in store
     updatePendingMetadata(file.path, pendingUpdates)
     
+    // Clear edit state first so UI is responsive  
     setEditingField(null)
     setEditValue('')
+    
+    // Auto-save to SolidWorks file
+    await saveMetadataToSWFile(file, pendingUpdates)
   }
   
-  // Handle generating a serial number for item number
+  // Handle generating a serial number for item number - auto-saves immediately
   const handleGenerateSerial = async () => {
     if (!organization?.id) {
       addToast('error', 'No organization connected')
       return
     }
     
-    setIsGeneratingSerial(true)
+    if (!file?.pdmData?.id) {
+      addToast('error', 'File must be synced first')
+      return
+    }
+    
     try {
+      // Generate the serial number first (no spinner yet - this is fast)
       const serial = await getNextSerialNumber(organization.id)
-      if (serial) {
-        setEditValue(serial)
-        addToast('success', `Generated: ${serial}`)
-      } else {
+      if (!serial) {
         addToast('error', 'Serialization is disabled or failed')
+        return
       }
+      
+      // Show the generated number immediately in the input
+      setEditValue(serial)
+      
+      // Update pending metadata
+      const pendingUpdates = { part_number: serial }
+      updatePendingMetadata(file.path, pendingUpdates)
+      
+      // Now start the save operation (this is what takes time)
+      setIsGeneratingSerial(true)
+      
+      // Auto-save to SolidWorks file
+      await saveMetadataToSWFile(file, pendingUpdates)
+      
+      // Exit edit mode after successful save
+      setEditingField(null)
+      setEditValue('')
     } catch (err) {
       addToast('error', `Failed to generate serial: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -661,12 +722,14 @@ export function DetailsPanel() {
     { id: 'datacard', label: 'Datacard' },
     { id: 'whereused', label: 'Where Used' },
     { id: 'contains', label: 'Contains' },
+    { id: 'vendors', label: 'Vendors' },
     { id: 'history', label: 'History' },
   ] as const : [
     { id: 'preview', label: 'Preview' },
     { id: 'properties', label: 'Properties' },
     { id: 'whereused', label: 'Where Used' },
     { id: 'contains', label: 'Contains' },
+    { id: 'vendors', label: 'Vendors' },
     { id: 'history', label: 'History' },
   ] as const
   
@@ -1176,6 +1239,10 @@ export function DetailsPanel() {
               <ContainsTab file={file} />
             )}
 
+            {detailsPanelTab === 'vendors' && (
+              <VendorsTab file={file} />
+            )}
+
             {detailsPanelTab === 'history' && (
               <div>
                 {isFolder ? (
@@ -1412,7 +1479,7 @@ function EditablePropertyItem({
       <div className="flex items-center gap-2">
         <span className="text-plm-fg-muted">{icon}</span>
         <span className="text-plm-fg-muted">{label}:</span>
-        <div className="flex items-center gap-1 flex-1">
+        <div className="relative flex-1">
           <input
             type="text"
             value={editValue}
@@ -1424,36 +1491,27 @@ function EditablePropertyItem({
                 onCancel()
               }
             }}
+            onBlur={(e) => {
+              // Don't save on blur if clicking the generate button
+              const relatedTarget = e.relatedTarget as HTMLElement | null
+              if (relatedTarget?.dataset?.generateBtn) return
+              onSave()
+            }}
             autoFocus
             disabled={isSaving || isGenerating}
-            className="flex-1 bg-plm-bg border border-plm-accent rounded px-2 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent disabled:opacity-50"
+            className="w-full bg-plm-bg border border-plm-accent rounded pl-2 pr-7 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent disabled:opacity-50"
           />
           {onGenerate && (
             <button
+              data-generate-btn="true"
               onClick={onGenerate}
               disabled={isSaving || isGenerating}
-              className="p-1 rounded hover:bg-plm-accent/20 text-plm-accent disabled:opacity-50"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/20 disabled:opacity-50 transition-colors"
               title="Generate next serial number"
             >
               {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
             </button>
           )}
-          <button
-            onClick={onSave}
-            disabled={isSaving || isGenerating}
-            className="p-1 rounded hover:bg-plm-success/20 text-plm-success disabled:opacity-50"
-            title="Save"
-          >
-            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-          </button>
-          <button
-            onClick={onCancel}
-            disabled={isSaving || isGenerating}
-            className="p-1 rounded hover:bg-plm-error/20 text-plm-error disabled:opacity-50"
-            title="Cancel"
-          >
-            <X size={14} />
-          </button>
         </div>
       </div>
     )

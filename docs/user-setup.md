@@ -67,6 +67,12 @@ After signing in, you'll see the **Welcome screen** showing available vaults.
 - **Linux**: `~/BluePLM/vault-name`
 :::
 
+::: warning Windows Performance Tip
+For best performance with SolidWorks and other CAD files on Windows, add your vault folder to Windows Defender exclusions. This prevents antivirus scanning from slowing down file operations.
+
+See the [Admin Setup Guide](/admin-setup#optimize-performance-windows) for detailed instructions, or check with your IT department before making changes.
+:::
+
 ## Working Offline
 
 Can't connect right now? Click **Work Offline** on the sign-in screen.

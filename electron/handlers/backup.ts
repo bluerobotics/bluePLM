@@ -347,7 +347,8 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
       let repoExists = false
       try {
         await new Promise<void>((resolve, reject) => {
-          const check = spawn(resticCmd, ['-r', repo, 'snapshots', '--json'], { env })
+          // Limit concurrent S3 connections to avoid rate limiting
+          const check = spawn(resticCmd, ['-r', repo, 'snapshots', '--json', '-o', 's3.connections=2'], { env })
           let stderr = ''
           
           check.stderr.on('data', (data: Buffer) => {
@@ -508,6 +509,7 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
         'backup',
         backupPath,
         '--json',
+        '-o', 's3.connections=2',  // Limit concurrent connections to avoid rate limiting
         '--tag', 'blueplm',
         '--tag', 'files'
       ]
@@ -642,6 +644,7 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
         const forget = spawn(resticCmd, [
           '-r', repo,
           'forget',
+          '-o', 's3.connections=2',  // Limit concurrent connections to avoid rate limiting
           '--keep-daily', String(config.retentionDaily),
           '--keep-weekly', String(config.retentionWeekly),
           '--keep-monthly', String(config.retentionMonthly),
@@ -793,7 +796,13 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
         let output = ''
         let stderr = ''
         
-        const list = spawn(resticCmd, ['-r', repo, 'snapshots', '--json'], { env })
+        // Limit concurrent S3 connections to avoid rate limiting
+        const list = spawn(resticCmd, [
+          '-r', repo,
+          'snapshots',
+          '--json',
+          '-o', 's3.connections=2'
+        ], { env })
         
         list.stdout.on('data', (data: Buffer) => {
           output += data.toString()
@@ -880,7 +889,7 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
       
       // Forget the snapshot
       await new Promise<void>((resolve, reject) => {
-        const forget = spawn(resticCmd, ['-r', repo, 'forget', config.snapshotId], { env })
+        const forget = spawn(resticCmd, ['-r', repo, 'forget', '-o', 's3.connections=2', config.snapshotId], { env })
         let stderr = ''
         
         forget.stderr.on('data', (data: Buffer) => {
@@ -907,7 +916,7 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
       
       // Prune to reclaim space
       await new Promise<void>((resolve, reject) => {
-        const prune = spawn(resticCmd, ['-r', repo, 'prune'], { env })
+        const prune = spawn(resticCmd, ['-r', repo, 'prune', '-o', 's3.connections=2'], { env })
         let stderr = ''
         
         prune.stderr.on('data', (data: Buffer) => {
@@ -1019,6 +1028,7 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
         '-r', repo,
         'restore', config.snapshotId,
         '--target', config.targetPath,
+        '-o', 's3.connections=2',  // Limit concurrent connections to avoid rate limiting
         '--verbose'  // Add verbose for better progress tracking
       ]
       

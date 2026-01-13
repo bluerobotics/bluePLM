@@ -2048,6 +2048,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           stats={setupVault.stats}
           syncStats={setupVaultSyncStats || undefined}
           initialSizeLimit={autoDownloadSizeLimit}
+          vaultLocalPath={setupVaultPath || undefined}
           onComplete={handleVaultSetupComplete}
           onCancel={handleVaultSetupCancel}
         />

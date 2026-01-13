@@ -46,6 +46,8 @@ export interface UseFileOperationsOptions {
   removeProcessingFolder: (path: string) => void
   renameFileInStore: (oldPath: string, newPath: string, newRelativePath: string, moved?: boolean) => void
   resetHoverStates?: () => void
+  /** Set of file paths currently saving metadata to SolidWorks file */
+  savingConfigsToSW?: Set<string>
 }
 
 export interface UseFileOperationsReturn {
@@ -81,8 +83,15 @@ export function useFileOperations({
   addProcessingFolder,
   removeProcessingFolder,
   renameFileInStore,
-  resetHoverStates
+  resetHoverStates,
+  savingConfigsToSW
 }: UseFileOperationsOptions): UseFileOperationsReturn {
+  
+  // Helper to check if any files are currently saving metadata
+  const isAnySaving = useCallback((filesToCheck: LocalFile[]): boolean => {
+    if (!savingConfigsToSW || savingConfigsToSW.size === 0) return false
+    return filesToCheck.some(f => savingConfigsToSW.has(f.path))
+  }, [savingConfigsToSW])
   
   // Calculate selected files that can be checked in (for multi-select check-in feature)
   // Exclude 'deleted' files - can't check in files that don't exist locally
@@ -200,6 +209,12 @@ export function useFileOperations({
     const isMultiSelect = selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1
     const targetFiles = isMultiSelect ? selectedCheckinableFiles : [file]
     
+    // Block if any files are currently saving metadata
+    if (isAnySaving(targetFiles)) {
+      addToast('warning', 'Please wait - file metadata is being saved')
+      return
+    }
+    
     logFileAction('Checkin file', isMultiSelect ? `${targetFiles.length} selected files` : file.relativePath)
     
     // Get all files that would be checked in
@@ -276,7 +291,7 @@ export function useFileOperations({
     
     // Reset hover state after check-in
     resetHoverStates?.()
-  }, [files, selectedFiles, selectedCheckinableFiles, userId, currentMachineId, onRefresh, addToast, setCustomConfirm, resetHoverStates])
+  }, [files, selectedFiles, selectedCheckinableFiles, userId, currentMachineId, onRefresh, addToast, setCustomConfirm, resetHoverStates, isAnySaving])
 
   // Upload files (first check-in for local files)
   const handleUpload = useCallback((e: React.MouseEvent, file: LocalFile) => {
@@ -293,8 +308,13 @@ export function useFileOperations({
 
   // Discard local changes
   const handleDiscard = useCallback((filesToDiscard: LocalFile[]) => {
+    // Block if any files are currently saving metadata
+    if (isAnySaving(filesToDiscard)) {
+      addToast('warning', 'Please wait - file metadata is being saved')
+      return
+    }
     executeCommand('discard', { files: filesToDiscard }, { onRefresh })
-  }, [onRefresh])
+  }, [onRefresh, isAnySaving, addToast])
 
   // Force release checkout (admin)
   const handleForceRelease = useCallback((filesToRelease: LocalFile[]) => {

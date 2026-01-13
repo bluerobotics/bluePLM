@@ -118,6 +118,9 @@ export const createSettingsSlice: StateCreator<
   onboardingComplete: false,
   logSharingEnabled: true,
   
+  // Initial state - Windows Defender warning
+  avExclusionWarningDismissed: false,
+  
   // Actions - Preview & Topbar
   setCadPreviewMode: (cadPreviewMode) => set({ cadPreviewMode }),
   setTopbarConfig: (config) => set((s) => ({ topbarConfig: { ...s.topbarConfig, ...config } })),
@@ -512,6 +515,9 @@ export const createSettingsSlice: StateCreator<
     solidworksIntegrationEnabled: options?.solidworksIntegrationEnabled ?? true,
   }),
   setLogSharingEnabled: (logSharingEnabled) => set({ logSharingEnabled }),
+  
+  // Actions - Windows Defender warning
+  setAvExclusionWarningDismissed: (avExclusionWarningDismissed) => set({ avExclusionWarningDismissed }),
 })
 
 // Export for use in main store

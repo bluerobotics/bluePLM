@@ -1251,6 +1251,7 @@ export function VaultsSettings() {
           vaultDescription={setupVault.description}
           syncStats={setupVaultSyncStats || undefined}
           initialSizeLimit={autoDownloadSizeLimit}
+          vaultLocalPath={setupVaultPath || undefined}
           onComplete={handleVaultSetupComplete}
           onCancel={handleVaultSetupCancel}
         />

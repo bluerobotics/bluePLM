@@ -176,20 +176,29 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           // File updated - could be checkout, version change, state change, etc.
           if (newFile) {
             const { isFileRecentlyModified, files } = usePDMStore.getState()
+            const localFile = files.find(f => f.pdmData?.id === newFile.id)
+            
+            // Log incoming realtime event for debugging
+            log.debug('[Realtime]', 'UPDATE event received', {
+              fileId: newFile.id,
+              serverPartNumber: newFile.part_number,
+              isRecentlyModified: isFileRecentlyModified(newFile.id),
+              hasPendingMetadata: !!(localFile?.pendingMetadata && Object.keys(localFile.pendingMetadata).length > 0),
+              localPartNumber: localFile?.pdmData?.part_number
+            })
             
             // Skip if file was recently modified locally (prevents state drift)
             // This handles the race condition where stale realtime events arrive
             // shortly after a local check-in/discard operation
             if (isFileRecentlyModified(newFile.id)) {
-              log.debug('[Realtime]', 'Skipping update for recently modified file', { fileId: newFile.id })
+              log.debug('[Realtime]', 'SKIP: recently modified file', { fileId: newFile.id })
               break
             }
             
             // Skip if file has pending metadata (local changes not yet committed)
             // This prevents realtime events from overwriting user's unsaved edits
-            const localFile = files.find(f => f.pdmData?.id === newFile.id)
             if (localFile?.pendingMetadata && Object.keys(localFile.pendingMetadata).length > 0) {
-              log.debug('[Realtime]', 'Skipping update for file with pending metadata', { fileId: newFile.id })
+              log.debug('[Realtime]', 'SKIP: file with pending metadata', { fileId: newFile.id })
               break
             }
             

@@ -260,7 +260,22 @@ export function useLoadFiles() {
           }
           
           // Also get persistedPendingMetadata for app restart survival
-          const { persistedPendingMetadata } = usePDMStore.getState()
+          const { persistedPendingMetadata, isFileRecentlyModified } = usePDMStore.getState()
+          
+          // Create a map of existing files' pdmData for recently modified files
+          // This prevents server data from overwriting local changes that were just saved
+          // (e.g., when FileWatcher triggers LoadFiles right after Save to File before DB update propagates)
+          const recentlyModifiedPdmData = new Map<string, typeof currentFiles[0]['pdmData']>()
+          for (const f of currentFiles) {
+            if (f.pdmData?.id && isFileRecentlyModified(f.pdmData.id)) {
+              recentlyModifiedPdmData.set(f.path, f.pdmData)
+              window.electronAPI?.log('debug', '[LoadFiles] Preserving pdmData for recently modified file', {
+                path: f.path,
+                fileId: f.pdmData.id,
+                partNumber: f.pdmData.part_number
+              })
+            }
+          }
           
           // Create a map of files checked out by me, keyed by content hash for move detection
           // This allows us to detect moved files (same content, different path) and preserve their pdmData
@@ -378,20 +393,50 @@ export function useLoadFiles() {
             // Preserve pendingMetadata from existing file OR from persistedPendingMetadata (for app restart)
             const preservedPending = existingPendingMetadata.get(localFile.path) || persistedPendingMetadata[localFile.path]
             
-            // If pendingMetadata exists and we have pdmData, merge pending values into pdmData for immediate UI display
-            // This ensures the UI shows the user's edits even after a file refresh
-            const finalPdmData = (preservedPending && pdmData) ? {
-              ...pdmData,
-              part_number: preservedPending.part_number !== undefined ? preservedPending.part_number : pdmData.part_number,
-              description: preservedPending.description !== undefined ? preservedPending.description : pdmData.description,
-              revision: preservedPending.revision !== undefined ? preservedPending.revision : pdmData.revision,
-            } : pdmData
+            // Check if this file was recently modified locally (e.g., just saved to SW file + DB)
+            // If so, preserve the existing pdmData to prevent server data from overwriting local changes
+            // This handles the race condition between Save to File and FileWatcher triggering LoadFiles
+            const recentlyModifiedData = recentlyModifiedPdmData.get(localFile.path)
+            
+            // Determine final pdmData:
+            // 1. If file was recently modified locally, use preserved pdmData (highest priority)
+            // 2. If pendingMetadata exists, merge pending values into pdmData 
+            // 3. Otherwise use server pdmData as-is
+            let finalPdmData = pdmData
+            
+            if (recentlyModifiedData) {
+              // Recently modified - keep the local pdmData to prevent reversion
+              finalPdmData = recentlyModifiedData
+              window.electronAPI?.log('debug', '[LoadFiles] SKIP merge for recently modified file', {
+                path: localFile.path,
+                serverPartNumber: pdmData?.part_number,
+                preservedPartNumber: recentlyModifiedData.part_number,
+                reason: 'recently_modified'
+              })
+            } else if (preservedPending && pdmData) {
+              // Pending metadata exists - merge pending values into pdmData for immediate UI display
+              // This ensures the UI shows the user's edits even after a file refresh
+              finalPdmData = {
+                ...pdmData,
+                part_number: preservedPending.part_number !== undefined ? preservedPending.part_number : pdmData.part_number,
+                description: preservedPending.description !== undefined ? preservedPending.description : pdmData.description,
+                revision: preservedPending.revision !== undefined ? preservedPending.revision : pdmData.revision,
+              }
+            }
+            
+            // CRITICAL: Preserve 'modified' status for files with pending metadata changes
+            // The hash comparison above may incorrectly set diffStatus to undefined because
+            // the file content hasn't changed yet (user only edited UI fields).
+            // But we know there ARE pending changes, so force 'modified' status.
+            const finalDiffStatus = (preservedPending && Object.keys(preservedPending).length > 0 && pdmData)
+              ? 'modified' as const
+              : diffStatus
             
             return {
               ...localFile,
               pdmData: finalPdmData || undefined,
               isSynced: !!pdmData,
-              diffStatus,
+              diffStatus: finalDiffStatus,
               // Preserve rollback state if it exists
               localActiveVersion: existingLocalActiveVersion,
               // Preserve localHash from existing file if not computed fresh

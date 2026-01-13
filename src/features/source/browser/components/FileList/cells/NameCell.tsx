@@ -10,7 +10,6 @@ import {
   ChevronRight,
   HardDrive,
   Loader2,
-  Save
 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { ListRowIcon } from '../ListRowIcon'
@@ -64,9 +63,6 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
     isFolderSynced,
     canHaveConfigs,
     toggleFileConfigExpansion,
-    hasPendingMetadataChanges,
-    savingConfigsToSW,
-    saveConfigsToSWFile,
     selectedDownloadableFiles,
     selectedUploadableFiles,
     selectedCheckoutableFiles,
@@ -209,30 +205,6 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
       />
       <span className={`truncate flex-1 transition-opacity duration-200 ${isNameDimmed ? 'opacity-50' : ''} ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}>{displayFilename}</span>
-      
-      {/* Save metadata badge for SW files with pending metadata changes */}
-      {hasConfigs && hasPendingMetadataChanges(file) && file.pdmData?.checked_out_by === user?.id && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            saveConfigsToSWFile(file)
-          }}
-          disabled={savingConfigsToSW.has(file.path)}
-          className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded
-            bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 
-            border border-cyan-500/30 hover:border-cyan-500/50
-            disabled:opacity-50 disabled:cursor-not-allowed
-            transition-colors flex-shrink-0 ml-1"
-          title="Save pending metadata to SolidWorks file"
-        >
-          {savingConfigsToSW.has(file.path) ? (
-            <Loader2 size={10} className="animate-spin" />
-          ) : (
-            <Save size={10} />
-          )}
-          Save metadata
-        </button>
-      )}
       
       {/* Delete spinner for folders */}
       {file.isDirectory && operationType === 'delete' && (

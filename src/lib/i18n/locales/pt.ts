@@ -221,10 +221,10 @@ export const pt: TranslationDict = {
     history: 'Histórico',
     workflows: 'Fluxos de Trabalho de Ficheiros',
     trash: 'Lixo',
-    // Items
+    // Products
+    products: 'Explorador de Produtos',
     items: 'Navegador de Artigos',
     boms: 'Listas de Materiais',
-    products: 'Produtos',
     // Change Control
     ecr: 'ECRs / Problemas',
     eco: 'ECOs',

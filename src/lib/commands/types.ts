@@ -49,6 +49,8 @@ export interface CommandContext {
   updateFileInStore: (path: string, updates: Partial<LocalFile>) => void
   updateFilesInStore: (updates: Array<{ path: string; updates: Partial<LocalFile> }>) => void  // Batch update
   removeFilesFromStore: (paths: string[]) => void
+  addFilesToStore: (files: LocalFile[]) => void
+  renameFileInStore: (oldPath: string, newPath: string, newNameOrRelPath: string, isMove?: boolean) => void
   clearPersistedPendingMetadataForPaths: (paths: string[]) => void  // Clear persisted metadata during checkout
   addProcessingFolder: (path: string, operationType: OperationType) => void
   addProcessingFolders: (paths: string[], operationType: OperationType) => void  // Batch add (single state update)

@@ -76,10 +76,10 @@ export const MODULE_RESOURCES: ResourceDefinition[] = [
   { id: 'module:workflows', name: 'File Workflows', description: 'Manage file workflow states', category: 'modules', icon: 'GitBranch', applicableActions: ['view', 'edit', 'admin'], defaultActions: [] },
   { id: 'module:trash', name: 'Trash', description: 'View and restore deleted files', category: 'modules', icon: 'Trash2', applicableActions: ['view', 'delete', 'admin'], defaultActions: [] },
   
-  // Items
+  // Products
+  { id: 'module:products', name: 'Product Explorer', description: 'Browse and manage products', category: 'modules', icon: 'Package', applicableActions: ['view', 'create', 'edit', 'delete', 'admin'], defaultActions: [] },
   { id: 'module:items', name: 'Item Browser', description: 'Browse and manage items', category: 'modules', icon: 'Database', applicableActions: ['view', 'create', 'edit', 'delete', 'admin'], defaultActions: [] },
   { id: 'module:boms', name: 'BOMs', description: 'Bill of Materials management', category: 'modules', icon: 'ListTree', applicableActions: ['view', 'create', 'edit', 'delete', 'admin'], defaultActions: [] },
-  { id: 'module:products', name: 'Products', description: 'Product management', category: 'modules', icon: 'Package', applicableActions: ['view', 'create', 'edit', 'delete', 'admin'], defaultActions: [] },
   
   // Change Control
   { id: 'module:ecr', name: 'ECRs / Issues', description: 'Engineering change requests', category: 'modules', icon: 'AlertCircle', applicableActions: ['view', 'create', 'edit', 'delete', 'admin'], defaultActions: [] },

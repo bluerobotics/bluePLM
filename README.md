@@ -16,15 +16,15 @@ Open-source product lifecycle management for everyone who builds.
 
 ## Features
 
-- **Check In / Check Out** — Exclusive file locking prevents conflicts
-- **Version Control** — Full history with rollback to any version
-- **Lifecycle States** — WIP → In Review → Released → Obsolete
-- **Real-time Sync** — Instant updates across all connected clients
-- **ECO Management** — Engineering change orders with workflow
-- **Multi-vault** — Organize files by project, department, or client
-- **Offline Mode** — Work locally, sync when connected
-- **SolidWorks Integration** — Thumbnails and metadata extraction
-- **Google Drive** — Browse and edit Docs/Sheets/Slides inline
+- **Check in / check out** — File locking so two people don't edit the same thing
+- **Version history** — Every version saved, rollback whenever you need
+- **Real-time sync** — Changes show up instantly for everyone
+- **Workflows** — Configurable review and release states
+- **ECOs** — Engineering change orders with approval routing
+- **Multi-vault** — Separate vaults for different projects or teams
+- **Offline support** — Keep working when the network drops
+- **SolidWorks integration** — Thumbnails, metadata, and reference tracking
+- **Extension system** — Add integrations like Google Drive, Slack, etc.
 - **REST API** — Fastify server with OpenAPI docs
 
 ## Quick Start

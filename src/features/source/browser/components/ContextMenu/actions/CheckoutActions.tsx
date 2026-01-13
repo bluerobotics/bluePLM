@@ -21,6 +21,8 @@ interface CheckoutActionsProps extends RefreshableActionProps {
   showStateSubmenu: boolean
   setShowStateSubmenu: (show: boolean) => void
   stateSubmenuTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
+  /** Files currently saving metadata - blocks operations if any are saving */
+  savingConfigsToSW?: Set<string>
 }
 
 export function CheckoutActions({
@@ -38,8 +40,15 @@ export function CheckoutActions({
   showStateSubmenu,
   setShowStateSubmenu,
   stateSubmenuTimeoutRef,
+  savingConfigsToSW,
 }: CheckoutActionsProps) {
   const { user, getEffectiveRole, hasPermission, addToast } = usePDMStore()
+  
+  // Check if any files are currently saving metadata
+  const isAnySaving = (files: LocalFile[]): boolean => {
+    if (!savingConfigsToSW || savingConfigsToSW.size === 0) return false
+    return files.some(f => savingConfigsToSW.has(f.path))
+  }
   const effectiveRole = getEffectiveRole()
   const isAdmin = effectiveRole === 'admin'
   
@@ -136,6 +145,10 @@ export function CheckoutActions({
                 return
               }
               if (counts.checkinableCount === 0) return
+              if (isAnySaving(contextFiles)) {
+                addToast('warning', 'Please wait - file metadata is being saved')
+                return
+              }
               handleCheckinFolder(firstFile)
               onClose()
             }}
@@ -155,6 +168,10 @@ export function CheckoutActions({
                 return
               }
               if (state.allCheckedIn || counts.checkinableCount === 0 || !user) return
+              if (isAnySaving(contextFiles)) {
+                addToast('warning', 'Please wait - file metadata is being saved')
+                return
+              }
               onClose()
               executeCommand('checkin', { files: contextFiles }, { onRefresh })
             }}
@@ -176,6 +193,10 @@ export function CheckoutActions({
           onClick={() => {
             if (!canDiscard.allowed) {
               addToast('error', canDiscard.reason || getPermissionRequirement('discard'))
+              return
+            }
+            if (isAnySaving(contextFiles)) {
+              addToast('warning', 'Please wait - file metadata is being saved')
               return
             }
             onClose()

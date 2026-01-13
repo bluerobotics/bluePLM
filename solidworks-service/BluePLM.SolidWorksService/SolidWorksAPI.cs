@@ -774,7 +774,10 @@ namespace BluePLM.SolidWorksService
 
                 var exportedFiles = new List<string>();
                 var baseName = Path.GetFileNameWithoutExtension(filePath);
-                var outputDir = Path.GetDirectoryName(outputPath ?? filePath)!;
+                // FIX: If outputPath is a directory, use it directly; otherwise extract directory from file path
+                var outputDir = !string.IsNullOrEmpty(outputPath) && Directory.Exists(outputPath) 
+                    ? outputPath 
+                    : Path.GetDirectoryName(outputPath ?? filePath)!;
                 Directory.CreateDirectory(outputDir);
 
                 // Determine which configs to export
@@ -1035,7 +1038,10 @@ namespace BluePLM.SolidWorksService
 
                 var exportedFiles = new List<string>();
                 var baseName = Path.GetFileNameWithoutExtension(filePath);
-                var outputDir = Path.GetDirectoryName(outputPath ?? filePath)!;
+                // FIX: If outputPath is a directory, use it directly; otherwise extract directory from file path
+                var outputDir = !string.IsNullOrEmpty(outputPath) && Directory.Exists(outputPath) 
+                    ? outputPath 
+                    : Path.GetDirectoryName(outputPath ?? filePath)!;
                 Directory.CreateDirectory(outputDir);
 
                 // Determine which configs to export

@@ -5,7 +5,7 @@
  * These are registered commands for programmatic use.
  */
 
-import type { Command, RenameParams, MoveParams, CopyParams, NewFolderParams, CommandResult } from '../types'
+import type { Command, RenameParams, MoveParams, CopyParams, NewFolderParams, CommandResult, LocalFile } from '../types'
 import { ProgressTracker } from '../executor'
 import { updateFilePath, updateFolderPath } from '../../supabase'
 
@@ -56,12 +56,13 @@ export const renameCommand: Command<RenameParams> = {
         }
       }
       
+      // Compute new relative path
+      const oldRelPath = file.relativePath
+      const relParentDir = oldRelPath.substring(0, oldRelPath.lastIndexOf('/'))
+      const newRelPath = relParentDir ? `${relParentDir}/${newName}` : newName
+      
       // For synced files, update server path
       if (file.pdmData?.id) {
-        const oldRelPath = file.relativePath
-        const relParentDir = oldRelPath.substring(0, oldRelPath.lastIndexOf('/'))
-        const newRelPath = relParentDir ? `${relParentDir}/${newName}` : newName
-        
         if (file.isDirectory) {
           await updateFolderPath(oldRelPath, newRelPath)
         } else {
@@ -69,8 +70,11 @@ export const renameCommand: Command<RenameParams> = {
         }
       }
       
+      // Optimistic UI update: rename in store immediately
+      ctx.renameFileInStore(oldPath, newPath, newName, false)
+      
       ctx.addToast('success', `Renamed to ${newName}`)
-      ctx.onRefresh?.(true)
+      // No onRefresh needed - UI updates instantly via renameFileInStore
       
       return {
         success: true,
@@ -139,15 +143,20 @@ export const moveCommand: Command<MoveParams> = {
           continue
         }
         
+        // Compute new relative path for store update
+        const newRelPath = targetFolder ? `${targetFolder}/${file.name}` : file.name
+        
         // Update server if synced
         if (file.pdmData?.id) {
-          const newRelPath = targetFolder ? `${targetFolder}/${file.name}` : file.name
           if (file.isDirectory) {
             await updateFolderPath(file.relativePath, newRelPath)
           } else {
             await updateFilePath(file.pdmData.id, newRelPath)
           }
         }
+        
+        // Optimistic UI update: update file path in store immediately
+        ctx.renameFileInStore(file.path, newPath, newRelPath, true)
         
         succeeded++
       } catch (err) {
@@ -167,7 +176,7 @@ export const moveCommand: Command<MoveParams> = {
       }
     }
     
-    ctx.onRefresh?.(true)
+    // No onRefresh needed - UI updates instantly via renameFileInStore
     
     return {
       success: failed === 0,
@@ -253,6 +262,7 @@ export const copyCommand: Command<CopyParams> = {
     let succeeded = 0
     let failed = 0
     const errors: string[] = []
+    const newFiles: LocalFile[] = []
     
     for (const file of files) {
       try {
@@ -280,6 +290,26 @@ export const copyCommand: Command<CopyParams> = {
           errors.push(`${file.name}: ${copyResult?.error || 'Failed to copy'}`)
         } else {
           succeeded++
+          
+          // Construct LocalFile for optimistic UI update
+          const destName = destPath.substring(destPath.lastIndexOf(sep) + 1)
+          const destRelativePath = targetFolder 
+            ? `${targetFolder}/${destName}`
+            : destName
+          
+          const newFile: LocalFile = {
+            name: destName,
+            path: destPath,
+            relativePath: destRelativePath,
+            isDirectory: file.isDirectory,
+            extension: file.extension,
+            size: file.size,
+            modifiedTime: new Date().toISOString(),
+            // Copied file is local-only (not synced to server)
+            isSynced: false,
+            diffStatus: 'added'
+          }
+          newFiles.push(newFile)
         }
       } catch (err) {
         failed++
@@ -290,6 +320,13 @@ export const copyCommand: Command<CopyParams> = {
     
     const { duration } = progress.finish()
     
+    // Optimistic UI update: add new files to store immediately
+    if (newFiles.length > 0) {
+      ctx.addFilesToStore(newFiles)
+      // Yield to browser to allow UI to repaint
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    
     if (!ctx.silent) {
       if (failed > 0) {
         ctx.addToast('error', `Copied ${succeeded}/${total} files`)
@@ -298,7 +335,7 @@ export const copyCommand: Command<CopyParams> = {
       }
     }
     
-    ctx.onRefresh?.(true)
+    // No onRefresh needed - UI updates instantly via addFilesToStore
     
     return {
       success: failed === 0,
@@ -359,8 +396,26 @@ export const newFolderCommand: Command<NewFolderParams> = {
         }
       }
       
+      // Optimistic UI update: add new folder to store immediately
+      const relativePath = parentPath ? `${parentPath}/${folderName}` : folderName
+      const newFolder: LocalFile = {
+        name: folderName,
+        path: fullPath,
+        relativePath,
+        isDirectory: true,
+        extension: '',
+        size: 0,
+        modifiedTime: new Date().toISOString(),
+        isSynced: false,
+        diffStatus: 'added'
+      }
+      ctx.addFilesToStore([newFolder])
+      
+      // Yield to browser to allow UI to repaint
+      await new Promise(resolve => setTimeout(resolve, 0))
+      
       ctx.addToast('success', `Created folder: ${folderName}`)
-      ctx.onRefresh?.(true)
+      // No onRefresh needed - UI updates instantly via addFilesToStore
       
       return {
         success: true,

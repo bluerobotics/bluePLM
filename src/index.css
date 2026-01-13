@@ -1108,8 +1108,17 @@ input::placeholder {
   border-left: 2px solid rgba(6, 182, 212, 0.3);
 }
 
-.file-table tr.config-row:hover {
-  background: rgba(6, 182, 212, 0.08) !important;
+.file-table tr.config-row:hover:not(.selected) {
+  background: rgba(6, 182, 212, 0.08);
+}
+
+.file-table tr.config-row.selected {
+  background: rgba(6, 182, 212, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.3);
+}
+
+.file-table tr.config-row.selected:hover {
+  background: rgba(6, 182, 212, 0.2);
 }
 
 .file-table tr.config-row td {

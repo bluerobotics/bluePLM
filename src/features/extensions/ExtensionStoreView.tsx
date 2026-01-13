@@ -57,9 +57,6 @@ export function ExtensionStoreView() {
   useEffect(() => {
     if (pendingDeepLinkInstall && storeExtensions.length > 0) {
       const { extensionId } = pendingDeepLinkInstall
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ExtensionStoreView.tsx:deepLink',message:'Processing deep link install',data:{extensionId,storeExtensionIds:storeExtensions.map(e=>e.extensionId)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       log.info('[ExtensionStore]', 'Processing deep link install', { extensionId })
       
       // Check if extension exists in store
@@ -86,9 +83,6 @@ export function ExtensionStoreView() {
   }
 
   const handleInstall = (extensionId: string) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/54b4ff62-a662-4a7e-94d3-5e04211d678b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ExtensionStoreView.tsx:handleInstall',message:'Install button clicked',data:{extensionId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
     setInstallExtensionId(extensionId)
     setShowInstallDialog(true)
   }

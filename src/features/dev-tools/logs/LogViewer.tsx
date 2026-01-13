@@ -12,7 +12,6 @@ import {
   BarChart3,
   Filter,
   RefreshCw,
-  Download,
   ChevronDown,
   Copy,
   Check,
@@ -1191,15 +1190,6 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
     }
   }
   
-  const exportLogs = async () => {
-    const result = await window.electronAPI?.exportLogs()
-    if (result?.success) {
-      addToast('success', 'Logs exported successfully')
-    } else if (!result?.canceled) {
-      addToast('error', result?.error || 'Failed to export')
-    }
-  }
-  
   const deleteLogFile = async (file: LogFile) => {
     if (file.isCurrentSession) return
     
@@ -1213,6 +1203,35 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       }
     } else {
       addToast('error', result?.error || 'Failed to delete')
+    }
+  }
+  
+  // State for delete all confirmation
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
+  
+  const deleteAllLogFiles = async () => {
+    if (!window.electronAPI?.deleteAllLogFiles) return
+    
+    setDeletingAll(true)
+    try {
+      const result = await window.electronAPI.deleteAllLogFiles()
+      if (result.success) {
+        addToast('success', `Deleted ${result.deleted} log file${result.deleted !== 1 ? 's' : ''}`)
+        loadLogFiles()
+        // Clear selection if the selected file was deleted
+        if (selectedFile && !selectedFile.isCurrentSession) {
+          setSelectedFile(null)
+          setEntries([])
+        }
+      } else {
+        addToast('error', result.error || 'Failed to delete log files')
+      }
+    } catch (err) {
+      addToast('error', 'Failed to delete log files')
+    } finally {
+      setDeletingAll(false)
+      setShowDeleteAllConfirm(false)
     }
   }
   
@@ -1517,6 +1536,15 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                   {fileViewMode === 'logs' ? 'Log Files' : 'Crash Reports'}
                 </span>
                 <div className="flex items-center gap-1">
+                  {fileViewMode === 'logs' && logFiles.filter(f => !f.isCurrentSession).length > 0 && (
+                    <button
+                      onClick={() => setShowDeleteAllConfirm(true)}
+                      className="p-1 hover:bg-plm-error/20 rounded transition-colors"
+                      title="Delete all log files (except current session)"
+                    >
+                      <Trash2 size={12} className="text-plm-fg-muted hover:text-plm-error" />
+                    </button>
+                  )}
                   <button
                     onClick={() => fileViewMode === 'logs' 
                       ? window.electronAPI?.openLogsDir() 
@@ -1536,6 +1564,40 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                   </button>
                 </div>
               </div>
+              
+              {/* Delete All Confirmation Dialog */}
+              {showDeleteAllConfirm && (
+                <div className="p-3 border-b border-plm-border bg-plm-error/10">
+                  <div className="flex items-start gap-2 mb-2">
+                    <AlertTriangle size={14} className="text-plm-error flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-plm-fg">
+                      Delete all {logFiles.filter(f => !f.isCurrentSession).length} log files? 
+                      <span className="text-plm-fg-muted"> (current session will be kept)</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 justify-end">
+                    <button
+                      onClick={() => setShowDeleteAllConfirm(false)}
+                      className="px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg transition-colors"
+                      disabled={deletingAll}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={deleteAllLogFiles}
+                      disabled={deletingAll}
+                      className="flex items-center gap-1 px-2 py-1 text-xs bg-plm-error text-white rounded hover:bg-plm-error/90 transition-colors disabled:opacity-50"
+                    >
+                      {deletingAll ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={10} />
+                      )}
+                      <span>Delete All</span>
+                    </button>
+                  </div>
+                </div>
+              )}
               
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                 {isLoading ? (
@@ -1899,15 +1961,6 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                 >
                   <FolderOpen size={14} />
                   <span>Open Folder</span>
-                </button>
-                
-                {/* Export all */}
-                <button
-                  onClick={exportLogs}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
-                >
-                  <Download size={14} />
-                  <span>Export All</span>
                 </button>
               </div>
               

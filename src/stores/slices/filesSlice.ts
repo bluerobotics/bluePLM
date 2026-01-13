@@ -3,6 +3,7 @@ import type { PDMStoreState, FilesSlice, LocalFile, DiffStatus, OperationType } 
 import type { PDMFile } from '../../types/pdm'
 import { buildFullPath } from '@/lib/utils/path'
 import { recordMetric } from '@/lib/performanceMetrics'
+import { log } from '@/lib/logger'
 
 // ============================================================================
 // Processing Operations Batching
@@ -170,14 +171,37 @@ export const createFilesSlice: StateCreator<
   // Batch update multiple files in a single state change (avoids N re-renders)
   updateFilesInStore: (updates) => {
     if (updates.length === 0) return
+    window.electronAPI?.log('info', '[Store] updateFilesInStore START', { 
+      updateCount: updates.length,
+      paths: updates.slice(0, 5).map(u => u.path),
+      timestamp: Date.now()
+    })
     // Build a map for O(1) lookups
     const updateMap = new Map(updates.map(u => [u.path, u.updates]))
-    set(state => ({
-      files: state.files.map(f => {
+    set(state => {
+      const newFiles = state.files.map(f => {
         const fileUpdates = updateMap.get(f.path)
         return fileUpdates ? { ...f, ...fileUpdates } : f
       })
-    }))
+      
+      // Clear persistedPendingMetadata for files where pendingMetadata is being cleared
+      // This prevents LoadFiles from restoring stale pending metadata after check-in
+      let newPersistedPendingMetadata = state.persistedPendingMetadata
+      for (const [path, fileUpdates] of updateMap) {
+        if (fileUpdates.pendingMetadata === undefined && path in newPersistedPendingMetadata) {
+          // Lazily create a copy only if we need to modify
+          if (newPersistedPendingMetadata === state.persistedPendingMetadata) {
+            newPersistedPendingMetadata = { ...state.persistedPendingMetadata }
+          }
+          delete newPersistedPendingMetadata[path]
+        }
+      }
+      
+      return {
+        files: newFiles,
+        persistedPendingMetadata: newPersistedPendingMetadata
+      }
+    })
   },
   
   /**
@@ -237,9 +261,25 @@ export const createFilesSlice: StateCreator<
           })
         : state.files
       
+      // Clear persistedPendingMetadata for files where pendingMetadata is being cleared
+      // This prevents LoadFiles from restoring stale pending metadata after check-in
+      let newPersistedPendingMetadata = state.persistedPendingMetadata
+      if (updateMap) {
+        for (const [path, fileUpdates] of updateMap) {
+          if (fileUpdates.pendingMetadata === undefined && path in newPersistedPendingMetadata) {
+            // Lazily create a copy only if we need to modify
+            if (newPersistedPendingMetadata === state.persistedPendingMetadata) {
+              newPersistedPendingMetadata = { ...state.persistedPendingMetadata }
+            }
+            delete newPersistedPendingMetadata[path]
+          }
+        }
+      }
+      
       return {
         files: newFiles,
-        processingOperations: newProcessingOps
+        processingOperations: newProcessingOps,
+        persistedPendingMetadata: newPersistedPendingMetadata
       }
     })
     
@@ -254,11 +294,48 @@ export const createFilesSlice: StateCreator<
   },
   
   removeFilesFromStore: (paths) => {
+    if (paths.length === 0) return
     const pathSet = new Set(paths)
+    const beforeCount = get().files.length
+    // Check if paths exist in files before removing
+    const existingPaths = paths.filter(p => get().files.some(f => f.path === p))
+    console.log('[Store] removeFilesFromStore BEFORE:', { 
+      pathsToRemove: paths.length,
+      existingPaths: existingPaths.length,
+      samplePaths: paths.slice(0, 3),
+      beforeCount
+    })
     set(state => ({
       files: state.files.filter(f => !pathSet.has(f.path)),
       selectedFiles: state.selectedFiles.filter(p => !pathSet.has(p))
     }))
+    const afterCount = get().files.length
+    console.log('[Store] removeFilesFromStore AFTER:', { 
+      afterCount,
+      removed: beforeCount - afterCount
+    })
+    window.electronAPI?.log('info', '[Store] removeFilesFromStore', { 
+      pathsToRemove: paths.length, 
+      existingPaths: existingPaths.length,
+      beforeCount, 
+      afterCount,
+      removed: beforeCount - afterCount,
+      timestamp: Date.now()
+    })
+  },
+  
+  addFilesToStore: (newFiles) => {
+    const beforeCount = get().files.length
+    set(state => ({
+      files: [...state.files, ...newFiles]
+    }))
+    window.electronAPI?.log('info', '[Store] addFilesToStore', { 
+      addedCount: newFiles.length, 
+      beforeCount, 
+      afterCount: get().files.length,
+      paths: newFiles.slice(0, 5).map(f => f.path),
+      timestamp: Date.now()
+    })
   },
   
   updatePendingMetadata: (path, metadata) => {
@@ -328,33 +405,33 @@ export const createFilesSlice: StateCreator<
   },
   
   clearPendingMetadata: (path) => {
-    console.log('[filesSlice] clearPendingMetadata called:', path)
     set(state => {
       const file = state.files.find(f => f.path === path)
       const pending = file?.pendingMetadata
       // Destructure to exclude `path` key, using _ for intentionally discarded value
       const { [path]: _, ...remainingPersisted } = state.persistedPendingMetadata
       
-      console.log('[filesSlice] clearPendingMetadata: pending =', pending)
-      console.log('[filesSlice] clearPendingMetadata: pdmData.part_number BEFORE =', file?.pdmData?.part_number)
-      console.log('[filesSlice] clearPendingMetadata: removed from persisted, remaining keys:', Object.keys(remainingPersisted))
+      // Merge pending values into pdmData before clearing
+      // This ensures the UI still shows the new values after clearing
+      // Use !== undefined check instead of ?? to handle null values correctly
+      // (null should be preserved as the new value, not trigger fallback)
+      const mergedPdmData = file?.pdmData && pending ? {
+        ...file.pdmData,
+        part_number: pending.part_number !== undefined ? pending.part_number : file.pdmData.part_number,
+        description: pending.description !== undefined ? pending.description : file.pdmData.description,
+        revision: pending.revision !== undefined ? pending.revision : file.pdmData.revision,
+      } : file?.pdmData
+      
+      log.info('[filesSlice]', 'clearPendingMetadata', {
+        path,
+        pendingPartNumber: pending?.part_number,
+        currentPdmPartNumber: file?.pdmData?.part_number,
+        mergedPartNumber: mergedPdmData?.part_number
+      })
       
       return {
         files: state.files.map(f => {
           if (f.path === path) {
-            // Merge pending values into pdmData before clearing
-            // This ensures the UI still shows the new values after clearing
-            // Use !== undefined check instead of ?? to handle null values correctly
-            // (null should be preserved as the new value, not trigger fallback)
-            const mergedPdmData = f.pdmData && pending ? {
-              ...f.pdmData,
-              part_number: pending.part_number !== undefined ? pending.part_number : f.pdmData.part_number,
-              description: pending.description !== undefined ? pending.description : f.pdmData.description,
-              revision: pending.revision !== undefined ? pending.revision : f.pdmData.revision,
-            } : f.pdmData
-            
-            console.log('[filesSlice] clearPendingMetadata: mergedPdmData.part_number =', mergedPdmData?.part_number)
-            
             return { ...f, pendingMetadata: undefined, pdmData: mergedPdmData }
           }
           return f

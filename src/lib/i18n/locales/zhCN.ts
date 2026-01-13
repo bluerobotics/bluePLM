@@ -221,10 +221,10 @@ export const zhCN: TranslationDict = {
     history: '历史记录',
     workflows: '文件工作流',
     trash: '回收站',
-    // 物料
+    // 产品
+    products: '产品浏览器',
     items: '物料浏览器',
     boms: '物料清单',
-    products: '产品',
     // 变更控制
     ecr: 'ECR / 问题',
     eco: 'ECO',

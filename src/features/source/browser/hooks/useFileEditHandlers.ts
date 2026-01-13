@@ -3,6 +3,9 @@ import type { LocalFile } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/utils/path'
 
+// SolidWorks file extensions that support custom properties
+const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+
 export interface FileEditHandlersDeps {
   // State
   files: LocalFile[]
@@ -39,6 +42,9 @@ export interface FileEditHandlersDeps {
   addToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void
   updatePendingMetadata: (path: string, updates: { part_number?: string | null; description?: string | null; revision?: string }) => void
   onRefresh: (silent?: boolean) => void
+  
+  // Auto-save to SolidWorks file
+  saveConfigsToSWFile: (file: LocalFile) => Promise<void>
 }
 
 export interface UseFileEditHandlersReturn {
@@ -80,6 +86,7 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     addToast,
     updatePendingMetadata,
     onRefresh,
+    saveConfigsToSWFile,
   } = deps
 
   const handleCreateFolder = useCallback(async () => {
@@ -267,12 +274,21 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
           break
     }
     
-    // Update locally - will sync on check-in
+    // Update pending metadata in store
     updatePendingMetadata(file.path, pendingUpdates)
     
+    // Clear edit state first so UI is responsive
     setEditingCell(null)
     setEditValue('')
-  }, [editingCell, user, files, editValue, setEditingCell, setEditValue, addToast, updatePendingMetadata])
+    
+    // Auto-save to SolidWorks file if applicable
+    const ext = file.extension?.toLowerCase() || ''
+    if (SW_EXTENSIONS.includes(ext)) {
+      // Need to get updated file with new pending metadata
+      const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, ...pendingUpdates } }
+      await saveConfigsToSWFile(updatedFile)
+    }
+  }, [editingCell, user, files, editValue, setEditingCell, setEditValue, addToast, updatePendingMetadata, saveConfigsToSWFile])
   
   const handleCancelCellEdit = useCallback(() => {
     setEditingCell(null)

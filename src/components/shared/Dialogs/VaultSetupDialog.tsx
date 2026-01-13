@@ -10,13 +10,15 @@
  * - Toggle for auto-download cloud files (default ON)
  * - Toggle for auto-download updates (default ON)
  * - Summary of what will happen after connecting
+ * - Windows Defender exclusion warning (Windows only)
  */
 
 import { useState } from 'react'
-import { HardDrive, CloudDownload, Download, Check, X, ToggleLeft, ToggleRight, FileText, Cloud, MonitorSmartphone, CheckCircle2, AlertCircle, Loader2, Scale } from 'lucide-react'
+import { HardDrive, CloudDownload, Download, Check, X, ToggleLeft, ToggleRight, FileText, Cloud, MonitorSmartphone, CheckCircle2, AlertCircle, Loader2, Scale, Shield, Copy } from 'lucide-react'
 import { formatFileSize } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
 import { log } from '@/lib/logger'
+import { usePDMStore } from '@/stores/pdmStore'
 
 // ============================================
 // Types
@@ -57,6 +59,8 @@ interface VaultSetupDialogProps {
   syncStats?: VaultSyncStats
   /** Initial size limit value (from store) */
   initialSizeLimit?: number
+  /** Local path where the vault will be stored (for Windows Defender warning) */
+  vaultLocalPath?: string
   onComplete: (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean; autoDownloadSizeLimit: number }) => void
   onCancel: () => void
 }
@@ -72,16 +76,45 @@ export function VaultSetupDialog({
   stats,
   syncStats,
   initialSizeLimit = 1024,
+  vaultLocalPath,
   onComplete,
   onCancel
 }: VaultSetupDialogProps) {
   const { t } = useTranslation()
+  const avExclusionWarningDismissed = usePDMStore(s => s.avExclusionWarningDismissed)
+  const setAvExclusionWarningDismissed = usePDMStore(s => s.setAvExclusionWarningDismissed)
   
   // Default both toggles to OFF - users must explicitly opt-in to automatic downloads
   const [autoDownloadCloudFiles, setAutoDownloadCloudFiles] = useState(false)
   const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(false)
   const [sizeLimit, setSizeLimit] = useState(initialSizeLimit)
   const [sizeLimitEnabled, setSizeLimitEnabled] = useState(initialSizeLimit > 0)
+  const [pathCopied, setPathCopied] = useState(false)
+  
+  // Check if running on Windows
+  const isWindows = typeof navigator !== 'undefined' && navigator.platform?.toLowerCase().includes('win')
+  
+  // Show Windows Defender warning if on Windows, path provided, and not dismissed
+  const showDefenderWarning = isWindows && vaultLocalPath && !avExclusionWarningDismissed
+  
+  // Copy vault path to clipboard
+  const handleCopyPath = async () => {
+    if (vaultLocalPath) {
+      try {
+        await navigator.clipboard.writeText(vaultLocalPath)
+        setPathCopied(true)
+        setTimeout(() => setPathCopied(false), 2000)
+      } catch (err) {
+        log.warn('[VaultSetup]', 'Failed to copy path to clipboard', { error: String(err) })
+      }
+    }
+  }
+  
+  // Dismiss the warning permanently
+  const handleDismissWarning = () => {
+    setAvExclusionWarningDismissed(true)
+    log.info('[VaultSetup]', 'User dismissed Windows Defender exclusion warning')
+  }
   
   const handleConnect = () => {
     log.info('[VaultSetup]', 'User completed setup', {
@@ -368,6 +401,56 @@ export function VaultSetupDialog({
               </div>
             )}
           </div>
+          
+          {/* Windows Defender Exclusion Warning */}
+          {showDefenderWarning && (
+            <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/30">
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 rounded bg-red-500/20 flex-shrink-0">
+                  <Shield size={16} className="text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-red-600 dark:text-red-400">
+                    {t('vaultSetup.defenderWarningTitle', 'Windows Defender Exclusion Recommended')}
+                  </div>
+                  <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
+                    {t('vaultSetup.defenderWarningDesc', 'For best performance with SolidWorks files, add this folder to Windows Defender exclusions:')}
+                  </p>
+                  
+                  {/* Vault path with copy button */}
+                  <div className="flex items-center gap-2 mt-2 p-2 bg-plm-bg rounded border border-plm-border">
+                    <code className="flex-1 text-xs text-plm-fg font-mono truncate">
+                      {vaultLocalPath}
+                    </code>
+                    <button
+                      onClick={handleCopyPath}
+                      className="flex-shrink-0 p-1 rounded hover:bg-plm-highlight transition-colors"
+                      title={t('common.copy', 'Copy')}
+                    >
+                      {pathCopied ? (
+                        <Check size={14} className="text-green-500" />
+                      ) : (
+                        <Copy size={14} className="text-plm-fg-muted" />
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Instructions */}
+                  <p className="text-xs text-plm-fg-muted mt-2">
+                    {t('vaultSetup.defenderInstructions', 'Go to: Settings → Privacy & Security → Windows Security → Virus & threat protection → Manage settings → Exclusions → Add folder')}
+                  </p>
+                  
+                  {/* Dismiss link */}
+                  <button
+                    onClick={handleDismissWarning}
+                    className="text-xs text-plm-fg-muted hover:text-plm-fg mt-2 underline"
+                  >
+                    {t('vaultSetup.dontShowAgain', "Don't show this again")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Summary */}
           <div className={`p-3 rounded-lg border ${willDownload ? 'bg-plm-accent/5 border-plm-accent/20' : 'bg-plm-bg border-plm-border'}`}>

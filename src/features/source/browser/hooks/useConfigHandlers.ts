@@ -59,6 +59,9 @@ export interface ConfigHandlersDeps {
   
   // Toast
   addToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void
+  addProgressToast: (id: string, message: string, total: number) => void
+  updateProgressToast: (id: string, current: number, percent: number, speed?: string, label?: string) => void
+  removeToast: (id: string) => void
 }
 
 export interface UseConfigHandlersReturn {
@@ -66,7 +69,7 @@ export interface UseConfigHandlersReturn {
   handleConfigDescriptionChange: (filePath: string, configName: string, value: string) => void
   handleConfigRowClick: (e: React.MouseEvent, filePath: string, configName: string, configs: ConfigWithDepth[]) => void
   handleConfigContextMenu: (e: React.MouseEvent, filePath: string, configName: string) => void
-  handleExportConfigs: (format: 'step' | 'iges' | 'stl') => Promise<void>
+  handleExportConfigs: (format: 'step' | 'iges' | 'stl', outputFolder?: string) => Promise<void>
   canHaveConfigs: (file: LocalFile) => boolean
   saveConfigsToSWFile: (file: LocalFile) => Promise<void>
   hasPendingMetadataChanges: (file: LocalFile) => boolean
@@ -89,6 +92,9 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     setSelectedFiles,
     organization,
     addToast,
+    addProgressToast,
+    // updateProgressToast - available in deps but not used in this hook
+    removeToast,
   } = deps
   
   // Config state from Zustand store (following the pattern of expandedFolders/selectedFiles)
@@ -290,8 +296,21 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           justSavedConfigs.current.delete(file.path)
         }, 5000) // Clear after 5 seconds
         
-        // Clear pending metadata (this merges values into pdmData first)
-        usePDMStore.getState().clearPendingMetadata(file.path)
+        // CRITICAL: Mark file as recently modified to protect from LoadFiles overwrite
+        // This prevents stale server data from overwriting our local changes
+        if (file.pdmData?.id) {
+          usePDMStore.getState().markFileAsRecentlyModified(file.pdmData.id)
+        }
+        
+        // NOTE: We do NOT clear pendingMetadata here anymore!
+        // The pendingMetadata must persist until check-in so the server gets updated.
+        // If we clear it now, check-in won't know about the metadata changes and
+        // the server will keep the old values, which then overwrite our local state.
+        // pendingMetadata will be cleared by check-in after successfully syncing to server.
+        
+        // CRITICAL: Invalidate cached localHash since file content changed
+        // Without this, checkin would incorrectly take fast path and skip version increment
+        usePDMStore.getState().updateFileInStore(file.path, { localHash: undefined })
       } else if (failedCount > 0) {
         addToast('error', 'Failed to save metadata to file')
       }
@@ -351,8 +370,8 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       lastClickedConfigRef.current = configKey
     }
     
-    // Also select the parent file
-    setSelectedFiles([filePath])
+    // Clear file selection when selecting configs (configs are the focus)
+    setSelectedFiles([])
   }, [selectedConfigs, setSelectedConfigs, lastClickedConfigRef, setSelectedFiles])
 
   // Handle config row right-click (context menu)
@@ -369,11 +388,12 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     }
     
     setConfigContextMenu({ x: e.clientX, y: e.clientY, filePath, configName })
-    setSelectedFiles([filePath])
+    // Clear file selection when selecting configs
+    setSelectedFiles([])
   }, [selectedConfigs, setSelectedConfigs, lastClickedConfigRef, setConfigContextMenu, setSelectedFiles])
 
   // Export configurations
-  const handleExportConfigs = useCallback(async (format: 'step' | 'iges' | 'stl') => {
+  const handleExportConfigs = useCallback(async (format: 'step' | 'iges' | 'stl', outputFolder?: string) => {
     if (!configContextMenu) return
     
     const filePath = configContextMenu.filePath
@@ -437,10 +457,11 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     setConfigContextMenu(null)
     setIsExportingConfigs(true)
     
-    // Show progress toast (will remain visible until export completes)
+    // Show progress toast with spinner (will remain visible until export completes)
     const fileName = filePath.split(/[\\/]/).pop() || filePath
     const configLabel = configsToExport.length === 1 ? configsToExport[0] : `${configsToExport.length} configs`
-    addToast('info', `Exporting ${format.toUpperCase()}: ${fileName} (${configLabel})...`)
+    const toastId = `export-config-${format}-${Date.now()}`
+    addProgressToast(toastId, `Exporting ${format.toUpperCase()}: ${fileName} (${configLabel})...`, 1)
     
     try {
       let result
@@ -449,12 +470,14 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           result = await window.electronAPI?.solidworks?.exportStep(filePath, { 
             configurations: configsToExport,
             filenamePattern,
-            pdmMetadata  // Pass PDM data as fallback for file properties
+            pdmMetadata,  // Pass PDM data as fallback for file properties
+            outputPath: outputFolder
           })
           break
         case 'iges':
           result = await window.electronAPI?.solidworks?.exportIges(filePath, { 
-            configurations: configsToExport 
+            configurations: configsToExport,
+            outputPath: outputFolder
           })
           break
         case 'stl': {
@@ -466,11 +489,15 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
             resolution: exportSettings.stl_resolution,
             binaryFormat: exportSettings.stl_binary_format,
             customDeviation: exportSettings.stl_custom_deviation,
-            customAngle: exportSettings.stl_custom_angle
+            customAngle: exportSettings.stl_custom_angle,
+            outputPath: outputFolder
           })
           break
         }
       }
+      
+      // Remove progress toast
+      removeToast(toastId)
       
       if (result?.success) {
         const count = result.data && 'exportedFiles' in result.data ? result.data.exportedFiles?.length : configsToExport.length
@@ -498,11 +525,12 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         addToast('error', result?.error || `Failed to export ${format.toUpperCase()}`)
       }
     } catch (err) {
+      removeToast(toastId)
       addToast('error', `Export failed: ${err}`)
     } finally {
       setIsExportingConfigs(false)
     }
-  }, [files, configContextMenu, getSelectedConfigsForFile, organization, setIsExportingConfigs, setConfigContextMenu, addToast])
+  }, [files, configContextMenu, getSelectedConfigsForFile, organization, setIsExportingConfigs, setConfigContextMenu, addToast, addProgressToast, removeToast])
 
   // Toggle file configuration expansion (expand/collapse config rows for a file)
   const toggleFileConfigExpansion = useCallback(async (file: LocalFile) => {

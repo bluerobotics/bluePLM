@@ -200,3 +200,15 @@ export {
 } from './recovery'
 
 export type { AdminRecoveryCode } from './recovery'
+
+// ============================================
+// Part Supplier (Vendor) exports
+// ============================================
+export {
+  getPartSuppliers,
+  addPartSupplier,
+  updatePartSupplier,
+  setPreferredPartSupplier,
+  removePartSupplier,
+  deletePartSupplier
+} from './partSuppliers'

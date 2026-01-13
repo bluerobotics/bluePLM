@@ -1,15 +1,19 @@
-import { Loader2, Check, Package, Settings } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Loader2, Check, Package, Settings, FolderOpen, FolderDown } from 'lucide-react'
 import type { ConfigContextMenuState } from '../../hooks/useContextMenuState'
+import { ContextSubmenu } from './components'
 
 export interface ConfigContextMenuProps {
   configContextMenu: ConfigContextMenuState
   configCount: number
   isPartOrAsm: boolean
   isExportingConfigs: boolean
-  onExportConfigs: (format: 'step' | 'iges' | 'stl') => void
+  onExportConfigs: (format: 'step' | 'iges' | 'stl', outputFolder?: string) => void
   onClearSelection: () => void
   onClose: () => void
 }
+
+type ExportFormat = 'step' | 'iges' | 'stl'
 
 /**
  * Context menu for SolidWorks configuration rows.
@@ -24,6 +28,106 @@ export function ConfigContextMenu({
   onClearSelection,
   onClose
 }: ConfigContextMenuProps) {
+  // Track which export submenu is currently open
+  const [exportSubmenu, setExportSubmenu] = useState<ExportFormat | null>(null)
+  const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const handleMouseEnterExport = (format: ExportFormat) => {
+    if (submenuTimeoutRef.current) {
+      clearTimeout(submenuTimeoutRef.current)
+    }
+    setExportSubmenu(format)
+  }
+
+  const handleMouseLeaveExport = () => {
+    submenuTimeoutRef.current = setTimeout(() => {
+      setExportSubmenu(null)
+    }, 150)
+  }
+
+  const handleExportHere = (format: ExportFormat) => {
+    if (!isExportingConfigs) {
+      onExportConfigs(format)
+    }
+  }
+
+  const handleExportTo = async (format: ExportFormat) => {
+    if (isExportingConfigs) return
+    
+    // Open folder picker dialog
+    const result = await window.electronAPI?.selectFolder()
+    if (result?.success && result.folderPath) {
+      onExportConfigs(format, result.folderPath)
+    }
+  }
+
+  const formatConfig: Record<ExportFormat, { label: string; colorClass: string }> = {
+    step: { label: 'STEP', colorClass: 'text-emerald-400' },
+    iges: { label: 'IGES', colorClass: 'text-amber-400' },
+    stl: { label: 'STL', colorClass: 'text-violet-400' },
+  }
+
+  const renderExportSubmenu = (format: ExportFormat) => {
+    const config = formatConfig[format]
+    const countLabel = configCount > 1 ? ` (${configCount})` : ''
+    
+    return (
+      <div 
+        key={format}
+        className={`context-menu-item relative ${isExportingConfigs ? 'opacity-50' : ''}`}
+        onMouseEnter={() => handleMouseEnterExport(format)}
+        onMouseLeave={handleMouseLeaveExport}
+        onClick={(e) => {
+          e.stopPropagation()
+          setExportSubmenu(exportSubmenu === format ? null : format)
+        }}
+      >
+        {isExportingConfigs ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : (
+          <Package size={14} className={config.colorClass} />
+        )}
+        Export {config.label}{countLabel}
+        <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
+        
+        {/* Export destination submenu */}
+        {exportSubmenu === format && (
+          <ContextSubmenu
+            minWidth={140}
+            onMouseEnter={() => {
+              if (submenuTimeoutRef.current) {
+                clearTimeout(submenuTimeoutRef.current)
+              }
+              setExportSubmenu(format)
+            }}
+            onMouseLeave={handleMouseLeaveExport}
+          >
+            <div 
+              className="context-menu-item"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleExportHere(format)
+              }}
+            >
+              <FolderDown size={14} className={config.colorClass} />
+              Export Here
+            </div>
+            <div 
+              className="context-menu-item"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleExportTo(format)
+              }}
+            >
+              <FolderOpen size={14} className="text-plm-fg-muted" />
+              Export To...
+            </div>
+          </ContextSubmenu>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       {/* Backdrop to close menu */}
@@ -53,39 +157,9 @@ export function ConfigContextMenu({
         {/* Export options for parts/assemblies */}
         {isPartOrAsm && (
           <>
-            <div 
-              className={`context-menu-item ${isExportingConfigs ? 'opacity-50' : ''}`}
-              onClick={() => !isExportingConfigs && onExportConfigs('step')}
-            >
-              {isExportingConfigs ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Package size={14} className="text-emerald-400" />
-              )}
-              Export STEP {configCount > 1 ? `(${configCount})` : ''}
-            </div>
-            <div 
-              className={`context-menu-item ${isExportingConfigs ? 'opacity-50' : ''}`}
-              onClick={() => !isExportingConfigs && onExportConfigs('iges')}
-            >
-              {isExportingConfigs ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Package size={14} className="text-amber-400" />
-              )}
-              Export IGES {configCount > 1 ? `(${configCount})` : ''}
-            </div>
-            <div 
-              className={`context-menu-item ${isExportingConfigs ? 'opacity-50' : ''}`}
-              onClick={() => !isExportingConfigs && onExportConfigs('stl')}
-            >
-              {isExportingConfigs ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Package size={14} className="text-violet-400" />
-              )}
-              Export STL {configCount > 1 ? `(${configCount})` : ''}
-            </div>
+            {renderExportSubmenu('step')}
+            {renderExportSubmenu('iges')}
+            {renderExportSubmenu('stl')}
           </>
         )}
         

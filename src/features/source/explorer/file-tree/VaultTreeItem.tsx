@@ -41,6 +41,7 @@ interface VaultTreeItemProps {
   isCheckingInAll: boolean
   isCheckingInMyCheckouts: boolean
   isAnyCloudFileProcessing: boolean
+  isAnyOutdatedFileProcessing: boolean
   // Handlers
   onDownloadAllCloud: (e: React.MouseEvent) => void
   onUpdateAllOutdated: (e: React.MouseEvent) => void
@@ -79,6 +80,7 @@ function areVaultTreeItemPropsEqual(
   if (prevProps.isCheckingInAll !== nextProps.isCheckingInAll) return false
   if (prevProps.isCheckingInMyCheckouts !== nextProps.isCheckingInMyCheckouts) return false
   if (prevProps.isAnyCloudFileProcessing !== nextProps.isAnyCloudFileProcessing) return false
+  if (prevProps.isAnyOutdatedFileProcessing !== nextProps.isAnyOutdatedFileProcessing) return false
   
   // Compare checkout users array (length and content for avatar updates)
   if (prevProps.allCheckoutUsers.length !== nextProps.allCheckoutUsers.length) return false
@@ -118,6 +120,7 @@ export const VaultTreeItem = memo(function VaultTreeItem({
   isCheckingInAll,
   isCheckingInMyCheckouts,
   isAnyCloudFileProcessing,
+  isAnyOutdatedFileProcessing,
   onDownloadAllCloud,
   onUpdateAllOutdated,
   onFirstCheckinAllLocal,
@@ -167,7 +170,7 @@ export const VaultTreeItem = memo(function VaultTreeItem({
             <InlineSyncButton
               onClick={onUpdateAllOutdated}
               count={outdatedFilesCount}
-              isProcessing={isDownloadingAll}
+              isProcessing={isDownloadingAll || isAnyOutdatedFileProcessing}
             />
           )}
           

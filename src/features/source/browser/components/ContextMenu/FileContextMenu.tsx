@@ -92,6 +92,9 @@ export interface FileContextMenuProps {
   setShowStateSubmenu: (value: boolean) => void
   ignoreSubmenuTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
   stateSubmenuTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
+  
+  // Files currently saving metadata
+  savingConfigsToSW?: Set<string>
 }
 
 export function FileContextMenu({
@@ -134,6 +137,7 @@ export function FileContextMenu({
   setShowStateSubmenu,
   ignoreSubmenuTimeoutRef,
   stateSubmenuTimeoutRef,
+  savingConfigsToSW,
 }: FileContextMenuProps) {
   // Get user from store
   const { user } = usePDMStore()
@@ -251,6 +255,7 @@ export function FileContextMenu({
           showStateSubmenu={showStateSubmenu}
           setShowStateSubmenu={setShowStateSubmenu}
           stateSubmenuTimeoutRef={stateSubmenuTimeoutRef}
+          savingConfigsToSW={savingConfigsToSW}
         />
         
         {/* Collaboration actions (history, where used, properties, review, notify, watch, share, ECO) */}

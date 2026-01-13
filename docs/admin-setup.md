@@ -136,6 +136,44 @@ The `email_domains` array enables auto-detection. When users with matching email
 The Organization Code contains your Supabase anon key encoded. Share it only with trusted team members.
 :::
 
+## Optimize Performance (Windows)
+
+On Windows, antivirus software (especially Windows Defender) can significantly slow down file operations by scanning files every time they're opened for writing. For CAD files like SolidWorks parts and assemblies, this can add 10-15 seconds to operations that should take 1-2 seconds.
+
+**We strongly recommend adding your vault folder to Windows Defender exclusions.**
+
+### Add Exclusion via Windows Security
+
+1. Open **Settings** (Win + I)
+2. Go to **Privacy & Security** → **Windows Security**
+3. Click **Virus & threat protection**
+4. Under "Virus & threat protection settings", click **Manage settings**
+5. Scroll to **Exclusions** and click **Add or remove exclusions**
+6. Click **Add an exclusion** → **Folder**
+7. Navigate to your vault folder (e.g., `C:\BluePLM\vault-name`) and select it
+
+### Add Exclusion via PowerShell (Admin)
+
+Run PowerShell as Administrator and execute:
+
+```powershell
+Add-MpPreference -ExclusionPath "C:\BluePLM"
+```
+
+To verify the exclusion was added:
+
+```powershell
+Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+```
+
+::: tip Third-Party Antivirus
+If you use antivirus software other than Windows Defender (Norton, McAfee, Bitdefender, etc.), you'll need to add the exclusion in that software's settings instead.
+:::
+
+::: warning Security Consideration
+Excluding folders from antivirus scanning reduces protection for those files. Only exclude trusted vault folders that contain your organization's CAD files.
+:::
+
 ## Step 7: Sign In and Configure Admin
 
 1. Click **Continue** and sign in with Google (or email/phone)

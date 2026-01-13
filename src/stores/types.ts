@@ -83,7 +83,7 @@ export type SidebarView =
   | 'terminal'
   | 'settings'
 
-export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history' | 'datacard'
+export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history' | 'datacard' | 'vendors'
 export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress' | 'update'
 export type ThemeMode = 'dark' | 'deep-blue' | 'light' | 'christmas' | 'halloween' | 'weather' | 'kenneth' | 'system'
@@ -494,6 +494,9 @@ export interface SettingsSlice {
   onboardingComplete: boolean
   logSharingEnabled: boolean
   
+  // State - Windows Defender warning
+  avExclusionWarningDismissed: boolean
+  
   // Actions - Preview & Topbar
   setCadPreviewMode: (mode: 'thumbnail' | 'edrawings') => void
   setTopbarConfig: (config: Partial<SettingsSlice['topbarConfig']>) => void
@@ -574,6 +577,9 @@ export interface SettingsSlice {
   // Actions - Onboarding
   completeOnboarding: (options?: { solidworksIntegrationEnabled?: boolean }) => void
   setLogSharingEnabled: (enabled: boolean) => void
+  
+  // Actions - Windows Defender warning
+  setAvExclusionWarningDismissed: (dismissed: boolean) => void
 }
 
 export interface UserSlice {
@@ -690,6 +696,7 @@ export interface FilesSlice {
   updateFileInStore: (path: string, updates: Partial<LocalFile>) => void
   updateFilesInStore: (updates: Array<{ path: string; updates: Partial<LocalFile> }>) => void
   removeFilesFromStore: (paths: string[]) => void
+  addFilesToStore: (files: LocalFile[]) => void
   updatePendingMetadata: (path: string, metadata: PendingMetadata) => void
   clearPendingMetadata: (path: string) => void
   clearPendingConfigMetadata: (path: string) => void
@@ -905,6 +912,39 @@ export interface Supplier {
   created_at: string | null
 }
 
+// Part-Supplier association (vendors for a specific file/item)
+export interface PartSupplier {
+  id: string
+  org_id: string
+  file_id: string
+  supplier_id: string
+  supplier?: Supplier  // Joined supplier data
+  // Supplier's part info
+  supplier_part_number: string | null
+  supplier_description: string | null
+  supplier_url: string | null
+  // Pricing
+  unit_price: number | null
+  currency: string | null
+  price_unit: string | null
+  price_breaks: Array<{ qty: number; price: number }> | null
+  // Ordering constraints
+  min_order_qty: number | null
+  order_multiple: number | null
+  lead_time_days: number | null
+  // Status
+  is_preferred: boolean | null
+  is_active: boolean | null
+  is_qualified: boolean | null
+  qualified_at: string | null
+  // Notes
+  notes: string | null
+  // Metadata
+  last_price_update: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
 // ============================================================================
 // Workflows Slice
 // ============================================================================
@@ -990,6 +1030,8 @@ export interface OperationsSlice {
   // State - Queue
   operationQueue: QueuedOperation[]
   isOperationRunning: boolean
+  /** Currently running operation details (for deduplication) */
+  currentOperation: { type: QueuedOperation['type']; paths: string[] } | null
   
   // State - Notifications & Reviews
   unreadNotificationCount: number
@@ -1040,7 +1082,11 @@ export interface OperationsSlice {
   endSync: () => void
   
   // Actions - Queue
-  queueOperation: (operation: Omit<QueuedOperation, 'id'>) => string
+  /** 
+   * Queue an operation. Returns the operation ID if queued, or null if duplicate was detected.
+   * Deduplication checks for same operation type with overlapping paths in queue or currently running.
+   */
+  queueOperation: (operation: Omit<QueuedOperation, 'id'>) => string | null
   removeFromQueue: (id: string) => void
   setOperationRunning: (running: boolean) => void
   processQueue: () => void

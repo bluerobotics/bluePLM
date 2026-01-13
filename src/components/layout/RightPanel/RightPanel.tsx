@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { getFileVersions } from '@/lib/supabase'
 import { ContainsTab, WhereUsedTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
+import { VendorsTab } from '@/features/source/details/VendorsTab'
 import { 
   FileBox, 
   Layers, 
@@ -432,6 +433,10 @@ export function RightPanel() {
 
             {rightPanelTab === 'contains' && (
               <ContainsTab file={file} />
+            )}
+
+            {rightPanelTab === 'vendors' && (
+              <VendorsTab file={file} />
             )}
 
             {/* Datacard tab - combined preview + properties for SolidWorks */}

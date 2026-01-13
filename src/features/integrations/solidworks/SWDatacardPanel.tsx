@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
+import { syncSolidWorksFileMetadata } from '@/lib/supabase'
 import { 
   getNextSerialNumber, 
   getSerializationSettings, 
@@ -21,8 +22,7 @@ import {
   Sparkles,
   ZoomIn,
   ZoomOut,
-  RotateCcw,
-  Save
+  RotateCcw
 } from 'lucide-react'
 
 // Configuration data type
@@ -173,11 +173,12 @@ function ConfigTreeItem({
   )
 }
 
-// Editable property field with inline editing
+// Editable property field with inline editing - auto-saves on blur
 function PropertyField({ 
   label, 
   value, 
   onChange,
+  onBlur,
   onGenerateSerial,
   isGenerating,
   placeholder = '—',
@@ -187,6 +188,7 @@ function PropertyField({
   label: string
   value: string
   onChange?: (value: string) => void
+  onBlur?: () => void  // Called when field loses focus (for auto-save)
   onGenerateSerial?: () => void
   isGenerating?: boolean
   placeholder?: string
@@ -203,6 +205,12 @@ function PropertyField({
           type="text"
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
+          onBlur={(e) => {
+            // Don't save on blur if clicking the generate button
+            const relatedTarget = e.relatedTarget as HTMLElement | null
+            if (relatedTarget?.dataset?.generateBtn) return
+            onBlur?.()
+          }}
           placeholder={placeholder}
           disabled={!editable}
           className={`
@@ -216,6 +224,7 @@ function PropertyField({
         />
         {onGenerateSerial && editable && (
           <button
+            data-generate-btn="true"
             onClick={onGenerateSerial}
             disabled={isGenerating}
             className="p-1.5 rounded border border-plm-border/50 hover:border-cyan-400/50 hover:bg-cyan-400/10 text-plm-fg-muted hover:text-cyan-400 transition-colors disabled:opacity-50"
@@ -300,7 +309,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const [configsLoading, setConfigsLoading] = useState(false)
   const [showAllProps, setShowAllProps] = useState(false)
   const [isGeneratingSerial, setIsGeneratingSerial] = useState(false)
-  const [isSavingToFile, setIsSavingToFile] = useState(false)
+  const [_isSavingToFile, setIsSavingToFile] = useState(false)
   
   // Resizable panel widths
   const [previewWidth, setPreviewWidth] = useState(180)
@@ -338,7 +347,9 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const organization = usePDMStore(s => s.organization)
   const user = usePDMStore(s => s.user)
   const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
-  const clearPendingMetadata = usePDMStore(s => s.clearPendingMetadata)
+  // NOTE: clearPendingMetadata is NOT used here anymore - pending metadata must
+  // persist until check-in so the server gets updated with new values
+  const updateFileInStore = usePDMStore(s => s.updateFileInStore)
   
   const ext = file.extension?.toLowerCase() || ''
   const fileType = ext === '.sldprt' ? 'Part' : ext === '.sldasm' ? 'Assembly' : 'Drawing'
@@ -484,9 +495,12 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
     }
   }
   
-  // Auto-pad tab number on blur (single-config)
+  // Auto-pad tab number on blur (single-config) + auto-save
   const handleTabNumberBlur = () => {
-    if (!serializationSettings || !tabNumber) return
+    if (!serializationSettings || !tabNumber) {
+      handleSaveToFile()  // Still save other changes
+      return
+    }
     const padded = autoPadTab(tabNumber, serializationSettings)
     if (padded !== tabNumber) {
       setTabNumber(padded)
@@ -495,6 +509,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         updatePendingMetadata(file.path, { part_number: combined || null })
       }
     }
+    handleSaveToFile()
   }
   
   // Handle per-config tab change (multi-config files)
@@ -518,11 +533,17 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
     }
   }
   
-  // Auto-pad config tab number on blur (multi-config)
+  // Auto-pad config tab number on blur (multi-config) + auto-save
   const handleConfigTabBlur = (configName: string) => {
-    if (!serializationSettings) return
+    if (!serializationSettings) {
+      handleSaveToFile()  // Still save other changes
+      return
+    }
     const currentTab = configTabNumbers[configName] || ''
-    if (!currentTab) return
+    if (!currentTab) {
+      handleSaveToFile()  // Still save other changes
+      return
+    }
     const padded = autoPadTab(currentTab, serializationSettings)
     if (padded !== currentTab) {
       setConfigTabNumbers(prev => ({
@@ -539,6 +560,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         })
       }
     }
+    handleSaveToFile()
   }
   
   // Handle description change for single-config files or drawings (file-level)
@@ -674,13 +696,66 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         }
         
         // Single batch call to write all changed configs
-        log.debug('[SWDatacard]', 'Batch saving configs', { configs: Object.keys(configProperties) })
+        // Compute the primary part number for DB update (use base number for multi-config)
+        const primaryPartNumber = baseNumber || null
+        const primaryDescription = configDescriptions[activeConfig?.name || ''] || description || null
+        
+        log.info('[SWDatacard]', 'Save to file starting (multi-config)', {
+          filePath: file.path,
+          fileId: file.pdmData?.id,
+          partNumber: primaryPartNumber,
+          description: primaryDescription,
+          revision,
+          configCount: Object.keys(configProperties).length
+        })
+        
         const result = await window.electronAPI?.solidworks?.setPropertiesBatch(file.path, configProperties)
         
         if (result?.success) {
+          // Update database with the new metadata BEFORE clearing pending
+          if (file.pdmData?.id && user?.id) {
+            log.info('[SWDatacard]', 'Updating database with new metadata', {
+              fileId: file.pdmData.id,
+              partNumber: primaryPartNumber
+            })
+            
+            const dbResult = await syncSolidWorksFileMetadata(file.pdmData.id, user.id, {
+              part_number: primaryPartNumber,
+              description: primaryDescription,
+              revision: revision || null
+            })
+            
+            log.info('[SWDatacard]', 'DB update result', {
+              fileId: file.pdmData.id,
+              success: dbResult.success,
+              newPartNumber: primaryPartNumber,
+              newVersion: dbResult.file?.version,
+              error: dbResult.error
+            })
+            
+            // Update local state with new version from DB
+            if (dbResult.success && dbResult.file) {
+              usePDMStore.getState().updateFilePdmData(file.pdmData.id, dbResult.file)
+            }
+            
+            // Mark as recently modified to block LoadFiles from overwriting
+            usePDMStore.getState().markFileAsRecentlyModified(file.pdmData.id)
+            log.info('[SWDatacard]', 'Marked file as recently modified', {
+              fileId: file.pdmData.id,
+              protectionWindowMs: 15000
+            })
+            setTimeout(() => {
+              usePDMStore.getState().clearRecentlyModified(file.pdmData!.id)
+            }, 15000)
+          }
+          
           addToast('success', 'Saved metadata to file')
-          // Clear pending metadata (this merges values into pdmData first)
-          clearPendingMetadata(file.path)
+          // NOTE: We do NOT clear pendingMetadata here - it must persist until check-in
+          // so the check-in RPC sends the metadata to update the server's file record.
+          // Without this, check-in won't send metadata and server keeps old values.
+          // CRITICAL: Invalidate cached localHash since file content changed
+          // Without this, checkin would incorrectly take fast path and skip version increment
+          updateFileInStore(file.path, { localHash: undefined })
         } else {
           log.error('[SWDatacard]', 'Failed to batch save', { error: result?.error })
           addToast('error', result?.error || 'Failed to save metadata to file')
@@ -697,13 +772,61 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         if (revision) props['Revision'] = revision
         
         if (Object.keys(props).length > 0) {
+          log.info('[SWDatacard]', 'Save to file starting (single-config)', {
+            filePath: file.path,
+            fileId: file.pdmData?.id,
+            partNumber: fullPartNumber,
+            description,
+            revision
+          })
+          
           // Write to active config (or file-level for drawings)
           const configName = activeConfig?.name
           const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, configName)
           if (result?.success) {
+            // Update database with the new metadata BEFORE clearing pending
+            if (file.pdmData?.id && user?.id) {
+              log.info('[SWDatacard]', 'Updating database with new metadata', {
+                fileId: file.pdmData.id,
+                partNumber: fullPartNumber
+              })
+              
+              const dbResult = await syncSolidWorksFileMetadata(file.pdmData.id, user.id, {
+                part_number: fullPartNumber || null,
+                description: description || null,
+                revision: revision || null
+              })
+              
+              log.info('[SWDatacard]', 'DB update result', {
+                fileId: file.pdmData.id,
+                success: dbResult.success,
+                newPartNumber: fullPartNumber,
+                newVersion: dbResult.file?.version,
+                error: dbResult.error
+              })
+              
+              // Update local state with new version from DB
+              if (dbResult.success && dbResult.file) {
+                usePDMStore.getState().updateFilePdmData(file.pdmData.id, dbResult.file)
+              }
+              
+              // Mark as recently modified to block LoadFiles from overwriting
+              usePDMStore.getState().markFileAsRecentlyModified(file.pdmData.id)
+              log.info('[SWDatacard]', 'Marked file as recently modified', {
+                fileId: file.pdmData.id,
+                protectionWindowMs: 15000
+              })
+              setTimeout(() => {
+                usePDMStore.getState().clearRecentlyModified(file.pdmData!.id)
+              }, 15000)
+            }
+            
             addToast('success', 'Saved metadata to file')
-            // Clear pending metadata (this merges values into pdmData first)
-            clearPendingMetadata(file.path)
+            // NOTE: We do NOT clear pendingMetadata here - it must persist until check-in
+            // so the check-in RPC sends the metadata to update the server's file record.
+            // CRITICAL: Invalidate cached localHash since file content changed
+            // Without this, checkin would incorrectly take fast path and skip version increment
+            updateFileInStore(file.path, { localHash: undefined })
           } else {
             log.error('[SWDatacard]', 'Failed to save props', { error: result?.error })
             addToast('error', result?.error || 'Failed to save metadata to file')
@@ -957,42 +1080,48 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
     }
   }
 
-  // Generate serial number (generates base number, shared across all configs)
+  // Generate serial number (generates base number, shared across all configs) + auto-save
   const handleGenerateSerial = async () => {
     if (!organization?.id) return
     
-    setIsGeneratingSerial(true)
     try {
+      // Generate the serial number first (no spinner yet - this is fast)
       const serial = await getNextSerialNumber(organization.id)
-      if (serial) {
-        // The generated serial is the base number
-        // Parse it to extract just the base portion (without any existing tab)
-        let base = serial
-        if (serializationSettings) {
-          const parsed = parsePartNumber(serial, serializationSettings)
-          if (parsed) {
-            base = parsed.base
-          }
-        }
-        
-        setBaseNumber(base)
-        
-        if (hasMultipleConfigs) {
-          // Multi-config: just save the base, tabs are per-config
-          updatePendingMetadata(file.path, { part_number: base || null })
-        } else if (tabEnabled && serializationSettings) {
-          // Single-config with tab: combine base + existing tab
-          const combined = combineBaseAndTab(base, tabNumber, serializationSettings)
-          updatePendingMetadata(file.path, { part_number: combined || null })
-        } else {
-          // No tab: just the base
-          updatePendingMetadata(file.path, { part_number: base || null })
-        }
-        
-        addToast('success', `Generated: ${base}`)
-      } else {
+      if (!serial) {
         addToast('error', 'Serialization disabled or failed')
+        return
       }
+      
+      // The generated serial is the base number
+      // Parse it to extract just the base portion (without any existing tab)
+      let base = serial
+      if (serializationSettings) {
+        const parsed = parsePartNumber(serial, serializationSettings)
+        if (parsed) {
+          base = parsed.base
+        }
+      }
+      
+      // Show the generated number immediately
+      setBaseNumber(base)
+      
+      if (hasMultipleConfigs) {
+        // Multi-config: just save the base, tabs are per-config
+        updatePendingMetadata(file.path, { part_number: base || null })
+      } else if (tabEnabled && serializationSettings) {
+        // Single-config with tab: combine base + existing tab
+        const combined = combineBaseAndTab(base, tabNumber, serializationSettings)
+        updatePendingMetadata(file.path, { part_number: combined || null })
+      } else {
+        // No tab: just the base
+        updatePendingMetadata(file.path, { part_number: base || null })
+      }
+      
+      // Now start the save operation (this is what takes time)
+      setIsGeneratingSerial(true)
+      
+      // Auto-save to file
+      await handleSaveToFile()
     } catch (err) {
       addToast('error', `Failed: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -1188,6 +1317,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
                       type="text"
                       value={baseNumber}
                       onChange={(e) => handleBaseNumberChange(e.target.value)}
+                      onBlur={handleSaveToFile}
                       placeholder="Base..."
                       disabled={!isEditable}
                       className={`
@@ -1241,6 +1371,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
                 label="Item #"
                 value={baseNumber}
                 onChange={handleBaseNumberChange}
+                onBlur={handleSaveToFile}
                 onGenerateSerial={handleGenerateSerial}
                 isGenerating={isGeneratingSerial}
                 placeholder="Enter or generate..."
@@ -1256,6 +1387,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
                 ? handleConfigDescriptionChange(activeConfig.name, v)
                 : handleDescriptionChange(v)
               }
+              onBlur={handleSaveToFile}
               placeholder="Enter description..."
               editable={!!isEditable}
             />
@@ -1264,29 +1396,10 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
               label="Revision"
               value={revision}
               onChange={handleRevisionChange}
+              onBlur={handleSaveToFile}
               placeholder="A"
               editable={!!isEditable}
             />
-            
-            {/* Save to File button - writes properties back to SW file */}
-            {isEditable && status.running && (
-              <div className="flex items-center gap-3 pt-2">
-                <div className="w-20 flex-shrink-0" /> {/* Spacer to align with fields */}
-                <button
-                  onClick={handleSaveToFile}
-                  disabled={isSavingToFile}
-                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded bg-cyan-600 hover:bg-cyan-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Save properties to SolidWorks file"
-                >
-                  {isSavingToFile ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Save size={14} />
-                  )}
-                  Save to File
-                </button>
-              </div>
-            )}
             
             {/* Material from SW properties (read-only) */}
             <div className="flex items-center gap-3">

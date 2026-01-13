@@ -187,11 +187,13 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   )
   
   // File mutation actions
-  const { renameFileInStore, updateFileInStore, updatePendingMetadata } = usePDMStore(
+  const { renameFileInStore, updateFileInStore, updatePendingMetadata, removeFilesFromStore, updateFilesInStore } = usePDMStore(
     useShallow(s => ({
       renameFileInStore: s.renameFileInStore,
       updateFileInStore: s.updateFileInStore,
-      updatePendingMetadata: s.updatePendingMetadata
+      updatePendingMetadata: s.updatePendingMetadata,
+      removeFilesFromStore: s.removeFilesFromStore,
+      updateFilesInStore: s.updateFilesInStore
     }))
   )
   
@@ -315,6 +317,9 @@ export function FilePane({ onRefresh }: FilePaneProps) {
 
   // Current machine ID for multi-device checkout detection (loaded once)
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
+  
+  // State for tracking files currently saving to SolidWorks (declared early for useFileOperations)
+  const [savingConfigsToSW, setSavingConfigsToSW] = useState<Set<string>>(new Set())
 
   // File operations (checkout, checkin, download, upload, etc.)
   const {
@@ -342,7 +347,8 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     addProcessingFolder,
     removeProcessingFolder,
     renameFileInStore,
-    resetHoverStates
+    resetHoverStates,
+    savingConfigsToSW
   })
 
   // Drag and drop state and handlers
@@ -401,7 +407,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   const lastClickedConfigRef = useRef<string | null>(null)
   const justSavedConfigs = useRef<Set<string>>(new Set())
   const [isExportingConfigs, setIsExportingConfigs] = useState(false)
-  const [savingConfigsToSW, setSavingConfigsToSW] = useState<Set<string>>(new Set())
+  // Note: savingConfigsToSW is declared earlier (before useFileOperations)
   
   // Config state setter from store (for context menu callbacks)
   const setSelectedConfigs = usePDMStore(s => s.setSelectedConfigs)
@@ -429,6 +435,9 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     setSelectedFiles,
     organization,
     addToast,
+    addProgressToast,
+    updateProgressToast,
+    removeToast,
   })
 
   // Clipboard operations using shared hook
@@ -677,6 +686,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     addToast,
     updatePendingMetadata,
     onRefresh,
+    saveConfigsToSWFile,
   })
   
   // Use the sorting hook for memoized sorted/filtered files
@@ -756,7 +766,8 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     addProcessingFolders,
     removeProcessingFolders,
     setUndoStack,
-    onRefresh,
+    removeFilesFromStore,
+    updateFilesInStore,
     addToast,
     addProgressToast,
     removeToast,
@@ -1330,6 +1341,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
           setShowStateSubmenu={setShowStateSubmenu}
           ignoreSubmenuTimeoutRef={ignoreSubmenuTimeoutRef}
           stateSubmenuTimeoutRef={stateSubmenuTimeoutRef}
+          savingConfigsToSW={savingConfigsToSW}
         />
       )}
 

@@ -85,6 +85,7 @@ export function useVaultTree() {
   
   // Build folder tree structure
   const tree = useMemo<TreeMap>(() => {
+    console.log('[useVaultTree] Building tree, files count:', files.length)
     const treeMap: TreeMap = { '': [] }
     
     // Filter out any undefined or invalid files and optionally hide SolidWorks temp files
@@ -108,6 +109,7 @@ export function useVaultTree() {
       }
     })
     
+    console.log('[useVaultTree] Tree built, root items:', treeMap['']?.length)
     return treeMap
   }, [files, hideSolidworksTempFiles])
 
@@ -128,10 +130,7 @@ export function useVaultTree() {
   const folderMetrics = useMemo<FolderMetricsMap>(() => {
     const startTime = performance.now()
     const fileCount = files.length
-    window.electronAPI?.log('info', '[FolderMetrics] Starting computation', { 
-      fileCount, 
-      timestamp: Date.now() 
-    })
+    // Note: Logging removed - this runs on every render and floods logs with ~24k files
     recordMetric('FolderMetrics', 'Starting computation', { fileCount })
     
     const metrics = new Map<string, FolderMetrics>()
@@ -331,11 +330,7 @@ export function useVaultTree() {
     }
     
     const durationMs = performance.now() - startTime
-    window.electronAPI?.log('info', '[FolderMetrics] Computation complete', { 
-      folderCount: metrics.size, 
-      durationMs: Math.round(durationMs * 100) / 100,
-      timestamp: Date.now() 
-    })
+    // Note: Logging removed - this runs on every render and floods logs with ~24k files
     recordMetric('FolderMetrics', 'Computation complete', { 
       folderCount: metrics.size, 
       durationMs: Math.round(durationMs * 100) / 100 

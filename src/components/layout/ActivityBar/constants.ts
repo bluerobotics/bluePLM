@@ -8,10 +8,10 @@ export const moduleTranslationKeys: Record<ModuleId, string> = {
   'history': 'sidebar.history',
   'workflows': 'sidebar.workflows',
   'trash': 'sidebar.trash',
-  // Items
+  // Products
+  'products': 'sidebar.products',
   'items': 'sidebar.items',
   'boms': 'sidebar.boms',
-  'products': 'sidebar.products',
   // Change Control
   'ecr': 'sidebar.ecr',
   'eco': 'sidebar.eco',

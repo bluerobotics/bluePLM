@@ -172,8 +172,12 @@ export async function checkinFile(
 }
 
 /**
- * Sync SolidWorks file metadata and create a new version
- * This can be called without having the file checked out (for metadata-only updates from SW properties)
+ * Sync SolidWorks file metadata from SW properties
+ * 
+ * Behavior depends on checkout state:
+ * - If file is checked out by current user: updates metadata only, NO version increment
+ *   (version creation happens at check-in via checkin_file RPC)
+ * - If file is NOT checked out: creates a new version for metadata-only update
  */
 export async function syncSolidWorksFileMetadata(
   fileId: string,
@@ -231,36 +235,47 @@ export async function syncSolidWorksFileMetadata(
     updateData.custom_properties = metadata.custom_properties
   }
   
-  // Create a new version for metadata changes
-  // Use maybeSingle() since file might not have version history yet (first version)
-  const { data: maxVersionData } = await client
-    .from('file_versions')
-    .select('version')
-    .eq('file_id', fileId)
-    .order('version', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // Check if file is checked out by current user
+  const isCheckedOutByMe = file.checked_out_by === userId
   
-  const maxVersionInHistory = maxVersionData?.version || file.version
-  const newVersion = maxVersionInHistory + 1
-  updateData.version = newVersion
+  // Only create a version if file is NOT checked out by current user
+  // When checked out, metadata saves don't create versions - version is created at check-in
+  const shouldCreateVersion = !isCheckedOutByMe
   
-  // Create version record with proper error handling
-  const { error: versionError } = await client.from('file_versions').insert({
-    file_id: fileId,
-    version: newVersion,
-    revision: updateData.revision || file.revision || 'A',
-    content_hash: file.content_hash || '',
-    file_size: file.file_size,
-    workflow_state_id: file.workflow_state_id,
-    state: file.state || 'not_tracked',
-    created_by: userId,
-    comment: 'Metadata updated from SolidWorks file properties'
-  })
-  
-  if (versionError) {
-    return { success: false, error: `Failed to create version: ${versionError.message}` }
+  if (shouldCreateVersion) {
+    // Create new version for this change
+    // Use maybeSingle() since file might not have version history yet (first version)
+    const { data: maxVersionData } = await client
+      .from('file_versions')
+      .select('version')
+      .eq('file_id', fileId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    const maxVersionInHistory = maxVersionData?.version || file.version
+    const newVersion = maxVersionInHistory + 1
+    updateData.version = newVersion
+    
+    // Create version record with proper error handling
+    const { error: versionError } = await client.from('file_versions').insert({
+      file_id: fileId,
+      version: newVersion,
+      revision: updateData.revision || file.revision || 'A',
+      content_hash: file.content_hash || '',
+      file_size: file.file_size,
+      workflow_state_id: file.workflow_state_id,
+      state: file.state || 'not_tracked',
+      created_by: userId,
+      comment: 'Metadata updated from SolidWorks file properties'
+    })
+    
+    if (versionError) {
+      return { success: false, error: `Failed to create version: ${versionError.message}` }
+    }
   }
+  // If checked out by me: just update metadata, no version increment
+  // Version creation is handled by checkin_file RPC
   
   // Update the file
   const { data, error } = await client
@@ -282,6 +297,7 @@ export async function syncSolidWorksFileMetadata(
   if (customPropsChanged) changedFields.push('custom_properties')
   
   // Log activity synchronously with try/catch
+  // Use 'update' action if checked out (metadata-only), 'checkin' action if version was created
   try {
     const userEmail = await getCurrentUserEmail()
     await client.from('activity').insert({
@@ -289,11 +305,13 @@ export async function syncSolidWorksFileMetadata(
       file_id: fileId,
       user_id: userId,
       user_email: userEmail,
-      action: 'checkin',
+      action: shouldCreateVersion ? 'checkin' : 'update',
       details: { 
         metadataSync: true,
         changedFields,
-        source: 'solidworks'
+        source: 'solidworks',
+        versionCreated: shouldCreateVersion,
+        isCheckedOut: isCheckedOutByMe
       }
     })
   } catch {

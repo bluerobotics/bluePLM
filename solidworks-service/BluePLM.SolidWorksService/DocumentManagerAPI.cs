@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 
 namespace BluePLM.SolidWorksService
 {
@@ -33,6 +35,17 @@ namespace BluePLM.SolidWorksService
             @"C:\Program Files (x86)\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swdocumentmgr.dll",
             @"C:\Program Files\Common Files\SolidWorks Shared\SolidWorks.Interop.swdocumentmgr.dll",
         };
+
+        // Per-file lock to serialize DM operations on the same file (prevents race conditions)
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> _fileLocks = new();
+
+        /// <summary>
+        /// Get or create a lock for a specific file path (case-insensitive)
+        /// </summary>
+        private static SemaphoreSlim GetFileLock(string filePath)
+        {
+            return _fileLocks.GetOrAdd(filePath.ToLowerInvariant(), _ => new SemaphoreSlim(1, 1));
+        }
 
         public DocumentManagerAPI(string? licenseKey = null)
         {
@@ -575,6 +588,10 @@ namespace BluePLM.SolidWorksService
             if (!File.Exists(filePath))
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
+            // Acquire per-file lock to serialize operations on the same file
+            var fileLock = GetFileLock(filePath!);
+            fileLock.Wait();
+
             object? doc = null;
             try
             {
@@ -697,6 +714,8 @@ namespace BluePLM.SolidWorksService
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
                 }
+                // Release per-file lock
+                fileLock.Release();
             }
         }
 
@@ -1089,6 +1108,7 @@ namespace BluePLM.SolidWorksService
         /// <summary>
         /// Set custom properties on a file WITHOUT launching SolidWorks!
         /// Can set file-level or configuration-specific properties.
+        /// When writing to config level, also writes Number to file level for consistency.
         /// </summary>
         public CommandResult SetCustomProperties(string? filePath, Dictionary<string, string>? properties, string? configuration = null)
         {
@@ -1103,6 +1123,10 @@ namespace BluePLM.SolidWorksService
 
             if (properties == null || properties.Count == 0)
                 return new CommandResult { Success = false, Error = "Missing or empty 'properties'" };
+
+            // Acquire per-file lock to serialize operations on the same file
+            var fileLock = GetFileLock(filePath!);
+            fileLock.Wait();
 
             object? doc = null;
             try
@@ -1166,6 +1190,22 @@ namespace BluePLM.SolidWorksService
                             catch { }
                         }
                     }
+
+                    // FIX: Also write Number to file-level to ensure consistency
+                    // This prevents race conditions where concurrent reads miss the config-level Number
+                    if (properties.TryGetValue("Number", out var numberValue) && !string.IsNullOrEmpty(numberValue))
+                    {
+                        Console.Error.WriteLine($"[DM] Also writing Number to file-level: {numberValue}");
+                        try
+                        {
+                            try { dynDoc.DeleteCustomProperty("Number"); } catch { }
+                            dynDoc.AddCustomProperty("Number", swDmCustomInfoText, numberValue);
+                        }
+                        catch
+                        {
+                            try { dynDoc.SetCustomProperty("Number", numberValue); } catch { }
+                        }
+                    }
                 }
 
                 // Save the document
@@ -1193,12 +1233,15 @@ namespace BluePLM.SolidWorksService
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
                 }
+                // Release per-file lock
+                fileLock.Release();
             }
         }
 
         /// <summary>
         /// Set custom properties on MULTIPLE configurations in one document open/save cycle.
         /// MUCH faster than calling SetCustomProperties multiple times!
+        /// Also writes Number to file-level for consistency (prevents race conditions).
         /// </summary>
         /// <param name="filePath">Path to the SolidWorks file</param>
         /// <param name="configProperties">Dictionary mapping configuration name -> property dictionary</param>
@@ -1215,6 +1258,10 @@ namespace BluePLM.SolidWorksService
 
             if (configProperties == null || configProperties.Count == 0)
                 return new CommandResult { Success = false, Error = "Missing or empty 'configProperties'" };
+
+            // Acquire per-file lock to serialize operations on the same file
+            var fileLock = GetFileLock(filePath!);
+            fileLock.Wait();
 
             object? doc = null;
             try
@@ -1233,6 +1280,9 @@ namespace BluePLM.SolidWorksService
                 int totalPropsSet = 0;
                 int configsProcessed = 0;
                 var errors = new List<string>();
+                
+                // Track the last Number value written (for file-level backup)
+                string? lastNumberValue = null;
 
                 // Write properties to each configuration
                 foreach (var configEntry in configProperties)
@@ -1260,6 +1310,12 @@ namespace BluePLM.SolidWorksService
                                 try { config.DeleteCustomProperty(kvp.Key); } catch { }
                                 config.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
                                 propsSetForConfig++;
+                                
+                                // Track Number value for file-level backup
+                                if (kvp.Key == "Number" && !string.IsNullOrEmpty(kvp.Value))
+                                {
+                                    lastNumberValue = kvp.Value;
+                                }
                             }
                             catch
                             {
@@ -1267,6 +1323,11 @@ namespace BluePLM.SolidWorksService
                                 { 
                                     config.SetCustomProperty(kvp.Key, kvp.Value);
                                     propsSetForConfig++; 
+                                    
+                                    if (kvp.Key == "Number" && !string.IsNullOrEmpty(kvp.Value))
+                                    {
+                                        lastNumberValue = kvp.Value;
+                                    }
                                 } 
                                 catch { }
                             }
@@ -1279,6 +1340,22 @@ namespace BluePLM.SolidWorksService
                     catch (Exception configEx)
                     {
                         errors.Add($"Error writing to config '{configName}': {configEx.Message}");
+                    }
+                }
+
+                // FIX: Also write Number to file-level to ensure consistency
+                // This prevents race conditions where concurrent reads miss the config-level Number
+                if (!string.IsNullOrEmpty(lastNumberValue))
+                {
+                    Console.Error.WriteLine($"[DM] Also writing Number to file-level: {lastNumberValue}");
+                    try
+                    {
+                        try { dynDoc.DeleteCustomProperty("Number"); } catch { }
+                        dynDoc.AddCustomProperty("Number", swDmCustomInfoText, lastNumberValue);
+                    }
+                    catch
+                    {
+                        try { dynDoc.SetCustomProperty("Number", lastNumberValue); } catch { }
                     }
                 }
 
@@ -1311,6 +1388,8 @@ namespace BluePLM.SolidWorksService
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
                 }
+                // Release per-file lock
+                fileLock.Release();
             }
         }
 

@@ -628,7 +628,9 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     const cloudFiles = isActive ? files.filter(f => !f.isDirectory && f.diffStatus === 'cloud') : []
     const cloudFilesCount = cloudFiles.length
     const isAnyCloudFileProcessing = isActive && cloudFiles.some(f => isBeingProcessed(f.relativePath))
-    const outdatedFilesCount = isActive ? files.filter(f => !f.isDirectory && f.diffStatus === 'outdated').length : 0
+    const outdatedFiles = isActive ? files.filter(f => !f.isDirectory && f.diffStatus === 'outdated') : []
+    const outdatedFilesCount = outdatedFiles.length
+    const isAnyOutdatedFileProcessing = isActive && outdatedFiles.some(f => isBeingProcessed(f.relativePath))
     const localOnlyFilesCount = isActive ? files.filter(f => 
       !f.isDirectory && 
       (!f.pdmData || f.diffStatus === 'added' || f.diffStatus === 'deleted_remote') &&
@@ -741,6 +743,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
           isCheckingInAll={isCheckingInAll}
           isCheckingInMyCheckouts={isCheckingInMyCheckouts}
           isAnyCloudFileProcessing={isAnyCloudFileProcessing}
+          isAnyOutdatedFileProcessing={isAnyOutdatedFileProcessing}
           onDownloadAllCloud={handleDownloadAllCloudFiles}
           onUpdateAllOutdated={handleUpdateAllOutdated}
           onFirstCheckinAllLocal={handleFirstCheckinAllLocal}
