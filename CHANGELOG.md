@@ -6,6 +6,25 @@ All notable changes to BluePLM will be documented in this file.
 
 ---
 
+## [3.6.0] - 2026-01-13
+
+### Added
+- **Per-part vendor management**: New "Vendors" tab in the right-panel details view for managing suppliers at the part level. Link multiple vendors to any synced file with vendor part numbers, pricing, lead times, minimum order quantities, and notes. Set preferred vendors with star ratings and quick-add new vendors inline
+- **Inline serial number generation**: Generate the next serial number directly from the Item # column in the file browser. Hover over any checked-out file to reveal a sparkle button, or click to edit and use the button in the input field. Auto-saves to SolidWorks files immediately
+
+### Performance
+- **Optimized backup status checks**: Backup status is now computed incrementally instead of re-checking all snapshots on every poll. Status summary (last backup time, snapshot count) is cached and only updated when new snapshots are detected
+- **Memoized file tree items**: FileTree and VaultTreeItem components now use React.memo with custom comparators to prevent unnecessary re-renders during file operations
+
+### Fixed
+- **Double version increment on metadata save**: Fixed bug where saving metadata to a SolidWorks file during checkout (via "Save to File" or datacard edits) would cause version to increment twice on check-in. The checkin_file RPC now detects if a version was already created during the checkout session and skips duplicate version creation
+- **Item number not saving to SolidWorks file**: Serial numbers generated via the new inline generate button are now immediately written to the SolidWorks file (not just stored as pending metadata)
+
+### Changed
+- **Schema version**: Bumped to v43
+
+---
+
 ## [3.5.0] - 2026-01-12
 
 ### Added
