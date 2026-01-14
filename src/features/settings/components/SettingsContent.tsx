@@ -126,7 +126,7 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
 
   return (
     <div className="flex-1 overflow-y-auto bg-plm-bg">
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6">
         <Suspense fallback={<SettingsLoading />}>
           {renderContent()}
         </Suspense>

@@ -1,14 +1,18 @@
 import { useMemo } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
+import { computeFolderVisualState } from '@/components/shared/FileItem'
 
 export interface CheckoutUser {
   id: string
   name: string
+  email?: string
   avatar_url?: string
   isMe: boolean
   isDifferentMachine?: boolean
   machineName?: string
+  /** For folders: list of file IDs this user has checked out */
+  fileIds?: string[]
 }
 
 export interface UseFileCardStatusParams {
@@ -115,12 +119,23 @@ function getCheckoutUsers(
     const folderFiles = allFiles.filter(f =>
       !f.isDirectory &&
       f.pdmData?.checked_out_by &&
+      f.pdmData?.id &&
       f.relativePath.startsWith(folderPrefix)
     )
 
     const usersMap = new Map<string, CheckoutUser>()
+    const userFileIds = new Map<string, string[]>()
+    
     for (const f of folderFiles) {
       const checkoutUserId = f.pdmData!.checked_out_by!
+      const fileId = f.pdmData!.id
+      
+      // Track file IDs per user
+      if (!userFileIds.has(checkoutUserId)) {
+        userFileIds.set(checkoutUserId, [])
+      }
+      userFileIds.get(checkoutUserId)!.push(fileId)
+      
       if (!usersMap.has(checkoutUserId)) {
         const isMe = checkoutUserId === userId
         const checkoutMachineId = f.pdmData?.checked_out_by_machine_id
@@ -131,23 +146,34 @@ function getCheckoutUsers(
           usersMap.set(checkoutUserId, {
             id: checkoutUserId,
             name: userFullName || userEmail || 'You',
+            email: userEmail,
             avatar_url: userAvatarUrl,
             isMe: true,
             isDifferentMachine: isDifferentMachine || false,
-            machineName: checkoutMachineName ?? undefined
+            machineName: checkoutMachineName ?? undefined,
+            fileIds: [] // Will be filled below
           })
         } else {
           const checkedOutUser = f.pdmData?.checked_out_user
           usersMap.set(checkoutUserId, {
             id: checkoutUserId,
             name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+            email: checkedOutUser?.email ?? undefined,
             avatar_url: checkedOutUser?.avatar_url ?? undefined,
-            isMe: false
+            isMe: false,
+            fileIds: [] // Will be filled below
           })
         }
       }
     }
-    return Array.from(usersMap.values())
+    
+    // Attach file IDs to each user
+    const users = Array.from(usersMap.values())
+    for (const user of users) {
+      user.fileIds = userFileIds.get(user.id) || []
+    }
+    
+    return users
   } else if (file.pdmData?.checked_out_by) {
     const isMe = file.pdmData.checked_out_by === userId
     const checkoutMachineId = file.pdmData.checked_out_by_machine_id
@@ -158,6 +184,7 @@ function getCheckoutUsers(
       return [{
         id: file.pdmData.checked_out_by,
         name: userFullName || userEmail || 'You',
+        email: userEmail,
         avatar_url: userAvatarUrl,
         isMe: true,
         isDifferentMachine: isDifferentMachine || false,
@@ -168,6 +195,7 @@ function getCheckoutUsers(
       return [{
         id: file.pdmData.checked_out_by,
         name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+        email: checkedOutUser?.email ?? undefined,
         avatar_url: checkedOutUser?.avatar_url ?? undefined,
         isMe: false
       }]
@@ -177,7 +205,14 @@ function getCheckoutUsers(
 }
 
 /**
- * Get folder icon color based on checkout status
+ * Get folder icon color using priority-based logic.
+ * 
+ * Priority order (highest to lowest):
+ * 1. Local-only files -> grey
+ * 2. Server-only (cloud) files -> grey
+ * 3. Synced files -> green (wins over checkouts)
+ * 4. My checkouts -> orange
+ * 5. Others' checkouts -> red
  */
 function getFolderIconColor(
   file: LocalFile,
@@ -190,25 +225,56 @@ function getFolderIconColor(
 
   const folderPath = file.relativePath.replace(/\\/g, '/')
   const folderPrefix = folderPath + '/'
-  const serverOnlyStatuses = ['cloud', 'deleted']
-
-  const folderFiles = allFiles.filter(f => {
-    if (f.isDirectory) return false
-    if (serverOnlyStatuses.includes(f.diffStatus || '')) return false
+  
+  // Compute file counts for priority logic
+  let hasLocalOnly = false
+  let hasServerOnly = false
+  let hasSynced = false
+  let hasMineCheckouts = false
+  let hasOthersCheckouts = false
+  
+  for (const f of allFiles) {
+    if (f.isDirectory) continue
     const filePath = f.relativePath.replace(/\\/g, '/')
-    return filePath.startsWith(folderPrefix)
-  })
-
-  const checkedOutByMe = folderFiles.some(f => f.pdmData?.checked_out_by === userId)
-  const checkedOutByOthers = folderFiles.some(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId)
-
-  if (checkedOutByOthers) return 'text-plm-error'
-  if (checkedOutByMe) return 'text-orange-400'
-
-  if (folderFiles.length === 0) return 'text-plm-fg-muted'
-  const hasUnsyncedFiles = folderFiles.some(f => !f.pdmData || f.diffStatus === 'added')
-
-  return hasUnsyncedFiles ? 'text-plm-fg-muted' : 'text-plm-success'
+    if (!filePath.startsWith(folderPrefix)) continue
+    
+    // Server-only files (cloud)
+    if (f.diffStatus === 'cloud') {
+      hasServerOnly = true
+      continue
+    }
+    
+    // Skip deleted files (server-only status)
+    if (f.diffStatus === 'deleted') continue
+    
+    // Local-only files (no pdmData or added status)
+    if (!f.pdmData || f.diffStatus === 'added') {
+      if (f.diffStatus !== 'ignored') {
+        hasLocalOnly = true
+      }
+      continue
+    }
+    
+    // Files with pdmData - check checkout status
+    if (f.pdmData.checked_out_by === userId) {
+      hasMineCheckouts = true
+    } else if (f.pdmData.checked_out_by) {
+      hasOthersCheckouts = true
+    } else {
+      // Has pdmData, not checked out = synced
+      hasSynced = true
+    }
+  }
+  
+  const visualState = computeFolderVisualState(
+    hasLocalOnly,
+    hasServerOnly,
+    hasSynced,
+    hasMineCheckouts,
+    hasOthersCheckouts
+  )
+  
+  return visualState.iconColor
 }
 
 /**

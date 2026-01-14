@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 43, 'Fix double version increment: checkin_file skips version if already created during checkout', NOW(), 'migration')
+VALUES (1, 45, 'file_versions now stores part_number and description per version (metadata snapshots)', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,

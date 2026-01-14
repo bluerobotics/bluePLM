@@ -2238,6 +2238,78 @@ namespace BluePLM.SolidWorksService
         }
 
         /// <summary>
+        /// Set custom properties on an open document WITHOUT closing it.
+        /// Uses the live SolidWorks API instead of Document Manager.
+        /// This allows editing properties while the user has the file open.
+        /// </summary>
+        public CommandResult SetDocumentProperties(string? filePath, Dictionary<string, string>? properties, string? configuration = null)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                return new CommandResult { Success = false, Error = "Missing 'filePath'" };
+
+            if (properties == null || properties.Count == 0)
+                return new CommandResult { Success = false, Error = "Missing or empty 'properties'" };
+
+            try
+            {
+                ISldWorks? sw = null;
+                try
+                {
+                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
+                }
+                catch
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = "SolidWorks is not running"
+                    };
+                }
+
+                var doc = (ModelDoc2)sw.GetOpenDocument(filePath);
+                if (doc == null)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = $"File is not open in SolidWorks: {Path.GetFileName(filePath)}"
+                    };
+                }
+
+                // Check if document is read-only
+                if (doc.IsOpenedReadOnly())
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = $"Cannot set properties: document is read-only. Check out the file first."
+                    };
+                }
+
+                // Use the WriteCustomProperties helper to set properties
+                WriteCustomProperties(doc, properties, configuration);
+
+                Console.Error.WriteLine($"[SW-API] Set {properties.Count} properties on open document: {Path.GetFileName(filePath)}, config: {configuration ?? "file-level"}");
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Data = new
+                    {
+                        filePath,
+                        fileName = Path.GetFileName(filePath),
+                        propertiesSet = properties.Count,
+                        configuration = configuration ?? "file-level"
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+        }
+
+        /// <summary>
         /// Get detailed info about an open document including dirty state
         /// </summary>
         public CommandResult GetDocumentInfo(string? filePath)

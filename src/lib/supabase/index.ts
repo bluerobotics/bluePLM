@@ -82,6 +82,7 @@ export {
   emptyTrash,
   rollbackToVersion,
   transitionFileState,
+  updateVersionNote,
   getFileReferenceDiagnostics,
   getVaultFilesForDiagnostics
 } from './files'

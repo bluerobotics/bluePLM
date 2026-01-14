@@ -9,6 +9,7 @@ export { CheckoutActions } from './CheckoutActions'
 export { CollaborationActions } from './CollaborationActions'
 export { DeleteActions } from './DeleteActions'
 export { ExportActions } from './ExportActions'
+export { MetadataActions } from './MetadataActions'
 
 // Hooks and utilities
 export { useContextMenuSelectionState } from './useContextMenuState'

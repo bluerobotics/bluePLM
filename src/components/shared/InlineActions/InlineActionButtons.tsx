@@ -1,6 +1,9 @@
-import React from 'react'
-import { Cloud, ArrowDown, ArrowUp, HardDrive, RefreshCw, Loader2, Lock, Clock, Check, X } from 'lucide-react'
+import React, { useState, useCallback } from 'react'
+import { Cloud, ArrowDown, ArrowUp, HardDrive, RefreshCw, Loader2, Lock, Clock, Check, X, Bell } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
+import { requestCheckout } from '@/lib/supabase/notifications'
+import { usePDMStore } from '@/stores/pdmStore'
+import { log } from '@/lib/logger'
 
 interface BaseButtonProps {
   onClick: (e: React.MouseEvent) => void
@@ -14,9 +17,12 @@ interface BaseButtonProps {
 interface CheckinUser {
   id: string
   name: string
+  email?: string
   avatar_url?: string
   isMe: boolean
   count?: number
+  /** For folders: list of file IDs this user has checked out (for notifications) */
+  fileIds?: string[]
 }
 
 // ============================================================================
@@ -426,6 +432,289 @@ export const FolderUploadButton: React.FC<FolderUploadButtonProps> = ({
 }
 
 // ============================================================================
+// NOTIFICATION INLINE BUTTON - Same style as check-in but with bell icon and red colors
+// Used to notify other users to check in their files
+// ============================================================================
+interface NotificationInlineButtonProps {
+  users: CheckinUser[]
+  hasOverflow: boolean
+  overflowCount: number
+  totalCount: number
+  showCount: boolean
+  folderId: string
+  folderName: string
+  allUsers: CheckinUser[] // All users for dropdown overflow
+}
+
+const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
+  users,
+  hasOverflow,
+  overflowCount,
+  totalCount,
+  showCount,
+  folderId,
+  folderName,
+  allUsers
+}) => {
+  const [isSending, setIsSending] = useState(false)
+  const [sendingToUser, setSendingToUser] = useState<string | null>(null)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const dropdownRef = React.useRef<HTMLDivElement>(null)
+  
+  const { user: currentUser, organization, addToast } = usePDMStore()
+  
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    if (!isDropdownOpen) return
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false)
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isDropdownOpen])
+  
+  // Send notification to a single user
+  const handleNotifyUser = useCallback(async (targetUser: CheckinUser, e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    
+    if (!currentUser?.id || !organization?.id) {
+      addToast('error', 'You must be signed in to send notifications')
+      return
+    }
+    
+    setSendingToUser(targetUser.id)
+    
+    try {
+      const fileId = targetUser.fileIds?.[0] || folderId
+      const fileCount = targetUser.count || targetUser.fileIds?.length || 1
+      const message = `Please check in ${fileCount} file${fileCount > 1 ? 's' : ''} in ${folderName}`
+      
+      const { success, error } = await requestCheckout(
+        organization.id,
+        fileId,
+        folderName,
+        currentUser.id,
+        targetUser.id,
+        message
+      )
+      
+      if (success) {
+        addToast('success', `Notification sent to ${targetUser.name}`)
+        log.info('[NotificationInlineButton]', 'Notification sent', { 
+          toUser: targetUser.id, 
+          folder: folderName
+        })
+      } else {
+        addToast('error', error || 'Failed to send notification')
+      }
+    } catch (err) {
+      addToast('error', 'Failed to send notification')
+      log.error('[NotificationInlineButton]', 'Error sending notification', { error: err })
+    } finally {
+      setSendingToUser(null)
+    }
+  }, [currentUser, organization, folderId, folderName, addToast])
+  
+  // Send notification to all users
+  const handleNotifyAll = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    
+    if (!currentUser?.id || !organization?.id) {
+      addToast('error', 'You must be signed in to send notifications')
+      return
+    }
+    
+    setIsSending(true)
+    
+    try {
+      // Send to each user
+      const results = await Promise.all(
+        allUsers.map(async (targetUser) => {
+          const fileId = targetUser.fileIds?.[0] || folderId
+          const fileCount = targetUser.count || targetUser.fileIds?.length || 1
+          const message = `Please check in ${fileCount} file${fileCount > 1 ? 's' : ''} in ${folderName}`
+          
+          return requestCheckout(
+            organization.id,
+            fileId,
+            folderName,
+            currentUser.id,
+            targetUser.id,
+            message
+          )
+        })
+      )
+      
+      const successCount = results.filter(r => r.success).length
+      if (successCount === allUsers.length) {
+        addToast('success', `Notification sent to ${allUsers.length} user${allUsers.length > 1 ? 's' : ''}`)
+      } else if (successCount > 0) {
+        addToast('warning', `Notification sent to ${successCount} of ${allUsers.length} users`)
+      } else {
+        addToast('error', 'Failed to send notifications')
+      }
+      
+      log.info('[NotificationInlineButton]', 'Notifications sent', { 
+        successCount, 
+        totalUsers: allUsers.length,
+        folder: folderName
+      })
+    } catch (err) {
+      addToast('error', 'Failed to send notifications')
+      log.error('[NotificationInlineButton]', 'Error sending notifications', { error: err })
+    } finally {
+      setIsSending(false)
+    }
+  }, [currentUser, organization, allUsers, folderId, folderName, addToast])
+  
+  // Toggle dropdown
+  const handleToggleDropdown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setIsDropdownOpen(prev => !prev)
+  }, [])
+  
+  // If sending to all, show spinner
+  if (isSending) {
+    return <Loader2 size={16} className="text-red-400 animate-spin" />
+  }
+  
+  // Avatar size: 18px
+  const avatarSize = 18
+  
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        className="group/notify flex items-center cursor-pointer"
+        onClick={handleToggleDropdown}
+        title="Click to notify users"
+      >
+        {/* Avatars */}
+        <div className="flex -space-x-1 z-10">
+          {users.map((u) => (
+            <div 
+              key={u.id} 
+              className="rounded-full overflow-hidden flex-shrink-0"
+              style={{ width: avatarSize, height: avatarSize }}
+            >
+              {u.avatar_url ? (
+                <img
+                  src={u.avatar_url}
+                  alt={u.name}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div 
+                  className="w-full h-full flex items-center justify-center text-[8px] font-medium bg-plm-accent/30 text-plm-accent rounded-full"
+                >
+                  {getInitials(u.name)}
+                </div>
+              )}
+            </div>
+          ))}
+          {hasOverflow && (
+            <div
+              className="rounded-full bg-plm-bg-light flex items-center justify-center text-[8px] text-plm-fg-muted flex-shrink-0"
+              style={{ width: avatarSize, height: avatarSize }}
+              title={`${overflowCount} more user${overflowCount > 1 ? 's' : ''}`}
+            >
+              +{overflowCount}
+            </div>
+          )}
+        </div>
+        {/* Box with lock (turns to bell on hover) + count - RED theme */}
+        <div 
+          className="flex items-center h-[18px] pr-1.5 rounded-r-md transition-all duration-200 bg-white/10 group-hover/notify:bg-red-500/30 gap-0 group-hover/notify:gap-1 -ml-2"
+          style={{ paddingLeft: '12px' }}
+        >
+        {/* Lock icon (normal) / Bell icon (hover) */}
+        <Lock size={10} className="flex-shrink-0 transition-all duration-200 text-orange-400 group-hover/notify:hidden" />
+        <Bell size={10} className="flex-shrink-0 transition-all duration-200 text-red-400 hidden group-hover/notify:block" />
+        {showCount && (
+          <span className="text-[10px] font-medium overflow-hidden transition-all duration-200 max-w-0 group-hover/notify:max-w-[2rem] text-red-400">
+            {totalCount}
+          </span>
+        )}
+        {/* Small arrow/send indicator on hover */}
+        <ArrowUp size={12} className="overflow-hidden transition-all duration-200 max-w-0 group-hover/notify:max-w-[1rem] text-red-400" />
+      </div>
+    </button>
+      
+      {/* Dropdown for individual user notifications */}
+      {isDropdownOpen && (
+        <div className="absolute top-full right-0 mt-1 z-50 min-w-[200px] bg-plm-bg-elevated border border-plm-border rounded-lg shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-plm-border">
+            <div className="text-xs font-medium text-plm-fg-muted">Notify users</div>
+          </div>
+          <div className="max-h-[200px] overflow-y-auto">
+            {allUsers.map((u) => (
+              <div
+                key={u.id}
+                className="flex items-center justify-between px-3 py-2 hover:bg-plm-bg-hover transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div 
+                    className="rounded-full overflow-hidden flex-shrink-0"
+                    style={{ width: 24, height: 24 }}
+                  >
+                    {u.avatar_url ? (
+                      <img
+                        src={u.avatar_url}
+                        alt={u.name}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[9px] font-medium bg-plm-accent/30 text-plm-accent rounded-full">
+                        {getInitials(u.name)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-plm-fg truncate">{u.name}</div>
+                    <div className="text-[10px] text-plm-fg-muted">
+                      {u.count || u.fileIds?.length || 1} file{(u.count || u.fileIds?.length || 1) > 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => handleNotifyUser(u, e)}
+                  disabled={sendingToUser === u.id}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded transition-colors disabled:opacity-50"
+                >
+                  {sendingToUser === u.id ? (
+                    <Loader2 size={10} className="animate-spin" />
+                  ) : (
+                    <Bell size={10} />
+                  )}
+                  Notify
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="p-2 border-t border-plm-border">
+            <button
+              onClick={handleNotifyAll}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-red-500/30 hover:bg-red-500/50 text-red-400 rounded transition-colors"
+            >
+              <Bell size={12} />
+              Notify all ({allUsers.length})
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
 // CHECKIN BUTTON - Avatar(s) + lock icon, expands to show count + arrow on hover
 // Used for both individual files (single avatar, no count) and folders (multiple avatars, shows count)
 // ============================================================================
@@ -437,6 +726,10 @@ interface CheckinButtonProps extends BaseButtonProps {
   isSelectionHovered?: boolean // For multi-select - expand when any selected item is hovered
   title?: string
   maxAvatars?: number // Default 2, vault header uses 3
+  /** Folder ID for notification functionality */
+  folderId?: string
+  /** Folder name for notification */
+  folderName?: string
 }
 
 // Unified check-in button for both files and folders
@@ -452,7 +745,9 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
   isProcessing,
   maxAvatars = 2,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
+  folderId,
+  folderName
 }) => {
   // When processing, just show a clean blue spinner - no backgrounds, no avatars, nothing else
   if (isProcessing) {
@@ -465,16 +760,16 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
   const showCount = displayCount !== undefined && displayCount > 1
   const defaultTitle = selectedCount && selectedCount > 1 
     ? `Check in ${selectedCount} selected files`
-    : users.map(u => u.name + (u.count ? `: ${u.count} file${u.count > 1 ? 's' : ''}` : '')).join('\n') + 
-      (canCheckin && showCount ? `\n\nClick to check in your ${myCheckedOutCount} file${myCheckedOutCount > 1 ? 's' : ''}` : '')
+    : users.filter(u => u.isMe).map(u => u.name + (u.count ? `: ${u.count} file${u.count > 1 ? 's' : ''}` : '')).join('\n') + 
+      (canCheckin ? `\nClick to check in your ${myCheckedOutCount} file${myCheckedOutCount > 1 ? 's' : ''}` : '')
 
-  const displayedUsers = users.slice(0, maxAvatars)
-  const hasOverflow = users.length > maxAvatars
+  // Separate my users from other users - use ALL users, not sliced
+  const myUser = users.find(u => u.isMe)
+  const otherUsers = users.filter(u => !u.isMe)
   
-  // Calculate width for avatar stack: first avatar 20px, each additional overlaps by 4px (16px visible)
-  const avatarStackWidth = 20 + (displayedUsers.length - 1) * 16 + (hasOverflow ? 16 : 0)
-  // Box starts at center of avatar stack
-  const boxStartOffset = avatarStackWidth / 2
+  // For fallback mode (no folder info), use old sliced display
+  const displayedUsersForFallback = users.slice(0, maxAvatars)
+  const hasOverflowFallback = users.length > maxAvatars
   
   // Expand if locally hovered OR if selection is hovered (for multi-select)
   const forceExpanded = isSelectionHovered
@@ -484,6 +779,89 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
   const boxBg = isExpanded ? 'bg-emerald-400/30' : 'bg-white/10 group-hover/checkin:bg-emerald-400/30'
   const boxGap = isExpanded ? 'gap-1' : 'gap-0 group-hover/checkin:gap-1'
 
+  // When we have folder info, show inline buttons for both notification (others) and check-in (me)
+  if (folderId && folderName) {
+    // Calculate totals for other users
+    const othersCheckoutCount = otherUsers.reduce((sum, u) => sum + (u.count || u.fileIds?.length || 1), 0)
+    const showOthersCount = othersCheckoutCount > 0 // Always show count on hover when there are checkouts
+    
+    // Displayed other users (limited by maxAvatars)
+    const displayedOtherUsers = otherUsers.slice(0, maxAvatars)
+    const hasOthersOverflow = otherUsers.length > maxAvatars
+    
+    return (
+      <div className="relative flex items-center gap-1">
+        {/* Other users - notification button (red/bell style) */}
+        {otherUsers.length > 0 && (
+          <NotificationInlineButton
+            users={displayedOtherUsers}
+            hasOverflow={hasOthersOverflow}
+            overflowCount={otherUsers.length - maxAvatars}
+            totalCount={othersCheckoutCount}
+            showCount={showOthersCount}
+            folderId={folderId}
+            folderName={folderName}
+            allUsers={otherUsers}
+          />
+        )}
+        {/* My check-in button (green/lock style) */}
+        {canCheckin && myUser && (
+          <button
+            className="group/checkin relative flex items-center cursor-pointer"
+            onClick={onClick}
+            title={title || defaultTitle || 'Check In'}
+            disabled={disabled}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+          >
+            {/* My avatar - 18px to match other users */}
+            <div className="absolute left-0.5 inset-y-0 flex items-center z-10">
+              <div className="rounded-full overflow-hidden flex-shrink-0" style={{ width: 18, height: 18 }}>
+                {myUser.avatar_url ? (
+                  <img
+                    src={myUser.avatar_url}
+                    alt={myUser.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[8px] font-medium bg-plm-accent/30 text-plm-accent">
+                    {getInitials(myUser.name)}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Box with lock + count */}
+            <div 
+              className={`flex items-center h-[18px] pr-1.5 rounded-r-md transition-all duration-200 ${boxBg} ${boxGap}`}
+              style={{ paddingLeft: '12px', marginLeft: '12px' }}
+            >
+              <Lock size={10} className={`flex-shrink-0 transition-colors duration-200 ${
+                isExpanded ? 'text-emerald-400' : 'text-orange-400 group-hover/checkin:text-emerald-400'
+              }`} />
+              {myCheckedOutCount > 0 && (
+                <span className={`text-[10px] font-medium overflow-hidden transition-all duration-200 ${
+                  isExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/checkin:max-w-[2rem]'
+                } text-emerald-400`}>
+                  {myCheckedOutCount}
+                </span>
+              )}
+              <ArrowUp size={12} className={`overflow-hidden transition-all duration-200 ${
+                isExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkin:max-w-[1rem]'
+              } text-emerald-400`} />
+            </div>
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  // Fallback: old behavior when no folder info (single file check-in, etc.)
+  // Use 18px avatars to match folder avatars
+  const fallbackAvatarSize = 18
+  const fallbackAvatarCount = displayedUsersForFallback.length + (hasOverflowFallback ? 1 : 0)
+  const fallbackStackWidth = fallbackAvatarCount > 0 ? fallbackAvatarSize + (fallbackAvatarCount - 1) * 4 : 0
+  
   return (
     <button
       className={`group/checkin relative flex items-center ${
@@ -495,23 +873,24 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {/* Avatars - positioned to overlap the box */}
-      <div className="absolute left-0 inset-y-0 flex items-center z-10">
+      {/* All avatars - positioned to overlap the box */}
+      <div className="absolute left-0.5 inset-y-0 flex items-center z-10">
         <div className="flex -space-x-1">
-          {displayedUsers.map((u) => (
+          {displayedUsersForFallback.map((u) => (
             <div 
               key={u.id} 
-              className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 relative"
+              className="rounded-full overflow-hidden flex-shrink-0 relative"
+              style={{ width: fallbackAvatarSize, height: fallbackAvatarSize }}
             >
               {u.avatar_url ? (
                 <img
                   src={u.avatar_url}
                   alt={u.name}
-                  className="w-5 h-5 object-cover"
+                  className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className={`w-5 h-5 flex items-center justify-center text-[9px] font-medium ${
+                <div className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${
                   u.isMe ? 'bg-plm-accent/30 text-plm-accent' : 'bg-plm-accent/30 text-plm-accent'
                 }`}>
                   {getInitials(u.name)}
@@ -519,8 +898,11 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
               )}
             </div>
           ))}
-          {hasOverflow && (
-            <div className="w-5 h-5 rounded-full bg-plm-bg-light flex items-center justify-center text-[8px] text-plm-fg-muted flex-shrink-0">
+          {hasOverflowFallback && (
+            <div 
+              className="rounded-full bg-plm-bg-light flex items-center justify-center text-[8px] text-plm-fg-muted flex-shrink-0"
+              style={{ width: fallbackAvatarSize, height: fallbackAvatarSize }}
+            >
               +{users.length - maxAvatars}
             </div>
           )}
@@ -529,7 +911,10 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
       {/* Box - left edge starts at center of avatar stack */}
       <div 
         className={`flex items-center h-[18px] pr-1.5 rounded-r-md transition-all duration-200 ${boxBg} ${boxGap}`}
-        style={{ paddingLeft: `${avatarStackWidth / 2 + 4}px`, marginLeft: `${boxStartOffset}px` }}
+        style={{ 
+          paddingLeft: '12px', 
+          marginLeft: `${fallbackStackWidth > 0 ? fallbackStackWidth - 6 : 0}px` 
+        }}
       >
         <Lock size={10} className={`flex-shrink-0 transition-colors duration-200 ${
           isExpanded ? 'text-emerald-400' : 'text-orange-400 group-hover/checkin:text-emerald-400'
@@ -603,6 +988,10 @@ interface FolderCheckinButtonProps extends BaseButtonProps {
   isSelectionHovered?: boolean // For multi-select
   title?: string
   maxAvatars?: number
+  /** Folder ID for notification functionality */
+  folderId?: string
+  /** Folder name for notification */
+  folderName?: string
 }
 
 export const FolderCheckinButton: React.FC<FolderCheckinButtonProps> = (props) => {

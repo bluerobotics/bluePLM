@@ -143,6 +143,78 @@ export function FileTypeIcon({ extension, size = 16, className = '' }: FileTypeI
 
 export type FolderCheckoutStatus = 'mine' | 'others' | 'both' | null
 
+// ============================================================================
+// FOLDER VISUAL STATE - Priority-based folder icon color and text styling
+// ============================================================================
+
+/**
+ * Folder visual state computed from priority-based file status
+ */
+export interface FolderVisualState {
+  /** Tailwind color class for the folder icon */
+  iconColor: string
+  /** Whether folder text should be normal (true) or italic/muted (false) */
+  isSynced: boolean
+}
+
+/**
+ * Compute folder visual state based on file status priority.
+ * 
+ * Priority order (highest to lowest):
+ * 1. Local-only files -> Grey icon + italic text
+ * 2. Server-only (cloud) files -> Grey icon + italic text
+ * 3. Synced files -> Green icon + normal text
+ * 4. My checkouts -> Orange icon + normal text
+ * 5. Others' checkouts -> Red icon + normal text
+ * 
+ * Higher priority states always win when present. For example:
+ * - If any local-only files exist, folder shows grey regardless of other states
+ * - If any synced files exist (and no local-only/server-only), folder shows green
+ *   even if other files are checked out
+ * 
+ * @param hasLocalOnly - Whether folder has any local-only (unsynced) files
+ * @param hasServerOnly - Whether folder has any server-only (cloud) files
+ * @param hasSynced - Whether folder has any synced files (not checked out)
+ * @param hasMineCheckouts - Whether folder has any files checked out by current user
+ * @param hasOthersCheckouts - Whether folder has any files checked out by others
+ * @returns FolderVisualState with iconColor and isSynced
+ */
+export function computeFolderVisualState(
+  hasLocalOnly: boolean,
+  hasServerOnly: boolean,
+  hasSynced: boolean,
+  hasMineCheckouts: boolean,
+  hasOthersCheckouts: boolean
+): FolderVisualState {
+  // Priority 1: Local-only files -> grey, not synced
+  if (hasLocalOnly) {
+    return { iconColor: 'text-plm-fg-muted', isSynced: false }
+  }
+  
+  // Priority 2: Server-only (cloud) files -> grey, not synced
+  if (hasServerOnly) {
+    return { iconColor: 'text-plm-fg-muted', isSynced: false }
+  }
+  
+  // Priority 3: Synced files -> green, synced (wins over checkouts)
+  if (hasSynced) {
+    return { iconColor: 'text-plm-success', isSynced: true }
+  }
+  
+  // Priority 4: My checkouts -> orange, synced
+  if (hasMineCheckouts) {
+    return { iconColor: 'text-orange-400', isSynced: true }
+  }
+  
+  // Priority 5: Others' checkouts -> red, synced
+  if (hasOthersCheckouts) {
+    return { iconColor: 'text-plm-error', isSynced: true }
+  }
+  
+  // Empty folder or only has ignored files -> grey, not synced
+  return { iconColor: 'text-plm-fg-muted', isSynced: false }
+}
+
 /**
  * Get folder checkout status based on files inside
  * @returns 'mine' | 'others' | 'both' | null
@@ -188,11 +260,17 @@ export function isFolderSynced(folderPath: string, allFiles: LocalFile[]): boole
 
 /**
  * Get the Tailwind color class for a folder icon
- * Based on checkout status and sync status
+ * Uses priority-based logic where higher priority states win.
  * 
- * Note: Folder color is derived from computed metrics (isFolderSynced, checkoutStatus),
- * not from the folder entry's own diffStatus. This ensures the icon updates immediately
- * when files are downloaded, without requiring an app restart.
+ * Priority order (highest to lowest):
+ * 1. Local-only files -> grey
+ * 2. Server-only (cloud) files -> grey
+ * 3. Synced files -> green (wins over checkouts)
+ * 4. My checkouts -> orange
+ * 5. Others' checkouts -> red
+ * 
+ * Note: Folder color is derived from computed metrics, not from the folder entry's
+ * own diffStatus. This ensures the icon updates immediately when files change.
  */
 export function getFolderIconColor(
   file: LocalFile,
@@ -201,22 +279,58 @@ export function getFolderIconColor(
 ): string {
   if (!file.isDirectory) return ''
   
-  const checkoutStatus = getFolderCheckoutStatus(file.relativePath, allFiles, userId)
+  const folderPath = file.relativePath.replace(/\\/g, '/')
+  const folderPrefix = folderPath + '/'
   
-  // Red for folders with files checked out by others
-  if (checkoutStatus === 'others' || checkoutStatus === 'both') {
-    return 'text-plm-error'
+  // Compute file counts for priority logic
+  let hasLocalOnly = false
+  let hasServerOnly = false
+  let hasSynced = false
+  let hasMineCheckouts = false
+  let hasOthersCheckouts = false
+  
+  for (const f of allFiles) {
+    if (f.isDirectory) continue
+    const filePath = f.relativePath.replace(/\\/g, '/')
+    if (!filePath.startsWith(folderPrefix)) continue
+    
+    // Server-only files (cloud)
+    if (f.diffStatus === 'cloud') {
+      hasServerOnly = true
+      continue
+    }
+    
+    // Skip deleted files (server-only status)
+    if (f.diffStatus === 'deleted') continue
+    
+    // Local-only files (no pdmData or added status)
+    if (!f.pdmData || f.diffStatus === 'added') {
+      if (f.diffStatus !== 'ignored') {
+        hasLocalOnly = true
+      }
+      continue
+    }
+    
+    // Files with pdmData - check checkout status
+    if (f.pdmData.checked_out_by === userId) {
+      hasMineCheckouts = true
+    } else if (f.pdmData.checked_out_by) {
+      hasOthersCheckouts = true
+    } else {
+      // Has pdmData, not checked out = synced
+      hasSynced = true
+    }
   }
   
-  // Vibrant orange for folders with only my checkouts (matches lock icon)
-  if (checkoutStatus === 'mine') {
-    return 'text-orange-400'
-  }
+  const visualState = computeFolderVisualState(
+    hasLocalOnly,
+    hasServerOnly,
+    hasSynced,
+    hasMineCheckouts,
+    hasOthersCheckouts
+  )
   
-  // Check if folder is fully synced (derived from children, not stale folder diffStatus)
-  // Returns grey for cloud-only folders (all children have diffStatus 'cloud')
-  const synced = isFolderSynced(file.relativePath, allFiles)
-  return synced ? 'text-plm-success' : 'text-plm-fg-muted'
+  return visualState.iconColor
 }
 
 // ============================================================================
@@ -226,10 +340,13 @@ export function getFolderIconColor(
 export interface CheckoutUser {
   id: string
   name: string
+  email?: string
   avatar_url?: string
   isMe: boolean
   isDifferentMachine?: boolean
   machineName?: string
+  /** For folders: list of file IDs this user has checked out (for notifications) */
+  fileIds?: string[]
 }
 
 /**
@@ -260,6 +377,7 @@ export function getFolderCheckoutUsers(
         usersMap.set(checkoutUserId, {
           id: checkoutUserId,
           name: userFullName || userEmail || 'You',
+          email: userEmail,
           avatar_url: userAvatarUrl,
           isMe: true
         })
@@ -268,6 +386,7 @@ export function getFolderCheckoutUsers(
         usersMap.set(checkoutUserId, {
           id: checkoutUserId,
           name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+          email: checkedOutUser?.email,
           avatar_url: checkedOutUser?.avatar_url,
           isMe: false
         })

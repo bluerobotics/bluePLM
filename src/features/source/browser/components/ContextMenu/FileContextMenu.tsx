@@ -5,7 +5,6 @@
 import React from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
-import { useFilePaneContext } from '../../context'
 
 // Import action components
 import {
@@ -17,6 +16,7 @@ import {
   CollaborationActions,
   DeleteActions,
   ExportActions,
+  MetadataActions,
   useContextMenuSelectionState,
 } from './actions'
 
@@ -25,6 +25,9 @@ export interface FileContextMenuProps {
   contextMenu: { x: number; y: number; file: LocalFile }
   contextMenuAdjustedPos: { x: number; y: number } | null
   onClose: () => void
+  
+  // Ref for positioning (from useContextMenuState)
+  contextMenuRef: React.RefObject<HTMLDivElement | null>
   
   // Files and context
   getContextMenuFiles: () => LocalFile[]
@@ -50,7 +53,7 @@ export interface FileContextMenuProps {
   handleBulkStateChange: (files: LocalFile[], newState: string) => void
   
   // Modals and panels
-  setDetailsPanelTab: (tab: 'properties' | 'history' | 'whereused') => void
+  setDetailsPanelTab: (tab: 'properties' | 'whereused') => void
   setDetailsPanelVisible: (visible: boolean) => void
   handleOpenReviewModal: (file: LocalFile) => void
   handleOpenCheckoutRequestModal: (file: LocalFile) => void
@@ -102,6 +105,7 @@ export function FileContextMenu({
   contextMenu,
   contextMenuAdjustedPos,
   onClose,
+  contextMenuRef,
   getContextMenuFiles,
   platform,
   // Handlers
@@ -141,9 +145,6 @@ export function FileContextMenu({
 }: FileContextMenuProps) {
   // Get user from store
   const { user } = usePDMStore()
-  
-  // Get context menu ref from context
-  const { contextMenuRef } = useFilePaneContext()
   
   // Get context files
   const contextFiles = getContextMenuFiles()
@@ -285,6 +286,15 @@ export function FileContextMenu({
           multiSelect={multiSelect}
           firstFile={firstFile}
           onClose={onClose}
+        />
+        
+        {/* Metadata actions (refresh metadata from SolidWorks files) */}
+        <MetadataActions
+          contextFiles={contextFiles}
+          multiSelect={multiSelect}
+          firstFile={firstFile}
+          onClose={onClose}
+          onRefresh={onRefresh}
         />
         
         {/* Delete actions (remove local, delete locally, delete from server, delete both, undo) */}

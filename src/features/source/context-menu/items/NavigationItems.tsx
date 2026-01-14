@@ -1,5 +1,5 @@
 // src/features/source/context-menu/items/NavigationItems.tsx
-import { Pin, History, Trash2, Info, RefreshCw } from 'lucide-react'
+import { Pin, Trash2, Info, RefreshCw } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { DialogName } from '../types'
@@ -91,22 +91,6 @@ export function NavigationItems({
       )}
 
       <div className="context-menu-separator" />
-
-      {/* Show History - for folders */}
-      {!multiSelect && isFolder && (
-        <div 
-          className="context-menu-item"
-          onClick={() => {
-            const { setDetailsPanelTab, detailsPanelVisible, toggleDetailsPanel } = usePDMStore.getState()
-            setDetailsPanelTab('history')
-            if (!detailsPanelVisible) toggleDetailsPanel()
-            onClose()
-          }}
-        >
-          <History size={14} />
-          Show History
-        </div>
-      )}
 
       {/* Show Deleted Files - for folders */}
       {!multiSelect && isFolder && (

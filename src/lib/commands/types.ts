@@ -356,6 +356,12 @@ export interface ShowInExplorerParams {
 }
 
 /**
+ * Parameters for the refresh-local-metadata command.
+ * Extracts metadata from local SolidWorks files and updates pendingMetadata.
+ */
+export interface RefreshLocalMetadataParams extends BaseCommandParams {}
+
+/**
  * Parameters for the sync-sw-metadata command.
  * Extracts and syncs SolidWorks custom properties to the database.
  */
@@ -406,6 +412,7 @@ export type CommandId =
   | 'ignore'
   | 'open'
   | 'show-in-explorer'
+  | 'refresh-local-metadata'
   | 'sync-sw-metadata'
   | 'extract-references'
 
@@ -450,6 +457,7 @@ export type CommandMap = {
   'ignore': Command<IgnoreParams>
   'open': Command<OpenParams>
   'show-in-explorer': Command<ShowInExplorerParams>
+  'refresh-local-metadata': Command<RefreshLocalMetadataParams>
   'sync-sw-metadata': Command<SyncSwMetadataParams>
   'extract-references': Command<ExtractReferencesParams>
 }

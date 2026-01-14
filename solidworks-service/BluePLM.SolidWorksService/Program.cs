@@ -189,6 +189,8 @@ namespace BluePLM.SolidWorksService
                     "getConfigurations" => GetConfigurationsFast(filePath),
                     "getReferences" => GetReferencesFast(filePath),
                     "getPreview" => GetPreviewFast(filePath, command["configuration"]?.ToString()),
+                    "getShellThumbnail" => WindowsShellThumbnail.GetThumbnail(filePath!, 
+                        command["size"]?.Value<int>() ?? 256),
                     
                     // ========================================
                     // Open Document Management
@@ -201,6 +203,9 @@ namespace BluePLM.SolidWorksService
                     "setDocumentReadOnly" => _swApi!.SetDocumentReadOnly(filePath,
                         command["readOnly"]?.Value<bool>() ?? true),
                     "saveDocument" => _swApi!.SaveDocument(filePath),
+                    "setDocumentProperties" => _swApi!.SetDocumentProperties(filePath,
+                        command["properties"]?.ToObject<System.Collections.Generic.Dictionary<string, string>>(),
+                        command["configuration"]?.ToString()),
                     
                     // ========================================
                     // SLOW operations (Full SolidWorks API)
@@ -365,46 +370,50 @@ namespace BluePLM.SolidWorksService
         
         static CommandResult GetPreviewFast(string? filePath, string? configuration)
         {
-            // ONLY use Document Manager API - NEVER fall back to full SolidWorks!
-            // Opening SolidWorks just for previews is extremely annoying to users.
-            // If Document Manager fails, the Electron app will use the embedded OLE preview instead.
+            // Strategy:
+            // 1. Try Document Manager API (fastest, no SW launch)
+            // 2. If DM fails, try Windows Shell thumbnail (uses SW's shell extension)
+            // 3. NEVER fall back to full SolidWorks API (too slow/disruptive)
             
-            if (!_dmPreviewWorks)
+            if (string.IsNullOrEmpty(filePath))
+                return new CommandResult { Success = false, Error = "File path is required" };
+            
+            // Try Document Manager first (if it's working)
+            if (_dmPreviewWorks && _dmApi != null && _dmApi.IsAvailable)
             {
-                return new CommandResult 
-                { 
-                    Success = false, 
-                    Error = "Document Manager preview not available for this file format. Use embedded preview." 
-                };
+                var result = _dmApi.GetPreviewImage(filePath, configuration);
+                if (result.Success)
+                {
+                    return result;
+                }
+                
+                // If DM fails with certain errors, disable it for future calls
+                if (result.Error?.Contains("E_UNEXPECTED") == true || 
+                    result.Error?.Contains("Method not found") == true ||
+                    result.Error?.Contains("Catastrophic") == true)
+                {
+                    Console.Error.WriteLine("[Service] Document Manager preview doesn't work for this file format.");
+                    Console.Error.WriteLine("[Service] Falling back to Windows Shell thumbnails.");
+                    _dmPreviewWorks = false;
+                }
             }
             
-            if (_dmApi == null || !_dmApi.IsAvailable)
+            // Fall back to Windows Shell thumbnail extraction
+            // This uses SolidWorks' shell extension to generate thumbnails
+            Console.Error.WriteLine("[Service] Trying Windows Shell thumbnail extraction...");
+            var shellResult = WindowsShellThumbnail.GetThumbnail(filePath, 256);
+            if (shellResult.Success)
             {
-                return new CommandResult 
-                { 
-                    Success = false, 
-                    Error = "Document Manager not available. Use embedded preview." 
-                };
+                Console.Error.WriteLine("[Service] SUCCESS! Got thumbnail via Windows Shell.");
+                return shellResult;
             }
             
-            var result = _dmApi.GetPreviewImage(filePath, configuration);
-            if (result.Success)
-            {
-                return result;
-            }
-            
-            // If DM fails with certain errors, disable it for future calls
-            if (result.Error?.Contains("E_UNEXPECTED") == true || 
-                result.Error?.Contains("Method not found") == true ||
-                result.Error?.Contains("Catastrophic") == true)
-            {
-                Console.Error.WriteLine("[Service] Document Manager preview doesn't work for this file format.");
-                Console.Error.WriteLine("[Service] Future preview requests will fall back to embedded OLE preview.");
-                _dmPreviewWorks = false;
-            }
-            
-            // Return the DM error - do NOT fall back to opening SolidWorks!
-            return result;
+            Console.Error.WriteLine($"[Service] Shell thumbnail also failed: {shellResult.Error}");
+            return new CommandResult 
+            { 
+                Success = false, 
+                Error = "Preview extraction failed (DM API and Shell both unavailable)" 
+            };
         }
 
         static CommandResult SetPropertiesFast(string? filePath, System.Collections.Generic.Dictionary<string, string>? properties, string? configuration)

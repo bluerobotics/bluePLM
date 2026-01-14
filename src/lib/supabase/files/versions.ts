@@ -83,6 +83,47 @@ export async function rollbackToVersion(
 }
 
 /**
+ * Update a version's note/comment
+ * Requires the file to be checked out by the current user
+ */
+export async function updateVersionNote(
+  fileId: string,
+  versionId: string,
+  userId: string,
+  note: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  
+  // Verify file is checked out by user
+  const { data: file, error: fetchError } = await client
+    .from('files')
+    .select('checked_out_by')
+    .eq('id', fileId)
+    .single()
+  
+  if (fetchError) {
+    return { success: false, error: fetchError.message }
+  }
+  
+  if (file.checked_out_by !== userId) {
+    return { success: false, error: 'You must check out the file to edit version notes' }
+  }
+  
+  // Update the version's comment
+  const { error: updateError } = await client
+    .from('file_versions')
+    .update({ comment: note.trim() || null })
+    .eq('id', versionId)
+    .eq('file_id', fileId) // Extra safety: ensure version belongs to this file
+  
+  if (updateError) {
+    return { success: false, error: updateError.message }
+  }
+  
+  return { success: true }
+}
+
+/**
  * Transition file to a new workflow state
  */
 export async function transitionFileState(

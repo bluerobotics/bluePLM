@@ -146,10 +146,13 @@ export type FolderMetricsMap = Map<string, FolderMetrics>
 export interface CheckoutUser {
   id: string
   name: string
+  email?: string
   avatar_url?: string
   isMe: boolean
   isDifferentMachine?: boolean
   machineName?: string
+  /** For folders: list of file IDs this user has checked out (for notifications) */
+  fileIds?: string[]
 }
 
 /**
@@ -251,7 +254,7 @@ export type SortDirection = 'asc' | 'desc'
 /**
  * Sort column options
  */
-export type SortColumn = 'name' | 'extension' | 'size' | 'modifiedTime' | 'state' | 'revision' | 'itemNumber' | 'fileStatus' | 'checkedOutBy' | 'version' | 'description' | 'ecoTags'
+export type SortColumn = 'name' | 'extension' | 'size' | 'modifiedTime' | 'state' | 'revision' | 'itemNumber' | 'tabNumber' | 'fileStatus' | 'checkedOutBy' | 'version' | 'description' | 'ecoTags'
 
 /**
  * Column ID to translation key mapping
@@ -262,6 +265,7 @@ export const COLUMN_TRANSLATION_KEYS: Record<string, string> = {
   checkedOutBy: 'fileBrowser.checkedOutBy',
   version: 'fileBrowser.version',
   itemNumber: 'fileBrowser.itemNumber',
+  tabNumber: 'fileBrowser.tabNumber',
   description: 'fileBrowser.description',
   revision: 'fileBrowser.revision',
   state: 'fileBrowser.state',

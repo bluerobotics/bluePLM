@@ -33,9 +33,12 @@ interface FolderTreeItemProps {
   checkedOutByMeCount: number
   totalCheckouts: number
   syncedCount: number
-  // Folder status
+  // Folder status (priority-based from computeFolderVisualState)
   checkoutStatus: 'none' | 'mine' | 'others' | 'both'
+  /** Whether folder text should be normal (true) or italic/muted (false) */
   isSynced: boolean
+  /** Priority-based folder icon color (Tailwind class) */
+  iconColor: string
   // Children
   children: React.ReactNode
   onRefresh?: (silent?: boolean) => void
@@ -75,6 +78,7 @@ function areFolderTreeItemPropsEqual(
   if (prevProps.syncedCount !== nextProps.syncedCount) return false
   if (prevProps.checkoutStatus !== nextProps.checkoutStatus) return false
   if (prevProps.isSynced !== nextProps.isSynced) return false
+  if (prevProps.iconColor !== nextProps.iconColor) return false
   
   // Compare diffCounts object
   if (prevProps.diffCounts !== nextProps.diffCounts) {
@@ -126,8 +130,9 @@ export const FolderTreeItem = memo(function FolderTreeItem({
   checkedOutByMeCount,
   totalCheckouts,
   syncedCount,
-  checkoutStatus,
+  checkoutStatus: _checkoutStatus,
   isSynced,
+  iconColor,
   children,
   onRefresh,
   isOfflineMode
@@ -137,27 +142,10 @@ export const FolderTreeItem = memo(function FolderTreeItem({
   // The CSS sidebar-diff-cloud class would make text italic based on stale folder diffStatus
   const diffClass = ''
   
-  // Get folder icon with appropriate color - spinners are on action buttons, not icons
-  // Note: Folder color is derived from computed metrics (isSynced, checkoutStatus), not stale folder diffStatus
-  // This ensures the icon updates immediately when files are downloaded
+  // Folder icon uses pre-computed iconColor from priority-based logic
+  // Priority order: local-only > server-only > synced > mine > others
   const getFolderIcon = () => {
-    // Red for folders with files checked out by others
-    if (checkoutStatus === 'others' || checkoutStatus === 'both') {
-      return <FolderOpen size={16} className="text-plm-error" />
-    }
-    
-    // Orange for folders with only my checkouts
-    if (checkoutStatus === 'mine') {
-      return <FolderOpen size={16} className="text-orange-400" />
-    }
-    
-    // Green for synced folders, grey otherwise (including cloud-only folders)
-    if (isSynced) {
-      return <FolderOpen size={16} className="text-plm-success" />
-    }
-    
-    // Default grey (includes cloud-only folders where all children have diffStatus 'cloud')
-    return <FolderOpen size={16} className="text-plm-fg-muted" />
+    return <FolderOpen size={16} className={iconColor} />
   }
   
   return (

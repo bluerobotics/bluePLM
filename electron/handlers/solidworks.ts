@@ -76,6 +76,24 @@ interface PingCacheEntry {
 
 let pingCache: PingCacheEntry | null = null
 
+// ============================================
+// Orphaned Process Watchdog State
+// ============================================
+
+/** Interval for checking orphaned processes (ms) */
+const ORPHAN_CHECK_INTERVAL_MS = 5000 // 5 seconds - tasklist is very lightweight
+
+/** Timer for periodic orphan cleanup */
+let orphanWatchdogTimer: ReturnType<typeof setInterval> | null = null
+
+/**
+ * Placeholder for future use - records when a SolidWorks file was opened.
+ * Currently not used since we only kill definitive zombie processes.
+ */
+export function recordSolidWorksFileOpen(): void {
+  // No-op for now - we only kill __wgldummywindowfodder which is always safe
+}
+
 interface SWServiceResult {
   success: boolean
   data?: unknown
@@ -101,6 +119,241 @@ function checkProcessExists(pid: number): boolean {
   } catch {
     // Process doesn't exist or we don't have permission
     return false
+  }
+}
+
+/**
+ * Finds all running SLDWORKS.exe processes on the system.
+ * Uses Windows tasklist command to enumerate processes.
+ * @returns Array of process info objects with PID and name
+ */
+function findSolidWorksProcesses(): { pid: number; name: string; windowTitle: string }[] {
+  if (process.platform !== 'win32') {
+    return []
+  }
+  
+  try {
+    // Use tasklist with verbose output to get window titles
+    // This helps distinguish between active SolidWorks with documents open vs orphaned
+    const output = execSync('tasklist /V /FI "IMAGENAME eq SLDWORKS.exe" /FO CSV /NH', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 5000
+    })
+    
+    const processes: { pid: number; name: string; windowTitle: string }[] = []
+    
+    // Parse CSV output: "Image Name","PID","Session Name","Session#","Mem Usage","Status","User Name","CPU Time","Window Title"
+    const lines = output.trim().split('\n').filter(line => line.includes('SLDWORKS.exe'))
+    
+    for (const line of lines) {
+      try {
+        // Parse CSV - handle quoted fields
+        const fields = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)
+        if (fields && fields.length >= 2) {
+          const name = fields[0].replace(/"/g, '')
+          const pid = parseInt(fields[1].replace(/"/g, ''), 10)
+          // Window title is the last field
+          const windowTitle = fields.length >= 9 ? fields[8].replace(/"/g, '') : 'N/A'
+          
+          if (!isNaN(pid)) {
+            processes.push({ pid, name, windowTitle })
+          }
+        }
+      } catch {
+        // Skip malformed lines
+      }
+    }
+    
+    return processes
+  } catch (err) {
+    // tasklist may fail if no matching processes (returns error)
+    const errStr = String(err)
+    if (!errStr.includes('No tasks are running')) {
+      log('[SolidWorks] Error finding SLDWORKS processes: ' + errStr)
+    }
+    return []
+  }
+}
+
+/**
+ * Determines if a SolidWorks process is orphaned (zombie state).
+ * Only kills processes with the OpenGL dummy window - this is the definitive zombie indicator.
+ * Other states like "N/A" or empty are too risky as they can occur during normal loading.
+ * @param proc - Process info from findSolidWorksProcesses
+ * @returns true if the process is definitely a zombie
+ */
+function isOrphanedProcess(proc: { pid: number; name: string; windowTitle: string }): boolean {
+  const title = proc.windowTitle.toLowerCase()
+  // Only the OpenGL dummy window is a definite zombie indicator
+  // Other states (N/A, empty, etc.) are too risky - can occur during normal loading
+  return title === '__wgldummywindowfodder'
+}
+
+/**
+ * Kills orphaned SLDWORKS.exe processes.
+ * Only kills processes that appear to be orphaned (no window/document open).
+ * @param forceAll - If true, kill ALL SLDWORKS processes regardless of state
+ * @returns Object with counts of processes found and killed
+ */
+async function killOrphanedSolidWorksProcesses(forceAll: boolean = false): Promise<{
+  found: number
+  orphaned: number
+  killed: number
+  errors: string[]
+}> {
+  log('[SolidWorks] ═══════════════════════════════════════')
+  log(`[SolidWorks] 🔍 SCANNING FOR ${forceAll ? 'ALL' : 'ORPHANED'} SLDWORKS PROCESSES`)
+  log('[SolidWorks] ═══════════════════════════════════════')
+  
+  const processes = findSolidWorksProcesses()
+  log(`[SolidWorks] Found ${processes.length} SLDWORKS.exe process(es)`)
+  
+  const result = {
+    found: processes.length,
+    orphaned: 0,
+    killed: 0,
+    errors: [] as string[]
+  }
+  
+  if (processes.length === 0) {
+    log('[SolidWorks] No SLDWORKS.exe processes found')
+    return result
+  }
+  
+  for (const proc of processes) {
+    log(`[SolidWorks] Process: PID=${proc.pid}, Window="${proc.windowTitle}"`)
+    
+    const shouldKill = forceAll || isOrphanedProcess(proc)
+    if (isOrphanedProcess(proc)) {
+      result.orphaned++
+    }
+    
+    if (shouldKill) {
+      try {
+        log(`[SolidWorks] Killing PID ${proc.pid}...`)
+        execSync(`taskkill /PID ${proc.pid} /F`, {
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          timeout: 10000
+        })
+        result.killed++
+        log(`[SolidWorks] ✓ Killed PID ${proc.pid}`)
+      } catch (err) {
+        const errMsg = `Failed to kill PID ${proc.pid}: ${String(err)}`
+        log(`[SolidWorks] ❌ ${errMsg}`)
+        result.errors.push(errMsg)
+      }
+    } else {
+      log(`[SolidWorks] Skipping PID ${proc.pid} (appears active with document open)`)
+    }
+  }
+  
+  log(`[SolidWorks] Cleanup complete: ${result.killed}/${result.orphaned} orphaned processes killed`)
+  return result
+}
+
+/**
+ * Gets the current status of SLDWORKS.exe processes on the system.
+ * @returns Object with process counts and details
+ */
+function getSolidWorksProcessStatus(): {
+  total: number
+  orphaned: number
+  active: number
+  processes: { pid: number; windowTitle: string; isOrphaned: boolean }[]
+} {
+  const processes = findSolidWorksProcesses()
+  const result = {
+    total: processes.length,
+    orphaned: 0,
+    active: 0,
+    processes: processes.map(p => ({
+      pid: p.pid,
+      windowTitle: p.windowTitle,
+      isOrphaned: isOrphanedProcess(p)
+    }))
+  }
+  
+  for (const proc of result.processes) {
+    if (proc.isOrphaned) {
+      result.orphaned++
+    } else {
+      result.active++
+    }
+  }
+  
+  return result
+}
+
+// ============================================
+// Orphaned Process Watchdog
+// ============================================
+
+/**
+ * Starts the orphaned process watchdog.
+ * Runs periodically while the SW service is active.
+ */
+function startOrphanWatchdog(): void {
+  if (orphanWatchdogTimer) {
+    log('[SolidWorks Watchdog] Already running')
+    return
+  }
+  
+  log('[SolidWorks Watchdog] Starting orphaned process watchdog (interval: ' + ORPHAN_CHECK_INTERVAL_MS + 'ms)')
+  
+  // Run immediately once
+  runOrphanCheck()
+  
+  // Then run periodically
+  orphanWatchdogTimer = setInterval(() => {
+    runOrphanCheck()
+  }, ORPHAN_CHECK_INTERVAL_MS)
+}
+
+/**
+ * Stops the orphaned process watchdog.
+ */
+function stopOrphanWatchdog(): void {
+  if (orphanWatchdogTimer) {
+    log('[SolidWorks Watchdog] Stopping orphaned process watchdog')
+    clearInterval(orphanWatchdogTimer)
+    orphanWatchdogTimer = null
+  }
+}
+
+/**
+ * Performs a single orphan check and cleanup.
+ * Called periodically by the watchdog.
+ * Only kills processes with __wgldummywindowfodder window - definitive zombie indicator.
+ */
+async function runOrphanCheck(): Promise<void> {
+  try {
+    const status = getSolidWorksProcessStatus()
+    
+    if (status.orphaned === 0) {
+      // No orphans, nothing to do (don't log to avoid spam)
+      return
+    }
+    
+    log(`[SolidWorks Watchdog] Detected ${status.orphaned} orphaned SLDWORKS.exe process(es)`)
+    
+    // Kill orphaned processes
+    const result = await killOrphanedSolidWorksProcesses(false)
+    
+    if (result.killed > 0) {
+      log(`[SolidWorks Watchdog] ✓ Cleaned up ${result.killed} orphaned process(es)`)
+      
+      // Notify the renderer about the cleanup
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('solidworks:orphans-cleaned', {
+          killed: result.killed,
+          timestamp: Date.now()
+        })
+      }
+    }
+  } catch (err) {
+    log(`[SolidWorks Watchdog] Error during orphan check: ${String(err)}`)
   }
 }
 
@@ -145,6 +398,9 @@ function clearServiceState(reason: string, force: boolean = false): void {
       return
     }
   }
+  
+  // Stop the orphaned process watchdog since service is no longer running
+  stopOrphanWatchdog()
   
   log(`[SolidWorks] ⚠️ CLEARING SERVICE STATE: ${reason}`)
   log(`[SolidWorks] Pending requests to reject: ${swPendingRequests.size}`)
@@ -503,14 +759,24 @@ async function sendSWCommand(
  * Start the SolidWorks service process.
  * Uses polling-based startup confirmation instead of fixed delay.
  * @param dmLicenseKey - Optional Document Manager license key
+ * @param cleanupOrphans - If true, kill orphaned SLDWORKS.exe processes before starting
  * @returns Promise resolving to service start result
  */
-async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
+async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): Promise<SWServiceResult> {
   const startTime = Date.now()
   log('[SolidWorks] ═══════════════════════════════════════')
   log('[SolidWorks] 🚀 START SERVICE REQUESTED')
   log('[SolidWorks] ═══════════════════════════════════════')
   logServiceState('startSWService called')
+  
+  // Optionally cleanup orphaned SLDWORKS.exe processes before starting
+  if (cleanupOrphans) {
+    log('[SolidWorks] Checking for orphaned SLDWORKS.exe processes...')
+    const cleanupResult = await killOrphanedSolidWorksProcesses(false)
+    if (cleanupResult.killed > 0) {
+      log(`[SolidWorks] ✓ Cleaned up ${cleanupResult.killed} orphaned process(es)`)
+    }
+  }
   
   if (!isSolidWorksInstalled()) {
     log('[SolidWorks] ❌ SolidWorks not installed on this machine')
@@ -674,6 +940,9 @@ async function startSWService(dmLicenseKey?: string): Promise<SWServiceResult> {
           log(`[SolidWorks] Startup time: ${totalTime}ms`)
           log(`[SolidWorks] PID: ${pid}`)
           logServiceState('After successful startup')
+          
+          // Start the orphaned process watchdog
+          startOrphanWatchdog()
         } else {
           log('[SolidWorks] ═══════════════════════════════════════')
           log(`[SolidWorks] ❌ SERVICE FAILED TO START`)
@@ -717,6 +986,9 @@ async function stopSWService(): Promise<void> {
   log('[SolidWorks] ═══════════════════════════════════════')
   logServiceState('stopSWService called')
   
+  // Stop the orphaned process watchdog
+  stopOrphanWatchdog()
+  
   if (!swServiceProcess) {
     log('[SolidWorks] No service process to stop')
     return
@@ -740,48 +1012,86 @@ async function stopSWService(): Promise<void> {
 }
 
 // Extract SolidWorks thumbnail from file
+// For SW 2020+ files, uses Document Manager API as primary method (CFB/OLE doesn't work for new format)
 async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: boolean; data?: string; error?: string }> {
   const fileName = path.basename(filePath)
+  const ext = path.extname(filePath).toLowerCase()
+  
+  // Only attempt SW thumbnail extraction for SolidWorks files
+  const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+  if (!swExtensions.includes(ext)) {
+    return { success: false, error: 'Not a SolidWorks file' }
+  }
   
   thumbnailsInProgress.add(filePath)
   
   try {
-    const fileBuffer = fs.readFileSync(filePath)
-    const cfb = CFB.read(fileBuffer, { type: 'buffer' })
+    // Primary method: Use Document Manager API (works for SW 2020+ files)
+    // The SW service should be auto-started on app launch
+    if (swServiceProcess?.stdin) {
+      try {
+        const dmResult = await sendSWCommand(
+          { action: 'getPreview', filePath }, 
+          { timeoutMs: 10000 } // 10 second timeout for thumbnails
+        )
+        
+        if (dmResult.success && dmResult.data) {
+          const previewData = dmResult.data as { imageData?: string; mimeType?: string }
+          if (previewData.imageData) {
+            const mimeType = previewData.mimeType || 'image/png'
+            log(`[SWThumbnail] Got preview via DM API for ${fileName}`)
+            return { success: true, data: `data:${mimeType};base64,${previewData.imageData}` }
+          }
+        }
+      } catch (dmErr) {
+        // DM API failed, fall through to CFB extraction
+        log(`[SWThumbnail] DM API failed for ${fileName}, trying CFB: ${dmErr}`)
+      }
+    }
     
-    // Look for preview streams
-    for (const entry of cfb.FileIndex) {
-      if (!entry || !entry.content || entry.content.length < 100) continue
+    // Fallback: Try CFB/OLE extraction (for older pre-2015 files)
+    try {
+      const fileBuffer = fs.readFileSync(filePath)
+      const cfb = CFB.read(fileBuffer, { type: 'buffer' })
       
-      // Check for PNG signature
-      const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-      const contentBuffer = Buffer.from(entry.content as number[] | Uint8Array)
-      if (contentBuffer.slice(0, 8).equals(pngSignature)) {
-        log(`[SWThumbnail] Found PNG in entry "${entry.name}"`)
-        const base64 = Buffer.from(entry.content).toString('base64')
-        return { success: true, data: `data:image/png;base64,${base64}` }
+      // Look for preview streams
+      for (const entry of cfb.FileIndex) {
+        if (!entry || !entry.content || entry.content.length < 100) continue
+        
+        // Check for PNG signature
+        const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        const contentBuffer = Buffer.from(entry.content as number[] | Uint8Array)
+        if (contentBuffer.slice(0, 8).equals(pngSignature)) {
+          log(`[SWThumbnail] Found PNG in entry "${entry.name}"`)
+          const base64 = Buffer.from(entry.content).toString('base64')
+          return { success: true, data: `data:image/png;base64,${base64}` }
+        }
+        
+        // Check for JPEG signature
+        if (entry.content[0] === 0xFF && entry.content[1] === 0xD8 && entry.content[2] === 0xFF) {
+          log(`[SWThumbnail] Found JPEG in entry "${entry.name}"`)
+          const base64 = Buffer.from(entry.content).toString('base64')
+          return { success: true, data: `data:image/jpeg;base64,${base64}` }
+        }
+        
+        // Check for BMP
+        if (entry.content[0] === 0x42 && entry.content[1] === 0x4D) {
+          log(`[SWThumbnail] Found BMP in entry "${entry.name}"`)
+          const base64 = Buffer.from(entry.content).toString('base64')
+          return { success: true, data: `data:image/bmp;base64,${base64}` }
+        }
       }
-      
-      // Check for JPEG signature
-      if (entry.content[0] === 0xFF && entry.content[1] === 0xD8 && entry.content[2] === 0xFF) {
-        log(`[SWThumbnail] Found JPEG in entry "${entry.name}"`)
-        const base64 = Buffer.from(entry.content).toString('base64')
-        return { success: true, data: `data:image/jpeg;base64,${base64}` }
-      }
-      
-      // Check for BMP
-      if (entry.content[0] === 0x42 && entry.content[1] === 0x4D) {
-        log(`[SWThumbnail] Found BMP in entry "${entry.name}"`)
-        const base64 = Buffer.from(entry.content).toString('base64')
-        return { success: true, data: `data:image/bmp;base64,${base64}` }
+    } catch (cfbErr) {
+      // CFB extraction also failed (expected for SW 2020+ files)
+      // Don't log header signature errors as they're expected for new format files
+      const errStr = String(cfbErr)
+      if (!errStr.includes('Header Signature')) {
+        log(`[SWThumbnail] CFB extraction failed for ${fileName}: ${cfbErr}`)
       }
     }
     
     log(`[SWThumbnail] No thumbnail found in ${fileName}`)
     return { success: false, error: 'No thumbnail found' }
-  } catch (err) {
-    log(`[SWThumbnail] Failed to extract thumbnail from ${fileName}: ${err}`)
-    return { success: false, error: String(err) }
   } finally {
     thumbnailsInProgress.delete(filePath)
   }
@@ -888,6 +1198,583 @@ export function getThumbnailsInProgress(): Set<string> {
   return thumbnailsInProgress
 }
 
+// ============================================
+// SOLIDWORKS Registry Helpers (File Locations)
+// ============================================
+
+interface SolidWorksVersion {
+  version: string
+  year: number
+  registryPath: string
+}
+
+interface FileLocationsResult {
+  success: boolean
+  versions?: SolidWorksVersion[]
+  locations?: {
+    version: string
+    documentTemplates: string[]
+    sheetFormats: string[]
+    bomTemplates: string[]
+    customPropertyFolders: string[]
+    promptForTemplate: boolean
+  }[]
+  error?: string
+}
+
+/**
+ * Get all installed SOLIDWORKS versions by scanning the registry.
+ * Supports SOLIDWORKS 2020 and newer.
+ * 
+ * Registry structure:
+ * - HKEY_CURRENT_USER\Software\SolidWorks\SOLIDWORKS {year}\ExtReferences
+ *   Contains template folder paths for that version.
+ * 
+ * Some older versions may use different key names (e.g., "SolidWorks 2020" vs "SOLIDWORKS 2020"),
+ * so we check for both patterns.
+ */
+function getInstalledSolidWorksVersions(): { success: boolean; versions?: SolidWorksVersion[]; error?: string } {
+  if (process.platform !== 'win32') {
+    return { success: false, error: 'SOLIDWORKS is only available on Windows' }
+  }
+
+  try {
+    // Query SolidWorks root to find installed versions
+    const result = execSync(
+      'reg query "HKEY_CURRENT_USER\\Software\\SolidWorks"',
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+
+    const versions: SolidWorksVersion[] = []
+    const lines = result.split('\n')
+    
+    for (const line of lines) {
+      // Match patterns:
+      // - SOLIDWORKS 2024 (newer versions, all caps)
+      // - SolidWorks 2020 (some older versions, mixed case)
+      // Both formats: HKEY_CURRENT_USER\Software\SolidWorks\{SOLIDWORKS|SolidWorks} {year}
+      const match = line.match(/HKEY_CURRENT_USER\\Software\\SolidWorks\\((SOLIDWORKS|SolidWorks)\s+(\d{4}))/i)
+      if (match) {
+        const fullVersion = match[1]
+        const year = parseInt(match[3])
+        
+        // Only include versions 2020 and newer
+        if (year >= 2020) {
+          // ExtReferences contains the template folder paths
+          versions.push({
+            version: fullVersion,
+            year: year,
+            registryPath: `HKEY_CURRENT_USER\\Software\\SolidWorks\\${fullVersion}\\ExtReferences`
+          })
+        }
+      }
+    }
+
+    // Sort by year descending (newest first)
+    versions.sort((a, b) => b.year - a.year)
+
+    if (versions.length > 0) {
+      log('[SolidWorks Registry] Found versions: ' + versions.map(v => v.version).join(', '))
+    } else {
+      log('[SolidWorks Registry] No SOLIDWORKS 2020+ versions found')
+    }
+    return { success: true, versions }
+  } catch (err) {
+    log('[SolidWorks Registry] Failed to query versions: ' + String(err))
+    return { success: true, versions: [] } // Not an error if no SW installed
+  }
+}
+
+/**
+ * Read a multi-string registry value (REG_MULTI_SZ or REG_SZ with semicolon-separated paths)
+ */
+function readRegistryValue(keyPath: string, valueName: string): string[] {
+  try {
+    const result = execSync(
+      `reg query "${keyPath}" /v "${valueName}"`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+
+    // Parse the output - format is: ValueName    REG_SZ    Value
+    const lines = result.split('\n')
+    for (const line of lines) {
+      if (line.includes(valueName)) {
+        // Extract the value after REG_SZ or REG_MULTI_SZ
+        const match = line.match(/REG_(?:MULTI_)?SZ\s+(.+)$/i)
+        if (match) {
+          const value = match[1].trim()
+          // SOLIDWORKS uses semicolon-separated paths
+          return value.split(';').map(p => p.trim()).filter(p => p.length > 0)
+        }
+      }
+    }
+    return []
+  } catch {
+    return [] // Value doesn't exist
+  }
+}
+
+/**
+ * Write a registry value (REG_SZ with semicolon-separated paths)
+ */
+function writeRegistryValue(keyPath: string, valueName: string, paths: string[]): boolean {
+  try {
+    const value = paths.join(';')
+    execSync(
+      `reg add "${keyPath}" /v "${valueName}" /t REG_SZ /d "${value}" /f`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    return true
+  } catch (err) {
+    log(`[SolidWorks Registry] Failed to write ${valueName}: ${String(err)}`)
+    return false
+  }
+}
+
+/**
+ * Read a DWORD registry value
+ */
+function readRegistryDword(keyPath: string, valueName: string): number | null {
+  try {
+    const result = execSync(
+      `reg query "${keyPath}" /v "${valueName}"`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+
+    // Parse the output - format is: ValueName    REG_DWORD    0x1
+    const lines = result.split('\n')
+    for (const line of lines) {
+      if (line.includes(valueName)) {
+        const match = line.match(/REG_DWORD\s+0x([0-9a-fA-F]+)/i)
+        if (match) {
+          return parseInt(match[1], 16)
+        }
+      }
+    }
+    return null
+  } catch {
+    return null // Value doesn't exist
+  }
+}
+
+/**
+ * Write a DWORD registry value
+ */
+function writeRegistryDword(keyPath: string, valueName: string, value: number): boolean {
+  try {
+    execSync(
+      `reg add "${keyPath}" /v "${valueName}" /t REG_DWORD /d ${value} /f`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    return true
+  } catch (err) {
+    log(`[SolidWorks Registry] Failed to write DWORD ${valueName}: ${String(err)}`)
+    return false
+  }
+}
+
+/**
+ * Check if a registry key exists.
+ */
+function registryKeyExists(keyPath: string): boolean {
+  try {
+    execSync(
+      `reg query "${keyPath}"`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Get the Document Templates registry path for a given version.
+ * This is separate from ExtReferences and contains the "Use Default Document Templates" setting.
+ */
+function getDocumentTemplatesRegistryPath(version: string): string {
+  return `HKEY_CURRENT_USER\\Software\\SolidWorks\\${version}\\Document Templates`
+}
+
+/**
+ * Get current SOLIDWORKS file locations from registry for all installed versions.
+ * Template paths are stored in ExtReferences with these value names:
+ * - Document Template Folders
+ * - Sheet Format Folders
+ * - BOM Template Folders
+ * - Custom Property Folders
+ * 
+ * The "Prompt for template" setting is stored in Document Templates:
+ * - Use Default Document Templates (0 = prompt, 1 = use default)
+ */
+function getSolidWorksFileLocations(): FileLocationsResult {
+  const versionsResult = getInstalledSolidWorksVersions()
+  if (!versionsResult.success || !versionsResult.versions) {
+    return versionsResult as FileLocationsResult
+  }
+
+  const locations = versionsResult.versions
+    .filter(v => registryKeyExists(v.registryPath)) // Only include versions with ExtReferences
+    .map(v => {
+      const docTemplates = readRegistryValue(v.registryPath, 'Document Template Folders')
+      const sheetFormats = readRegistryValue(v.registryPath, 'Sheet Format Folders')
+      const bomTemplates = readRegistryValue(v.registryPath, 'BOM Template Folders')
+      const customProps = readRegistryValue(v.registryPath, 'Custom Property Folders')
+      
+      // Read the "Use Default Document Templates" setting
+      // Value 0 = prompt user, Value 1 = use default (don't prompt)
+      const docTemplatesPath = getDocumentTemplatesRegistryPath(v.version)
+      const useDefaultValue = readRegistryDword(docTemplatesPath, 'Use Default Document Templates')
+      const promptForTemplate = useDefaultValue === 0 // 0 means prompt, 1 means use default
+
+      return {
+        version: v.version,
+        documentTemplates: docTemplates,
+        sheetFormats: sheetFormats,
+        bomTemplates: bomTemplates,
+        customPropertyFolders: customProps,
+        promptForTemplate: promptForTemplate
+      }
+    })
+
+  log('[SolidWorks Registry] Read file locations for ' + locations.length + ' versions')
+  return { success: true, versions: versionsResult.versions, locations }
+}
+
+/**
+ * Set SOLIDWORKS file locations in registry for all installed versions (2020+).
+ * Paths should be full absolute paths (vault root + relative path already resolved).
+ * Uses ExtReferences registry keys with these value names:
+ * - Document Template Folders
+ * - Sheet Format Folders
+ * - BOM Template Folders
+ * - Custom Property Folders
+ * 
+ * Also sets the "Prompt for template" option in Document Templates:
+ * - Use Default Document Templates (0 = prompt, 1 = use default)
+ * 
+ * The new path is prepended to existing paths so it takes priority.
+ */
+function setSolidWorksFileLocations(settings: {
+  documentTemplates?: string
+  sheetFormats?: string
+  bomTemplates?: string
+  customPropertyFolders?: string
+  promptForTemplate?: boolean
+}): { success: boolean; updatedVersions?: string[]; error?: string } {
+  const versionsResult = getInstalledSolidWorksVersions()
+  if (!versionsResult.success || !versionsResult.versions) {
+    return { success: false, error: versionsResult.error || 'Failed to get SOLIDWORKS versions' }
+  }
+
+  if (versionsResult.versions.length === 0) {
+    return { success: false, error: 'No SOLIDWORKS 2020+ installations found' }
+  }
+
+  const updatedVersions: string[] = []
+  const skippedVersions: string[] = []
+  const errors: string[] = []
+
+  for (const v of versionsResult.versions) {
+    // Skip versions without ExtReferences key (shouldn't happen but be safe)
+    if (!registryKeyExists(v.registryPath)) {
+      skippedVersions.push(v.version)
+      continue
+    }
+
+    let versionUpdated = false
+
+    if (settings.documentTemplates !== undefined) {
+      // Get existing paths and prepend new path (SOLIDWORKS uses first match)
+      const existing = readRegistryValue(v.registryPath, 'Document Template Folders')
+      const newPaths = [settings.documentTemplates, ...existing.filter(p => p !== settings.documentTemplates)]
+      if (writeRegistryValue(v.registryPath, 'Document Template Folders', newPaths)) {
+        versionUpdated = true
+      } else {
+        errors.push(`Failed to set Document Template Folders for ${v.version}`)
+      }
+    }
+
+    if (settings.sheetFormats !== undefined) {
+      const existing = readRegistryValue(v.registryPath, 'Sheet Format Folders')
+      const newPaths = [settings.sheetFormats, ...existing.filter(p => p !== settings.sheetFormats)]
+      if (writeRegistryValue(v.registryPath, 'Sheet Format Folders', newPaths)) {
+        versionUpdated = true
+      } else {
+        errors.push(`Failed to set Sheet Format Folders for ${v.version}`)
+      }
+    }
+
+    if (settings.bomTemplates !== undefined) {
+      const existing = readRegistryValue(v.registryPath, 'BOM Template Folders')
+      const newPaths = [settings.bomTemplates, ...existing.filter(p => p !== settings.bomTemplates)]
+      if (writeRegistryValue(v.registryPath, 'BOM Template Folders', newPaths)) {
+        versionUpdated = true
+      } else {
+        errors.push(`Failed to set BOM Template Folders for ${v.version}`)
+      }
+    }
+
+    if (settings.customPropertyFolders !== undefined) {
+      const existing = readRegistryValue(v.registryPath, 'Custom Property Folders')
+      const newPaths = [settings.customPropertyFolders, ...existing.filter(p => p !== settings.customPropertyFolders)]
+      if (writeRegistryValue(v.registryPath, 'Custom Property Folders', newPaths)) {
+        versionUpdated = true
+      } else {
+        errors.push(`Failed to set Custom Property Folders for ${v.version}`)
+      }
+    }
+
+    // Set the "Prompt user to select document template" option
+    // Registry value: Use Default Document Templates
+    // 0 = prompt user (what we want when promptForTemplate is true)
+    // 1 = use default templates (don't prompt)
+    if (settings.promptForTemplate !== undefined) {
+      const docTemplatesPath = getDocumentTemplatesRegistryPath(v.version)
+      const value = settings.promptForTemplate ? 0 : 1 // Invert: prompt=true means value=0
+      if (writeRegistryDword(docTemplatesPath, 'Use Default Document Templates', value)) {
+        versionUpdated = true
+        log(`[SolidWorks Registry] Set promptForTemplate=${settings.promptForTemplate} for ${v.version}`)
+      } else {
+        errors.push(`Failed to set Use Default Document Templates for ${v.version}`)
+      }
+    }
+
+    if (versionUpdated) {
+      updatedVersions.push(v.version)
+    }
+  }
+
+  if (skippedVersions.length > 0) {
+    log('[SolidWorks Registry] Skipped versions without ExtReferences: ' + skippedVersions.join(', '))
+  }
+
+  if (updatedVersions.length > 0) {
+    log('[SolidWorks Registry] Updated file locations for: ' + updatedVersions.join(', '))
+    return { 
+      success: true, 
+      updatedVersions,
+      error: errors.length > 0 ? errors.join('; ') : undefined
+    }
+  } else {
+    return { success: false, error: errors.join('; ') || 'No versions updated' }
+  }
+}
+
+// ============================================
+// SOLIDWORKS License Registry Operations
+// ============================================
+
+/**
+ * Registry path for SOLIDWORKS license serial numbers.
+ * Writing to HKLM requires administrator privileges.
+ */
+const SW_LICENSE_REGISTRY_PATH = 'HKEY_LOCAL_MACHINE\\Software\\SolidWorks\\Licenses\\Serial Numbers'
+
+interface LicenseRegistryResult {
+  success: boolean
+  serialNumbers?: string[]
+  error?: string
+}
+
+interface LicenseWriteResult {
+  success: boolean
+  error?: string
+  requiresAdmin?: boolean
+}
+
+interface LicenseCheckResult {
+  success: boolean
+  found: boolean
+  error?: string
+}
+
+/**
+ * Get all SOLIDWORKS serial numbers from the registry.
+ * Reads from HKLM\Software\SolidWorks\Licenses\Serial Numbers
+ * 
+ * Serial numbers are stored as value names under this key.
+ */
+function getSolidWorksLicenseFromRegistry(): LicenseRegistryResult {
+  if (process.platform !== 'win32') {
+    return { success: false, error: 'SOLIDWORKS license registry is only available on Windows' }
+  }
+
+  try {
+    // Query all values under the Serial Numbers key
+    const result = execSync(
+      `reg query "${SW_LICENSE_REGISTRY_PATH}"`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+
+    const serialNumbers: string[] = []
+    const lines = result.split('\n')
+    
+    for (const line of lines) {
+      // Skip empty lines and the key path line
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('HKEY_')) continue
+      
+      // Value format: "SerialNumber    REG_SZ    (some value or empty)"
+      // We want the value name (serial number), not the data
+      const match = trimmed.match(/^(\S+)\s+REG_/)
+      if (match) {
+        const valueName = match[1]
+        // Filter out default value and other non-serial entries
+        if (valueName && valueName !== '(Default)') {
+          serialNumbers.push(valueName)
+        }
+      }
+    }
+
+    log(`[SolidWorks License] Found ${serialNumbers.length} serial number(s) in registry`)
+    return { success: true, serialNumbers }
+  } catch (err) {
+    const errorStr = String(err)
+    // "The system was unable to find the specified registry key" - key doesn't exist
+    if (errorStr.includes('unable to find') || errorStr.includes('cannot find')) {
+      log('[SolidWorks License] Registry key does not exist (no licenses installed)')
+      return { success: true, serialNumbers: [] }
+    }
+    log(`[SolidWorks License] Failed to read registry: ${errorStr}`)
+    return { success: false, error: errorStr }
+  }
+}
+
+/**
+ * Write a SOLIDWORKS serial number to the registry.
+ * Creates a value with the serial number as the name under:
+ * HKLM\Software\SolidWorks\Licenses\Serial Numbers
+ * 
+ * Requires administrator privileges. Returns requiresAdmin: true if elevation needed.
+ */
+function setSolidWorksLicenseInRegistry(serialNumber: string): LicenseWriteResult {
+  if (process.platform !== 'win32') {
+    return { success: false, error: 'SOLIDWORKS license registry is only available on Windows' }
+  }
+
+  if (!serialNumber || serialNumber.trim().length === 0) {
+    return { success: false, error: 'Serial number cannot be empty' }
+  }
+
+  const cleanSerial = serialNumber.trim().toUpperCase()
+
+  try {
+    // First, ensure the key exists by creating it (won't error if exists)
+    execSync(
+      `reg add "${SW_LICENSE_REGISTRY_PATH}" /f`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+
+    // Add the serial number as a value name with empty string data
+    execSync(
+      `reg add "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}" /t REG_SZ /d "" /f`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+
+    log(`[SolidWorks License] Successfully added serial number to registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+    return { success: true }
+  } catch (err) {
+    const errorStr = String(err)
+    // Check for access denied errors
+    if (errorStr.includes('Access is denied') || 
+        errorStr.includes('requires elevation') ||
+        errorStr.includes('administrator')) {
+      log('[SolidWorks License] Admin privileges required to write license registry')
+      return { 
+        success: false, 
+        error: 'Administrator privileges required to modify SOLIDWORKS license registry', 
+        requiresAdmin: true 
+      }
+    }
+    log(`[SolidWorks License] Failed to write registry: ${errorStr}`)
+    return { success: false, error: errorStr }
+  }
+}
+
+/**
+ * Remove a SOLIDWORKS serial number from the registry.
+ * Deletes the value with the given serial number name from:
+ * HKLM\Software\SolidWorks\Licenses\Serial Numbers
+ * 
+ * Requires administrator privileges. Returns requiresAdmin: true if elevation needed.
+ */
+function removeSolidWorksLicenseFromRegistry(serialNumber: string): LicenseWriteResult {
+  if (process.platform !== 'win32') {
+    return { success: false, error: 'SOLIDWORKS license registry is only available on Windows' }
+  }
+
+  if (!serialNumber || serialNumber.trim().length === 0) {
+    return { success: false, error: 'Serial number cannot be empty' }
+  }
+
+  const cleanSerial = serialNumber.trim().toUpperCase()
+
+  try {
+    execSync(
+      `reg delete "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}" /f`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+
+    log(`[SolidWorks License] Successfully removed serial number from registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+    return { success: true }
+  } catch (err) {
+    const errorStr = String(err)
+    // Check for access denied errors
+    if (errorStr.includes('Access is denied') || 
+        errorStr.includes('requires elevation') ||
+        errorStr.includes('administrator')) {
+      log('[SolidWorks License] Admin privileges required to remove license from registry')
+      return { 
+        success: false, 
+        error: 'Administrator privileges required to modify SOLIDWORKS license registry', 
+        requiresAdmin: true 
+      }
+    }
+    // Check if value doesn't exist
+    if (errorStr.includes('unable to find') || errorStr.includes('cannot find')) {
+      log(`[SolidWorks License] Serial number not found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+      return { success: true } // Treat as success - it's already gone
+    }
+    log(`[SolidWorks License] Failed to remove from registry: ${errorStr}`)
+    return { success: false, error: errorStr }
+  }
+}
+
+/**
+ * Check if a specific SOLIDWORKS serial number exists in the registry.
+ */
+function checkLicenseInRegistry(serialNumber: string): LicenseCheckResult {
+  if (process.platform !== 'win32') {
+    return { success: false, found: false, error: 'SOLIDWORKS license registry is only available on Windows' }
+  }
+
+  if (!serialNumber || serialNumber.trim().length === 0) {
+    return { success: false, found: false, error: 'Serial number cannot be empty' }
+  }
+
+  const cleanSerial = serialNumber.trim().toUpperCase()
+
+  try {
+    execSync(
+      `reg query "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}"`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    
+    log(`[SolidWorks License] Serial number found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+    return { success: true, found: true }
+  } catch (err) {
+    const errorStr = String(err)
+    // Value not found is expected when serial doesn't exist
+    if (errorStr.includes('unable to find') || errorStr.includes('cannot find')) {
+      log(`[SolidWorks License] Serial number not found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+      return { success: true, found: false }
+    }
+    log(`[SolidWorks License] Failed to check registry: ${errorStr}`)
+    return { success: false, found: false, error: errorStr }
+  }
+}
+
 export interface SolidWorksHandlerDependencies {
   log: (message: string, data?: unknown) => void
 }
@@ -907,9 +1794,9 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   })
 
   // Service management
-  ipcMain.handle('solidworks:start-service', async (_, dmLicenseKey?: string) => {
-    log('[SolidWorks] IPC: start-service received')
-    return startSWService(dmLicenseKey)
+  ipcMain.handle('solidworks:start-service', async (_, dmLicenseKey?: string, cleanupOrphans?: boolean) => {
+    log(`[SolidWorks] IPC: start-service received (cleanupOrphans: ${cleanupOrphans})`)
+    return startSWService(dmLicenseKey, cleanupOrphans)
   })
 
   ipcMain.handle('solidworks:stop-service', async () => {
@@ -1050,6 +1937,22 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return { success: true, data: { installed: isSolidWorksInstalled() } }
   })
 
+  // Orphaned process management
+  ipcMain.handle('solidworks:get-process-status', async () => {
+    log('[SolidWorks] IPC: get-process-status received')
+    const status = getSolidWorksProcessStatus()
+    return { success: true, data: status }
+  })
+
+  ipcMain.handle('solidworks:kill-orphaned-processes', async (_, forceAll?: boolean) => {
+    log(`[SolidWorks] IPC: kill-orphaned-processes received (forceAll: ${forceAll})`)
+    const result = await killOrphanedSolidWorksProcesses(forceAll ?? false)
+    return { 
+      success: result.errors.length === 0 || result.killed > 0,
+      data: result
+    }
+  })
+
   // Document operations
   ipcMain.handle('solidworks:get-bom', async (_, filePath: string, options?: { includeChildren?: boolean; configuration?: string }) => {
     return sendSWCommand({ action: 'getBom', filePath, ...options })
@@ -1149,6 +2052,10 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'saveDocument', filePath }, { timeoutMs: 30000 }) // 30 sec timeout for saves
   })
 
+  ipcMain.handle('solidworks:set-document-properties', async (_, filePath: string, properties: Record<string, string>, configuration?: string) => {
+    return sendSWCommand({ action: 'setDocumentProperties', filePath, properties, configuration }, { timeoutMs: 30000 })
+  })
+
   // eDrawings handlers
   ipcMain.handle('edrawings:check-installed', async () => {
     const paths = [
@@ -1241,18 +2148,140 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   ipcMain.handle('edrawings:destroy-preview', () => {
     return { success: true }
   })
+
+  // ============================================
+  // SOLIDWORKS File Locations (Registry) Handlers
+  // ============================================
+
+  ipcMain.handle('solidworks:get-installed-versions', async () => {
+    return getInstalledSolidWorksVersions()
+  })
+
+  ipcMain.handle('solidworks:get-file-locations', async () => {
+    return getSolidWorksFileLocations()
+  })
+
+  ipcMain.handle('solidworks:set-file-locations', async (_, settings: {
+    documentTemplates?: string
+    sheetFormats?: string
+    bomTemplates?: string
+    customPropertyFolders?: string
+    promptForTemplate?: boolean
+  }) => {
+    return setSolidWorksFileLocations(settings)
+  })
+
+  // ===== License Registry Operations =====
+  // These operate on HKLM\Software\SolidWorks\Licenses\Serial Numbers
+  // Writing requires administrator privileges
+  
+  ipcMain.handle('solidworks:get-license-registry', async () => {
+    return getSolidWorksLicenseFromRegistry()
+  })
+
+  ipcMain.handle('solidworks:set-license-registry', async (_, serialNumber: string) => {
+    return setSolidWorksLicenseInRegistry(serialNumber)
+  })
+
+  ipcMain.handle('solidworks:remove-license-registry', async (_, serialNumber: string) => {
+    return removeSolidWorksLicenseFromRegistry(serialNumber)
+  })
+
+  ipcMain.handle('solidworks:check-license-registry', async (_, serialNumber: string) => {
+    return checkLicenseInRegistry(serialNumber)
+  })
+
+  // Open SOLIDWORKS License Manager
+  ipcMain.handle('solidworks:open-license-manager', async () => {
+    if (process.platform !== 'win32') {
+      return { success: false, error: 'SOLIDWORKS License Manager is only available on Windows' }
+    }
+
+    // Build list of possible paths including year-specific versions
+    const possiblePaths: string[] = []
+    
+    // Check for year-specific installations (2020-2030)
+    for (let year = 2030; year >= 2020; year--) {
+      possiblePaths.push(
+        `C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS ${year}\\swlmwiz.exe`,
+        `C:\\Program Files\\SolidWorks Corp\\SolidWorks ${year}\\swlmwiz.exe`
+      )
+    }
+    
+    // Generic paths (no year)
+    possiblePaths.push(
+      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\swlmwiz.exe',
+      'C:\\Program Files\\SolidWorks Corp\\SolidWorks\\swlmwiz.exe',
+      'C:\\Program Files (x86)\\SOLIDWORKS Corp\\SOLIDWORKS\\swlmwiz.exe',
+      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS SolidNetWork License Manager\\SolidNetWork License Manager.exe',
+      'C:\\Program Files\\SOLIDWORKS Corp\\SolidNetWork License Manager\\SolidNetWork License Manager.exe'
+    )
+
+    let licenseMgrPath: string | null = null
+    for (const lmPath of possiblePaths) {
+      if (fs.existsSync(lmPath)) {
+        licenseMgrPath = lmPath
+        log(`[SolidWorks] Found License Manager at: ${lmPath}`)
+        break
+      }
+    }
+
+    // If not found in common paths, try to find SOLIDWORKS installation from registry
+    if (!licenseMgrPath) {
+      try {
+        const regResult = execSync(
+          'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\SolidWorks\\SOLIDWORKS" /v "SolidWorks Folder" 2>nul',
+          { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+        )
+        const match = regResult.match(/SolidWorks Folder\s+REG_SZ\s+(.+)/i)
+        if (match) {
+          const swFolder = match[1].trim()
+          const swlmPath = path.join(swFolder, 'swlmwiz.exe')
+          if (fs.existsSync(swlmPath)) {
+            licenseMgrPath = swlmPath
+            log(`[SolidWorks] Found License Manager via registry at: ${swlmPath}`)
+          }
+        }
+      } catch {
+        // Registry query failed, continue with fallback
+      }
+    }
+
+    if (!licenseMgrPath) {
+      log('[SolidWorks] License Manager not found in any known location')
+      return { 
+        success: false, 
+        error: 'SOLIDWORKS License Manager not found. Open it from Start Menu → SOLIDWORKS Tools → SOLIDWORKS License Manager.' 
+      }
+    }
+
+    try {
+      log(`[SolidWorks] Opening License Manager: ${licenseMgrPath}`)
+      spawn(licenseMgrPath, [], {
+        detached: true,
+        stdio: 'ignore'
+      }).unref()
+      return { success: true }
+    } catch (err) {
+      log(`[SolidWorks] Failed to open License Manager: ${String(err)}`)
+      return { success: false, error: String(err) }
+    }
+  })
 }
 
 export function unregisterSolidWorksHandlers(): void {
   const handlers = [
     'solidworks:extract-thumbnail', 'solidworks:extract-preview',
     'solidworks:start-service', 'solidworks:stop-service', 'solidworks:force-restart', 'solidworks:service-status', 'solidworks:is-installed',
+    'solidworks:get-process-status', 'solidworks:kill-orphaned-processes',
     'solidworks:get-bom', 'solidworks:get-properties', 'solidworks:set-properties', 'solidworks:set-properties-batch',
     'solidworks:get-configurations', 'solidworks:get-references', 'solidworks:get-preview', 'solidworks:get-mass-properties',
     'solidworks:export-pdf', 'solidworks:export-step', 'solidworks:export-dxf', 'solidworks:export-iges', 'solidworks:export-image',
     'solidworks:replace-component', 'solidworks:pack-and-go',
     'solidworks:get-open-documents', 'solidworks:is-document-open', 'solidworks:get-document-info',
-    'solidworks:set-document-readonly', 'solidworks:save-document',
+    'solidworks:set-document-readonly', 'solidworks:save-document', 'solidworks:set-document-properties',
+    'solidworks:get-installed-versions', 'solidworks:get-file-locations', 'solidworks:set-file-locations',
+    'solidworks:get-license-registry', 'solidworks:set-license-registry', 'solidworks:remove-license-registry', 'solidworks:check-license-registry', 'solidworks:open-license-manager',
     'edrawings:check-installed', 'edrawings:native-available', 'edrawings:open-file', 'edrawings:get-window-handle',
     'edrawings:create-preview', 'edrawings:attach-preview', 'edrawings:load-file', 'edrawings:set-bounds',
     'edrawings:show-preview', 'edrawings:hide-preview', 'edrawings:destroy-preview'
@@ -1273,6 +2302,9 @@ export async function cleanupSolidWorksService(): Promise<void> {
   log('[SolidWorks] 🧹 APP QUIT - CLEANUP STARTED')
   log('[SolidWorks] ═══════════════════════════════════════')
   logServiceState('App quit cleanup')
+  
+  // Stop the orphaned process watchdog
+  stopOrphanWatchdog()
   
   if (!swServiceProcess) {
     log('[SolidWorks] No service process to clean up')

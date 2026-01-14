@@ -26,22 +26,256 @@ function isSolidworksTempFile(name: string): boolean {
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 
-// Only assemblies have references to extract
-const ASSEMBLY_EXTENSIONS = ['.sldasm']
+// File types that have references to extract (assemblies reference components, drawings reference models)
+const REFERENCE_FILE_EXTENSIONS = ['.sldasm', '.slddrw']
+
+// Drawing extensions (need special handling for metadata inheritance)
+const DRAWING_EXTENSIONS = ['.slddrw']
+
+/**
+ * Metadata extraction result from property dictionary
+ */
+interface ExtractedMetadata {
+  partNumber: string | null
+  tabNumber: string | null
+  description: string | null
+  revision: string | null
+  customProperties: Record<string, string | number | null> | undefined
+}
+
+/**
+ * Extract part number, description, revision from a properties dictionary
+ * This is a shared helper used for both direct file properties and parent model inheritance
+ */
+function extractMetadataFromProperties(allProps: Record<string, string>): ExtractedMetadata {
+  // Extract part number from common property names (comprehensive list)
+  // IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
+  // and represents the user's current/intended part number. "Base Item Number" may contain
+  // legacy or template values that would incorrectly override user edits.
+  const partNumberKeys = [
+    // Blue Robotics primary - this is what gets written by "Save to File"
+    'Number', 'No', 'No.',
+    // SolidWorks standard/common
+    'Base Item Number',  // Document Manager standard property (may be stale)
+    'PartNumber', 'Part Number', 'PARTNUMBER', 'PART NUMBER',
+    'Part No', 'Part No.', 'PartNo', 'PARTNO', 'PART NO',
+    // Item number variations
+    'ItemNumber', 'Item Number', 'ITEMNUMBER', 'ITEM NUMBER',
+    'Item No', 'Item No.', 'ItemNo', 'ITEMNO', 'ITEM NO',
+    // Short forms
+    'PN', 'P/N', 'pn', 'p/n',
+    // Other common names
+    'Document Number', 'DocumentNumber', 'Doc Number', 'DocNo',
+    'Stock Code', 'StockCode', 'Stock Number', 'StockNumber',
+    'Product Number', 'ProductNumber', 'SKU',
+  ]
+  
+  let partNumber: string | null = null
+  for (const key of partNumberKeys) {
+    if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
+      partNumber = allProps[key].trim()
+      break
+    }
+  }
+  
+  // Case-insensitive fallback
+  if (!partNumber) {
+    for (const [key, value] of Object.entries(allProps)) {
+      const lowerKey = key.toLowerCase()
+      // Skip formula references (start with $)
+      if (value?.startsWith?.('$')) continue
+      
+      if ((lowerKey.includes('part') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+          (lowerKey.includes('item') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+          lowerKey === 'pn' || lowerKey === 'p/n' ||
+          lowerKey.includes('stock') && (lowerKey.includes('code') || lowerKey.includes('number'))) {
+        if (value && value.trim()) {
+          partNumber = value.trim()
+          break
+        }
+      }
+    }
+  }
+  
+  // Extract description (comprehensive list)
+  const descriptionKeys = [
+    'Description', 'DESCRIPTION', 'description',
+    'Desc', 'DESC', 'desc',
+    'Title', 'TITLE', 'title',
+    'Name', 'NAME', 'name',
+    'Part Description', 'PartDescription', 'PART DESCRIPTION',
+    'Component Description', 'ComponentDescription',
+    'Item Description', 'ItemDescription',
+  ]
+  
+  let description: string | null = null
+  for (const key of descriptionKeys) {
+    if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
+      description = allProps[key].trim()
+      break
+    }
+  }
+  
+  // Case-insensitive fallback for description
+  if (!description) {
+    for (const [key, value] of Object.entries(allProps)) {
+      const lowerKey = key.toLowerCase()
+      if (value?.startsWith?.('$')) continue
+      
+      if (lowerKey.includes('description') || lowerKey.includes('desc')) {
+        if (value && value.trim()) {
+          description = value.trim()
+          break
+        }
+      }
+    }
+  }
+  
+  // Extract revision (comprehensive list)
+  const revisionKeys = [
+    'Revision', 'REVISION', 'revision',
+    'Rev', 'REV', 'rev',
+    'Rev.', 'REV.',
+    'RevLevel', 'Rev Level', 'Revision Level', 'RevisionLevel',
+    'Rev No', 'RevNo', 'Rev Number', 'RevNumber',
+    'Version', 'VERSION', 'version',
+    'Ver', 'VER', 'ver',
+    'ECO', 'ECN', 'Change Level', 'ChangeLevel',
+    'Engineering Change', 'EngineeringChange',
+  ]
+  
+  let revision: string | null = null
+  for (const key of revisionKeys) {
+    if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
+      revision = allProps[key].trim()
+      break
+    }
+  }
+  
+  // Case-insensitive fallback for revision
+  if (!revision) {
+    for (const [key, value] of Object.entries(allProps)) {
+      const lowerKey = key.toLowerCase()
+      if (value?.startsWith?.('$')) continue
+      
+      if (lowerKey.includes('revision') || lowerKey === 'rev' || 
+          lowerKey.includes('rev ') || lowerKey.startsWith('rev.')) {
+        if (value && value.trim()) {
+          revision = value.trim()
+          break
+        }
+      }
+    }
+  }
+  
+  // Extract tab number (configuration variant suffix)
+  const tabNumberKeys = [
+    'Tab Number', 'TabNumber', 'Tab No', 'Tab', 'TAB',
+    'Configuration Tab', 'ConfigTab', 'Config Tab',
+    'Suffix', 'Variant', 'Config Suffix'
+  ]
+  
+  let tabNumber: string | null = null
+  for (const key of tabNumberKeys) {
+    if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
+      tabNumber = allProps[key].trim()
+      break
+    }
+  }
+  
+  // Case-insensitive fallback for tab number
+  if (!tabNumber) {
+    for (const [key, value] of Object.entries(allProps)) {
+      const lowerKey = key.toLowerCase()
+      if (value?.startsWith?.('$')) continue
+      
+      if (lowerKey.includes('tab') && (lowerKey.includes('number') || lowerKey.includes('no'))) {
+        if (value && value.trim()) {
+          tabNumber = value.trim()
+          break
+        }
+      }
+    }
+  }
+  
+  // Build custom properties object (exclude the ones we've already extracted)
+  const excludeKeys = new Set([
+    ...partNumberKeys, 
+    ...descriptionKeys,
+    ...revisionKeys,
+    ...tabNumberKeys
+  ].map(k => k.toLowerCase()))
+  
+  const customProperties: Record<string, string | number | null> = {}
+  for (const [key, value] of Object.entries(allProps)) {
+    if (!excludeKeys.has(key.toLowerCase()) && value && !value.startsWith('$')) {
+      customProperties[key] = value
+    }
+  }
+  
+  return {
+    partNumber,
+    tabNumber,
+    description: description?.trim() || null,
+    revision,
+    customProperties: Object.keys(customProperties).length > 0 ? customProperties : undefined
+  }
+}
+
+/**
+ * Result type for SolidWorks metadata extraction
+ */
+interface SolidWorksMetadataResult {
+  partNumber?: string | null
+  tabNumber?: string | null
+  description?: string | null
+  revision?: string | null
+  customProperties?: Record<string, string | number | null>
+  /** True if metadata was inherited from parent model (for drawings) */
+  inheritedFromParent?: boolean
+  /** Path of parent model if inherited */
+  parentModelPath?: string
+}
+
+/**
+ * Extract references from a drawing file
+ * Used to find the parent model for metadata inheritance
+ */
+async function getDrawingReferences(fullPath: string): Promise<Array<{
+  path: string
+  fileName: string
+  exists: boolean
+  fileType: string
+}> | null> {
+  try {
+    const result = await window.electronAPI?.solidworks?.getReferences?.(fullPath)
+    if (!result?.success || !result.data?.references) {
+      return null
+    }
+    return result.data.references as Array<{
+      path: string
+      fileName: string
+      exists: boolean
+      fileType: string
+    }>
+  } catch {
+    return null
+  }
+}
 
 /**
  * Extract metadata from SolidWorks file using the SW service
  * Returns null if service unavailable or extraction fails
+ * 
+ * For drawings, implements PRP (Part Reference Property) resolution:
+ * - Extracts references from the drawing to find the parent model
+ * - Reads metadata from the first referenced model (part or assembly)
+ * - Uses parent model's metadata for the drawing
  */
 async function extractSolidWorksMetadata(
   fullPath: string,
   extension: string
-): Promise<{
-  partNumber?: string | null
-  description?: string | null
-  revision?: string | null
-  customProperties?: Record<string, string | number | null>
-} | null> {
+): Promise<SolidWorksMetadataResult | null> {
   // Only process SolidWorks files
   if (!SW_EXTENSIONS.includes(extension.toLowerCase())) {
     return null
@@ -54,7 +288,174 @@ async function extractSolidWorksMetadata(
     return null
   }
   
+  const isDrawing = DRAWING_EXTENSIONS.includes(extension.toLowerCase())
+  
   try {
+    // ========================================
+    // DRAWING PRP RESOLUTION
+    // For drawings, metadata often uses Part Reference Properties (PRP) that
+    // reference the parent model. We resolve this by:
+    // 1. Getting references from the drawing to find the parent model
+    // 2. Reading metadata from the first referenced model
+    // 3. Using parent model metadata if drawing's own metadata is empty/PRP
+    // ========================================
+    if (isDrawing) {
+      logSync('debug', 'Drawing detected - checking for PRP inheritance', { fullPath })
+      
+      // First, get the drawing's own properties to check for PRP references
+      const drawingResult = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
+      
+      // Check if drawing has PRP references or empty metadata
+      const drawingData = drawingResult?.data as {
+        fileProperties?: Record<string, string>
+        configurationProperties?: Record<string, Record<string, string>>
+      } | undefined
+      
+      const drawingProps = { ...drawingData?.fileProperties }
+      const configProps = drawingData?.configurationProperties
+      if (configProps) {
+        const configNames = Object.keys(configProps)
+        const preferredConfig = configNames.find(k => k.toLowerCase() === 'default') 
+          || configNames.find(k => k.toLowerCase() === 'standard')
+          || configNames[0]
+        if (preferredConfig && configProps[preferredConfig]) {
+          Object.assign(drawingProps, configProps[preferredConfig])
+        }
+      }
+      
+      // Check for PRP references (e.g., "$PRP:Description", "$PRPSHEET:Number")
+      const hasPrpReference = Object.values(drawingProps).some(val => 
+        typeof val === 'string' && (val.startsWith('$PRP:') || val.startsWith('$PRPSHEET:'))
+      )
+      
+      // Check if metadata fields are empty
+      const hasEmptyMetadata = !drawingProps['Number'] && !drawingProps['Description'] && 
+                               !drawingProps['PartNumber'] && !drawingProps['Part Number']
+      
+      logSync('debug', 'Drawing property analysis', { 
+        fullPath,
+        hasPrpReference,
+        hasEmptyMetadata,
+        propertyKeys: Object.keys(drawingProps),
+        sampleValues: {
+          Number: drawingProps['Number']?.substring(0, 30),
+          Description: drawingProps['Description']?.substring(0, 30)
+        }
+      })
+      
+      // If drawing has PRP references or empty metadata, try to inherit from parent model
+      if (hasPrpReference || hasEmptyMetadata) {
+        logSync('info', 'PRP detected or empty metadata - attempting parent model inheritance', { fullPath })
+        
+        // Get drawing references to find parent model
+        const drawingRefs = await getDrawingReferences(fullPath)
+        
+        if (!drawingRefs || drawingRefs.length === 0) {
+          logSync('warn', 'Drawing has no references - cannot inherit metadata from parent model', { 
+            fullPath,
+            hasPrpReference,
+            hasEmptyMetadata
+          })
+          // Fall through to extract what we can from the drawing itself
+        } else {
+          // Use the FIRST referenced model for deterministic inheritance
+          // This is typically the main model the drawing documents
+          const parentRef = drawingRefs[0]
+          
+          // Construct full path to parent model
+          // getReferences often returns just filename without path/extension
+          // So we need to construct the full path from the drawing's directory
+          const drawingDir = fullPath.substring(0, fullPath.lastIndexOf('\\') + 1) || 
+                            fullPath.substring(0, fullPath.lastIndexOf('/') + 1)
+          
+          // Try to determine the full path to the parent model
+          let parentFullPath = parentRef.path
+          
+          // If path doesn't look like a full path, construct it
+          if (!parentFullPath.includes('\\') && !parentFullPath.includes('/')) {
+            // Check if fileName has extension, if not try common SW extensions
+            const hasExtension = parentRef.fileName.includes('.')
+            if (hasExtension) {
+              parentFullPath = drawingDir + parentRef.fileName
+            } else {
+              // Try .SLDPRT first (most common for drawings), then .SLDASM
+              parentFullPath = drawingDir + parentRef.fileName + '.SLDPRT'
+            }
+          }
+          
+          logSync('info', 'Parent model chosen for metadata inheritance', {
+            drawingPath: fullPath,
+            parentModelPath: parentFullPath,
+            originalRefPath: parentRef.path,
+            parentModelName: parentRef.fileName,
+            parentModelType: parentRef.fileType,
+            totalReferences: drawingRefs.length
+          })
+          
+          // Get metadata from the parent model
+          const parentExt = '.' + parentFullPath.split('.').pop()?.toLowerCase()
+          if (SW_EXTENSIONS.includes(parentExt)) {
+            const parentResult = await window.electronAPI?.solidworks?.getProperties?.(parentFullPath)
+            
+            if (parentResult?.success && parentResult.data) {
+              const parentData = parentResult.data as {
+                fileProperties?: Record<string, string>
+                configurationProperties?: Record<string, Record<string, string>>
+              }
+              
+              // Merge parent's file and config properties
+              const parentAllProps: Record<string, string> = { ...parentData.fileProperties }
+              const parentConfigProps = parentData.configurationProperties
+              if (parentConfigProps) {
+                const parentConfigNames = Object.keys(parentConfigProps)
+                const parentPreferredConfig = parentConfigNames.find(k => k.toLowerCase() === 'default')
+                  || parentConfigNames.find(k => k.toLowerCase() === 'standard')
+                  || parentConfigNames[0]
+                if (parentPreferredConfig && parentConfigProps[parentPreferredConfig]) {
+                  Object.assign(parentAllProps, parentConfigProps[parentPreferredConfig])
+                }
+              }
+              
+              // Extract metadata from parent model using standard property extraction
+              const parentMetadata = extractMetadataFromProperties(parentAllProps)
+              
+              logSync('info', 'Inherited metadata from parent model', {
+                drawingPath: fullPath,
+                parentModelPath: parentFullPath,
+                inheritedPartNumber: parentMetadata.partNumber,
+                inheritedDescription: parentMetadata.description?.substring(0, 50),
+                inheritedRevision: parentMetadata.revision
+              })
+              
+              return {
+                partNumber: parentMetadata.partNumber,
+                tabNumber: parentMetadata.tabNumber,
+                description: parentMetadata.description,
+                revision: parentMetadata.revision,
+                customProperties: parentMetadata.customProperties,
+                inheritedFromParent: true,
+                parentModelPath: parentFullPath
+              }
+            } else {
+              logSync('warn', 'Failed to read parent model properties', {
+                drawingPath: fullPath,
+                parentModelPath: parentFullPath,
+                error: parentResult?.error
+              })
+              // Fall through to extract what we can from the drawing itself
+            }
+          } else {
+            logSync('debug', 'Parent model is not a SolidWorks file, skipping inheritance', {
+              drawingPath: fullPath,
+              parentModelPath: parentFullPath,
+              parentExt
+            })
+          }
+        }
+      }
+    }
+    
+    // Standard metadata extraction (for parts/assemblies, or drawings without PRP)
     const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
     
     if (!result?.success || !result.data) {
@@ -89,146 +490,15 @@ async function extractSolidWorksMetadata(
       }
     }
     
-    
-    // Extract part number from common property names (comprehensive list)
-    // IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
-    // and represents the user's current/intended part number. "Base Item Number" may contain
-    // legacy or template values that would incorrectly override user edits.
-    const partNumberKeys = [
-      // Blue Robotics primary - this is what gets written by "Save to File"
-      'Number', 'No', 'No.',
-      // SolidWorks standard/common
-      'Base Item Number',  // Document Manager standard property (may be stale)
-      'PartNumber', 'Part Number', 'PARTNUMBER', 'PART NUMBER',
-      'Part No', 'Part No.', 'PartNo', 'PARTNO', 'PART NO',
-      // Item number variations
-      'ItemNumber', 'Item Number', 'ITEMNUMBER', 'ITEM NUMBER',
-      'Item No', 'Item No.', 'ItemNo', 'ITEMNO', 'ITEM NO',
-      // Short forms
-      'PN', 'P/N', 'pn', 'p/n',
-      // Other common names
-      'Document Number', 'DocumentNumber', 'Doc Number', 'DocNo',
-      'Stock Code', 'StockCode', 'Stock Number', 'StockNumber',
-      'Product Number', 'ProductNumber', 'SKU',
-    ]
-    
-    let partNumber: string | null = null
-    for (const key of partNumberKeys) {
-      if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
-        partNumber = allProps[key].trim()
-        break
-      }
-    }
-    
-    // Case-insensitive fallback
-    if (!partNumber) {
-      for (const [key, value] of Object.entries(allProps)) {
-        const lowerKey = key.toLowerCase()
-        // Skip formula references (start with $)
-        if (value?.startsWith?.('$')) continue
-        
-        if ((lowerKey.includes('part') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
-            (lowerKey.includes('item') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
-            lowerKey === 'pn' || lowerKey === 'p/n' ||
-            lowerKey.includes('stock') && (lowerKey.includes('code') || lowerKey.includes('number'))) {
-          if (value && value.trim()) {
-            partNumber = value.trim()
-            break
-          }
-        }
-      }
-    }
-    
-    // Extract description (comprehensive list)
-    const descriptionKeys = [
-      'Description', 'DESCRIPTION', 'description',
-      'Desc', 'DESC', 'desc',
-      'Title', 'TITLE', 'title',
-      'Name', 'NAME', 'name',
-      'Part Description', 'PartDescription', 'PART DESCRIPTION',
-      'Component Description', 'ComponentDescription',
-      'Item Description', 'ItemDescription',
-    ]
-    
-    let description: string | null = null
-    for (const key of descriptionKeys) {
-      if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
-        description = allProps[key].trim()
-        break
-      }
-    }
-    
-    // Case-insensitive fallback for description
-    if (!description) {
-      for (const [key, value] of Object.entries(allProps)) {
-        const lowerKey = key.toLowerCase()
-        if (value?.startsWith?.('$')) continue
-        
-        if (lowerKey.includes('description') || lowerKey.includes('desc')) {
-          if (value && value.trim()) {
-            description = value.trim()
-            break
-          }
-        }
-      }
-    }
-    
-    // Extract revision (comprehensive list)
-    const revisionKeys = [
-      'Revision', 'REVISION', 'revision',
-      'Rev', 'REV', 'rev',
-      'Rev.', 'REV.',
-      'RevLevel', 'Rev Level', 'Revision Level', 'RevisionLevel',
-      'Rev No', 'RevNo', 'Rev Number', 'RevNumber',
-      'Version', 'VERSION', 'version',
-      'Ver', 'VER', 'ver',
-      'ECO', 'ECN', 'Change Level', 'ChangeLevel',
-      'Engineering Change', 'EngineeringChange',
-    ]
-    
-    let revision: string | null = null
-    for (const key of revisionKeys) {
-      if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
-        revision = allProps[key].trim()
-        break
-      }
-    }
-    
-    // Case-insensitive fallback for revision
-    if (!revision) {
-      for (const [key, value] of Object.entries(allProps)) {
-        const lowerKey = key.toLowerCase()
-        if (value?.startsWith?.('$')) continue
-        
-        if (lowerKey.includes('revision') || lowerKey === 'rev' || 
-            lowerKey.includes('rev ') || lowerKey.startsWith('rev.')) {
-          if (value && value.trim()) {
-            revision = value.trim()
-            break
-          }
-        }
-      }
-    }
-    
-    // Build custom properties object (exclude the ones we've already extracted)
-    const excludeKeys = new Set([
-      ...partNumberKeys, 
-      ...descriptionKeys,
-      ...revisionKeys
-    ].map(k => k.toLowerCase()))
-    
-    const customProperties: Record<string, string | number | null> = {}
-    for (const [key, value] of Object.entries(allProps)) {
-      if (!excludeKeys.has(key.toLowerCase()) && value && !value.startsWith('$')) {
-        customProperties[key] = value
-      }
-    }
+    // Use shared helper to extract metadata from properties
+    const metadata = extractMetadataFromProperties(allProps)
     
     return {
-      partNumber,
-      description: description?.trim() || null,
-      revision,
-      customProperties: Object.keys(customProperties).length > 0 ? customProperties : undefined
+      partNumber: metadata.partNumber,
+      tabNumber: metadata.tabNumber,
+      description: metadata.description,
+      revision: metadata.revision,
+      customProperties: metadata.customProperties
     }
   } catch {
     return null
@@ -376,13 +646,23 @@ export const syncCommand: Command<SyncParams> = {
         }
         
         // Extract SolidWorks metadata if this is a SW file and service is available
-        const metadata = await extractSolidWorksMetadata(file.path, file.extension)
+        const extractedMetadata = await extractSolidWorksMetadata(file.path, file.extension)
+        
+        // Merge pending metadata (user pre-assigned BR numbers) with extracted metadata
+        // Pending metadata takes priority - user explicitly set these values before sync
+        const metadata: ExtractedMetadata = {
+          partNumber: file.pendingMetadata?.part_number ?? extractedMetadata?.partNumber ?? null,
+          tabNumber: file.pendingMetadata?.tab_number ?? extractedMetadata?.tabNumber ?? null,
+          description: file.pendingMetadata?.description ?? extractedMetadata?.description ?? null,
+          revision: file.pendingMetadata?.revision ?? extractedMetadata?.revision ?? null,
+          customProperties: extractedMetadata?.customProperties
+        }
         
         const { error, file: syncedFile } = await syncFile(
           organization.id, activeVaultId, user.id,
           file.relativePath, file.name, file.extension, file.size,
           readResult.hash, readResult.data,
-          metadata || undefined
+          metadata
         )
         
         if (error || !syncedFile) {
@@ -392,10 +672,10 @@ export const syncCommand: Command<SyncParams> = {
         }
         
         await window.electronAPI?.setReadonly(file.path, true)
-        // Queue update for batch processing
+        // Queue update for batch processing (also clear pendingMetadata since it's now synced)
         pendingUpdates.push({
           path: file.path,
-          updates: { pdmData: syncedFile, localHash: readResult.hash, diffStatus: undefined }
+          updates: { pdmData: syncedFile, localHash: readResult.hash, diffStatus: undefined, pendingMetadata: undefined }
         })
         progress.update()
         
@@ -464,24 +744,26 @@ export const syncCommand: Command<SyncParams> = {
       ctx.addToast('success', `Synced ${succeeded} file${succeeded > 1 ? 's' : ''} to cloud`)
     }
     
-    // Extract assembly references if requested
-    // This is useful for importing existing vaults with assemblies
+    // Extract references if requested (assemblies reference components, drawings reference models)
+    // This is useful for importing existing vaults with assemblies and drawings
     if (extractReferences && syncedFileInfos.length > 0) {
-      const assemblyInfos = syncedFileInfos.filter(info => 
-        ASSEMBLY_EXTENSIONS.includes(info.extension.toLowerCase())
+      const referenceFileInfos = syncedFileInfos.filter(info => 
+        REFERENCE_FILE_EXTENSIONS.includes(info.extension.toLowerCase())
       )
       
-      if (assemblyInfos.length > 0) {
+      if (referenceFileInfos.length > 0) {
         logSync('info', 'Starting reference extraction phase', { 
-          assemblyCount: assemblyInfos.length 
+          fileCount: referenceFileInfos.length,
+          assemblies: referenceFileInfos.filter(f => f.extension.toLowerCase() === '.sldasm').length,
+          drawings: referenceFileInfos.filter(f => f.extension.toLowerCase() === '.slddrw').length
         })
         
         // Show progress toast for reference extraction
         const refToastId = `sync-refs-${Date.now()}`
         ctx.addProgressToast(
           refToastId, 
-          `Extracting assembly references (0/${assemblyInfos.length})...`, 
-          assemblyInfos.length
+          `Extracting references (0/${referenceFileInfos.length})...`, 
+          referenceFileInfos.length
         )
         
         // Create a wrapper that updates progress
@@ -491,15 +773,15 @@ export const syncCommand: Command<SyncParams> = {
           ctx.updateProgressToast(
             refToastId, 
             refProgress, 
-            Math.round((refProgress / assemblyInfos.length) * 100),
+            Math.round((refProgress / referenceFileInfos.length) * 100),
             undefined,
-            `Extracting references (${refProgress}/${assemblyInfos.length})`
+            `Extracting references (${refProgress}/${referenceFileInfos.length})`
           )
         }
         
-        // Process assemblies with progress tracking
-        const refResult = await extractAssemblyReferencesWithProgress(
-          assemblyInfos,
+        // Process assemblies and drawings with progress tracking
+        const refResult = await extractFileReferencesWithProgress(
+          referenceFileInfos,
           organization.id,
           activeVaultId,
           ctx.vaultPath || undefined,
@@ -509,7 +791,7 @@ export const syncCommand: Command<SyncParams> = {
         ctx.removeToast(refToastId)
         
         if (refResult.processed > 0) {
-          ctx.addToast('success', `Extracted references for ${refResult.processed} assembl${refResult.processed > 1 ? 'ies' : 'y'}`)
+          ctx.addToast('success', `Extracted references for ${refResult.processed} file${refResult.processed > 1 ? 's' : ''}`)
         } else if (refResult.skipped > 0) {
           ctx.addToast('info', `Skipped reference extraction (SW service not running or no references found)`)
         }
@@ -535,9 +817,10 @@ export const syncCommand: Command<SyncParams> = {
 
 /**
  * Extract references with progress callback
+ * Handles both assemblies (component references) and drawings (model references)
  */
-async function extractAssemblyReferencesWithProgress(
-  assemblies: SyncedFileInfo[],
+async function extractFileReferencesWithProgress(
+  files: SyncedFileInfo[],
   orgId: string,
   vaultId: string,
   vaultRootPath: string | undefined,
@@ -551,18 +834,25 @@ async function extractAssemblyReferencesWithProgress(
   const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
   if (!status?.data?.running) {
     logSync('info', 'Skipping reference extraction - SW service not running', { 
-      assemblyCount: assemblies.length 
+      fileCount: files.length 
     })
-    return { processed: 0, skipped: assemblies.length, errors: 0 }
+    return { processed: 0, skipped: files.length, errors: 0 }
   }
   
-  // Process assemblies sequentially to avoid overwhelming the SW service
-  for (const assembly of assemblies) {
+  // Process files sequentially to avoid overwhelming the SW service
+  for (const file of files) {
+    const isDrawing = DRAWING_EXTENSIONS.includes(file.extension.toLowerCase())
+    
     try {
       // Call SolidWorks service to get references
-      const result = await window.electronAPI?.solidworks?.getReferences?.(assembly.filePath)
+      const result = await window.electronAPI?.solidworks?.getReferences?.(file.filePath)
       
       if (!result?.success || !result.data?.references) {
+        logSync('debug', 'No references returned', {
+          fileName: file.fileName,
+          isDrawing,
+          error: result?.error
+        })
         skipped++
         onProgress()
         continue
@@ -576,38 +866,65 @@ async function extractAssemblyReferencesWithProgress(
       }>
       
       if (swRefs.length === 0) {
+        logSync('debug', 'File has no references', { fileName: file.fileName, isDrawing })
         skipped++
         onProgress()
         continue
       }
       
       // Convert SW service format to our SWReference format
+      // Reference types differ based on file type:
+      // - Assemblies: components (parts and sub-assemblies)
+      // - Drawings: model references (the parts/assemblies the drawing documents)
       const references: SWReference[] = swRefs.map(ref => ({
         childFilePath: ref.path,
         quantity: 1,
-        referenceType: ref.fileType === 'assembly' ? 'component' : 
-                       ref.fileType === 'part' ? 'component' : 'reference',
+        referenceType: isDrawing 
+          ? 'reference'  // Drawings reference models they document
+          : (ref.fileType === 'assembly' ? 'component' : 
+             ref.fileType === 'part' ? 'component' : 'reference'),
         configuration: undefined
       }))
       
+      logSync('debug', 'Extracted references', {
+        fileName: file.fileName,
+        isDrawing,
+        referenceCount: references.length,
+        firstReference: references[0]?.childFilePath
+      })
+      
       // Store references in database (pass vault root for better path matching)
-      const upsertResult = await upsertFileReferences(orgId, vaultId, assembly.fileId, references, vaultRootPath)
+      const upsertResult = await upsertFileReferences(orgId, vaultId, file.fileId, references, vaultRootPath)
       
       if (upsertResult.success) {
         processed++
+        logSync('info', 'Stored file references', {
+          fileName: file.fileName,
+          isDrawing,
+          inserted: upsertResult.inserted,
+          updated: upsertResult.updated,
+          deleted: upsertResult.deleted,
+          skipped: upsertResult.skipped
+        })
+        
         if (upsertResult.skippedReasons && upsertResult.skippedReasons.length > 0) {
           logSync('debug', 'Some references skipped', {
-            fileName: assembly.fileName,
+            fileName: file.fileName,
             skippedReasons: upsertResult.skippedReasons
           })
         }
       } else {
+        logSync('warn', 'Failed to store references', {
+          fileName: file.fileName,
+          error: upsertResult.error
+        })
         errors++
       }
       
     } catch (err) {
       logSync('warn', 'Reference extraction failed', {
-        fileName: assembly.fileName,
+        fileName: file.fileName,
+        isDrawing,
         error: err instanceof Error ? err.message : String(err)
       })
       errors++

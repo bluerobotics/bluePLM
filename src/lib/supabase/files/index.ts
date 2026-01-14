@@ -53,8 +53,9 @@ export {
   emptyTrash
 } from './trash'
 
-// Version functions - rollback, state transitions
+// Version functions - rollback, state transitions, notes
 export {
   rollbackToVersion,
-  transitionFileState
+  transitionFileState,
+  updateVersionNote
 } from './versions'

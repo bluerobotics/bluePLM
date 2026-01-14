@@ -160,7 +160,7 @@ export const createUISlice: StateCreator<
       // For bottom panel, we need to track custom order
       const { bottomPanelTabOrder } = get()
       // Default order if no custom order set
-      const defaultOrder: DetailsPanelTab[] = ['preview', 'properties', 'datacard', 'whereused', 'contains', 'history']
+      const defaultOrder: DetailsPanelTab[] = ['preview', 'properties', 'whereused', 'contains', 'vendors']
       const currentOrder = bottomPanelTabOrder.length > 0 ? bottomPanelTabOrder : defaultOrder
       
       const currentIndex = currentOrder.indexOf(tabId)

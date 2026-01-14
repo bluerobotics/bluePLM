@@ -33,9 +33,11 @@ import {
   useTeams,
   useWorkflowRoles,
   useInvites,
+  useVaultAccess,
   useFilteredData
 } from '../hooks'
 import { ConnectedUserRow } from '../components/user'
+import { EditPendingMemberDialog } from '../components/dialogs'
 import { pendingMemberToOrgUser } from '../utils'
 import type { PendingMember, PendingMemberFormData } from '../types'
 
@@ -56,9 +58,11 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
   const { members: orgUsers } = useMembers(orgId)
   const { teams } = useTeams(orgId)
   const { workflowRoles } = useWorkflowRoles(orgId)
+  const { vaults: orgVaults } = useVaultAccess(orgId)
   const {
     pendingMembers,
     deletePendingMember,
+    updatePendingMember,
     resendInvite
   } = useInvites(orgId)
 
@@ -71,13 +75,14 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null)
   
   // Pending member editing state
-  const [, setEditingPendingMember] = useState<PendingMember | null>(null)
-  const [, setPendingMemberForm] = useState<PendingMemberFormData>({
+  const [editingPendingMember, setEditingPendingMember] = useState<PendingMember | null>(null)
+  const [pendingMemberForm, setPendingMemberForm] = useState<PendingMemberFormData>({
     full_name: '',
     team_ids: [],
     workflow_role_ids: [],
     vault_ids: []
   })
+  const [isSavingPendingMember, setIsSavingPendingMember] = useState(false)
   
   // View permissions modal state
   const [, setViewingPendingMemberPermissions] = useState<PendingMember | null>(null)
@@ -100,6 +105,54 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
       workflow_role_ids: pm.workflow_role_ids || [],
       vault_ids: pm.vault_ids || []
     })
+  }, [])
+
+  const closeEditPendingMember = useCallback(() => {
+    setEditingPendingMember(null)
+    setPendingMemberForm({
+      full_name: '',
+      team_ids: [],
+      workflow_role_ids: [],
+      vault_ids: []
+    })
+  }, [])
+
+  const handleSavePendingMember = useCallback(async () => {
+    if (!editingPendingMember) return
+    setIsSavingPendingMember(true)
+    try {
+      await updatePendingMember(editingPendingMember.id, pendingMemberForm)
+      closeEditPendingMember()
+    } finally {
+      setIsSavingPendingMember(false)
+    }
+  }, [editingPendingMember, pendingMemberForm, updatePendingMember, closeEditPendingMember])
+
+  const togglePendingMemberTeam = useCallback((teamId: string) => {
+    setPendingMemberForm(prev => ({
+      ...prev,
+      team_ids: prev.team_ids.includes(teamId)
+        ? prev.team_ids.filter(id => id !== teamId)
+        : [...prev.team_ids, teamId]
+    }))
+  }, [])
+
+  const togglePendingMemberWorkflowRole = useCallback((roleId: string) => {
+    setPendingMemberForm(prev => ({
+      ...prev,
+      workflow_role_ids: prev.workflow_role_ids.includes(roleId)
+        ? prev.workflow_role_ids.filter(id => id !== roleId)
+        : [...prev.workflow_role_ids, roleId]
+    }))
+  }, [])
+
+  const togglePendingMemberVault = useCallback((vaultId: string) => {
+    setPendingMemberForm(prev => ({
+      ...prev,
+      vault_ids: prev.vault_ids.includes(vaultId)
+        ? prev.vault_ids.filter(id => id !== vaultId)
+        : [...prev.vault_ids, vaultId]
+    }))
   }, [])
 
   return (
@@ -297,6 +350,24 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
             </div>
           )}
         </div>
+      )}
+
+      {/* Edit Pending Member Dialog */}
+      {editingPendingMember && (
+        <EditPendingMemberDialog
+          pendingMember={editingPendingMember}
+          pendingMemberForm={pendingMemberForm}
+          setPendingMemberForm={setPendingMemberForm}
+          teams={teams}
+          workflowRoles={workflowRoles}
+          orgVaults={orgVaults}
+          onSave={handleSavePendingMember}
+          onClose={closeEditPendingMember}
+          isSaving={isSavingPendingMember}
+          togglePendingMemberTeam={togglePendingMemberTeam}
+          togglePendingMemberWorkflowRole={togglePendingMemberWorkflowRole}
+          togglePendingMemberVault={togglePendingMemberVault}
+        />
       )}
     </>
   )

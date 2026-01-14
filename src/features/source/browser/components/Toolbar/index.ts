@@ -15,3 +15,5 @@ export type { PathActionsProps } from './PathActions'
 
 export { SearchIndicator } from './SearchIndicator'
 export type { SearchIndicatorProps } from './SearchIndicator'
+
+export { CardViewFieldsPopover } from './CardViewFieldsPopover'

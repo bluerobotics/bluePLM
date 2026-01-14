@@ -465,6 +465,36 @@ function App() {
           unexpectedCount: unexpectedChanges.length
         })
         loadFiles(true)
+        
+        // Auto-refresh metadata for SolidWorks files if setting is enabled
+        const { autoRefreshMetadataOnSave, files } = usePDMStore.getState()
+        if (autoRefreshMetadataOnSave) {
+          const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+          const changedSwFiles = unexpectedChanges.filter(filePath => {
+            const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase()
+            return swExtensions.includes(ext)
+          })
+          
+          if (changedSwFiles.length > 0) {
+            // Find LocalFile objects for the changed paths
+            const swFilesToRefresh = files.filter(f => 
+              changedSwFiles.some(changed => 
+                f.relativePath === changed || f.relativePath.replace(/\\/g, '/') === changed
+              )
+            )
+            
+            if (swFilesToRefresh.length > 0) {
+              window.electronAPI?.log('info', '[FileWatcher] Auto-refreshing metadata for SW files', {
+                count: swFilesToRefresh.length
+              })
+              // Import and execute command - use dynamic import to avoid circular deps
+              import('@/lib/commands').then(({ executeCommand }) => {
+                executeCommand('refresh-local-metadata', { files: swFilesToRefresh })
+              })
+            }
+          }
+        }
+        
         refreshTimeout = null
       }, 1000)
     })

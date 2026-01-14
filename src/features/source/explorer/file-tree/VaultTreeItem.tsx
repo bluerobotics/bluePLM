@@ -13,6 +13,7 @@ import {
 type CheckoutUserWithCount = {
   id: string
   name: string
+  email?: string
   avatar_url?: string
   isMe: boolean
   count?: number
@@ -192,6 +193,8 @@ export const VaultTreeItem = memo(function VaultTreeItem({
               totalCheckouts={totalCheckouts}
               isProcessing={isCheckingInMyCheckouts}
               maxAvatars={3}
+              folderId={vault.id}
+              folderName={vault.name}
             />
           )}
           

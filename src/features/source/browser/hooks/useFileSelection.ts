@@ -23,6 +23,7 @@
  */
 import { useState, useCallback } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import { usePDMStore } from '@/stores/pdmStore'
 
 export interface UseFileSelectionOptions {
   /** The sorted/filtered files to select from */
@@ -50,8 +51,14 @@ export function useFileSelection({
   toggleFileSelection
 }: UseFileSelectionOptions): UseFileSelectionReturn {
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
+  
+  // Get config selection clearer from store
+  const setSelectedConfigs = usePDMStore(s => s.setSelectedConfigs)
 
   const handleRowClick = useCallback((e: React.MouseEvent, file: LocalFile, index: number) => {
+    // Clear config selection when selecting files (only one level should be highlighted)
+    setSelectedConfigs(new Set())
+    
     if (e.shiftKey && lastClickedIndex !== null) {
       // Shift+click: select range
       const start = Math.min(lastClickedIndex, index)
@@ -75,7 +82,7 @@ export function useFileSelection({
       setSelectedFiles([file.path])
       setLastClickedIndex(index)
     }
-  }, [sortedFiles, selectedFiles, setSelectedFiles, toggleFileSelection, lastClickedIndex])
+  }, [sortedFiles, selectedFiles, setSelectedFiles, toggleFileSelection, lastClickedIndex, setSelectedConfigs])
 
   const selectAll = useCallback(() => {
     setSelectedFiles(sortedFiles.map(f => f.path))

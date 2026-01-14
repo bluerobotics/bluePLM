@@ -16,8 +16,11 @@ import type { SWReference } from '../../supabase/files/mutations'
 import { log } from '@/lib/logger'
 import { FileOperationTracker } from '../../fileOperationTracker'
 
-// Only assemblies have references to extract
-const ASSEMBLY_EXTENSIONS = ['.sldasm']
+// File types that have references to extract (assemblies reference components, drawings reference models)
+const REFERENCE_FILE_EXTENSIONS = ['.sldasm', '.slddrw']
+
+// Drawing extensions (need special handling for reference type)
+const DRAWING_EXTENSIONS = ['.slddrw']
 
 function logExtract(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
   log[level]('[ExtractReferences]', message, context)
@@ -34,14 +37,14 @@ interface SyncedFileInfo {
 }
 
 /**
- * Get synced assembly files from selection
+ * Get synced files with references from selection (assemblies and drawings)
  */
-function getSyncedAssemblyFiles(files: LocalFile[], selection: LocalFile[]): SyncedFileInfo[] {
+function getSyncedFilesWithReferences(files: LocalFile[], selection: LocalFile[]): SyncedFileInfo[] {
   const syncedFiles = getSyncedFilesFromSelection(files, selection)
   
-  // Filter to assemblies only and extract required info
+  // Filter to assemblies and drawings, and extract required info
   return syncedFiles
-    .filter(f => ASSEMBLY_EXTENSIONS.includes(f.extension.toLowerCase()))
+    .filter(f => REFERENCE_FILE_EXTENSIONS.includes(f.extension.toLowerCase()))
     .filter(f => f.pdmData?.id) // Must have database record
     .map(f => ({
       fileId: f.pdmData!.id,
@@ -54,7 +57,7 @@ function getSyncedAssemblyFiles(files: LocalFile[], selection: LocalFile[]): Syn
 export const extractReferencesCommand: Command<ExtractReferencesParams> = {
   id: 'extract-references',
   name: 'Extract References',
-  description: 'Extract and store assembly references to database for Contains/Where-Used queries',
+  description: 'Extract and store file references (assemblies and drawings) to database for Contains/Where-Used queries',
   aliases: ['extract-refs', 'rebuild-bom'],
   usage: 'extract-references <path> [--all]',
   
@@ -79,11 +82,11 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
       return 'No files selected'
     }
     
-    // Check for synced assembly files
-    const assemblyFiles = getSyncedAssemblyFiles(ctx.files, files)
+    // Check for synced files with references (assemblies and drawings)
+    const filesWithRefs = getSyncedFilesWithReferences(ctx.files, files)
     
-    if (assemblyFiles.length === 0) {
-      return 'No synced assembly files (.sldasm) in selection'
+    if (filesWithRefs.length === 0) {
+      return 'No synced assemblies (.sldasm) or drawings (.slddrw) in selection'
     }
     
     return null
@@ -94,29 +97,34 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
     const activeVaultId = ctx.activeVaultId!
     const vaultRootPath = ctx.vaultPath || undefined
     
-    // Get synced assembly files
-    const assemblyFiles = getSyncedAssemblyFiles(ctx.files, files)
+    // Get synced files with references (assemblies and drawings)
+    const filesWithRefs = getSyncedFilesWithReferences(ctx.files, files)
     
     // Initialize file operation tracker for DevTools monitoring
     const tracker = FileOperationTracker.start(
       'extract-references',
-      assemblyFiles.length,
-      assemblyFiles.map(f => f.filePath)
+      filesWithRefs.length,
+      filesWithRefs.map(f => f.filePath)
     )
     
-    if (assemblyFiles.length === 0) {
+    if (filesWithRefs.length === 0) {
       tracker.endOperation('completed')
       return {
         success: true,
-        message: 'No assembly files to process',
+        message: 'No files with references to process',
         total: 0,
         succeeded: 0,
         failed: 0
       }
     }
     
+    const assembliesCount = filesWithRefs.filter(f => f.extension.toLowerCase() === '.sldasm').length
+    const drawingsCount = filesWithRefs.filter(f => f.extension.toLowerCase() === '.slddrw').length
+    
     logExtract('info', 'Starting batch reference extraction', {
-      assemblyCount: assemblyFiles.length
+      fileCount: filesWithRefs.length,
+      assemblies: assembliesCount,
+      drawings: drawingsCount
     })
     
     // Check if SolidWorks service is running
@@ -133,14 +141,14 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
       return {
         success: false,
         message: 'SolidWorks service is not running',
-        total: assemblyFiles.length,
+        total: filesWithRefs.length,
         succeeded: 0,
-        failed: assemblyFiles.length,
-        errors: ['SolidWorks service is required to extract assembly references']
+        failed: filesWithRefs.length,
+        errors: ['SolidWorks service is required to extract file references']
       }
     }
     
-    const total = assemblyFiles.length
+    const total = filesWithRefs.length
     
     // Progress tracking
     const toastId = `extract-refs-${Date.now()}`
@@ -148,7 +156,7 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
       ctx,
       'extract-references',
       toastId,
-      `Extracting references from ${total} assembl${total > 1 ? 'ies' : 'y'}...`,
+      `Extracting references from ${total} file${total > 1 ? 's' : ''}...`,
       total
     )
     
@@ -159,40 +167,45 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
     const details: string[] = []
     
     // Start tracking the extraction phase
-    const extractStepId = tracker.startStep('Extract assembly references', { 
-      assemblyCount: assemblyFiles.length 
+    const extractStepId = tracker.startStep('Extract file references', { 
+      fileCount: filesWithRefs.length,
+      assemblies: assembliesCount,
+      drawings: drawingsCount
     })
     const extractPhaseStart = Date.now()
     
-    // Process assemblies sequentially to avoid overwhelming the SW service
-    for (let i = 0; i < assemblyFiles.length; i++) {
-      const assembly = assemblyFiles[i]
+    // Process files sequentially to avoid overwhelming the SW service
+    for (let i = 0; i < filesWithRefs.length; i++) {
+      const file = filesWithRefs[i]
+      const isDrawing = DRAWING_EXTENSIONS.includes(file.extension.toLowerCase())
       
       try {
-        logExtract('debug', `Processing assembly (${i + 1}/${total})`, {
-          fileName: assembly.fileName
+        logExtract('debug', `Processing file (${i + 1}/${total})`, {
+          fileName: file.fileName,
+          isDrawing
         })
         
         // Call SolidWorks service to get references
-        const result = await window.electronAPI?.solidworks?.getReferences?.(assembly.filePath)
+        const result = await window.electronAPI?.solidworks?.getReferences?.(file.filePath)
         
         if (!result?.success) {
           logExtract('debug', 'Failed to get references from SW service', {
-            fileName: assembly.fileName,
+            fileName: file.fileName,
+            isDrawing,
             error: result?.error
           })
           
           // Check if this is an access error (file might be open in SW)
           if (result?.error?.includes('access') || result?.error?.includes('locked')) {
-            errors.push(`${assembly.fileName}: File is locked or in use`)
+            errors.push(`${file.fileName}: File is locked or in use`)
             failed++
           } else if (result?.error) {
             // Report specific error
-            errors.push(`${assembly.fileName}: ${result.error}`)
+            errors.push(`${file.fileName}: ${result.error}`)
             failed++
           } else {
             // Unknown failure
-            details.push(`${assembly.fileName}: Could not read references (file may need to be opened in SolidWorks first)`)
+            details.push(`${file.fileName}: Could not read references (file may need to be opened in SolidWorks first)`)
             skipped++
           }
           progress.update()
@@ -207,19 +220,24 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
         }> | undefined
         
         if (!swRefs || swRefs.length === 0) {
-          logExtract('debug', 'Assembly has no references', { fileName: assembly.fileName })
-          details.push(`${assembly.fileName}: No references found`)
+          logExtract('debug', 'File has no references', { fileName: file.fileName, isDrawing })
+          details.push(`${file.fileName}: No references found`)
           skipped++
           progress.update()
           continue
         }
         
         // Convert SW service format to our SWReference format
+        // Reference types differ based on file type:
+        // - Assemblies: components (parts and sub-assemblies)
+        // - Drawings: model references (the parts/assemblies the drawing documents)
         const references: SWReference[] = swRefs.map(ref => ({
           childFilePath: ref.path,
           quantity: 1, // SW service doesn't provide quantity in getReferences, default to 1
-          referenceType: ref.fileType === 'assembly' ? 'component' : 
-                         ref.fileType === 'part' ? 'component' : 'reference',
+          referenceType: isDrawing
+            ? 'reference'  // Drawings reference models they document
+            : (ref.fileType === 'assembly' ? 'component' : 
+               ref.fileType === 'part' ? 'component' : 'reference'),
           configuration: undefined
         }))
         
@@ -227,14 +245,15 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
         const upsertResult = await upsertFileReferences(
           organization.id,
           activeVaultId,
-          assembly.fileId,
+          file.fileId,
           references,
           vaultRootPath
         )
         
         if (upsertResult.success) {
           logExtract('debug', 'Stored references', {
-            fileName: assembly.fileName,
+            fileName: file.fileName,
+            isDrawing,
             inserted: upsertResult.inserted,
             updated: upsertResult.updated,
             deleted: upsertResult.deleted,
@@ -243,23 +262,25 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
           })
           
           const refCount = upsertResult.inserted + upsertResult.updated
-          details.push(`${assembly.fileName}: ${refCount} reference${refCount !== 1 ? 's' : ''} stored`)
+          details.push(`${file.fileName}: ${refCount} reference${refCount !== 1 ? 's' : ''} stored`)
           succeeded++
         } else {
           logExtract('warn', 'Failed to store references', {
-            fileName: assembly.fileName,
+            fileName: file.fileName,
+            isDrawing,
             error: upsertResult.error
           })
-          errors.push(`${assembly.fileName}: ${upsertResult.error || 'Failed to store references'}`)
+          errors.push(`${file.fileName}: ${upsertResult.error || 'Failed to store references'}`)
           failed++
         }
         
       } catch (err) {
-        logExtract('warn', 'Reference extraction failed for assembly', {
-          fileName: assembly.fileName,
+        logExtract('warn', 'Reference extraction failed for file', {
+          fileName: file.fileName,
+          isDrawing,
           error: err instanceof Error ? err.message : String(err)
         })
-        errors.push(`${assembly.fileName}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        errors.push(`${file.fileName}: ${err instanceof Error ? err.message : 'Unknown error'}`)
         failed++
       }
       
@@ -290,12 +311,12 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
       const failedMsg = errors.length > 0 ? `: ${errors[0]}` : ''
       ctx.addToast('warning', `Extracted references: ${succeeded} succeeded, ${failed} failed${skipped > 0 ? `, ${skipped} skipped` : ''}${failedMsg}`)
     } else if (succeeded > 0) {
-      ctx.addToast('success', `Extracted references from ${succeeded} assembl${succeeded > 1 ? 'ies' : 'y'}${skipped > 0 ? ` (${skipped} skipped)` : ''}`)
+      ctx.addToast('success', `Extracted references from ${succeeded} file${succeeded > 1 ? 's' : ''}${skipped > 0 ? ` (${skipped} skipped)` : ''}`)
     } else if (skipped > 0) {
       // All files were skipped
-      ctx.addToast('info', `No references found in ${skipped} assembl${skipped > 1 ? 'ies' : 'y'}. These may be empty assemblies or have no synced components.`)
+      ctx.addToast('info', `No references found in ${skipped} file${skipped > 1 ? 's' : ''}. These may be empty assemblies/drawings or have no synced components.`)
     } else {
-      ctx.addToast('info', `No assembly files to process`)
+      ctx.addToast('info', `No files with references to process`)
     }
     
     // Complete operation tracking
@@ -305,7 +326,7 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
       success: failed === 0,
       message: failed > 0 
         ? `Extracted references: ${succeeded}/${total} succeeded`
-        : `Extracted references from ${succeeded} assembl${succeeded > 1 ? 'ies' : 'y'}`,
+        : `Extracted references from ${succeeded} file${succeeded > 1 ? 's' : ''}`,
       total,
       succeeded,
       failed,

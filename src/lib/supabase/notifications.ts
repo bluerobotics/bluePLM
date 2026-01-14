@@ -76,8 +76,8 @@ export async function createReviewRequest(
     type: 'review_request',
     title: title || `Review Requested: ${fileName}`,
     message: message || `${requesterName} requested your review`,
-    file_id: fileId,
-    review_id: review.id,
+    entity_type: 'file',
+    entity_id: fileId,
     from_user_id: requestedBy,
     priority: priority || 'normal'
   }))
@@ -326,6 +326,52 @@ export async function getNotifications(
 }
 
 /**
+ * Get a notification by ID with full details
+ */
+export async function getNotificationById(
+  notificationId: string
+): Promise<{ notification: NotificationWithDetails | null; error?: string }> {
+  const client = getSupabaseClient()
+  
+  const { data, error } = await client
+    .from('notifications')
+    .select(`
+      *,
+      from_user:users!from_user_id(email, full_name, avatar_url)
+    `)
+    .eq('id', notificationId)
+    .single()
+  
+  if (error) {
+    return { notification: null, error: error.message }
+  }
+  
+  // Cast to the expected type
+  const notificationData = data as unknown as NotificationWithDetails
+  
+  // If notification has entity_type 'file', fetch file data separately
+  let fileData: { file_name: string; file_path: string } | null = null
+  if (notificationData?.entity_type === 'file' && notificationData?.entity_id) {
+    const { data: file } = await client
+      .from('files')
+      .select('file_name, file_path')
+      .eq('id', notificationData.entity_id)
+      .single()
+    
+    if (file) {
+      fileData = { file_name: file.file_name, file_path: file.file_path }
+    }
+  }
+  
+  return { 
+    notification: { 
+      ...notificationData, 
+      file: fileData 
+    } as NotificationWithDetails 
+  }
+}
+
+/**
  * Get unread notification count
  */
 export async function getUnreadNotificationCount(
@@ -438,6 +484,9 @@ export async function clearAllNotifications(
 /**
  * Request checkout from someone who has a file checked out
  * Sends a notification to the person who has the file
+ * 
+ * @param message - Optional message to include in the notification
+ *                  If message starts with "Urgent:", priority will be set to 'urgent'
  */
 export async function requestCheckout(
   orgId: string,
@@ -458,6 +507,10 @@ export async function requestCheckout(
   
   const requesterName = requesterData?.full_name || requesterData?.email || 'Someone'
   
+  // Determine priority based on message
+  const isUrgent = message?.toLowerCase().startsWith('urgent')
+  const priority = isUrgent ? 'urgent' : 'normal'
+  
   // Create notification for the person who has the file checked out
   const { error } = await client
     .from('notifications')
@@ -465,10 +518,12 @@ export async function requestCheckout(
       org_id: orgId,
       user_id: checkedOutById,
       type: 'checkout_request',
-      title: `Checkout Requested: ${fileName}`,
-      message: `${requesterName} is waiting for this file${message ? ': ' + message : ''}`,
-      file_id: fileId,
-      from_user_id: requesterId
+      title: isUrgent ? `Urgent: ${requesterName} needs ${fileName}` : `Checkout Requested: ${fileName}`,
+      message: `${requesterName} is waiting for this file${message && !isUrgent ? ': ' + message : ''}`,
+      entity_type: 'file',
+      entity_id: fileId,
+      from_user_id: requesterId,
+      priority: priority
     })
   
   if (error) {
@@ -501,6 +556,20 @@ export async function createCustomNotification(
   const client = getSupabaseClient()
   
   // Create notification for each recipient
+  // Determine entity_type based on what ID is provided
+  let entityType: string | null = null
+  let entityId: string | null = null
+  if (options.fileId) {
+    entityType = 'file'
+    entityId = options.fileId
+  } else if (options.ecoId) {
+    entityType = 'eco'
+    entityId = options.ecoId
+  } else if (options.poId) {
+    entityType = 'po'
+    entityId = options.poId
+  }
+  
   const notifications = toUserIds.map(userId => ({
     org_id: orgId,
     user_id: userId,
@@ -512,9 +581,8 @@ export async function createCustomNotification(
     from_user_id: fromUserId,
     action_type: options.actionType || null,
     action_url: options.actionUrl || null,
-    file_id: options.fileId || null,
-    eco_id: options.ecoId || null,
-    po_id: options.poId || null,
+    entity_type: entityType,
+    entity_id: entityId,
     read: false,
     action_completed: false
   }))
@@ -568,7 +636,8 @@ export async function sendFileNotification(
       type,
       title: titles[type] || `Notification: ${fileName}`,
       message: message || `${senderName} mentioned you regarding ${fileName}`,
-      file_id: fileId,
+      entity_type: 'file',
+      entity_id: fileId,
       from_user_id: fromUserId
     })
   

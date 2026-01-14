@@ -5,6 +5,7 @@ import {
   getFolderCheckoutStatus, 
   isFolderSynced, 
   getFolderCheckoutUsers,
+  computeFolderVisualState,
   type CheckoutUser
 } from '@/components/shared/FileItem'
 import type { TreeMap, FolderDiffCounts } from '../types'
@@ -44,10 +45,19 @@ export interface FolderMetrics {
   syncedFilesCount: number
   /** List of users who have files checked out */
   checkoutUsers: CheckoutUser[]
-  /** Whether all files in folder are synced (have pdmData and not 'added') */
+  /** 
+   * Whether folder text should be normal (true) or italic/muted (false).
+   * Computed via priority-based logic from computeFolderVisualState().
+   */
   isSynced: boolean
   /** Checkout status: 'mine' | 'others' | 'both' | null */
   checkoutStatus: 'mine' | 'others' | 'both' | null
+  /**
+   * Priority-based folder icon color (Tailwind class).
+   * Computed via computeFolderVisualState() using priority order:
+   * local-only > server-only > synced > mine > others
+   */
+  iconColor: string
   
   // ─── Diff Counts (for FolderDiffCounts compatibility) ───────────────────────
   /** Number of locally added files (not yet synced to cloud) */
@@ -163,8 +173,9 @@ export function useVaultTree() {
       totalCheckedOutFilesCount: 0,
       syncedFilesCount: 0,
       checkoutUsers: [],
-      isSynced: true, // Will be set to false if any file is unsynced
+      isSynced: false, // Will be computed via computeFolderVisualState in post-processing
       checkoutStatus: null,
+      iconColor: 'text-plm-fg-muted', // Will be computed via computeFolderVisualState in post-processing
       // Diff counts - initialized to 0, computed in single pass below
       addedCount: 0,
       modifiedCount: 0,
@@ -244,13 +255,8 @@ export function useVaultTree() {
           }
         }
         
-        // Synced status - folder is synced if ALL local files have pdmData AND aren't 'added'
-        // Exclude server-only files from this calculation
-        if (!serverOnlyStatuses.includes(file.diffStatus || '')) {
-          if (!file.pdmData || file.diffStatus === 'added') {
-            m.isSynced = false
-          }
-        }
+        // Note: isSynced and iconColor are computed in post-processing using
+        // computeFolderVisualState() for priority-based logic
         
         // ─── Diff Status Counting ─────────────────────────────────────────────────
         // Count files by diffStatus for getDiffCounts() O(1) lookups.
@@ -271,8 +277,10 @@ export function useVaultTree() {
         // ─── Checkout Users Collection (merged from second pass) ──────────────────
         // Collect unique checkout users per folder using Map for O(1) deduplication.
         // Previously this was a separate O(N) pass; now merged for better performance.
-        if (file.pdmData?.checked_out_by && file.diffStatus !== 'deleted') {
+        // Also tracks file IDs per user for folder notification functionality.
+        if (file.pdmData?.checked_out_by && file.pdmData?.id && file.diffStatus !== 'deleted') {
           const checkoutUserId = file.pdmData.checked_out_by
+          const fileId = file.pdmData.id
           const usersMap = checkoutUsersMaps.get(currentPath)!
           
           // O(1) deduplication via Map.has() instead of O(users) array.some()
@@ -283,7 +291,8 @@ export function useVaultTree() {
                 id: checkoutUserId,
                 name: userFullName || userEmail || 'You',
                 avatar_url: userAvatarUrl ?? undefined,
-                isMe: true
+                isMe: true,
+                fileIds: [fileId]
               })
             } else {
               const checkedOutUser = file.pdmData.checked_out_user
@@ -291,15 +300,24 @@ export function useVaultTree() {
                 id: checkoutUserId,
                 name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
                 avatar_url: checkedOutUser?.avatar_url ?? undefined,
-                isMe: false
+                isMe: false,
+                fileIds: [fileId]
               })
+            }
+          } else {
+            // User already exists, add this file ID to their list
+            const existingUser = usersMap.get(checkoutUserId)!
+            if (existingUser.fileIds) {
+              existingUser.fileIds.push(fileId)
+            } else {
+              existingUser.fileIds = [fileId]
             }
           }
         }
       }
     }
     
-    // Convert checkout user Maps to sorted arrays and compute checkoutStatus
+    // Convert checkout user Maps to sorted arrays and compute visual state
     // This is O(folders) not O(files), so much faster than a second file iteration
     for (const [folderPath, m] of metrics) {
       const usersMap = checkoutUsersMaps.get(folderPath)
@@ -321,12 +339,17 @@ export function useVaultTree() {
         m.checkoutStatus = 'others'
       }
       
-      // Post-process: folders with only cloud files (no local content) are not synced
-      // The synced check above excludes cloud files, so cloud-only folders never trigger it
-      // and would incorrectly stay at the default isSynced: true. This catches that case.
-      if (m.cloudFilesCount > 0 && m.syncedFilesCount === 0 && m.localOnlyFilesCount === 0) {
-        m.isSynced = false
-      }
+      // Compute priority-based folder visual state (iconColor and isSynced)
+      // Priority order: local-only > server-only > synced > mine > others
+      const visualState = computeFolderVisualState(
+        m.localOnlyFilesCount > 0,      // hasLocalOnly
+        m.cloudFilesCount > 0,           // hasServerOnly
+        m.syncedFilesCount > 0,          // hasSynced
+        m.hasMyCheckedOutFiles,          // hasMineCheckouts
+        m.hasOthersCheckedOutFiles       // hasOthersCheckouts
+      )
+      m.iconColor = visualState.iconColor
+      m.isSynced = visualState.isSynced
     }
     
     const durationMs = performance.now() - startTime
@@ -382,9 +405,12 @@ export function useVaultTree() {
   }, [processingOperations])
   
   /**
-   * Check if a folder is fully synced.
+   * Check if a folder is fully synced (for text styling: normal vs italic/muted).
    * O(1) lookup from pre-computed folderMetrics Map.
    * Falls back to O(N) computation for folders not in the Map (edge case).
+   * 
+   * Note: Uses priority-based logic from computeFolderVisualState().
+   * Priority order: local-only > server-only > synced > mine > others
    */
   const checkFolderSynced = useCallback((folderPath: string): boolean => {
     const metrics = folderMetrics.get(folderPath)
@@ -397,6 +423,21 @@ export function useVaultTree() {
       : files
     return isFolderSynced(folderPath, filteredFiles)
   }, [folderMetrics, files, hideSolidworksTempFiles])
+  
+  /**
+   * Get folder icon color (Tailwind class) using priority-based logic.
+   * O(1) lookup from pre-computed folderMetrics Map.
+   * 
+   * Priority order: local-only > server-only > synced > mine > others
+   */
+  const getFolderIconColorFromMetrics = useCallback((folderPath: string): string => {
+    const metrics = folderMetrics.get(folderPath)
+    if (metrics !== undefined) {
+      return metrics.iconColor
+    }
+    // Fallback for folders not in metrics - return default grey
+    return 'text-plm-fg-muted'
+  }, [folderMetrics])
   
   /**
    * Get checkout status for a folder.
@@ -564,6 +605,8 @@ export function useVaultTree() {
     getProcessingOperation,
     checkFolderSynced,
     checkFolderCheckoutStatus,
+    /** Get priority-based folder icon color (Tailwind class) */
+    getFolderIconColorFromMetrics,
     getCheckoutUsersForFolder,
     getDiffCounts,
     getLocalOnlyCount,

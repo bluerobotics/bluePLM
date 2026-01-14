@@ -668,6 +668,447 @@ COMMENT ON TABLE webhooks IS 'Webhook configurations for external integrations';
 COMMENT ON TABLE webhook_deliveries IS 'Webhook delivery attempts and history';
 
 -- ===========================================
+-- SOLIDWORKS LICENSE MANAGEMENT
+-- ===========================================
+
+-- Enum for license types
+DO $$ BEGIN
+  CREATE TYPE solidworks_license_type AS ENUM ('standalone', 'network');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Table: SOLIDWORKS Licenses
+CREATE TABLE IF NOT EXISTS solidworks_licenses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- License details
+  serial_number TEXT NOT NULL,
+  nickname TEXT,
+  license_type solidworks_license_type DEFAULT 'standalone',
+  product_name TEXT,
+  seats INTEGER DEFAULT 1,
+  
+  -- Dates
+  purchase_date DATE,
+  expiry_date DATE,
+  
+  -- Notes
+  notes TEXT,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE(org_id, serial_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_solidworks_licenses_org_id ON solidworks_licenses(org_id);
+
+-- Table: SOLIDWORKS License Assignments
+CREATE TABLE IF NOT EXISTS solidworks_license_assignments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  license_id UUID NOT NULL REFERENCES solidworks_licenses(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- Assignment tracking
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  assigned_by UUID REFERENCES users(id),
+  
+  -- Activation status
+  is_active BOOLEAN DEFAULT false,
+  activated_at TIMESTAMPTZ,
+  machine_id TEXT,
+  machine_name TEXT,
+  deactivated_at TIMESTAMPTZ,
+  
+  UNIQUE(license_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_solidworks_license_assignments_license_id ON solidworks_license_assignments(license_id);
+CREATE INDEX IF NOT EXISTS idx_solidworks_license_assignments_user_id ON solidworks_license_assignments(user_id);
+
+-- RLS for SOLIDWORKS Licenses
+ALTER TABLE solidworks_licenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE solidworks_license_assignments ENABLE ROW LEVEL SECURITY;
+
+-- Licenses: Org members can view
+DROP POLICY IF EXISTS "Org members can view solidworks licenses" ON solidworks_licenses;
+CREATE POLICY "Org members can view solidworks licenses"
+  ON solidworks_licenses FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+-- Licenses: Admins can insert
+DROP POLICY IF EXISTS "Admins can insert solidworks licenses" ON solidworks_licenses;
+CREATE POLICY "Admins can insert solidworks licenses"
+  ON solidworks_licenses FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+
+-- Licenses: Admins can update
+DROP POLICY IF EXISTS "Admins can update solidworks licenses" ON solidworks_licenses;
+CREATE POLICY "Admins can update solidworks licenses"
+  ON solidworks_licenses FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+
+-- Licenses: Admins can delete
+DROP POLICY IF EXISTS "Admins can delete solidworks licenses" ON solidworks_licenses;
+CREATE POLICY "Admins can delete solidworks licenses"
+  ON solidworks_licenses FOR DELETE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+
+-- Assignments: Users can view their own or admins can view all in org
+DROP POLICY IF EXISTS "Users can view own license assignments" ON solidworks_license_assignments;
+CREATE POLICY "Users can view own license assignments"
+  ON solidworks_license_assignments FOR SELECT
+  USING (
+    user_id = auth.uid() OR 
+    license_id IN (
+      SELECT id FROM solidworks_licenses 
+      WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    )
+  );
+
+-- Assignments: Admins can manage all
+DROP POLICY IF EXISTS "Admins can insert license assignments" ON solidworks_license_assignments;
+CREATE POLICY "Admins can insert license assignments"
+  ON solidworks_license_assignments FOR INSERT
+  WITH CHECK (
+    license_id IN (
+      SELECT id FROM solidworks_licenses 
+      WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    ) AND is_org_admin()
+  );
+
+DROP POLICY IF EXISTS "Admins can update license assignments" ON solidworks_license_assignments;
+CREATE POLICY "Admins can update license assignments"
+  ON solidworks_license_assignments FOR UPDATE
+  USING (
+    license_id IN (
+      SELECT id FROM solidworks_licenses 
+      WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    ) AND is_org_admin()
+  );
+
+DROP POLICY IF EXISTS "Admins can delete license assignments" ON solidworks_license_assignments;
+CREATE POLICY "Admins can delete license assignments"
+  ON solidworks_license_assignments FOR DELETE
+  USING (
+    license_id IN (
+      SELECT id FROM solidworks_licenses 
+      WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    ) AND is_org_admin()
+  );
+
+-- Users can update their own activation status
+DROP POLICY IF EXISTS "Users can update own assignment activation" ON solidworks_license_assignments;
+CREATE POLICY "Users can update own assignment activation"
+  ON solidworks_license_assignments FOR UPDATE
+  USING (user_id = auth.uid());
+
+-- Helper function: Assign license to user
+DROP FUNCTION IF EXISTS assign_solidworks_license(UUID, UUID);
+CREATE OR REPLACE FUNCTION assign_solidworks_license(
+  p_license_id UUID,
+  p_user_id UUID
+) RETURNS JSON AS $$
+DECLARE
+  v_current_user_id UUID;
+  v_license_org_id UUID;
+  v_user_org_id UUID;
+  v_assignment_id UUID;
+BEGIN
+  v_current_user_id := auth.uid();
+  
+  -- Get license org
+  SELECT org_id INTO v_license_org_id FROM solidworks_licenses WHERE id = p_license_id;
+  
+  IF v_license_org_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'License not found');
+  END IF;
+  
+  -- Verify current user is admin of the license org
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can assign licenses');
+  END IF;
+  
+  -- Verify target user is in the same org
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = p_user_id;
+  
+  IF v_user_org_id IS NULL OR v_user_org_id != v_license_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'User not found in organization');
+  END IF;
+  
+  -- Check if assignment already exists
+  IF EXISTS (SELECT 1 FROM solidworks_license_assignments WHERE license_id = p_license_id AND user_id = p_user_id) THEN
+    RETURN json_build_object('success', false, 'error', 'License already assigned to this user');
+  END IF;
+  
+  -- Create assignment
+  INSERT INTO solidworks_license_assignments (license_id, user_id, assigned_by)
+  VALUES (p_license_id, p_user_id, v_current_user_id)
+  RETURNING id INTO v_assignment_id;
+  
+  RETURN json_build_object('success', true, 'assignment_id', v_assignment_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION assign_solidworks_license(UUID, UUID) TO authenticated;
+
+-- Helper function: Unassign license from user
+DROP FUNCTION IF EXISTS unassign_solidworks_license(UUID);
+CREATE OR REPLACE FUNCTION unassign_solidworks_license(
+  p_assignment_id UUID
+) RETURNS JSON AS $$
+DECLARE
+  v_license_org_id UUID;
+BEGIN
+  -- Get the org from the license via assignment
+  SELECT sl.org_id INTO v_license_org_id
+  FROM solidworks_license_assignments sla
+  JOIN solidworks_licenses sl ON sl.id = sla.license_id
+  WHERE sla.id = p_assignment_id;
+  
+  IF v_license_org_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Assignment not found');
+  END IF;
+  
+  -- Verify current user is admin
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can unassign licenses');
+  END IF;
+  
+  -- Delete assignment
+  DELETE FROM solidworks_license_assignments WHERE id = p_assignment_id;
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION unassign_solidworks_license(UUID) TO authenticated;
+
+-- Helper function: Activate license on a machine
+DROP FUNCTION IF EXISTS activate_solidworks_license(UUID, TEXT, TEXT);
+CREATE OR REPLACE FUNCTION activate_solidworks_license(
+  p_assignment_id UUID,
+  p_machine_id TEXT,
+  p_machine_name TEXT DEFAULT NULL
+) RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  -- Get the assignment user
+  SELECT user_id INTO v_user_id
+  FROM solidworks_license_assignments
+  WHERE id = p_assignment_id;
+  
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Assignment not found');
+  END IF;
+  
+  -- Verify current user owns this assignment or is admin
+  IF auth.uid() != v_user_id AND NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Not authorized to activate this license');
+  END IF;
+  
+  -- Update activation status
+  UPDATE solidworks_license_assignments
+  SET 
+    is_active = true,
+    activated_at = NOW(),
+    machine_id = p_machine_id,
+    machine_name = p_machine_name,
+    deactivated_at = NULL
+  WHERE id = p_assignment_id;
+  
+  RETURN json_build_object('success', true, 'activated_at', NOW());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION activate_solidworks_license(UUID, TEXT, TEXT) TO authenticated;
+
+-- Helper function: Deactivate license
+DROP FUNCTION IF EXISTS deactivate_solidworks_license(UUID);
+CREATE OR REPLACE FUNCTION deactivate_solidworks_license(
+  p_assignment_id UUID
+) RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  -- Get the assignment user
+  SELECT user_id INTO v_user_id
+  FROM solidworks_license_assignments
+  WHERE id = p_assignment_id;
+  
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Assignment not found');
+  END IF;
+  
+  -- Verify current user owns this assignment or is admin
+  IF auth.uid() != v_user_id AND NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Not authorized to deactivate this license');
+  END IF;
+  
+  -- Update deactivation status
+  UPDATE solidworks_license_assignments
+  SET 
+    is_active = false,
+    deactivated_at = NOW()
+  WHERE id = p_assignment_id;
+  
+  RETURN json_build_object('success', true, 'deactivated_at', NOW());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION deactivate_solidworks_license(UUID) TO authenticated;
+
+-- Trigger for updated_at
+DROP TRIGGER IF EXISTS solidworks_licenses_updated_at ON solidworks_licenses;
+CREATE TRIGGER solidworks_licenses_updated_at
+  BEFORE UPDATE ON solidworks_licenses
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Realtime for license management
+ALTER TABLE solidworks_licenses REPLICA IDENTITY FULL;
+ALTER TABLE solidworks_license_assignments REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE solidworks_licenses; EXCEPTION WHEN duplicate_object THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE solidworks_license_assignments; EXCEPTION WHEN duplicate_object THEN NULL; END;
+END $$;
+
+-- Comments
+COMMENT ON TABLE solidworks_licenses IS 'Organization SOLIDWORKS license keys and metadata';
+COMMENT ON TABLE solidworks_license_assignments IS 'User-license assignments with activation tracking';
+
+-- ===========================================
+-- PENDING USER LICENSE ASSIGNMENTS
+-- ===========================================
+
+-- Add solidworks_license_ids column to pending_org_members for pre-assigning licenses
+ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS solidworks_license_ids UUID[] DEFAULT '{}';
+
+-- Function to add a license to a pending member's pre-assigned list
+DROP FUNCTION IF EXISTS add_pending_license_assignment(UUID, UUID);
+CREATE OR REPLACE FUNCTION add_pending_license_assignment(
+  p_pending_member_id UUID,
+  p_license_id UUID
+) RETURNS JSON AS $$
+DECLARE
+  v_pending RECORD;
+  v_license_org_id UUID;
+BEGIN
+  -- Verify admin
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can assign licenses');
+  END IF;
+  
+  -- Get pending member
+  SELECT * INTO v_pending FROM pending_org_members WHERE id = p_pending_member_id AND claimed_at IS NULL;
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'error', 'Pending member not found');
+  END IF;
+  
+  -- Verify license belongs to same org
+  SELECT org_id INTO v_license_org_id FROM solidworks_licenses WHERE id = p_license_id;
+  IF v_license_org_id IS NULL OR v_license_org_id != v_pending.org_id THEN
+    RETURN json_build_object('success', false, 'error', 'License not found in organization');
+  END IF;
+  
+  -- Add license to array if not already present
+  UPDATE pending_org_members
+  SET solidworks_license_ids = array_append(
+    array_remove(solidworks_license_ids, p_license_id), -- Remove first to avoid duplicates
+    p_license_id
+  )
+  WHERE id = p_pending_member_id;
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION add_pending_license_assignment(UUID, UUID) TO authenticated;
+
+-- Function to remove a license from a pending member's pre-assigned list
+DROP FUNCTION IF EXISTS remove_pending_license_assignment(UUID, UUID);
+CREATE OR REPLACE FUNCTION remove_pending_license_assignment(
+  p_pending_member_id UUID,
+  p_license_id UUID
+) RETURNS JSON AS $$
+BEGIN
+  -- Verify admin
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can unassign licenses');
+  END IF;
+  
+  UPDATE pending_org_members
+  SET solidworks_license_ids = array_remove(solidworks_license_ids, p_license_id)
+  WHERE id = p_pending_member_id AND claimed_at IS NULL;
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION remove_pending_license_assignment(UUID, UUID) TO authenticated;
+
+-- Function to apply pending license assignments when user signs up
+-- This should be called from the claim_pending_membership trigger
+DROP FUNCTION IF EXISTS apply_pending_license_assignments(UUID);
+CREATE OR REPLACE FUNCTION apply_pending_license_assignments(p_user_id UUID)
+RETURNS VOID AS $$
+DECLARE
+  v_pending RECORD;
+  v_license_id UUID;
+  v_invited_by UUID;
+BEGIN
+  -- Find the pending member record for this user
+  SELECT * INTO v_pending
+  FROM pending_org_members
+  WHERE LOWER(email) = LOWER((SELECT email FROM users WHERE id = p_user_id))
+    AND claimed_at IS NULL
+  LIMIT 1;
+  
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+  
+  -- Assign each pre-assigned license
+  IF v_pending.solidworks_license_ids IS NOT NULL AND array_length(v_pending.solidworks_license_ids, 1) > 0 THEN
+    v_invited_by := v_pending.invited_by;
+    
+    FOREACH v_license_id IN ARRAY v_pending.solidworks_license_ids
+    LOOP
+      -- Only assign if license still exists and isn't already assigned to someone else
+      IF EXISTS (
+        SELECT 1 FROM solidworks_licenses 
+        WHERE id = v_license_id 
+        AND org_id = v_pending.org_id
+        AND NOT EXISTS (SELECT 1 FROM solidworks_license_assignments WHERE license_id = v_license_id)
+      ) THEN
+        INSERT INTO solidworks_license_assignments (license_id, user_id, assigned_by)
+        VALUES (v_license_id, p_user_id, v_invited_by)
+        ON CONFLICT DO NOTHING;
+      END IF;
+    END LOOP;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION apply_pending_license_assignments(UUID) TO authenticated;
+
+-- Update the claim_pending_membership trigger function to also apply license assignments
+CREATE OR REPLACE FUNCTION claim_pending_membership()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM apply_pending_team_memberships(NEW.id);
+  PERFORM apply_pending_license_assignments(NEW.id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ===========================================
 -- END OF INTEGRATIONS MODULE
 -- ===========================================
 

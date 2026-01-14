@@ -335,9 +335,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   solidworks: {
     // Service management
     isInstalled: () => ipcRenderer.invoke('solidworks:is-installed'),
-    startService: (dmLicenseKey?: string) => ipcRenderer.invoke('solidworks:start-service', dmLicenseKey),
+    startService: (dmLicenseKey?: string, cleanupOrphans?: boolean) => 
+      ipcRenderer.invoke('solidworks:start-service', dmLicenseKey, cleanupOrphans),
     stopService: () => ipcRenderer.invoke('solidworks:stop-service'),
     getServiceStatus: () => ipcRenderer.invoke('solidworks:service-status'),
+    
+    // Orphaned process management
+    getProcessStatus: () => ipcRenderer.invoke('solidworks:get-process-status'),
+    killOrphanedProcesses: (forceAll?: boolean) => 
+      ipcRenderer.invoke('solidworks:kill-orphaned-processes', forceAll),
+    onOrphansCleaned: (callback: (event: { killed: number; timestamp: number }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, event: { killed: number; timestamp: number }) => callback(event)
+      ipcRenderer.on('solidworks:orphans-cleaned', handler)
+      return () => ipcRenderer.removeListener('solidworks:orphans-cleaned', handler)
+    },
     
     // Metadata operations
     getBom: (filePath: string, options?: { includeChildren?: boolean; configuration?: string }) => 
@@ -394,6 +405,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setDocumentReadOnly: (filePath: string, readOnly: boolean) => 
       ipcRenderer.invoke('solidworks:set-document-readonly', filePath, readOnly),
     saveDocument: (filePath: string) => ipcRenderer.invoke('solidworks:save-document', filePath),
+    setDocumentProperties: (filePath: string, properties: Record<string, string>, configuration?: string) => 
+      ipcRenderer.invoke('solidworks:set-document-properties', filePath, properties, configuration),
+    
+    // File Locations (Registry) - for template folder configuration
+    getInstalledVersions: () => ipcRenderer.invoke('solidworks:get-installed-versions'),
+    getFileLocations: () => ipcRenderer.invoke('solidworks:get-file-locations'),
+    setFileLocations: (settings: { 
+      documentTemplates?: string
+      sheetFormats?: string
+      bomTemplates?: string
+      customPropertyFolders?: string
+      promptForTemplate?: boolean 
+    }) => ipcRenderer.invoke('solidworks:set-file-locations', settings),
+    
+    // License Registry Operations (HKLM - requires admin for write operations)
+    getLicenseRegistry: () => ipcRenderer.invoke('solidworks:get-license-registry'),
+    setLicenseRegistry: (serialNumber: string) => ipcRenderer.invoke('solidworks:set-license-registry', serialNumber),
+    removeLicenseRegistry: (serialNumber: string) => ipcRenderer.invoke('solidworks:remove-license-registry', serialNumber),
+    checkLicenseRegistry: (serialNumber: string) => ipcRenderer.invoke('solidworks:check-license-registry', serialNumber),
+    openLicenseManager: () => ipcRenderer.invoke('solidworks:open-license-manager'),
   },
   
   // RFQ Release Files API
@@ -763,9 +794,14 @@ declare global {
       solidworks: {
         // Service management
         isInstalled: () => Promise<{ success: boolean; data?: { installed: boolean } }>
-        startService: (dmLicenseKey?: string) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
+        startService: (dmLicenseKey?: string, cleanupOrphans?: boolean) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
         stopService: () => Promise<{ success: boolean }>
         getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; installed?: boolean; version?: string } }>
+        
+        // Orphaned process management
+        getProcessStatus: () => Promise<{ success: boolean; data?: { total: number; orphaned: number; active: number; processes: Array<{ pid: number; windowTitle: string; isOrphaned: boolean }> } }>
+        killOrphanedProcesses: (forceAll?: boolean) => Promise<{ success: boolean; data?: { found: number; orphaned: number; killed: number; errors: string[] } }>
+        onOrphansCleaned: (callback: (event: { killed: number; timestamp: number }) => void) => () => void
         
         // Metadata operations
         getBom: (filePath: string, options?: { includeChildren?: boolean; configuration?: string }) => 
@@ -809,6 +845,13 @@ declare global {
           Promise<{ success: boolean; data?: { assemblyPath: string; oldComponent: string; newComponent: string; replacedCount: number }; error?: string }>
         packAndGo: (filePath: string, outputFolder: string, options?: { prefix?: string; suffix?: string }) => 
           Promise<{ success: boolean; data?: { sourceFile: string; outputFolder: string; totalFiles: number; copiedFiles: number; files: string[] }; error?: string }>
+        
+        // License Registry Operations (HKLM - requires admin for write operations)
+        getLicenseRegistry: () => Promise<{ success: boolean; serialNumbers?: string[]; error?: string }>
+        setLicenseRegistry: (serialNumber: string) => Promise<{ success: boolean; error?: string; requiresAdmin?: boolean }>
+        removeLicenseRegistry: (serialNumber: string) => Promise<{ success: boolean; error?: string; requiresAdmin?: boolean }>
+        checkLicenseRegistry: (serialNumber: string) => Promise<{ success: boolean; found: boolean; error?: string }>
+        openLicenseManager: () => Promise<{ success: boolean; error?: string }>
       }
       
       // Embedded eDrawings preview

@@ -5,6 +5,7 @@ import { SizeSlider } from './SizeSlider'
 import { AddMenu } from './AddMenu'
 import { PathActions } from './PathActions'
 import { SearchIndicator } from './SearchIndicator'
+import { CardViewFieldsPopover } from './CardViewFieldsPopover'
 
 export interface FileToolbarProps {
   // Navigation
@@ -121,6 +122,11 @@ export const FileToolbar = memo(function FileToolbar({
           viewMode={viewMode}
           onViewModeChange={onViewModeChange}
         />
+        
+        {/* Card view fields config - only show in icon view */}
+        {viewMode === 'icons' && (
+          <CardViewFieldsPopover />
+        )}
         
         {/* Size slider */}
         <SizeSlider

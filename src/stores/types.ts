@@ -83,7 +83,7 @@ export type SidebarView =
   | 'terminal'
   | 'settings'
 
-export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'history' | 'datacard' | 'vendors'
+export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'datacard' | 'vendors'
 export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress' | 'update'
 export type ThemeMode = 'dark' | 'deep-blue' | 'light' | 'christmas' | 'halloween' | 'weather' | 'kenneth' | 'system'
@@ -153,6 +153,8 @@ export interface PendingMetadata {
   part_number?: string | null
   description?: string | null
   revision?: string
+  // File-level tab number (for single-config or no-config files)
+  tab_number?: string | null
   // Per-configuration tab numbers (config name -> tab number string)
   // Base number is shared (stored in part_number), tabs vary per config
   config_tabs?: Record<string, string>
@@ -183,6 +185,11 @@ export interface LocalFile {
   // Local active version (set after rollback, before check-in)
   // This tracks which version's content is currently in the local file
   localActiveVersion?: number
+  // Pending version notes (version_id -> note, synced on check-in)
+  // Allows editing notes on historical versions while file is checked out
+  pendingVersionNotes?: Record<string, string>
+  // Note for the upcoming local version (saved as comment when checked in)
+  pendingCheckinNote?: string
 }
 
 // Server file info (for tracking deleted files)
@@ -212,6 +219,13 @@ export interface ColumnConfig {
   width: number
   visible: boolean
   sortable: boolean
+}
+
+// Card view field configuration for icon/grid view
+export interface CardViewFieldConfig {
+  id: string      // Field identifier (same as column ids)
+  label: string   // Display label
+  visible: boolean
 }
 
 // SolidWorks configuration with tree depth (for config expansion in file browser)
@@ -437,6 +451,7 @@ export interface SettingsSlice {
   autoStartSolidworksService: boolean
   hideSolidworksTempFiles: boolean
   ignoreSolidworksTempFiles: boolean
+  autoRefreshMetadataOnSave: boolean
   
   // State - API Server
   apiServerUrl: string | null
@@ -490,6 +505,9 @@ export interface SettingsSlice {
   // State - Columns
   columns: ColumnConfig[]
   
+  // State - Card View Fields (for icon/grid view)
+  cardViewFields: CardViewFieldConfig[]
+  
   // State - Onboarding
   onboardingComplete: boolean
   logSharingEnabled: boolean
@@ -508,6 +526,7 @@ export interface SettingsSlice {
   setAutoStartSolidworksService: (enabled: boolean) => void
   setHideSolidworksTempFiles: (enabled: boolean) => void
   setIgnoreSolidworksTempFiles: (enabled: boolean) => void
+  setAutoRefreshMetadataOnSave: (enabled: boolean) => void
   
   // Actions - API Server
   setApiServerUrl: (url: string | null) => void
@@ -573,6 +592,11 @@ export interface SettingsSlice {
   saveOrgColumnDefaults: () => Promise<{ success: boolean; error?: string }>
   loadOrgColumnDefaults: () => Promise<{ success: boolean; error?: string }>
   resetColumnsToDefaults: () => void
+  
+  // Actions - Card View Fields
+  toggleCardViewFieldVisibility: (id: string) => void
+  reorderCardViewFields: (fields: CardViewFieldConfig[]) => void
+  resetCardViewFieldsToDefaults: () => void
   
   // Actions - Onboarding
   completeOnboarding: (options?: { solidworksIntegrationEnabled?: boolean }) => void
@@ -701,6 +725,9 @@ export interface FilesSlice {
   clearPendingMetadata: (path: string) => void
   clearPendingConfigMetadata: (path: string) => void
   clearPersistedPendingMetadataForPaths: (paths: string[]) => void
+  updatePendingVersionNote: (path: string, versionId: string, note: string) => void
+  clearPendingVersionNotes: (path: string) => void
+  updatePendingCheckinNote: (path: string, note: string) => void
   renameFileInStore: (oldPath: string, newPath: string, newNameOrRelPath: string, isMove?: boolean) => void
   setSelectedFiles: (paths: string[]) => void
   toggleFileSelection: (path: string, multiSelect?: boolean) => void
@@ -1632,6 +1659,12 @@ export interface NotificationPrefsSlice {
   /** Global sound settings */
   soundSettings: SoundSettings
   
+  /** Current urgent notification to display (if any) */
+  urgentNotification: NotificationWithDetails | null
+  
+  /** Whether the urgent notification modal is visible */
+  showUrgentNotificationModal: boolean
+  
   // ═══════════════════════════════════════════════════════════════
   // Category Actions
   // ═══════════════════════════════════════════════════════════════
@@ -1679,6 +1712,19 @@ export interface NotificationPrefsSlice {
   
   /** Set sound volume (0-100) */
   setSoundVolume: (volume: number) => void
+  
+  // ═══════════════════════════════════════════════════════════════
+  // Urgent Notification Actions
+  // ═══════════════════════════════════════════════════════════════
+  
+  /** Set the urgent notification to display */
+  setUrgentNotification: (notification: NotificationWithDetails | null) => void
+  
+  /** Show/hide the urgent notification modal */
+  setShowUrgentNotificationModal: (show: boolean) => void
+  
+  /** Dismiss the current urgent notification */
+  dismissUrgentNotification: () => void
   
   // ═══════════════════════════════════════════════════════════════
   // Reset Action

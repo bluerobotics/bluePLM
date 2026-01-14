@@ -32,6 +32,8 @@ export const createNotificationPrefsSlice: StateCreator<
   notificationCategories: getDefaultCategoryPreferences(),
   quietHours: { ...DEFAULT_QUIET_HOURS },
   soundSettings: { ...DEFAULT_SOUND_SETTINGS },
+  urgentNotification: null,
+  showUrgentNotificationModal: false,
   
   // ═══════════════════════════════════════════════════════════════
   // Category Actions
@@ -153,6 +155,25 @@ export const createNotificationPrefsSlice: StateCreator<
     })),
   
   // ═══════════════════════════════════════════════════════════════
+  // Urgent Notification Actions
+  // ═══════════════════════════════════════════════════════════════
+  
+  setUrgentNotification: (notification) => 
+    set({ 
+      urgentNotification: notification,
+      showUrgentNotificationModal: notification !== null 
+    }),
+  
+  setShowUrgentNotificationModal: (show) => 
+    set({ showUrgentNotificationModal: show }),
+  
+  dismissUrgentNotification: () => 
+    set({ 
+      urgentNotification: null, 
+      showUrgentNotificationModal: false 
+    }),
+  
+  // ═══════════════════════════════════════════════════════════════
   // Reset Action
   // ═══════════════════════════════════════════════════════════════
   
@@ -162,6 +183,8 @@ export const createNotificationPrefsSlice: StateCreator<
       notificationCategories: defaults.categories,
       quietHours: defaults.quietHours,
       soundSettings: defaults.sound,
+      urgentNotification: null,
+      showUrgentNotificationModal: false,
     })
   },
 })

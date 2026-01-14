@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand'
-import type { PDMStoreState, SettingsSlice, ColumnConfig, ColorSwatch, ThemeMode, Language } from '../types'
+import type { PDMStoreState, SettingsSlice, ColumnConfig, CardViewFieldConfig, ColorSwatch, ThemeMode, Language } from '../types'
 import type { KeybindingAction, Keybinding, KeybindingsConfig } from '../../types/settings'
 import { supabase } from '../../lib/supabase'
 
@@ -9,6 +9,7 @@ const defaultColumns: ColumnConfig[] = [
   { id: 'checkedOutBy', label: 'Checked Out By', width: 150, visible: false, sortable: true },
   { id: 'version', label: 'Ver', width: 60, visible: true, sortable: true },
   { id: 'itemNumber', label: 'Item Number', width: 120, visible: true, sortable: true },
+  { id: 'tabNumber', label: 'Tab', width: 80, visible: true, sortable: true },
   { id: 'description', label: 'Description', width: 200, visible: true, sortable: true },
   { id: 'revision', label: 'Rev', width: 50, visible: true, sortable: true },
   { id: 'state', label: 'State', width: 130, visible: true, sortable: true },
@@ -16,6 +17,20 @@ const defaultColumns: ColumnConfig[] = [
   { id: 'extension', label: 'Type', width: 70, visible: true, sortable: true },
   { id: 'size', label: 'Size', width: 80, visible: true, sortable: true },
   { id: 'modifiedTime', label: 'Modified', width: 140, visible: true, sortable: true },
+]
+
+// Default card view fields (for icon/grid view)
+const defaultCardViewFields: CardViewFieldConfig[] = [
+  { id: 'itemNumber', label: 'Item Number', visible: true },
+  { id: 'description', label: 'Description', visible: true },
+  { id: 'revision', label: 'Revision', visible: true },
+  { id: 'version', label: 'Version', visible: true },
+  { id: 'state', label: 'State', visible: false },  // Already shown as badge
+  { id: 'ecoTags', label: 'ECOs', visible: false },
+  { id: 'tabNumber', label: 'Tab Number', visible: false },
+  { id: 'checkedOutBy', label: 'Checked Out By', visible: false },
+  { id: 'size', label: 'Size', visible: false },
+  { id: 'modifiedTime', label: 'Modified', visible: false },
 ]
 
 const defaultKeybindings: KeybindingsConfig = {
@@ -61,6 +76,7 @@ export const createSettingsSlice: StateCreator<
   autoStartSolidworksService: true,
   hideSolidworksTempFiles: true,
   ignoreSolidworksTempFiles: true,
+  autoRefreshMetadataOnSave: true,
   
   // Initial state - API Server
   apiServerUrl: null,
@@ -114,6 +130,9 @@ export const createSettingsSlice: StateCreator<
   // Initial state - Columns
   columns: defaultColumns,
   
+  // Initial state - Card View Fields
+  cardViewFields: defaultCardViewFields,
+  
   // Initial state - Onboarding
   onboardingComplete: false,
   logSharingEnabled: true,
@@ -132,6 +151,7 @@ export const createSettingsSlice: StateCreator<
   setAutoStartSolidworksService: (autoStartSolidworksService) => set({ autoStartSolidworksService }),
   setHideSolidworksTempFiles: (hideSolidworksTempFiles) => set({ hideSolidworksTempFiles }),
   setIgnoreSolidworksTempFiles: (ignoreSolidworksTempFiles) => set({ ignoreSolidworksTempFiles }),
+  setAutoRefreshMetadataOnSave: (autoRefreshMetadataOnSave) => set({ autoRefreshMetadataOnSave }),
   
   // Actions - API Server
   setApiServerUrl: (apiServerUrl) => set({ apiServerUrl }),
@@ -505,6 +525,18 @@ export const createSettingsSlice: StateCreator<
     set({ columns: defaultColumns })
   },
   
+  // Actions - Card View Fields
+  toggleCardViewFieldVisibility: (id) => {
+    const { cardViewFields } = get()
+    set({
+      cardViewFields: cardViewFields.map(f => f.id === id ? { ...f, visible: !f.visible } : f)
+    })
+  },
+  reorderCardViewFields: (fields) => set({ cardViewFields: fields }),
+  resetCardViewFieldsToDefaults: () => {
+    set({ cardViewFields: defaultCardViewFields })
+  },
+  
   // Actions - Onboarding
   completeOnboarding: (options) => set({ 
     onboardingComplete: true,
@@ -521,4 +553,4 @@ export const createSettingsSlice: StateCreator<
 })
 
 // Export for use in main store
-export { defaultColumns }
+export { defaultColumns, defaultCardViewFields }

@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useEffect, useCallback } from 'react'
 import { AlertTriangle } from 'lucide-react'
 
 export interface CustomConfirmDialogProps {
@@ -23,6 +23,23 @@ export const CustomConfirmDialog = memo(function CustomConfirmDialog({
   onConfirm,
   onCancel
 }: CustomConfirmDialogProps) {
+  // Handle Enter key to confirm
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onConfirm()
+      onCancel()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onCancel()
+    }
+  }, [onConfirm, onCancel])
+  
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
+  
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center"

@@ -6,6 +6,7 @@ export type { FileGridViewProps } from './FileGridView'
 // Sub-components (exported for potential reuse)
 export { FileCardIcon } from './FileCardIcon'
 export { FileCardActions } from './FileCardActions'
+export { FileCardMetadata } from './FileCardMetadata'
 
 // Hooks
 export { useFileCardStatus, useThumbnail } from './hooks'

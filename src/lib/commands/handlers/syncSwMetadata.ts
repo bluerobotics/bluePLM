@@ -20,22 +20,249 @@ import { FileOperationTracker } from '../../fileOperationTracker'
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 
+// Drawing extensions (need special handling for metadata inheritance)
+const DRAWING_EXTENSIONS = ['.slddrw']
+
 function logSyncMeta(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
   log[level]('[SyncSWMetadata]', message, context)
 }
 
 /**
+ * Metadata extraction result from property dictionary
+ */
+interface ExtractedMetadata {
+  part_number: string | null
+  tab_number: string | null
+  description: string | null
+  revision: string | null
+  customProperties: Record<string, string | number | null> | undefined
+}
+
+/**
+ * Extract part number, description, revision from a properties dictionary
+ * This is a shared helper used for both direct file properties and parent model inheritance
+ */
+function extractMetadataFromProperties(allProps: Record<string, string>): ExtractedMetadata {
+  // Extract part number from common property names (comprehensive list)
+  const partNumberKeys = [
+    'Number', 'No', 'No.',
+    'Base Item Number',
+    'PartNumber', 'Part Number', 'PARTNUMBER', 'PART NUMBER',
+    'Part No', 'Part No.', 'PartNo', 'PARTNO', 'PART NO',
+    'ItemNumber', 'Item Number', 'ITEMNUMBER', 'ITEM NUMBER',
+    'Item No', 'Item No.', 'ItemNo', 'ITEMNO', 'ITEM NO',
+    'PN', 'P/N', 'pn', 'p/n',
+    'Document Number', 'DocumentNumber', 'Doc Number', 'DocNo',
+    'Stock Code', 'StockCode', 'Stock Number', 'StockNumber',
+    'Product Number', 'ProductNumber', 'SKU',
+  ]
+  
+  let part_number: string | null = null
+  for (const key of partNumberKeys) {
+    if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
+      part_number = allProps[key].trim()
+      break
+    }
+  }
+  
+  // Case-insensitive fallback
+  if (!part_number) {
+    for (const [key, value] of Object.entries(allProps)) {
+      const lowerKey = key.toLowerCase()
+      if (value?.startsWith?.('$')) continue
+      
+      if ((lowerKey.includes('part') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+          (lowerKey.includes('item') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
+          lowerKey === 'pn' || lowerKey === 'p/n' ||
+          lowerKey.includes('stock') && (lowerKey.includes('code') || lowerKey.includes('number'))) {
+        if (value && value.trim()) {
+          part_number = value.trim()
+          break
+        }
+      }
+    }
+  }
+  
+  // Extract description
+  const descriptionKeys = [
+    'Description', 'DESCRIPTION', 'description',
+    'Desc', 'DESC', 'desc',
+    'Title', 'TITLE', 'title',
+    'Name', 'NAME', 'name',
+    'Part Description', 'PartDescription', 'PART DESCRIPTION',
+    'Component Description', 'ComponentDescription',
+    'Item Description', 'ItemDescription',
+  ]
+  
+  let description: string | null = null
+  for (const key of descriptionKeys) {
+    if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
+      description = allProps[key].trim()
+      break
+    }
+  }
+  
+  // Case-insensitive fallback for description
+  if (!description) {
+    for (const [key, value] of Object.entries(allProps)) {
+      const lowerKey = key.toLowerCase()
+      if (value?.startsWith?.('$')) continue
+      
+      if (lowerKey.includes('description') || lowerKey.includes('desc')) {
+        if (value && value.trim()) {
+          description = value.trim()
+          break
+        }
+      }
+    }
+  }
+  
+  // Extract revision
+  const revisionKeys = [
+    'Revision', 'REVISION', 'revision',
+    'Rev', 'REV', 'rev',
+    'Rev.', 'REV.',
+    'RevLevel', 'Rev Level', 'Revision Level', 'RevisionLevel',
+    'Rev No', 'RevNo', 'Rev Number', 'RevNumber',
+    'Version', 'VERSION', 'version',
+    'Ver', 'VER', 'ver',
+    'ECO', 'ECN', 'Change Level', 'ChangeLevel',
+    'Engineering Change', 'EngineeringChange',
+  ]
+  
+  let revision: string | null = null
+  for (const key of revisionKeys) {
+    if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
+      revision = allProps[key].trim()
+      break
+    }
+  }
+  
+  // Case-insensitive fallback for revision
+  if (!revision) {
+    for (const [key, value] of Object.entries(allProps)) {
+      const lowerKey = key.toLowerCase()
+      if (value?.startsWith?.('$')) continue
+      
+      if (lowerKey.includes('revision') || lowerKey === 'rev' || 
+          lowerKey.includes('rev ') || lowerKey.startsWith('rev.')) {
+        if (value && value.trim()) {
+          revision = value.trim()
+          break
+        }
+      }
+    }
+  }
+  
+  // Extract tab number (configuration variant suffix)
+  const tabNumberKeys = [
+    'Tab Number', 'TabNumber', 'Tab No', 'Tab', 'TAB',
+    'Configuration Tab', 'ConfigTab', 'Config Tab',
+    'Suffix', 'Variant', 'Config Suffix'
+  ]
+  
+  let tab_number: string | null = null
+  for (const key of tabNumberKeys) {
+    if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
+      tab_number = allProps[key].trim()
+      break
+    }
+  }
+  
+  // Case-insensitive fallback for tab number
+  if (!tab_number) {
+    for (const [key, value] of Object.entries(allProps)) {
+      const lowerKey = key.toLowerCase()
+      if (value?.startsWith?.('$')) continue
+      
+      if (lowerKey.includes('tab') && (lowerKey.includes('number') || lowerKey.includes('no'))) {
+        if (value && value.trim()) {
+          tab_number = value.trim()
+          break
+        }
+      }
+    }
+  }
+  
+  // Build custom properties object (exclude the ones we've already extracted)
+  const excludeKeys = new Set([
+    ...partNumberKeys, 
+    ...descriptionKeys,
+    ...revisionKeys,
+    ...tabNumberKeys
+  ].map(k => k.toLowerCase()))
+  
+  const customProperties: Record<string, string | number | null> = {}
+  for (const [key, value] of Object.entries(allProps)) {
+    if (!excludeKeys.has(key.toLowerCase()) && value && !value.startsWith('$')) {
+      customProperties[key] = value
+    }
+  }
+  
+  return {
+    part_number,
+    tab_number,
+    description: description?.trim() || null,
+    revision,
+    customProperties: Object.keys(customProperties).length > 0 ? customProperties : undefined
+  }
+}
+
+/**
+ * Get references from a drawing file
+ */
+async function getDrawingReferences(fullPath: string): Promise<Array<{
+  path: string
+  fileName: string
+  exists: boolean
+  fileType: string
+}> | null> {
+  try {
+    const result = await window.electronAPI?.solidworks?.getReferences?.(fullPath)
+    if (!result?.success || !result.data?.references) {
+      return null
+    }
+    return result.data.references as Array<{
+      path: string
+      fileName: string
+      exists: boolean
+      fileType: string
+    }>
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Result type for SolidWorks metadata extraction
+ */
+interface SolidWorksMetadataResult {
+  part_number?: string | null
+  tab_number?: string | null
+  description?: string | null
+  revision?: string | null
+  customProperties?: Record<string, string | number | null>
+  /** True if metadata was inherited from parent model (for drawings) */
+  inheritedFromParent?: boolean
+  /** Path of parent model if inherited */
+  parentModelPath?: string
+}
+
+/**
  * Extract metadata from SolidWorks file using the SW service
+ * 
+ * For drawings, implements PRP (Part Reference Property) resolution:
+ * - Extracts references from the drawing to find the parent model
+ * - Reads metadata from the first referenced model (part or assembly)
+ * - Uses parent model's metadata for the drawing (backfill scenario)
+ * 
+ * NOTE: This does NOT push DB values back into the drawing file - drawings remain source of truth.
+ * To backfill existing drawings with metadata, run "Sync SW Metadata" command.
  */
 async function extractSolidWorksMetadata(
   fullPath: string,
   extension: string
-): Promise<{
-  part_number?: string | null
-  description?: string | null
-  revision?: string | null
-  customProperties?: Record<string, string | number | null>
-} | null> {
+): Promise<SolidWorksMetadataResult | null> {
   // Only process SolidWorks files
   if (!SW_EXTENSIONS.includes(extension.toLowerCase())) {
     return null
@@ -48,7 +275,172 @@ async function extractSolidWorksMetadata(
     return null
   }
   
+  const isDrawing = DRAWING_EXTENSIONS.includes(extension.toLowerCase())
+  
   try {
+    // ========================================
+    // DRAWING PRP RESOLUTION (BACKFILL SCENARIO)
+    // For existing drawings, we inherit metadata from the parent model.
+    // This allows backfilling drawings that were synced before this feature existed.
+    // ========================================
+    if (isDrawing) {
+      logSyncMeta('debug', 'Drawing detected - checking for PRP inheritance', { fullPath })
+      
+      // First, get the drawing's own properties to check for PRP references
+      const drawingResult = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
+      
+      const drawingData = drawingResult?.data as {
+        fileProperties?: Record<string, string>
+        configurationProperties?: Record<string, Record<string, string>>
+      } | undefined
+      
+      const drawingProps = { ...drawingData?.fileProperties }
+      const configProps = drawingData?.configurationProperties
+      if (configProps) {
+        const configNames = Object.keys(configProps)
+        const preferredConfig = configNames.find(k => k.toLowerCase() === 'default') 
+          || configNames.find(k => k.toLowerCase() === 'standard')
+          || configNames[0]
+        if (preferredConfig && configProps[preferredConfig]) {
+          Object.assign(drawingProps, configProps[preferredConfig])
+        }
+      }
+      
+      // Check for PRP references (e.g., "$PRP:Description", "$PRPSHEET:Number")
+      const hasPrpReference = Object.values(drawingProps).some(val => 
+        typeof val === 'string' && (val.startsWith('$PRP:') || val.startsWith('$PRPSHEET:'))
+      )
+      
+      // Check if metadata fields are empty
+      const hasEmptyMetadata = !drawingProps['Number'] && !drawingProps['Description'] && 
+                               !drawingProps['PartNumber'] && !drawingProps['Part Number']
+      
+      logSyncMeta('debug', 'Drawing property analysis', { 
+        fullPath,
+        hasPrpReference,
+        hasEmptyMetadata,
+        propertyKeys: Object.keys(drawingProps)
+      })
+      
+      // If drawing has PRP references or empty metadata, try to inherit from parent model
+      if (hasPrpReference || hasEmptyMetadata) {
+        logSyncMeta('info', 'PRP detected or empty metadata - attempting parent model inheritance', { fullPath })
+        
+        // Get drawing references to find parent model
+        const drawingRefs = await getDrawingReferences(fullPath)
+        
+        if (!drawingRefs || drawingRefs.length === 0) {
+          logSyncMeta('warn', 'Drawing has no references - cannot inherit metadata from parent model', { 
+            fullPath,
+            hasPrpReference,
+            hasEmptyMetadata
+          })
+          // Fall through to extract what we can from the drawing itself
+        } else {
+          // Use the FIRST referenced model for deterministic inheritance
+          const parentRef = drawingRefs[0]
+          
+          // Construct full path to parent model
+          // getReferences often returns just filename without path/extension
+          // So we need to construct the full path from the drawing's directory
+          const drawingDir = fullPath.substring(0, fullPath.lastIndexOf('\\') + 1) || 
+                            fullPath.substring(0, fullPath.lastIndexOf('/') + 1)
+          
+          // Try to determine the full path to the parent model
+          let parentFullPath = parentRef.path
+          
+          // If path doesn't look like a full path, construct it
+          if (!parentFullPath.includes('\\') && !parentFullPath.includes('/')) {
+            // Check if fileName has extension, if not try common SW extensions
+            const hasExtension = parentRef.fileName.includes('.')
+            if (hasExtension) {
+              parentFullPath = drawingDir + parentRef.fileName
+            } else {
+              // Try .SLDPRT first (most common for drawings), then .SLDASM
+              const possiblePaths = [
+                drawingDir + parentRef.fileName + '.SLDPRT',
+                drawingDir + parentRef.fileName + '.sldprt',
+                drawingDir + parentRef.fileName + '.SLDASM',
+                drawingDir + parentRef.fileName + '.sldasm'
+              ]
+              // Use the original reference path + extension for now
+              parentFullPath = possiblePaths[0]
+            }
+          }
+          
+          logSyncMeta('info', 'Parent model chosen for metadata inheritance', {
+            drawingPath: fullPath,
+            parentModelPath: parentFullPath,
+            originalRefPath: parentRef.path,
+            parentModelName: parentRef.fileName,
+            parentModelType: parentRef.fileType,
+            totalReferences: drawingRefs.length
+          })
+          
+          // Get metadata from the parent model
+          const parentExt = '.' + parentFullPath.split('.').pop()?.toLowerCase()
+          if (SW_EXTENSIONS.includes(parentExt)) {
+            const parentResult = await window.electronAPI?.solidworks?.getProperties?.(parentFullPath)
+            
+            if (parentResult?.success && parentResult.data) {
+              const parentData = parentResult.data as {
+                fileProperties?: Record<string, string>
+                configurationProperties?: Record<string, Record<string, string>>
+              }
+              
+              // Merge parent's file and config properties
+              const parentAllProps: Record<string, string> = { ...parentData.fileProperties }
+              const parentConfigProps = parentData.configurationProperties
+              if (parentConfigProps) {
+                const parentConfigNames = Object.keys(parentConfigProps)
+                const parentPreferredConfig = parentConfigNames.find(k => k.toLowerCase() === 'default')
+                  || parentConfigNames.find(k => k.toLowerCase() === 'standard')
+                  || parentConfigNames[0]
+                if (parentPreferredConfig && parentConfigProps[parentPreferredConfig]) {
+                  Object.assign(parentAllProps, parentConfigProps[parentPreferredConfig])
+                }
+              }
+              
+              // Extract metadata from parent model using shared helper
+              const parentMetadata = extractMetadataFromProperties(parentAllProps)
+              
+              logSyncMeta('info', 'Inherited metadata from parent model', {
+                drawingPath: fullPath,
+                parentModelPath: parentFullPath,
+                inheritedPartNumber: parentMetadata.part_number,
+                inheritedDescription: parentMetadata.description?.substring(0, 50),
+                inheritedRevision: parentMetadata.revision
+              })
+              
+              return {
+                part_number: parentMetadata.part_number,
+                tab_number: parentMetadata.tab_number,
+                description: parentMetadata.description,
+                revision: parentMetadata.revision,
+                customProperties: parentMetadata.customProperties,
+                inheritedFromParent: true,
+                parentModelPath: parentFullPath
+              }
+            } else {
+              logSyncMeta('warn', 'Failed to read parent model properties', {
+                drawingPath: fullPath,
+                parentModelPath: parentFullPath,
+                error: parentResult?.error
+              })
+              // Fall through to extract what we can from the drawing itself
+            }
+          } else {
+            logSyncMeta('debug', 'Parent model is not a SolidWorks file, skipping inheritance', {
+              drawingPath: fullPath,
+              parentModelPath: parentFullPath,
+              parentExt
+            })
+          }
+        }
+      }
+    }
+    
+    // Standard metadata extraction
     const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
     
     // Log raw result from SW service
@@ -106,156 +498,24 @@ async function extractSolidWorksMetadata(
     const propKeys = Object.keys(allProps)
     logSyncMeta('debug', 'Available properties', { fullPath, properties: propKeys.join(', ') })
     
-    // Extract part number from common property names (comprehensive list)
-    // IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
-    // and represents the user's current/intended part number. "Base Item Number" may contain
-    // legacy or template values that would incorrectly override user edits.
-    const partNumberKeys = [
-      // Blue Robotics primary - this is what gets written by "Save to File"
-      'Number', 'No', 'No.',
-      // SolidWorks standard/common
-      'Base Item Number',  // Document Manager standard property (may be stale)
-      'PartNumber', 'Part Number', 'PARTNUMBER', 'PART NUMBER',
-      'Part No', 'Part No.', 'PartNo', 'PARTNO', 'PART NO',
-      // Item number variations
-      'ItemNumber', 'Item Number', 'ITEMNUMBER', 'ITEM NUMBER',
-      'Item No', 'Item No.', 'ItemNo', 'ITEMNO', 'ITEM NO',
-      // Short forms
-      'PN', 'P/N', 'pn', 'p/n',
-      // Other common names
-      'Document Number', 'DocumentNumber', 'Doc Number', 'DocNo',
-      'Stock Code', 'StockCode', 'Stock Number', 'StockNumber',
-      'Product Number', 'ProductNumber', 'SKU',
-    ]
-    
-    let part_number: string | null = null
-    for (const key of partNumberKeys) {
-      if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
-        part_number = allProps[key].trim()
-        logSyncMeta('debug', `Found part number in "${key}"`, { fullPath, partNumber: part_number })
-        break
-      }
-    }
-    
-    // Case-insensitive fallback
-    if (!part_number) {
-      for (const [key, value] of Object.entries(allProps)) {
-        const lowerKey = key.toLowerCase()
-        // Skip formula references (start with $)
-        if (value?.startsWith?.('$')) continue
-        
-        if ((lowerKey.includes('part') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
-            (lowerKey.includes('item') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
-            lowerKey === 'pn' || lowerKey === 'p/n' ||
-            lowerKey.includes('stock') && (lowerKey.includes('code') || lowerKey.includes('number'))) {
-          if (value && value.trim()) {
-            part_number = value.trim()
-            logSyncMeta('debug', `Found part number (fallback) in "${key}"`, { fullPath, partNumber: part_number })
-            break
-          }
-        }
-      }
-    }
-    
-    // Extract description (comprehensive list)
-    const descriptionKeys = [
-      'Description', 'DESCRIPTION', 'description',
-      'Desc', 'DESC', 'desc',
-      'Title', 'TITLE', 'title',
-      'Name', 'NAME', 'name',
-      'Part Description', 'PartDescription', 'PART DESCRIPTION',
-      'Component Description', 'ComponentDescription',
-      'Item Description', 'ItemDescription',
-    ]
-    
-    let description: string | null = null
-    for (const key of descriptionKeys) {
-      if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
-        description = allProps[key].trim()
-        break
-      }
-    }
-    
-    // Case-insensitive fallback for description
-    if (!description) {
-      for (const [key, value] of Object.entries(allProps)) {
-        const lowerKey = key.toLowerCase()
-        if (value?.startsWith?.('$')) continue
-        
-        if (lowerKey.includes('description') || lowerKey.includes('desc')) {
-          if (value && value.trim()) {
-            description = value.trim()
-            break
-          }
-        }
-      }
-    }
-    
-    // Extract revision (comprehensive list)
-    const revisionKeys = [
-      'Revision', 'REVISION', 'revision',
-      'Rev', 'REV', 'rev',
-      'Rev.', 'REV.',
-      'RevLevel', 'Rev Level', 'Revision Level', 'RevisionLevel',
-      'Rev No', 'RevNo', 'Rev Number', 'RevNumber',
-      'Version', 'VERSION', 'version',
-      'Ver', 'VER', 'ver',
-      'ECO', 'ECN', 'Change Level', 'ChangeLevel',
-      'Engineering Change', 'EngineeringChange',
-    ]
-    
-    let revision: string | null = null
-    for (const key of revisionKeys) {
-      if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
-        revision = allProps[key].trim()
-        break
-      }
-    }
-    
-    // Case-insensitive fallback for revision
-    if (!revision) {
-      for (const [key, value] of Object.entries(allProps)) {
-        const lowerKey = key.toLowerCase()
-        if (value?.startsWith?.('$')) continue
-        
-        if (lowerKey.includes('revision') || lowerKey === 'rev' || 
-            lowerKey.includes('rev ') || lowerKey.startsWith('rev.')) {
-          if (value && value.trim()) {
-            revision = value.trim()
-            break
-          }
-        }
-      }
-    }
-    
-    // Build custom properties object (exclude the ones we've already extracted)
-    const excludeKeys = new Set([
-      ...partNumberKeys, 
-      ...descriptionKeys,
-      ...revisionKeys
-    ].map(k => k.toLowerCase()))
-    
-    const customProperties: Record<string, string | number | null> = {}
-    for (const [key, value] of Object.entries(allProps)) {
-      if (!excludeKeys.has(key.toLowerCase()) && value && !value.startsWith('$')) {
-        customProperties[key] = value
-      }
-    }
+    // Use shared helper to extract metadata from properties
+    const metadata = extractMetadataFromProperties(allProps)
     
     // Log extracted values at info level so it's visible
     logSyncMeta('info', 'Extracted metadata from SW file', { 
       fullPath, 
-      partNumber: part_number, 
-      description: description?.substring(0, 50), 
-      revision,
+      partNumber: metadata.part_number, 
+      description: metadata.description?.substring(0, 50), 
+      revision: metadata.revision,
       allPropertyKeys: Object.keys(allProps).join(', ')
     })
     
     return {
-      part_number,
-      description: description?.trim() || null,
-      revision,
-      customProperties: Object.keys(customProperties).length > 0 ? customProperties : undefined
+      part_number: metadata.part_number,
+      tab_number: metadata.tab_number,
+      description: metadata.description,
+      revision: metadata.revision,
+      customProperties: metadata.customProperties
     }
   } catch (err) {
     logSyncMeta('error', 'Exception extracting metadata', { fullPath, error: String(err) })

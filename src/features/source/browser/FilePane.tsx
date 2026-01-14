@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
@@ -986,35 +986,52 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   }, [])
   
   // Adjust context menu position to stay within viewport
-  useLayoutEffect(() => {
+  // Uses ResizeObserver to recalculate position when menu content changes
+  useEffect(() => {
     if (!contextMenu || !contextMenuRef.current) {
       setContextMenuAdjustedPos(null)
       return
     }
     
     const menu = contextMenuRef.current
-    const rect = menu.getBoundingClientRect()
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
     
-    let newX = contextMenu.x
-    let newY = contextMenu.y
-    
-    // Check right overflow
-    if (contextMenu.x + rect.width > viewportWidth - 10) {
-      newX = viewportWidth - rect.width - 10
+    const adjustPosition = () => {
+      const rect = menu.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      
+      let newX = contextMenu.x
+      let newY = contextMenu.y
+      
+      // Check right overflow
+      if (contextMenu.x + rect.width > viewportWidth - 10) {
+        newX = viewportWidth - rect.width - 10
+      }
+      
+      // Check bottom overflow - bump up if menu would extend past viewport
+      if (contextMenu.y + rect.height > viewportHeight - 10) {
+        newY = viewportHeight - rect.height - 10
+      }
+      
+      // Ensure minimum position
+      newX = Math.max(10, newX)
+      newY = Math.max(10, newY)
+      
+      setContextMenuAdjustedPos({ x: newX, y: newY })
     }
     
-    // Check bottom overflow
-    if (contextMenu.y + rect.height > viewportHeight - 10) {
-      newY = viewportHeight - rect.height - 10
+    // Initial adjustment
+    adjustPosition()
+    
+    // Watch for size changes (e.g., when child components finish rendering)
+    const resizeObserver = new ResizeObserver(() => {
+      adjustPosition()
+    })
+    resizeObserver.observe(menu)
+    
+    return () => {
+      resizeObserver.disconnect()
     }
-    
-    // Ensure minimum position
-    newX = Math.max(10, newX)
-    newY = Math.max(10, newY)
-    
-    setContextMenuAdjustedPos({ x: newX, y: newY })
   }, [contextMenu])
 
   // Helper function to check if a keyboard event matches a keybinding
@@ -1307,6 +1324,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
           contextMenu={contextMenu}
           contextMenuAdjustedPos={contextMenuAdjustedPos}
           onClose={() => setContextMenu(null)}
+          contextMenuRef={contextMenuRef}
           getContextMenuFiles={getContextMenuFiles}
           platform={platform}
           onRefresh={onRefresh}

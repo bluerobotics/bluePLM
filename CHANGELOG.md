@@ -6,6 +6,48 @@ All notable changes to BluePLM will be documented in this file.
 
 ---
 
+## [3.7.1] - 2026-01-14
+
+### Added
+- **Inline tab number editing**: Edit tab numbers directly in the Item Number column for SolidWorks files. When the Tab column is hidden, a compact tab input appears inline next to the base part number. The input stays visible even when configurations are expanded
+
+### Changed
+- **Tab column visible by default**: The "Tab" column is now visible by default in the file browser for new users
+
+---
+
+## [3.7.0] - 2026-01-14
+
+### Added
+- **SOLIDWORKS License Management**: Organization-wide license management system for SOLIDWORKS serial numbers
+  - **Admin license inventory**: Add, edit, and delete licenses with serial number, nickname, type (standalone/network), product name, seats, purchase/expiry dates, and notes
+  - **User assignment**: Assign licenses to organization users with searchable dropdown
+  - **Registry push**: Push license activation to local machines via Windows registry with automatic admin privilege detection
+  - **Status tracking**: Visual badges show Unassigned (gray), Assigned (yellow), and Active (green) states
+  - **Security**: Serial numbers masked by default with click-to-reveal for admins only
+  - **Realtime sync**: License and assignment changes sync instantly across all connected users
+- **Version note editing**: Edit notes on any historical version while a file is checked out. Click the pencil icon or existing note text in the History tab to edit. Notes sync to the server immediately when saved, or are queued for sync on check-in if the server is unreachable
+- **Pending check-in notes**: Add a note for the upcoming version before check-in. The note appears in the "Local Changes" section of the History tab and is saved as the version comment when you check in
+- **File watch notifications**: Watch files to receive notifications when they're checked in, checked out, or have state changes. Right-click any synced file → "Watch File" to subscribe. Configurable notification preferences per file
+- **Notify collaborators**: New "Notify Someone" option in file context menu to send notifications about files to team members with custom messages
+- **Version metadata snapshots**: Each file version now stores a snapshot of the part number and description at check-in time, preserving historical metadata values independent of current file state
+
+### Fixed
+- **Rollback version display**: Rolling back to an older version (e.g., V2 from V3) now correctly shows "V2 Local (Rolled back)" in the versions tab instead of incorrectly displaying a phantom "V4" pending version. The rolled-back version is properly highlighted as the local version
+- **SolidWorks drawing metadata inheritance**: Drawings that use PRP references (`$PRP:"PropertyName"`) to inherit metadata from their referenced parts/assemblies now correctly display resolved values instead of raw PRP syntax. The system:
+  - Detects PRP references or empty drawing metadata during sync
+  - Automatically resolves values from the first referenced model (deterministic)
+  - Stores resolved metadata in the database while preserving the drawing as source of truth
+  - Supports backfilling existing drawings via "Sync SW Metadata" context menu
+- **Drawing reference extraction**: SolidWorks drawings (`.slddrw`) are now included in reference extraction during sync and check-in. Drawing→model relationships are stored in `file_references` table with type `'reference'` (distinct from assembly `'component'` relationships)
+
+### Changed
+- **Schema version**: Bumped to v45
+  - v44: SOLIDWORKS license management tables, RLS policies, and helper functions
+  - v45: file_versions stores part_number and description per version
+
+---
+
 ## [3.6.1] - 2026-01-13
 
 ### Fixed

@@ -102,6 +102,7 @@ export const ConfigRow = memo(function ConfigRow({
           ) : column.id === 'itemNumber' ? (() => {
             // Get base number from parent file
             const tabNumber = config.tabNumber || ''
+            const hasTabColumn = visibleColumns.some(c => c.id === 'tabNumber')
             
             // When not editable (checked in), show as single inline text
             if (!isEditable) {
@@ -115,7 +116,18 @@ export const ConfigRow = memo(function ConfigRow({
               )
             }
             
-            // When editable (checked out), show base number + editable tab input
+            // When editable (checked out):
+            // If Tab column is visible, just show base number (tab is in separate column)
+            // If Tab column is NOT visible, show base number + inline tab input
+            if (hasTabColumn) {
+              return basePartNumber ? (
+                <span className="text-xs text-plm-fg">{basePartNumber}</span>
+              ) : (
+                <span className="text-plm-fg-dim text-xs">—</span>
+              )
+            }
+            
+            // Tab column not visible - show inline tab input next to base number
             return (
               <div className="flex items-center gap-0.5">
                 {basePartNumber && (
@@ -127,7 +139,7 @@ export const ConfigRow = memo(function ConfigRow({
                 <input
                   type="text"
                   value={tabNumber}
-                  onChange={(e) => onTabChange(e.target.value)}
+                  onChange={(e) => onTabChange(e.target.value.toUpperCase())}
                   onClick={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
@@ -135,6 +147,31 @@ export const ConfigRow = memo(function ConfigRow({
                   className="w-14 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
                 />
               </div>
+            )
+          })() : column.id === 'tabNumber' ? (() => {
+            // Separate tab number column for config rows
+            const tabNumber = config.tabNumber || ''
+            
+            if (!isEditable) {
+              return tabNumber ? (
+                <span className="text-xs text-plm-fg-muted">{tabNumber}</span>
+              ) : (
+                <span className="text-plm-fg-dim text-xs">—</span>
+              )
+            }
+            
+            // Editable tab number input
+            return (
+              <input
+                type="text"
+                value={tabNumber}
+                onChange={(e) => onTabChange(e.target.value.toUpperCase())}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="-XXX"
+                className="w-16 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
+              />
             )
           })() : (
             <span className="text-plm-fg-dim text-xs">—</span>

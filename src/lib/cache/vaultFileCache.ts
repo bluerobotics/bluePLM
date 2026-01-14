@@ -13,8 +13,18 @@
 
 import { getFilesDelta, LightweightFile, DeltaFile } from '@/lib/supabase/files/queries'
 
-// Re-export the type for convenience
-export type CachedServerFile = LightweightFile
+/**
+ * Cached server file extends LightweightFile with user profile info.
+ * This allows us to preserve checked_out_user data across cache loads,
+ * preventing the "SO" (Someone) avatar fallback when files are refreshed.
+ */
+export interface CachedServerFile extends LightweightFile {
+  checked_out_user?: {
+    email: string
+    full_name: string | null
+    avatar_url?: string
+  } | null
+}
 
 interface VaultCacheEntry {
   vaultId: string
@@ -179,6 +189,7 @@ export async function setCachedVaultFiles(
 /**
  * Apply delta changes to cached files
  * Handles: new files, updated files, deleted files
+ * Preserves checked_out_user info from existing cache when checkout hasn't changed
  */
 export function applyDeltaToCache(
   cachedFiles: CachedServerFile[],
@@ -193,6 +204,11 @@ export function applyDeltaToCache(
       fileMap.delete(delta.id)
     } else {
       // File was added or updated - upsert
+      // Preserve checked_out_user if the checkout user hasn't changed
+      const existing = fileMap.get(delta.id)
+      const preserveUserInfo = existing?.checked_out_user && 
+        existing.checked_out_by === delta.checked_out_by
+      
       fileMap.set(delta.id, {
         id: delta.id,
         file_path: delta.file_path,
@@ -208,7 +224,9 @@ export function applyDeltaToCache(
         state: delta.state,
         checked_out_by: delta.checked_out_by,
         checked_out_at: delta.checked_out_at,
-        updated_at: delta.updated_at
+        updated_at: delta.updated_at,
+        // Preserve user info if checkout user hasn't changed
+        checked_out_user: preserveUserInfo ? existing!.checked_out_user : undefined
       })
     }
   }
@@ -332,6 +350,66 @@ export async function getFilesWithCache(
     cacheHit: false,
     deltaCount: 0,
     timing
+  }
+}
+
+/**
+ * Update cached files with user info.
+ * Called after background task fetches checked_out_user data.
+ * This persists user info to IndexedDB so subsequent loads have it immediately.
+ */
+export async function updateCachedUserInfo(
+  vaultId: string,
+  userInfoMap: Record<string, { email: string; full_name: string | null; avatar_url?: string }>
+): Promise<void> {
+  try {
+    const db = await openDB()
+    
+    return new Promise((resolve) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite')
+      const store = transaction.objectStore(STORE_NAME)
+      const getRequest = store.get(vaultId)
+      
+      getRequest.onsuccess = () => {
+        const entry = getRequest.result as VaultCacheEntry | undefined
+        if (!entry) {
+          resolve()
+          return
+        }
+        
+        // Update files with user info
+        let updatedCount = 0
+        const updatedFiles = entry.files.map(f => {
+          if (f.id in userInfoMap && f.checked_out_by) {
+            updatedCount++
+            return { ...f, checked_out_user: userInfoMap[f.id] }
+          }
+          return f
+        })
+        
+        if (updatedCount > 0) {
+          entry.files = updatedFiles
+          const putRequest = store.put(entry)
+          putRequest.onsuccess = () => {
+            console.log(`[VaultCache] Updated ${updatedCount} files with user info`)
+            resolve()
+          }
+          putRequest.onerror = () => {
+            console.error('[VaultCache] Failed to update user info:', putRequest.error)
+            resolve()
+          }
+        } else {
+          resolve()
+        }
+      }
+      
+      getRequest.onerror = () => {
+        console.error('[VaultCache] Failed to read cache for user info update:', getRequest.error)
+        resolve()
+      }
+    })
+  } catch (error) {
+    console.error('[VaultCache] Error updating user info:', error)
   }
 }
 

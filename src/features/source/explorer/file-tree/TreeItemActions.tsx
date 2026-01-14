@@ -15,6 +15,7 @@ import {
   FolderUploadButton,
   FolderCheckinButton
 } from '@/components/shared/InlineActions'
+import { NotifiableCheckoutAvatar } from '@/components/shared/Avatar'
 import { executeCommand } from '@/lib/commands'
 import type { CheckoutUser } from '@/components/shared/FileItem'
 import type { FolderDiffCounts } from './types'
@@ -284,30 +285,18 @@ export function FileActionButtons({
                 </div>
               </div>
             )}
-            {checkedOutByOther && (
-              <div 
-                className="relative w-5 h-5 flex-shrink-0" 
-                title={`Checked out by ${checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone'}`}
-              >
-                {checkedOutUser?.avatar_url ? (
-                  <img 
-                    src={checkedOutUser.avatar_url} 
-                    alt={checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'User'}
-                    className="w-5 h-5 rounded-full object-cover"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.style.display = 'none'
-                      target.nextElementSibling?.classList.remove('hidden')
-                    }}
-                  />
-                ) : null}
-                <div 
-                  className={`w-5 h-5 rounded-full bg-plm-accent/30 text-plm-accent flex items-center justify-center text-[9px] font-medium absolute inset-0 ${checkedOutUser?.avatar_url ? 'hidden' : ''}`}
-                >
-                  {getInitials(checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'U')}
-                </div>
-              </div>
+            {checkedOutByOther && checkedOutUser && file.pdmData?.id && (
+              <NotifiableCheckoutAvatar
+                user={{
+                  id: file.pdmData.checked_out_by!,
+                  email: checkedOutUser.email,
+                  full_name: checkedOutUser.full_name,
+                  avatar_url: checkedOutUser.avatar_url
+                }}
+                fileId={file.pdmData.id}
+                fileName={file.name}
+                size={20}
+              />
             )}
           </span>
         )
@@ -406,7 +395,10 @@ export function FolderActionButtons({
   }
   
   return (
-    <span className="flex items-center gap-1 ml-auto mr-0.5 text-[10px]">
+    <span 
+      className="flex items-center gap-1 ml-auto mr-0.5 text-[10px]"
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* 1. Update (outdated) - only when online */}
       {!isOfflineMode && diffCounts && diffCounts.outdated > 0 && (
         <InlineSyncButton
@@ -425,15 +417,22 @@ export function FolderActionButtons({
         />
       )}
       {/* 3. Avatar checkout (users with check-in button) - only when online */}
-      {!isOfflineMode && checkoutUsers.length > 0 && (
-        <FolderCheckinButton
-          onClick={handleInlineCheckin}
-          users={checkoutUsers}
-          myCheckedOutCount={checkedOutByMeCount}
-          totalCheckouts={totalCheckouts}
-          isProcessing={operationType === 'checkin'}
-        />
-      )}
+      {!isOfflineMode && checkoutUsers.length > 0 && (() => {
+        // Use folder's pdmData.id if available, otherwise fallback to first file ID from checkout users
+        // This enables notification functionality even when folders don't have their own PDM record
+        const folderId = file.pdmData?.id || checkoutUsers.find(u => u.fileIds?.length)?.fileIds?.[0]
+        return (
+          <FolderCheckinButton
+            onClick={handleInlineCheckin}
+            users={checkoutUsers}
+            myCheckedOutCount={checkedOutByMeCount}
+            totalCheckouts={totalCheckouts}
+            isProcessing={operationType === 'checkin'}
+            folderId={folderId}
+            folderName={file.name}
+          />
+        )
+      })()}
       {/* 4. Green cloud - synced files ready to checkout - only when online */}
       {!isOfflineMode && syncedCount > 0 && (
         <InlineCheckoutButton

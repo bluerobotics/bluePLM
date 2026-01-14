@@ -364,6 +364,38 @@ declare global {
         saveDocument: (filePath: string) => Promise<{ success: boolean; data?: {
           filePath: string; fileName: string; saved: boolean; reason?: string; warnings?: number
         }; error?: string }>
+        setDocumentProperties: (filePath: string, properties: Record<string, string>, configuration?: string) => 
+          Promise<{ success: boolean; data?: { filePath: string; fileName: string; propertiesSet: number; configuration: string }; error?: string }>
+        
+        // File Locations (Registry) - for template folder configuration
+        getInstalledVersions: () => Promise<{ success: boolean; versions?: Array<{ version: string; year: number; registryPath: string }>; error?: string }>
+        getFileLocations: () => Promise<{ 
+          success: boolean
+          versions?: Array<{ version: string; year: number; registryPath: string }>
+          locations?: Array<{
+            version: string
+            documentTemplates: string[]
+            sheetFormats: string[]
+            bomTemplates: string[]
+            customPropertyFolders: string[]
+            promptForTemplate: boolean
+          }>
+          error?: string 
+        }>
+        setFileLocations: (settings: { 
+          documentTemplates?: string
+          sheetFormats?: string
+          bomTemplates?: string
+          customPropertyFolders?: string
+          promptForTemplate?: boolean 
+        }) => Promise<{ success: boolean; updatedVersions?: string[]; error?: string }>
+        
+        // License Registry Operations (HKLM - requires admin for write operations)
+        getLicenseRegistry: () => Promise<{ success: boolean; serialNumbers?: string[]; error?: string }>
+        setLicenseRegistry: (serialNumber: string) => Promise<{ success: boolean; error?: string; requiresAdmin?: boolean }>
+        removeLicenseRegistry: (serialNumber: string) => Promise<{ success: boolean; error?: string; requiresAdmin?: boolean }>
+        checkLicenseRegistry: (serialNumber: string) => Promise<{ success: boolean; found: boolean; error?: string }>
+        openLicenseManager: () => Promise<{ success: boolean; error?: string }>
       }
       
       // RFQ Release Files API

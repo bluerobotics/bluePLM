@@ -2,9 +2,10 @@ import { memo, useState, useEffect, useRef } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import { useFileCardStatus, useThumbnail } from './hooks'
-import { CheckoutBadge, CloudStatusBadge, DiffStatusBadge } from './badges'
+import { CheckoutBadge, CloudStatusBadge } from './badges'
 import { FileCardIcon } from './FileCardIcon'
 import { FileCardActions } from './FileCardActions'
+import { FileCardMetadata } from './FileCardMetadata'
 
 export interface FileCardProps {
   file: LocalFile
@@ -113,32 +114,29 @@ export const FileCard = memo(function FileCard({
       onContextMenu={onContextMenu}
       style={{ width: iconSize + 24 }}
     >
-      {/* Top right status/avatars */}
+      {/* Top right status/avatars - only show checkout avatars and folder cloud status */}
       <div className="absolute top-1 right-1 flex items-center z-10" style={{ gap: spacing }}>
         {/* Checkout avatars */}
         <CheckoutBadge
           checkoutUsers={status.checkoutUsers}
           avatarSize={avatarSize}
           avatarFontSize={avatarFontSize}
+          fileId={file.pdmData?.id}
+          fileName={file.name}
+          isFolder={file.isDirectory}
         />
 
-        {/* Status indicators for folders and files */}
-        <div className="flex items-center" style={{ gap: spacing }}>
-          {file.isDirectory ? (
+        {/* Status indicators for folders only - files show status via action buttons */}
+        {file.isDirectory && (
+          <div className="flex items-center" style={{ gap: spacing }}>
             <CloudStatusBadge
               cloudFilesCount={status.cloudFilesCount}
               localOnlyFilesCount={status.localOnlyFilesCount}
               statusIconSize={statusIconSize}
               spacing={spacing}
             />
-          ) : (
-            <DiffStatusBadge
-              diffStatus={file.diffStatus}
-              statusIconSize={statusIconSize}
-              hasCheckoutUsers={status.checkoutUsers.length > 0}
-            />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Action buttons - top left (each button independently shows spinner when active) */}
@@ -192,6 +190,9 @@ export const FileCard = memo(function FileCard({
           </div>
         )}
       </div>
+
+      {/* Configurable metadata fields */}
+      <FileCardMetadata file={file} iconSize={iconSize} />
 
       {/* State badge for synced files */}
       {file.pdmData?.workflow_state && iconSize >= 80 && (

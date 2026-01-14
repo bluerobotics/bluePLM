@@ -19,9 +19,12 @@ export interface SelectionCategories {
 export interface CheckoutUser {
   id: string
   name: string
+  email?: string
   avatar_url?: string
   isMe: boolean
   count?: number
+  /** For folders: list of file IDs this user has checked out (for notifications) */
+  fileIds?: string[]
 }
 
 // Drag-drop mode

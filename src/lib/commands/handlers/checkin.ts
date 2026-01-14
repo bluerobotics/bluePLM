@@ -11,7 +11,7 @@
 import type { Command, CheckinParams, CommandResult } from '../types'
 import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
-import { checkinFile, upsertFileReferences, getSupabaseClient } from '../../supabase'
+import { checkinFile, upsertFileReferences, getSupabaseClient, updateVersionNote } from '../../supabase'
 import type { SWReference } from '../../supabase/files/mutations'
 import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS } from '../../concurrency'
 import type { LocalFile, PendingMetadata } from '../../../stores/pdmStore'
@@ -22,8 +22,11 @@ import { FileOperationTracker } from '../../fileOperationTracker'
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 
-// Only assemblies have references to extract
-const ASSEMBLY_EXTENSIONS = ['.sldasm']
+// File types that have references to extract (assemblies reference components, drawings reference models)
+const REFERENCE_FILE_EXTENSIONS = ['.sldasm', '.slddrw']
+
+// Drawing extensions (need special handling for reference type)
+const DRAWING_EXTENSIONS = ['.slddrw']
 
 /**
  * Incremental Store Update Configuration
@@ -131,13 +134,25 @@ async function writeSolidWorksMetadata(
   }
   
   try {
-    const { part_number, description, revision, config_tabs, config_descriptions } = pendingMetadata
+    const { part_number, description, revision, tab_number, config_tabs, config_descriptions } = pendingMetadata
     
-    // Build file-level properties to write
+    // Get current user for DrawnBy property
+    const currentUser = usePDMStore.getState().user
+    const drawnBy = currentUser?.full_name || currentUser?.email || ''
+    const dateStr = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+    
+    // Build file-level properties to write (all 7 PDM properties)
     const fileProps: Record<string, string> = {}
-    if (part_number) fileProps['Number'] = part_number
+    if (part_number) {
+      // Build full number with file-level tab if present
+      fileProps['Number'] = tab_number ? `${part_number}-${tab_number}` : part_number
+      fileProps['Base Item Number'] = part_number
+      if (tab_number) fileProps['Tab Number'] = tab_number
+    }
     if (description) fileProps['Description'] = description
     if (revision) fileProps['Revision'] = revision
+    fileProps['Date'] = dateStr
+    if (drawnBy) fileProps['DrawnBy'] = drawnBy
     
     // Write file-level properties if any
     if (Object.keys(fileProps).length > 0) {
@@ -174,6 +189,8 @@ async function writeSolidWorksMetadata(
           const fullPartNumber = combineBaseAndTab(part_number, tabNum, serSettings)
           if (fullPartNumber) {
             configProps['Number'] = fullPartNumber
+            configProps['Base Item Number'] = part_number
+            configProps['Tab Number'] = tabNum
           }
         }
         
@@ -182,6 +199,11 @@ async function writeSolidWorksMetadata(
         if (configDesc) {
           configProps['Description'] = configDesc
         }
+        
+        // Always write revision, date, drawnBy to configs
+        if (revision) configProps['Revision'] = revision
+        configProps['Date'] = dateStr
+        if (drawnBy) configProps['DrawnBy'] = drawnBy
         
         if (Object.keys(configProps).length > 0) {
           allConfigProps[configName] = configProps
@@ -204,16 +226,66 @@ async function writeSolidWorksMetadata(
   }
 }
 
+/**
+ * Sync pending version notes to the server
+ * Updates the comment field on historical file_versions records
+ * 
+ * @param file - The file being checked in
+ * @param userId - Current user ID
+ * @returns Promise that resolves when all notes are synced (errors are logged but not fatal)
+ */
+async function syncPendingVersionNotes(
+  file: LocalFile,
+  userId: string
+): Promise<void> {
+  const pendingNotes = file.pendingVersionNotes
+  if (!pendingNotes || Object.keys(pendingNotes).length === 0) {
+    return // No pending notes to sync
+  }
+  
+  const fileId = file.pdmData?.id
+  if (!fileId) {
+    log.warn('[Checkin]', 'Cannot sync version notes - no file ID', { fileName: file.name })
+    return
+  }
+  
+  // Sync each pending note to the server
+  for (const [versionId, note] of Object.entries(pendingNotes)) {
+    try {
+      const result = await updateVersionNote(fileId, versionId, userId, note)
+      if (!result.success) {
+        log.warn('[Checkin]', 'Failed to sync version note', { 
+          fileName: file.name, 
+          versionId, 
+          error: result.error 
+        })
+      } else {
+        log.debug('[Checkin]', 'Synced version note', { fileName: file.name, versionId })
+      }
+    } catch (err) {
+      log.warn('[Checkin]', 'Exception syncing version note', {
+        fileName: file.name,
+        versionId,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    }
+  }
+}
+
 // Detailed logging for checkin operations
 function logCheckin(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
   log[level]('[Checkin]', message, context)
 }
 
 /**
- * Extract and store assembly references after a successful check-in.
+ * Extract and store references after a successful check-in.
  * This populates the file_references table for Contains/Where-Used queries.
  * 
- * @param file - The checked-in assembly file
+ * Handles both:
+ * - Assemblies: Component references (parts and sub-assemblies)
+ * - Drawings: Model references (the parts/assemblies the drawing documents)
+ * 
+ * @param file - The checked-in assembly or drawing file
  * @param orgId - Organization ID
  * @param vaultId - Vault ID
  * @param vaultRootPath - Optional local vault root path for better path matching
@@ -225,8 +297,8 @@ async function extractAndStoreReferences(
   vaultId: string,
   vaultRootPath?: string
 ): Promise<void> {
-  // Only process assemblies
-  if (!ASSEMBLY_EXTENSIONS.includes(file.extension.toLowerCase())) {
+  // Process assemblies and drawings (both have references to extract)
+  if (!REFERENCE_FILE_EXTENSIONS.includes(file.extension.toLowerCase())) {
     return
   }
   
@@ -243,10 +315,13 @@ async function extractAndStoreReferences(
     return
   }
   
+  const isDrawing = DRAWING_EXTENSIONS.includes(file.extension.toLowerCase())
+  
   try {
-    logCheckin('debug', 'Extracting assembly references', { 
+    logCheckin('debug', 'Extracting file references', { 
       fileName: file.name,
-      fullPath: file.path
+      fullPath: file.path,
+      isDrawing
     })
     
     // Call SolidWorks service to get references
@@ -255,6 +330,7 @@ async function extractAndStoreReferences(
     if (!result?.success || !result.data?.references) {
       logCheckin('debug', 'No references returned from SW service', { 
         fileName: file.name,
+        isDrawing,
         error: result?.error
       })
       return
@@ -269,17 +345,23 @@ async function extractAndStoreReferences(
     
     logCheckin('debug', 'Got references from SW service', { 
       fileName: file.name,
-      count: swRefs.length
+      isDrawing,
+      count: swRefs.length,
+      firstRef: swRefs[0]?.fileName
     })
     
     // Convert SW service format to our SWReference format
     // The SW service returns one entry per unique component path
-    // We map fileType to referenceType
+    // Reference types differ based on file type:
+    // - Assemblies: components (parts and sub-assemblies)
+    // - Drawings: model references (the parts/assemblies the drawing documents)
     const references: SWReference[] = swRefs.map(ref => ({
       childFilePath: ref.path,
       quantity: 1, // SW service doesn't provide quantity in getReferences, default to 1
-      referenceType: ref.fileType === 'assembly' ? 'component' : 
-                     ref.fileType === 'part' ? 'component' : 'reference',
+      referenceType: isDrawing
+        ? 'reference'  // Drawings reference models they document
+        : (ref.fileType === 'assembly' ? 'component' : 
+           ref.fileType === 'part' ? 'component' : 'reference'),
       configuration: undefined // Will be populated if we have BOM data
     }))
     
@@ -287,8 +369,9 @@ async function extractAndStoreReferences(
     const upsertResult = await upsertFileReferences(orgId, vaultId, fileId, references, vaultRootPath)
     
     if (upsertResult.success) {
-      logCheckin('info', 'Stored assembly references', {
+      logCheckin('info', 'Stored file references', {
         fileName: file.name,
+        isDrawing,
         inserted: upsertResult.inserted,
         updated: upsertResult.updated,
         deleted: upsertResult.deleted,
@@ -296,8 +379,9 @@ async function extractAndStoreReferences(
         skippedReasons: upsertResult.skippedReasons
       })
     } else {
-      logCheckin('warn', 'Failed to store assembly references', {
+      logCheckin('warn', 'Failed to store file references', {
         fileName: file.name,
+        isDrawing,
         error: upsertResult.error
       })
     }
@@ -306,6 +390,7 @@ async function extractAndStoreReferences(
     // Non-fatal - reference extraction failure shouldn't block check-in
     logCheckin('warn', 'Reference extraction failed', {
       fileName: file.name,
+      isDrawing,
       error: err instanceof Error ? err.message : String(err)
     })
   }
@@ -593,6 +678,10 @@ export const checkinCommand: Command<CheckinParams> = {
       }
     }
     
+    // Declare openDocumentPaths here so processFile can access it
+    // Will be populated before Phase 2 processing
+    let openDocumentPaths: Set<string> = new Set()
+    
     /**
      * Process a single file for check-in
      * Extracted to avoid code duplication between phases
@@ -662,6 +751,7 @@ export const checkinCommand: Command<CheckinParams> = {
             newContentHash: file.localHash,
             newFileSize: file.size,
             localActiveVersion: file.localActiveVersion,
+            comment: file.pendingCheckinNote,
             // Batch optimization: skip per-file machine mismatch check
             machineId,
             skipMachineMismatchCheck: true
@@ -669,8 +759,40 @@ export const checkinCommand: Command<CheckinParams> = {
           recordSubstepTiming('checkinAPI', performance.now() - checkinAPIStart)
           
           if (result.success && result.file) {
+            // Sync any pending version notes (non-blocking, errors logged)
+            await syncPendingVersionNotes(file, user.id)
+            
             // Collect for batch readonly operation
             filesToMakeReadonly.push(file.path)
+            
+            // If SolidWorks file is open, set document to read-only
+            // This is needed even in fast path to update SW state!
+            const isFastPathSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
+            const isFastPathFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
+            if (swServiceStatus.running && isFastPathSWFile && isFastPathFileOpenInSW) {
+              try {
+                // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
+                await window.electronAPI?.setReadonly(file.path, true)
+                
+                const setDocROStart = performance.now()
+                const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
+                recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
+                if (docResult?.success && docResult.data?.changed) {
+                  logCheckin('info', 'Fast path: Updated SolidWorks document to read-only', {
+                    operationId,
+                    fileName: file.name,
+                    wasReadOnly: docResult.data.wasReadOnly,
+                    isNowReadOnly: docResult.data.isNowReadOnly
+                  })
+                }
+              } catch (err) {
+                logCheckin('warn', 'Fast path: Exception setting SW document read-only', {
+                  operationId,
+                  fileName: file.name,
+                  error: err instanceof Error ? err.message : String(err)
+                })
+              }
+            }
             
             // Queue update for batch processing
             pendingUpdates.push({
@@ -680,7 +802,9 @@ export const checkinCommand: Command<CheckinParams> = {
                 localHash: file.localHash,
                 diffStatus: undefined,
                 localActiveVersion: undefined,
-                pendingMetadata: undefined
+                pendingMetadata: undefined,
+                pendingVersionNotes: undefined,
+                pendingCheckinNote: undefined
               }
             })
             
@@ -902,6 +1026,7 @@ export const checkinCommand: Command<CheckinParams> = {
             newFileName: wasFileRenamed ? file.name : undefined,
             localActiveVersion: file.localActiveVersion,
             pendingMetadata: metadataToUse,
+            comment: file.pendingCheckinNote,
             // Batch optimization: skip per-file machine mismatch check (eliminates N SELECT + N IPC calls)
             machineId,
             skipMachineMismatchCheck: true
@@ -909,14 +1034,28 @@ export const checkinCommand: Command<CheckinParams> = {
           recordSubstepTiming('checkinAPI', performance.now() - checkinAPIStart)
           
           if (result.success && result.file) {
+            // Sync any pending version notes (non-blocking, errors logged)
+            await syncPendingVersionNotes(file, user.id)
+            
             // Collect for batch readonly operation (optimization: 1 IPC instead of N)
             filesToMakeReadonly.push(file.path)
             
             // If SolidWorks file is open, also set document to read-only
             // This allows checking in files without closing SolidWorks!
-            // Only attempt if SW service is still running (avoids hanging if service crashed)
-            if (swServiceStatus.running && SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
+            // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
+            // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
+            const isSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
+            const isFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
+            if (swServiceStatus.running && isSWFile && isFileOpenInSW) {
               try {
+                // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
+                await window.electronAPI?.setReadonly(file.path, true)
+                
+                logCheckin('debug', 'Attempting to set SW document read-only', {
+                  operationId,
+                  fileName: file.name,
+                  filePath: file.path
+                })
                 const setDocROStart = performance.now()
                 const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
                 recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
@@ -927,15 +1066,37 @@ export const checkinCommand: Command<CheckinParams> = {
                     wasReadOnly: docResult.data.wasReadOnly,
                     isNowReadOnly: docResult.data.isNowReadOnly
                   })
-                } else if (!docResult?.success && docResult?.error?.includes('timed out')) {
-                  // Service timed out - stop trying for remaining files
-                  swServiceStatus.running = false
+                } else if (docResult?.success && !docResult.data?.changed) {
+                  logCheckin('debug', 'SW document already read-only, no change needed', {
+                    operationId,
+                    fileName: file.name
+                  })
+                } else if (!docResult?.success) {
+                  logCheckin('warn', 'Failed to set SW document read-only', {
+                    operationId,
+                    fileName: file.name,
+                    error: docResult?.error
+                  })
+                  if (docResult?.error?.includes('timed out')) {
+                    // Service timed out - stop trying for remaining files
+                    swServiceStatus.running = false
+                  }
                 }
-              } catch {
-                // SW service not available or file not open - that's fine
+              } catch (err) {
+                logCheckin('warn', 'Exception setting SW document read-only', {
+                  operationId,
+                  fileName: file.name,
+                  error: err instanceof Error ? err.message : String(err)
+                })
                 // Mark service as unavailable to skip remaining SW calls
                 swServiceStatus.running = false
               }
+            } else if (isSWFile && openDocumentPaths.size > 0 && !isFileOpenInSW) {
+              // File is a SW file but not currently open in SOLIDWORKS
+              logCheckin('debug', 'SW file not open in SOLIDWORKS, skipping setDocumentReadOnly', {
+                operationId,
+                fileName: file.name
+              })
             }
             
             // Queue update for batch processing
@@ -946,7 +1107,9 @@ export const checkinCommand: Command<CheckinParams> = {
                 localHash: fileHash,
                 diffStatus: undefined,
                 localActiveVersion: undefined,
-                pendingMetadata: undefined
+                pendingMetadata: undefined,
+                pendingVersionNotes: undefined,
+                pendingCheckinNote: undefined
               }
             })
             
@@ -1000,6 +1163,7 @@ export const checkinCommand: Command<CheckinParams> = {
             newFileName: wasFileRenamed ? file.name : undefined,
             localActiveVersion: file.localActiveVersion,
             pendingMetadata: metadataToUse,
+            comment: file.pendingCheckinNote,
             // Batch optimization: skip per-file machine mismatch check (eliminates N SELECT + N IPC calls)
             machineId,
             skipMachineMismatchCheck: true
@@ -1007,24 +1171,63 @@ export const checkinCommand: Command<CheckinParams> = {
           recordSubstepTiming('checkinAPI', performance.now() - checkinAPIStart)
           
           if (result.success && result.file) {
+            // Sync any pending version notes (non-blocking, errors logged)
+            await syncPendingVersionNotes(file, user.id)
+            
             // Collect for batch readonly operation (optimization: 1 IPC instead of N)
             filesToMakeReadonly.push(file.path)
             
             // If SolidWorks file is open, also set document to read-only
-            // Only attempt if SW service is still running (avoids hanging if service crashed)
-            if (swServiceStatus.running && SW_EXTENSIONS.includes(file.extension.toLowerCase())) {
+            // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
+            // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
+            const isMetaSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
+            const isMetaFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
+            if (swServiceStatus.running && isMetaSWFile && isMetaFileOpenInSW) {
               try {
+                // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
+                await window.electronAPI?.setReadonly(file.path, true)
+                
+                logCheckin('debug', 'Attempting to set SW document read-only (metadata path)', {
+                  operationId,
+                  fileName: file.name,
+                  filePath: file.path
+                })
                 const setDocROStart = performance.now()
                 const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
                 recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
-                if (!docResult?.success && docResult?.error?.includes('timed out')) {
-                  // Service timed out - stop trying for remaining files
-                  swServiceStatus.running = false
+                if (docResult?.success && docResult.data?.changed) {
+                  logCheckin('info', 'Updated SolidWorks document to read-only (metadata path)', {
+                    operationId,
+                    fileName: file.name,
+                    wasReadOnly: docResult.data.wasReadOnly,
+                    isNowReadOnly: docResult.data.isNowReadOnly
+                  })
+                } else if (!docResult?.success) {
+                  logCheckin('warn', 'Failed to set SW document read-only (metadata path)', {
+                    operationId,
+                    fileName: file.name,
+                    error: docResult?.error
+                  })
+                  if (docResult?.error?.includes('timed out')) {
+                    // Service timed out - stop trying for remaining files
+                    swServiceStatus.running = false
+                  }
                 }
-              } catch {
-                // SW service not available or file not open - mark as unavailable
+              } catch (err) {
+                logCheckin('warn', 'Exception setting SW document read-only (metadata path)', {
+                  operationId,
+                  fileName: file.name,
+                  error: err instanceof Error ? err.message : String(err)
+                })
+                // Mark service as unavailable to skip remaining SW calls
                 swServiceStatus.running = false
               }
+            } else if (isMetaSWFile && openDocumentPaths.size > 0 && !isMetaFileOpenInSW) {
+              // File is a SW file but not currently open in SOLIDWORKS
+              logCheckin('debug', 'SW file not open in SOLIDWORKS, skipping setDocumentReadOnly (metadata path)', {
+                operationId,
+                fileName: file.name
+              })
             }
             
             // Queue update for batch processing
@@ -1035,7 +1238,9 @@ export const checkinCommand: Command<CheckinParams> = {
                 localHash: result.file.content_hash,
                 diffStatus: undefined,
                 localActiveVersion: undefined,
-                pendingMetadata: undefined
+                pendingMetadata: undefined,
+                pendingVersionNotes: undefined,
+                pendingCheckinNote: undefined
               }
             })
             
@@ -1129,12 +1334,47 @@ export const checkinCommand: Command<CheckinParams> = {
     // Sets batch flag to pause status polling during heavy operations
     // ========================================
     let swResults: Array<{ success: boolean; error?: string; file?: LocalFile }> = []
+    
+    // OPTIMIZATION: Fetch open documents ONCE before processing SW files
+    // Then we only call setDocumentReadOnly for files that are actually open
+    // This reduces N service calls to 1 + (number of open files)
+    if (swFiles.length > 0 && swServiceStatus.running) {
+      try {
+        const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.()
+        if (openDocsResult?.success && openDocsResult.data?.documents) {
+          // Normalize paths for comparison (lowercase on Windows)
+          openDocumentPaths = new Set(
+            openDocsResult.data.documents
+              .map(doc => doc.filePath?.toLowerCase())
+              .filter((p): p is string => Boolean(p))
+          )
+          logCheckin('debug', 'Fetched open SW documents', {
+            operationId,
+            solidWorksRunning: openDocsResult.data.solidWorksRunning,
+            openCount: openDocumentPaths.size,
+            openFiles: Array.from(openDocumentPaths).map(p => p.split(/[/\\]/).pop())
+          })
+        } else if (openDocsResult?.success && !openDocsResult.data?.solidWorksRunning) {
+          logCheckin('debug', 'SOLIDWORKS not running, skipping open document detection', {
+            operationId
+          })
+        }
+      } catch (err) {
+        // SW service error - continue without optimization
+        logCheckin('warn', 'Failed to fetch open SW documents', {
+          operationId,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    }
+    
     let phase2StepId = ''
     if (swFiles.length > 0) {
       logCheckin('info', 'Phase 2: Processing SW files', {
         operationId,
         count: swFiles.length,
-        concurrency: SW_CONCURRENT_OPERATIONS
+        concurrency: SW_CONCURRENT_OPERATIONS,
+        openDocumentsCount: openDocumentPaths.size
       })
       currentPhaseTimings = phase2Timings
       phase2StepId = tracker.startStep('Process SW files', { 
@@ -1249,29 +1489,37 @@ export const checkinCommand: Command<CheckinParams> = {
     const assemblyFiles: LocalFile[] = []
     
     if (successfulFiles.length > 0 && ctx.activeVaultId && ctx.organization?.id) {
-      const assemblies = successfulFiles.filter(f => 
-        ASSEMBLY_EXTENSIONS.includes(f.extension.toLowerCase())
+      // Find files with references to extract (assemblies and drawings)
+      const filesWithRefs = successfulFiles.filter(f => 
+        REFERENCE_FILE_EXTENSIONS.includes(f.extension.toLowerCase())
       )
-      assemblyFiles.push(...assemblies)
+      assemblyFiles.push(...filesWithRefs)
       
       if (assemblyFiles.length > 0) {
         // Check if SolidWorks service is running BEFORE attempting extraction
         const swStatus = await window.electronAPI?.solidworks?.getServiceStatus?.()
         const swRunning = swStatus?.data?.running
         
+        const assembliesCount = assemblyFiles.filter(f => f.extension.toLowerCase() === '.sldasm').length
+        const drawingsCount = assemblyFiles.filter(f => f.extension.toLowerCase() === '.slddrw').length
+        
         if (!swRunning) {
           logCheckin('info', 'Skipping reference extraction - SW service not running', {
             operationId,
-            assemblyCount: assemblyFiles.length,
-            assemblies: assemblyFiles.map(f => f.name)
+            fileCount: assemblyFiles.length,
+            assemblies: assembliesCount,
+            drawings: drawingsCount,
+            files: assemblyFiles.map(f => f.name)
           })
           // Show info toast so user knows what to do
-          ctx.addToast('info', `Assembly references not extracted — start SolidWorks service and use "Update from SW" in Contains tab`)
+          ctx.addToast('info', `File references not extracted — start SolidWorks service and use "Update from SW" in Contains tab`)
         } else {
-          logCheckin('debug', 'Starting background reference extraction for assemblies', {
+          logCheckin('debug', 'Starting background reference extraction', {
             operationId,
-            assemblyCount: assemblyFiles.length,
-            assemblies: assemblyFiles.map(f => f.name)
+            fileCount: assemblyFiles.length,
+            assemblies: assembliesCount,
+            drawings: drawingsCount,
+            files: assemblyFiles.map(f => f.name)
           })
           
           extractionStarted = true

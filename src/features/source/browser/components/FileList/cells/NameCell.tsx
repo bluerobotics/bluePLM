@@ -11,7 +11,6 @@ import {
   HardDrive,
   Loader2,
 } from 'lucide-react'
-import { getInitials } from '@/lib/utils'
 import { ListRowIcon } from '../ListRowIcon'
 import {
   InlineCheckoutButton,
@@ -23,6 +22,7 @@ import {
   FolderUploadButton,
   FolderCheckinButton
 } from '@/components/shared/InlineActions'
+import { NotifiableCheckoutAvatar } from '@/components/shared/Avatar'
 import type { CheckoutUser } from '../../../types'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
@@ -151,6 +151,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         return [{
           id: file.pdmData.checked_out_by,
           name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+          email: checkedOutUser?.email ?? undefined,
           avatar_url: checkedOutUser?.avatar_url ?? undefined,
           isMe: false
         }]
@@ -184,7 +185,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
             e.stopPropagation()
             toggleFileConfigExpansion(file)
           }}
-          className="p-0.5 -ml-1 hover:bg-plm-bg-light/50 rounded transition-colors flex-shrink-0"
+          className="p-0.5 -ml-1 hover:bg-plm-bg-light/50 rounded transition-colors flex-shrink-0 group/expander"
           title={isExpanded ? 'Collapse configurations' : 'Expand configurations'}
         >
           {isLoadingConfigs ? (
@@ -192,7 +193,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
           ) : isExpanded ? (
             <ChevronDown size={12} className="text-cyan-400" />
           ) : (
-            <ChevronRight size={12} className="text-plm-fg-muted" />
+            <ChevronRight size={12} className="text-plm-fg-muted group-hover/expander:text-plm-fg transition-colors" />
           )}
         </button>
       ) : (
@@ -231,15 +232,21 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
             />
           )}
           {/* Checkin button */}
-          {checkoutUsers.length > 0 && (
-            <FolderCheckinButton
-              onClick={(e) => handleInlineCheckin(e, file)}
-              users={checkoutUsers}
-              myCheckedOutCount={myCheckedOutFilesCount}
-              totalCheckouts={totalCheckedOutFilesCount}
-              isProcessing={operationType === 'checkin'}
-            />
-          )}
+          {checkoutUsers.length > 0 && (() => {
+            // Use folder's pdmData.id if available, otherwise fallback to first file ID from checkout users
+            const folderId = file.pdmData?.id || checkoutUsers.find(u => u.fileIds?.length)?.fileIds?.[0]
+            return (
+              <FolderCheckinButton
+                onClick={(e) => handleInlineCheckin(e, file)}
+                users={checkoutUsers}
+                myCheckedOutCount={myCheckedOutFilesCount}
+                totalCheckouts={totalCheckedOutFilesCount}
+                isProcessing={operationType === 'checkin'}
+                folderId={folderId}
+                folderName={file.name}
+              />
+            )
+          })()}
           {/* Checkout button */}
           {checkoutableFilesCount > 0 && (
             <InlineCheckoutButton
@@ -346,29 +353,23 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
               onMouseLeave={() => setIsCheckinHovered(false)}
             />
           )}
-          {/* Avatar for files checked out by OTHERS */}
-          {file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id && checkoutUsers.filter(u => !u.isMe).length > 0 && (
-            <span className="flex items-center flex-shrink-0 -space-x-1.5 ml-0.5" title={checkoutUsers.filter(u => !u.isMe).map(u => u.name).join(', ')}>
+          {/* Avatar for files checked out by OTHERS - NotifiableCheckoutAvatar for notification capability */}
+          {file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id && file.pdmData.id && checkoutUsers.filter(u => !u.isMe).length > 0 && (
+            <span className="flex items-center flex-shrink-0 -space-x-1.5 ml-0.5">
               {checkoutUsers.filter(u => !u.isMe).slice(0, maxShow).map((u, i) => (
                 <div key={u.id} className="relative" style={{ zIndex: maxShow - i }}>
-                  {u.avatar_url ? (
-                    <img 
-                      src={u.avatar_url} 
-                      alt={u.name}
-                      className="w-5 h-5 rounded-full bg-plm-bg object-cover"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                        target.nextElementSibling?.classList.remove('hidden')
-                      }}
-                    />
-                  ) : null}
-                  <div 
-                    className={`w-5 h-5 rounded-full bg-plm-accent/30 text-plm-accent flex items-center justify-center text-[9px] font-medium ${u.avatar_url ? 'hidden' : ''}`}
-                  >
-                    {getInitials(u.name)}
-                  </div>
+                  <NotifiableCheckoutAvatar
+                    user={{
+                      id: u.id,
+                      email: u.email,
+                      full_name: u.name,
+                      avatar_url: u.avatar_url
+                    }}
+                    fileId={file.pdmData!.id!}
+                    fileName={file.name}
+                    size={20}
+                    fontSize={9}
+                  />
                 </div>
               ))}
               {checkoutUsers.filter(u => !u.isMe).length > maxShow && (

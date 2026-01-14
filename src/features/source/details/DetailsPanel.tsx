@@ -4,9 +4,7 @@ import { usePDMStore, LocalFile, DetailsPanelTab } from '@/stores/pdmStore'
 import { getFileIconType } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils'
 import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/DraggableTab'
-import { format, formatDistanceToNow } from 'date-fns'
-import { getFileVersions, getRecentActivity, rollbackToVersion } from '@/lib/supabase'
-import { getDownloadUrl } from '@/lib/storage'
+import { format } from 'date-fns'
 import { getNextSerialNumber } from '@/lib/serialization'
 import { ContainsTab, WhereUsedTab, SWPropertiesTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
@@ -22,7 +20,6 @@ import {
   Hash,
   Info,
   Cloud,
-  RotateCcw,
   Loader2,
   FileImage,
   FileSpreadsheet,
@@ -35,14 +32,8 @@ import {
   Download,
   Eye,
   FolderOpen,
-  ArrowDown,
-  ArrowUp,
-  Trash2,
-  Edit,
-  RefreshCw,
-  FolderPlus,
-  MoveRight,
   Pencil,
+  RefreshCw,
   ZoomIn,
   ZoomOut,
   RotateCw,
@@ -122,43 +113,6 @@ function DetailsPanelIcon({ file, size = 32 }: { file: LocalFile; size?: number 
   }
 }
 
-interface ActivityEntry {
-  id: string
-  action: 'checkout' | 'checkin' | 'create' | 'delete' | 'state_change' | 'revision_change' | 'rename' | 'move'
-  user_email: string
-  details: Record<string, unknown>
-  created_at: string
-  file?: {
-    file_name: string
-    file_path: string
-  } | null
-}
-
-const ACTION_INFO: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-  checkout: { icon: <ArrowDown size={14} />, label: 'Checked out', color: 'text-plm-error' },
-  checkin: { icon: <ArrowUp size={14} />, label: 'Checked in', color: 'text-plm-success' },
-  create: { icon: <FolderPlus size={14} />, label: 'Created', color: 'text-plm-accent' },
-  delete: { icon: <Trash2 size={14} />, label: 'Deleted', color: 'text-plm-error' },
-  state_change: { icon: <RefreshCw size={14} />, label: 'State changed', color: 'text-plm-warning' },
-  revision_change: { icon: <Edit size={14} />, label: 'Revision changed', color: 'text-plm-info' },
-  rename: { icon: <Edit size={14} />, label: 'Renamed', color: 'text-plm-fg-dim' },
-  move: { icon: <MoveRight size={14} />, label: 'Moved', color: 'text-plm-fg-dim' },
-  rollback: { icon: <RotateCcw size={14} />, label: 'Rolled back', color: 'text-plm-warning' },
-  roll_forward: { icon: <ArrowUp size={14} />, label: 'Rolled forward', color: 'text-plm-info' },
-}
-
-interface VersionEntry {
-  id: string
-  version: number
-  revision: string
-  state: string
-  comment: string | null
-  content_hash: string
-  file_size: number
-  created_at: string
-  created_by_user?: { email: string; full_name: string } | null
-}
-
 export function DetailsPanel() {
   const { 
     selectedFiles, 
@@ -177,20 +131,12 @@ export function DetailsPanel() {
     lowercaseExtensions,
     files,
     organization,
-    updateFileInStore,
-    updatePendingMetadata,
-    addExpectedFileChanges,
-    clearExpectedFileChanges,
-    setLastOperationCompletedAt
+    updatePendingMetadata
   } = usePDMStore()
 
   const selectedFileObjects = getSelectedFileObjects()
   const file = selectedFileObjects.length === 1 ? selectedFileObjects[0] : null
   const isFolder = file?.isDirectory || false
-  
-  const [versions, setVersions] = useState<VersionEntry[]>([])
-  const [isLoadingVersions, setIsLoadingVersions] = useState(false)
-  const [rollingBack, setRollingBack] = useState<number | null>(null)
   
   // Editable property state
   const [editingField, setEditingField] = useState<'itemNumber' | 'description' | 'revision' | 'state' | null>(null)
@@ -200,8 +146,6 @@ export function DetailsPanel() {
   
   // Folder-specific state
   const [folderStats, setFolderStats] = useState<{ size: number; fileCount: number; folderCount: number } | null>(null)
-  const [folderActivity, setFolderActivity] = useState<ActivityEntry[]>([])
-  const [isLoadingFolderActivity, setIsLoadingFolderActivity] = useState(false)
   
   // eDrawings state
   const [eDrawingsStatus, setEDrawingsStatus] = useState<{
@@ -341,30 +285,6 @@ export function DetailsPanel() {
     loadPreview()
   }, [file?.path, file?.extension, detailsPanelTab, cadPreviewMode])
 
-  // Load version history when file changes or history tab is selected
-  useEffect(() => {
-    const loadVersions = async () => {
-      if (!file?.pdmData?.id || detailsPanelTab !== 'history' || isFolder) {
-        setVersions([])
-        return
-      }
-      
-      setIsLoadingVersions(true)
-      try {
-        const { versions: fileVersions, error } = await getFileVersions(file.pdmData.id)
-        if (!error && fileVersions) {
-          setVersions(fileVersions as VersionEntry[])
-        }
-      } catch (err) {
-        log.error('[DetailsPanel]', 'Failed to load versions', { error: err })
-      } finally {
-        setIsLoadingVersions(false)
-      }
-    }
-    
-    loadVersions()
-  }, [file?.pdmData?.id, detailsPanelTab, isFolder])
-  
   // Calculate folder stats when a folder is selected
   useEffect(() => {
     if (!file || !isFolder) {
@@ -391,156 +311,34 @@ export function DetailsPanel() {
       folderCount: foldersInFolder.length
     })
   }, [file, isFolder, files])
-  
-  // Load folder activity when a folder is selected and history tab is active
-  useEffect(() => {
-    const loadFolderActivity = async () => {
-      if (!file || !isFolder || detailsPanelTab !== 'history' || !organization) {
-        setFolderActivity([])
-        return
-      }
-      
-      setIsLoadingFolderActivity(true)
-      try {
-        const { activity, error } = await getRecentActivity(organization.id, 100)
-        if (!error && activity) {
-          // Filter activity to this folder
-          const folderPath = file.relativePath
-          const filtered = (activity as ActivityEntry[]).filter(entry => {
-            if (!entry.file?.file_path) return false
-            return entry.file.file_path.startsWith(folderPath + '/') || 
-                   entry.file.file_path === folderPath
-          })
-          setFolderActivity(filtered)
-        }
-      } catch (err) {
-        log.error('[DetailsPanel]', 'Failed to load folder activity', { error: err })
-      } finally {
-        setIsLoadingFolderActivity(false)
-      }
-    }
-    
-    loadFolderActivity()
-  }, [file, isFolder, detailsPanelTab, organization])
 
-  const handleRollback = async (targetVersion: number) => {
-    if (!file?.pdmData?.id || !user || !organization) return
-    
-    // Check if file is checked out by current user
-    if (file.pdmData.checked_out_by !== user.id) {
-      addToast('error', 'You must check out the file before switching versions')
-      return
-    }
-    
-    const currentVersion = file.pdmData.version || 0
-    const isRollForward = targetVersion > currentVersion
-    const actionLabel = isRollForward ? 'Roll forward' : 'Rollback'
-    
-    setRollingBack(targetVersion)
-    
-    try {
-      // Find the target version to get its content hash
-      const targetVersionRecord = versions.find(v => v.version === targetVersion)
-      if (!targetVersionRecord) {
-        addToast('error', `Version ${targetVersion} not found`)
-        setRollingBack(null)
-        return
-      }
-      
-      const result = await rollbackToVersion(
-        file.pdmData.id,
-        user.id,
-        targetVersion,
-        isRollForward ? `Rolled forward to version ${targetVersion}` : `Rolled back to version ${targetVersion}`
-      )
-      
-      if (result.success && result.targetVersionRecord) {
-        // Suppress file watcher events during download to prevent state overwrites
-        addExpectedFileChanges([file.path])
-        
-        // Download the content for the target version using fast direct download
-        // This bypasses base64 conversion and downloads directly in the main process
-        const { url: downloadUrl, error: urlError } = await getDownloadUrl(
-          organization.id,
-          result.targetVersionRecord.content_hash
-        )
-        
-        if (urlError || !downloadUrl) {
-          addToast('warning', `${actionLabel} to v${targetVersion} - but could not get download URL: ${urlError}`)
-        } else if (window.electronAPI) {
-          // Use direct download API - much faster than blob + base64 conversion
-          const writeResult = await window.electronAPI.downloadUrl(downloadUrl, file.path)
-          if (!writeResult.success) {
-            addToast('warning', `${actionLabel} to v${targetVersion} - but could not write file: ${writeResult.error}`)
-          }
-        }
-        
-        // Mark operation complete for file watcher suppression window
-        setLastOperationCompletedAt(Date.now())
-        
-        // Update the file in the store - set localActiveVersion to track which version we rolled back to
-        // The server's pdmData.version is NOT changed - only localActiveVersion tracks the local state
-        // Also update localHash to match the target version's content hash
-        const serverVersion = file.pdmData.version || 0
-        const isRestoringToServerVersion = targetVersion === serverVersion
-        
-        updateFileInStore(file.path, {
-          // Clear localActiveVersion if we're back at the server version
-          localActiveVersion: isRestoringToServerVersion ? undefined : targetVersion,
-          // Use pdmData.content_hash for server version to ensure check-in fast-path works correctly
-          localHash: isRestoringToServerVersion 
-            ? file.pdmData.content_hash 
-            : result.targetVersionRecord.content_hash,
-          // Only mark as modified if we're NOT at the server's current version
-          diffStatus: isRestoringToServerVersion ? undefined : 'modified'
-        })
-        
-        // Clear expected file changes after a delay to allow file watcher suppression
-        setTimeout(() => clearExpectedFileChanges([file.path]), 5000)
-        
-        addToast('success', `${actionLabel} to version ${targetVersion} of ${result.maxVersion}`)
-        
-        // Reload versions
-        const { versions: fileVersions } = await getFileVersions(file.pdmData.id)
-        if (fileVersions) {
-          setVersions(fileVersions as VersionEntry[])
-        }
-      } else {
-        addToast('error', result.error || `Failed to ${actionLabel.toLowerCase()}`)
-      }
-    } catch (err) {
-      addToast('error', `${actionLabel} failed: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      setRollingBack(null)
-    }
-  }
-
-  // Check if file is editable (must be checked out by current user)
-  const isFileEditable = file?.pdmData?.id && file?.pdmData?.checked_out_by === user?.id
+  // Check if file is editable
+  // - Unsynced files (no pdmData.id): always editable (local-only files)
+  // - Synced files (has pdmData.id): must be checked out by current user
+  const isFileEditable = file && (!file.pdmData?.id || file.pdmData?.checked_out_by === user?.id)
 
   // Handle starting edit of a property field
   const handleStartEdit = (field: 'itemNumber' | 'description' | 'revision' | 'state') => {
-    if (!file?.pdmData?.id) {
-      addToast('info', 'Sync file to cloud first to edit metadata')
-      return
-    }
+    if (!file) return
     
-    // State changes don't require checkout
-    if (file.pdmData.checked_out_by !== user?.id) {
+    // For synced files, require checkout (except state changes)
+    if (file.pdmData?.id && file.pdmData.checked_out_by !== user?.id) {
       addToast('info', 'Check out file to edit metadata')
       return
     }
+    // Unsynced files (no pdmData.id) are always editable - allows setting metadata before first sync
     
+    // Get the current value (check pendingMetadata first, then pdmData)
     let currentValue = ''
     switch (field) {
       case 'itemNumber':
-        currentValue = file.pdmData?.part_number || ''
+        currentValue = file.pendingMetadata?.part_number ?? file.pdmData?.part_number ?? ''
         break
       case 'description':
-        currentValue = file.pdmData?.description || ''
+        currentValue = file.pendingMetadata?.description ?? file.pdmData?.description ?? ''
         break
       case 'revision':
-        currentValue = file.pdmData?.revision || 'A'
+        currentValue = file.pendingMetadata?.revision ?? file.pdmData?.revision ?? 'A'
         break
     }
     
@@ -549,6 +347,8 @@ export function DetailsPanel() {
   }
   
   // Save metadata to SolidWorks file
+  // Writes to BOTH file-level AND default configuration so PRP references in drawings work
+  // Uses live SW API if file is open (keeps file open), otherwise Document Manager (faster)
   const saveMetadataToSWFile = useCallback(async (targetFile: LocalFile, updates: { part_number?: string | null; description?: string | null; revision?: string }) => {
     const ext = targetFile.extension?.toLowerCase() || ''
     if (!['.sldprt', '.sldasm', '.slddrw'].includes(ext)) return
@@ -567,7 +367,78 @@ export function DetailsPanel() {
       
       if (Object.keys(props).length === 0) return
       
-      const result = await window.electronAPI?.solidworks?.setProperties(targetFile.path, props)
+      // Check if file is open in SolidWorks
+      const isOpenResult = await window.electronAPI?.solidworks?.isDocumentOpen?.(targetFile.path)
+      const isOpenInSW = isOpenResult?.success && isOpenResult.data?.isOpen
+      
+      let result: { success: boolean; error?: string } | undefined
+      
+      if (isOpenInSW) {
+        // Use live SolidWorks API - keeps file open in SW
+        result = await window.electronAPI?.solidworks?.setDocumentProperties?.(targetFile.path, props)
+        
+        // Also write to config-level if needed (for PRP in drawings)
+        if (result?.success && ext !== '.slddrw') {
+          const propsResult = await window.electronAPI?.solidworks?.getProperties?.(targetFile.path)
+          if (propsResult?.success && propsResult.data) {
+            const data = propsResult.data as {
+              configurationProperties?: Record<string, Record<string, string>>
+              configurations?: string[]
+            }
+            const configProps = data.configurationProperties
+            const configs = data.configurations || []
+            const activeConfig = configs.find(c => c.toLowerCase() === 'default') 
+              || configs.find(c => c.toLowerCase() === 'standard')
+              || configs[0]
+            
+            if (activeConfig && configProps) {
+              const existingConfigProps = configProps[activeConfig] || {}
+              const missingProps: Record<string, string> = {}
+              for (const [key, value] of Object.entries(props)) {
+                if (!existingConfigProps[key] || existingConfigProps[key].trim() === '' || existingConfigProps[key].startsWith('$')) {
+                  missingProps[key] = value
+                }
+              }
+              if (Object.keys(missingProps).length > 0) {
+                await window.electronAPI?.solidworks?.setDocumentProperties?.(targetFile.path, missingProps, activeConfig)
+              }
+            }
+          }
+        }
+      } else {
+        // Use Document Manager (faster, but requires file not open)
+        result = await window.electronAPI?.solidworks?.setProperties(targetFile.path, props)
+        
+        // ALSO write to default configuration for PRP resolution in drawings
+        if (result?.success && ext !== '.slddrw') {
+          const propsResult = await window.electronAPI?.solidworks?.getProperties?.(targetFile.path)
+          if (propsResult?.success && propsResult.data) {
+            const data = propsResult.data as {
+              configurationProperties?: Record<string, Record<string, string>>
+              configurations?: string[]
+            }
+            const configProps = data.configurationProperties
+            const configs = data.configurations || []
+            const activeConfig = configs.find(c => c.toLowerCase() === 'default') 
+              || configs.find(c => c.toLowerCase() === 'standard')
+              || configs[0]
+            
+            if (activeConfig && configProps) {
+              const existingConfigProps = configProps[activeConfig] || {}
+              const missingProps: Record<string, string> = {}
+              for (const [key, value] of Object.entries(props)) {
+                if (!existingConfigProps[key] || existingConfigProps[key].trim() === '' || existingConfigProps[key].startsWith('$')) {
+                  missingProps[key] = value
+                }
+              }
+              if (Object.keys(missingProps).length > 0) {
+                await window.electronAPI?.solidworks?.setProperties(targetFile.path, missingProps, activeConfig)
+              }
+            }
+          }
+        }
+      }
+      
       if (result?.success) {
         addToast('success', 'Saved metadata to file')
         // Mark as recently modified to protect from LoadFiles overwrite
@@ -588,11 +459,13 @@ export function DetailsPanel() {
 
   // Handle saving an edited property
   const handleSaveEdit = async () => {
-    if (!editingField || !file?.pdmData?.id || !user) {
+    if (!editingField || !file || !user) {
       setEditingField(null)
       setEditValue('')
       return
     }
+    // Allow saving for both synced and unsynced files
+    // Unsynced files store metadata in pendingMetadata which gets synced on first upload
     
     const trimmedValue = editValue.trim()
     
@@ -654,16 +527,18 @@ export function DetailsPanel() {
   }
   
   // Handle generating a serial number for item number - auto-saves immediately
+  // Works for both synced files (checked out) and unsynced local files
   const handleGenerateSerial = async () => {
     if (!organization?.id) {
       addToast('error', 'No organization connected')
       return
     }
     
-    if (!file?.pdmData?.id) {
-      addToast('error', 'File must be synced first')
-      return
-    }
+    if (!file) return
+    
+    // No longer require file to be synced - BR numbers can be generated for local files
+    // The org counter increments atomically, so there won't be conflicts when multiple users
+    // generate numbers for their local files before syncing
     
     try {
       // Generate the serial number first (no spinner yet - this is fast)
@@ -717,20 +592,18 @@ export function DetailsPanel() {
   // Check if file is SolidWorks
   const isSolidWorksFile = file && ['.sldprt', '.sldasm', '.slddrw'].includes(file.extension?.toLowerCase() || '')
 
-  // For SolidWorks files, combine Preview and Properties into a single Datacard tab
+  // For SolidWorks files, use Preview tab (metadata is edited inline in the file tree)
   const allTabs = isSolidWorksFile && !isFolder ? [
-    { id: 'datacard', label: 'Datacard' },
+    { id: 'preview', label: 'Preview' },
     { id: 'whereused', label: 'Where Used' },
     { id: 'contains', label: 'Contains' },
     { id: 'vendors', label: 'Vendors' },
-    { id: 'history', label: 'History' },
   ] as const : [
     { id: 'preview', label: 'Preview' },
     { id: 'properties', label: 'Properties' },
     { id: 'whereused', label: 'Where Used' },
     { id: 'contains', label: 'Contains' },
     { id: 'vendors', label: 'Vendors' },
-    { id: 'history', label: 'History' },
   ] as const
   
   // Filter out tabs that are in the right panel, then sort by custom order
@@ -752,11 +625,9 @@ export function DetailsPanel() {
     reorderTabsInPanel('bottom', tabId as DetailsPanelTab, newIndex)
   }, [reorderTabsInPanel])
   
-  // Auto-switch to datacard tab when selecting a SolidWorks file
+  // Auto-switch to preview tab when selecting a SolidWorks file (properties tab not available for SW files)
   useEffect(() => {
-    if (isSolidWorksFile && !isFolder && (detailsPanelTab === 'preview' || detailsPanelTab === 'properties')) {
-      setDetailsPanelTab('datacard')
-    } else if (!isSolidWorksFile && detailsPanelTab === 'datacard') {
+    if (isSolidWorksFile && !isFolder && detailsPanelTab === 'properties') {
       setDetailsPanelTab('preview')
     }
   }, [isSolidWorksFile, isFolder, detailsPanelTab, setDetailsPanelTab])
@@ -821,8 +692,8 @@ export function DetailsPanel() {
           </div>
         ) : file && (
           <>
-            {/* Combined Datacard tab for SolidWorks files - Preview + Properties */}
-            {detailsPanelTab === 'datacard' && isSolidWorksFile && !isFolder && (
+            {/* Preview tab for SolidWorks files */}
+            {detailsPanelTab === 'preview' && isSolidWorksFile && !isFolder && (
               <SWDatacardPanel file={file} />
             )}
 
@@ -1241,182 +1112,6 @@ export function DetailsPanel() {
 
             {detailsPanelTab === 'vendors' && (
               <VendorsTab file={file} />
-            )}
-
-            {detailsPanelTab === 'history' && (
-              <div>
-                {isFolder ? (
-                  // Folder activity history
-                  isLoadingFolderActivity ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
-                    </div>
-                  ) : folderActivity.length === 0 ? (
-                    <div className="text-sm text-plm-fg-muted text-center py-8">
-                      No activity in this folder
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {folderActivity.map((entry) => {
-                        const actionInfo = ACTION_INFO[entry.action] || { 
-                          icon: <FileText size={14} />, 
-                          label: entry.action, 
-                          color: 'text-plm-fg-muted' 
-                        }
-                        
-                        return (
-                          <div
-                            key={entry.id}
-                            className="p-2 bg-plm-bg-light rounded border border-plm-border hover:border-plm-border-light transition-colors"
-                          >
-                            <div className="flex items-start gap-2">
-                              <span className={`mt-0.5 ${actionInfo.color}`}>
-                                {actionInfo.icon}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm">
-                                  <span className={actionInfo.color}>{actionInfo.label}</span>
-                                  {entry.file ? (
-                                    <span className="text-plm-fg ml-1 truncate">
-                                      {entry.file.file_name}
-                                    </span>
-                                  ) : (entry.details as any)?.file_name ? (
-                                    <span className="text-plm-fg ml-1 truncate">
-                                      {(entry.details as any).file_name}
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-plm-fg-muted mt-1">
-                                  <span className="flex items-center gap-1">
-                                    <User size={10} />
-                                    {entry.user_email.split('@')[0]}
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <Clock size={10} />
-                                    {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                ) : (
-                  // File version history
-                  !file.pdmData ? (
-                    <div className="text-sm text-plm-fg-muted text-center py-8">
-                      File not synced - no version history available
-                    </div>
-                  ) : isLoadingVersions ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
-                    </div>
-                  ) : versions.length === 0 ? (
-                    <div className="text-sm text-plm-fg-muted text-center py-8">
-                      No version history
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {versions.map((version) => {
-                        // Server version is the actual current version stored in pdmData (not necessarily the highest)
-                        const serverVersion = file.pdmData?.version || 0
-                        const isServerVersion = version.version === serverVersion
-                        // Local version: use localActiveVersion if set (after rollback), otherwise use pdmData.version
-                        const localVersion = file.localActiveVersion ?? serverVersion
-                        const isLocalVersion = localVersion === version.version
-                        const canSwitch = !isLocalVersion && file.pdmData?.checked_out_by === user?.id
-                        const isRollForward = version.version > localVersion
-                        
-                        return (
-                          <div
-                            key={version.id}
-                            className={`p-3 rounded-lg border transition-colors ${
-                              isLocalVersion 
-                                ? 'bg-plm-accent/10 border-plm-accent' 
-                                : 'bg-plm-bg-light border-plm-border hover:border-plm-border-light'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <FileText size={14} className="text-plm-accent" />
-                                <span className="text-sm font-medium">
-                                  Version {version.version}
-                                </span>
-                                {isServerVersion && (
-                                  <span className="px-1.5 py-0.5 text-xs bg-plm-success/20 text-plm-success rounded">
-                                    Server
-                                  </span>
-                                )}
-                                {isLocalVersion && (
-                                  <span className="px-1.5 py-0.5 text-xs bg-plm-accent/20 text-plm-accent rounded">
-                                    Local
-                                  </span>
-                                )}
-                                <span className="text-xs text-plm-fg-muted">
-                                  Rev {version.revision}
-                                </span>
-                              </div>
-                              
-                              {canSwitch && (
-                                <button
-                                  onClick={() => handleRollback(version.version)}
-                                  disabled={rollingBack !== null}
-                                  className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors disabled:opacity-50 ${
-                                    isRollForward 
-                                      ? 'bg-plm-info/20 text-plm-info hover:bg-plm-info/30' 
-                                      : 'bg-plm-warning/20 text-plm-warning hover:bg-plm-warning/30'
-                                  }`}
-                                  title={isRollForward ? 'Roll forward to this version' : 'Rollback to this version'}
-                                >
-                                  {rollingBack === version.version ? (
-                                    <Loader2 size={12} className="animate-spin" />
-                                  ) : isRollForward ? (
-                                    <ArrowUp size={12} />
-                                  ) : (
-                                    <RotateCcw size={12} />
-                                  )}
-                                  {isRollForward ? 'Roll forward' : 'Rollback'}
-                                </button>
-                              )}
-                            </div>
-                            
-                            {version.comment && (
-                              <div className="text-sm text-plm-fg-dim mb-2 pl-6">
-                                "{version.comment}"
-                              </div>
-                            )}
-                            
-                            <div className="flex flex-wrap items-center gap-4 text-xs text-plm-fg-muted pl-6">
-                              <div className="flex items-center gap-1">
-                                <User size={12} />
-                                <span>{version.created_by_user?.full_name || version.created_by_user?.email || 'Unknown'}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock size={12} />
-                                <span title={version.created_at ? format(new Date(version.created_at), 'MMM d, yyyy HH:mm:ss') : '-'}>
-                                  {formatDistanceToNow(new Date(version.created_at), { addSuffix: true })}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Info size={12} />
-                                <span>{formatFileSize(version.file_size)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                      
-                      {file.pdmData?.checked_out_by !== user?.id && versions.length > 1 && (
-                        <div className="text-xs text-plm-fg-muted text-center py-2 border-t border-plm-border mt-4">
-                          <span className="text-plm-warning">Check out the file to enable rollback</span>
-                        </div>
-                      )}
-                    </div>
-                  )
-                )}
-              </div>
             )}
           </>
         )}

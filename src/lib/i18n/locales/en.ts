@@ -320,6 +320,7 @@ export const en: TranslationDict = {
     checkedOutBy: 'Checked Out By',
     version: 'Ver',
     itemNumber: 'Item Number',
+    tabNumber: 'Tab',
     description: 'Description',
     revision: 'Rev',
     state: 'State',

@@ -101,26 +101,16 @@ interface VirtualizedTreeRowProps {
 }
 
 /**
- * Get the appropriate icon for a file/folder
+ * Get the appropriate icon for a file/folder.
+ * For folders, uses pre-computed iconColor from folderMetrics with priority-based logic.
+ * Priority order: local-only > server-only > synced > mine > others
  */
-function useFileIcon(
+function useFolderIcon(
   file: LocalFile,
-  checkFolderCheckoutStatus: (path: string) => 'none' | 'mine' | 'others' | 'both' | null,
-  checkFolderSynced: (path: string) => boolean
+  folderIconColor: string
 ) {
   if (file.isDirectory) {
-    // Checkout status takes priority
-    const checkoutStatus = checkFolderCheckoutStatus(file.relativePath)
-    if (checkoutStatus === 'others' || checkoutStatus === 'both') {
-      return <FolderOpen size={16} className="text-plm-error" />
-    }
-    if (checkoutStatus === 'mine') {
-      return <FolderOpen size={16} className="text-orange-400" />
-    }
-    // Derive synced status from children via checkFolderSynced(), not stale folder diffStatus
-    // This ensures the icon updates immediately when files are downloaded
-    const synced = checkFolderSynced(file.relativePath)
-    return <FolderOpen size={16} className={synced ? 'text-plm-success' : 'text-plm-fg-muted'} />
+    return <FolderOpen size={16} className={folderIconColor} />
   }
   
   return <FileIcon file={file} size={16} />
@@ -193,6 +183,7 @@ function arePropsEqual(
     if (prevMetrics && nextMetrics) {
       // Compare metrics that affect visual output
       if (prevMetrics.isSynced !== nextMetrics.isSynced) return false  // Affects folder text styling
+      if (prevMetrics.iconColor !== nextMetrics.iconColor) return false  // Affects folder icon color
       if (prevMetrics.localOnlyFilesCount !== nextMetrics.localOnlyFilesCount) return false
       if (prevMetrics.syncedFilesCount !== nextMetrics.syncedFilesCount) return false
       if (prevMetrics.totalCheckedOutFilesCount !== nextMetrics.totalCheckedOutFilesCount) return false
@@ -268,8 +259,8 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
   onDropOnFolder,
   draggedFilesRef,
   files,
-  checkFolderSynced,
-  checkFolderCheckoutStatus,
+  checkFolderSynced: _checkFolderSynced,
+  checkFolderCheckoutStatus: _checkFolderCheckoutStatus,
   currentFolder,
   lowercaseExtensions,
   toggleFolder,
@@ -299,14 +290,16 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
   const isCurrentFolder = file.isDirectory && file.relativePath === currentFolder
   const isProcessing = operationType !== null
   const isCut = clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)
-  // Don't apply diffClass to folders - folder visual state is derived from children (via checkFolderSynced)
+  // Don't apply diffClass to folders - folder visual state is derived from children (via folderMetrics)
   // Only files should use their own diffStatus for CSS styling (e.g., sidebar-diff-cloud makes text italic)
   const diffClass = (!file.isDirectory && file.diffStatus) ? `${DIFF_STATUS_CLASS_PREFIX}${file.diffStatus}` : ''
   
-  const icon = useFileIcon(file, checkFolderCheckoutStatus, checkFolderSynced)
+  // Use pre-computed iconColor from folderMetrics (priority-based: local-only > server-only > synced > mine > others)
+  const folderIconColor = folderMetrics?.iconColor ?? 'text-plm-fg-muted'
+  const icon = useFolderIcon(file, folderIconColor)
   
-  // Compute folder synced status once for text styling (same check as icon uses)
-  const folderIsSynced = file.isDirectory ? checkFolderSynced(file.relativePath) : false
+  // Use pre-computed isSynced from folderMetrics for text styling (italic/muted when not synced)
+  const folderIsSynced = file.isDirectory ? (folderMetrics?.isSynced ?? false) : false
   
   // Click handler
   const handleClick = useCallback((e: React.MouseEvent) => {

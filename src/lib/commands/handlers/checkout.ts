@@ -422,9 +422,20 @@ export const checkoutCommand: Command<CheckoutParams> = {
           // This allows checking out files without closing SolidWorks!
           // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
           // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
+          const isSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
           const isFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
-          if (SW_EXTENSIONS.includes(file.extension.toLowerCase()) && isFileOpenInSW) {
+          if (isSWFile && isFileOpenInSW) {
             try {
+              // CRITICAL: Clear the file system read-only flag FIRST!
+              // SOLIDWORKS cannot make a document editable if the underlying file is still read-only.
+              // We do this individually for open SW files BEFORE calling setDocumentReadOnly.
+              await window.electronAPI?.setReadonly(file.path, false)
+              
+              logCheckout('debug', 'Attempting to set SW document read-write', {
+                operationId,
+                fileName: file.name,
+                filePath: file.path
+              })
               const setDocRWStart = performance.now()
               const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, false)
               recordSubstepTiming('setDocRW', performance.now() - setDocRWStart)
@@ -435,10 +446,31 @@ export const checkoutCommand: Command<CheckoutParams> = {
                   wasReadOnly: docResult.data.wasReadOnly,
                   isNowReadOnly: docResult.data.isNowReadOnly
                 })
+              } else if (docResult?.success && !docResult.data?.changed) {
+                logCheckout('debug', 'SW document already read-write, no change needed', {
+                  operationId,
+                  fileName: file.name
+                })
+              } else if (!docResult?.success) {
+                logCheckout('warn', 'Failed to set SW document read-write', {
+                  operationId,
+                  fileName: file.name,
+                  error: docResult?.error
+                })
               }
-            } catch {
-              // SW service not available or file not open - that's fine
+            } catch (err) {
+              logCheckout('warn', 'Exception setting SW document read-write', {
+                operationId,
+                fileName: file.name,
+                error: err instanceof Error ? err.message : String(err)
+              })
             }
+          } else if (isSWFile && openDocumentPaths.size > 0) {
+            // File is a SW file but not currently open in SOLIDWORKS
+            logCheckout('debug', 'SW file not open in SOLIDWORKS, skipping setDocumentReadOnly', {
+              operationId,
+              fileName: file.name
+            })
           }
           
           // OPTIMIZATION: Skip metadata extraction on checkout for batch operations
@@ -565,16 +597,30 @@ export const checkoutCommand: Command<CheckoutParams> = {
     if (swFiles.length > 0 && swServiceRunning) {
       try {
         const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.()
-        if (openDocsResult?.success && Array.isArray(openDocsResult.data)) {
+        if (openDocsResult?.success && openDocsResult.data?.documents) {
           // Normalize paths for comparison (lowercase on Windows)
           openDocumentPaths = new Set(
-            (openDocsResult.data as Array<{ path: string }>)
-              .map(doc => doc.path?.toLowerCase())
-              .filter(Boolean)
+            openDocsResult.data.documents
+              .map(doc => doc.filePath?.toLowerCase())
+              .filter((p): p is string => Boolean(p))
           )
+          logCheckout('debug', 'Fetched open SW documents', {
+            operationId,
+            solidWorksRunning: openDocsResult.data.solidWorksRunning,
+            openCount: openDocumentPaths.size,
+            openFiles: Array.from(openDocumentPaths).map(p => p.split(/[/\\]/).pop())
+          })
+        } else if (openDocsResult?.success && !openDocsResult.data?.solidWorksRunning) {
+          logCheckout('debug', 'SOLIDWORKS not running, skipping open document detection', {
+            operationId
+          })
         }
-      } catch {
+      } catch (err) {
         // SW service error - continue without optimization
+        logCheckout('warn', 'Failed to fetch open SW documents', {
+          operationId,
+          error: err instanceof Error ? err.message : String(err)
+        })
       }
     }
     

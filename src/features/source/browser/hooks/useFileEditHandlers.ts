@@ -160,48 +160,53 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     setRenameValue('')
   }, [renamingFile, renameValue, vaultPath, setRenamingFile, setRenameValue, onRefresh])
 
-  // Check if file metadata is editable (file must be checked out by current user)
+  // Check if file metadata is editable
+  // - Unsynced files (no pdmData.id): always editable (local-only files)
+  // - Synced files (has pdmData.id): must be checked out by current user
   const isFileEditable = useCallback((file: LocalFile): boolean => {
-    return !!file.pdmData?.id && file.pdmData?.checked_out_by === user?.id
+    // Unsynced local files are always editable (allows setting BR number before first sync)
+    if (!file.pdmData?.id) {
+      return true
+    }
+    // Synced files must be checked out by current user
+    return file.pdmData?.checked_out_by === user?.id
   }, [user?.id])
 
   // Handle inline cell editing for metadata fields (itemNumber, description, revision, state)
   const handleStartCellEdit = useCallback((file: LocalFile, column: string) => {
-    if (!file.pdmData?.id) {
-      addToast('info', 'Sync file to cloud first to edit metadata')
-      return
-    }
-    
     // Check if user is logged in
     if (!user?.id) {
       addToast('info', 'Sign in to edit metadata')
       return
     }
     
-    // Check if file is checked out by current user
-    if (!file.pdmData.checked_out_by) {
-      addToast('info', 'Check out file to edit metadata')
-      return
+    // For synced files, check checkout status
+    if (file.pdmData?.id) {
+      if (!file.pdmData.checked_out_by) {
+        addToast('info', 'Check out file to edit metadata')
+        return
+      }
+      
+      if (file.pdmData.checked_out_by !== user.id) {
+        const checkedOutUser = (file.pdmData as any).checked_out_user
+        const checkedOutName = checkedOutUser?.full_name || checkedOutUser?.email || 'another user'
+        addToast('info', `File is checked out by ${checkedOutName}`)
+        return
+      }
     }
+    // Unsynced files (no pdmData.id) are always editable - allows setting metadata before first sync
     
-    if (file.pdmData.checked_out_by !== user.id) {
-      const checkedOutUser = (file.pdmData as any).checked_out_user
-      const checkedOutName = checkedOutUser?.full_name || checkedOutUser?.email || 'another user'
-      addToast('info', `File is checked out by ${checkedOutName}`)
-      return
-    }
-    
-    // Get the current value based on column
+    // Get the current value based on column (check pendingMetadata first, then pdmData)
     let currentValue = ''
     switch (column) {
       case 'itemNumber':
-        currentValue = file.pdmData?.part_number || ''
+        currentValue = file.pendingMetadata?.part_number ?? file.pdmData?.part_number ?? ''
         break
       case 'description':
-        currentValue = file.pdmData?.description || ''
+        currentValue = file.pendingMetadata?.description ?? file.pdmData?.description ?? ''
         break
       case 'revision':
-        currentValue = file.pdmData?.revision || 'A'
+        currentValue = file.pendingMetadata?.revision ?? file.pdmData?.revision ?? 'A'
         break
     }
     
@@ -222,11 +227,13 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     }
     
     const file = files.find(f => f.path === editingCell.path)
-    if (!file?.pdmData?.id) {
+    if (!file) {
       setEditingCell(null)
       setEditValue('')
       return
     }
+    // Allow saving for both synced and unsynced files
+    // Unsynced files store metadata in pendingMetadata which gets synced on first upload
     
     const trimmedValue = editValue.trim()
     

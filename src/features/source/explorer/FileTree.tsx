@@ -648,13 +648,14 @@ export function FileTree({ onRefresh }: FileTreeProps) {
       allCheckoutUsers.push({
         id: user.id,
         name: user.full_name || user.email || 'You',
+        email: user.email || undefined,
         avatar_url: user.avatar_url || undefined,
         isMe: true,
         count: checkedOutByMeCount
       })
     }
     if (isActive) {
-      const othersMap = new Map<string, { id: string; name: string; avatar_url?: string; count: number }>()
+      const othersMap = new Map<string, { id: string; name: string; email?: string; avatar_url?: string; count: number }>()
       for (const f of checkedOutByOthers) {
         const checkoutUserId = f.pdmData!.checked_out_by!
         const checkedOutUser = (f.pdmData as any).checked_out_user
@@ -664,6 +665,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
           othersMap.set(checkoutUserId, {
             id: checkoutUserId,
             name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+            email: checkedOutUser?.email,
             avatar_url: checkedOutUser?.avatar_url,
             count: 1
           })

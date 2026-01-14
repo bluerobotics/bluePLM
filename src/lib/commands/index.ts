@@ -71,6 +71,7 @@ import {
   copyCommand,
   newFolderCommand
 } from './handlers/fileOps'
+import { refreshLocalMetadataCommand } from './handlers/refreshLocalMetadata'
 import { syncSwMetadataCommand } from './handlers/syncSwMetadata'
 import { extractReferencesCommand } from './handlers/extractReferences'
 
@@ -101,6 +102,7 @@ function initializeCommands() {
   registerCommand('new-folder', newFolderCommand)
   
   // SolidWorks specific
+  registerCommand('refresh-local-metadata', refreshLocalMetadataCommand)
   registerCommand('sync-sw-metadata', syncSwMetadataCommand)
   registerCommand('extract-references', extractReferencesCommand)
 }
@@ -207,7 +209,17 @@ export async function forceRelease(
 }
 
 /**
- * Sync SolidWorks metadata from file properties
+ * Refresh metadata from local SolidWorks files (reads from file, updates pendingMetadata)
+ */
+export async function refreshLocalMetadata(
+  files: LocalFile[],
+  onRefresh?: (silent?: boolean) => void
+) {
+  return executeCommand('refresh-local-metadata', { files }, { onRefresh })
+}
+
+/**
+ * Sync SolidWorks metadata from file properties (for synced files, updates database)
  */
 export async function syncSwMetadata(
   files: LocalFile[],

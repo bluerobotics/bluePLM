@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscribeToColorSwatches, subscribeToPermissions, subscribeToVaults, unsubscribeAll } from '@/lib/realtime'
+import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscribeToColorSwatches, subscribeToPermissions, subscribeToVaults, subscribeToNotifications, unsubscribeAll } from '@/lib/realtime'
+import { getNotificationById } from '@/lib/supabase/notifications'
 import { buildFullPath } from '@/lib/commands/types'
 import { log } from '@/lib/logger'
 import type { Organization } from '@/types/pdm'
@@ -345,6 +346,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       // All keys in the settings JSONB that admins can modify
       const settingsKeys = [
         'solidworks_dm_license_key',
+        'solidworks_templates',
         'api_url',
         'slack_enabled',
         'slack_webhook_url',
@@ -432,6 +434,71 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           }
         })
         // Don't show generic "settings updated" toast for forced module config
+        return
+      }
+      
+      // Check if SOLIDWORKS templates were force-pushed (admin override)
+      interface SwTemplateSettings {
+        documentTemplates?: string
+        sheetFormats?: string
+        bomTemplates?: string
+        customPropertyFolders?: string
+        promptForTemplate?: boolean
+        lastPushedAt?: string
+        lastPushedBy?: string
+      }
+      const oldTemplateSettings = oldSettings.solidworks_templates as SwTemplateSettings | undefined
+      const newTemplateSettings = newSettings.solidworks_templates as SwTemplateSettings | undefined
+      if (newTemplateSettings?.lastPushedAt && 
+          newTemplateSettings.lastPushedAt !== oldTemplateSettings?.lastPushedAt) {
+        // Admin pushed new SOLIDWORKS template config - apply it immediately to registry
+        log.info('[Realtime]', 'SOLIDWORKS templates pushed by admin', { lastPushedAt: newTemplateSettings.lastPushedAt })
+        
+        // Apply to Windows registry automatically
+        const { vaultPath, solidworksIntegrationEnabled } = usePDMStore.getState()
+        if (vaultPath && solidworksIntegrationEnabled && window.electronAPI?.solidworks?.setFileLocations) {
+          const settings: { 
+            documentTemplates?: string
+            sheetFormats?: string
+            bomTemplates?: string
+            customPropertyFolders?: string
+            promptForTemplate?: boolean 
+          } = {}
+          
+          // Build absolute paths from vault root + relative paths
+          if (newTemplateSettings.documentTemplates) {
+            settings.documentTemplates = `${vaultPath}\\${newTemplateSettings.documentTemplates.replace(/\//g, '\\')}`
+          }
+          if (newTemplateSettings.sheetFormats) {
+            settings.sheetFormats = `${vaultPath}\\${newTemplateSettings.sheetFormats.replace(/\//g, '\\')}`
+          }
+          if (newTemplateSettings.bomTemplates) {
+            settings.bomTemplates = `${vaultPath}\\${newTemplateSettings.bomTemplates.replace(/\//g, '\\')}`
+          }
+          if (newTemplateSettings.customPropertyFolders) {
+            settings.customPropertyFolders = `${vaultPath}\\${newTemplateSettings.customPropertyFolders.replace(/\//g, '\\')}`
+          }
+          
+          // Include prompt for template setting
+          if (newTemplateSettings.promptForTemplate !== undefined) {
+            settings.promptForTemplate = newTemplateSettings.promptForTemplate
+          }
+          
+          window.electronAPI.solidworks.setFileLocations(settings).then((result) => {
+            if (result.success && result.updatedVersions?.length) {
+              log.info('[Realtime]', 'Applied SOLIDWORKS templates to registry', { versions: result.updatedVersions.join(', ') })
+              if (shouldShowToast('system')) {
+                addToast('success', `SOLIDWORKS templates updated by admin (${result.updatedVersions.length} version${result.updatedVersions.length > 1 ? 's' : ''})`, 5000, 'system')
+                playNotificationSound('system')
+              }
+            } else if (result.error) {
+              log.warn('[Realtime]', 'Failed to apply SOLIDWORKS templates', { error: result.error })
+            }
+          }).catch((err) => {
+            log.warn('[Realtime]', 'Error applying SOLIDWORKS templates', { error: String(err) })
+          })
+        }
+        // Don't show generic "settings updated" toast for template push
         return
       }
       
@@ -530,6 +597,44 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       }
     })
     
+    // Subscribe to notifications for this user
+    // Triggers urgent notification modal for urgent priority notifications
+    const unsubscribeNotifications = currentUserId ? subscribeToNotifications(
+      currentUserId,
+      async (eventType, notification) => {
+        if (eventType !== 'INSERT') return
+        
+        log.info('[Realtime]', 'New notification received', { 
+          type: notification.type, 
+          priority: notification.priority,
+          title: notification.title
+        })
+        
+        // For urgent notifications, show the modal
+        if (notification.priority === 'urgent') {
+          // Fetch full notification with joined data (from_user, file)
+          const { notification: fullNotification, error } = await getNotificationById(notification.id)
+          
+          if (!error && fullNotification) {
+            const { setUrgentNotification } = usePDMStore.getState()
+            setUrgentNotification(fullNotification)
+            
+            // Also play notification sound for urgent
+            playNotificationSound('collaboration')
+          }
+        } else {
+          // For non-urgent notifications, just show toast and increment count
+          const { incrementNotificationCount } = usePDMStore.getState()
+          incrementNotificationCount()
+          
+          if (shouldShowToast('collaboration')) {
+            addToast('info', notification.title, 5000, 'collaboration')
+            playNotificationSound('collaboration')
+          }
+        }
+      }
+    ) : () => {}
+    
     return () => {
       // Clear any pending notification timeout
       if (flushTimeout) {
@@ -541,6 +646,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       unsubscribeColorSwatches()
       unsubscribePermissions()
       unsubscribeVaults()
+      unsubscribeNotifications()
       unsubscribeAll()
     }
   }, [organization, isOfflineMode, setOrganization, addToast])

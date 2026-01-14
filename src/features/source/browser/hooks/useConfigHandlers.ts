@@ -65,6 +65,7 @@ export interface ConfigHandlersDeps {
 }
 
 export interface UseConfigHandlersReturn {
+  handleFileTabChange: (filePath: string, value: string) => void
   handleConfigTabChange: (filePath: string, configName: string, value: string) => void
   handleConfigDescriptionChange: (filePath: string, configName: string, value: string) => void
   handleConfigRowClick: (e: React.MouseEvent, filePath: string, configName: string, configs: ConfigWithDepth[]) => void
@@ -106,6 +107,17 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
   const setFileConfigurations = usePDMStore(s => s.setFileConfigurations)
   const addLoadingConfig = usePDMStore(s => s.addLoadingConfig)
   const removeLoadingConfig = usePDMStore(s => s.removeLoadingConfig)
+
+  // Update file-level tab number (for single-config or no-config files)
+  const handleFileTabChange = useCallback((filePath: string, value: string) => {
+    const file = files.find(f => f.path === filePath)
+    if (!file) return
+    
+    // Update pending metadata with file-level tab
+    usePDMStore.getState().updatePendingMetadata(filePath, {
+      tab_number: value.toUpperCase()
+    })
+  }, [files])
 
   // Update config tab number
   const handleConfigTabChange = useCallback((filePath: string, configName: string, value: string) => {
@@ -162,6 +174,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     if (pm.part_number !== undefined) return true
     if (pm.description !== undefined) return true
     if (pm.revision !== undefined) return true
+    if (pm.tab_number !== undefined) return true
     
     // Check config-specific metadata
     if (pm.config_tabs && Object.keys(pm.config_tabs).length > 0) return true
@@ -196,7 +209,8 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       
       const hasBaseChanges = pm.part_number !== undefined || 
                              pm.description !== undefined || 
-                             pm.revision !== undefined
+                             pm.revision !== undefined ||
+                             pm.tab_number !== undefined
       const pendingTabs = pm.config_tabs || {}
       const pendingDescs = pm.config_descriptions || {}
       const hasConfigChanges = Object.keys(pendingTabs).length > 0 || 
@@ -214,6 +228,12 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       const baseNumber = pm.part_number ?? file.pdmData?.part_number ?? ''
       const baseDesc = pm.description ?? file.pdmData?.description ?? ''
       const revision = pm.revision ?? file.pdmData?.revision ?? ''
+      const fileTabNumber = pm.tab_number ?? ''
+      
+      // Get current user for DrawnBy property
+      const currentUser = usePDMStore.getState().user
+      const drawnBy = currentUser?.full_name || currentUser?.email || ''
+      const dateStr = new Date().toISOString().split('T')[0] // YYYY-MM-DD
       
       if (configs.length > 0) {
         // Multi-config file: save to each changed config
@@ -236,6 +256,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           const configTab = pendingTabs[config.name] ?? config.tabNumber ?? ''
           if (baseNumber) {
             props['Number'] = configTab ? `${baseNumber}-${configTab}` : baseNumber
+            props['Base Item Number'] = baseNumber  // Always write base separately
             if (configTab) props['Tab Number'] = configTab
           }
           
@@ -244,6 +265,10 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           if (configDesc) props['Description'] = configDesc
           
           if (revision) props['Revision'] = revision
+          
+          // PDM parity properties - always write Date and DrawnBy
+          props['Date'] = dateStr
+          if (drawnBy) props['DrawnBy'] = drawnBy
           
           if (Object.keys(props).length === 0) continue
           
@@ -263,9 +288,19 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       } else {
         // Single config or no configs loaded - save file-level properties
         const props: Record<string, string> = {}
-        if (baseNumber) props['Number'] = baseNumber
+        
+        // Build full part number (base + file-level tab)
+        if (baseNumber) {
+          props['Number'] = fileTabNumber ? `${baseNumber}-${fileTabNumber}` : baseNumber
+          props['Base Item Number'] = baseNumber
+          if (fileTabNumber) props['Tab Number'] = fileTabNumber
+        }
         if (baseDesc) props['Description'] = baseDesc
         if (revision) props['Revision'] = revision
+        
+        // PDM parity properties - always write Date and DrawnBy
+        props['Date'] = dateStr
+        if (drawnBy) props['DrawnBy'] = drawnBy
         
         if (Object.keys(props).length > 0) {
           try {
@@ -628,6 +663,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
   }, [expandedConfigFiles, selectedConfigs, fileConfigurations, setExpandedConfigFiles, setSelectedConfigs, setFileConfigurations, addLoadingConfig, removeLoadingConfig])
 
   return {
+    handleFileTabChange,
     handleConfigTabChange,
     handleConfigDescriptionChange,
     handleConfigRowClick,

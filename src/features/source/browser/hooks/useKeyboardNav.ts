@@ -88,7 +88,7 @@ export function useKeyboardNav({
     
     // Allow native copy/paste/cut/undo in the details panel or when text is selected
     // This enables Ctrl+C/V/X/Z to work in the bottom pane
-    const isInDetailsPanel = (e.target as HTMLElement)?.closest?.('.details-panel, .sw-datacard-panel, [data-allow-clipboard]')
+    const isInDetailsPanel = (e.target as HTMLElement)?.closest?.('.details-panel, .sw-preview-panel, [data-allow-clipboard]')
     const hasTextSelection = window.getSelection()?.toString()
     
     if (isInDetailsPanel || hasTextSelection) {

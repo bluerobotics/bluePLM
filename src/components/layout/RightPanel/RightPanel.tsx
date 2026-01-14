@@ -3,8 +3,6 @@ import { usePDMStore, LocalFile, DetailsPanelTab } from '@/stores/pdmStore'
 import { getFileIconType } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils'
 import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/DraggableTab'
-import { formatDistanceToNow } from 'date-fns'
-import { getFileVersions } from '@/lib/supabase'
 import { ContainsTab, WhereUsedTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
 import { VendorsTab } from '@/features/source/details/VendorsTab'
@@ -77,18 +75,6 @@ function RightPanelIcon({ file, size = 24 }: { file: LocalFile; size?: number })
   return <IconComponent size={size} className={iconClass} />
 }
 
-interface VersionEntry {
-  id: string
-  version: number
-  revision: string
-  state: string
-  comment: string | null
-  content_hash: string
-  file_size: number
-  created_at: string
-  created_by_user?: { email: string; full_name: string } | null
-}
-
 export function RightPanel() {
   const { 
     getSelectedFileObjects,
@@ -122,9 +108,6 @@ export function RightPanel() {
 
   const selectedFileObjects = getSelectedFileObjects()
   const file = selectedFileObjects.length === 1 ? selectedFileObjects[0] : null
-  
-  const [versions, setVersions] = useState<VersionEntry[]>([])
-  const [isLoadingVersions, setIsLoadingVersions] = useState(false)
   
   // PDF preview state
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
@@ -219,23 +202,6 @@ export function RightPanel() {
     }
     loadPreview()
   }, [file?.path, file?.extension, rightPanelTab])
-
-  // Load versions
-  useEffect(() => {
-    const loadVersions = async () => {
-      if (!file?.pdmData?.id || rightPanelTab !== 'history') {
-        setVersions([])
-        return
-      }
-      setIsLoadingVersions(true)
-      try {
-        const { versions: v } = await getFileVersions(file.pdmData.id)
-        if (v) setVersions(v as VersionEntry[])
-      } catch { }
-      finally { setIsLoadingVersions(false) }
-    }
-    loadVersions()
-  }, [file?.pdmData?.id, rightPanelTab])
 
   const ext = file?.extension?.toLowerCase() || ''
   const isSolidWorksFile = ['.sldprt', '.sldasm', '.slddrw'].includes(ext)
@@ -362,7 +328,7 @@ export function RightPanel() {
                     <img src={`file://${file.path}`} alt={file.name} className="max-w-full max-h-full object-contain" />
                   </div>
                 ) : isSolidWorksFile ? (
-                  // Use the combined datacard panel for SolidWorks files
+                  // Use the preview panel for SolidWorks files
                   <SWDatacardPanel file={file} />
                 ) : isCADFile ? (
                   cadPreviewLoading ? (
@@ -401,32 +367,6 @@ export function RightPanel() {
               </div>
             )}
 
-            {rightPanelTab === 'history' && (
-              <div>
-                {!file.pdmData ? (
-                  <div className="text-sm text-plm-fg-muted text-center py-8">Not synced</div>
-                ) : isLoadingVersions ? (
-                  <Loader2 className="animate-spin mx-auto" size={24} />
-                ) : versions.length === 0 ? (
-                  <div className="text-sm text-plm-fg-muted text-center py-8">No history</div>
-                ) : (
-                  <div className="space-y-2">
-                    {versions.map((v) => (
-                      <div key={v.id} className="p-2 rounded bg-plm-bg-light text-sm">
-                        <div className="flex justify-between">
-                          <span className="font-medium">v{v.version}</span>
-                          <span className="text-plm-fg-muted text-xs">
-                            {formatDistanceToNow(new Date(v.created_at), { addSuffix: true })}
-                          </span>
-                        </div>
-                        {v.comment && <div className="text-plm-fg-muted text-xs mt-1">{v.comment}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {rightPanelTab === 'whereused' && (
               <WhereUsedTab file={file} />
             )}
@@ -437,11 +377,6 @@ export function RightPanel() {
 
             {rightPanelTab === 'vendors' && (
               <VendorsTab file={file} />
-            )}
-
-            {/* Datacard tab - combined preview + properties for SolidWorks */}
-            {rightPanelTab === 'datacard' && isSolidWorksFile && (
-              <SWDatacardPanel file={file} />
             )}
           </>
         )}

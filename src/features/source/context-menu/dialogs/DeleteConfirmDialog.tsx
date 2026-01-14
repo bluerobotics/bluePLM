@@ -1,4 +1,5 @@
 // src/features/source/context-menu/dialogs/DeleteConfirmDialog.tsx
+import { useEffect, useCallback } from 'react'
 import { AlertTriangle, File, Trash2, CloudOff } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { MAX_VISIBLE_FILES } from '../constants'
@@ -18,6 +19,23 @@ export function DeleteConfirmDialog({
   keepLocal,
   onConfirm
 }: DeleteConfirmDialogProps) {
+  // Handle Enter key to confirm
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onConfirm()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onClose()
+    }
+  }, [onConfirm, onClose])
+  
+  useEffect(() => {
+    if (!isOpen) return
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, handleKeyDown])
+  
   if (!isOpen) return null
 
   return (

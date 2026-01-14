@@ -4,7 +4,7 @@ import { getFilesLightweight, getCheckedOutUsers } from '@/lib/supabase'
 import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/commands/types'
 import { recordMetric } from '@/lib/performanceMetrics'
-import { getFilesWithCache } from '@/lib/cache/vaultFileCache'
+import { getFilesWithCache, updateCachedUserInfo } from '@/lib/cache/vaultFileCache'
 import type { LightweightFile } from '@/lib/supabase/files/queries'
 
 /**
@@ -232,11 +232,13 @@ export function useLoadFiles() {
           
           // Create a map of existing files' localActiveVersion to preserve rollback state
           // Use getState() to get current files at execution time (not stale closure value)
+          // Key by BOTH absolute path and relative path for robust lookup during refresh
           const currentFiles = usePDMStore.getState().files
           const existingLocalActiveVersions = new Map<string, number>()
           for (const f of currentFiles) {
             if (f.localActiveVersion !== undefined) {
               existingLocalActiveVersions.set(f.path, f.localActiveVersion)
+              existingLocalActiveVersions.set(f.relativePath, f.localActiveVersion)
             }
           }
           
@@ -256,6 +258,17 @@ export function useLoadFiles() {
           for (const f of currentFiles) {
             if (f.pendingMetadata && Object.keys(f.pendingMetadata).length > 0) {
               existingPendingMetadata.set(f.path, f.pendingMetadata)
+            }
+          }
+          
+          // Create a map of existing checked_out_user info to preserve avatar data
+          // This prevents avatars from showing "SO" (Someone) during file refreshes
+          // The user info is fetched in a background task and should not be lost
+          type CheckedOutUserInfo = { email: string; full_name: string | null; avatar_url?: string }
+          const existingCheckedOutUsers = new Map<string, CheckedOutUserInfo>()
+          for (const f of currentFiles) {
+            if (f.pdmData?.id && (f.pdmData as any).checked_out_user) {
+              existingCheckedOutUsers.set(f.pdmData.id, (f.pdmData as any).checked_out_user)
             }
           }
           
@@ -312,7 +325,17 @@ export function useLoadFiles() {
             }
             
             // Preserve localActiveVersion from existing file (for rollback state)
-            const existingLocalActiveVersion = existingLocalActiveVersions.get(localFile.path)
+            // Try both absolute path and relative path for robust lookup
+            const existingLocalActiveVersion = existingLocalActiveVersions.get(localFile.path) 
+              || existingLocalActiveVersions.get(localFile.relativePath)
+            
+            // Debug: log when localActiveVersion is being preserved (helps diagnose rollback issues)
+            if (existingLocalActiveVersion !== undefined) {
+              window.electronAPI?.log('debug', '[LoadFiles] Preserving localActiveVersion', {
+                path: localFile.relativePath,
+                version: existingLocalActiveVersion
+              })
+            }
             
             // Preserve localHash from existing file if not computed fresh
             // This prevents falling back to timestamp-based diff detection after file watcher refreshes
@@ -375,18 +398,29 @@ export function useLoadFiles() {
               const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
               const isCheckedOutByMe = pdmData.checked_out_by === user?.id
               
-              // Add a small tolerance (5 seconds) for timestamp comparison
-              // to account for filesystem timestamp precision differences
-              const TOLERANCE_MS = 5000
+              // Tolerance for "modified" detection (my file, local newer)
+              // Small tolerance is OK since false positives are less harmful (just shows yellow instead of nothing)
+              const MODIFIED_TOLERANCE_MS = 5000
               
-              if (isCheckedOutByMe && localModTime > cloudUpdateTime + TOLERANCE_MS) {
+              // CONSERVATIVE tolerance for "outdated" detection (server newer)
+              // We use a large tolerance because false "outdated" positives are confusing to users
+              // (files showing purple/outdated when they're actually synced)
+              // If no local hash is available, we only mark as outdated if the server is significantly newer
+              // Background hash computation will eventually set the accurate status
+              const OUTDATED_TOLERANCE_MS = 600000 // 10 minutes
+              
+              if (isCheckedOutByMe && localModTime > cloudUpdateTime + MODIFIED_TOLERANCE_MS) {
                 // I have it checked out and local file is newer → I modified it
                 diffStatus = 'modified'
-              } else if (!isCheckedOutByMe && cloudUpdateTime > localModTime + TOLERANCE_MS) {
-                // Someone else updated it and server is newer → outdated
+              } else if (!isCheckedOutByMe && cloudUpdateTime > localModTime + OUTDATED_TOLERANCE_MS) {
+                // Someone else updated it and server is much newer → likely outdated
+                // Using conservative 10-minute window to avoid false positives from:
+                // - Windows preserving server timestamps on download
+                // - Clock drift between client and server
+                // - Server metadata updates without content changes
                 diffStatus = 'outdated'
               }
-              // Otherwise: timestamps are close enough → assume synced (no diff)
+              // Otherwise: timestamps are close enough → assume synced until hash computation confirms
             }
             // The background hash computation will set the proper status once hashes are computed
             
@@ -421,6 +455,20 @@ export function useLoadFiles() {
                 part_number: preservedPending.part_number !== undefined ? preservedPending.part_number : pdmData.part_number,
                 description: preservedPending.description !== undefined ? preservedPending.description : pdmData.description,
                 revision: preservedPending.revision !== undefined ? preservedPending.revision : pdmData.revision,
+              }
+            }
+            
+            // Preserve checked_out_user info if the checkout user hasn't changed
+            // This prevents "SO" (Someone) avatars during file refreshes
+            if (finalPdmData?.id) {
+              const preservedUserInfo = existingCheckedOutUsers.get(finalPdmData.id)
+              if (preservedUserInfo && finalPdmData.checked_out_by) {
+                // If checkout user is the same, preserve the user info
+                // The server data doesn't include the joined user info
+                finalPdmData = {
+                  ...finalPdmData,
+                  checked_out_user: preservedUserInfo
+                } as any
               }
             }
             
@@ -490,6 +538,12 @@ export function useLoadFiles() {
               }
               
               // Add the cloud-only file (not synced locally)
+              // Preserve checked_out_user info if we have it cached
+              const preservedCloudUserInfo = existingCheckedOutUsers.get(pdmFile.id)
+              const cloudFilePdmData = preservedCloudUserInfo && pdmFile.checked_out_by
+                ? { ...pdmFile, checked_out_user: preservedCloudUserInfo }
+                : pdmFile
+              
               localFiles.push({
                 name: pdmFile.file_name,
                 path: buildFullPath(loadingForVaultPath, pdmFile.file_path),
@@ -498,7 +552,7 @@ export function useLoadFiles() {
                 extension: pdmFile.extension,
                 size: pdmFile.file_size || 0,
                 modifiedTime: pdmFile.updated_at || '',
-                pdmData: pdmFile,
+                pdmData: cloudFilePdmData,
                 isSynced: false, // Not synced locally
                 diffStatus: isDeletedByMe ? 'deleted' : 'cloud' // Deleted if I moved/removed it, otherwise cloud
               })
@@ -663,6 +717,14 @@ export function useLoadFiles() {
               })
               setFiles(updatedFiles)
               const updateDuration = performance.now() - updateStart
+              
+              // Also persist user info to IndexedDB cache for next app boot
+              // This prevents "SO" avatars on subsequent loads
+              if (loadingForVaultId) {
+                updateCachedUserInfo(loadingForVaultId, userInfoMap).catch(err => {
+                  window.electronAPI?.log('warn', '[LoadFiles] Failed to update cache with user info', { error: String(err) })
+                })
+              }
               
               recordMetric('VaultLoad', 'User info update complete', {
                 durationMs: Math.round(updateDuration),

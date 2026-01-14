@@ -492,6 +492,48 @@ export const createFilesSlice: StateCreator<
     })
   },
   
+  // Update a pending version note for a specific version (syncs on check-in)
+  updatePendingVersionNote: (path, versionId, note) => {
+    set(state => {
+      return {
+        files: state.files.map(f => {
+          if (f.path === path) {
+            const existingNotes = f.pendingVersionNotes || {}
+            // If note is empty, remove it from the record
+            const newNotes = note.trim() 
+              ? { ...existingNotes, [versionId]: note }
+              : Object.fromEntries(Object.entries(existingNotes).filter(([id]) => id !== versionId))
+            return { 
+              ...f, 
+              pendingVersionNotes: Object.keys(newNotes).length > 0 ? newNotes : undefined 
+            }
+          }
+          return f
+        })
+      }
+    })
+  },
+  
+  // Clear all pending version notes for a file (after check-in syncs them)
+  clearPendingVersionNotes: (path) => {
+    set(state => ({
+      files: state.files.map(f => 
+        f.path === path ? { ...f, pendingVersionNotes: undefined } : f
+      )
+    }))
+  },
+  
+  // Update the pending check-in note for the upcoming local version
+  updatePendingCheckinNote: (path, note) => {
+    set(state => ({
+      files: state.files.map(f => 
+        f.path === path 
+          ? { ...f, pendingCheckinNote: note.trim() || undefined } 
+          : f
+      )
+    }))
+  },
+  
   renameFileInStore: (oldPath, newPath, newNameOrRelPath, isMove = false) => {
     const { files, selectedFiles } = get()
     
@@ -589,7 +631,16 @@ export const createFilesSlice: StateCreator<
       set(state => ({
         files: state.files.map(f => 
           f.relativePath.toLowerCase() === pdmFile.file_path.toLowerCase()
-            ? { ...f, pdmData: pdmFile, isSynced: true, diffStatus: f.localHash === pdmFile.content_hash ? undefined : 'outdated' }
+            ? { 
+                ...f, 
+                pdmData: pdmFile, 
+                isSynced: true, 
+                // Only compute diff status if we have a local hash to compare against
+                // If no local hash, preserve existing status to avoid false "outdated" positives
+                diffStatus: !f.localHash 
+                  ? f.diffStatus 
+                  : (f.localHash === pdmFile.content_hash ? undefined : 'outdated')
+              }
             : f
         )
       }))
@@ -650,17 +701,33 @@ export const createFilesSlice: StateCreator<
             revision: f.pendingMetadata.revision !== undefined ? f.pdmData.revision : pdmData.revision,
           } : {}
           
-          const updatedPdmData = { ...f.pdmData, ...pdmData, ...preservedFields } as PDMFile
+          // Preserve checked_out_user if not explicitly provided in the update
+          // Realtime events don't include joined user info, so we preserve existing data
+          // to prevent "SO" (Someone) avatars from appearing during file updates
+          const existingUserInfo = (f.pdmData as any)?.checked_out_user
+          const preserveUserInfo = existingUserInfo && 
+            !('checked_out_user' in pdmData) && 
+            f.pdmData.checked_out_by === pdmData.checked_out_by
           
-          // Recompute diff status if content hash changed
+          const updatedPdmData = { 
+            ...f.pdmData, 
+            ...pdmData, 
+            ...preservedFields,
+            ...(preserveUserInfo ? { checked_out_user: existingUserInfo } : {})
+          } as PDMFile
+          
+          // Recompute diff status ONLY if we have a reliable local hash to compare against
+          // If no local hash (or empty string), preserve existing diffStatus to avoid false "outdated" positives
+          // This prevents race conditions where realtime events arrive before local hash is computed
           let newDiffStatus = f.diffStatus
-          if (pdmData.content_hash && f.localHash) {
+          if (pdmData.content_hash && f.localHash && f.localHash.length > 0) {
             if (pdmData.content_hash !== f.localHash) {
               newDiffStatus = 'outdated'
             } else if (f.diffStatus === 'outdated') {
               newDiffStatus = undefined
             }
           }
+          // If no local hash, preserve existing diffStatus (no change to newDiffStatus)
           
           // Handle checkout status changes for files marked as 'deleted'
           if (f.diffStatus === 'deleted' && 'checked_out_by' in pdmData && pdmData.checked_out_by === null) {

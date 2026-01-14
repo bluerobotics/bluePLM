@@ -28,7 +28,9 @@ import {
   FileText,
   Link2,
   AlertCircle,
-  Search
+  Search,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 
 interface VendorsTabProps {
@@ -54,12 +56,13 @@ export function VendorsTab({ file }: VendorsTabProps) {
     supplier_part_number: '',
     supplier_description: '',
     supplier_url: '',
-    unit_price: '',
     currency: 'USD',
     min_order_qty: '1',
     lead_time_days: '',
-    notes: ''
+    notes: '',
+    price_breaks: [] as Array<{ qty: number; price: number }>
   })
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false)
 
   const fileId = file.pdmData?.id
   const isSynced = !!fileId
@@ -118,14 +121,15 @@ export function VendorsTab({ file }: VendorsTabProps) {
       supplier_part_number: '',
       supplier_description: '',
       supplier_url: '',
-      unit_price: '',
       currency: 'USD',
       min_order_qty: '1',
       lead_time_days: '',
-      notes: ''
+      notes: '',
+      price_breaks: []
     })
     setShowAddForm(false)
     setShowNewVendorForm(false)
+    setShowVendorDropdown(false)
     setNewVendorName('')
     setEditingId(null)
     setSearchQuery('')
@@ -180,6 +184,10 @@ export function VendorsTab({ file }: VendorsTabProps) {
 
     setIsAdding(true)
     try {
+      // Get base price from qty=1 break (or lowest qty break)
+      const sortedBreaks = [...formData.price_breaks].sort((a, b) => a.qty - b.qty)
+      const basePrice = sortedBreaks.length > 0 ? sortedBreaks[0].price : null
+      
       const { data, error } = await addPartSupplier(
         organization.id,
         fileId,
@@ -188,11 +196,12 @@ export function VendorsTab({ file }: VendorsTabProps) {
           supplier_part_number: formData.supplier_part_number || null,
           supplier_description: formData.supplier_description || null,
           supplier_url: formData.supplier_url || null,
-          unit_price: formData.unit_price ? parseFloat(formData.unit_price) : null,
+          unit_price: basePrice,
           currency: formData.currency,
           min_order_qty: formData.min_order_qty ? parseInt(formData.min_order_qty) : 1,
           lead_time_days: formData.lead_time_days ? parseInt(formData.lead_time_days) : null,
           notes: formData.notes || null,
+          price_breaks: formData.price_breaks.length > 0 ? formData.price_breaks : null,
           is_preferred: partSuppliers.length === 0 // First vendor is preferred
         },
         user.id
@@ -217,17 +226,22 @@ export function VendorsTab({ file }: VendorsTabProps) {
     if (!editingId || !user?.id) return
 
     try {
+      // Get base price from qty=1 break (or lowest qty break)
+      const sortedBreaks = [...formData.price_breaks].sort((a, b) => a.qty - b.qty)
+      const basePrice = sortedBreaks.length > 0 ? sortedBreaks[0].price : null
+      
       const { success, error } = await updatePartSupplier(
         editingId,
         {
           supplier_part_number: formData.supplier_part_number || null,
           supplier_description: formData.supplier_description || null,
           supplier_url: formData.supplier_url || null,
-          unit_price: formData.unit_price ? parseFloat(formData.unit_price) : null,
+          unit_price: basePrice,
           currency: formData.currency,
           min_order_qty: formData.min_order_qty ? parseInt(formData.min_order_qty) : 1,
           lead_time_days: formData.lead_time_days ? parseInt(formData.lead_time_days) : null,
-          notes: formData.notes || null
+          notes: formData.notes || null,
+          price_breaks: formData.price_breaks.length > 0 ? formData.price_breaks : null
         },
         user.id
       )
@@ -286,16 +300,23 @@ export function VendorsTab({ file }: VendorsTabProps) {
   // Start editing a vendor
   const startEdit = (ps: PartSupplier) => {
     setEditingId(ps.id)
+    
+    // Build price breaks - if we have unit_price but no price_breaks, create one
+    let breaks = ps.price_breaks || []
+    if (breaks.length === 0 && ps.unit_price !== null) {
+      breaks = [{ qty: 1, price: ps.unit_price }]
+    }
+    
     setFormData({
       supplier_id: ps.supplier_id,
       supplier_part_number: ps.supplier_part_number || '',
       supplier_description: ps.supplier_description || '',
       supplier_url: ps.supplier_url || '',
-      unit_price: ps.unit_price?.toString() || '',
       currency: ps.currency || 'USD',
       min_order_qty: ps.min_order_qty?.toString() || '1',
       lead_time_days: ps.lead_time_days?.toString() || '',
-      notes: ps.notes || ''
+      notes: ps.notes || '',
+      price_breaks: breaks
     })
     setShowAddForm(false)
   }
@@ -373,28 +394,99 @@ export function VendorsTab({ file }: VendorsTabProps) {
             </button>
           </div>
 
-          {/* Vendor selector with search */}
+          {/* Vendor selector with search and dropdown */}
           <div className="space-y-1.5">
             <label className="text-[10px] text-plm-fg-muted">Select Vendor</label>
-            <div className="flex gap-1">
-              <div className="relative flex-1">
-                <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search vendors..."
-                  className="w-full pl-7 pr-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
-                />
+            
+            {/* Selected vendor display */}
+            {formData.supplier_id && !showNewVendorForm && (
+              <div className="flex items-center gap-1.5 p-1.5 bg-plm-accent/10 border border-plm-accent/30 rounded">
+                <Building2 size={12} className="text-plm-accent" />
+                <span className="text-xs font-medium">
+                  {suppliers.find(s => s.id === formData.supplier_id)?.name}
+                </span>
+                <button 
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, supplier_id: '' }))
+                    setShowVendorDropdown(true)
+                  }}
+                  className="ml-auto text-plm-fg-muted hover:text-plm-fg"
+                  title="Change vendor"
+                >
+                  <X size={10} />
+                </button>
               </div>
-              <button
-                onClick={() => setShowNewVendorForm(true)}
-                className="px-1.5 py-1 bg-plm-highlight hover:bg-plm-highlight/80 border border-plm-border rounded text-plm-fg-muted hover:text-plm-fg transition-colors"
-                title="Create new vendor"
-              >
-                <Plus size={12} />
-              </button>
-            </div>
+            )}
+            
+            {/* Vendor selector */}
+            {!formData.supplier_id && !showNewVendorForm && (
+              <div className="relative">
+                <div className="flex gap-1">
+                  <div className="relative flex-1">
+                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => {
+                        setSearchQuery(e.target.value)
+                        setShowVendorDropdown(true)
+                      }}
+                      onFocus={() => setShowVendorDropdown(true)}
+                      placeholder="Search or select vendor..."
+                      className="w-full pl-7 pr-7 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowVendorDropdown(!showVendorDropdown)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
+                    >
+                      {showVendorDropdown ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowNewVendorForm(true)
+                      setShowVendorDropdown(false)
+                    }}
+                    className="px-1.5 py-1 bg-plm-highlight hover:bg-plm-highlight/80 border border-plm-border rounded text-plm-fg-muted hover:text-plm-fg transition-colors"
+                    title="Create new vendor"
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+                
+                {/* Vendor dropdown list */}
+                {showVendorDropdown && (
+                  <div className="absolute z-10 w-full mt-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded shadow-lg">
+                    {availableSuppliers.length === 0 ? (
+                      <div className="p-2 text-[10px] text-plm-fg-muted text-center">
+                        {searchQuery ? 'No vendors found' : 'No available vendors'}
+                      </div>
+                    ) : (
+                      availableSuppliers.map(vendor => (
+                        <button
+                          key={vendor.id}
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, supplier_id: vendor.id }))
+                            setSearchQuery('')
+                            setShowVendorDropdown(false)
+                          }}
+                          className="w-full p-1.5 text-left hover:bg-plm-highlight flex items-center gap-1.5 border-b border-plm-border last:border-b-0"
+                        >
+                          <Building2 size={12} className="text-plm-fg-muted flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs truncate">{vendor.name}</div>
+                            {vendor.code && (
+                              <div className="text-[9px] text-plm-fg-muted font-mono">{vendor.code}</div>
+                            )}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             
             {/* New vendor inline form */}
             {showNewVendorForm && (
@@ -428,49 +520,6 @@ export function VendorsTab({ file }: VendorsTabProps) {
                     Cancel
                   </button>
                 </div>
-              </div>
-            )}
-            
-            {searchQuery && !showNewVendorForm && (
-              <div className="max-h-32 overflow-y-auto bg-plm-bg border border-plm-border rounded">
-                {availableSuppliers.length === 0 ? (
-                  <div className="p-2 text-[10px] text-plm-fg-muted text-center">No vendors found</div>
-                ) : (
-                  availableSuppliers.slice(0, 8).map(vendor => (
-                    <button
-                      key={vendor.id}
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, supplier_id: vendor.id }))
-                        setSearchQuery(vendor.name)
-                      }}
-                      className={`w-full p-1.5 text-left hover:bg-plm-highlight flex items-center gap-1.5 ${
-                        formData.supplier_id === vendor.id ? 'bg-plm-accent/20' : ''
-                      }`}
-                    >
-                      <Building2 size={12} className="text-plm-fg-muted flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs truncate">{vendor.name}</div>
-                        {vendor.code && (
-                          <div className="text-[9px] text-plm-fg-muted font-mono">{vendor.code}</div>
-                        )}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-            {formData.supplier_id && !searchQuery && !showNewVendorForm && (
-              <div className="flex items-center gap-1.5 p-1.5 bg-plm-accent/10 rounded">
-                <Building2 size={12} className="text-plm-accent" />
-                <span className="text-xs">
-                  {suppliers.find(s => s.id === formData.supplier_id)?.name}
-                </span>
-                <button 
-                  onClick={() => setFormData(prev => ({ ...prev, supplier_id: '' }))}
-                  className="ml-auto text-plm-fg-muted hover:text-plm-fg"
-                >
-                  <X size={10} />
-                </button>
               </div>
             )}
           </div>
@@ -528,6 +577,158 @@ export function VendorsTab({ file }: VendorsTabProps) {
   )
 }
 
+// Price break type
+interface PriceBreak {
+  qty: number
+  price: number
+}
+
+// Price Breaks Editor component - always expanded
+function PriceBreaksEditor({
+  priceBreaks,
+  currency,
+  onChangeCurrency,
+  onChange
+}: {
+  priceBreaks: PriceBreak[]
+  currency: string
+  onChangeCurrency: (currency: string) => void
+  onChange: (breaks: PriceBreak[]) => void
+}) {
+  const [newQty, setNewQty] = useState(priceBreaks.length === 0 ? '1' : '')
+  const [newPrice, setNewPrice] = useState('')
+
+  const handleAddBreak = () => {
+    const qty = parseInt(newQty)
+    const price = parseFloat(newPrice)
+    
+    if (isNaN(qty) || qty <= 0 || isNaN(price) || price < 0) return
+    
+    // Check if quantity already exists
+    if (priceBreaks.some(b => b.qty === qty)) {
+      // Update existing
+      onChange(priceBreaks.map(b => b.qty === qty ? { qty, price } : b))
+    } else {
+      // Add new and sort by quantity
+      const updated = [...priceBreaks, { qty, price }].sort((a, b) => a.qty - b.qty)
+      onChange(updated)
+    }
+    
+    setNewQty('')
+    setNewPrice('')
+  }
+
+  const handleRemoveBreak = (qty: number) => {
+    onChange(priceBreaks.filter(b => b.qty !== qty))
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddBreak()
+    }
+  }
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency || 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4
+    }).format(price)
+  }
+
+  return (
+    <div className="border border-plm-border rounded">
+      {/* Header with currency selector */}
+      <div className="flex items-center justify-between px-2 py-1.5 border-b border-plm-border bg-plm-highlight/30">
+        <div className="flex items-center gap-1.5">
+          <DollarSign size={10} className="text-plm-fg-muted" />
+          <span className="text-[10px] font-medium">Cost Breaks</span>
+        </div>
+        <select
+          value={currency}
+          onChange={e => onChangeCurrency(e.target.value)}
+          className="px-1.5 py-0.5 bg-plm-input border border-plm-border rounded text-[10px] focus:outline-none focus:border-plm-accent"
+        >
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="CNY">CNY</option>
+          <option value="JPY">JPY</option>
+        </select>
+      </div>
+
+      <div className="px-2 py-2 space-y-2">
+        {/* Existing price breaks */}
+        {priceBreaks.length > 0 && (
+          <div className="space-y-1">
+            {priceBreaks.map((pb, idx) => (
+              <div key={idx} className="flex items-center gap-2 py-1 px-1.5 bg-plm-bg rounded text-[10px]">
+                <span className="text-plm-fg-muted">@</span>
+                <span className="font-medium w-12">{pb.qty.toLocaleString()}+</span>
+                <span className="text-plm-fg-muted">→</span>
+                <span className="font-medium text-plm-success">{formatPrice(pb.price)}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveBreak(pb.qty)}
+                  className="ml-auto p-0.5 text-plm-fg-muted hover:text-plm-error rounded transition-colors"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add new break - always visible */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-plm-fg-muted">@</span>
+          <input
+            type="number"
+            min="1"
+            value={newQty}
+            onChange={e => setNewQty(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={priceBreaks.length === 0 ? "1" : "Qty"}
+            className="w-14 px-1.5 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
+          />
+          <span className="text-[10px] text-plm-fg-muted">→</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={newPrice}
+            onChange={e => setNewPrice(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Price"
+            className="w-20 px-1.5 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
+          />
+          <button
+            type="button"
+            onClick={handleAddBreak}
+            disabled={!newQty || !newPrice}
+            className="p-1 bg-plm-accent hover:bg-plm-accent/90 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+        
+        {priceBreaks.length === 0 && (
+          <div className="text-[9px] text-plm-fg-muted">
+            Add your first price break (e.g., @ 1+ → $10.00)
+          </div>
+        )}
+        {priceBreaks.length > 0 && (
+          <div className="text-[9px] text-plm-fg-muted">
+            Add more quantity tiers for volume discounts
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Vendor form fields component
 function VendorFormFields({ 
   formData, 
@@ -537,61 +738,40 @@ function VendorFormFields({
     supplier_part_number: string
     supplier_description: string
     supplier_url: string
-    unit_price: string
     currency: string
     min_order_qty: string
     lead_time_days: string
     notes: string
+    price_breaks: PriceBreak[]
   }
   setFormData: React.Dispatch<React.SetStateAction<typeof formData & { supplier_id: string }>>
 }) {
   return (
     <div className="space-y-2">
-      {/* Row 1: Vendor P/N + Price */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
-            <Hash size={9} />
-            Vendor P/N
-          </label>
-          <input
-            type="text"
-            value={formData.supplier_part_number}
-            onChange={e => setFormData(prev => ({ ...prev, supplier_part_number: e.target.value }))}
-            placeholder="e.g. ABC-123"
-            className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
-            <DollarSign size={9} />
-            Unit Price
-          </label>
-          <div className="flex gap-1">
-            <input
-              type="number"
-              step="0.01"
-              value={formData.unit_price}
-              onChange={e => setFormData(prev => ({ ...prev, unit_price: e.target.value }))}
-              placeholder="0.00"
-              className="w-20 px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
-            />
-            <select
-              value={formData.currency}
-              onChange={e => setFormData(prev => ({ ...prev, currency: e.target.value }))}
-              className="px-1.5 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
-            >
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="GBP">GBP</option>
-              <option value="CNY">CNY</option>
-              <option value="JPY">JPY</option>
-            </select>
-          </div>
-        </div>
+      {/* Vendor P/N */}
+      <div>
+        <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
+          <Hash size={9} />
+          Vendor P/N
+        </label>
+        <input
+          type="text"
+          value={formData.supplier_part_number}
+          onChange={e => setFormData(prev => ({ ...prev, supplier_part_number: e.target.value }))}
+          placeholder="e.g. ABC-123"
+          className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
+        />
       </div>
 
-      {/* Row 2: MOQ + Lead Time */}
+      {/* Cost Breaks Editor - always visible */}
+      <PriceBreaksEditor
+        priceBreaks={formData.price_breaks}
+        currency={formData.currency}
+        onChangeCurrency={(currency) => setFormData(prev => ({ ...prev, currency }))}
+        onChange={(breaks) => setFormData(prev => ({ ...prev, price_breaks: breaks }))}
+      />
+
+      {/* MOQ + Lead Time */}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
@@ -690,11 +870,11 @@ function VendorCard({
     supplier_part_number: string
     supplier_description: string
     supplier_url: string
-    unit_price: string
     currency: string
     min_order_qty: string
     lead_time_days: string
     notes: string
+    price_breaks: PriceBreak[]
   }
   setFormData: React.Dispatch<React.SetStateAction<typeof formData>>
   onEdit: () => void
@@ -803,10 +983,6 @@ function VendorCard({
             <span className="font-mono">{partSupplier.supplier_part_number}</span>
           </div>
         )}
-        <div className="flex items-center gap-1">
-          <span className="text-plm-fg-muted">Price:</span>
-          <span className="font-medium">{formatPrice(partSupplier.unit_price, partSupplier.currency)}</span>
-        </div>
         {partSupplier.lead_time_days && (
           <div className="flex items-center gap-1">
             <span className="text-plm-fg-muted">Lead:</span>
@@ -836,6 +1012,39 @@ function VendorCard({
           </a>
         )}
       </div>
+
+      {/* Cost Breaks Display - unified pricing */}
+      {(() => {
+        // Use price_breaks if available, otherwise fallback to unit_price
+        const breaks = partSupplier.price_breaks && partSupplier.price_breaks.length > 0 
+          ? partSupplier.price_breaks 
+          : partSupplier.unit_price !== null 
+            ? [{ qty: 1, price: partSupplier.unit_price }]
+            : []
+        
+        if (breaks.length === 0) return null
+        
+        return (
+          <div className="mt-1.5 ml-7">
+            <div className="flex flex-wrap gap-1.5">
+              {breaks.map((pb, idx) => (
+                <div 
+                  key={idx} 
+                  className={`px-1.5 py-0.5 rounded text-[9px] flex items-center gap-1 ${
+                    idx === 0 ? 'bg-plm-accent/10 border border-plm-accent/30' : 'bg-plm-highlight'
+                  }`}
+                >
+                  <span className="font-medium">{pb.qty.toLocaleString()}+</span>
+                  <span className="text-plm-fg-muted">→</span>
+                  <span className={`font-medium ${idx === 0 ? 'text-plm-accent' : 'text-plm-success'}`}>
+                    {formatPrice(pb.price, partSupplier.currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Notes */}
       {partSupplier.notes && (

@@ -680,6 +680,42 @@ namespace BluePLM.SolidWorksService
                     }
                 }
                 
+                if (ext == ".slddrw")
+                {
+                    var hasPrpReferences = HasPrpReferences(fileProps);
+                    var needsReferencedModel = fileProps.Count == 0 || hasPrpReferences;
+                    if (needsReferencedModel)
+                    {
+                        var reason = fileProps.Count == 0 ? "no drawing properties" : "PRP references detected";
+                        Console.Error.WriteLine($"[DM] Drawing PRP resolution: {reason}; using first referenced model");
+
+                        var referencedProps = ReadDrawingReferencedModelProperties(dynDoc, filePath!);
+                        if (referencedProps.Count > 0)
+                        {
+                            if (fileProps.Count == 0)
+                            {
+                                fileProps = referencedProps;
+                            }
+                            else
+                            {
+                                foreach (var kvp in referencedProps)
+                                {
+                                    if (!fileProps.TryGetValue(kvp.Key, out string? currentValue) || IsPrpReference(currentValue))
+                                    {
+                                        fileProps[kvp.Key] = kvp.Value;
+                                    }
+                                }
+                            }
+
+                            Console.Error.WriteLine($"[DM] Drawing PRP resolution: applied {referencedProps.Count} properties from referenced model");
+                        }
+                        else
+                        {
+                            Console.Error.WriteLine("[DM] Drawing PRP resolution: no referenced model properties found");
+                        }
+                    }
+                }
+
                 var configNames = GetConfigurationNames(dynDoc);
                 var configProps = new Dictionary<string, Dictionary<string, string>>();
                 
@@ -717,6 +753,21 @@ namespace BluePLM.SolidWorksService
                 // Release per-file lock
                 fileLock.Release();
             }
+        }
+
+        private static bool HasPrpReferences(Dictionary<string, string> properties)
+        {
+            return properties.Any(kvp => IsPrpReference(kvp.Value));
+        }
+
+        private static bool IsPrpReference(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            return value.IndexOf("PRP:", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   value.IndexOf("$PRP:", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   value.IndexOf("SW-PRP:", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private Dictionary<string, string> ReadProperties(dynamic doc, string? configuration)
@@ -1073,17 +1124,17 @@ namespace BluePLM.SolidWorksService
                                     }
                                     else
                                     {
-                                        Console.Error.WriteLine($"[DM] Failed to open referenced model, error: {modelOpenError}");
+                                        Console.Error.WriteLine($"[DM] Drawing PRP resolution: failed to open referenced model (error {modelOpenError})");
                                     }
                                 }
                                 else
                                 {
-                                    Console.Error.WriteLine($"[DM] Referenced model file not found: {primaryModelPath}");
+                                    Console.Error.WriteLine($"[DM] Drawing PRP resolution: referenced model missing: {primaryModelPath}");
                                 }
                             }
                             else
                             {
-                                Console.Error.WriteLine($"[DM] No external references found in drawing");
+                                Console.Error.WriteLine("[DM] Drawing PRP resolution: no referenced model found");
                             }
                         }
                     }
@@ -1143,22 +1194,31 @@ namespace BluePLM.SolidWorksService
                 if (string.IsNullOrEmpty(configuration))
                 {
                     // Set file-level properties
+                    Console.Error.WriteLine($"[DM] Writing {properties.Count} properties to file-level");
+                    
                     foreach (var kvp in properties)
                     {
                         try
                         {
-                            try { dynDoc.DeleteCustomProperty(kvp.Key); } catch { }
-                            dynDoc.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
-                            propsSet++;
-                        }
-                        catch
-                        {
+                            // Try SetCustomProperty first (works if property exists)
+                            // This is safer than Delete+Add which can lose data if Add fails
                             try 
                             { 
                                 dynDoc.SetCustomProperty(kvp.Key, kvp.Value);
-                                propsSet++; 
+                                propsSet++;
+                                Console.Error.WriteLine($"[DM] Set file property '{kvp.Key}' via SetCustomProperty");
                             } 
-                            catch { }
+                            catch 
+                            {
+                                // Property doesn't exist, try Add
+                                dynDoc.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
+                                propsSet++;
+                                Console.Error.WriteLine($"[DM] Added file property '{kvp.Key}' via AddCustomProperty");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine($"[DM] Failed to set file property '{kvp.Key}': {ex.Message}");
                         }
                     }
                 }
@@ -1172,22 +1232,31 @@ namespace BluePLM.SolidWorksService
                         return new CommandResult { Success = false, Error = $"Configuration not found: {configuration}" };
                     }
 
+                    Console.Error.WriteLine($"[DM] Writing {properties.Count} properties to config: {configuration}");
+                    
                     foreach (var kvp in properties)
                     {
                         try
                         {
-                            try { config.DeleteCustomProperty(kvp.Key); } catch { }
-                            config.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
-                            propsSet++;
-                        }
-                        catch
-                        {
+                            // Try SetCustomProperty first (works if property exists)
+                            // This is safer than Delete+Add which can lose data if Add fails
                             try 
                             { 
                                 config.SetCustomProperty(kvp.Key, kvp.Value);
-                                propsSet++; 
+                                propsSet++;
+                                Console.Error.WriteLine($"[DM] Set config property '{kvp.Key}' via SetCustomProperty");
                             } 
-                            catch { }
+                            catch 
+                            {
+                                // Property doesn't exist, try Add
+                                config.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
+                                propsSet++;
+                                Console.Error.WriteLine($"[DM] Added config property '{kvp.Key}' via AddCustomProperty");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine($"[DM] Failed to set config property '{kvp.Key}': {ex.Message}");
                         }
                     }
 

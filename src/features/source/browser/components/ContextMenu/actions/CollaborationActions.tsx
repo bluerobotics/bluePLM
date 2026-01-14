@@ -6,7 +6,6 @@ import {
   ClipboardList, 
   Eye, 
   EyeOff, 
-  History, 
   Info, 
   Link, 
   Loader2, 
@@ -22,7 +21,7 @@ import type { RefreshableActionProps, SelectionState } from './types'
 
 interface CollaborationActionsProps extends RefreshableActionProps {
   state: SelectionState
-  setDetailsPanelTab: (tab: 'properties' | 'history' | 'whereused') => void
+  setDetailsPanelTab: (tab: 'properties' | 'whereused') => void
   setDetailsPanelVisible: (visible: boolean) => void
   handleOpenReviewModal: (file: LocalFile) => void
   handleOpenCheckoutRequestModal: (file: LocalFile) => void
@@ -104,47 +103,19 @@ export function CollaborationActions({
     <>
       <div className="context-menu-separator" />
       
-      {/* Show History - for folders */}
-      {!multiSelect && isFolder && (
+      {/* Where Used - for synced files */}
+      {!isFolder && state.isSynced && (
         <div 
           className="context-menu-item"
           onClick={() => {
             onClose()
-            setDetailsPanelTab('history')
+            setDetailsPanelTab('whereused')
             setDetailsPanelVisible(true)
           }}
         >
-          <History size={14} />
-          Show History
+          <Link size={14} />
+          Where Used
         </div>
-      )}
-      
-      {/* View History / Where Used - for synced files */}
-      {!isFolder && state.isSynced && (
-        <>
-          <div 
-            className="context-menu-item"
-            onClick={() => {
-              onClose()
-              setDetailsPanelTab('history')
-              setDetailsPanelVisible(true)
-            }}
-          >
-            <History size={14} />
-            View History
-          </div>
-          <div 
-            className="context-menu-item"
-            onClick={() => {
-              onClose()
-              setDetailsPanelTab('whereused')
-              setDetailsPanelVisible(true)
-            }}
-          >
-            <Link size={14} />
-            Where Used
-          </div>
-        </>
       )}
       
       {/* Properties */}

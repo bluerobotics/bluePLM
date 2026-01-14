@@ -1265,15 +1265,13 @@ input::placeholder {
 
 /* Details panel - allow text selection for copy/paste */
 .details-panel,
-.sw-datacard-panel {
+.sw-preview-panel {
   user-select: text;
   -webkit-user-select: text;
 }
 
 .details-panel input,
-.details-panel textarea,
-.sw-datacard-panel input,
-.sw-datacard-panel textarea {
+.details-panel textarea {
   user-select: text;
   -webkit-user-select: text;
 }

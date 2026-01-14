@@ -3,6 +3,7 @@
  */
 import { Monitor } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
+import { NotifiableCheckoutAvatar } from '@/components/shared/Avatar'
 import { useFilePaneContext } from '../../../context'
 import type { CellRendererBaseProps } from './types'
 
@@ -22,6 +23,27 @@ export function CheckedOutByCell({ file }: CellRendererBaseProps): React.ReactNo
   const coMachineName = file.pdmData.checked_out_by_machine_name
   const onDifferentMachine = isMe && coMachineId && currentMachineId && coMachineId !== currentMachineId
   
+  // For other users' checkouts, show the interactive avatar that can send notifications
+  if (!isMe && file.pdmData.id && checkedOutUser) {
+    return (
+      <span className="flex items-center gap-2 text-plm-fg">
+        <NotifiableCheckoutAvatar
+          user={{
+            id: file.pdmData.checked_out_by,
+            email: email,
+            full_name: fullName,
+            avatar_url: avatarUrl
+          }}
+          fileId={file.pdmData.id}
+          fileName={file.name}
+          size={20}
+        />
+        <span className="truncate">{displayName}</span>
+      </span>
+    )
+  }
+  
+  // For own checkouts, show the standard display
   return (
     <span 
       className={`flex items-center gap-2 ${isMe ? (onDifferentMachine ? 'text-plm-warning' : 'text-plm-warning') : 'text-plm-fg'}`} 

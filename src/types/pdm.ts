@@ -588,10 +588,28 @@ export interface OrgSettings {
   enforce_email_domain?: boolean  // If true, only users with matching email domains can join
   // SolidWorks integration (org-wide)
   solidworks_dm_license_key?: string  // Document Manager API key for fast file reading
+  solidworks_templates?: SolidWorksTemplateSettingsOrg  // Template folder configuration
   // REST API (org-wide)
   api_url?: string  // External API server URL for ERP integrations
   // Export settings (org-wide)
   export_settings?: ExportSettings
+}
+
+/**
+ * SOLIDWORKS template folder configuration stored in org settings.
+ * Paths are relative to the vault root.
+ */
+export interface SolidWorksTemplateSettingsOrg {
+  /** Relative path in vault for document templates, e.g., "_templates/Documents" */
+  documentTemplates?: string
+  /** Relative path in vault for sheet formats, e.g., "_templates/SheetFormats" */
+  sheetFormats?: string
+  /** Relative path in vault for BOM templates, e.g., "_templates/BOM" */
+  bomTemplates?: string
+  /** ISO timestamp of last push to all users */
+  lastPushedAt?: string
+  /** User ID who performed the last push */
+  lastPushedBy?: string
 }
 
 /**

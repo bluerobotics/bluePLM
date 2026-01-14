@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useEffect, useCallback } from 'react'
 import { AlertTriangle, FolderOpen, File, Trash2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 
@@ -35,6 +35,22 @@ export const DeleteConfirmDialog = memo(function DeleteConfirmDialog({
   
   // Check if any files are synced (have pdmData)
   const hasSyncedFiles = filesToDelete.some(f => f.pdmData?.id)
+  
+  // Handle Enter key to confirm
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onConfirm()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onCancel()
+    }
+  }, [onConfirm, onCancel])
+  
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
   
   return (
     <>

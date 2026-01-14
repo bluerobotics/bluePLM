@@ -30,6 +30,7 @@ export * from './fileOps'
 export * from './forceRelease'
 export * from './getLatest'
 export * from './misc'
+export * from './refreshLocalMetadata'
 export * from './sync'
 export * from './syncSwMetadata'
 

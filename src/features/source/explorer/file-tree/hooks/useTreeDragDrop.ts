@@ -18,6 +18,10 @@ interface CollectedEntry {
 /**
  * Extract all file and folder paths from a DataTransfer, including empty folders.
  * Uses webkitGetAsEntry() API which properly handles directory structures.
+ * 
+ * IMPORTANT: webkitGetAsEntry gives virtual paths (like /filename.txt), NOT real file system paths.
+ * We must use getPathForFile() on the File objects from dataTransfer.files to get real paths,
+ * then pass those real paths through the recursive directory traversal.
  */
 async function collectEntriesFromDataTransfer(
   dataTransfer: DataTransfer,
@@ -25,34 +29,36 @@ async function collectEntriesFromDataTransfer(
 ): Promise<CollectedEntry[]> {
   const entries: CollectedEntry[] = []
   const items = dataTransfer.items
+  const files = Array.from(dataTransfer.files)
   
   // Try to use webkitGetAsEntry for proper directory support
   if (items && items.length > 0) {
     const itemsArray = Array.from(items)
     
-    for (const item of itemsArray) {
+    for (let i = 0; i < itemsArray.length; i++) {
+      const item = itemsArray[i]
       if (item.kind !== 'file') continue
+      
+      // Get the actual file system path from the File object at the same index
+      // dataTransfer.files[i] corresponds to dataTransfer.items[i]
+      const file = files[i]
+      const rootPath = file ? getPathForFile(file) : null
+      
+      if (!rootPath) continue
       
       // Try webkitGetAsEntry for directory support
       const entry = item.webkitGetAsEntry?.()
       if (entry) {
-        await collectFromEntry(entry, '', entries)
+        await collectFromEntry(entry, '', entries, rootPath)
       } else {
         // Fallback: get as regular file
-        const file = item.getAsFile()
-        if (file) {
-          const path = getPathForFile(file)
-          if (path) {
-            entries.push({ path, isDirectory: false, relativePath: file.name })
-          }
-        }
+        entries.push({ path: rootPath, isDirectory: false, relativePath: file.name })
       }
     }
   }
   
   // If no entries collected via webkitGetAsEntry, fall back to files array
   if (entries.length === 0) {
-    const files = Array.from(dataTransfer.files)
     for (const file of files) {
       const path = getPathForFile(file)
       if (path) {
@@ -66,19 +72,32 @@ async function collectEntriesFromDataTransfer(
 
 /**
  * Recursively collect entries from a FileSystemEntry
+ * 
+ * @param entry - The FileSystemEntry to process
+ * @param parentRelativePath - The relative path of the parent (empty string for root items)
+ * @param entries - Array to collect results into
+ * @param rootPath - The actual file system path of the current item (NOT the virtual web path)
  */
 async function collectFromEntry(
   entry: FileSystemEntry,
-  parentPath: string,
-  entries: CollectedEntry[]
+  parentRelativePath: string,
+  entries: CollectedEntry[],
+  rootPath: string
 ): Promise<void> {
-  const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name
+  const relativePath = parentRelativePath ? `${parentRelativePath}/${entry.name}` : entry.name
+  
+  // Construct the actual file system path
+  // For root items (parentRelativePath is empty): use rootPath directly
+  // For nested items: append the entry name to rootPath
+  const actualPath = !parentRelativePath 
+    ? rootPath 
+    : rootPath + (rootPath.includes('\\') ? '\\' : '/') + entry.name
   
   if (entry.isDirectory) {
     const dirEntry = entry as FileSystemDirectoryEntry
     // Always add the directory entry (even if empty)
     entries.push({ 
-      path: (entry as unknown as { fullPath?: string }).fullPath || entry.name, 
+      path: actualPath, 
       isDirectory: true, 
       relativePath 
     })
@@ -88,12 +107,13 @@ async function collectFromEntry(
     const children = await readAllDirectoryEntries(reader)
     
     for (const child of children) {
-      await collectFromEntry(child, relativePath, entries)
+      // Pass actualPath as the new rootPath for children
+      await collectFromEntry(child, relativePath, entries, actualPath)
     }
   } else {
     // It's a file
     entries.push({ 
-      path: (entry as unknown as { fullPath?: string }).fullPath || entry.name,
+      path: actualPath,
       isDirectory: false, 
       relativePath 
     })

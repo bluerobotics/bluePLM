@@ -437,6 +437,8 @@ CREATE TABLE IF NOT EXISTS file_versions (
   workflow_state_id UUID REFERENCES workflow_states(id),
   state TEXT NOT NULL DEFAULT 'not_tracked', -- Workflow state name at time of version
   comment TEXT,
+  part_number TEXT,      -- Snapshot of part number at time of version
+  description TEXT,      -- Snapshot of description at time of version
   created_at TIMESTAMPTZ DEFAULT NOW(),
   created_by UUID NOT NULL REFERENCES users(id),
   
@@ -446,6 +448,16 @@ CREATE TABLE IF NOT EXISTS file_versions (
 -- Migration: Add state column to file_versions if it doesn't exist
 DO $$ BEGIN 
   ALTER TABLE file_versions ADD COLUMN state TEXT NOT NULL DEFAULT 'not_tracked'; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
+END $$;
+
+-- Migration: Add part_number and description columns to file_versions
+DO $$ BEGIN 
+  ALTER TABLE file_versions ADD COLUMN part_number TEXT; 
+EXCEPTION WHEN duplicate_column THEN NULL; 
+END $$;
+DO $$ BEGIN 
+  ALTER TABLE file_versions ADD COLUMN description TEXT; 
 EXCEPTION WHEN duplicate_column THEN NULL; 
 END $$;
 
@@ -2142,7 +2154,7 @@ BEGIN
   
   -- Create version record ONLY if version incremented
   IF v_should_increment THEN
-    INSERT INTO file_versions (file_id, version, revision, content_hash, file_size, workflow_state_id, state, created_by, comment)
+    INSERT INTO file_versions (file_id, version, revision, content_hash, file_size, workflow_state_id, state, created_by, comment, part_number, description)
     SELECT p_file_id, v_new_version, 
            COALESCE(p_revision, v_file.revision),
            COALESCE(p_new_content_hash, v_file.content_hash),
@@ -2150,7 +2162,9 @@ BEGIN
            v_file.workflow_state_id,
            COALESCE(v_file.state, 'not_tracked'), 
            p_user_id, 
-           p_comment;
+           p_comment,
+           COALESCE(p_part_number, v_file.part_number),  -- Snapshot current or new part_number
+           COALESCE(p_description, v_file.description);  -- Snapshot current or new description
   END IF;
   
   -- Log activity

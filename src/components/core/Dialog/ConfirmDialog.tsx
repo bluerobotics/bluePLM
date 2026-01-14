@@ -1,3 +1,4 @@
+import { useEffect, useCallback } from 'react'
 import { AlertTriangle, Info, AlertCircle } from 'lucide-react'
 import { Dialog } from './Dialog'
 import type { ConfirmDialogProps } from './types'
@@ -20,6 +21,24 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const config = variantConfig[variant]
   const Icon = config.icon
+  
+  // Handle Enter key to confirm
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onConfirm()
+      onClose()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onClose()
+    }
+  }, [onConfirm, onClose])
+  
+  useEffect(() => {
+    if (!open) return
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, handleKeyDown])
 
   return (
     <Dialog open={open} onClose={onClose} title={title}>

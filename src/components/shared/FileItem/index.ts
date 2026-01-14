@@ -4,6 +4,7 @@ export {
   FileItemIcon,
   StatusIcon,
   CheckoutAvatars,
+  computeFolderVisualState,
   getFolderCheckoutStatus,
   isFolderSynced,
   getFolderIconColor,
@@ -25,4 +26,5 @@ export type {
   CheckoutAvatarsProps,
   CheckoutUser,
   FolderCheckoutStatus,
+  FolderVisualState,
 } from './FileItemComponents'
