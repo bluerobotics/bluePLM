@@ -60,16 +60,3 @@ npm run build    # Production build
 ## License
 
 MIT — see [LICENSE](LICENSE)
-
----
-
-<div align="center">
-  <img src="./assets/blue-robotics-white-name-logo.png" width="200">
-  <p>Made with 💙 by Blue Robotics and contributors worldwide</p>
-  <p>
-    <a href="https://bluerobotics.com">Website</a> •
-    <a href="https://github.com/bluerobotics">GitHub</a> •
-    <a href="https://docs.blueplm.io">Documentation</a>
-  </p>
-  <p>⭐ Star us on GitHub if you find BluePLM useful!</p>
-</div>
