@@ -56,7 +56,7 @@ export const zhCN: TranslationDict = {
 
   welcome: {
     title: 'BluePLM',
-    tagline: '面向工程团队的开源产品数据管理系统',
+    tagline: '开源产品生命周期管理',
     selectAccountType: '选择您的账户类型',
     teamMember: '团队成员',
     teamMemberDesc: '工程师、管理员和查看者',

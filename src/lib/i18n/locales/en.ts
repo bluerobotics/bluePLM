@@ -58,7 +58,7 @@ export const en: TranslationDict = {
   // Welcome/Auth Screen
   welcome: {
     title: 'BluePLM',
-    tagline: 'Open source Product Lifecycle Management for everyone who builds',
+    tagline: 'Open-source Product Lifecycle Management',
     selectAccountType: 'Select your account type',
     teamMember: 'Team Member',
     teamMemberDesc: 'Engineers, admins, and viewers',

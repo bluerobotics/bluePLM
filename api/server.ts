@@ -89,7 +89,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     openapi: {
       info: {
         title: 'BluePLM REST API',
-        description: 'Product Lifecycle Management API for everyone who builds',
+        description: 'BluePLM REST API',
         version: API_VERSION
       },
       servers: [

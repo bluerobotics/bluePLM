@@ -1,7 +1,7 @@
 {
   "name": "blue-plm",
   "version": "3.7.1",
-  "description": "Product Lifecycle Management for everyone who builds",
+  "description": "Open-source Product Lifecycle Management",
   "main": "dist-electron/main.js",
   "scripts": {
     "predev": "node scripts/copy-extension-host.js",

@@ -56,7 +56,7 @@ export const es: TranslationDict = {
 
   welcome: {
     title: 'BluePLM',
-    tagline: 'Gestión de datos de producto de código abierto para equipos de ingeniería',
+    tagline: 'Gestión de ciclo de vida de producto de código abierto',
     selectAccountType: 'Selecciona tu tipo de cuenta',
     teamMember: 'Miembro del equipo',
     teamMemberDesc: 'Ingenieros, administradores y observadores',

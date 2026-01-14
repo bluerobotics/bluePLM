@@ -420,7 +420,7 @@ export function CreateUserDialog({
                     <strong>{currentUserName || 'A team member'}</strong> has invited you to join{' '}
                     <strong>{orgName || 'their organization'}</strong> on BluePLM.
                   </p>
-                  <p>BluePLM is a Product Data Management system for engineering teams.</p>
+                  <p>BluePLM is an open-source Product Lifecycle Management system.</p>
                   <div className="my-4">
                     <span className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
                       Accept Invitation

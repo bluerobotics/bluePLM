@@ -208,7 +208,6 @@ export function AboutSettings() {
         </div>
         <h2 className="text-3xl font-bold text-plm-fg">BluePLM</h2>
         <p className="text-sm text-plm-fg-muted mt-2 max-w-md mx-auto leading-relaxed">
-          Open-source Product Lifecycle Management for everyone who builds. 
           Check in/out CAD files, track revisions, manage engineering changes, 
           control release workflows, and collaborate with your team—all in one place.
         </p>
