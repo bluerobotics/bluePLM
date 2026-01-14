@@ -1,7 +1,5 @@
 <div align="center">
 
-# BluePLM
-
 > ⚠️ **Disclaimer:** This project is under active development and is considered experimental. Features may change, and stability is not guaranteed. Use at your own risk.
 
 [![Version](https://img.shields.io/github/v/release/bluerobotics/bluePLM)](https://github.com/bluerobotics/bluePLM/releases)
@@ -10,22 +8,7 @@
 [![License](https://img.shields.io/github/license/bluerobotics/bluePLM)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-blueplm.io-blue)](https://docs.blueplm.io)
 
-![BluePLM Screenshot](assets/screenshot.png)
-
 </div>
-
-## Features
-
-- **Check in / check out** — File locking so two people don't edit the same thing
-- **Version history** — Every version saved, rollback whenever you need
-- **Real-time sync** — Changes show up instantly for everyone
-- **Workflows** — Configurable review and release states
-- **ECOs** — Engineering change orders with approval routing
-- **Multi-vault** — Separate vaults for different projects or teams
-- **Offline support** — Keep working when the network drops
-- **SolidWorks integration** — Thumbnails, metadata, and reference tracking
-- **Extension system** — Add integrations like Google Drive, Slack, etc.
-- **REST API** — Fastify server with OpenAPI docs
 
 ## Quick Start
 
