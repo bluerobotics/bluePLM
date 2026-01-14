@@ -1,6 +1,6 @@
 <div align="center">
 
-> ⚠️ **Disclaimer:** This project is under active development and is considered experimental. Features may change, and stability is not guaranteed. Use at your own risk.
+⚠️ **Disclaimer:** This project is under active development and is considered experimental. Features may change, and stability is not guaranteed. Use at your own risk.
 
 [![Version](https://img.shields.io/github/v/release/bluerobotics/bluePLM)](https://github.com/bluerobotics/bluePLM/releases)
 [![Build](https://img.shields.io/github/actions/workflow/status/bluerobotics/bluePLM/release.yml)](https://github.com/bluerobotics/bluePLM/actions)
