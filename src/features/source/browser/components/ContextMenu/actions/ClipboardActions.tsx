@@ -9,8 +9,6 @@ interface ClipboardActionsProps extends ActionComponentProps {
   handleCopy: () => void
   handleCut: () => void
   handlePaste: () => void
-  canCut: boolean
-  userId: string | undefined
 }
 
 export function ClipboardActions({
@@ -18,7 +16,6 @@ export function ClipboardActions({
   handleCopy,
   handleCut,
   handlePaste,
-  canCut,
 }: ClipboardActionsProps) {
   const { clipboard } = useFilePaneContext()
 
@@ -41,14 +38,11 @@ export function ClipboardActions({
       
       {/* Cut */}
       <div 
-        className={`context-menu-item ${!canCut ? 'disabled' : ''}`}
+        className="context-menu-item"
         onClick={() => {
-          if (canCut) {
-            handleCut()
-            onClose()
-          }
+          handleCut()
+          onClose()
         }}
-        title={!canCut ? 'Check out files first to move them' : undefined}
       >
         <Scissors size={14} />
         Cut

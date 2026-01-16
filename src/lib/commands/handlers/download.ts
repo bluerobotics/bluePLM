@@ -453,10 +453,13 @@ export const downloadCommand: Command<DownloadParams> = {
       updateCount: pendingUpdates.length 
     })
     const storeUpdateStart = performance.now()
+    // Debug: Log full paths for first few updates to help diagnose path matching issues
+    const sampleFullPaths = pendingUpdates.slice(0, 5).map(u => u.path)
     logDownload('info', 'Downloads finished, starting store update', {
       operationId,
       updateCount: pendingUpdates.length,
       paths: pendingUpdates.map(u => u.path.split(/[/\\]/).pop()), // Just filenames for brevity
+      sampleFullPaths, // Full paths for debugging
       pathsToTrackCount: allPathsToTrack.length,
       timestamp: Date.now()
     })

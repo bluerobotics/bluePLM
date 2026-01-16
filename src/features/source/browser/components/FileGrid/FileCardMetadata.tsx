@@ -6,10 +6,13 @@
  * - Inline editing for editable fields (item number, description, revision)
  * - Version dropdown with history
  * - Configuration indicator
+ * 
+ * NOTE: Drawing files (.slddrw) have their revision locked because
+ * it comes from the drawing's revision table, not from editable properties.
  */
 import { memo, useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Sparkles, Loader2, Layers } from 'lucide-react'
+import { Sparkles, Loader2, Layers, FileInput } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { formatFileSize } from '@/lib/utils'
@@ -115,7 +118,8 @@ function EditableField({
   value,
   label,
   fontSize,
-  isEditable
+  isEditable,
+  isDrawing
 }: {
   file: LocalFile
   fieldId: string
@@ -123,7 +127,20 @@ function EditableField({
   label: string
   fontSize: number
   isEditable: boolean
+  isDrawing: boolean
 }) {
+  // Get drawing lockout settings
+  const lockDrawingRevision = usePDMStore(s => s.lockDrawingRevision)
+  const lockDrawingItemNumber = usePDMStore(s => s.lockDrawingItemNumber)
+  const lockDrawingDescription = usePDMStore(s => s.lockDrawingDescription)
+  
+  // Check if this field is locked for drawings
+  const isFieldLocked = isDrawing && (
+    (fieldId === 'revision' && lockDrawingRevision) ||
+    (fieldId === 'itemNumber' && lockDrawingItemNumber) ||
+    (fieldId === 'description' && lockDrawingDescription)
+  )
+  const canEdit = isFieldLocked ? false : isEditable
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value || '')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -174,7 +191,7 @@ function EditableField({
     }
   }
   
-  if (isEditing && isEditable) {
+  if (isEditing && canEdit) {
     return (
       <div 
         className="flex items-center gap-1"
@@ -222,11 +239,25 @@ function EditableField({
     )
   }
   
+  // Show icon for locked drawing fields indicating they're driven by the file/model
+  const showDrawingIndicator = isFieldLocked
+  
+  // Determine appropriate tooltip
+  const getTooltip = () => {
+    if (isFieldLocked) {
+      if (fieldId === 'revision') return 'Drawing revision is driven by the drawing file'
+      if (fieldId === 'itemNumber') return 'Drawing item number is inherited from the model'
+      if (fieldId === 'description') return 'Drawing description is inherited from the model'
+    }
+    if (canEdit) return 'Click to edit'
+    return `${label}: ${value || '-'}`
+  }
+  
   return (
     <div
-      className={`flex items-center gap-1 truncate ${isEditable ? 'cursor-text hover:bg-plm-bg-light/50 rounded px-0.5 -mx-0.5' : ''}`}
+      className={`flex items-center gap-1 truncate ${canEdit ? 'cursor-text hover:bg-plm-bg-light/50 rounded px-0.5 -mx-0.5' : ''}`}
       onClick={(e) => {
-        if (isEditable) {
+        if (canEdit) {
           e.stopPropagation()
           e.preventDefault()
           setEditValue(value || '')
@@ -234,17 +265,18 @@ function EditableField({
         }
       }}
       onMouseDown={(e) => {
-        if (isEditable) {
+        if (canEdit) {
           e.stopPropagation()
         }
       }}
-      title={isEditable ? 'Click to edit' : `${label}: ${value || '-'}`}
+      title={getTooltip()}
       style={{ fontSize }}
     >
       <span className="text-plm-fg-muted/60 flex-shrink-0">{label}:</span>
       <span className={`truncate ${value ? 'text-plm-fg/80' : 'text-plm-fg-muted'}`}>
         {value || '-'}
       </span>
+      {showDrawingIndicator && <FileInput size={10} className="text-plm-fg-muted/50 flex-shrink-0" />}
     </div>
   )
 }
@@ -361,6 +393,9 @@ export const FileCardMetadata = memo(function FileCardMetadata({
   const isLocalFile = !file.pdmData && file.diffStatus !== 'cloud'
   const isEditable = isCheckedOutByMe || isLocalFile
   
+  // Check if this is a drawing file (revision is locked for drawings)
+  const isDrawing = file.extension?.toLowerCase() === '.slddrw'
+  
   // Calculate font size based on icon size
   const fontSize = Math.max(8, Math.min(10, iconSize / 10))
   
@@ -393,6 +428,7 @@ export const FileCardMetadata = memo(function FileCardMetadata({
               label={shortLabel}
               fontSize={fontSize}
               isEditable={isEditable}
+              isDrawing={isDrawing}
             />
           )
         }

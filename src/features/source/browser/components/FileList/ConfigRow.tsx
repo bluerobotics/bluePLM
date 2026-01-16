@@ -1,5 +1,5 @@
 import React, { memo } from 'react'
-import { Layers } from 'lucide-react'
+import { Layers, FileInput } from 'lucide-react'
 import type { ConfigWithDepth } from '../../types'
 
 export interface ConfigRowProps {
@@ -9,6 +9,8 @@ export interface ConfigRowProps {
   rowHeight: number
   visibleColumns: { id: string; width: number }[]
   basePartNumber: string
+  /** Configuration-specific revision (from drawing propagation) */
+  configRevision?: string
   onClick: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onDescriptionChange: (value: string) => void
@@ -35,6 +37,7 @@ function areConfigRowPropsEqual(
   if (prevProps.isEditable !== nextProps.isEditable) return false
   if (prevProps.rowHeight !== nextProps.rowHeight) return false
   if (prevProps.basePartNumber !== nextProps.basePartNumber) return false
+  if (prevProps.configRevision !== nextProps.configRevision) return false
   
   // Compare visibleColumns array (shallow check on length and ids)
   if (prevProps.visibleColumns.length !== nextProps.visibleColumns.length) return false
@@ -53,6 +56,7 @@ export const ConfigRow = memo(function ConfigRow({
   rowHeight,
   visibleColumns,
   basePartNumber,
+  configRevision,
   onClick,
   onContextMenu,
   onDescriptionChange,
@@ -173,7 +177,21 @@ export const ConfigRow = memo(function ConfigRow({
                 className="w-16 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
               />
             )
-          })() : (
+          })() : column.id === 'revision' ? (
+            // Configuration-specific revision (from drawing propagation)
+            // This is read-only as it's driven by drawing revisions
+            configRevision ? (
+              <span 
+                className="flex items-center gap-1 text-xs text-plm-fg-muted"
+                title="Configuration revision (from drawing)"
+              >
+                {configRevision}
+                <FileInput size={10} className="text-plm-fg-muted/50 flex-shrink-0" />
+              </span>
+            ) : (
+              <span className="text-plm-fg-dim text-xs">—</span>
+            )
+          ) : (
             <span className="text-plm-fg-dim text-xs">—</span>
           )}
         </td>

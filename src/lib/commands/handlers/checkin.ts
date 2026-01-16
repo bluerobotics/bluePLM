@@ -2,19 +2,23 @@
  * Checkin Command
  * 
  * Check in files after editing. This:
- * 1. Uploads new content if modified
- * 2. Updates metadata on server (auto-extracts from SolidWorks files if available)
+ * 1. Uploads new content to storage if modified (hash changed)
+ * 2. Updates server with new content hash and pending metadata
  * 3. Releases the checkout lock
  * 4. Makes the local file read-only
+ * 
+ * NOTE: This command does NOT write metadata to SolidWorks files.
+ * Metadata should be saved to SW files during editing via "Save to File" button.
+ * Check-in only sends pendingMetadata to the server database.
  */
 
 import type { Command, CheckinParams, CommandResult } from '../types'
 import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
-import { checkinFile, upsertFileReferences, getSupabaseClient, updateVersionNote } from '../../supabase'
+import { checkinFile, upsertFileReferences, getSupabaseClient, updateVersionNote, propagateDrawingRevisionToConfigurations } from '../../supabase'
 import type { SWReference } from '../../supabase/files/mutations'
 import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS } from '../../concurrency'
-import type { LocalFile, PendingMetadata } from '../../../stores/pdmStore'
+import type { LocalFile } from '../../../stores/pdmStore'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
 import { FileOperationTracker } from '../../fileOperationTracker'
@@ -51,8 +55,6 @@ interface SwServiceStatus {
   running: boolean
   documentManagerAvailable: boolean
 }
-
-import type { SerializationSettings } from '../../serialization'
 
 /**
  * Upload file content to storage with the given hash
@@ -107,122 +109,6 @@ async function uploadFileContentToStorage(
   } catch (err) {
     const errMessage = err instanceof Error ? err.message : String(err)
     return { success: false, error: errMessage }
-  }
-}
-
-/**
- * Write pending metadata back to SolidWorks file before check-in
- * This syncs datacard changes to the actual file properties
- * @param swStatus - Pre-cached service status to avoid redundant IPC calls in batch operations
- * @param serSettings - Pre-fetched serialization settings (batch optimization)
- */
-async function writeSolidWorksMetadata(
-  fullPath: string,
-  extension: string,
-  pendingMetadata: PendingMetadata | undefined,
-  swStatus: SwServiceStatus,
-  serSettings: SerializationSettings | null
-): Promise<boolean> {
-  // Only process SolidWorks files with pending changes
-  if (!SW_EXTENSIONS.includes(extension.toLowerCase()) || !pendingMetadata) {
-    return true // Nothing to write
-  }
-  
-  // Use pre-cached service status (avoids N IPC calls for N files)
-  if (!swStatus.running || !swStatus.documentManagerAvailable) {
-    return true // Continue without writing (not a failure)
-  }
-  
-  try {
-    const { part_number, description, revision, tab_number, config_tabs, config_descriptions } = pendingMetadata
-    
-    // Get current user for DrawnBy property
-    const currentUser = usePDMStore.getState().user
-    const drawnBy = currentUser?.full_name || currentUser?.email || ''
-    const dateStr = new Date().toISOString().split('T')[0] // YYYY-MM-DD
-    
-    // Build file-level properties to write (all 7 PDM properties)
-    const fileProps: Record<string, string> = {}
-    if (part_number) {
-      // Build full number with file-level tab if present
-      fileProps['Number'] = tab_number ? `${part_number}-${tab_number}` : part_number
-      fileProps['Base Item Number'] = part_number
-      if (tab_number) fileProps['Tab Number'] = tab_number
-    }
-    if (description) fileProps['Description'] = description
-    if (revision) fileProps['Revision'] = revision
-    fileProps['Date'] = dateStr
-    if (drawnBy) fileProps['DrawnBy'] = drawnBy
-    
-    // Write file-level properties if any
-    if (Object.keys(fileProps).length > 0) {
-      const result = await window.electronAPI?.solidworks?.setProperties?.(fullPath, fileProps)
-      if (!result?.success) {
-        log.warn('[Checkin]', 'Failed to write file-level properties', { error: result?.error })
-      }
-    }
-    
-    // Write per-configuration properties (tabs and descriptions)
-    // Use batch API to write all configs in single IPC call (performance optimization)
-    const hasConfigTabs = config_tabs && Object.keys(config_tabs).length > 0
-    const hasConfigDescs = config_descriptions && Object.keys(config_descriptions).length > 0
-    
-    if (hasConfigTabs || hasConfigDescs) {
-      // Get all configuration names to write to
-      const configNames = new Set<string>()
-      if (config_tabs) Object.keys(config_tabs).forEach(k => configNames.add(k))
-      if (config_descriptions) Object.keys(config_descriptions).forEach(k => configNames.add(k))
-      
-      // Use pre-fetched serialization settings (batch optimization - avoids N DB calls)
-      const { combineBaseAndTab } = await import('../../serialization')
-      
-      // Build all config properties in one object for batch API
-      const allConfigProps: Record<string, Record<string, string>> = {}
-      
-      for (const configName of configNames) {
-        const configProps: Record<string, string> = {}
-        
-        // If we have a tab number for this config, combine with base for full part number
-        const tabNum = config_tabs?.[configName]
-        if (tabNum && part_number && serSettings) {
-          // part_number is the base number, combine with config's tab
-          const fullPartNumber = combineBaseAndTab(part_number, tabNum, serSettings)
-          if (fullPartNumber) {
-            configProps['Number'] = fullPartNumber
-            configProps['Base Item Number'] = part_number
-            configProps['Tab Number'] = tabNum
-          }
-        }
-        
-        // Per-config description
-        const configDesc = config_descriptions?.[configName]
-        if (configDesc) {
-          configProps['Description'] = configDesc
-        }
-        
-        // Always write revision, date, drawnBy to configs
-        if (revision) configProps['Revision'] = revision
-        configProps['Date'] = dateStr
-        if (drawnBy) configProps['DrawnBy'] = drawnBy
-        
-        if (Object.keys(configProps).length > 0) {
-          allConfigProps[configName] = configProps
-        }
-      }
-      
-      // Use batch API for all configs at once (1 IPC call instead of N)
-      if (Object.keys(allConfigProps).length > 0) {
-        const result = await window.electronAPI?.solidworks?.setPropertiesBatch?.(fullPath, allConfigProps)
-        if (!result?.success) {
-          log.warn('[Checkin]', 'Batch properties write failed', { error: result?.error })
-        }
-      }
-    }
-    
-    return true
-  } catch (err) {
-    log.warn('[Checkin]', 'Failed to write SolidWorks metadata', { error: err instanceof Error ? err.message : String(err) })
-    return false // Non-fatal, continue with check-in
   }
 }
 
@@ -511,17 +397,11 @@ export const checkinCommand: Command<CheckinParams> = {
     const machineId = await getMachineId()
     tracker.endStep(prefetchStepId, 'completed', { machineId: machineId?.substring(0, 8) })
     
-    // Pre-fetch serialization settings ONCE (avoids 80 DB queries for 80 files)
-    const serSettingsStepId = tracker.startStep('Pre-fetch serialization settings')
-    const { getSerializationSettings } = await import('../../serialization')
     const orgId = ctx.organization?.id
-    const serializationSettings = orgId ? await getSerializationSettings(orgId) : null
-    tracker.endStep(serSettingsStepId, 'completed', { hasSettings: !!serializationSettings })
     
     logCheckin('debug', 'Pre-fetched batch operation values', {
       operationId,
-      machineId: machineId?.substring(0, 8) + '...',
-      hasSerializationSettings: !!serializationSettings
+      machineId: machineId?.substring(0, 8) + '...'
     })
     
     // Pre-check SolidWorks service status ONCE (avoid checking for every file in batch)
@@ -666,7 +546,7 @@ export const checkinCommand: Command<CheckinParams> = {
      * Add substeps to a phase step after processing is complete
      */
     const addSubstepsToPhase = (phaseStepId: string, timings: SubstepTimings) => {
-      const substepOrder = ['getDocInfo', 'saveDoc', 'writeMeta', 'hashFile', 'readFile', 'upload', 'checkinAPI', 'setDocRO', 'flush']
+      const substepOrder = ['hashFile', 'readFile', 'upload', 'checkinAPI', 'setDocRO', 'flush']
       for (const name of substepOrder) {
         const timing = timings[name]
         if (timing && timing.callCount > 0) {
@@ -703,24 +583,15 @@ export const checkinCommand: Command<CheckinParams> = {
         // If ALL of these are true:
         // 1. We have a cached local hash
         // 2. Local hash matches server hash (no content change)
-        // 3. No pending metadata to write
+        // 3. No pending metadata to send to server
         // 4. File wasn't moved or renamed
         // 
-        // Then we can skip ALL expensive operations:
-        // - SolidWorks document info/save calls
-        // - Hash computation
-        // - File content upload
-        // 
+        // Then we can skip expensive operations (hash computation, file upload).
         // This is a significant optimization for files checked out but never edited.
         // ========================================
         const hasPendingMetadata = !!file.pendingMetadata
         const contentUnchanged = file.localHash && file.localHash === file.pdmData?.content_hash
         const canTakeFastPath = contentUnchanged && !hasPendingMetadata && !wasFileMoved && !wasFileRenamed
-        
-        // PERFORMANCE OPTIMIZATION: Determine upfront if we can skip SW calls
-        // If we have a cached hash AND no pending metadata, we don't need SW service at all
-        const canUseCachedHash = !hasPendingMetadata && !!file.localHash
-        const skipSolidWorksOps = !isSolidWorksFile || (canUseCachedHash && !hasPendingMetadata)
         
         logCheckin('debug', 'Checking in file', {
           operationId,
@@ -729,8 +600,6 @@ export const checkinCommand: Command<CheckinParams> = {
           wasFileRenamed,
           oldPath: wasFileMoved ? file.pdmData?.file_path : undefined,
           oldName: wasFileRenamed ? file.pdmData?.file_name : undefined,
-          skipSolidWorksOps,
-          canUseCachedHash,
           canTakeFastPath,
           hasPendingMetadata
         })
@@ -832,98 +701,19 @@ export const checkinCommand: Command<CheckinParams> = {
           }
         }
         
-        // If SolidWorks file is open, save it first to ensure we check in the latest changes
-        // Skip this if we can use cached hash and have no pending metadata
-        // Also skip if SW service is not running (avoids hanging on crashed service)
-        let metadataWasWritten = false
-        if (isSolidWorksFile && !skipSolidWorksOps && swServiceStatus.running) {
-          try {
-            const getDocInfoStart = performance.now()
-            const docInfo = await window.electronAPI?.solidworks?.getDocumentInfo?.(file.path)
-            recordSubstepTiming('getDocInfo', performance.now() - getDocInfoStart)
-            
-            // Check if service call failed (timeout or crash) - stop trying for remaining files
-            if (!docInfo?.success && docInfo?.error?.includes('timed out')) {
-              logCheckin('warn', 'SolidWorks service timed out - disabling SW calls for remaining files', {
-                operationId,
-                fileName: file.name,
-                error: docInfo?.error
-              })
-              swServiceStatus.running = false // Prevent further SW calls in this batch
-            }
-            
-            // Only proceed if SW is actually running on the machine and file is open and dirty
-            if (docInfo?.success && docInfo.data?.solidWorksRunning && docInfo.data?.isOpen && docInfo.data?.isDirty) {
-              logCheckin('info', 'Saving open SolidWorks document before check-in', {
-                operationId,
-                fileName: file.name
-              })
-              const saveDocStart = performance.now()
-              const saveResult = await window.electronAPI?.solidworks?.saveDocument?.(file.path)
-              recordSubstepTiming('saveDoc', performance.now() - saveDocStart)
-              if (saveResult?.success && saveResult.data?.saved) {
-                logCheckin('info', 'SolidWorks document saved successfully', {
-                  operationId,
-                  fileName: file.name
-                })
-              } else if (!saveResult?.success) {
-                logCheckin('warn', 'Failed to save SolidWorks document', {
-                  operationId,
-                  fileName: file.name,
-                  error: saveResult?.error
-                })
-              }
-            }
-          } catch (err) {
-            // SW service error - mark as not running to skip remaining SW calls
-            logCheckin('warn', 'SolidWorks service error - disabling SW calls for remaining files', {
-              operationId,
-              fileName: file.name,
-              error: err instanceof Error ? err.message : String(err)
-            })
-            swServiceStatus.running = false
-          }
-          
-          // Write pending metadata back to SolidWorks file (syncs datacard → file)
-          // Must happen BEFORE computing hash since it modifies the file
-          if (hasPendingMetadata) {
-            logCheckin('debug', 'Writing pending metadata to SolidWorks file', {
-              operationId,
-              fileName: file.name,
-              hasPartNumber: !!file.pendingMetadata!.part_number,
-              hasDescription: !!file.pendingMetadata!.description,
-              hasConfigTabs: !!(file.pendingMetadata!.config_tabs && Object.keys(file.pendingMetadata!.config_tabs).length > 0),
-              hasConfigDescs: !!(file.pendingMetadata!.config_descriptions && Object.keys(file.pendingMetadata!.config_descriptions).length > 0)
-            })
-            
-            // Pass pre-fetched serialization settings (batch optimization)
-            const writeMetaStart = performance.now()
-            const writeSuccess = await writeSolidWorksMetadata(file.path, file.extension, file.pendingMetadata!, swServiceStatus, serializationSettings)
-            recordSubstepTiming('writeMeta', performance.now() - writeMetaStart)
-            if (writeSuccess) {
-              metadataWasWritten = true
-              logCheckin('info', 'Successfully wrote metadata to SolidWorks file', {
-                operationId,
-                fileName: file.name
-              })
-            }
-          }
-        }
-        
-        // Compute file hash - use streaming for efficiency
-        // If metadata was written to file, we MUST compute fresh hash
-        // Otherwise, use cached localHash if available (avoids re-reading unchanged files)
+        // ========================================
+        // HASH COMPUTATION: Use cached hash if available, otherwise compute fresh
+        // Note: Metadata writing to SW file is handled by "Save to File" button during editing.
+        // Check-in no longer writes to SW files - it only updates server and sets read-only.
+        // ========================================
         let fileHash: string | undefined
         let fileSize: number | undefined
         
-        // Recalculate since metadataWasWritten may have changed
-        const usesCachedHash = !metadataWasWritten && !!file.localHash
-        
-        if (usesCachedHash) {
+        if (file.localHash) {
           // Use cached hash - file hasn't been modified since last scan
           fileHash = file.localHash
           fileSize = file.size
-          logCheckin('debug', 'Using cached hash (no metadata write-back)', {
+          logCheckin('debug', 'Using cached hash', {
             operationId,
             fileName: file.name,
             cachedHash: fileHash?.substring(0, 12)
@@ -950,8 +740,7 @@ export const checkinCommand: Command<CheckinParams> = {
             operationId,
             fileName: file.name,
             hash: fileHash?.substring(0, 12),
-            size: fileSize,
-            reason: metadataWasWritten ? 'metadata_written' : 'no_cached_hash'
+            size: fileSize
           })
         }
         
@@ -1531,7 +1320,7 @@ export const checkinCommand: Command<CheckinParams> = {
           // This keeps the checkin responsive while references are extracted in background
           Promise.allSettled(
             assemblyFiles.map(f => extractAndStoreReferences(f, orgId, vaultId, vaultRootPath))
-          ).then(extractResults => {
+          ).then(async (extractResults) => {
             const extractionSucceeded = extractResults.filter(r => r.status === 'fulfilled').length
             const extractionFailed = assemblyFiles.length - extractionSucceeded
             
@@ -1547,6 +1336,64 @@ export const checkinCommand: Command<CheckinParams> = {
               ctx.addToast('warning', `Failed to extract component references`)
             } else if (extractionFailed > 0) {
               ctx.addToast('warning', `Reference extraction failed for ${extractionFailed}/${assemblyFiles.length} assemblies`)
+            }
+            
+            // After reference extraction, propagate drawing revisions to referenced parts/assemblies
+            // This updates the configuration_revisions field on referenced files
+            const drawingFiles = assemblyFiles.filter(f => 
+              DRAWING_EXTENSIONS.includes(f.extension.toLowerCase()) &&
+              f.pdmData?.id // Must have a file ID
+            )
+            
+            if (drawingFiles.length > 0) {
+              logCheckin('debug', 'Propagating drawing revisions to configuration revisions', {
+                operationId,
+                drawingCount: drawingFiles.length
+              })
+              
+              let propagationSucceeded = 0
+              let propagationFailed = 0
+              
+              for (const drawing of drawingFiles) {
+                // Get the drawing's revision (from pending metadata if available, else from pdmData)
+                const drawingRevision = drawing.pendingMetadata?.revision || drawing.pdmData?.revision || 'A'
+                
+                try {
+                  const propResult = await propagateDrawingRevisionToConfigurations(
+                    drawing.pdmData!.id,
+                    drawingRevision,
+                    orgId
+                  )
+                  
+                  if (propResult.success || propResult.updated > 0) {
+                    propagationSucceeded++
+                    logCheckin('info', 'Propagated drawing revision to configs', {
+                      drawingName: drawing.name,
+                      drawingRevision,
+                      configsUpdated: propResult.updated
+                    })
+                  } else if (propResult.errors.length > 0) {
+                    propagationFailed++
+                    logCheckin('warn', 'Drawing revision propagation had errors', {
+                      drawingName: drawing.name,
+                      errors: propResult.errors
+                    })
+                  }
+                } catch (err) {
+                  propagationFailed++
+                  logCheckin('error', 'Drawing revision propagation failed', {
+                    drawingName: drawing.name,
+                    error: err instanceof Error ? err.message : String(err)
+                  })
+                }
+              }
+              
+              logCheckin('info', 'Drawing revision propagation complete', {
+                operationId,
+                totalDrawings: drawingFiles.length,
+                succeeded: propagationSucceeded,
+                failed: propagationFailed
+              })
             }
           }).catch(err => {
             logCheckin('error', 'Background reference extraction error', {

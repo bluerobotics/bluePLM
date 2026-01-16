@@ -2,10 +2,7 @@ import { useCallback } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { ToastType } from '@/stores/types'
-import { 
-  getCutBlockers, 
-  executePaste 
-} from '@/lib/fileOperations'
+import { executePaste } from '@/lib/fileOperations'
 
 interface UseClipboardOptions {
   files: LocalFile[]
@@ -20,7 +17,7 @@ interface UseClipboardOptions {
  * This ensures clipboard state is shared across FilePane and FileTree.
  */
 export function useClipboard(options: UseClipboardOptions) {
-  const { files, selectedFiles, userId, onRefresh, addToast } = options
+  const { files, selectedFiles, onRefresh, addToast } = options
   
   // Read clipboard from Zustand store (single source of truth)
   const clipboard = usePDMStore(s => s.clipboard)
@@ -43,22 +40,9 @@ export function useClipboard(options: UseClipboardOptions) {
     const selected = getSelectedFileObjects()
     if (selected.length === 0) return
 
-    const blockers = getCutBlockers(selected, userId)
-    if (blockers.length > 0) {
-      const checkedOutByOthers = blockers.filter(f => 
-        f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId
-      )
-      if (checkedOutByOthers.length > 0) {
-        addToast?.('error', `Cannot move: ${checkedOutByOthers.length} file${checkedOutByOthers.length > 1 ? 's are' : ' is'} checked out by others`)
-      } else {
-        addToast?.('error', `Cannot move: files not checked out by you`)
-      }
-      return
-    }
-
     setClipboard({ files: selected, operation: 'cut' })
     addToast?.('info', `Cut ${selected.length} item${selected.length > 1 ? 's' : ''}`)
-  }, [getSelectedFileObjects, userId, setClipboard, addToast])
+  }, [getSelectedFileObjects, setClipboard, addToast])
 
   const handlePaste = useCallback(async (targetFolder: string) => {
     if (!clipboard) {

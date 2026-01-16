@@ -194,7 +194,9 @@ export async function transitionFileState(
       icon: updated.workflow_state.icon ?? 'file',
       is_editable: updated.workflow_state.is_editable ?? true,
       requires_checkout: updated.workflow_state.requires_checkout ?? false
-    } : null
+    } : null,
+    // Cast configuration_revisions from Json to expected type
+    configuration_revisions: updated.configuration_revisions as Record<string, string> | null
   }
   
   return { success: true, file: mappedFile }

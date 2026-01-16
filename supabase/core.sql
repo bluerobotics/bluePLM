@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 45, 'file_versions now stores part_number and description per version (metadata snapshots)', NOW(), 'migration')
+VALUES (1, 46, 'Added configuration_revisions JSONB column to files table for per-config revision tracking', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,

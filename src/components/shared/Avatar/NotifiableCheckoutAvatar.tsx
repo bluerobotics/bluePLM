@@ -6,7 +6,7 @@
  * - Click triggers notification send
  * - For folders, can send to multiple users at once
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Bell, Lock, Loader2 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { requestCheckout } from '@/lib/supabase/notifications'
@@ -58,6 +58,29 @@ export function NotifiableCheckoutAvatar({
 }: NotifiableCheckoutAvatarProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  
+  // Safety cleanup: reset hover state when component unmounts or element loses hover
+  // This fixes "sticky" hover states in virtualized lists where mouseLeave may not fire
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element) return
+    
+    // Check actual hover state periodically when we think we're hovered
+    // This catches cases where mouseLeave didn't fire (e.g., fast scrolling, virtualization)
+    if (!isHovered) return
+    
+    const checkHoverState = () => {
+      if (element && !element.matches(':hover')) {
+        setIsHovered(false)
+      }
+    }
+    
+    // Check immediately and set up interval
+    const timerId = setInterval(checkHoverState, 100)
+    
+    return () => clearInterval(timerId)
+  }, [isHovered])
   
   const { user: currentUser, organization, addToast } = usePDMStore()
   
@@ -139,12 +162,25 @@ export function NotifiableCheckoutAvatar({
   const isOwnFile = currentUser?.id === user.id
   const showHoverState = isHovered && !isOwnFile
   
+  // Use pointer events for more reliable hover detection
+  // Also verify actual hover state on enter to handle edge cases
+  const handlePointerEnter = useCallback(() => {
+    if (!isOwnFile && containerRef.current?.matches(':hover')) {
+      setIsHovered(true)
+    }
+  }, [isOwnFile])
+  
+  const handlePointerLeave = useCallback(() => {
+    setIsHovered(false)
+  }, [])
+  
   return (
     <div
+      ref={containerRef}
       className={`relative flex-shrink-0 ${!isOwnFile ? 'cursor-pointer group' : ''} ${className}`}
       style={{ width: size, height: size }}
-      onMouseEnter={() => !isOwnFile && setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
       onClick={!isOwnFile ? handleClick : undefined}
       title={tooltipText}
     >

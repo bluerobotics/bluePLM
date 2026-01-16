@@ -1999,8 +1999,8 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'exportDxf', filePath, outputPath })
   })
 
-  ipcMain.handle('solidworks:export-iges', async (_, filePath: string, outputPath?: string) => {
-    return sendSWCommand({ action: 'exportIges', filePath, outputPath })
+  ipcMain.handle('solidworks:export-iges', async (_, filePath: string, options?: { outputPath?: string; exportAllConfigs?: boolean; configurations?: string[] }) => {
+    return sendSWCommand({ action: 'exportIges', filePath, ...options })
   })
 
   ipcMain.handle('solidworks:export-stl', async (_, filePath: string, options?: { 
@@ -2027,6 +2027,15 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
 
   ipcMain.handle('solidworks:pack-and-go', async (_, filePath: string, outputFolder: string, options?: { prefix?: string; suffix?: string }) => {
     return sendSWCommand({ action: 'packAndGo', filePath, outputFolder, ...options })
+  })
+
+  ipcMain.handle('solidworks:add-component', async (_, assemblyPath: string | null, componentPath: string, coordinates?: { x: number; y: number; z: number }) => {
+    return sendSWCommand({ 
+      action: 'addComponent', 
+      filePath: assemblyPath, 
+      componentPath,
+      coordinates: coordinates ? [coordinates.x, coordinates.y, coordinates.z] : null
+    })
   })
 
   // Open document management
@@ -2276,7 +2285,7 @@ export function unregisterSolidWorksHandlers(): void {
     'solidworks:get-process-status', 'solidworks:kill-orphaned-processes',
     'solidworks:get-bom', 'solidworks:get-properties', 'solidworks:set-properties', 'solidworks:set-properties-batch',
     'solidworks:get-configurations', 'solidworks:get-references', 'solidworks:get-preview', 'solidworks:get-mass-properties',
-    'solidworks:export-pdf', 'solidworks:export-step', 'solidworks:export-dxf', 'solidworks:export-iges', 'solidworks:export-image',
+    'solidworks:export-pdf', 'solidworks:export-step', 'solidworks:export-dxf', 'solidworks:export-iges', 'solidworks:export-stl', 'solidworks:export-image',
     'solidworks:replace-component', 'solidworks:pack-and-go',
     'solidworks:get-open-documents', 'solidworks:is-document-open', 'solidworks:get-document-info',
     'solidworks:set-document-readonly', 'solidworks:save-document', 'solidworks:set-document-properties',

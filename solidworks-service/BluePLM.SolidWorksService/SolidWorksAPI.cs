@@ -1503,6 +1503,123 @@ namespace BluePLM.SolidWorksService
             }
         }
 
+        /// <summary>
+        /// Add a component (part or subassembly) to an open assembly.
+        /// If assemblyPath is null, uses the active document in SolidWorks.
+        /// </summary>
+        public CommandResult AddComponent(string? assemblyPath, string? componentPath, double[]? coordinates)
+        {
+            if (string.IsNullOrEmpty(componentPath))
+                return new CommandResult { Success = false, Error = "Missing 'componentPath'" };
+
+            if (!File.Exists(componentPath))
+                return new CommandResult { Success = false, Error = $"Component file not found: {componentPath}" };
+
+            // Validate component is a valid SolidWorks part or assembly
+            var compExt = Path.GetExtension(componentPath).ToLowerInvariant();
+            if (compExt != ".sldprt" && compExt != ".sldasm")
+                return new CommandResult { Success = false, Error = $"Invalid component type: {compExt}. Must be .sldprt or .sldasm" };
+
+            ModelDoc2? doc = null;
+            bool openedAssembly = false;
+            try
+            {
+                var sw = GetSolidWorks();
+
+                // Get the target assembly (active doc or specified path)
+                if (string.IsNullOrEmpty(assemblyPath))
+                {
+                    // Use the active document
+                    doc = sw.ActiveDoc as ModelDoc2;
+                    if (doc == null)
+                        return new CommandResult { Success = false, Error = "No active document in SolidWorks" };
+                }
+                else
+                {
+                    // First try to get it if already open
+                    doc = sw.GetOpenDocumentByName(assemblyPath) as ModelDoc2;
+                    
+                    if (doc == null)
+                    {
+                        // Open the assembly
+                        int errors = 0, warnings = 0;
+                        doc = (ModelDoc2)sw.OpenDoc6(
+                            assemblyPath,
+                            (int)swDocumentTypes_e.swDocASSEMBLY,
+                            (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
+                            "",
+                            ref errors, ref warnings
+                        );
+                        openedAssembly = true;
+                        
+                        if (doc == null)
+                            return new CommandResult { Success = false, Error = $"Failed to open assembly: errors={errors}" };
+                    }
+                }
+
+                // Verify it's an assembly
+                if (doc.GetType() != (int)swDocumentTypes_e.swDocASSEMBLY)
+                    return new CommandResult { Success = false, Error = "Target document is not an assembly" };
+
+                var assembly = (AssemblyDoc)doc;
+
+                // Default coordinates (origin) or use provided
+                double x = coordinates != null && coordinates.Length > 0 ? coordinates[0] : 0;
+                double y = coordinates != null && coordinates.Length > 1 ? coordinates[1] : 0;
+                double z = coordinates != null && coordinates.Length > 2 ? coordinates[2] : 0;
+
+                // Add the component using AddComponent5
+                // Parameters: PathName, ConfigOption, ConfigName, UseConfigForSWMates, NewName, X, Y, Z
+                var component = assembly.AddComponent5(
+                    componentPath,
+                    (int)swAddComponentConfigOptions_e.swAddComponentConfigOptions_CurrentSelectedConfig,
+                    "",      // configuration name (empty = use active config of component)
+                    false,   // use config as displayed
+                    "",      // new instance name (empty = auto-generate)
+                    x, y, z  // placement coordinates (meters)
+                );
+
+                if (component == null)
+                    return new CommandResult { Success = false, Error = "Failed to add component - AddComponent5 returned null" };
+
+                // Get the component name
+                string componentName = component.Name2;
+
+                // Save the assembly if we need to persist the change
+                // Note: Don't save if the assembly was already open by the user - let them decide
+                if (openedAssembly)
+                {
+                    int errors = 0, warnings = 0;
+                    doc.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref errors, ref warnings);
+                }
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Data = new
+                    {
+                        componentName,
+                        componentPath,
+                        assemblyPath = doc.GetPathName(),
+                        position = new { x, y, z }
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // Only close the assembly if WE opened it
+                if (openedAssembly && doc != null)
+                {
+                    try { CloseDocument(assemblyPath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
+            }
+        }
+
         #endregion
 
         #region Helpers

@@ -452,6 +452,10 @@ export interface SettingsSlice {
   hideSolidworksTempFiles: boolean
   ignoreSolidworksTempFiles: boolean
   autoRefreshMetadataOnSave: boolean
+  // Drawing metadata lockouts - when true, drawing fields are read-only (inherited from model)
+  lockDrawingRevision: boolean
+  lockDrawingItemNumber: boolean
+  lockDrawingDescription: boolean
   
   // State - API Server
   apiServerUrl: string | null
@@ -527,6 +531,9 @@ export interface SettingsSlice {
   setHideSolidworksTempFiles: (enabled: boolean) => void
   setIgnoreSolidworksTempFiles: (enabled: boolean) => void
   setAutoRefreshMetadataOnSave: (enabled: boolean) => void
+  setLockDrawingRevision: (enabled: boolean) => void
+  setLockDrawingItemNumber: (enabled: boolean) => void
+  setLockDrawingDescription: (enabled: boolean) => void
   
   // Actions - API Server
   setApiServerUrl: (url: string | null) => void

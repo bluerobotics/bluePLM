@@ -246,7 +246,6 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
   const {
     files,
     selectedFiles,
-    userId,
     vaultPath,
     currentFolder,
     onRefresh,
@@ -278,25 +277,10 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
     // Note: don't reset resizingColumn as it's managed separately
   }, [])
 
-  // Check if files can be moved (all synced files must be checked out by user)
-  const canMoveFiles = useCallback((filesToCheck: LocalFile[]): boolean => {
-    for (const file of filesToCheck) {
-      if (file.isDirectory) {
-        // For folders, check if any synced files inside are not checked out by user
-        const filesInFolder = files.filter(f => 
-          !f.isDirectory && 
-          f.relativePath.startsWith(file.relativePath + '/') &&
-          f.pdmData?.id && // Is synced
-          f.pdmData.checked_out_by !== userId // Not checked out by me
-        )
-        if (filesInFolder.length > 0) return false
-      } else if (file.pdmData?.id && file.pdmData.checked_out_by !== userId) {
-        // Synced file not checked out by current user
-        return false
-      }
-    }
+  // Check if files can be moved (always allowed - checkout not required for moving)
+  const canMoveFiles = useCallback((_filesToCheck: LocalFile[]): boolean => {
     return true
-  }, [files, userId])
+  }, [])
 
   // Handle drag start - HTML5 drag initiates, Electron adds native file data
   const handleDragStart = useCallback((e: React.DragEvent, file: LocalFile) => {
@@ -417,7 +401,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
       })
       if (wouldStayInPlace) return
       
-      // Check if all files can be moved (checked out)
+      // Check if all files can be moved
       if (!canMoveFiles(filesToCheck)) {
         e.dataTransfer.dropEffect = 'none'
         return

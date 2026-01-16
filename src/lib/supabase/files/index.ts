@@ -34,7 +34,9 @@ export {
   updateFileMetadata,
   updateFilePath,
   updateFolderPath,
-  upsertFileReferences
+  upsertFileReferences,
+  updateConfigurationRevision,
+  propagateDrawingRevisionToConfigurations
 } from './mutations'
 
 // Export types for file references

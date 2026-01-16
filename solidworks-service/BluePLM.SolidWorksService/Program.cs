@@ -258,6 +258,9 @@ namespace BluePLM.SolidWorksService
                         command["outputFolder"]?.ToString(),
                         command["prefix"]?.ToString(),
                         command["suffix"]?.ToString()),
+                    "addComponent" => _swApi!.AddComponent(filePath,
+                        command["componentPath"]?.ToString(),
+                        command["coordinates"]?.ToObject<double[]>()),
                     
                     // Service control
                     "ping" => Ping(),

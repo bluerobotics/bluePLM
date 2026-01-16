@@ -3,25 +3,17 @@ import type { Clipboard } from './types'
 import { executeCommand } from '@/lib/commands'
 
 /**
- * Check if files can be cut (must be directories, local-only, or checked out by user)
+ * Check if files can be cut (always allowed - checkout not required for moving)
  */
-export function canCutFiles(files: LocalFile[], userId?: string): boolean {
-  return files.every(f => 
-    f.isDirectory || 
-    !f.pdmData || 
-    f.pdmData.checked_out_by === userId
-  )
+export function canCutFiles(_files: LocalFile[], _userId?: string): boolean {
+  return true
 }
 
 /**
- * Get files that block cut operation
+ * Get files that block cut operation (none - moving is always allowed)
  */
-export function getCutBlockers(files: LocalFile[], userId?: string): LocalFile[] {
-  return files.filter(f => 
-    !f.isDirectory && 
-    f.pdmData && 
-    f.pdmData.checked_out_by !== userId
-  )
+export function getCutBlockers(_files: LocalFile[], _userId?: string): LocalFile[] {
+  return []
 }
 
 /**

@@ -348,29 +348,6 @@ export function useFileOperations({
     })
     if (wouldStayInPlace) return
     
-    // Check that all synced files are checked out by the current user
-    const notCheckedOut: string[] = []
-    for (const file of filesToMove) {
-      if (file.isDirectory) {
-        const filesInFolder = files.filter(f => 
-          !f.isDirectory && 
-          f.relativePath.startsWith(file.relativePath + '/') &&
-          f.pdmData?.id &&
-          f.pdmData.checked_out_by !== userId
-        )
-        if (filesInFolder.length > 0) {
-          notCheckedOut.push(`${file.name} (contains ${filesInFolder.length} file${filesInFolder.length > 1 ? 's' : ''} not checked out)`)
-        }
-      } else if (file.pdmData?.id && file.pdmData.checked_out_by !== userId) {
-        notCheckedOut.push(file.name)
-      }
-    }
-    
-    if (notCheckedOut.length > 0) {
-      addToast('error', `Cannot move: ${notCheckedOut.slice(0, 3).join(', ')}${notCheckedOut.length > 3 ? ` and ${notCheckedOut.length - 3} more` : ''} not checked out by you`)
-      return
-    }
-    
     // Perform the move
     const total = filesToMove.length
     const toastId = `move-${Date.now()}`

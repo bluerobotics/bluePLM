@@ -33,6 +33,8 @@ interface ConfigVirtualRow {
   isSelected: boolean
   isEditable: boolean
   basePartNumber: string
+  /** Configuration-specific revision (from drawing propagation) */
+  configRevision?: string
 }
 
 /** New folder input row */
@@ -178,6 +180,8 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
       // Add config rows if expanded
       if (expandedConfigFiles.has(file.path)) {
         const configs = fileConfigurations.get(file.path) || []
+        // Get configuration revisions from file's pdmData (propagated from drawings)
+        const configRevisions = (file.pdmData?.configuration_revisions || {}) as Record<string, string>
         configs.forEach((config) => {
           const configKey = `${file.path}::${config.name}`
           rows.push({
@@ -187,6 +191,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
             isSelected: selectedConfigs.has(configKey),
             isEditable,
             basePartNumber,
+            configRevision: configRevisions[config.name],
           })
         })
       }
@@ -314,7 +319,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
   ])
 
   const renderConfigRow = useCallback((row: ConfigVirtualRow) => {
-    const { file, config, isSelected, isEditable, basePartNumber } = row
+    const { file, config, isSelected, isEditable, basePartNumber, configRevision } = row
     const configs = fileConfigurations.get(file.path) || []
     
     return (
@@ -326,6 +331,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         rowHeight={configRowHeight}
         visibleColumns={visibleColumns}
         basePartNumber={basePartNumber}
+        configRevision={configRevision}
         onClick={(e) => onConfigRowClick(e, file.path, config.name, configs)}
         onContextMenu={(e) => onConfigContextMenu(e, file.path, config.name)}
         onDescriptionChange={(value) => onConfigDescriptionChange(file.path, config.name, value)}

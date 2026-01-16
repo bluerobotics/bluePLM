@@ -338,6 +338,8 @@ declare global {
           Promise<{ success: boolean; data?: { assemblyPath: string; oldComponent: string; newComponent: string; replacedCount: number }; error?: string }>
         packAndGo: (filePath: string, outputFolder: string, options?: { prefix?: string; suffix?: string }) => 
           Promise<{ success: boolean; data?: { sourceFile: string; outputFolder: string; totalFiles: number; copiedFiles: number; files: string[] }; error?: string }>
+        addComponent: (assemblyPath: string | null, componentPath: string, coordinates?: { x: number; y: number; z: number }) =>
+          Promise<{ success: boolean; data?: { componentName: string; componentPath: string; assemblyPath: string; position: { x: number; y: number; z: number } }; error?: string }>
         
         // Open Document Management (control files open in SolidWorks without closing them!)
         getOpenDocuments: () => Promise<{ success: boolean; data?: { 

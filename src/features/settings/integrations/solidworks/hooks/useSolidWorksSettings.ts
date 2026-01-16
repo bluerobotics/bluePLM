@@ -106,6 +106,12 @@ export function useSolidWorksSettings() {
     setIgnoreSolidworksTempFiles,
     autoRefreshMetadataOnSave,
     setAutoRefreshMetadataOnSave,
+    lockDrawingRevision,
+    setLockDrawingRevision,
+    lockDrawingItemNumber,
+    setLockDrawingItemNumber,
+    lockDrawingDescription,
+    setLockDrawingDescription,
     vaultPath,
     user,
     files,
@@ -506,6 +512,13 @@ export function useSolidWorksSettings() {
     setIgnoreSolidworksTempFiles,
     autoRefreshMetadataOnSave,
     setAutoRefreshMetadataOnSave,
+    // Drawing field lockouts
+    lockDrawingRevision,
+    setLockDrawingRevision,
+    lockDrawingItemNumber,
+    setLockDrawingItemNumber,
+    lockDrawingDescription,
+    setLockDrawingDescription,
     
     // DM License key
     dmLicenseKeyInput,

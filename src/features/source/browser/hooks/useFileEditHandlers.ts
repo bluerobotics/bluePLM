@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/utils/path'
 
@@ -178,6 +179,25 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     if (!user?.id) {
       addToast('info', 'Sign in to edit metadata')
       return
+    }
+    
+    // Check drawing field lockouts (these fields are typically inherited from the model)
+    const isDrawing = file.extension?.toLowerCase() === '.slddrw'
+    if (isDrawing) {
+      const { lockDrawingRevision, lockDrawingItemNumber, lockDrawingDescription } = usePDMStore.getState()
+      
+      if (column === 'revision' && lockDrawingRevision) {
+        addToast('info', 'Drawing revision is driven by the drawing file')
+        return
+      }
+      if (column === 'itemNumber' && lockDrawingItemNumber) {
+        addToast('info', 'Drawing item number is inherited from the referenced model')
+        return
+      }
+      if (column === 'description' && lockDrawingDescription) {
+        addToast('info', 'Drawing description is inherited from the referenced model')
+        return
+      }
     }
     
     // For synced files, check checkout status

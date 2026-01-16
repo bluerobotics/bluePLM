@@ -4,7 +4,12 @@
  * Uses both contexts:
  * - useFilePaneContext() for UI state (editing state, refs)
  * - useFilePaneHandlers() for action handlers
+ * 
+ * NOTE: Drawing files (.slddrw) can have their revision locked via settings because
+ * it typically comes from the drawing's revision table, not from editable properties.
  */
+import { FileInput } from 'lucide-react'
+import { usePDMStore } from '@/stores/pdmStore'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
 
@@ -15,9 +20,15 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
   // Handlers from FilePaneHandlersContext
   const { isFileEditable, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit } = useFilePaneHandlers()
   
+  // Drawing lockout setting
+  const lockDrawingRevision = usePDMStore(s => s.lockDrawingRevision)
+  
   if (file.isDirectory) return ''
   
-  const canEditRevision = isFileEditable(file)
+  // Drawing files can have their revision locked via settings
+  const isDrawing = file.extension?.toLowerCase() === '.slddrw'
+  const isDrawingLocked = isDrawing && lockDrawingRevision
+  const canEditRevision = isFileEditable(file) && !isDrawingLocked
   const isEditingRevision = editingCell?.path === file.path && editingCell?.column === 'revision'
   
   if (isEditingRevision && canEditRevision) {
@@ -51,9 +62,16 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
     ? file.pendingMetadata.revision 
     : (file.pdmData?.revision || 'A')
   
+  // Determine appropriate tooltip message
+  const getTooltip = () => {
+    if (isDrawingLocked) return 'Drawing revision is driven by the drawing file'
+    if (canEditRevision) return 'Click to edit'
+    return 'Check out file to edit'
+  }
+  
   return (
     <span
-      className={`block w-full h-full px-1 rounded ${canEditRevision ? 'cursor-text hover:bg-plm-bg-light' : 'text-plm-fg-muted'}`}
+      className={`flex items-center gap-1 w-full h-full px-1 rounded ${canEditRevision ? 'cursor-text hover:bg-plm-bg-light' : 'text-plm-fg-muted'}`}
       onClick={(e) => {
         e.stopPropagation()
         e.preventDefault()
@@ -65,9 +83,10 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
         // Stop mousedown from triggering row drag or file focus
         e.stopPropagation()
       }}
-      title={canEditRevision ? 'Click to edit' : 'Check out file to edit'}
+      title={getTooltip()}
     >
       {displayValue}
+      {isDrawingLocked && <FileInput size={12} className="text-plm-fg-muted/50 flex-shrink-0" />}
     </span>
   )
 }

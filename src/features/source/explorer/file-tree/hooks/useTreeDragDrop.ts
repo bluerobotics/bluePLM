@@ -197,25 +197,10 @@ export function useTreeDragDrop(): DragDropHandlers {
   // Ref for tracking dragged files synchronously
   const draggedFilesRef = useRef<LocalFile[]>([])
   
-  // Check if files can be moved (all synced files must be checked out by user)
-  const canMoveFiles = useCallback((filesToCheck: LocalFile[]): boolean => {
-    for (const file of filesToCheck) {
-      if (file.isDirectory) {
-        // For folders, check if any synced files inside are not checked out by user
-        const filesInFolder = files.filter(f => 
-          !f.isDirectory && 
-          f.relativePath.startsWith(file.relativePath + '/') &&
-          f.pdmData?.id && // Is synced
-          f.pdmData.checked_out_by !== user?.id // Not checked out by me
-        )
-        if (filesInFolder.length > 0) return false
-      } else if (file.pdmData?.id && file.pdmData.checked_out_by !== user?.id) {
-        // Synced file not checked out by current user
-        return false
-      }
-    }
+  // Check if files can be moved (always allow - checkout not required for moving)
+  const canMoveFiles = useCallback((_filesToCheck: LocalFile[]): boolean => {
     return true
-  }, [files, user?.id])
+  }, [])
   
   // Handle drag start
   const handleDragStart = useCallback((e: React.DragEvent, filesToDrag: LocalFile[], file: LocalFile) => {
@@ -466,29 +451,6 @@ export function useTreeDragDrop(): DragDropHandlers {
       return
     }
     
-    // Check that all synced files are checked out
-    const notCheckedOut: string[] = []
-    for (const file of filesToMove) {
-      if (file.isDirectory) {
-        const filesInFolder = files.filter(f => 
-          !f.isDirectory && 
-          f.relativePath.startsWith(file.relativePath + '/') &&
-          f.pdmData?.id &&
-          f.pdmData.checked_out_by !== user?.id
-        )
-        if (filesInFolder.length > 0) {
-          notCheckedOut.push(`${file.name} (contains ${filesInFolder.length} file${filesInFolder.length > 1 ? 's' : ''} not checked out)`)
-        }
-      } else if (file.pdmData?.id && file.pdmData.checked_out_by !== user?.id) {
-        notCheckedOut.push(file.name)
-      }
-    }
-    
-    if (notCheckedOut.length > 0) {
-      addToast('error', `Cannot move - check out first: ${notCheckedOut.slice(0, 3).join(', ')}${notCheckedOut.length > 3 ? ` (+${notCheckedOut.length - 3} more)` : ''}`)
-      return
-    }
-    
     let succeeded = 0
     let failed = 0
     
@@ -662,29 +624,6 @@ export function useTreeDragDrop(): DragDropHandlers {
     // Don't move if already in root
     const allInRoot = filesToMove.every(f => !f.relativePath.includes('/'))
     if (allInRoot) return
-    
-    // Check that all synced files are checked out
-    const notCheckedOut: string[] = []
-    for (const file of filesToMove) {
-      if (file.isDirectory) {
-        const filesInFolder = files.filter(f => 
-          !f.isDirectory && 
-          f.relativePath.startsWith(file.relativePath + '/') &&
-          f.pdmData?.id &&
-          f.pdmData.checked_out_by !== user?.id
-        )
-        if (filesInFolder.length > 0) {
-          notCheckedOut.push(`${file.name} (contains files not checked out)`)
-        }
-      } else if (file.pdmData?.id && file.pdmData.checked_out_by !== user?.id) {
-        notCheckedOut.push(file.name)
-      }
-    }
-    
-    if (notCheckedOut.length > 0) {
-      addToast('error', `Cannot move: ${notCheckedOut.slice(0, 2).join(', ')}${notCheckedOut.length > 2 ? ` +${notCheckedOut.length - 2} more` : ''} not checked out`)
-      return
-    }
     
     // Perform the moves to root
     const total = filesToMove.length

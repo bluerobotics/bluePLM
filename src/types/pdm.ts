@@ -453,6 +453,11 @@ export interface PDMFile {
   // Custom properties (from SolidWorks custom properties)
   custom_properties: Record<string, string | number | null> | unknown | null
   
+  // Configuration-specific revisions (for multi-config parts/assemblies)
+  // Map of configuration name -> revision letter, e.g. { "Default": "B", "Anodized": "C" }
+  // Updated when drawings referencing this file's configs are released
+  configuration_revisions?: Record<string, string> | null
+  
   // ECO tags (denormalized from file_ecos junction table)
   eco_tags?: string[] | null
   

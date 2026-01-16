@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useDeferredValue } from 'react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import { 
@@ -90,6 +90,20 @@ export function useVaultTree() {
   const user = usePDMStore(s => s.user)
   const processingOperations = usePDMStore(s => s.processingOperations)
   
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PERFORMANCE OPTIMIZATION: useDeferredValue for folderMetrics
+  // ═══════════════════════════════════════════════════════════════════════════
+  // The folderMetrics computation is O(N × depth) which with 22K+ files takes
+  // ~100-200ms and blocks the UI thread. By using useDeferredValue, React can:
+  // 1. Keep the UI responsive by yielding to user input
+  // 2. Batch multiple rapid file updates into fewer re-computations
+  // 3. Show stale metrics briefly while computing new ones
+  //
+  // The tree structure uses immediate `files` for accurate navigation,
+  // while folder metrics (visual indicators) use deferred data.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const deferredFiles = useDeferredValue(files)
+  
   // Note: getFolderDiffCounts no longer needed from store - computed in folderMetrics Map
   // This eliminates O(N) per-folder calls, replacing with O(1) Map lookups
   
@@ -134,14 +148,16 @@ export function useVaultTree() {
    * Now: Single O(N) pass = 1000 iterations total. Each lookup is O(1).
    * 
    * ADDITIONAL OPTIMIZATIONS:
-   * Merged checkout user collection into the first pass, eliminating a second O(N) iteration.
-   * Uses Map<userId, CheckoutUser> per folder for O(1) deduplication during iteration.
+   * - Merged checkout user collection into the first pass, eliminating a second O(N) iteration.
+   * - Uses Map<userId, CheckoutUser> per folder for O(1) deduplication during iteration.
+   * - Uses useDeferredValue(files) to prevent UI freezes during rapid file updates.
+   *   React can yield to user input while this computation runs in the background.
    */
   const folderMetrics = useMemo<FolderMetricsMap>(() => {
     const startTime = performance.now()
-    const fileCount = files.length
+    const fileCount = deferredFiles.length
     // Note: Logging removed - this runs on every render and floods logs with ~24k files
-    recordMetric('FolderMetrics', 'Starting computation', { fileCount })
+    recordMetric('FolderMetrics', 'Starting computation', { fileCount, isDeferred: deferredFiles !== files })
     
     const metrics = new Map<string, FolderMetrics>()
     // Track checkout users per folder using Map for O(1) deduplication during single pass
@@ -152,7 +168,8 @@ export function useVaultTree() {
     const userAvatarUrl = user?.avatar_url
     
     // Get all non-directory files (optionally excluding SolidWorks temp files)
-    const allNonDirFiles = files.filter(f => {
+    // Uses deferredFiles to allow React to batch updates and yield to user input
+    const allNonDirFiles = deferredFiles.filter(f => {
       if (f.isDirectory) return false
       if (hideSolidworksTempFiles && f.name.startsWith('~$')) return false
       return true
@@ -360,7 +377,7 @@ export function useVaultTree() {
     })
     
     return metrics
-  }, [files, user?.id, user?.full_name, user?.email, user?.avatar_url, hideSolidworksTempFiles])
+  }, [deferredFiles, files, user?.id, user?.full_name, user?.email, user?.avatar_url, hideSolidworksTempFiles])
   
   // Check if a file/folder is affected by any processing operation
   // Spinners propagate DOWN to children, not UP to parents
@@ -418,11 +435,12 @@ export function useVaultTree() {
       return metrics.isSynced
     }
     // Fallback for folders not in metrics (shouldn't happen in normal use)
+    // Uses deferredFiles for consistency with folderMetrics computation
     const filteredFiles = hideSolidworksTempFiles 
-      ? files.filter(f => !f.name.startsWith('~$'))
-      : files
+      ? deferredFiles.filter(f => !f.name.startsWith('~$'))
+      : deferredFiles
     return isFolderSynced(folderPath, filteredFiles)
-  }, [folderMetrics, files, hideSolidworksTempFiles])
+  }, [folderMetrics, deferredFiles, hideSolidworksTempFiles])
   
   /**
    * Get folder icon color (Tailwind class) using priority-based logic.
@@ -449,9 +467,9 @@ export function useVaultTree() {
     if (metrics !== undefined) {
       return metrics.checkoutStatus
     }
-    // Fallback for folders not in metrics
-    return getFolderCheckoutStatus(folderPath, files, user?.id)
-  }, [folderMetrics, files, user?.id])
+    // Fallback for folders not in metrics - uses deferredFiles for consistency
+    return getFolderCheckoutStatus(folderPath, deferredFiles, user?.id)
+  }, [folderMetrics, deferredFiles, user?.id])
   
   /**
    * Get checkout users for a folder.
@@ -463,16 +481,16 @@ export function useVaultTree() {
     if (metrics !== undefined) {
       return metrics.checkoutUsers
     }
-    // Fallback for folders not in metrics
+    // Fallback for folders not in metrics - uses deferredFiles for consistency
     return getFolderCheckoutUsers(
       folderPath, 
-      files, 
+      deferredFiles, 
       user?.id, 
       user?.full_name || undefined, 
       user?.email || undefined, 
       user?.avatar_url || undefined
     )
-  }, [folderMetrics, files, user?.id, user?.full_name, user?.email, user?.avatar_url])
+  }, [folderMetrics, deferredFiles, user?.id, user?.full_name, user?.email, user?.avatar_url])
   
   /**
    * Get diff counts for a folder.
@@ -501,10 +519,11 @@ export function useVaultTree() {
     
     // Fallback for folders not in metrics (edge case - empty folders or root)
     // This should rarely execute in normal use
+    // Uses deferredFiles for consistency with folderMetrics computation
     const prefix = folderPath ? folderPath + '/' : ''
     let added = 0, modified = 0, moved = 0, deleted = 0, outdated = 0, cloud = 0, cloudNew = 0
     
-    for (const file of files) {
+    for (const file of deferredFiles) {
       if (file.isDirectory) continue
       if (folderPath && !file.relativePath.startsWith(prefix)) continue
       if (hideSolidworksTempFiles && file.name.startsWith('~$')) continue
@@ -521,7 +540,7 @@ export function useVaultTree() {
     }
     
     return { added, modified, moved, deleted, outdated, cloud, cloudNew }
-  }, [folderMetrics, files, hideSolidworksTempFiles])
+  }, [folderMetrics, deferredFiles, hideSolidworksTempFiles])
   
   /**
    * Get local-only files count for a folder.
@@ -533,8 +552,8 @@ export function useVaultTree() {
     if (metrics !== undefined) {
       return metrics.localOnlyFilesCount
     }
-    // Fallback for folders not in metrics
-    return files.filter(f => 
+    // Fallback for folders not in metrics - uses deferredFiles for consistency
+    return deferredFiles.filter(f => 
       !f.isDirectory && 
       (!f.pdmData || f.diffStatus === 'added' || f.diffStatus === 'deleted_remote') && 
       f.diffStatus !== 'cloud' && 
@@ -542,7 +561,7 @@ export function useVaultTree() {
       f.relativePath.startsWith(folderPath + '/') &&
       !(hideSolidworksTempFiles && f.name.startsWith('~$'))
     ).length
-  }, [folderMetrics, files, hideSolidworksTempFiles])
+  }, [folderMetrics, deferredFiles, hideSolidworksTempFiles])
   
   /**
    * Get folder checkout statistics.
@@ -559,19 +578,19 @@ export function useVaultTree() {
         syncedCount: metrics.syncedFilesCount
       }
     }
-    // Fallback for folders not in metrics
+    // Fallback for folders not in metrics - uses deferredFiles for consistency
     const checkoutUsers = getCheckoutUsersForFolder(folderPath)
-    const checkedOutByMeCount = files.filter(f => 
+    const checkedOutByMeCount = deferredFiles.filter(f => 
       !f.isDirectory && 
       f.pdmData?.checked_out_by === user?.id &&
       f.relativePath.startsWith(folderPath + '/')
     ).length
-    const totalCheckouts = files.filter(f => 
+    const totalCheckouts = deferredFiles.filter(f => 
       !f.isDirectory && 
       f.pdmData?.checked_out_by &&
       f.relativePath.startsWith(folderPath + '/')
     ).length
-    const syncedCount = files.filter(f => 
+    const syncedCount = deferredFiles.filter(f => 
       !f.isDirectory && 
       f.pdmData && !f.pdmData.checked_out_by &&
       f.diffStatus !== 'cloud' &&
@@ -584,7 +603,7 @@ export function useVaultTree() {
       totalCheckouts,
       syncedCount
     }
-  }, [folderMetrics, files, user?.id, getCheckoutUsersForFolder])
+  }, [folderMetrics, deferredFiles, user?.id, getCheckoutUsersForFolder])
   
   // Sort children for display
   const sortChildren = useCallback((children: LocalFile[]): LocalFile[] => {

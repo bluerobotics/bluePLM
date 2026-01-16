@@ -26,7 +26,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 45
+export const EXPECTED_SCHEMA_VERSION = 46
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -79,6 +79,7 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   43: 'Fix double version increment: checkin_file skips version if already created during checkout',
   44: 'SOLIDWORKS license management: licenses table, assignments, RLS policies, helper functions',
   45: 'file_versions stores part_number and description per version (metadata snapshots)',
+  46: 'Added configuration_revisions column to files table for per-config revision tracking (drawing → config propagation)',
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

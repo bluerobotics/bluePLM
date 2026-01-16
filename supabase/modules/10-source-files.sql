@@ -375,6 +375,11 @@ CREATE TABLE IF NOT EXISTS files (
   -- Custom properties
   custom_properties JSONB DEFAULT '{}'::jsonb,
   
+  -- Configuration-specific revisions (for multi-config parts/assemblies)
+  -- Map of configuration name -> revision letter, e.g. {"Default": "B", "Anodized": "C"}
+  -- Updated when drawings referencing this file's configs are released
+  configuration_revisions JSONB DEFAULT '{}'::jsonb,
+  
   -- ECO tags (denormalized)
   eco_tags TEXT[] DEFAULT '{}',
   

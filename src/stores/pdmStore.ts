@@ -164,6 +164,9 @@ export const usePDMStore = create<PDMStoreState>()(
         autoStartSolidworksService: state.autoStartSolidworksService,
         hideSolidworksTempFiles: state.hideSolidworksTempFiles,
         ignoreSolidworksTempFiles: state.ignoreSolidworksTempFiles,
+        lockDrawingRevision: state.lockDrawingRevision,
+        lockDrawingItemNumber: state.lockDrawingItemNumber,
+        lockDrawingDescription: state.lockDrawingDescription,
         apiServerUrl: state.apiServerUrl,
         
         // ═══════════════════════════════════════════════════════════════
@@ -287,6 +290,10 @@ export const usePDMStore = create<PDMStoreState>()(
           autoStartSolidworksService: (persisted.autoStartSolidworksService as boolean) ?? true,
           hideSolidworksTempFiles: persisted.hideSolidworksTempFiles !== undefined ? (persisted.hideSolidworksTempFiles as boolean) : true,
           ignoreSolidworksTempFiles: persisted.ignoreSolidworksTempFiles !== undefined ? (persisted.ignoreSolidworksTempFiles as boolean) : true,
+          // Drawing field lockouts - default to true (locked) for new installs
+          lockDrawingRevision: persisted.lockDrawingRevision !== undefined ? (persisted.lockDrawingRevision as boolean) : true,
+          lockDrawingItemNumber: persisted.lockDrawingItemNumber !== undefined ? (persisted.lockDrawingItemNumber as boolean) : true,
+          lockDrawingDescription: persisted.lockDrawingDescription !== undefined ? (persisted.lockDrawingDescription as boolean) : true,
           // API Server URL - keep persisted value until org settings sync
           // The ApiSettings component will sync from org.settings.api_url when organization loads
           apiServerUrl: (persisted.apiServerUrl as string | null) || null,

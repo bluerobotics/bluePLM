@@ -15,3 +15,16 @@ export {
   type BomTreeProps,
   type LegacyBomItem 
 } from './BomTree'
+
+// SOLIDWORKS file creation (for context menus)
+export { 
+  SolidWorksContextMenuItems,
+  type SolidWorksContextMenuItemsProps 
+} from './components'
+export { 
+  useSolidWorksFileCreation,
+  type UseSolidWorksFileCreationReturn,
+  type AvailableTemplates,
+  type TemplateFile,
+  type SolidWorksFileType
+} from './hooks'

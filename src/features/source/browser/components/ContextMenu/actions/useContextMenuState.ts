@@ -161,12 +161,8 @@ export function useContextMenuSelectionState({
     const allCheckedOutByOthers = syncedFilesInSelection.length > 0 && 
       syncedFilesInSelection.every(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId)
     
-    // Can cut if: directory, unsynced, or checked out by current user
-    const canCut = contextFiles.every(f => 
-      f.isDirectory || 
-      !f.pdmData || 
-      f.pdmData.checked_out_by === userId
-    )
+    // Can always cut - checkout not required for moving files
+    const canCut = true
     
     return {
       isFolder,

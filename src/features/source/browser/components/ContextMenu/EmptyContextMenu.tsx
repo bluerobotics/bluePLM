@@ -1,9 +1,18 @@
-import { memo } from 'react'
+import { memo, type RefObject } from 'react'
 import { Folder, Upload, FolderPlus, ClipboardPaste, RefreshCw, Undo2 } from 'lucide-react'
+import { SolidWorksContextMenuItems } from '@/features/integrations/solidworks/components'
 
 export interface EmptyContextMenuProps {
   x: number
   y: number
+  /** Adjusted position to keep menu within viewport bounds */
+  adjustedPos?: { x: number; y: number } | null
+  /** Ref for measuring the menu element */
+  menuRef?: RefObject<HTMLDivElement | null>
+  /** Current folder path (relative to vault) */
+  currentPath: string
+  /** Vault root path */
+  vaultPath: string | null
   hasClipboard: boolean
   hasUndoStack: boolean
   onNewFolder: () => void
@@ -21,6 +30,10 @@ export interface EmptyContextMenuProps {
 export const EmptyContextMenu = memo(function EmptyContextMenu({
   x,
   y,
+  adjustedPos,
+  menuRef,
+  currentPath,
+  vaultPath,
   hasClipboard,
   hasUndoStack,
   onNewFolder,
@@ -31,6 +44,11 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
   onUndo,
   onClose
 }: EmptyContextMenuProps) {
+  // Build the full target folder path for SOLIDWORKS file creation
+  const targetFolder = vaultPath 
+    ? (currentPath ? `${vaultPath}\\${currentPath}` : vaultPath)
+    : ''
+  
   return (
     <>
       <div 
@@ -42,8 +60,9 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
         }}
       />
       <div 
+        ref={menuRef}
         className="context-menu"
-        style={{ left: x, top: y }}
+        style={{ left: adjustedPos?.x ?? x, top: adjustedPos?.y ?? y }}
       >
         <div 
           className="context-menu-item"
@@ -88,6 +107,15 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
           Paste
           <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+V</span>
         </div>
+        
+        {/* SOLIDWORKS New File Items - conditionally rendered based on integration status */}
+        {targetFolder && (
+          <SolidWorksContextMenuItems
+            targetFolder={targetFolder}
+            onClose={onClose}
+          />
+        )}
+        
         <div className="context-menu-separator" />
         <div 
           className="context-menu-item"

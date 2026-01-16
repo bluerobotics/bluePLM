@@ -77,6 +77,10 @@ export const createSettingsSlice: StateCreator<
   hideSolidworksTempFiles: true,
   ignoreSolidworksTempFiles: true,
   autoRefreshMetadataOnSave: true,
+  // Drawing metadata lockouts - when ON, drawing fields are read-only (inherited from model)
+  lockDrawingRevision: true,
+  lockDrawingItemNumber: true,
+  lockDrawingDescription: true,
   
   // Initial state - API Server
   apiServerUrl: null,
@@ -152,6 +156,9 @@ export const createSettingsSlice: StateCreator<
   setHideSolidworksTempFiles: (hideSolidworksTempFiles) => set({ hideSolidworksTempFiles }),
   setIgnoreSolidworksTempFiles: (ignoreSolidworksTempFiles) => set({ ignoreSolidworksTempFiles }),
   setAutoRefreshMetadataOnSave: (autoRefreshMetadataOnSave) => set({ autoRefreshMetadataOnSave }),
+  setLockDrawingRevision: (lockDrawingRevision) => set({ lockDrawingRevision }),
+  setLockDrawingItemNumber: (lockDrawingItemNumber) => set({ lockDrawingItemNumber }),
+  setLockDrawingDescription: (lockDrawingDescription) => set({ lockDrawingDescription }),
   
   // Actions - API Server
   setApiServerUrl: (apiServerUrl) => set({ apiServerUrl }),

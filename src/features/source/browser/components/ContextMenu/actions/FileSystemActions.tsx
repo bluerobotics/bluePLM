@@ -79,6 +79,27 @@ export function FileSystemActions({
         Copy Path{multiSelect ? 's' : ''}
       </div>
       
+      {/* Copy Folder Path - for files only, copies the directory portion */}
+      {!firstFile.isDirectory && !multiSelect && (
+        <div 
+          className="context-menu-item"
+          onClick={async () => {
+            // Extract directory path by removing the filename
+            const sep = platform === 'win32' ? '\\' : '/'
+            const lastSepIndex = firstFile.path.lastIndexOf(sep)
+            const folderPath = lastSepIndex > 0 ? firstFile.path.substring(0, lastSepIndex) : firstFile.path
+            const result = await copyToClipboard(folderPath)
+            if (result.success) {
+              addToast('success', 'Copied folder path to clipboard')
+            }
+            onClose()
+          }}
+        >
+          <Copy size={14} />
+          Copy Folder Path
+        </div>
+      )}
+      
       {/* Pin/Unpin - single item only */}
       {!multiSelect && activeVaultId && (
         <div 

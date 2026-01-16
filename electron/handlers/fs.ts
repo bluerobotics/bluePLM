@@ -284,10 +284,30 @@ function startFileWatcher(dirPath: string) {
   })
 }
 
-// Native file drag icon
+// Native file drag icon - a simple file icon that works well across platforms
+// Using a slightly larger icon (32x32) with better visibility
 const DRAG_ICON = nativeImage.createFromDataURL(
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABjSURBVFhH7c0xDQAgDAXQskKxgBUsYAErWMECFv7OwEImXEOTN/wdPwEAAAAAAACU7F0z27sZuweeAAAAAAAAlOzdM9u7GbsHngAAAAAAAJTs3TPbuxm7B56AAAAAgF9mZgO0VARYFxh/1QAAAABJRU5ErkJggg=='
 )
+
+/**
+ * Get the file extension icon for drag operations
+ * Falls back to default DRAG_ICON if unable to get file-specific icon
+ */
+function getDragIconForFile(filePath: string): Electron.NativeImage {
+  try {
+    // Try to get the app's file icon from the system
+    // This provides a more native feel
+    const icon = nativeImage.createFromPath(filePath)
+    if (!icon.isEmpty()) {
+      // Resize to a reasonable drag icon size
+      return icon.resize({ width: 32, height: 32 })
+    }
+  } catch {
+    // Fall back to default icon
+  }
+  return DRAG_ICON
+}
 
 // Export getters for module state
 export function getWorkingDirectory(): string | null {
@@ -1433,16 +1453,20 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     }
   })
 
-  // Native file drag
+  // Native file drag - enables dragging files from BluePLM to external applications
+  // Note: When dragging to SolidWorks, the smart drag detection in handleDragEnd 
+  // will automatically use the SolidWorks API to add components if an assembly is open
   ipcMain.on('fs:start-drag', (event, filePaths: string[]) => {
     log('fs:start-drag received: ' + filePaths.length + ' files')
     
     const validPaths = filePaths.filter(p => {
       try {
-        const exists = fs.existsSync(p)
-        const isFile = exists && fs.statSync(p).isFile()
-        if (!exists) log('  File does not exist: ' + p)
-        if (exists && !isFile) log('  Not a file: ' + p)
+        // Normalize the path for Windows (ensure backslashes)
+        const normalizedPath = path.normalize(p)
+        const exists = fs.existsSync(normalizedPath)
+        const isFile = exists && fs.statSync(normalizedPath).isFile()
+        if (!exists) log('  File does not exist: ' + normalizedPath)
+        if (exists && !isFile) log('  Not a file (possibly directory): ' + normalizedPath)
         return isFile
       } catch (err) {
         log('  Error checking file: ' + p + ' ' + String(err))
@@ -1455,24 +1479,27 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       return
     }
     
-    log('Valid paths for drag: ' + validPaths.join(', '))
+    // Normalize paths for Windows
+    const normalizedPaths = validPaths.map(p => path.normalize(p))
+    log('Valid paths for drag: ' + normalizedPaths.join(', '))
     
     try {
+      // Use the first file for drag (Electron limitation - single file only)
+      const file = normalizedPaths[0]
+      const icon = getDragIconForFile(file)
+      
       if (mainWindow && !mainWindow.isDestroyed()) {
-        log('Calling startDrag via mainWindow.webContents')
-        // Use single file if only one, otherwise use first file
-        const file = validPaths[0]
+        log('Calling startDrag via mainWindow.webContents for: ' + file)
         mainWindow.webContents.startDrag({
           file,
-          icon: DRAG_ICON
+          icon
         })
-        log('startDrag completed')
+        log('startDrag completed successfully')
       } else {
         log('mainWindow not available, using event.sender')
-        const file = validPaths[0]
         event.sender.startDrag({
           file,
-          icon: DRAG_ICON
+          icon
         })
         log('startDrag via event.sender completed')
       }

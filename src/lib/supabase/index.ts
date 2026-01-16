@@ -71,6 +71,8 @@ export {
   updateFilePath,
   updateFolderPath,
   upsertFileReferences,
+  updateConfigurationRevision,
+  propagateDrawingRevisionToConfigurations,
   softDeleteFile,
   softDeleteFiles,
   restoreFile,

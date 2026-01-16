@@ -365,7 +365,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     anyMachineOnline: boolean
   } | null>(null)
   
-  // Open files in SolidWorks
+  // Active files - files currently open in applications like SolidWorks
   const [openDocuments, setOpenDocuments] = useState<OpenDocument[]>([])
   const [isLoadingOpenDocs, setIsLoadingOpenDocs] = useState(false)
   const solidworksIntegrationEnabled = usePDMStore(state => state.solidworksIntegrationEnabled)
@@ -793,13 +793,13 @@ export function PendingView({ onRefresh }: PendingViewProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Open Files in SolidWorks - shown first when available */}
+        {/* Active Files - files currently open in applications like SolidWorks */}
         {solidworksIntegrationEnabled && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2">
                 <FileEdit size={12} className="text-plm-accent" />
-                Open Files ({openDocuments.length})
+                Active Files ({openDocuments.length})
                 {isLoadingOpenDocs && (
                   <div className="w-3 h-3 border border-plm-accent border-t-transparent rounded-full animate-spin" />
                 )}
@@ -808,7 +808,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                 onClick={loadOpenDocuments}
                 disabled={isLoadingOpenDocs}
                 className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors flex items-center gap-1"
-                title="Refresh open files"
+                title="Refresh active files"
               >
                 <RotateCcw size={10} className={isLoadingOpenDocs ? 'animate-spin' : ''} />
                 Refresh
@@ -817,7 +817,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             
             {openDocuments.length === 0 ? (
               <div className="text-sm text-plm-fg-muted py-4 text-center">
-                {isLoadingOpenDocs ? 'Loading...' : 'No files open in SolidWorks'}
+                {isLoadingOpenDocs ? 'Loading...' : 'No active files'}
               </div>
             ) : (
               <>

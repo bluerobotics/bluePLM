@@ -371,12 +371,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Export operations
     exportPdf: (filePath: string, outputPath?: string) => 
       ipcRenderer.invoke('solidworks:export-pdf', filePath, outputPath),
-    exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean }) => 
+    exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
       ipcRenderer.invoke('solidworks:export-step', filePath, options),
     exportDxf: (filePath: string, outputPath?: string) => 
       ipcRenderer.invoke('solidworks:export-dxf', filePath, outputPath),
-    exportIges: (filePath: string, outputPath?: string) => 
-      ipcRenderer.invoke('solidworks:export-iges', filePath, outputPath),
+    exportIges: (filePath: string, options?: { outputPath?: string; exportAllConfigs?: boolean; configurations?: string[] }) => 
+      ipcRenderer.invoke('solidworks:export-iges', filePath, options),
     exportStl: (filePath: string, options?: { 
       outputPath?: string; 
       exportAllConfigs?: boolean; 
@@ -397,6 +397,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:replace-component', assemblyPath, oldComponent, newComponent),
     packAndGo: (filePath: string, outputFolder: string, options?: { prefix?: string; suffix?: string }) => 
       ipcRenderer.invoke('solidworks:pack-and-go', filePath, outputFolder, options),
+    addComponent: (assemblyPath: string | null, componentPath: string, coordinates?: { x: number; y: number; z: number }) =>
+      ipcRenderer.invoke('solidworks:add-component', assemblyPath, componentPath, coordinates),
     
     // Open Document Management (control files open in SolidWorks without closing them!)
     getOpenDocuments: () => ipcRenderer.invoke('solidworks:get-open-documents'),
@@ -831,11 +833,11 @@ declare global {
         // Export operations
         exportPdf: (filePath: string, outputPath?: string) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
-        exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean }) => 
+        exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
           Promise<{ success: boolean; data?: { inputFile: string; exportedFiles: string[]; count: number }; error?: string }>
         exportDxf: (filePath: string, outputPath?: string) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
-        exportIges: (filePath: string, outputPath?: string) => 
+        exportIges: (filePath: string, options?: { outputPath?: string; exportAllConfigs?: boolean; configurations?: string[] }) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
         exportImage: (filePath: string, options?: { outputPath?: string; width?: number; height?: number }) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; width: number; height: number; fileSize: number }; error?: string }>

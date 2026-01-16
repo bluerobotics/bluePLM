@@ -4,7 +4,12 @@
  * Uses both contexts:
  * - useFilePaneContext() for UI state (editing state, refs)
  * - useFilePaneHandlers() for action handlers
+ * 
+ * NOTE: Drawing files can have their description locked via settings because
+ * it typically comes from the referenced model, not from editable properties.
  */
+import { FileInput } from 'lucide-react'
+import { usePDMStore } from '@/stores/pdmStore'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
 
@@ -15,9 +20,15 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
   // Handlers from FilePaneHandlersContext
   const { isFileEditable, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit } = useFilePaneHandlers()
   
+  // Drawing lockout setting
+  const lockDrawingDescription = usePDMStore(s => s.lockDrawingDescription)
+  
   if (file.isDirectory) return ''
   
-  const canEditDescription = isFileEditable(file)
+  // Drawing files can have their description locked via settings
+  const isDrawing = file.extension?.toLowerCase() === '.slddrw'
+  const isDrawingLocked = isDrawing && lockDrawingDescription
+  const canEditDescription = isFileEditable(file) && !isDrawingLocked
   const isEditingDescription = editingCell?.path === file.path && editingCell?.column === 'description'
   
   if (isEditingDescription && canEditDescription) {
@@ -51,9 +62,16 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
     : (file.pdmData?.description || '-')
   const hasValue = displayValue !== '-'
   
+  // Get appropriate tooltip
+  const getTooltip = () => {
+    if (isDrawingLocked) return 'Drawing description is inherited from the referenced model'
+    if (canEditDescription) return displayValue !== '-' ? displayValue : 'Click to edit'
+    return 'Check out file to edit'
+  }
+  
   return (
     <span
-      className={`block w-full h-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!hasValue || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
+      className={`flex items-center gap-1 w-full h-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!hasValue || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
         e.preventDefault()
@@ -65,9 +83,10 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
         // Stop mousedown from triggering row drag or file focus
         e.stopPropagation()
       }}
-      title={canEditDescription ? (displayValue !== '-' ? displayValue : 'Click to edit') : 'Check out file to edit'}
+      title={getTooltip()}
     >
-      {displayValue}
+      <span className="truncate">{displayValue}</span>
+      {isDrawingLocked && <FileInput size={12} className="text-plm-fg-muted/50 flex-shrink-0" />}
     </span>
   )
 }

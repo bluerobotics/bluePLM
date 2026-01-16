@@ -2,7 +2,30 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [Unreleased]
+## [3.8.0] - 2026-01-15
+
+### Added
+- **Insert into Assembly**: New context menu option for SolidWorks parts and assemblies. Right-click any `.sldprt` or `.sldasm` file → "Insert into Assembly" shows a submenu of currently open assemblies in SolidWorks. Select one to add the part/assembly as a component at the origin
+- **Create SolidWorks files from templates**: New "New .sldprt", "New .sldasm", "New .slddrw" options in the empty area and folder context menus. Each shows a submenu of available templates from the configured document templates folder (`.prtdot`, `.asmdot`, `.drwdot` files). Created files appear instantly in the file browser without waiting for file watcher refresh
+- **Drawing revision propagation**: When a drawing is checked in, its revision is automatically propagated to the `configuration_revisions` field of all referenced parts/assemblies. This enables tracking which drawing revision corresponds to each configuration of a part
+- **Drawing metadata lockout settings**: New settings in Settings → Integrations → SolidWorks → Drawing Metadata:
+  - **Lock drawing revision**: Prevent editing revision on drawings (comes from revision table)
+  - **Lock drawing item number**: Prevent editing item number on drawings (inherited from model)
+  - **Lock drawing description**: Prevent editing description on drawings (inherited from model)
+  - Locked fields show a visual indicator and tooltip explaining the lockout
+- **Copy folder path**: New "Copy Folder Path" option in file context menu copies the directory portion of the file path (without the filename)
+
+### Performance
+- **Faster check-in and first check-in**: Removed unnecessary SOLIDWORKS Document Manager operations from check-in and first check-in (sync) commands. Previously, check-in would call `getDocumentInfo`, `saveDocument`, and write metadata to every SW file via Document Manager, causing significant slowdowns when checking in folders. Now check-in only: computes hash, uploads changed content, updates server, and sets read-only. Metadata should be saved to SW files during editing via "Save to File" button - check-in sends `pendingMetadata` to the server database only
+
+### Fixed
+- **Sticky hover state on checkout avatars**: Fixed issue where the notification bell hover state could get "stuck" on checkout avatars in virtualized lists when scrolling quickly. Now uses pointer events with periodic hover state verification
+- **Empty context menu positioning**: Context menu for empty areas now properly adjusts position to stay within viewport bounds, matching the behavior of the file context menu
+
+### Changed
+- **No checkout required for move/cut**: Files can now be moved (drag-and-drop) and cut (Ctrl+X) without being checked out first. This simplifies file organization workflows - checkout is still required for editing file content
+- **Schema version**: Bumped to v46
+  - v46: Added `configuration_revisions` JSONB column to files table for tracking per-configuration revisions from drawing releases
 
 ---
 

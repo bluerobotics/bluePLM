@@ -35,6 +35,9 @@ export interface UseContextMenuStateReturn {
   // Empty context menu
   emptyContextMenu: EmptyContextMenuState | null
   setEmptyContextMenu: (state: EmptyContextMenuState | null) => void
+  emptyContextMenuAdjustedPos: { x: number; y: number } | null
+  setEmptyContextMenuAdjustedPos: (pos: { x: number; y: number } | null) => void
+  emptyContextMenuRef: React.RefObject<HTMLDivElement | null>
   
   // Column context menu
   columnContextMenu: ColumnContextMenuState | null
@@ -64,6 +67,8 @@ export function useContextMenuState(): UseContextMenuStateReturn {
   
   // Empty area context menu
   const [emptyContextMenu, setEmptyContextMenu] = useState<EmptyContextMenuState | null>(null)
+  const [emptyContextMenuAdjustedPos, setEmptyContextMenuAdjustedPos] = useState<{ x: number; y: number } | null>(null)
+  const emptyContextMenuRef = useRef<HTMLDivElement | null>(null)
   
   // Column header context menu
   const [columnContextMenu, setColumnContextMenu] = useState<ColumnContextMenuState | null>(null)
@@ -81,6 +86,7 @@ export function useContextMenuState(): UseContextMenuStateReturn {
     setContextMenu(null)
     setContextMenuAdjustedPos(null)
     setEmptyContextMenu(null)
+    setEmptyContextMenuAdjustedPos(null)
     setColumnContextMenu(null)
     setConfigContextMenu(null)
     setShowIgnoreSubmenu(false)
@@ -101,6 +107,9 @@ export function useContextMenuState(): UseContextMenuStateReturn {
     contextMenuRef,
     emptyContextMenu,
     setEmptyContextMenu,
+    emptyContextMenuAdjustedPos,
+    setEmptyContextMenuAdjustedPos,
+    emptyContextMenuRef,
     columnContextMenu,
     setColumnContextMenu,
     configContextMenu,

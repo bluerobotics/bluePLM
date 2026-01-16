@@ -1009,3 +1009,201 @@ export async function upsertFileReferences(
     }
   }
 }
+
+/**
+ * Update configuration revision for a referenced part/assembly.
+ * 
+ * When a drawing is checked in, this function propagates the drawing's revision
+ * to the configuration_revisions field of the referenced part/assembly.
+ * 
+ * For example, if Drawing.slddrw (revision "B") references Part.sldprt with
+ * configuration "Anodized", then Part.sldprt's configuration_revisions will
+ * be updated to include: { "Anodized": "B" }
+ * 
+ * @param referencedFileId - Database ID of the part/assembly being referenced
+ * @param configuration - The configuration name being referenced (e.g., "Default", "Anodized")
+ * @param drawingRevision - The drawing's revision to propagate (e.g., "B")
+ */
+export async function updateConfigurationRevision(
+  referencedFileId: string,
+  configuration: string,
+  drawingRevision: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  
+  const logFn = typeof window !== 'undefined' && (window as any).electronAPI?.log
+    ? (level: string, msg: string, data?: any) => (window as any).electronAPI.log(level, msg, data)
+    : () => {}
+  
+  try {
+    // First, get the current configuration_revisions for the file
+    const { data: file, error: fetchError } = await client
+      .from('files')
+      .select('id, file_name, configuration_revisions')
+      .eq('id', referencedFileId)
+      .single()
+    
+    if (fetchError || !file) {
+      logFn('warn', '[updateConfigurationRevision] Could not fetch file', {
+        referencedFileId,
+        error: fetchError?.message
+      })
+      return { success: false, error: fetchError?.message || 'File not found' }
+    }
+    
+    // Merge the new configuration revision into existing ones
+    const currentRevisions = (file.configuration_revisions || {}) as Record<string, string>
+    const updatedRevisions = {
+      ...currentRevisions,
+      [configuration]: drawingRevision
+    }
+    
+    // Update the file with the new configuration_revisions
+    const { error: updateError } = await client
+      .from('files')
+      .update({
+        configuration_revisions: updatedRevisions,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', referencedFileId)
+    
+    if (updateError) {
+      logFn('error', '[updateConfigurationRevision] Update failed', {
+        referencedFileId,
+        configuration,
+        drawingRevision,
+        error: updateError.message
+      })
+      return { success: false, error: updateError.message }
+    }
+    
+    logFn('info', '[updateConfigurationRevision] Updated configuration revision', {
+      fileName: file.file_name,
+      referencedFileId,
+      configuration,
+      drawingRevision,
+      previousRevision: currentRevisions[configuration] || null
+    })
+    
+    return { success: true }
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    logFn('error', '[updateConfigurationRevision] Exception', { error: errMsg })
+    return { success: false, error: errMsg }
+  }
+}
+
+/**
+ * Propagate a drawing's revision to all referenced parts/assemblies.
+ * 
+ * This function finds all file_references where the drawing is the parent,
+ * and updates the configuration_revisions of each child file.
+ * 
+ * @param drawingFileId - Database ID of the drawing file
+ * @param drawingRevision - The drawing's revision to propagate
+ * @param orgId - Organization ID
+ */
+export async function propagateDrawingRevisionToConfigurations(
+  drawingFileId: string,
+  drawingRevision: string,
+  orgId: string
+): Promise<{ success: boolean; updated: number; errors: string[] }> {
+  const client = getSupabaseClient()
+  
+  const logFn = typeof window !== 'undefined' && (window as any).electronAPI?.log
+    ? (level: string, msg: string, data?: any) => (window as any).electronAPI.log(level, msg, data)
+    : () => {}
+  
+  let updated = 0
+  const errors: string[] = []
+  
+  try {
+    logFn('info', '[propagateDrawingRevision] Starting propagation', {
+      drawingFileId,
+      drawingRevision
+    })
+    
+    // Get all references from this drawing to parts/assemblies
+    const { data: references, error: refsError } = await client
+      .from('file_references')
+      .select(`
+        id,
+        child_file_id,
+        configuration,
+        reference_type,
+        child_file:files!file_references_child_file_id_fkey (
+          id,
+          file_name,
+          extension,
+          configuration_revisions
+        )
+      `)
+      .eq('parent_file_id', drawingFileId)
+      .eq('org_id', orgId)
+    
+    if (refsError) {
+      logFn('error', '[propagateDrawingRevision] Failed to fetch references', {
+        error: refsError.message
+      })
+      return { success: false, updated: 0, errors: [refsError.message] }
+    }
+    
+    if (!references || references.length === 0) {
+      logFn('debug', '[propagateDrawingRevision] No references found for drawing', {
+        drawingFileId
+      })
+      return { success: true, updated: 0, errors: [] }
+    }
+    
+    logFn('debug', '[propagateDrawingRevision] Found references', {
+      drawingFileId,
+      referenceCount: references.length
+    })
+    
+    // Update each referenced file's configuration revision
+    for (const ref of references) {
+      // Skip if child file doesn't exist
+      const childFile = ref.child_file as { id: string; file_name: string; extension: string; configuration_revisions: Record<string, string> | null } | null
+      if (!childFile) {
+        logFn('warn', '[propagateDrawingRevision] Child file not found', {
+          refId: ref.id,
+          childFileId: ref.child_file_id
+        })
+        continue
+      }
+      
+      // Use the configuration from the reference, or "Default" if not specified
+      const configName = ref.configuration || 'Default'
+      
+      const result = await updateConfigurationRevision(
+        ref.child_file_id,
+        configName,
+        drawingRevision
+      )
+      
+      if (result.success) {
+        updated++
+        logFn('info', '[propagateDrawingRevision] Updated config revision', {
+          childFileName: childFile.file_name,
+          configuration: configName,
+          newRevision: drawingRevision
+        })
+      } else {
+        errors.push(`Failed to update ${childFile.file_name}: ${result.error}`)
+      }
+    }
+    
+    logFn('info', '[propagateDrawingRevision] Complete', {
+      drawingFileId,
+      drawingRevision,
+      updated,
+      errorCount: errors.length
+    })
+    
+    return { success: errors.length === 0, updated, errors }
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    logFn('error', '[propagateDrawingRevision] Exception', { error: errMsg })
+    return { success: false, updated, errors: [...errors, errMsg] }
+  }
+}

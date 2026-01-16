@@ -9,6 +9,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 // Import action components
 import {
   OpenActions,
+  AssemblyActions,
   FileSystemActions,
   ClipboardActions,
   SyncActions,
@@ -201,6 +202,14 @@ export function FileContextMenu({
           navigateToFolder={navigateToFolder}
         />
         
+        {/* Assembly actions (insert into open SolidWorks assembly) */}
+        <AssemblyActions
+          contextFiles={contextFiles}
+          multiSelect={multiSelect}
+          firstFile={firstFile}
+          onClose={onClose}
+        />
+        
         {/* Sync actions (download, ignore, first check in) */}
         <SyncActions
           contextFiles={contextFiles}
@@ -236,8 +245,6 @@ export function FileContextMenu({
           handleCopy={handleCopy}
           handleCut={handleCut}
           handlePaste={handlePaste}
-          canCut={state.canCut}
-          userId={user?.id}
         />
         
         {/* Checkout actions (checkout, checkin, discard, force release, change state) */}

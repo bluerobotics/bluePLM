@@ -253,6 +253,8 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     configContextMenu, setConfigContextMenu,
     contextMenuAdjustedPos, setContextMenuAdjustedPos,
     contextMenuRef,
+    emptyContextMenuAdjustedPos, setEmptyContextMenuAdjustedPos,
+    emptyContextMenuRef,
     showIgnoreSubmenu, setShowIgnoreSubmenu,
     showStateSubmenu, setShowStateSubmenu,
     ignoreSubmenuTimeoutRef, stateSubmenuTimeoutRef
@@ -1033,6 +1035,55 @@ export function FilePane({ onRefresh }: FilePaneProps) {
       resizeObserver.disconnect()
     }
   }, [contextMenu])
+  
+  // Adjust empty context menu position to stay within viewport
+  // Uses ResizeObserver to recalculate position when menu content changes
+  useEffect(() => {
+    if (!emptyContextMenu || !emptyContextMenuRef.current) {
+      setEmptyContextMenuAdjustedPos(null)
+      return
+    }
+    
+    const menu = emptyContextMenuRef.current
+    
+    const adjustPosition = () => {
+      const rect = menu.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      
+      let newX = emptyContextMenu.x
+      let newY = emptyContextMenu.y
+      
+      // Check right overflow
+      if (emptyContextMenu.x + rect.width > viewportWidth - 10) {
+        newX = viewportWidth - rect.width - 10
+      }
+      
+      // Check bottom overflow - bump up if menu would extend past viewport
+      if (emptyContextMenu.y + rect.height > viewportHeight - 10) {
+        newY = viewportHeight - rect.height - 10
+      }
+      
+      // Ensure minimum position
+      newX = Math.max(10, newX)
+      newY = Math.max(10, newY)
+      
+      setEmptyContextMenuAdjustedPos({ x: newX, y: newY })
+    }
+    
+    // Initial adjustment
+    adjustPosition()
+    
+    // Watch for size changes (e.g., when child components finish rendering)
+    const resizeObserver = new ResizeObserver(() => {
+      adjustPosition()
+    })
+    resizeObserver.observe(menu)
+    
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [emptyContextMenu])
 
   // Helper function to check if a keyboard event matches a keybinding
   // Uses the imported matchesKeybinding utility from file-browser utils
@@ -1406,6 +1457,10 @@ export function FilePane({ onRefresh }: FilePaneProps) {
         <EmptyContextMenu
           x={emptyContextMenu.x}
           y={emptyContextMenu.y}
+          adjustedPos={emptyContextMenuAdjustedPos}
+          menuRef={emptyContextMenuRef}
+          currentPath={currentPath}
+          vaultPath={vaultPath}
           hasClipboard={!!clipboard}
           hasUndoStack={undoStack.length > 0}
           onNewFolder={startCreatingFolder}

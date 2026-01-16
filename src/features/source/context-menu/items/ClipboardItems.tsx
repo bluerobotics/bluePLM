@@ -13,22 +13,13 @@ interface ClipboardItemsProps {
 }
 
 export function ClipboardItems({
-  contextFiles,
   clipboard,
-  userId,
   onCopy,
   onCut,
   onPaste,
   onClose
 }: ClipboardItemsProps) {
   if (!onCopy && !onCut && !onPaste) return null
-
-  // Check if user can cut (files must be folders, not synced, or checked out by user)
-  const canCut = contextFiles.every(f => 
-    f.isDirectory || 
-    !f.pdmData || 
-    f.pdmData.checked_out_by === userId
-  )
 
   return (
     <>
@@ -44,9 +35,8 @@ export function ClipboardItems({
       
       {onCut && (
         <div 
-          className={`context-menu-item ${!canCut ? 'disabled' : ''}`}
-          onClick={() => { if (canCut) { onCut(); onClose(); } }}
-          title={!canCut ? 'Check out files first to move them' : undefined}
+          className="context-menu-item"
+          onClick={() => { onCut(); onClose(); }}
         >
           <Scissors size={14} />
           Cut

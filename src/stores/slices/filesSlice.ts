@@ -176,24 +176,32 @@ export const createFilesSlice: StateCreator<
       paths: updates.slice(0, 5).map(u => u.path),
       timestamp: Date.now()
     })
-    // Build a map for O(1) lookups
-    const updateMap = new Map(updates.map(u => [u.path, u.updates]))
+    // Build a map for O(1) lookups - use lowercase keys for case-insensitive matching on Windows
+    const updateMap = new Map(updates.map(u => [u.path.toLowerCase(), u.updates]))
     set(state => {
       const newFiles = state.files.map(f => {
-        const fileUpdates = updateMap.get(f.path)
+        const fileUpdates = updateMap.get(f.path.toLowerCase())
         return fileUpdates ? { ...f, ...fileUpdates } : f
       })
       
       // Clear persistedPendingMetadata for files where pendingMetadata is being cleared
       // This prevents LoadFiles from restoring stale pending metadata after check-in
+      // Note: persistedPendingMetadata uses original paths (not lowercase), so we need to
+      // find matching keys case-insensitively
       let newPersistedPendingMetadata = state.persistedPendingMetadata
-      for (const [path, fileUpdates] of updateMap) {
-        if (fileUpdates.pendingMetadata === undefined && path in newPersistedPendingMetadata) {
-          // Lazily create a copy only if we need to modify
-          if (newPersistedPendingMetadata === state.persistedPendingMetadata) {
-            newPersistedPendingMetadata = { ...state.persistedPendingMetadata }
+      for (const [lowerPath, fileUpdates] of updateMap) {
+        if (fileUpdates.pendingMetadata === undefined) {
+          // Find the actual key that matches case-insensitively
+          const matchingKey = Object.keys(newPersistedPendingMetadata).find(
+            k => k.toLowerCase() === lowerPath
+          )
+          if (matchingKey) {
+            // Lazily create a copy only if we need to modify
+            if (newPersistedPendingMetadata === state.persistedPendingMetadata) {
+              newPersistedPendingMetadata = { ...state.persistedPendingMetadata }
+            }
+            delete newPersistedPendingMetadata[matchingKey]
           }
-          delete newPersistedPendingMetadata[path]
         }
       }
       
@@ -220,9 +228,16 @@ export const createFilesSlice: StateCreator<
    */
   updateFilesAndClearProcessing: (updates, pathsToClearProcessing) => {
     const startTime = performance.now()
+    
+    // Debug: Log first few update paths and sample file paths from store
+    const sampleUpdatePaths = updates.slice(0, 3).map(u => u.path)
+    const { files: currentFiles } = get()
+    const sampleStorePaths = currentFiles.slice(0, 3).map(f => f.path)
     window.electronAPI?.log('info', '[Store] updateFilesAndClearProcessing START', { 
       updateCount: updates.length, 
       clearCount: pathsToClearProcessing.length,
+      sampleUpdatePaths,
+      sampleStorePaths,
       timestamp: Date.now() 
     })
     recordMetric('Store', 'updateFilesAndClearProcessing START', { 
@@ -238,8 +253,9 @@ export const createFilesSlice: StateCreator<
     }
     
     // Build a map for O(1) file update lookups
+    // Use lowercase keys on Windows for case-insensitive matching
     const updateMap = updates.length > 0 
-      ? new Map(updates.map(u => [u.path, u.updates]))
+      ? new Map(updates.map(u => [u.path.toLowerCase(), u.updates]))
       : null
     
     // Build the set of paths to clear for O(1) lookups
@@ -254,24 +270,45 @@ export const createFilesSlice: StateCreator<
       }
       
       // Build new files array with updates applied
+      // Use lowercase for case-insensitive matching on Windows
+      let matchCount = 0
       const newFiles = updateMap 
         ? state.files.map(f => {
-            const fileUpdates = updateMap.get(f.path)
+            const fileUpdates = updateMap.get(f.path.toLowerCase())
+            if (fileUpdates) matchCount++
             return fileUpdates ? { ...f, ...fileUpdates } : f
           })
         : state.files
       
+      // Debug: Log how many files actually matched
+      if (updateMap && updateMap.size > 0) {
+        window.electronAPI?.log('info', '[Store] updateFilesAndClearProcessing MATCH', {
+          updateMapSize: updateMap.size,
+          matchCount,
+          unmatchedCount: updateMap.size - matchCount,
+          timestamp: Date.now()
+        })
+      }
+      
       // Clear persistedPendingMetadata for files where pendingMetadata is being cleared
       // This prevents LoadFiles from restoring stale pending metadata after check-in
+      // Note: persistedPendingMetadata uses original paths (not lowercase), so we need to
+      // find matching keys case-insensitively
       let newPersistedPendingMetadata = state.persistedPendingMetadata
       if (updateMap) {
-        for (const [path, fileUpdates] of updateMap) {
-          if (fileUpdates.pendingMetadata === undefined && path in newPersistedPendingMetadata) {
-            // Lazily create a copy only if we need to modify
-            if (newPersistedPendingMetadata === state.persistedPendingMetadata) {
-              newPersistedPendingMetadata = { ...state.persistedPendingMetadata }
+        for (const [lowerPath, fileUpdates] of updateMap) {
+          if (fileUpdates.pendingMetadata === undefined) {
+            // Find the actual key that matches case-insensitively
+            const matchingKey = Object.keys(newPersistedPendingMetadata).find(
+              k => k.toLowerCase() === lowerPath
+            )
+            if (matchingKey) {
+              // Lazily create a copy only if we need to modify
+              if (newPersistedPendingMetadata === state.persistedPendingMetadata) {
+                newPersistedPendingMetadata = { ...state.persistedPendingMetadata }
+              }
+              delete newPersistedPendingMetadata[matchingKey]
             }
-            delete newPersistedPendingMetadata[path]
           }
         }
       }
@@ -295,10 +332,11 @@ export const createFilesSlice: StateCreator<
   
   removeFilesFromStore: (paths) => {
     if (paths.length === 0) return
-    const pathSet = new Set(paths)
+    // Use lowercase paths for case-insensitive matching on Windows
+    const pathSet = new Set(paths.map(p => p.toLowerCase()))
     const beforeCount = get().files.length
     // Check if paths exist in files before removing
-    const existingPaths = paths.filter(p => get().files.some(f => f.path === p))
+    const existingPaths = paths.filter(p => get().files.some(f => f.path.toLowerCase() === p.toLowerCase()))
     console.log('[Store] removeFilesFromStore BEFORE:', { 
       pathsToRemove: paths.length,
       existingPaths: existingPaths.length,
@@ -306,8 +344,8 @@ export const createFilesSlice: StateCreator<
       beforeCount
     })
     set(state => ({
-      files: state.files.filter(f => !pathSet.has(f.path)),
-      selectedFiles: state.selectedFiles.filter(p => !pathSet.has(p))
+      files: state.files.filter(f => !pathSet.has(f.path.toLowerCase())),
+      selectedFiles: state.selectedFiles.filter(p => !pathSet.has(p.toLowerCase()))
     }))
     const afterCount = get().files.length
     console.log('[Store] removeFilesFromStore AFTER:', { 

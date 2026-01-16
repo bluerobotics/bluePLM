@@ -755,7 +755,6 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         
         {/* Vault contents - VIRTUALIZED */}
         {isExpanded && isActive && (
-          <TreeHoverProvider>
           <div 
             className={`pb-2 min-h-[40px] ${dragOverFolder === '' ? 'bg-plm-accent/10 outline outline-2 outline-dashed outline-plm-accent/50 rounded' : ''}`}
             onDragOver={(e) => {
@@ -867,7 +866,6 @@ export function FileTree({ onRefresh }: FileTreeProps) {
               </div>
             )}
           </div>
-          </TreeHoverProvider>
         )}
       </div>
     )
@@ -909,6 +907,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
 
   // Main render - multiple vaults mode
   return (
+    <TreeHoverProvider>
     <div ref={fileTreeContainerRef} className="flex flex-col h-full" tabIndex={-1}>
       {/* Pinned section */}
       <PinnedFoldersSection
@@ -1443,5 +1442,6 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         </div>
       )}
     </div>
+    </TreeHoverProvider>
   )
 }

@@ -4,9 +4,12 @@
  * Uses both contexts:
  * - useFilePaneContext() for UI state (editing state, refs)
  * - useFilePaneHandlers() for action handlers
+ * 
+ * NOTE: Drawing files can have their item number locked via settings because
+ * it typically comes from the referenced model, not from editable properties.
  */
 import { useState } from 'react'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles, Loader2, FileInput } from 'lucide-react'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getNextSerialNumber } from '@/lib/serialization'
@@ -19,10 +22,11 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   // Handlers from FilePaneHandlersContext
   const { isFileEditable, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit, saveConfigsToSWFile } = useFilePaneHandlers()
   
-  // Store selectors for organization, toast, and pending metadata update
+  // Store selectors for organization, toast, pending metadata update, and drawing lockout
   const organization = usePDMStore(s => s.organization)
   const addToast = usePDMStore(s => s.addToast)
   const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
+  const lockDrawingItemNumber = usePDMStore(s => s.lockDrawingItemNumber)
   
   // Check if Tab column is visible
   const isTabColumnVisible = columns.some(c => c.id === 'tabNumber' && c.visible)
@@ -37,7 +41,10 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   
   if (file.isDirectory) return ''
   
-  const canEditItemNumber = isFileEditable(file)
+  // Drawing files can have their item number locked via settings
+  const isDrawing = file.extension?.toLowerCase() === '.slddrw'
+  const isDrawingLocked = isDrawing && lockDrawingItemNumber
+  const canEditItemNumber = isFileEditable(file) && !isDrawingLocked
   const isEditingItemNumber = editingCell?.path === file.path && editingCell?.column === 'itemNumber'
   
   // Handle inline tab number change (when Tab column is hidden)
@@ -166,12 +173,20 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
                 e.stopPropagation()
               }}
               placeholder="Tab"
-              className="w-12 shrink-0 bg-plm-bg/50 border border-plm-border/30 rounded px-1 py-0 text-sm text-plm-fg-muted text-center focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:text-plm-fg focus:ring-1 focus:ring-plm-accent"
+              className="w-12 shrink-0 bg-plm-bg/30 border border-plm-border/20 rounded px-1 py-0 text-sm text-plm-fg-muted text-center focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:text-plm-fg focus:ring-1 focus:ring-plm-accent"
             />
           </>
         )}
       </div>
     )
+  }
+  
+  // Get appropriate tooltip
+  const getTooltip = () => {
+    if (isDrawingLocked) return 'Drawing item number is inherited from the referenced model'
+    if (canEditItemNumber) return 'Click to edit'
+    if (file.pdmData?.id) return 'Check out file to edit'
+    return 'Sign in to edit'
   }
   
   return (
@@ -181,7 +196,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
         // Stop mousedown from triggering row drag or file focus
         e.stopPropagation()
       }}
-      title={canEditItemNumber ? 'Click to edit' : (file.pdmData?.id ? 'Check out file to edit' : 'Sign in to edit')}
+      title={getTooltip()}
     >
       {/* Base number with generate button - compact box like edit mode */}
       <div 
@@ -213,8 +228,9 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
           </button>
         )}
+        {isDrawingLocked && <FileInput size={12} className="ml-1 text-plm-fg-muted/50 flex-shrink-0" />}
       </div>
-      {/* Tab number input (when Tab column is hidden) - greyed out by default */}
+      {/* Tab number input (when Tab column is hidden) - subtle styling to match item number */}
       {showInlineTab && (
         <>
           <span className="text-plm-fg-dim text-sm shrink-0">-</span>
@@ -233,7 +249,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             onMouseDown={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
             placeholder="Tab"
-            className="w-12 shrink-0 bg-plm-bg/50 border border-plm-border/30 rounded px-1 py-0 text-sm text-plm-fg-muted text-center focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:text-plm-fg focus:ring-1 focus:ring-plm-accent"
+            className="w-12 shrink-0 bg-transparent border border-transparent rounded px-1 py-0 text-sm text-plm-fg-muted text-center hover:border-plm-border/30 hover:bg-plm-bg/30 focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:text-plm-fg focus:ring-1 focus:ring-plm-accent"
           />
         </>
       )}
