@@ -21,8 +21,6 @@ export function ClipboardActions({
 
   return (
     <>
-      <div className="context-menu-separator" />
-      
       {/* Copy */}
       <div 
         className="context-menu-item"

@@ -648,11 +648,11 @@ export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   filename_pattern: '{filename}_{config}',
   include_config_in_filename: true,
   default_export_format: 'step',
-  // STL defaults: Fine resolution, binary format (smaller files)
-  stl_resolution: 'fine',
+  // STL defaults: Custom resolution with fine-quality settings + 1° angular resolution
+  stl_resolution: 'custom',
   stl_binary_format: true,
-  stl_custom_deviation: 0.1,  // mm
-  stl_custom_angle: 10        // degrees
+  stl_custom_deviation: 0.05,  // mm (fine-quality deviation)
+  stl_custom_angle: 1          // degrees (high angular resolution)
 }
 
 // User with org membership

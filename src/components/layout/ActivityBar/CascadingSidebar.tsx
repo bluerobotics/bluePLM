@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePDMStore, type SidebarView } from '@/stores/pdmStore'
 import { useTranslation } from '@/lib/i18n'
 import { logNavigation } from '@/lib/userActionLogger'
@@ -9,7 +10,7 @@ import {
   type ModuleId,
   type ModuleDefinition
 } from '@/types/modules'
-import { ExpandedContext } from './ActivityItem'
+import { ExpandedContext, HOVER_CLOSE_DELAY } from './ActivityItem'
 import { moduleTranslationKeys } from './constants'
 import { getModuleIcon } from './utils'
 
@@ -112,14 +113,21 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
     topPosition = Math.max(16, topPosition - bottomOverflow)
   }
   
-  const style: React.CSSProperties = {
+  // Width of the hover bridge zone (extends left of panel to prevent accidental close)
+  const hoverBridgeWidth = 20
+  
+  const wrapperStyle: React.CSSProperties = {
     position: 'fixed',
     top: topPosition,
-    left: parentRect.right,
+    left: parentRect.right - hoverBridgeWidth, // Start bridge zone before the panel
     zIndex: 40 + depth,
+    maxHeight: maxHeight,
+  }
+  
+  const panelStyle: React.CSSProperties = {
     minWidth: isExpanded ? '200px' : '53px',
     width: isExpanded ? 'fit-content' : '53px',
-    maxHeight: maxHeight,
+    marginLeft: hoverBridgeWidth, // Offset to account for hover bridge
   }
   
   const handleChildMouseEnter = (childId: ModuleId, e: React.MouseEvent) => {
@@ -139,7 +147,7 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredChild(null)
       setChildRect(null)
-    }, 400) // Increased delay to give time to reach nested submenu
+    }, HOVER_CLOSE_DELAY)
   }
   
   const handlePanelMouseEnter = () => {
@@ -160,19 +168,30 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
     // Delay before calling parent's onMouseLeave to allow moving to nested panels
     closeTimeoutRef.current = setTimeout(() => {
       onMouseLeave()
-    }, 300)
+    }, HOVER_CLOSE_DELAY)
   }
   
   return (
     <div
-      ref={panelRef}
-      style={style}
-      className="bg-plm-activitybar border-r border-plm-border shadow-xl flex flex-col animate-in slide-in-from-left-2 duration-150"
+      style={wrapperStyle}
+      className="flex"
       onMouseEnter={handlePanelMouseEnter}
       onMouseLeave={handlePanelMouseLeave}
     >
-      {/* Scrollable area */}
-      <div className="flex-1 min-h-0 relative">
+      {/* Hover bridge zone - invisible area to prevent accidental close when moving mouse */}
+      <div 
+        style={{ width: hoverBridgeWidth }}
+        className="flex-shrink-0"
+      />
+      
+      {/* Actual panel */}
+      <div
+        ref={panelRef}
+        style={panelStyle}
+        className="bg-plm-activitybar border-r border-plm-border shadow-xl flex flex-col animate-in slide-in-from-left-2 duration-150"
+      >
+        {/* Scrollable area */}
+        <div className="flex-1 min-h-0 relative">
         {/* Top fade gradient */}
         <div 
           className={`absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
@@ -240,28 +259,31 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
                     )}
                   </button>
                   
-                  {/* Nested cascade (recursive) */}
-                  {hoveredChild === child.id && hasGrandchildren && childRect && (
-                    <CascadingSidebar
-                      parentRect={panelRef.current?.getBoundingClientRect() || childRect}
-                      itemRect={childRect}
-                      children={childChildren}
-                      depth={depth + 1}
-                      onMouseEnter={() => {
-                        if (hoverTimeoutRef.current) {
-                          clearTimeout(hoverTimeoutRef.current)
-                          hoverTimeoutRef.current = null
-                        }
-                        setHoveredChild(child.id)
-                      }}
-                      onMouseLeave={() => {
-                        // Delay close to allow moving back to parent
-                        hoverTimeoutRef.current = setTimeout(() => {
-                          setHoveredChild(null)
-                        }, 400)
-                      }}
-                    />
-                  )}
+                  {/* Nested cascade (recursive) - rendered via portal to escape overflow constraints */}
+                  {hoveredChild === child.id && hasGrandchildren && childRect &&
+                    createPortal(
+                      <CascadingSidebar
+                        parentRect={panelRef.current?.getBoundingClientRect() || childRect}
+                        itemRect={childRect}
+                        children={childChildren}
+                        depth={depth + 1}
+                        onMouseEnter={() => {
+                          if (hoverTimeoutRef.current) {
+                            clearTimeout(hoverTimeoutRef.current)
+                            hoverTimeoutRef.current = null
+                          }
+                          setHoveredChild(child.id)
+                        }}
+                        onMouseLeave={() => {
+                          // Delay close to allow moving back to parent
+                          hoverTimeoutRef.current = setTimeout(() => {
+                            setHoveredChild(null)
+                          }, HOVER_CLOSE_DELAY)
+                        }}
+                      />,
+                      document.body
+                    )
+                  }
                 </div>
               )
             })}
@@ -277,6 +299,7 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
             canScrollDown ? 'opacity-100' : 'opacity-0'
           }`}
         />
+      </div>
       </div>
     </div>
   )

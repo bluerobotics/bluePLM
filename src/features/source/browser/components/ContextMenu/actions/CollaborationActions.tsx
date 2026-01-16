@@ -101,8 +101,6 @@ export function CollaborationActions({
 
   return (
     <>
-      <div className="context-menu-separator" />
-      
       {/* Where Used - for synced files */}
       {!isFolder && state.isSynced && (
         <div 

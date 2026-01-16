@@ -368,6 +368,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getMassProperties: (filePath: string, configuration?: string) => 
       ipcRenderer.invoke('solidworks:get-mass-properties', filePath, configuration),
     
+    // Document creation
+    createDocumentFromTemplate: (templatePath: string, outputPath: string) =>
+      ipcRenderer.invoke('solidworks:create-document-from-template', templatePath, outputPath),
+    
     // Export operations
     exportPdf: (filePath: string, outputPath?: string) => 
       ipcRenderer.invoke('solidworks:export-pdf', filePath, outputPath),
@@ -829,6 +833,10 @@ declare global {
         getMassProperties: (filePath: string, configuration?: string) => 
           Promise<{ success: boolean; data?: { filePath: string; configuration: string; mass: number; volume: number; surfaceArea: number;
             centerOfMass: { x: number; y: number; z: number }; momentsOfInertia: { Ixx: number; Iyy: number; Izz: number; Ixy: number; Izx: number; Iyz: number } }; error?: string }>
+        
+        // Document creation
+        createDocumentFromTemplate: (templatePath: string, outputPath: string) => 
+          Promise<{ success: boolean; data?: { templatePath: string; outputPath: string; message: string }; error?: string }>
         
         // Export operations
         exportPdf: (filePath: string, outputPath?: string) => 

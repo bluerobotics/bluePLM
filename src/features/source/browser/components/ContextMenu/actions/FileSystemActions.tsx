@@ -1,7 +1,7 @@
 /**
  * File system actions for context menu (copy path, show in explorer, pin, rename)
  */
-import { Copy, Pencil, Star } from 'lucide-react'
+import { Copy, FolderOpen, Pencil, Star } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -60,6 +60,7 @@ export function FileSystemActions({
           onClose()
         }}
       >
+        <FolderOpen size={14} />
         {platform === 'darwin' ? 'Reveal in Finder' : 'Show in Explorer'}
       </div>
       
@@ -99,6 +100,8 @@ export function FileSystemActions({
           Copy Folder Path
         </div>
       )}
+      
+      <div className="context-menu-separator" />
       
       {/* Pin/Unpin - single item only */}
       {!multiSelect && activeVaultId && (

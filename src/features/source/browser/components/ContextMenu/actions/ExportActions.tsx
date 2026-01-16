@@ -130,7 +130,11 @@ export function ExportActions({
           let result
           switch (format) {
             case 'pdf':
-              result = await window.electronAPI?.solidworks?.exportPdf(file.path, outputFolder)
+              result = await window.electronAPI?.solidworks?.exportPdf(file.path, {
+                outputPath: outputFolder,
+                filenamePattern,
+                pdmMetadata
+              })
               break
             case 'step':
               result = await window.electronAPI?.solidworks?.exportStep(file.path, {
@@ -291,8 +295,6 @@ export function ExportActions({
 
   return (
     <>
-      <div className="context-menu-separator" />
-      
       {isPartOrAsm && partFormats.map(renderExportSubmenu)}
       
       {isDrawing && drawingFormats.map(renderExportSubmenu)}

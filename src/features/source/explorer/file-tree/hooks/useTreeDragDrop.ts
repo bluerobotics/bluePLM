@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { buildFullPath } from '@/lib/utils'
+import { moveFileOnServer } from '@/lib/supabase/files'
 import { PDM_FILES_DATA_TYPE, MIME_TYPES } from '../constants'
 
 /**
@@ -457,9 +458,22 @@ export function useTreeDragDrop(): DragDropHandlers {
     for (const file of filesToMove) {
       const sourcePath = file.path
       const fileName = file.name
-      const destPath = buildFullPath(vaultPath, targetFolder.relativePath + '/' + fileName)
+      const newRelPath = targetFolder.relativePath + '/' + fileName
+      const destPath = buildFullPath(vaultPath, newRelPath)
       
       try {
+        // For synced files, update server first (atomic operation with checkout validation)
+        if (file.pdmData?.id && user?.id) {
+          const serverResult = await moveFileOnServer(file.pdmData.id, user.id, newRelPath, fileName)
+          if (!serverResult.success) {
+            failed++
+            log.error('[TreeDragDrop]', 'Server move failed', { error: serverResult.error })
+            addToast('error', serverResult.error || 'Failed to move file on server')
+            continue
+          }
+        }
+        
+        // Now perform local move
         const result = await window.electronAPI.moveFile(sourcePath, destPath)
         if (result.success) {
           succeeded++
@@ -641,10 +655,26 @@ export function useTreeDragDrop(): DragDropHandlers {
       addProcessingFolder(file.relativePath, 'sync')
       
       try {
+        // For synced files, update server first (atomic operation with checkout validation)
+        if (file.pdmData?.id && user?.id) {
+          const serverResult = await moveFileOnServer(file.pdmData.id, user.id, newRelPath, file.name)
+          if (!serverResult.success) {
+            failed++
+            log.error('[TreeDragDrop]', 'Server move failed', { error: serverResult.error })
+            addToast('error', serverResult.error || 'Failed to move file on server')
+            removeProcessingFolder(file.relativePath)
+            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+            continue
+          }
+        }
+        
+        // Now perform local move
         const result = await window.electronAPI.moveFile(file.path, newFullPath)
         if (result.success) {
           succeeded++
-          renameFileInStore(file.path, newFullPath, newRelPath, true)
+          // For synced files, don't mark as 'moved' since server is already updated
+          const markAsMoved = !file.pdmData?.id
+          renameFileInStore(file.path, newFullPath, newRelPath, markAsMoved)
         } else {
           failed++
         }

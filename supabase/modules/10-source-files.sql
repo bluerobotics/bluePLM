@@ -2489,6 +2489,101 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION get_vault_files_fast(UUID, UUID) TO authenticated;
 
+-- ===========================================
+-- MOVE FILE RPC
+-- ===========================================
+
+-- Atomic move: updates file_path and file_name on the server
+-- Used when user moves a checked-in file to a new location
+-- Returns JSONB with success status, error message, or updated file data
+SELECT drop_function_overloads('move_file');
+CREATE OR REPLACE FUNCTION move_file(
+  p_file_id UUID,
+  p_user_id UUID,
+  p_new_file_path TEXT,
+  p_new_file_name TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_file RECORD;
+  v_checked_out_user RECORD;
+  v_result JSONB;
+  v_user_email TEXT;
+  v_old_path TEXT;
+  v_old_name TEXT;
+BEGIN
+  -- Lock the row and check status atomically
+  SELECT id, file_path, file_name, checked_out_by, org_id
+  INTO v_file
+  FROM files
+  WHERE id = p_file_id
+  FOR UPDATE;  -- Row-level lock prevents race conditions
+  
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'File not found');
+  END IF;
+  
+  -- Store old values for activity log
+  v_old_path := v_file.file_path;
+  v_old_name := v_file.file_name;
+  
+  -- Check if file is checked out by another user (block the move)
+  IF v_file.checked_out_by IS NOT NULL AND v_file.checked_out_by != p_user_id THEN
+    -- Get the other user's info
+    SELECT email, full_name INTO v_checked_out_user
+    FROM users WHERE id = v_file.checked_out_by;
+    
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', format('Cannot move: file is checked out by %s', 
+        COALESCE(v_checked_out_user.full_name, v_checked_out_user.email, 'another user'))
+    );
+  END IF;
+  
+  -- Perform the move (update path and optionally name)
+  UPDATE files
+  SET 
+    file_path = p_new_file_path,
+    file_name = COALESCE(p_new_file_name, file_name),
+    updated_by = p_user_id,
+    updated_at = NOW()
+  WHERE id = p_file_id;
+  
+  -- Return success with updated file data
+  SELECT jsonb_build_object(
+    'success', true,
+    'file', row_to_json(f.*)
+  ) INTO v_result
+  FROM files f
+  WHERE f.id = p_file_id;
+  
+  -- Log activity
+  SELECT email INTO v_user_email FROM users WHERE id = p_user_id;
+  
+  INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
+  VALUES (
+    v_file.org_id, 
+    p_file_id, 
+    p_user_id, 
+    COALESCE(v_user_email, 'unknown'),
+    'move',
+    jsonb_build_object(
+      'old_path', v_old_path,
+      'new_path', p_new_file_path,
+      'old_name', v_old_name,
+      'new_name', COALESCE(p_new_file_name, v_old_name)
+    )
+  );
+  
+  RETURN v_result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION move_file(UUID, UUID, TEXT, TEXT) TO authenticated;
+
 -- Get files changed since a specific timestamp (for delta sync)
 -- Used by client-side caching to fetch only changed files after initial load
 DROP FUNCTION IF EXISTS get_vault_files_delta(UUID, UUID, TIMESTAMPTZ) CASCADE;

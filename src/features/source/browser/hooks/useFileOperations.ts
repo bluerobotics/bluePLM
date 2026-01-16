@@ -27,6 +27,7 @@ import { executeCommand } from '@/lib/commands'
 import { logFileAction } from '@/lib/userActionLogger'
 import { getSyncedFilesFromSelection } from '@/lib/commands/types'
 import { isMachineOnline } from '@/lib/supabase'
+import { moveFileOnServer } from '@/lib/supabase/files'
 import { buildFullPath } from '@/lib/utils/path'
 import type { CustomConfirmState } from './useDialogState'
 
@@ -364,14 +365,30 @@ export function useFileOperations({
       addProcessingFolder(file.relativePath, 'sync')
       
       try {
+        // For synced files, update server first (atomic operation with checkout validation)
+        if (file.pdmData?.id && userId) {
+          const serverResult = await moveFileOnServer(file.pdmData.id, userId, newRelPath, file.name)
+          if (!serverResult.success) {
+            failed++
+            log.error('[FileOps]', 'Server move failed', { error: serverResult.error })
+            addToast('error', serverResult.error || 'Failed to move file on server')
+            removeProcessingFolder(file.relativePath)
+            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+            continue
+          }
+        }
+        
+        // Now perform local move
         const result = await window.electronAPI.moveFile(file.path, newFullPath)
         if (result.success) {
           succeeded++
-          // Update file in store with new path and mark as moved
-          renameFileInStore(file.path, newFullPath, newRelPath, true)
+          // Update file in store with new path
+          // For synced files, don't mark as 'moved' since server is already updated
+          const markAsMoved = !file.pdmData?.id
+          renameFileInStore(file.path, newFullPath, newRelPath, markAsMoved)
         } else {
           failed++
-          log.error('[FileOps]', 'Move failed', { error: result.error })
+          log.error('[FileOps]', 'Local move failed', { error: result.error })
         }
       } catch (err) {
         failed++

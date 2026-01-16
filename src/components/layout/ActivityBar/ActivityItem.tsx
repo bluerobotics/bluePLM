@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePDMStore, type SidebarView } from '@/stores/pdmStore'
 import { logNavigation } from '@/lib/userActionLogger'
 import type { ModuleDefinition, ModuleId } from '@/types/modules'
@@ -10,6 +11,10 @@ export const ExpandedContext = createContext(false)
 
 // Context to share sidebar rect for cascading panels
 export const SidebarRectContext = createContext<DOMRect | null>(null)
+
+// Standardized hover timing constants (in ms)
+export const HOVER_OPEN_DELAY = 80   // Quick open, but prevents accidental triggers
+export const HOVER_CLOSE_DELAY = 200 // Consistent close delay across all components
 
 export interface ActivityItemProps {
   icon: React.ReactNode
@@ -32,6 +37,7 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
   const isExpanded = useContext(ExpandedContext)
   const sidebarRect = useContext(SidebarRectContext)
   const [showTooltip, setShowTooltip] = useState(false)
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const [showSubmenu, setShowSubmenu] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const isActive = activeView === view && !isComingSoon
@@ -42,7 +48,17 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
   const showCollapsedChevron = !isExpanded && activityBarMode === 'collapsed' && hasChildren && children && children.length > 0 && !isComingSoon
 
   const handleMouseEnter = () => {
-    if (!isExpanded && (!hasChildren || isComingSoon)) setShowTooltip(true)
+    if (!isExpanded && (!hasChildren || isComingSoon)) {
+      // Calculate tooltip position based on button rect
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (rect) {
+        setTooltipPos({
+          top: rect.top + rect.height / 2,
+          left: rect.right + 12, // 12px gap from button edge
+        })
+      }
+      setShowTooltip(true)
+    }
     
     if (hasChildren && children && children.length > 0 && !isComingSoon) {
       // Clear any pending close timeout
@@ -54,7 +70,7 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
       hoverTimeoutRef.current = setTimeout(() => {
         setShowSubmenu(true)
         onHoverWithChildren?.(view as ModuleId, buttonRef.current?.getBoundingClientRect() || null)
-      }, 100)
+      }, HOVER_OPEN_DELAY)
     }
   }
 
@@ -68,7 +84,7 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
     submenuTimeoutRef.current = setTimeout(() => {
       setShowSubmenu(false)
       onHoverWithChildren?.(null, null)
-    }, 200)
+    }, HOVER_CLOSE_DELAY)
   }
 
   // Close submenu immediately when sidebar collapses to prevent icon drift
@@ -99,7 +115,7 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`relative h-11 w-full flex items-center gap-3 px-[9px] rounded-lg transition-colors overflow-hidden ${
+        className={`relative h-11 w-full flex items-center gap-3 px-[9px] rounded-lg transition-colors ${
           isComingSoon
             ? 'opacity-40 cursor-not-allowed'
             : isActive
@@ -108,18 +124,10 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
         }`}
         title={isComingSoon ? 'In Development' : undefined}
       >
-        {/* Tooltip for collapsed state (only if no children or coming soon) */}
-        {showTooltip && !isExpanded && (!hasChildren || isComingSoon) && (
-          <div className="absolute left-full ml-3 z-50 pointer-events-none">
-            <div className="px-2.5 py-1.5 bg-plm-fg text-plm-bg text-sm font-medium rounded whitespace-nowrap">
-              {isComingSoon ? `${title} - In Development` : title}
-            </div>
-          </div>
-        )}
-        <div className="relative w-[22px] h-[22px] flex items-center justify-center flex-shrink-0">
+        <div className="relative w-[22px] h-[22px] flex items-center justify-center flex-shrink-0 overflow-visible">
           {icon}
           {badge !== undefined && badge > 0 && (
-            <div className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] flex items-center justify-center bg-plm-error rounded-full shadow-sm">
+            <div className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] flex items-center justify-center bg-plm-error rounded-full shadow-sm z-10">
               <span className="text-[10px] font-bold text-white px-1">
                 {badge > 99 ? '99+' : badge}
               </span>
@@ -150,29 +158,51 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
         )}
       </button>
       
-      {/* Cascading Sidebar Panel */}
-      {showSubmenu && hasChildren && children && children.length > 0 && sidebarRect && (
-        <CascadingSidebar
-          parentRect={sidebarRect}
-          itemRect={buttonRef.current?.getBoundingClientRect()}
-          children={children}
-          depth={depth + 1}
-          onMouseEnter={() => {
-            // Clear any pending close timeout when entering submenu
-            if (submenuTimeoutRef.current) {
-              clearTimeout(submenuTimeoutRef.current)
-              submenuTimeoutRef.current = null
-            }
-            setShowSubmenu(true)
-          }}
-          onMouseLeave={() => {
-            // Delay close to allow moving back to parent
-            submenuTimeoutRef.current = setTimeout(() => {
-              setShowSubmenu(false)
-            }, 150)
-          }}
-        />
-      )}
+      {/* Cascading Sidebar Panel - rendered via portal to escape overflow constraints */}
+      {showSubmenu && hasChildren && children && children.length > 0 && sidebarRect &&
+        createPortal(
+          <CascadingSidebar
+            parentRect={sidebarRect}
+            itemRect={buttonRef.current?.getBoundingClientRect()}
+            children={children}
+            depth={depth + 1}
+            onMouseEnter={() => {
+              // Clear any pending close timeout when entering submenu
+              if (submenuTimeoutRef.current) {
+                clearTimeout(submenuTimeoutRef.current)
+                submenuTimeoutRef.current = null
+              }
+              setShowSubmenu(true)
+            }}
+            onMouseLeave={() => {
+              // Delay close to allow moving back to parent
+              submenuTimeoutRef.current = setTimeout(() => {
+                setShowSubmenu(false)
+              }, HOVER_CLOSE_DELAY)
+            }}
+          />,
+          document.body
+        )
+      }
+
+      {/* Tooltip for collapsed state - rendered via portal to escape overflow constraints */}
+      {showTooltip && !isExpanded && (!hasChildren || isComingSoon) &&
+        createPortal(
+          <div 
+            className="fixed z-50 pointer-events-none"
+            style={{ 
+              top: tooltipPos.top, 
+              left: tooltipPos.left,
+              transform: 'translateY(-50%)', // Vertically center on the button
+            }}
+          >
+            <div className="px-2.5 py-1.5 bg-plm-fg text-plm-bg text-sm font-medium rounded whitespace-nowrap shadow-lg">
+              {isComingSoon ? `${title} - In Development` : title}
+            </div>
+          </div>,
+          document.body
+        )
+      }
     </div>
   )
 }

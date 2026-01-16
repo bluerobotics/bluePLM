@@ -60,7 +60,6 @@ export function MetadataActions({
 
   return (
     <>
-      <div className="context-menu-separator" />
       <div 
         className={`context-menu-item ${!swServiceRunning || isRefreshing ? 'opacity-50' : ''}`}
         onClick={handleRefreshMetadata}

@@ -334,7 +334,7 @@ export function PinnedFoldersSection({
                   )}
                   <span className="tree-item-icon">{getPinnedFileIcon()}</span>
                   <span className="truncate text-sm flex-1" title={pinned.path}>
-                    {pinned.isDirectory ? pinned.path : fileName}
+                    {pinned.isDirectory ? rawFileName : fileName}
                   </span>
                   
                   {/* Vault label if from different vault */}

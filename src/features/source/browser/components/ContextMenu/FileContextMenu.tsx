@@ -1,8 +1,15 @@
 /**
  * File context menu component
  * Composes action components for a clean, maintainable structure
+ * 
+ * Menu Structure:
+ * - Primary actions (always visible): Open, Download, Check In/Out
+ * - Grouped submenus: File Actions, Edit, Export
+ * - Delete actions (always visible)
+ * - Expandable "More Actions": Collaboration (where used, properties, refresh metadata, reviews, etc.)
  */
-import React from 'react'
+import React, { useState } from 'react'
+import { Clipboard, FileOutput, FolderOpen } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 
@@ -17,9 +24,9 @@ import {
   CollaborationActions,
   DeleteActions,
   ExportActions,
-  MetadataActions,
   useContextMenuSelectionState,
 } from './actions'
+import { ContextMenuGroup, ExpandableSection } from './components'
 
 export interface FileContextMenuProps {
   // Core menu data (required)
@@ -147,10 +154,14 @@ export function FileContextMenu({
   // Get user from store
   const { user } = usePDMStore()
   
+  // State for expandable section
+  const [isExpanded, setIsExpanded] = useState(false)
+  
   // Get context files
   const contextFiles = getContextMenuFiles()
   const multiSelect = contextFiles.length > 1
   const firstFile = contextFiles[0]
+  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
 
   // Use the selection state hook to compute counts and state
   const { counts, state, syncedFilesInSelection, unsyncedFilesInSelection } = 
@@ -171,6 +182,14 @@ export function FileContextMenu({
       clearTimeout(stateSubmenuTimeoutRef.current)
     }
   }
+
+  // Check if we have items for the File Actions submenu
+  const hasFileSystemActions = !allCloudOnly
+  
+  // Check if we have export actions (SolidWorks files)
+  const ext = firstFile.extension?.toLowerCase() || ''
+  const isSolidWorksFile = ['.sldprt', '.sldasm', '.slddrw'].includes(ext)
+  const hasExportActions = isSolidWorksFile
 
   return (
     <>
@@ -193,6 +212,8 @@ export function FileContextMenu({
           top: contextMenuAdjustedPos?.y ?? contextMenu.y 
         }}
       >
+        {/* ===== PRIMARY ACTIONS (always visible) ===== */}
+        
         {/* Open actions (open file, open folder, open all) */}
         <OpenActions
           contextFiles={contextFiles}
@@ -225,28 +246,6 @@ export function FileContextMenu({
           ignoreSubmenuTimeoutRef={ignoreSubmenuTimeoutRef}
         />
         
-        {/* File system actions (show in explorer, copy path, pin, rename) */}
-        <FileSystemActions
-          contextFiles={contextFiles}
-          multiSelect={multiSelect}
-          firstFile={firstFile}
-          onClose={onClose}
-          platform={platform}
-          startRenaming={startRenaming}
-          userId={user?.id}
-        />
-        
-        {/* Clipboard actions (copy, cut, paste) */}
-        <ClipboardActions
-          contextFiles={contextFiles}
-          multiSelect={multiSelect}
-          firstFile={firstFile}
-          onClose={onClose}
-          handleCopy={handleCopy}
-          handleCut={handleCut}
-          handlePaste={handlePaste}
-        />
-        
         {/* Checkout actions (checkout, checkin, discard, force release, change state) */}
         <CheckoutActions
           contextFiles={contextFiles}
@@ -266,45 +265,57 @@ export function FileContextMenu({
           savingConfigsToSW={savingConfigsToSW}
         />
         
-        {/* Collaboration actions (history, where used, properties, review, notify, watch, share, ECO) */}
-        <CollaborationActions
-          contextFiles={contextFiles}
-          multiSelect={multiSelect}
-          firstFile={firstFile}
-          onClose={onClose}
-          onRefresh={onRefresh}
-          state={state}
-          setDetailsPanelTab={setDetailsPanelTab}
-          setDetailsPanelVisible={setDetailsPanelVisible}
-          handleOpenReviewModal={handleOpenReviewModal}
-          handleOpenCheckoutRequestModal={handleOpenCheckoutRequestModal}
-          handleOpenMentionModal={handleOpenMentionModal}
-          handleOpenECOModal={handleOpenECOModal}
-          watchingFiles={watchingFiles}
-          isTogglingWatch={isTogglingWatch}
-          handleToggleWatch={handleToggleWatch}
-          isCreatingShareLink={isCreatingShareLink}
-          handleQuickShareLink={handleQuickShareLink}
-        />
+        {/* ===== GROUPED SUBMENUS ===== */}
+        <div className="context-menu-separator" />
         
-        {/* Export actions (SolidWorks STEP, IGES, STL, PDF, DXF) */}
-        <ExportActions
-          contextFiles={contextFiles}
-          multiSelect={multiSelect}
-          firstFile={firstFile}
-          onClose={onClose}
-        />
+        {/* File Actions submenu (show in explorer, copy path, pin, rename) */}
+        <ContextMenuGroup 
+          label="File Actions" 
+          icon={FolderOpen}
+          hasItems={hasFileSystemActions}
+        >
+          <FileSystemActions
+            contextFiles={contextFiles}
+            multiSelect={multiSelect}
+            firstFile={firstFile}
+            onClose={onClose}
+            platform={platform}
+            startRenaming={startRenaming}
+            userId={user?.id}
+          />
+        </ContextMenuGroup>
         
-        {/* Metadata actions (refresh metadata from SolidWorks files) */}
-        <MetadataActions
-          contextFiles={contextFiles}
-          multiSelect={multiSelect}
-          firstFile={firstFile}
-          onClose={onClose}
-          onRefresh={onRefresh}
-        />
+        {/* Edit submenu (copy, cut, paste) */}
+        <ContextMenuGroup 
+          label="Edit" 
+          icon={Clipboard}
+        >
+          <ClipboardActions
+            contextFiles={contextFiles}
+            multiSelect={multiSelect}
+            firstFile={firstFile}
+            onClose={onClose}
+            handleCopy={handleCopy}
+            handleCut={handleCut}
+            handlePaste={handlePaste}
+          />
+        </ContextMenuGroup>
         
-        {/* Delete actions (remove local, delete locally, delete from server, delete both, undo) */}
+        {/* Export submenu (SolidWorks STEP, IGES, STL, PDF, DXF) */}
+        <ContextMenuGroup 
+          label="Export" 
+          icon={FileOutput}
+          hasItems={hasExportActions}
+        >
+          <ExportActions
+            contextFiles={contextFiles}
+            multiSelect={multiSelect}
+            firstFile={firstFile}
+            onClose={onClose}
+          />
+        </ContextMenuGroup>
+        
+        {/* ===== DELETE ACTIONS (always visible) ===== */}
         <DeleteActions
           contextFiles={contextFiles}
           multiSelect={multiSelect}
@@ -320,6 +331,34 @@ export function FileContextMenu({
           undoStack={undoStack}
           handleUndo={handleUndo}
         />
+        
+        {/* ===== EXPANDABLE "MORE ACTIONS" SECTION ===== */}
+        <ExpandableSection
+          expanded={isExpanded}
+          onToggle={() => setIsExpanded(!isExpanded)}
+          hiddenCount={isExpanded ? undefined : 3}
+        >
+          {/* Collaboration actions (where used, properties, review, notify, watch, share, ECO) */}
+          <CollaborationActions
+            contextFiles={contextFiles}
+            multiSelect={multiSelect}
+            firstFile={firstFile}
+            onClose={onClose}
+            onRefresh={onRefresh}
+            state={state}
+            setDetailsPanelTab={setDetailsPanelTab}
+            setDetailsPanelVisible={setDetailsPanelVisible}
+            handleOpenReviewModal={handleOpenReviewModal}
+            handleOpenCheckoutRequestModal={handleOpenCheckoutRequestModal}
+            handleOpenMentionModal={handleOpenMentionModal}
+            handleOpenECOModal={handleOpenECOModal}
+            watchingFiles={watchingFiles}
+            isTogglingWatch={isTogglingWatch}
+            handleToggleWatch={handleToggleWatch}
+            isCreatingShareLink={isCreatingShareLink}
+            handleQuickShareLink={handleQuickShareLink}
+          />
+        </ExpandableSection>
       </div>
     </>
   )

@@ -2,6 +2,31 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.9.0] - 2026-01-16
+
+### Added
+- **Real-time server sync for file moves**: Moving a checked-in file to a different folder now immediately updates the server `file_path`. Previously, moved files would appear as "new local" at the destination and "cloud-only" at the old location. Now the server reference is updated atomically before the local move, ensuring consistent state across all users
+- **PDF export filename patterns**: PDF exports for SolidWorks drawings now use the same filename pattern system as STEP/STL exports. The exported PDF filename follows the pattern configured in Settings → Export Options (e.g., `{partNumber}_Rev{rev}.pdf`). PDM metadata (part number, description, revision) from the drawing is passed to the export and used as fallback when SolidWorks file properties are empty
+
+### Fixed
+- **Pinned folders show only folder name**: Pinned folders now display just the folder name instead of the full path. Full path is still visible on hover
+- **SolidWorks files from templates opening as templates**: Fixed issue where new SolidWorks files created from templates (`.prtdot`, `.asmdot`, `.drwdot`) would still behave as templates when opened in SolidWorks. The fix uses the SolidWorks API to properly convert template metadata to document metadata instead of simply copying the file
+- **Notification badge clipping**: Fixed notification badge getting clipped when the activity bar is collapsed. Badge now renders above other elements with proper overflow handling
+- **Pending reviews not showing in notifications**: Fixed bug where pending review requests would show in the badge count but not appear in the Notifications view after navigating away and back. Pending reviews are now always loaded on mount
+- **Window drag region on right side of top bar**: Fixed the area to the right of the search bar not being draggable to move the window. The right-side controls container was expanding to fill available space; now constrained to fit content only
+
+### Changed
+- **Context menu reorganization**: Right-click context menu is now more compact with grouped submenus:
+  - "File Actions" groups: Show in Explorer, Copy Path, Copy Folder Path, Pin, Rename
+  - "Edit" groups: Copy, Cut, Paste
+  - "Export" groups: STEP, IGES, STL, PDF, DXF export options (SolidWorks files only)
+  - "More Actions" expandable section at the bottom contains collaboration and metadata actions - click the arrow to reveal
+- **STL export defaults**: Changed default STL export settings to use custom resolution with 0.05mm deviation and 1° angular resolution (previously used SolidWorks "fine" preset with 10° angle). This provides better mesh quality for 3D printing by default
+- **Schema version**: Bumped to v47
+  - v47: Added `move_file` RPC for atomic file move operations with checkout validation and activity logging
+
+---
+
 ## [3.8.0] - 2026-01-15
 
 ### Added

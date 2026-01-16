@@ -160,6 +160,117 @@ namespace BluePLM.SolidWorksService
 
         #endregion
 
+        #region Document Creation
+
+        /// <summary>
+        /// Create a new SOLIDWORKS document from a template file.
+        /// This properly converts template files (.prtdot, .asmdot, .drwdot) to 
+        /// document files (.sldprt, .sldasm, .slddrw) by using the SolidWorks API.
+        /// Simply copying and renaming template files does NOT work because they
+        /// contain internal metadata that marks them as templates.
+        /// </summary>
+        /// <param name="templatePath">Path to the template file (.prtdot, .asmdot, .drwdot)</param>
+        /// <param name="outputPath">Path where the new document should be saved (.sldprt, .sldasm, .slddrw)</param>
+        /// <returns>CommandResult with success/error status</returns>
+        public CommandResult CreateDocumentFromTemplate(string? templatePath, string? outputPath)
+        {
+            if (string.IsNullOrEmpty(templatePath))
+                return new CommandResult { Success = false, Error = "Missing 'templatePath'" };
+
+            if (string.IsNullOrEmpty(outputPath))
+                return new CommandResult { Success = false, Error = "Missing 'outputPath'" };
+
+            if (!File.Exists(templatePath))
+                return new CommandResult { Success = false, Error = $"Template file not found: {templatePath}" };
+
+            // Validate template extension
+            var templateExt = Path.GetExtension(templatePath).ToLowerInvariant();
+            if (templateExt != ".prtdot" && templateExt != ".asmdot" && templateExt != ".drwdot")
+                return new CommandResult { Success = false, Error = $"Invalid template extension: {templateExt}. Expected .prtdot, .asmdot, or .drwdot" };
+
+            // Validate output extension matches template type
+            var outputExt = Path.GetExtension(outputPath).ToLowerInvariant();
+            var expectedOutputExt = templateExt switch
+            {
+                ".prtdot" => ".sldprt",
+                ".asmdot" => ".sldasm",
+                ".drwdot" => ".slddrw",
+                _ => ""
+            };
+
+            if (outputExt != expectedOutputExt)
+                return new CommandResult { Success = false, Error = $"Output extension mismatch: expected {expectedOutputExt} for template type {templateExt}, got {outputExt}" };
+
+            // Ensure output directory exists
+            var outputDir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+            {
+                try
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
+                catch (Exception ex)
+                {
+                    return new CommandResult { Success = false, Error = $"Failed to create output directory: {ex.Message}" };
+                }
+            }
+
+            ModelDoc2? doc = null;
+            try
+            {
+                var sw = GetSolidWorks();
+
+                // Use NewDocument to create a new document from the template
+                // NewDocument properly handles the template-to-document conversion
+                // Parameters: templatePath, paperSize (0 = default), width (0 = default), height (0 = default)
+                doc = (ModelDoc2)sw.NewDocument(templatePath, 0, 0, 0);
+
+                if (doc == null)
+                    return new CommandResult { Success = false, Error = "Failed to create document from template. SolidWorks returned null." };
+
+                // Save the new document to the output path
+                int errors = 0, warnings = 0;
+                bool saveSuccess = doc.Extension.SaveAs3(
+                    outputPath,
+                    (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                    (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                    null,
+                    null,
+                    ref errors,
+                    ref warnings
+                );
+
+                if (!saveSuccess)
+                    return new CommandResult { Success = false, Error = $"Failed to save document: errors={errors}, warnings={warnings}" };
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Data = new
+                    {
+                        templatePath,
+                        outputPath,
+                        message = "Document created successfully from template"
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+            finally
+            {
+                // Close the document to release file locks
+                if (doc != null)
+                {
+                    try { CloseDocument(outputPath!); } catch { }
+                }
+                CloseSolidWorksIfWeStartedIt();
+            }
+        }
+
+        #endregion
+
         #region BOM / References
 
         /// <summary>
@@ -664,7 +775,7 @@ namespace BluePLM.SolidWorksService
         /// <summary>
         /// Export a drawing to PDF
         /// </summary>
-        public CommandResult ExportToPdf(string? filePath, string? outputPath)
+        public CommandResult ExportToPdf(string? filePath, string? outputPath, string? filenamePattern = null, PdmMetadata? pdmMetadata = null)
         {
             if (string.IsNullOrEmpty(filePath))
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
@@ -691,7 +802,30 @@ namespace BluePLM.SolidWorksService
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open drawing: errors={errors}" };
 
-                var finalOutputPath = outputPath ?? Path.ChangeExtension(filePath, ".pdf");
+                // Get drawing custom properties for filename pattern
+                var props = ReadCustomProperties(doc, null);
+                var baseName = Path.GetFileNameWithoutExtension(filePath);
+                var outputDir = outputPath ?? Path.GetDirectoryName(filePath)!;
+                
+                // Build output filename using pattern if provided
+                string finalOutputPath;
+                if (!string.IsNullOrEmpty(filenamePattern))
+                {
+                    // Drawings don't have configurations, pass empty string for config name
+                    var fileName = FormatExportFilename(filenamePattern!, baseName, "", props, ".pdf", pdmMetadata);
+                    finalOutputPath = Path.Combine(outputDir, fileName);
+                }
+                else if (!string.IsNullOrEmpty(outputPath) && outputPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    // outputPath is a full file path
+                    finalOutputPath = outputPath;
+                }
+                else
+                {
+                    // outputPath is a directory or not provided - use original filename
+                    finalOutputPath = Path.Combine(outputDir, baseName + ".pdf");
+                }
+                
                 Directory.CreateDirectory(Path.GetDirectoryName(finalOutputPath)!);
 
                 // Set PDF export options

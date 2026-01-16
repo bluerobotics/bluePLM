@@ -2,7 +2,11 @@
  * useSolidWorksFileCreation - Hook for creating new SOLIDWORKS files from templates
  * 
  * This hook provides functionality to create new SOLIDWORKS Part, Assembly, and Drawing
- * files by copying from template files in the configured template folder.
+ * files from template files (.prtdot, .asmdot, .drwdot) in the configured template folder.
+ * 
+ * Uses the SolidWorks API to properly convert templates to documents. Simply copying
+ * template files and renaming them doesn't work because templates have internal metadata
+ * marking them as templates - SolidWorks would still treat them as templates.
  * 
  * Designed for future extraction to a SOLIDWORKS extension.
  */
@@ -226,7 +230,12 @@ export function useSolidWorksFileCreation(): UseSolidWorksFileCreationReturn {
   }, [])
   
   /**
-   * Create a new SOLIDWORKS file from a specific template
+   * Create a new SOLIDWORKS file from a specific template.
+   * 
+   * Uses the SolidWorks API to properly convert the template to a document.
+   * This is necessary because template files (.prtdot, .asmdot, .drwdot) have
+   * internal metadata marking them as templates - simply copying and renaming
+   * doesn't work.
    */
   const createFromTemplate = useCallback(async (
     templatePath: string,
@@ -241,16 +250,17 @@ export function useSolidWorksFileCreation(): UseSolidWorksFileCreationReturn {
       const filename = await generateUniqueFilename(targetFolder, baseName, extension)
       const destPath = `${targetFolder}\\${filename}`
       
-      // Copy template to destination
-      const result = await window.electronAPI?.copyFile(templatePath, destPath)
+      console.log('[SWFileCreation] Creating document from template:', templatePath, '->', destPath)
+      
+      // Use the SolidWorks API to create a proper document from the template
+      // This properly converts the template metadata to document metadata
+      const result = await window.electronAPI?.solidworks.createDocumentFromTemplate(templatePath, destPath)
       
       if (!result?.success) {
+        console.error('[SWFileCreation] API error:', result?.error)
         addToast('error', result?.error || `Failed to create ${fileType}`)
         return null
       }
-      
-      // Make the new file writable (templates might be read-only)
-      await window.electronAPI?.setReadonly(destPath, false)
       
       // Immediately add the file to the store for instant UI feedback
       // This prevents the 5-10 second freeze while waiting for file watcher + full refresh

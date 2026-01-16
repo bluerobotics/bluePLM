@@ -469,7 +469,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         className="flex items-center h-full justify-end titlebar-drag-region"
         style={{ paddingRight: platform === 'darwin' ? 16 : titleBarPadding }}
       >
-        <div className="flex items-center gap-1 px-2 titlebar-no-drag">
+        <div className="flex items-center gap-1 px-2 titlebar-no-drag w-fit">
         {/* FPS Counter - independent from System Stats */}
         {!minimal && topbarConfig.showFps && (
           <FpsCounter />

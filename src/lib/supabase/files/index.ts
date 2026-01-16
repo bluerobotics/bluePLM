@@ -61,3 +61,9 @@ export {
   transitionFileState,
   updateVersionNote
 } from './versions'
+
+// Move functions - atomic file move operations
+export {
+  moveFileOnServer,
+  moveFilesOnServer
+} from './move'

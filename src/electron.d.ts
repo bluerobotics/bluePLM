@@ -310,8 +310,11 @@ declare global {
             centerOfMass: { x: number; y: number; z: number }; momentsOfInertia: { Ixx: number; Iyy: number; Izz: number; Ixy: number; Izx: number; Iyz: number } }; error?: string }>
         
         // Export operations
-        exportPdf: (filePath: string, outputPath?: string) => 
-          Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
+        exportPdf: (filePath: string, options?: { 
+          outputPath?: string; 
+          filenamePattern?: string; 
+          pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } 
+        }) => Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
         exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
           Promise<{ success: boolean; data?: { inputFile: string; exportedFiles: string[]; count: number }; error?: string }>
         exportDxf: (filePath: string, outputPath?: string) => 
@@ -398,6 +401,10 @@ declare global {
         removeLicenseRegistry: (serialNumber: string) => Promise<{ success: boolean; error?: string; requiresAdmin?: boolean }>
         checkLicenseRegistry: (serialNumber: string) => Promise<{ success: boolean; found: boolean; error?: string }>
         openLicenseManager: () => Promise<{ success: boolean; error?: string }>
+        
+        // Template operations
+        createDocumentFromTemplate: (templatePath: string, destinationPath: string) => 
+          Promise<{ success: boolean; data?: { templatePath: string; outputPath: string }; error?: string }>
       }
       
       // RFQ Release Files API

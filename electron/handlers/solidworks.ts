@@ -1986,9 +1986,19 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'getMassProperties', filePath, configuration })
   })
 
+  // Document creation
+  ipcMain.handle('solidworks:create-document-from-template', async (_, templatePath: string, outputPath: string) => {
+    log(`[SolidWorks] IPC: create-document-from-template - template: ${templatePath}, output: ${outputPath}`)
+    return sendSWCommand({ action: 'createDocumentFromTemplate', templatePath, outputPath })
+  })
+
   // Export operations
-  ipcMain.handle('solidworks:export-pdf', async (_, filePath: string, outputPath?: string) => {
-    return sendSWCommand({ action: 'exportPdf', filePath, outputPath })
+  ipcMain.handle('solidworks:export-pdf', async (_, filePath: string, options?: { 
+    outputPath?: string; 
+    filenamePattern?: string; 
+    pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } 
+  }) => {
+    return sendSWCommand({ action: 'exportPdf', filePath, ...options })
   })
 
   ipcMain.handle('solidworks:export-step', async (_, filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; revision?: string; description?: string } }) => {

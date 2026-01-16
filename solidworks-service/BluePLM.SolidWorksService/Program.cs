@@ -222,7 +222,9 @@ namespace BluePLM.SolidWorksService
                     
                     // Exports (need full SW)
                     "exportPdf" => _swApi!.ExportToPdf(filePath, 
-                        command["outputPath"]?.ToString()),
+                        command["outputPath"]?.ToString(),
+                        command["filenamePattern"]?.ToString(),
+                        command["pdmMetadata"]?.ToObject<PdmMetadata>()),
                     "exportStep" => _swApi!.ExportToStep(filePath,
                         command["outputPath"]?.ToString(),
                         command["configuration"]?.ToString(),
@@ -249,6 +251,11 @@ namespace BluePLM.SolidWorksService
                         command["outputPath"]?.ToString(),
                         command["width"]?.Value<int>() ?? 800,
                         command["height"]?.Value<int>() ?? 600),
+                    
+                    // Document creation (need full SW)
+                    "createDocumentFromTemplate" => _swApi!.CreateDocumentFromTemplate(
+                        command["templatePath"]?.ToString(),
+                        command["outputPath"]?.ToString()),
                     
                     // Assembly operations (need full SW)
                     "replaceComponent" => _swApi!.ReplaceComponent(filePath,
@@ -542,7 +549,7 @@ Open Document Management (control documents in running SolidWorks):
   Allows checkout/checkin without closing files!
 
 SLOW operations (Full SolidWorks API - launches SW):
-  getMassProperties, exports, replaceComponent, packAndGo
+  getMassProperties, exports, createDocumentFromTemplate, replaceComponent, packAndGo
 
 Usage:
   BluePLM.SolidWorksService.exe [options]
@@ -585,6 +592,7 @@ Commands:
   {""action"": ""getMassProperties"", ""filePath"": ""...""}
   {""action"": ""exportPdf"", ""filePath"": ""...""}
   {""action"": ""exportStep"", ""filePath"": ""...""}
+  {""action"": ""createDocumentFromTemplate"", ""templatePath"": ""C:\\templates\\Part.prtdot"", ""outputPath"": ""C:\\output\\NewPart.sldprt""}
   {""action"": ""replaceComponent"", ""filePath"": ""..."", ""oldComponent"": ""..."", ""newComponent"": ""...""}
   {""action"": ""packAndGo"", ""filePath"": ""..."", ""outputFolder"": ""...""}
 ");
