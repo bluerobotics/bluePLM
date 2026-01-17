@@ -126,6 +126,11 @@ export const createFilesSlice: StateCreator<
   fileConfigurations: new Map<string, import('../types').SWConfiguration[]>(),
   loadingConfigs: new Set<string>(),
   
+  // Initial state - Configuration BOM expansion
+  expandedConfigBoms: new Set<string>(),
+  configBomData: new Map<string, import('../types').ConfigBomItem[]>(),
+  loadingConfigBoms: new Set<string>(),
+  
   // Initial state - Realtime update debouncing
   recentlyModifiedFiles: new Map<string, number>(),
   
@@ -667,20 +672,36 @@ export const createFilesSlice: StateCreator<
     if (existingByPath) {
       // File already exists locally - update its pdmData instead
       set(state => ({
-        files: state.files.map(f => 
-          f.relativePath.toLowerCase() === pdmFile.file_path.toLowerCase()
-            ? { 
-                ...f, 
-                pdmData: pdmFile, 
-                isSynced: true, 
-                // Only compute diff status if we have a local hash to compare against
-                // If no local hash, preserve existing status to avoid false "outdated" positives
-                diffStatus: !f.localHash 
-                  ? f.diffStatus 
-                  : (f.localHash === pdmFile.content_hash ? undefined : 'outdated')
-              }
-            : f
-        )
+        files: state.files.map(f => {
+          if (f.relativePath.toLowerCase() !== pdmFile.file_path.toLowerCase()) {
+            return f
+          }
+          
+          // Determine diff status using best available information
+          let newDiffStatus = f.diffStatus
+          
+          if (f.localHash) {
+            // Hash comparison is most accurate
+            newDiffStatus = f.localHash === pdmFile.content_hash ? undefined : 'outdated'
+          } else if (f.localVersion !== undefined && pdmFile.version !== undefined) {
+            // Use tracked local version as fallback when hash unavailable
+            // This provides accurate status without expensive hash computation
+            newDiffStatus = f.localVersion === pdmFile.version ? undefined : 
+              (f.localVersion < pdmFile.version ? 'outdated' : f.diffStatus)
+          } else if (f.diffStatus === 'outdated') {
+            // No way to verify 'outdated' status - clear it rather than preserve potentially wrong status
+            // Background hash computation will determine correct status
+            newDiffStatus = undefined
+          }
+          // Otherwise preserve existing diffStatus (e.g. 'modified', 'added')
+          
+          return { 
+            ...f, 
+            pdmData: pdmFile, 
+            isSynced: true, 
+            diffStatus: newDiffStatus
+          }
+        })
       }))
       return
     }
@@ -754,18 +775,33 @@ export const createFilesSlice: StateCreator<
             ...(preserveUserInfo ? { checked_out_user: existingUserInfo } : {})
           } as PDMFile
           
-          // Recompute diff status ONLY if we have a reliable local hash to compare against
-          // If no local hash (or empty string), preserve existing diffStatus to avoid false "outdated" positives
-          // This prevents race conditions where realtime events arrive before local hash is computed
+          // Recompute diff status using best available information
           let newDiffStatus = f.diffStatus
           if (pdmData.content_hash && f.localHash && f.localHash.length > 0) {
+            // Hash comparison is most accurate
             if (pdmData.content_hash !== f.localHash) {
               newDiffStatus = 'outdated'
             } else if (f.diffStatus === 'outdated') {
               newDiffStatus = undefined
             }
+          } else if (f.localVersion !== undefined && pdmData.version !== undefined) {
+            // Use tracked local version as fallback when hash unavailable
+            if (f.localVersion === pdmData.version) {
+              // Versions match - file is synced
+              if (f.diffStatus === 'outdated') {
+                newDiffStatus = undefined
+              }
+            } else if (f.localVersion < pdmData.version) {
+              // Local is older than server
+              newDiffStatus = 'outdated'
+            }
+            // If local > server, preserve existing status (likely 'modified')
+          } else if (f.diffStatus === 'outdated') {
+            // No way to verify 'outdated' status - clear it rather than preserve potentially wrong status
+            // Background hash computation will determine correct status
+            newDiffStatus = undefined
           }
-          // If no local hash, preserve existing diffStatus (no change to newDiffStatus)
+          // Otherwise preserve existing diffStatus (e.g. 'modified', 'added')
           
           // Handle checkout status changes for files marked as 'deleted'
           if (f.diffStatus === 'deleted' && 'checked_out_by' in pdmData && pdmData.checked_out_by === null) {
@@ -1023,6 +1059,46 @@ export const createFilesSlice: StateCreator<
     const newSet = new Set(loadingConfigs)
     newSet.delete(filePath)
     set({ loadingConfigs: newSet })
+  },
+  
+  // Actions - Configuration BOM expansion
+  toggleConfigBomExpansion: (configKey: string) => {
+    const { expandedConfigBoms } = get()
+    const newExpanded = new Set(expandedConfigBoms)
+    if (newExpanded.has(configKey)) {
+      newExpanded.delete(configKey)
+    } else {
+      newExpanded.add(configKey)
+    }
+    set({ expandedConfigBoms: newExpanded })
+  },
+  
+  setExpandedConfigBoms: (keys: Set<string>) => set({ expandedConfigBoms: keys }),
+  
+  setConfigBomData: (configKey: string, items: import('../types').ConfigBomItem[]) => {
+    const { configBomData } = get()
+    const newMap = new Map(configBomData)
+    newMap.set(configKey, items)
+    set({ configBomData: newMap })
+  },
+  
+  clearConfigBomData: (configKey: string) => {
+    const { configBomData } = get()
+    const newMap = new Map(configBomData)
+    newMap.delete(configKey)
+    set({ configBomData: newMap })
+  },
+  
+  addLoadingConfigBom: (configKey: string) => {
+    const { loadingConfigBoms } = get()
+    set({ loadingConfigBoms: new Set(loadingConfigBoms).add(configKey) })
+  },
+  
+  removeLoadingConfigBom: (configKey: string) => {
+    const { loadingConfigBoms } = get()
+    const newSet = new Set(loadingConfigBoms)
+    newSet.delete(configKey)
+    set({ loadingConfigBoms: newSet })
   },
   
   // Actions - Realtime update debouncing

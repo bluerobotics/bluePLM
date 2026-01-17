@@ -28,6 +28,7 @@ import { checkinFile, softDeleteFile } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
 import { FileOperationTracker } from '../../fileOperationTracker'
+import { removeFromSyncIndex } from '../../cache/localSyncIndex'
 
 // Helper for timing-based logging
 function logDelete(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown> = {}) {
@@ -809,6 +810,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     // STEP 2: Delete from server with concurrency limiting
     // Server operations still need individual API calls (no batch endpoint)
     let completedCount = 0
+    let serverResults: boolean[] = []
     
     if (uniqueFiles.length > 0) {
       const serverDeleteStepId = tracker.startStep('Delete from server', { 
@@ -817,7 +819,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       })
       const serverDeleteStart = Date.now()
       
-      const serverResults = await processWithConcurrency(uniqueFiles, CONCURRENT_OPERATIONS, async (file) => {
+      serverResults = await processWithConcurrency(uniqueFiles, CONCURRENT_OPERATIONS, async (file) => {
         if (!file.pdmData?.id) {
           completedCount++
           ctx.updateProgressToast(toastId, completedCount, Math.round((completedCount / totalFiles) * 100), undefined, `${completedCount}/${totalFiles}`)
@@ -930,6 +932,20 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     // - Local files removed via removeFilesFromStore()
     // - Cloud-only files removed via removeFilesFromStore()
     // - Server deletion is reflected immediately in store updates
+    
+    // Remove deleted files from the sync index
+    // This prevents them from being marked as orphaned if recreated locally
+    if (deletedServer > 0 && ctx.activeVaultId) {
+      const deletedPaths = uniqueFiles
+        .filter((_, i) => serverResults[i])  // Only successfully deleted files
+        .map(f => f.relativePath)
+      
+      if (deletedPaths.length > 0) {
+        removeFromSyncIndex(ctx.activeVaultId, deletedPaths).catch(err => {
+          logDelete('warn', 'Failed to update sync index after server delete', { error: String(err) })
+        })
+      }
+    }
     
     // Complete operation tracking
     tracker.endOperation(failed === 0 ? 'completed' : 'failed', failed > 0 ? errors[0] : undefined)

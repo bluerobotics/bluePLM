@@ -91,6 +91,11 @@ export interface FilePaneContextValue {
   loadingConfigs: Set<string>
   selectedConfigs: Set<string>
   
+  // Configuration BOM state - read from Zustand store
+  expandedConfigBoms: Set<string>
+  configBomData: Map<string, import('@/stores/types').ConfigBomItem[]>
+  loadingConfigBoms: Set<string>
+  
   // Clipboard (read from Zustand store - single source of truth)
   clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
   
@@ -199,6 +204,11 @@ export function FilePaneProvider({
   const selectedConfigs = usePDMStore(s => s.selectedConfigs)
   const fileConfigurations = usePDMStore(s => s.fileConfigurations)
   const loadingConfigs = usePDMStore(s => s.loadingConfigs)
+  
+  // Configuration BOM state from store
+  const expandedConfigBoms = usePDMStore(s => s.expandedConfigBoms)
+  const configBomData = usePDMStore(s => s.configBomData)
+  const loadingConfigBoms = usePDMStore(s => s.loadingConfigBoms)
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -351,6 +361,11 @@ export function FilePaneProvider({
     loadingConfigs,
     selectedConfigs,
     
+    // Configuration BOM (from Zustand store)
+    expandedConfigBoms,
+    configBomData,
+    loadingConfigBoms,
+    
     // Clipboard (from Zustand store)
     clipboard,
     
@@ -395,6 +410,7 @@ export function FilePaneProvider({
     customConfirm, deleteLocalCheckoutConfirm, conflictDialog,
     resizingColumn, draggingColumn, dragOverColumn,
     expandedConfigFiles, fileConfigurations, loadingConfigs, selectedConfigs,
+    expandedConfigBoms, configBomData, loadingConfigBoms,
     clipboard, editingCell, editValue,
     isCreatingFolder, newFolderName,
     currentMachineId, folderMetrics,

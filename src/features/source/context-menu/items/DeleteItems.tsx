@@ -1,9 +1,9 @@
 // src/features/source/context-menu/items/DeleteItems.tsx
 import { useRef, useLayoutEffect, useState, type ReactNode } from 'react'
-import { Trash2, EyeOff, FileX, FolderX, CloudOff } from 'lucide-react'
+import { Trash2, EyeOff, FileX, FolderX, CloudOff, UserX } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
-import { executeCommand, getSyncedFilesFromSelection } from '@/lib/commands'
+import { executeCommand, getSyncedFilesFromSelection, getOrphanedFilesFromSelection } from '@/lib/commands'
 import { checkOperationPermission, getPermissionRequirement } from '@/lib/permissions'
 import type { DialogName } from '../types'
 import type { ToastType } from '@/stores/types'
@@ -127,6 +127,10 @@ export function DeleteItems({
   const canDeleteServer = checkOperationPermission('delete-server', hasPermission)
   
   const hasUnsyncedLocalFiles = unsyncedFilesInSelection.length > 0
+  
+  // Get orphaned files (deleted_remote) from selection
+  const orphanedFilesInSelection = getOrphanedFilesFromSelection(files, contextFiles)
+  const hasOrphanedFiles = orphanedFilesInSelection.length > 0
 
   const handleDeleteLocal = () => {
     if (!canDeleteLocal.allowed) {
@@ -343,6 +347,26 @@ export function DeleteItems({
           <Trash2 size={14} />
           {allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} ({syncedFilesInSelection.length + cloudOnlyFilesInSelection.length} file{(syncedFilesInSelection.length + cloudOnlyFilesInSelection.length) !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
           {!canDeleteServer.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+        </div>
+      )}
+      
+      {/* Discard Orphaned Files - for files deleted from server by another user */}
+      {hasOrphanedFiles && (
+        <div 
+          className={`context-menu-item ${canDeleteLocal.allowed ? 'danger' : 'disabled'}`}
+          onClick={() => {
+            if (!canDeleteLocal.allowed) {
+              addToast('error', canDeleteLocal.reason || getPermissionRequirement('delete-local'))
+              return
+            }
+            onClose()
+            executeCommand('discard-orphaned', { files: contextFiles }, { onRefresh })
+          }}
+          title={!canDeleteLocal.allowed ? `Requires ${getPermissionRequirement('delete-local')}` : 'Delete local files that no longer exist on the server'}
+        >
+          <UserX size={14} />
+          Discard Orphaned ({orphanedFilesInSelection.length} file{orphanedFilesInSelection.length !== 1 ? 's' : ''})
+          {!canDeleteLocal.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}
     </>

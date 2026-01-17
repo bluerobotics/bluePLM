@@ -190,6 +190,7 @@ export const usePDMStore = create<PDMStoreState>()(
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         colorSwatches: state.colorSwatches,
+        hideCloudOnlyFolders: state.hideCloudOnlyFolders,
         
         // ═══════════════════════════════════════════════════════════════
         // Module Configuration
@@ -311,6 +312,8 @@ export const usePDMStore = create<PDMStoreState>()(
           autoApplySeasonalThemes: persisted.autoApplySeasonalThemes !== undefined ? (persisted.autoApplySeasonalThemes as boolean) : true,
           // Ensure language has a default
           language: (persisted.language as Language) || 'en',
+          // Restore hideCloudOnlyFolders (default to false - show all folders)
+          hideCloudOnlyFolders: persisted.hideCloudOnlyFolders !== undefined ? (persisted.hideCloudOnlyFolders as boolean) : false,
           // Ensure settingsTab has a default
           settingsTab: (persisted.settingsTab as SettingsTab) || 'profile',
           // Ensure keybindings has defaults (merge with defaults for new keybindings)

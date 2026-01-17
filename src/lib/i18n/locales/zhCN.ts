@@ -212,6 +212,11 @@ export const zhCN: TranslationDict = {
     excludedFiles: '已排除的文件',
     excludedFilesDesc: '{{count}} 个文件已从自动下载中排除（手动删除）',
     clearExcludedFiles: '清除列表',
+    autoDiscardOrphanedFiles: '自动丢弃孤立文件',
+    autoDiscardOrphanedFilesDesc: '自动删除服务器上已不存在的本地文件',
+    discardOrphaned: '丢弃孤立文件',
+    discardOrphanedCount: '丢弃孤立文件（{{count}} 个文件）',
+    orphanedFilesDescription: '这些文件之前已同步，但已被其他用户从服务器删除',
   },
 
   sidebar: {

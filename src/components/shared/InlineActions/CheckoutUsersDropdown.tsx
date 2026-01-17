@@ -6,7 +6,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react'
 import { Bell, Loader2, Users, Lock } from 'lucide-react'
-import { getInitials } from '@/lib/utils'
+import { getInitials, getAvatarColor } from '@/lib/utils'
 import { requestCheckout } from '@/lib/supabase/notifications'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
@@ -160,25 +160,32 @@ export function CheckoutUsersDropdown({
                   </div>
                 ) : (
                   <>
-                    {u.avatar_url ? (
-                      <img
-                        src={u.avatar_url}
-                        alt={u.name}
-                        className="w-full h-full object-cover group-hover/avatar:brightness-110"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.style.display = 'none'
-                          target.nextElementSibling?.classList.remove('hidden')
-                        }}
-                      />
-                    ) : null}
-                    <div 
-                      className={`w-full h-full rounded-full bg-plm-accent/30 text-plm-accent flex items-center justify-center font-medium ${u.avatar_url ? 'hidden' : ''}`}
-                      style={{ fontSize }}
-                    >
-                      {getInitials(u.name)}
-                    </div>
+                    {(() => {
+                      const avatarColors = getAvatarColor(u.email || u.name)
+                      return (
+                        <>
+                          {u.avatar_url ? (
+                            <img
+                              src={u.avatar_url}
+                              alt={u.name}
+                              className="w-full h-full object-cover group-hover/avatar:brightness-110"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement
+                                target.style.display = 'none'
+                                target.nextElementSibling?.classList.remove('hidden')
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className={`w-full h-full rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center font-medium ${u.avatar_url ? 'hidden' : ''}`}
+                            style={{ fontSize }}
+                          >
+                            {getInitials(u.name)}
+                          </div>
+                        </>
+                      )
+                    })()}
                     {/* Bell overlay on hover (replaces lock badge) */}
                     {canNotify && (
                       <div className="absolute inset-0 bg-red-500 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity rounded-full">
@@ -267,18 +274,21 @@ export function CheckoutUsersDropdown({
                 >
                   {/* Avatar */}
                   <div className="relative w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
-                    {u.avatar_url ? (
-                      <img
-                        src={u.avatar_url}
-                        alt={u.name}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-plm-accent/30 text-plm-accent flex items-center justify-center text-[10px] font-medium">
-                        {getInitials(u.name)}
-                      </div>
-                    )}
+                    {(() => {
+                      const avatarColors = getAvatarColor(u.email || u.name)
+                      return u.avatar_url ? (
+                        <img
+                          src={u.avatar_url}
+                          alt={u.name}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className={`w-full h-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center text-[10px] font-medium`}>
+                          {getInitials(u.name)}
+                        </div>
+                      )
+                    })()}
                   </div>
                   
                   {/* Name and count */}

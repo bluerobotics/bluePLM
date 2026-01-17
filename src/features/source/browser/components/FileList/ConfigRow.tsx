@@ -1,5 +1,5 @@
 import React, { memo } from 'react'
-import { Layers, FileInput } from 'lucide-react'
+import { Layers, FileInput, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
 import type { ConfigWithDepth } from '../../types'
 
 export interface ConfigRowProps {
@@ -11,10 +11,18 @@ export interface ConfigRowProps {
   basePartNumber: string
   /** Configuration-specific revision (from drawing propagation) */
   configRevision?: string
+  /** Whether this config can be expanded to show BOM (only for assemblies) */
+  isExpandable?: boolean
+  /** Whether the BOM section is currently expanded */
+  isBomExpanded?: boolean
+  /** Whether the BOM is currently loading */
+  isBomLoading?: boolean
   onClick: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onDescriptionChange: (value: string) => void
   onTabChange: (value: string) => void
+  /** Handler for toggling BOM expansion */
+  onToggleBom?: (e: React.MouseEvent) => void
 }
 
 /**
@@ -38,6 +46,9 @@ function areConfigRowPropsEqual(
   if (prevProps.rowHeight !== nextProps.rowHeight) return false
   if (prevProps.basePartNumber !== nextProps.basePartNumber) return false
   if (prevProps.configRevision !== nextProps.configRevision) return false
+  if (prevProps.isExpandable !== nextProps.isExpandable) return false
+  if (prevProps.isBomExpanded !== nextProps.isBomExpanded) return false
+  if (prevProps.isBomLoading !== nextProps.isBomLoading) return false
   
   // Compare visibleColumns array (shallow check on length and ids)
   if (prevProps.visibleColumns.length !== nextProps.visibleColumns.length) return false
@@ -57,10 +68,14 @@ export const ConfigRow = memo(function ConfigRow({
   visibleColumns,
   basePartNumber,
   configRevision,
+  isExpandable,
+  isBomExpanded,
+  isBomLoading,
   onClick,
   onContextMenu,
   onDescriptionChange,
   onTabChange,
+  onToggleBom,
 }: ConfigRowProps) {
   return (
     <tr
@@ -79,7 +94,27 @@ export const ConfigRow = memo(function ConfigRow({
                 paddingLeft: `${24 + (config.depth * 16)}px`
               }}
             >
-              <span className="text-plm-fg-dim text-[10px]">{config.depth > 0 ? '└' : '○'}</span>
+              {/* BOM expansion toggle for assemblies */}
+              {isExpandable ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleBom?.(e)
+                  }}
+                  className="p-0.5 -ml-1 hover:bg-plm-bg-light rounded transition-colors"
+                  title={isBomExpanded ? 'Collapse BOM' : 'Expand BOM'}
+                >
+                  {isBomLoading ? (
+                    <Loader2 size={10} className="text-plm-fg-muted animate-spin" />
+                  ) : isBomExpanded ? (
+                    <ChevronDown size={10} className="text-plm-fg-muted" />
+                  ) : (
+                    <ChevronRight size={10} className="text-plm-fg-muted" />
+                  )}
+                </button>
+              ) : (
+                <span className="text-plm-fg-dim text-[10px]">{config.depth > 0 ? '└' : '○'}</span>
+              )}
               <Layers size={12} className={`flex-shrink-0 ${isSelected ? 'text-cyan-400' : config.depth > 0 ? 'text-amber-400/40' : 'text-amber-400/60'}`} />
               <span className={`truncate text-sm ${isSelected ? 'text-cyan-300' : config.depth > 0 ? 'text-plm-fg-dim' : 'text-plm-fg-muted'}`}>{config.name}</span>
               {config.isActive && (

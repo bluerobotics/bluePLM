@@ -18,6 +18,7 @@ import { usePDMStore } from '../../../stores/pdmStore'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
 import { FileOperationTracker } from '../../fileOperationTracker'
+import { addToSyncIndex } from '../../cache/localSyncIndex'
 
 // Helper to check if file is a SolidWorks temp lock file (~$filename.sldxxx)
 function isSolidworksTempFile(name: string): boolean {
@@ -207,9 +208,16 @@ export const syncCommand: Command<SyncParams> = {
         
         await window.electronAPI?.setReadonly(file.path, true)
         // Queue update for batch processing (also clear pendingMetadata since it's now synced)
+        const typedSyncedFileVersion = syncedFile as { version?: number }
         pendingUpdates.push({
           path: file.path,
-          updates: { pdmData: syncedFile, localHash: readResult.hash, diffStatus: undefined, pendingMetadata: undefined }
+          updates: { 
+            pdmData: syncedFile, 
+            localHash: readResult.hash, 
+            localVersion: typedSyncedFileVersion.version, // Track the new version after sync
+            diffStatus: undefined, 
+            pendingMetadata: undefined 
+          }
         })
         progress.update()
         
@@ -276,6 +284,22 @@ export const syncCommand: Command<SyncParams> = {
       ctx.addToast('warning', `Synced ${succeeded}/${total} files`)
     } else {
       ctx.addToast('success', `Synced ${succeeded} file${succeeded > 1 ? 's' : ''} to cloud`)
+    }
+    
+    // Update the local sync index with successfully synced file paths
+    // This tracks which files have been synced for orphan detection
+    if (succeeded > 0 && activeVaultId) {
+      const syncedPaths = pendingUpdates.map(u => {
+        // Convert absolute path back to relative path
+        const file = filesToSync.find(f => f.path === u.path)
+        return file?.relativePath
+      }).filter((p): p is string => !!p)
+      
+      if (syncedPaths.length > 0) {
+        addToSyncIndex(activeVaultId, syncedPaths).catch(err => {
+          logSync('warn', 'Failed to update sync index after sync', { error: String(err) })
+        })
+      }
     }
     
     // Extract references if requested (assemblies reference components, drawings reference models)

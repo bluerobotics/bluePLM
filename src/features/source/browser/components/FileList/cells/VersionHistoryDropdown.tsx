@@ -190,6 +190,7 @@ export function VersionHistoryDropdown({ file }: VersionHistoryDropdownProps) {
         
         updateFileInStore(file.path, {
           localActiveVersion: isRestoringToServerVersion ? undefined : targetVersion,
+          localVersion: targetVersion, // Track the version we rolled back to
           localHash: isRestoringToServerVersion 
             ? file.pdmData.content_hash 
             : result.targetVersionRecord.content_hash,
@@ -309,10 +310,15 @@ export function VersionHistoryDropdown({ file }: VersionHistoryDropdownProps) {
         </span>
       )
     } else if (file.diffStatus === 'outdated') {
-      const localVer = cloudVersion - 1
+      // Use tracked localVersion if available, otherwise show "?" for unknown
+      const localVer = file.localVersion
+      const localVerDisplay = localVer !== undefined ? localVer : '?'
+      const tooltip = localVer !== undefined 
+        ? `Local version ${localVer}, server has version ${cloudVersion}. Use Get Latest to update.`
+        : `Newer version available on server (v${cloudVersion}). Local version unknown.`
       return (
-        <span className="text-purple-400" title="Newer version available on cloud">
-          {localVer > 0 ? localVer : '?'}/{cloudVersion}
+        <span className="text-purple-400" title={tooltip}>
+          {localVerDisplay}/{cloudVersion}
         </span>
       )
     }
@@ -451,7 +457,8 @@ export function VersionHistoryDropdown({ file }: VersionHistoryDropdownProps) {
                 {/* Version list */}
                 {versions.map((version) => {
                   const isServerVersion = version.version === serverVersion
-                  const localVersion = file.localActiveVersion ?? serverVersion
+                  // The version currently active on disk (for rollback UI, not the tracked localVersion field)
+                  const activeVersion = file.localActiveVersion ?? file.localVersion ?? serverVersion
                   const isLocalVersion = isRolledBack 
                     ? version.version === file.localActiveVersion
                     : hasNewChanges 
@@ -459,7 +466,7 @@ export function VersionHistoryDropdown({ file }: VersionHistoryDropdownProps) {
                       : version.version === serverVersion
                   
                   const canSwitch = !isLocalVersion && isCheckedOutByMe
-                  const isRollForward = version.version > localVersion
+                  const isRollForward = version.version > activeVersion
                   
                   return (
                     <div

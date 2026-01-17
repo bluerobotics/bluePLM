@@ -1,5 +1,6 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, VaultsSlice, ConnectedVault, LocalFile, ServerFile } from '../types'
+import { clearSyncIndex } from '@/lib/cache/localSyncIndex'
 
 export const createVaultsSlice: StateCreator<
   PDMStoreState,
@@ -59,6 +60,12 @@ export const createVaultsSlice: StateCreator<
     set({ 
       connectedVaults: updated,
       activeVaultId: activeVaultId === vaultId ? (updated[0]?.id || null) : activeVaultId
+    })
+    
+    // Clear the local sync index for this vault
+    // This prevents orphan detection issues if the vault is reconnected later
+    clearSyncIndex(vaultId).catch(err => {
+      console.warn('[VaultsSlice] Failed to clear sync index on vault disconnect:', err)
     })
   },
   

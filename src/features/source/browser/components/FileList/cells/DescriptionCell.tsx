@@ -83,6 +83,12 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
         // Stop mousedown from triggering row drag or file focus
         e.stopPropagation()
       }}
+      onDragStart={(e) => {
+        // Prevent row drag when user is trying to select text
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+      draggable={false}
       title={getTooltip()}
     >
       <span className="truncate">{displayValue}</span>

@@ -7,16 +7,17 @@
 /**
  * Avatar color palette for fallback avatars (when no profile picture)
  * These are tailwind-compatible color classes
+ * Using /40 opacity for better visibility on dark backgrounds
  */
 export const AVATAR_COLORS = [
-  { bg: 'bg-blue-500/20', text: 'text-blue-400', ring: 'ring-blue-500/50' },
-  { bg: 'bg-emerald-500/20', text: 'text-emerald-400', ring: 'ring-emerald-500/50' },
-  { bg: 'bg-amber-500/20', text: 'text-amber-400', ring: 'ring-amber-500/50' },
-  { bg: 'bg-rose-500/20', text: 'text-rose-400', ring: 'ring-rose-500/50' },
-  { bg: 'bg-violet-500/20', text: 'text-violet-400', ring: 'ring-violet-500/50' },
-  { bg: 'bg-cyan-500/20', text: 'text-cyan-400', ring: 'ring-cyan-500/50' },
-  { bg: 'bg-orange-500/20', text: 'text-orange-400', ring: 'ring-orange-500/50' },
-  { bg: 'bg-pink-500/20', text: 'text-pink-400', ring: 'ring-pink-500/50' },
+  { bg: 'bg-blue-500/40', text: 'text-blue-300', ring: 'ring-blue-500/50' },
+  { bg: 'bg-emerald-500/40', text: 'text-emerald-300', ring: 'ring-emerald-500/50' },
+  { bg: 'bg-amber-500/40', text: 'text-amber-300', ring: 'ring-amber-500/50' },
+  { bg: 'bg-rose-500/40', text: 'text-rose-300', ring: 'ring-rose-500/50' },
+  { bg: 'bg-violet-500/40', text: 'text-violet-300', ring: 'ring-violet-500/50' },
+  { bg: 'bg-cyan-500/40', text: 'text-cyan-300', ring: 'ring-cyan-500/50' },
+  { bg: 'bg-orange-500/40', text: 'text-orange-300', ring: 'ring-orange-500/50' },
+  { bg: 'bg-pink-500/40', text: 'text-pink-300', ring: 'ring-pink-500/50' },
 ] as const
 
 export type AvatarColor = (typeof AVATAR_COLORS)[number]

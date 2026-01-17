@@ -32,7 +32,111 @@ import type { Organization } from '@/stores/types'
 import { getEffectiveExportSettings } from '@/features/settings/system'
 import { buildConfigTreeFlat } from '../utils/configTree'
 import { getSerializationSettings, combineBaseAndTab } from '@/lib/serialization'
+import { getContainsByConfiguration, type ConfigBomItem } from '@/lib/supabase/files/queries'
 import { log } from '@/lib/logger'
+
+// SolidWorks BOM item shape from the SW service (camelCase - from preload.ts getBom return type)
+interface SWBomItem {
+  fileName: string
+  filePath: string
+  fileType: string // 'Part', 'Assembly', 'Other'
+  quantity: number
+  configuration: string
+  partNumber: string
+  description: string
+  material: string
+  revision: string
+  properties: Record<string, string>
+}
+
+/**
+ * Find a local file matching the given component path.
+ * Tries exact match first, then falls back to filename match within the vault.
+ */
+function findLocalFileByPath(componentPath: string, files: LocalFile[]): LocalFile | undefined {
+  const normalizedPath = componentPath.toLowerCase().replace(/\//g, '\\')
+  const componentFileName = componentPath.split(/[\\/]/).pop()?.toLowerCase() || ''
+  
+  // Try exact path match first
+  let match = files.find(f => f.path.toLowerCase() === normalizedPath)
+  
+  // Try matching by path ending (handles different vault roots)
+  if (!match) {
+    match = files.find(f => {
+      const fPath = f.path.toLowerCase()
+      return fPath.endsWith(normalizedPath) || normalizedPath.endsWith(fPath)
+    })
+  }
+  
+  // Try matching by filename only (last resort)
+  if (!match && componentFileName) {
+    match = files.find(f => {
+      const fName = f.path.split(/[\\/]/).pop()?.toLowerCase() || ''
+      return fName === componentFileName
+    })
+  }
+  
+  return match
+}
+
+/**
+ * Transform SolidWorks BOM response to ConfigBomItem[] format.
+ * Used for local-only files that aren't synced to the database.
+ * Enriches items with metadata from local vault files when available.
+ */
+function transformSwBomToConfigBomItems(
+  swItems: SWBomItem[], 
+  configName: string,
+  localFiles: LocalFile[]
+): ConfigBomItem[] {
+  return swItems.map((item, index) => {
+    // Determine file type from SW fileType or extension
+    let fileType: ConfigBomItem['file_type'] = 'other'
+    const swType = item.fileType?.toLowerCase()
+    if (swType === 'part') fileType = 'part'
+    else if (swType === 'assembly') fileType = 'assembly'
+    else {
+      // Fallback to extension check
+      const ext = item.fileName?.toLowerCase().split('.').pop()
+      if (ext === 'sldprt') fileType = 'part'
+      else if (ext === 'sldasm') fileType = 'assembly'
+      else if (ext === 'slddrw') fileType = 'drawing'
+    }
+
+    // Try to find matching local file to get metadata
+    const localFile = findLocalFileByPath(item.filePath, localFiles)
+    
+    // Get metadata from local file (pendingMetadata takes priority over pdmData)
+    const partNumber = item.partNumber || 
+      localFile?.pendingMetadata?.part_number || 
+      localFile?.pdmData?.part_number || 
+      null
+    const description = item.description || 
+      localFile?.pendingMetadata?.description || 
+      localFile?.pdmData?.description || 
+      null
+    const revision = item.revision || 
+      localFile?.pdmData?.revision || 
+      null
+    const state = localFile?.pdmData?.workflow_state?.name || null
+    const inDatabase = !!localFile?.pdmData?.id
+
+    return {
+      id: localFile?.pdmData?.id || `local-${index}-${item.filePath}`,
+      child_file_id: localFile?.pdmData?.id || '',
+      file_name: item.fileName,
+      file_path: item.filePath,
+      file_type: fileType,
+      part_number: partNumber,
+      description: description,
+      revision: revision,
+      state: state,
+      quantity: item.quantity ?? 1,
+      configuration: configName,
+      in_database: inDatabase
+    }
+  })
+}
 
 export interface ConfigHandlersDeps {
   // Files state (still passed - could also read from store but kept for consistency)
@@ -72,10 +176,14 @@ export interface UseConfigHandlersReturn {
   handleConfigContextMenu: (e: React.MouseEvent, filePath: string, configName: string) => void
   handleExportConfigs: (format: 'step' | 'iges' | 'stl', outputFolder?: string) => Promise<void>
   canHaveConfigs: (file: LocalFile) => boolean
+  /** Check if file is an assembly (can show BOM under configs) */
+  isAssembly: (file: LocalFile) => boolean
   saveConfigsToSWFile: (file: LocalFile) => Promise<void>
   hasPendingMetadataChanges: (file: LocalFile) => boolean
   getSelectedConfigsForFile: (filePath: string) => string[]
   toggleFileConfigExpansion: (file: LocalFile) => Promise<void>
+  /** Toggle BOM expansion for a specific configuration */
+  toggleConfigBomExpansion: (file: LocalFile, configName: string) => Promise<void>
 }
 
 /**
@@ -107,6 +215,14 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
   const setFileConfigurations = usePDMStore(s => s.setFileConfigurations)
   const addLoadingConfig = usePDMStore(s => s.addLoadingConfig)
   const removeLoadingConfig = usePDMStore(s => s.removeLoadingConfig)
+  
+  // Config BOM state from Zustand store
+  const expandedConfigBoms = usePDMStore(s => s.expandedConfigBoms)
+  const configBomData = usePDMStore(s => s.configBomData)
+  const toggleConfigBomExpansionStore = usePDMStore(s => s.toggleConfigBomExpansion)
+  const setConfigBomData = usePDMStore(s => s.setConfigBomData)
+  const addLoadingConfigBom = usePDMStore(s => s.addLoadingConfigBom)
+  const removeLoadingConfigBom = usePDMStore(s => s.removeLoadingConfigBom)
 
   // Update file-level tab number (for single-config or no-config files)
   const handleFileTabChange = useCallback((filePath: string, value: string) => {
@@ -163,6 +279,14 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     if (!file.extension) return false
     const ext = file.extension.toLowerCase()
     return ext === '.sldprt' || ext === '.sldasm'
+  }, [])
+  
+  // Check if file is an assembly (can show BOM under configs)
+  const isAssembly = useCallback((file: LocalFile): boolean => {
+    if (file.isDirectory) return false
+    if (!file.extension) return false
+    const ext = file.extension.toLowerCase()
+    return ext === '.sldasm'
   }, [])
 
   // Check if file has ANY pending metadata changes (not just config changes)
@@ -662,6 +786,84 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     }
   }, [expandedConfigFiles, selectedConfigs, fileConfigurations, setExpandedConfigFiles, setSelectedConfigs, setFileConfigurations, addLoadingConfig, removeLoadingConfig])
 
+  // Toggle BOM expansion for a specific configuration
+  const toggleConfigBomExpansion = useCallback(async (file: LocalFile, configName: string) => {
+    const configKey = `${file.path}::${configName}`
+    
+    // If already expanded, just collapse
+    if (expandedConfigBoms.has(configKey)) {
+      toggleConfigBomExpansionStore(configKey)
+      return
+    }
+    
+    // Expand and load BOM data if not cached
+    toggleConfigBomExpansionStore(configKey)
+    
+    if (!configBomData.has(configKey)) {
+      const fileId = file.pdmData?.id
+      
+      addLoadingConfigBom(configKey)
+      try {
+        // Helper to fetch BOM from SolidWorks service
+        const fetchFromSolidWorks = async (): Promise<boolean> => {
+          log.debug('[ConfigHandlers]', 'Loading BOM from SolidWorks', { path: file.path, configName })
+          
+          const result = await window.electronAPI?.solidworks?.getBom(file.path, {
+            configuration: configName
+          })
+          
+          if (result?.success && result.data?.items) {
+            const swItems = transformSwBomToConfigBomItems(result.data.items as SWBomItem[], configName, files)
+            setConfigBomData(configKey, swItems)
+            log.debug('[ConfigHandlers]', 'Loaded config BOM from SolidWorks', { 
+              configKey, 
+              itemCount: swItems.length, 
+              enrichedCount: swItems.filter(i => i.in_database || i.part_number).length 
+            })
+            return true
+          } else {
+            const errorMsg = result?.error || 'Failed to load BOM from SolidWorks'
+            log.error('[ConfigHandlers]', 'Failed to load BOM from SolidWorks', { error: errorMsg, configKey })
+            // Check if it's a service not running error
+            if (errorMsg.includes('not running') || errorMsg.includes('service')) {
+              addToast('info', 'Start SolidWorks service to load BOM')
+            } else {
+              addToast('error', 'Failed to load BOM data')
+            }
+            return false
+          }
+        }
+        
+        if (fileId) {
+          // File is synced - try database first
+          const { items, error } = await getContainsByConfiguration(fileId, configName)
+          
+          if (error) {
+            log.error('[ConfigHandlers]', 'Failed to load config BOM from database', { error, configKey })
+            // Try SolidWorks as fallback on database error
+            await fetchFromSolidWorks()
+          } else if (items && items.length > 0) {
+            // Database has BOM data
+            setConfigBomData(configKey, items)
+            log.debug('[ConfigHandlers]', 'Loaded config BOM from database', { configKey, itemCount: items.length })
+          } else {
+            // Database returned empty - fallback to SolidWorks service
+            log.debug('[ConfigHandlers]', 'Database BOM empty, falling back to SolidWorks', { configKey })
+            await fetchFromSolidWorks()
+          }
+        } else {
+          // Local-only file - fetch BOM from SolidWorks
+          await fetchFromSolidWorks()
+        }
+      } catch (err) {
+        log.error('[ConfigHandlers]', 'Exception loading config BOM', { error: err, configKey })
+        addToast('error', 'Failed to load BOM data')
+      } finally {
+        removeLoadingConfigBom(configKey)
+      }
+    }
+  }, [expandedConfigBoms, configBomData, toggleConfigBomExpansionStore, setConfigBomData, addLoadingConfigBom, removeLoadingConfigBom, addToast, files])
+
   return {
     handleFileTabChange,
     handleConfigTabChange,
@@ -670,9 +872,11 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     handleConfigContextMenu,
     handleExportConfigs,
     canHaveConfigs,
+    isAssembly,
     saveConfigsToSWFile,
     hasPendingMetadataChanges,
     getSelectedConfigsForFile,
     toggleFileConfigExpansion,
+    toggleConfigBomExpansion,
   }
 }

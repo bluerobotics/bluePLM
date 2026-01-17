@@ -95,6 +95,12 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
         // Stop mousedown from triggering row drag or file focus
         e.stopPropagation()
       }}
+      onDragStart={(e) => {
+        // Prevent row drag when user is trying to select text
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+      draggable={false}
       title={canEditTab ? 'Click to edit tab number' : (file.pdmData?.id ? 'Check out file to edit' : 'Sign in to edit')}
     >
       <span className={`flex-1 ${!displayValue || !canEditTab ? 'text-plm-fg-muted' : ''}`}>

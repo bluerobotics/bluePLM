@@ -237,6 +237,13 @@ export interface DeleteServerParams extends BaseCommandParams {
 export interface DiscardParams extends BaseCommandParams {}
 
 /**
+ * Parameters for the discard-orphaned command.
+ * Deletes local files that no longer exist on the server (orphaned files).
+ * These are files that were previously synced but deleted by another user.
+ */
+export interface DiscardOrphanedParams extends BaseCommandParams {}
+
+/**
  * Parameters for the get-latest command.
  * Downloads the newest version of outdated files from the server.
  * Used when someone else has checked in a newer version.
@@ -402,6 +409,7 @@ export type CommandId =
   | 'delete-local'
   | 'delete-server'
   | 'discard'
+  | 'discard-orphaned'
   | 'force-release'
   | 'rename'
   | 'move'
@@ -447,6 +455,7 @@ export type CommandMap = {
   'delete-local': Command<DeleteLocalParams>
   'delete-server': Command<DeleteServerParams>
   'discard': Command<DiscardParams>
+  'discard-orphaned': Command<DiscardOrphanedParams>
   'force-release': Command<ForceReleaseParams>
   'rename': Command<RenameParams>
   'move': Command<MoveParams>
@@ -537,6 +546,27 @@ export function getCloudOnlyFilesFromSelection(files: LocalFile[], selection: Lo
       const cloudOnly = filesInFolder.filter(f => f.diffStatus === 'cloud')
       result.push(...cloudOnly)
     } else if (item.diffStatus === 'cloud' && item.pdmData) {
+      // Look up fresh file from files array (selection may have stale reference)
+      const freshFile = files.find(f => f.path === item.path)
+      result.push(freshFile || item)
+    }
+  }
+  
+  return [...new Map(result.map(f => [f.path, f])).values()]
+}
+
+// Helper to get orphaned files from selection
+// Orphaned files are local files that were previously synced but no longer exist on server
+// (deleted by another user). They have diffStatus === 'deleted_remote'.
+export function getOrphanedFilesFromSelection(files: LocalFile[], selection: LocalFile[]): LocalFile[] {
+  const result: LocalFile[] = []
+  
+  for (const item of selection) {
+    if (item.isDirectory) {
+      const filesInFolder = getFilesInFolder(files, item.relativePath)
+      const orphaned = filesInFolder.filter(f => f.diffStatus === 'deleted_remote')
+      result.push(...orphaned)
+    } else if (item.diffStatus === 'deleted_remote') {
       // Look up fresh file from files array (selection may have stale reference)
       const freshFile = files.find(f => f.path === item.path)
       result.push(freshFile || item)

@@ -212,6 +212,11 @@ export const zhTW: TranslationDict = {
     excludedFiles: '已排除的檔案',
     excludedFilesDesc: '{{count}} 個檔案已從自動下載中排除（手動刪除）',
     clearExcludedFiles: '清除列表',
+    autoDiscardOrphanedFiles: '自動丟棄孤立檔案',
+    autoDiscardOrphanedFilesDesc: '自動刪除伺服器上已不存在的本機檔案',
+    discardOrphaned: '丟棄孤立檔案',
+    discardOrphanedCount: '丟棄孤立檔案（{{count}} 個檔案）',
+    orphanedFilesDescription: '這些檔案之前已同步，但已被其他使用者從伺服器刪除',
   },
 
   sidebar: {

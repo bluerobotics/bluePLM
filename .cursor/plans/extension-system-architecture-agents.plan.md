@@ -12,9 +12,13 @@
 
 | **Terminology** | Extensions (not modules) |
 
-| **Client Isolation** | Extension Host process with per-extension sandboxing |
+| **Client Isolation** | Process per extension with external watchdog (Chrome model) |
 
-| **Server Isolation** | V8 isolate pool on org's API (like Cloudflare Workers) |
+| **Server Isolation** | Per-extension V8 isolate pools on org's API |
+
+| **IPC Technology** | Node.js `child_process.fork()` built-in IPC |
+
+| **Trust Model** | Full isolation for ALL extensions (trust no one) |
 
 | **Marketplace** | marketplace.blueplm.io (Cloudflare Pages + Supabase) - in `blueplm-site` repo |
 
@@ -45,12 +49,16 @@ flowchart TB
 
     subgraph BluePLMRepo["bluePLM repo (Self-hosted by orgs)"]
         subgraph App["BluePLM App (Electron)"]
-            Main[Main Process]
+            subgraph MainProc["Main Process"]
+                ExtManager[Extension Manager]
+                Watchdog[Watchdog]
+                IPCHub[IPC Hub]
+            end
             
-            subgraph Host["Extension Host (Isolated Process)"]
-                ExtA[Extension A]
-                ExtB[Extension B]
-                ExtC[Extension C]
+            subgraph ExtProcesses["Extension Processes (one per extension)"]
+                ExtProcA["Process: Source Files"]
+                ExtProcB["Process: Change Control"]
+                ExtProcC["Process: Google Drive"]
             end
             
             Renderer[App Renderer]
@@ -59,12 +67,17 @@ flowchart TB
         subgraph OrgAPI["Organization API Server"]
             Router[Request Router]
             
-            subgraph Sandbox["V8 Isolate Pool"]
-                IsoA[Isolate A]
-                IsoB[Isolate B]
+            subgraph IsolatePools["Per-Extension Isolate Pools"]
+                PoolA["Pool: Source Files"]
+                PoolB["Pool: Change Control"]
+                PoolC["Pool: Google Drive"]
             end
             
-            OrgDB[(Org Supabase)]
+            subgraph OrgDB["Org Supabase (Modular Schemas)"]
+                CoreSchema["core schema"]
+                ExtSFSchema["ext_source_files schema"]
+                ExtCCSchema["ext_change_control schema"]
+            end
         end
     end
 
@@ -72,16 +85,224 @@ flowchart TB
 
     StoreFE -->|API calls| StoreAPI
     StoreAPI --> StoreDB
-    Store -->|Download .bpx| Main
-    Main <-->|IPC| Host
-    Main <-->|IPC| Renderer
-    Host -->|callOrgApi| OrgAPI
-    Router --> Sandbox
-    Sandbox --> OrgDB
-    Sandbox --> External
+    Store -->|Download .bpx| MainProc
+    IPCHub <-->|"child_process IPC"| ExtProcA
+    IPCHub <-->|"child_process IPC"| ExtProcB
+    IPCHub <-->|"child_process IPC"| ExtProcC
+    MainProc <-->|Electron IPC| Renderer
+    Watchdog -->|monitor| ExtProcesses
+    ExtProcesses -->|callOrgApi| OrgAPI
+    Router --> IsolatePools
+    IsolatePools --> OrgDB
+    IsolatePools --> External
 ```
 
 > **Repository Split:** The marketplace (Store API, Store Database, Marketplace Frontend) lives in the `blueplm-site` repository, maintained by Blue Robotics. The BluePLM application and Org API live in the `bluePLM` repository, self-hosted by organizations.
+
+> **Process Isolation (Chrome Model):** Each extension runs in its own OS process via `child_process.fork()`. If Extension C crashes, Extensions A and B continue running unaffected. The Watchdog in the Main Process monitors all extension processes externally.
+
+> **Database Isolation:** Each extension has its own Postgres schema (e.g., `ext_source_files`, `ext_change_control`). Core tables live in the `core` schema. Extensions can reference core tables and optionally enhance other extensions via nullable foreign keys.
+
+---
+
+## Extension Database Architecture
+
+Extensions use **separate Postgres schemas** for isolation. Core functionality is always present; extension schemas are created on install and soft-disabled (not dropped) on uninstall.
+
+### Schema Hierarchy
+
+```mermaid
+flowchart TB
+    subgraph CoreSchema["core schema (Always Present)"]
+        Orgs[organizations]
+        Users[users]
+        Teams[teams]
+        Perms[permissions]
+        Sessions[sessions]
+        Notifs[notifications]
+        InstalledExt[org_installed_extensions]
+    end
+    
+    subgraph ExtSF["ext_source_files schema"]
+        Vaults[vaults]
+        Files[files]
+        FileVersions[file_versions]
+        Workflows[workflow_*]
+        Activity[activity]
+    end
+    
+    subgraph ExtCC["ext_change_control schema"]
+        ECOs[ecos]
+        Reviews[reviews]
+        Deviations[deviations]
+        FileECOs["file_ecos (bridge)"]
+    end
+    
+    subgraph ExtSC["ext_supply_chain schema"]
+        Suppliers[suppliers]
+        RFQs[rfqs]
+        Quotes[rfq_quotes]
+    end
+    
+    subgraph ExtProd["ext_products schema"]
+        Products[products]
+        BOMs[boms]
+        PartNumbers[part_numbers]
+    end
+    
+    subgraph ExtWH["ext_webhooks schema"]
+        Webhooks[webhooks]
+        Deliveries[webhook_deliveries]
+    end
+    
+    ExtSF -->|"org_id FK"| Orgs
+    ExtCC -->|"org_id FK"| Orgs
+    ExtSC -->|"org_id FK"| Orgs
+    ExtProd -->|"org_id FK"| Orgs
+    ExtWH -->|"org_id FK"| Orgs
+    FileECOs -.->|"nullable file_id FK"| Files
+```
+
+### Extension List
+
+| Extension | Schema Name | Tables | Enhances |
+
+|-----------|-------------|--------|----------|
+
+| **Source Files** | `ext_source_files` | vaults, files, file_versions, workflows, activity | Core |
+
+| **Change Control** | `ext_change_control` | ecos, reviews, deviations, file_ecos | Core, Source Files |
+
+| **Supply Chain** | `ext_supply_chain` | suppliers, rfqs, rfq_quotes, rfq_items | Core |
+
+| **Products** | `ext_products` | products, boms, part_numbers | Core |
+
+| **Webhooks** | `ext_webhooks` | webhooks, webhook_deliveries | Core |
+
+| **Odoo** | `ext_odoo` | odoo_config, odoo_sync_log | Core |
+
+| **SolidWorks** | `ext_solidworks` | sw_licenses, sw_assignments | Core, Source Files |
+
+| **Google Drive** | `ext_google_drive` | gdrive_tokens, gdrive_sync_state | Core, Source Files |
+
+### Schema Lifecycle
+
+| Event | Action |
+
+|-------|--------|
+
+| **Extension Install** | `CREATE SCHEMA ext_{name}`, run migrations, grant permissions |
+
+| **Extension Uninstall** | Mark `enabled = false` in `org_installed_extensions` (soft disable) |
+
+| **Extension Re-enable** | Mark `enabled = true`, data preserved |
+
+| **Hard Delete (admin)** | `DROP SCHEMA ext_{name} CASCADE` (optional, explicit action) |
+
+### Extension Schema Declaration
+
+Extensions declare their schema in `extension.json`:
+
+```json
+{
+  "id": "blueplm.source-files",
+  "schema": {
+    "name": "ext_source_files",
+    "migrations": [
+      "migrations/001_initial.sql",
+      "migrations/002_workflows.sql",
+      "migrations/003_activity.sql"
+    ]
+  }
+}
+```
+
+---
+
+## Cross-Extension Enhancement Pattern
+
+Extensions can **optionally enhance** other extensions without hard dependencies. Features are enabled at runtime based on what's installed.
+
+### How It Works
+
+```mermaid
+sequenceDiagram
+    participant CC as Change Control Extension
+    participant API as Extension API
+    participant SF as Source Files Extension
+    
+    CC->>API: api.extensions.isInstalled("blueplm.source-files")
+    API-->>CC: true
+    
+    CC->>CC: Enable file-linking UI components
+    CC->>CC: Register file change listeners
+    CC->>API: api.workspace.onFileChanged(callback)
+    
+    Note over CC,SF: ECOs can now link to files
+```
+
+### Manifest Declaration
+
+Extensions declare what they can enhance:
+
+```json
+{
+  "id": "blueplm.change-control",
+  "enhances": ["blueplm.source-files"],
+  "enhancementFeatures": {
+    "blueplm.source-files": [
+      "eco-file-linking",
+      "file-change-tracking",
+      "affected-items-list"
+    ]
+  }
+}
+```
+
+### Runtime Detection API
+
+```typescript
+interface ExtensionClientAPI {
+  extensions: {
+    /** Check if another extension is installed and enabled */
+    isInstalled(extensionId: string): Promise<boolean>
+    
+    /** Get list of all installed extension IDs */
+    getInstalledExtensions(): Promise<string[]>
+    
+    /** Listen for extension state changes */
+    onExtensionStateChange(
+      callback: (id: string, state: ExtensionState) => void
+    ): Disposable
+  }
+}
+```
+
+### Bridge Tables Pattern
+
+When an extension enhances another, bridge tables live in the **enhancing extension's schema** with **nullable foreign keys**:
+
+```sql
+-- In ext_change_control schema
+CREATE TABLE file_ecos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  eco_id UUID NOT NULL REFERENCES ecos(id) ON DELETE CASCADE,
+  
+  -- Nullable FK to Source Files extension (may not be installed)
+  file_id UUID REFERENCES ext_source_files.files(id) ON DELETE SET NULL,
+  file_version_id UUID REFERENCES ext_source_files.file_versions(id) ON DELETE SET NULL,
+  
+  change_type TEXT CHECK (change_type IN ('added', 'modified', 'removed')),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Why nullable FKs?**
+
+- If Source Files is uninstalled, links become NULL but ECO data is preserved
+- Change Control continues to work without file linking
+- Re-installing Source Files restores the relationship capability
 
 ---
 
@@ -95,9 +316,9 @@ flowchart TB
 
 | 1 | Types & Schema | TypeScript types, JSON Schema, manifest parser, signing types | `src/lib/extensions/types.ts`, `schemas/` |
 
-| 2 | Extension Host | Isolated process with per-extension sandboxing, watchdog | `electron/extension-host/` |
+| 2 | Extension Process Manager | Process-per-extension isolation, external watchdog, IPC | `electron/extension-processes/`, `electron/watchdog/` |
 
-| 3 | Client API | Sandboxed API: UI, storage, network, commands, telemetry | `src/lib/extensions/api/` |
+| 3 | Client API | Sandboxed API: UI, storage, network, commands, extensions | `src/lib/extensions/api/` |
 
 ### Wave 2: Infrastructure (Parallel)
 
@@ -107,11 +328,13 @@ flowchart TB
 
 | 4 | Registry | Extension lifecycle, one-click install, update/rollback | `src/lib/extensions/registry/` |
 
-| 5 | IPC Bridge | Main, Host, Renderer communication | `electron/handlers/extensions.ts` |
+| 5 | IPC Bridge | Multi-process IPC hub, message routing, heartbeat | `electron/handlers/extensions.ts`, `src/lib/extensions/ipc/` |
 
 | 6 | Store Database | Supabase schema for marketplace, reports, deprecations | `blueplm-site/supabase-store/` |
 
-| 7 | API Sandbox | V8 isolate pool, rate limits, org tables | `api/src/extensions/` |
+| 7 | API Sandbox | Per-extension V8 isolate pools, rate limits, routing | `api/src/extensions/` |
+
+| 7B | Schema Manager | Extension Postgres schemas, migrations, cross-refs | `api/src/extensions/schema/` |
 
 ### Wave 3: Marketplace (Depends on Wave 2)
 
@@ -155,13 +378,15 @@ flowchart TB
 
 |-----------|--------|
 
-| Extension Host startup | < 500ms |
+| Extension process spawn | < 300ms per extension |
 
-| Extension load time | < 200ms per extension |
+| Extension activate | < 200ms per extension |
 
-| IPC round-trip | < 10ms |
+| IPC round-trip (Main ↔ Extension) | < 10ms |
 
-| Server handler cold start | < 100ms |
+| Heartbeat response | < 100ms |
+
+| Server pool cold start | < 100ms |
 
 | Server handler warm execution | < 50ms (excluding business logic) |
 
@@ -170,6 +395,106 @@ flowchart TB
 | Store API response (uncached) | < 500ms |
 
 | Extension install (< 1MB bundle) | < 5 seconds |
+
+| Schema creation | < 2 seconds |
+
+| Memory per extension process | < 100MB default |
+
+---
+
+## Process Isolation Deep Dive
+
+### Watchdog Monitoring Flow
+
+```mermaid
+sequenceDiagram
+    participant Main as Main Process
+    participant WD as Watchdog Service
+    participant ExtA as Extension A Process
+    participant ExtB as Extension B Process
+    
+    Note over WD: Monitoring loop (every 5s)
+    
+    WD->>ExtA: ping { timestamp: 1234 }
+    WD->>ExtB: ping { timestamp: 1234 }
+    
+    ExtA-->>WD: pong { timestamp: 1234 }
+    ExtB-->>WD: pong { timestamp: 1234 }
+    
+    WD->>WD: Both healthy ✓
+    
+    Note over WD: 10 seconds later...
+    
+    WD->>ExtA: ping { timestamp: 5678 }
+    WD->>ExtB: ping { timestamp: 5678 }
+    
+    ExtA-->>WD: pong { timestamp: 5678 }
+    Note over ExtB: FROZEN - no response
+    
+    WD->>WD: Wait 10s timeout...
+    WD->>WD: ExtB unresponsive!
+    
+    WD->>Main: Extension B unhealthy
+    Main->>ExtB: SIGKILL
+    Main->>Main: Log crash, attempt restart
+    Main->>ExtB: Spawn new process
+```
+
+### API Call Flow (Extension to Main to Service)
+
+```mermaid
+sequenceDiagram
+    participant Ext as Extension Code
+    participant Bridge as API Bridge
+    participant IPC as IPC Layer
+    participant Main as Main Process
+    participant Service as Service Layer
+    participant DB as Database
+    
+    Ext->>Bridge: api.storage.get("myKey")
+    Bridge->>Bridge: Check permission
+    Bridge->>IPC: { type: "api:request", callId: "abc", api: "storage", method: "get", args: ["myKey"] }
+    
+    IPC->>Main: process.send(message)
+    Main->>Main: Route to storage handler
+    Main->>Service: storageService.get(extensionId, "myKey")
+    Service->>DB: SELECT from ext_schema.storage WHERE key = ?
+    DB-->>Service: { value: {...} }
+    Service-->>Main: result
+    
+    Main->>IPC: { type: "api:response", callId: "abc", success: true, result: {...} }
+    IPC-->>Bridge: Resolve promise
+    Bridge-->>Ext: { value: {...} }
+```
+
+### Extension Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> NotInstalled
+    
+    NotInstalled --> Installing: install()
+    Installing --> Installed: success
+    Installing --> NotInstalled: error
+    
+    Installed --> Activating: activate()
+    Activating --> Active: success
+    Activating --> Error: error
+    
+    Active --> Deactivating: deactivate()
+    Deactivating --> Installed: success
+    
+    Active --> Crashed: process crash
+    Crashed --> Activating: restart (< 3 times)
+    Crashed --> Disabled: restart limit
+    
+    Installed --> NotInstalled: uninstall()
+    Active --> NotInstalled: uninstall()
+    Disabled --> NotInstalled: uninstall()
+    
+    Error --> Installed: acknowledge
+    Disabled --> Activating: re-enable
+```
 
 ---
 
@@ -268,21 +593,27 @@ Total time: ~3-5 seconds
 
 |-------|------------|
 
-| **Client code** | Extension Host (isolated process), per-extension sandbox |
+| **Client Process** | OS-level process isolation per extension (Chrome model) |
 
-| **Server code** | V8 isolate pool (no Node.js access), memory limits |
+| **Watchdog** | External monitoring in Main Process (heartbeat, memory, CPU) |
 
-| **Rate limits** | 100 req/min per extension (configurable) |
+| **Server Pools** | Per-extension V8 isolate pools (no cross-extension interference) |
+
+| **Database** | Separate Postgres schemas per extension, RLS policies |
+
+| **Rate limits** | 100 req/min per extension (configurable), per-pool enforcement |
 
 | **Request size** | 1MB max per request |
 
-| **Data** | Extension can only access its own storage |
+| **Data** | Extension can only access its own schema + declared cross-refs |
 
 | **Network** | HTTP requests logged, declared domains only |
 
 | **Secrets** | Encrypted, 50 max per extension, 10KB max each, access audited |
 
 | **Signatures** | Ed25519, public key registry, revocation list |
+
+| **Trust Model** | Full isolation for ALL extensions (verified and community alike) |
 
 ### Signature Verification
 
@@ -614,7 +945,7 @@ Include in report:
 
 ---
 
-## Agent 2: Extension Host Process
+## Agent 2: Extension Process Manager
 
 ### Overview
 
@@ -623,30 +954,34 @@ Include in report:
 | **Wave** | 1 (Foundation) |
 | **Dependencies** | None |
 | **Parallel With** | Agents 1, 3 |
-| **Report** | `AGENT2_HOST_REPORT.md` |
+| **Report** | `AGENT2_PROCESS_MANAGER_REPORT.md` |
 
 ### Owns (Exclusive Write)
 
 ```
 
 
-electron/extension-host/
+electron/extension-processes/
 
-├── host.ts           <- Main host logic
+├── manager.ts           <- Extension Process Manager (spawns/manages processes)
 
-├── loader.ts         <- Dynamic extension loading
+├── process-entry.ts     <- Entry point for each extension process
 
-├── sandbox.ts        <- Per-extension sandbox environment
+├── ipc-layer.ts         <- IPC message routing within extension process
 
-├── watchdog.ts       <- Monitor CPU/memory per extension
+├── api-bridge.ts        <- ExtensionClientAPI proxy implementation
 
-├── ipc.ts            <- IPC message handling
+├── heartbeat.ts         <- Heartbeat responder (in extension process)
 
-├── preload.ts        <- Limited API exposure
+└── index.ts             <- Barrel exports
 
-├── host.html         <- Entry HTML
+electron/watchdog/
 
-└── index.ts          <- Barrel exports
+├── watchdog.ts          <- External watchdog (runs in Main Process)
+
+├── health-monitor.ts    <- Memory, CPU, heartbeat monitoring
+
+└── index.ts
 
 ```
 
@@ -654,183 +989,321 @@ electron/extension-host/
 
 ```
 
-electron/main.ts      <- Add extension host window creation
+electron/main.ts         <- Add process manager initialization
 
+electron/handlers/       <- Add extension process handlers
+
+````
+
+### Architecture
+
+```mermaid
+flowchart TB
+    subgraph MainProcess["Main Process (Electron)"]
+        Manager[Extension Process Manager]
+        Watchdog[Watchdog Service]
+        IPCHub[IPC Hub]
+    end
+    
+    subgraph ExtProcA["Extension Process A (child_process)"]
+        IPCA[IPC Layer]
+        HeartbeatA[Heartbeat Responder]
+        BridgeA[API Bridge]
+        SandboxA[Extension Sandbox]
+        CodeA[Extension Code]
+    end
+    
+    subgraph ExtProcB["Extension Process B (child_process)"]
+        IPCB[IPC Layer]
+        HeartbeatB[Heartbeat Responder]
+        BridgeB[API Bridge]
+        SandboxB[Extension Sandbox]
+        CodeB[Extension Code]
+    end
+    
+    Manager -->|"fork()"| ExtProcA
+    Manager -->|"fork()"| ExtProcB
+    IPCHub <-->|"process.send/on"| IPCA
+    IPCHub <-->|"process.send/on"| IPCB
+    Watchdog -->|"ping"| HeartbeatA
+    Watchdog -->|"ping"| HeartbeatB
+    HeartbeatA -->|"pong"| Watchdog
+    HeartbeatB -->|"pong"| Watchdog
+    BridgeA --> SandboxA
+    BridgeB --> SandboxB
+    SandboxA --> CodeA
+    SandboxB --> CodeB
 ````
 
 ### Prompt
 
 ```markdown
-# Agent 2: Extension Host Process
+# Agent 2: Extension Process Manager
 
-Implement the Extension Host process for client-side extension isolation.
+Implement the Extension Process Manager for process-per-extension isolation (Chrome model).
 
 ## Context
 
-Like VS Code's Extension Host, client-side extension code runs in a separate 
-Electron renderer process (hidden BrowserWindow). This isolates potentially 
-untrusted code from the main application.
+Unlike VS Code's shared Extension Host, BluePLM uses **process-per-extension isolation** 
+similar to Chrome's extension model. Each extension runs in its own OS process via 
+`child_process.fork()`. This provides:
 
-````
+- **OS-level isolation**: One extension crash doesn't affect others
+- **Independent resource limits**: Per-process memory/CPU monitoring
+- **Clean restart**: Restart individual extensions without affecting others
+- **Security**: Extensions cannot access each other's memory
 
-┌─────────────────────┐
+## Architecture
 
-│    Main Process     │
+```
 
-│  (electron/main.ts) │
+┌─────────────────────────────────────────────────────────────┐
 
-└─────────┬───────────┘
+│                    MAIN PROCESS                              │
 
-│ IPC
+│  ┌─────────────────┐  ┌─────────────────┐                   │
 
-▼
+│  │ Extension       │  │ Watchdog        │                   │
 
-┌─────────────────────────────────────┐
+│  │ Process Manager │  │ Service         │                   │
 
-│       Extension Host                │  <- Hidden BrowserWindow
+│  └────────┬────────┘  └────────┬────────┘                   │
 
-│  ┌────────────────────────────────┐ │
+│           │                    │                             │
 
-│  │        Watchdog                │ │  <- Monitors all extensions
+└───────────┼────────────────────┼─────────────────────────────┘
 
-│  └────────────────────────────────┘ │
+│                    │
 
-│  ┌──────────┐ ┌──────────┐ ┌─────┐ │
+┌───────┼────────────────────┼───────┐
 
-│  │ Sandbox  │ │ Sandbox  │ │ ... │ │  <- Per-extension isolation
+│       │                    │       │
 
-│  │ Ext A    │ │ Ext B    │ │     │ │
+▼       ▼                    ▼       ▼
 
-│  └──────────┘ └──────────┘ └─────┘ │
+┌───────┐ ┌───────┐        ┌───────┐ ┌───────┐
 
-└─────────────────────────────────────┘
+│Proc A │ │Proc B │        │Proc A │ │Proc B │
+
+│(IPC)  │ │(IPC)  │        │(ping) │ │(ping) │
+
+└───────┘ └───────┘        └───────┘ └───────┘
 
 ````
 
 ## Key Requirements
 
-### Per-Extension Isolation
+### Process-Per-Extension Isolation
 
-Each extension runs in its own sandbox (using `isolated-vm` or similar):
-- Extensions cannot access each other's data
-- Extensions cannot access Node.js APIs
-- Extensions only have access to ExtensionClientAPI
+Each extension runs in its own Node.js child process:
+- Spawned via `child_process.fork()`
+- Has its own V8 heap (isolated memory)
+- Communicates only via IPC messages
+- Cannot access other extensions or main process memory
 
-### Watchdog Process
+### External Watchdog (in Main Process)
 
-Monitor all extensions for:
-- **Memory budget**: Default 50MB per extension (configurable)
-- **CPU timeout**: Default 5s per synchronous operation
-- Kill mechanism for runaway extensions
-- Report violations to main process
+The Watchdog runs in Main Process and monitors ALL extension processes externally:
+- **Heartbeat**: Sends ping every 5s, expects pong within 10s
+- **Memory**: Reads `process.memoryUsage()` of child processes
+- **CPU**: Tracks CPU time via OS APIs
+- **Crash detection**: Listens for `exit` event on child processes
+- **Kill**: Can terminate unresponsive processes
+
+### IPC Protocol
+
+```typescript
+// === FROM EXTENSION TO MAIN ===
+type ApiRequest = {
+  type: 'api:request'
+  callId: string
+  api: string        // 'ui', 'storage', 'network', etc.
+  method: string     // 'showToast', 'get', 'fetch', etc.
+  args: unknown[]
+}
+
+type Subscribe = {
+  type: 'subscribe'
+  event: string
+  subscriptionId: string
+}
+
+type Log = {
+  type: 'log'
+  level: 'debug' | 'info' | 'warn' | 'error'
+  message: string
+  data?: unknown
+}
+
+// === FROM MAIN TO EXTENSION ===
+type ApiResponse = {
+  type: 'api:response'
+  callId: string
+  success: boolean
+  result?: unknown
+  error?: string
+}
+
+type EventPush = {
+  type: 'event'
+  event: string
+  subscriptionId: string
+  data: unknown
+}
+
+type Command = {
+  type: 'command'
+  command: 'activate' | 'deactivate' | 'execute-command'
+  args?: unknown
+}
+
+// === HEARTBEAT ===
+type Ping = { type: 'ping', timestamp: number }
+type Pong = { type: 'pong', timestamp: number }
+````
 
 ### Native Extension Support
 
 For extensions with `category: 'native'`:
-- Do NOT run in Extension Host
+
+- Do NOT spawn as child process
 - Main process loads them directly (handled by main.ts)
 - Only allowed for verified extensions
+- Require explicit user approval with security warning
 
 ## Deliverables
 
-### 1. electron/extension-host/host.ts
+### 1. electron/extension-processes/manager.ts
 
-- Initialize extension runtime environment
-- Handle extension loading/unloading
-- Manage extension lifecycle
-- Coordinate with watchdog
+```typescript
+class ExtensionProcessManager {
+  private processes = new Map<string, ChildProcess>()
+  
+  /** Spawn a new extension process */
+  async spawn(extensionId: string, manifest: ExtensionManifest): Promise<void>
+  
+  /** Terminate an extension process */
+  async terminate(extensionId: string, reason: string): Promise<void>
+  
+  /** Restart a crashed extension */
+  async restart(extensionId: string): Promise<void>
+  
+  /** Send message to extension process */
+  send(extensionId: string, message: MainToExtMessage): void
+  
+  /** Get all running extension IDs */
+  getRunningExtensions(): string[]
+  
+  /** Handle incoming messages from extensions */
+  private handleMessage(extensionId: string, message: ExtToMainMessage): void
+}
+```
 
-### 2. electron/extension-host/loader.ts
+### 2. electron/extension-processes/process-entry.ts
 
-- `loadExtension(bundlePath, manifest): Promise<ExtensionModule>`
-- Dynamic import of extension bundles
-- Create sandbox for each extension
-- Error handling for malformed extensions
+Entry point that runs in each extension process:
 
-### 3. electron/extension-host/sandbox.ts
+- Initialize IPC layer
+- Set up heartbeat responder
+- Create API bridge
+- Load and activate extension code
 
-- Create sandboxed environment per extension
-- Inject ExtensionClientAPI
-- Prevent access to Node.js APIs
-- Memory isolation between extensions
+### 3. electron/extension-processes/api-bridge.ts
 
-### 4. electron/extension-host/watchdog.ts
+Proxy implementation of ExtensionClientAPI that forwards all calls to Main via IPC.
+
+### 4. electron/watchdog/watchdog.ts
 
 ```typescript
 interface WatchdogConfig {
-  memoryLimitMB: number      // Default: 50
-  cpuTimeoutMs: number       // Default: 5000
-  checkIntervalMs: number    // Default: 1000
+  heartbeatIntervalMs: number  // Default: 5000
+  heartbeatTimeoutMs: number   // Default: 10000
+  memoryLimitMB: number        // Default: 100
+  checkIntervalMs: number      // Default: 1000
 }
 
-class Watchdog {
+class WatchdogService {
+  /** Start monitoring all extension processes */
   start(): void
+  
+  /** Stop monitoring */
   stop(): void
-  registerExtension(id: string, config?: Partial<WatchdogConfig>): void
-  unregisterExtension(id: string): void
-  killExtension(id: string, reason: string): void
-  getStats(id: string): ExtensionStats
-  onViolation(callback: (id: string, violation: Violation) => void): void
+  
+  /** Register a new extension process to monitor */
+  register(extensionId: string, pid: number, config?: Partial<WatchdogConfig>): void
+  
+  /** Unregister an extension */
+  unregister(extensionId: string): void
+  
+  /** Get health stats for an extension */
+  getStats(extensionId: string): ExtensionHealthStats
+  
+  /** Event: extension became unhealthy */
+  onUnhealthy(callback: (id: string, reason: string) => void): void
 }
-````
+```
 
-### 5. electron/extension-host/ipc.ts
+### 5. electron/watchdog/health-monitor.ts
 
-- Handle messages from main process
-- Send status updates back to main
-- Request/response correlation with unique IDs
-- Report watchdog violations
+- Heartbeat ping/pong logic
+- Memory usage tracking via `process.memoryUsage()`
+- CPU time tracking
+- Decision logic for when to kill processes
 
-### 6. electron/extension-host/preload.ts
+## Extension Process Internal Structure
 
-- Expose limited IPC to host renderer
-- No direct Node.js access
-- Minimal surface area
-
-### 7. electron/extension-host/host.html
-
-- Entry HTML that loads host.ts
-- No external resources
-
-### 8. Update electron/main.ts
-
-- Create hidden BrowserWindow on app ready
-- Handle host lifecycle (restart on crash)
-- Route IPC messages
-- Handle native extension loading separately
+```
+Extension Process (Node.js child_process)
+├── IPC Layer
+│   ├── Message Router (routes by message type)
+│   ├── Heartbeat Responder (instant pong on ping)
+│   └── Request Tracker (correlates request/response by callId)
+├── API Bridge (BluePLM code - trusted)
+│   ├── ui.* proxy → IPC → Main
+│   ├── storage.* proxy → IPC → Main
+│   ├── network.* proxy → IPC → Main
+│   ├── commands.* proxy → IPC → Main
+│   └── extensions.* proxy → IPC → Main (for isInstalled, etc.)
+└── Extension Sandbox
+    ├── Extension Loader (dynamic import)
+    ├── Extension Context (subscriptions, logger)
+    └── Extension Code (activate/deactivate from .bpx)
+```
 
 ## Quality Requirements
 
 - Enterprise-level code quality
-- Host crash should NOT crash main app
-- Individual extension crash should NOT affect other extensions
+- Extension process crash must NOT crash main app
+- Individual extension crash must NOT affect other extensions
 - Proper error handling and logging
-- Clean shutdown handling
-- Memory leaks will be caught by watchdog
+- Clean shutdown handling (graceful termination)
+- Restart limit (max 3 restarts in 5 minutes, then disable)
 
 ## When Complete
 
-Run `npm run typecheck` and report results in AGENT2_HOST_REPORT.md
+Run `npm run typecheck` and report results in AGENT2_PROCESS_MANAGER_REPORT.md
 
 Include in report:
 
 - EXPORTS: All exported types and functions
-- IPC CHANNELS: All channels registered
-- Performance: Startup time measurement
+- IPC CHANNELS: All message types
+- Performance: Process spawn time, IPC latency
 ```
 
 ### Tasks
 
-- [ ] Create extension-host directory structure
-- [ ] Implement host.ts runtime
-- [ ] Implement loader.ts for dynamic loading
-- [ ] Implement per-extension sandbox environment
-- [ ] Implement watchdog with memory/CPU monitoring
-- [ ] Create preload.ts
-- [ ] Create host.html
-- [ ] Update main.ts for host management
-- [ ] Add native extension support in main.ts
-- [ ] Add crash recovery
+- [ ] Create extension-processes directory structure
+- [ ] Implement ExtensionProcessManager class
+- [ ] Implement process-entry.ts (extension process entry point)
+- [ ] Implement ipc-layer.ts with message routing
+- [ ] Implement api-bridge.ts (ExtensionClientAPI proxy)
+- [ ] Implement heartbeat responder
+- [ ] Create watchdog directory structure
+- [ ] Implement WatchdogService in Main Process
+- [ ] Implement health-monitor.ts
+- [ ] Update main.ts for process manager initialization
+- [ ] Add native extension support (direct load in main)
+- [ ] Add crash recovery with restart limits
 - [ ] Write completion report
 
 ---
@@ -1261,13 +1734,15 @@ Run `npm run typecheck` and report results in AGENT4_REGISTRY_REPORT.md
 
 ```
 
-electron/handlers/extensions.ts    <- Main process handlers
+electron/handlers/extensions.ts    <- Main process handlers for renderer
 
 src/lib/extensions/ipc/
 
 ├── client.ts                      <- Renderer-side client
 
-├── protocol.ts                    <- Message type definitions
+├── protocol.ts                    <- Complete message type definitions
+
+├── hub.ts                         <- IPC Hub for routing to extension processes
 
 └── index.ts
 
@@ -1285,97 +1760,223 @@ src/electron.d.ts             <- Add types
 
 ````
 
+### Architecture
+
+```mermaid
+flowchart TB
+    subgraph MainProcess["Main Process"]
+        IPCHub[IPC Hub]
+        Handlers[Extension Handlers]
+        ProcessMgr[Process Manager]
+    end
+    
+    subgraph ExtProcA["Extension Process A"]
+        IPCA[IPC Client]
+    end
+    
+    subgraph ExtProcB["Extension Process B"]
+        IPCB[IPC Client]
+    end
+    
+    subgraph Renderer["App Renderer"]
+        Client[IPC Client]
+        Preload[Preload API]
+    end
+    
+    Client -->|"ipcRenderer.invoke"| Handlers
+    Handlers --> IPCHub
+    IPCHub <-->|"process.send/on"| IPCA
+    IPCHub <-->|"process.send/on"| IPCB
+    ProcessMgr --> IPCHub
+````
+
 ### Prompt
 
 ```markdown
 # Agent 5: IPC Bridge
 
-Implement the IPC Bridge connecting Main Process, Extension Host, and Renderer.
+Implement the IPC Bridge connecting Main Process, Extension Processes, and Renderer.
 
 ## Context
 
-The IPC Bridge routes messages between three processes:
-- Main Process (Electron main)
-- Extension Host (hidden renderer with extensions)
-- App Renderer (main UI)
+The IPC Bridge routes messages between multiple processes:
+- **Main Process** (Electron main) - Central hub
+- **Extension Processes** (multiple child_process instances) - One per extension
+- **App Renderer** (main UI) - User interface
+
+With process-per-extension architecture, the IPC Hub must:
+- Route messages to the correct extension process by extensionId
+- Handle multiple concurrent IPC channels
+- Aggregate events from all extensions for the renderer
+- Coordinate with Process Manager and Watchdog
+
+## IPC Message Flow
+
+```
+
+Renderer                Main Process               Extension Processes
+
+│                         │                            │
+
+│──extensions:install────>│                            │
+
+│                         │──spawn process────────────>│ (Process A)
+
+│                         │<─ready─────────────────────│
+
+│                         │──activate─────────────────>│
+
+│                         │<─activated─────────────────│
+
+│<──state:active──────────│                            │
+
+│                         │                            │
+
+│                         │<─api:request───────────────│
+
+│                         │   (ui.showToast)           │
+
+│                         │──api:response─────────────>│
+
+````
 
 ## Deliverables
 
 ### 1. src/lib/extensions/ipc/protocol.ts
 
 ```typescript
-// Main <-> Host messages
-type HostMessage =
-  | { type: 'extension:load'; extensionId: string; bundlePath: string }
-  | { type: 'extension:activate'; extensionId: string }
-  | { type: 'extension:deactivate'; extensionId: string }
-  | { type: 'extension:kill'; extensionId: string; reason: string }
-  | { type: 'api:call'; callId: string; api: string; method: string; args: unknown[] }
+// === EXTENSION PROCESS → MAIN ===
+type ExtToMainMessage =
+  | { type: 'ready' }
+  | { type: 'api:request'; callId: string; api: string; method: string; args: unknown[] }
+  | { type: 'subscribe'; event: string; subscriptionId: string }
+  | { type: 'unsubscribe'; subscriptionId: string }
+  | { type: 'log'; level: LogLevel; message: string; data?: unknown }
+  | { type: 'pong'; timestamp: number }
 
-type HostResponse =
-  | { type: 'extension:loaded'; extensionId: string }
-  | { type: 'extension:activated'; extensionId: string }
-  | { type: 'extension:error'; extensionId: string; error: string }
-  | { type: 'extension:killed'; extensionId: string; reason: string }
-  | { type: 'watchdog:violation'; extensionId: string; violation: Violation }
-  | { type: 'api:result'; callId: string; result: unknown }
-  | { type: 'api:error'; callId: string; error: string }
+// === MAIN → EXTENSION PROCESS ===
+type MainToExtMessage =
+  | { type: 'load'; bundlePath: string; manifest: ExtensionManifest }
+  | { type: 'activate' }
+  | { type: 'deactivate' }
+  | { type: 'api:response'; callId: string; success: boolean; result?: unknown; error?: string }
+  | { type: 'event'; event: string; subscriptionId: string; data: unknown }
+  | { type: 'ping'; timestamp: number }
+  | { type: 'shutdown' }
+
+// === RENDERER → MAIN (Electron IPC) ===
+type RendererToMainMessage =
+  | { channel: 'extensions:get-all' }
+  | { channel: 'extensions:install'; extensionId: string; version?: string }
+  | { channel: 'extensions:uninstall'; extensionId: string }
+  | { channel: 'extensions:activate'; extensionId: string }
+  | { channel: 'extensions:deactivate'; extensionId: string }
+  | { channel: 'extensions:check-updates' }
+  | { channel: 'extensions:update'; extensionId: string; version?: string }
+  | { channel: 'extensions:rollback'; extensionId: string }
+  | { channel: 'extensions:is-installed'; extensionId: string }
 ````
 
-### 2. electron/handlers/extensions.ts
+### 2. src/lib/extensions/ipc/hub.ts
 
-- Handle lifecycle commands (load, activate, deactivate, kill)
-- Forward API calls from Host
-- Route events to/from extensions
-- Handle watchdog violations
+```typescript
+class IPCHub {
+  private channels = new Map<string, ChildProcess>()
+  private pendingRequests = new Map<string, PendingRequest>()
+  private subscriptions = new Map<string, Set<string>>() // event → extensionIds
+  
+  /** Register an extension process's IPC channel */
+  registerChannel(extensionId: string, process: ChildProcess): void
+  
+  /** Unregister when process terminates */
+  unregisterChannel(extensionId: string): void
+  
+  /** Send message to specific extension */
+  send(extensionId: string, message: MainToExtMessage): void
+  
+  /** Broadcast event to all subscribed extensions */
+  broadcast(event: string, data: unknown): void
+  
+  /** Forward API request from extension to appropriate handler */
+  async handleApiRequest(extensionId: string, request: ApiRequest): Promise<unknown>
+  
+  /** Handle incoming message from any extension */
+  private handleMessage(extensionId: string, message: ExtToMainMessage): void
+}
+```
 
-### 3. src/lib/extensions/ipc/client.ts
+### 3. electron/handlers/extensions.ts
 
-Renderer-side client for calling extension system.
+- Handle all `extensions:*` IPC channels from renderer
+- Coordinate with Process Manager for lifecycle operations
+- Forward API calls from extensions to appropriate services
+- Aggregate extension state for renderer
 
 ### 4. Update electron/preload.ts
 
 ```typescript
 extensions: {
+  // Lifecycle
   getAll: () => ipcRenderer.invoke('extensions:get-all'),
   install: (id, version?) => ipcRenderer.invoke('extensions:install', id, version),
   uninstall: (id) => ipcRenderer.invoke('extensions:uninstall', id),
   activate: (id) => ipcRenderer.invoke('extensions:activate', id),
   deactivate: (id) => ipcRenderer.invoke('extensions:deactivate', id),
+  
+  // Updates
   checkUpdates: () => ipcRenderer.invoke('extensions:check-updates'),
   update: (id, version?) => ipcRenderer.invoke('extensions:update', id, version),
   rollback: (id) => ipcRenderer.invoke('extensions:rollback', id),
-  onStateChange: (callback) => ...
+  
+  // Cross-extension queries (for enhancement pattern)
+  isInstalled: (id) => ipcRenderer.invoke('extensions:is-installed', id),
+  getInstalledExtensions: () => ipcRenderer.invoke('extensions:get-installed'),
+  
+  // Events
+  onStateChange: (callback) => {
+    const handler = (_, data) => callback(data)
+    ipcRenderer.on('extensions:state-change', handler)
+    return () => ipcRenderer.removeListener('extensions:state-change', handler)
+  }
 }
 ```
 
 ### 5. Update src/electron.d.ts
 
-Add all types for the extensions API.
+Add comprehensive types for the extensions API.
 
 ## Quality Requirements
 
-- Type-safe IPC with proper validation
-- Request/response correlation with unique IDs
-- Timeout handling for hung extensions (30s default)
-- Error forwarding with stack traces
-- IPC round-trip < 10ms
+- Type-safe IPC with proper validation (Zod)
+- Request/response correlation with unique callIds
+- Timeout handling: 30s default, configurable per-call
+- Error forwarding with stack traces (development mode)
+- IPC round-trip < 10ms (excluding business logic)
+- Handle extension process crash gracefully
+- Clean up subscriptions when extension terminates
 
 ## When Complete
 
 Run `npm run typecheck` and report results in AGENT5_IPC_REPORT.md
 
+Include in report:
+
+- All message types defined
+- All IPC channels registered
+- Performance: IPC latency measurements
 ```
 
 ### Tasks
 
-- [ ] Define IPC protocol types
-- [ ] Implement main process handlers
+- [ ] Define complete IPC protocol types
+- [ ] Implement IPCHub class for multi-process routing
+- [ ] Implement main process handlers for renderer
 - [ ] Implement renderer-side client
-- [ ] Update preload.ts
+- [ ] Update preload.ts with full API
 - [ ] Update electron.d.ts
-- [ ] Add timeout handling
-- [ ] Add watchdog violation handling
+- [ ] Add timeout handling with configurable limits
+- [ ] Add subscription management
+- [ ] Handle extension process crash cleanup
 - [ ] Write completion report
 
 ---
@@ -1395,6 +1996,7 @@ Run `npm run typecheck` and report results in AGENT5_IPC_REPORT.md
 ### Owns (Exclusive Write)
 
 ```
+
 
 blueplm-site/supabase-store/
 
@@ -1585,25 +2187,25 @@ Include:
 
 api/src/extensions/
 
-├── sandbox.ts        <- V8 isolate pool management
+├── pool-registry.ts     <- Per-extension isolate pool management
 
-├── runtime.ts        <- ExtensionServerAPI implementation
+├── isolate-pool.ts      <- Single pool implementation
 
-├── loader.ts         <- Load handler code
+├── runtime.ts           <- ExtensionServerAPI implementation
 
-├── router.ts         <- Route requests to handlers
+├── loader.ts            <- Load handler code into isolate
 
-├── storage.ts        <- Extension-scoped storage
+├── router.ts            <- Route requests to correct pool
 
-├── secrets.ts        <- Encrypted secrets with audit
+├── storage.ts           <- Extension-scoped storage (uses extension's schema)
 
-├── ratelimit.ts      <- Per-extension rate limiting
+├── secrets.ts           <- Encrypted secrets with audit
+
+├── ratelimit.ts         <- Per-pool rate limiting
 
 └── index.ts
 
 api/routes/extensions.ts    <- Admin endpoints + routing
-
-supabase/migrations/xxx_extension_tables.sql  <- Org database tables
 
 ```
 
@@ -1615,76 +2217,176 @@ api/routes/index.ts   <- Register routes
 
 ````
 
+### Architecture
+
+```mermaid
+flowchart TB
+    subgraph APIServer["API Server"]
+        Router[Request Router]
+        PoolRegistry[Isolate Pool Registry]
+        
+        subgraph PoolSF["Pool: Source Files"]
+            IsoSF1[Isolate]
+            IsoSF2[Isolate]
+        end
+        
+        subgraph PoolCC["Pool: Change Control"]
+            IsoCC1[Isolate]
+            IsoCC2[Isolate]
+        end
+        
+        subgraph PoolGD["Pool: Google Drive"]
+            IsoGD1[Isolate]
+        end
+    end
+    
+    subgraph Database["Org Supabase"]
+        CoreSchema["core schema"]
+        ExtSF["ext_source_files schema"]
+        ExtCC["ext_change_control schema"]
+        ExtGD["ext_google_drive schema"]
+    end
+    
+    Router -->|"route by extensionId"| PoolRegistry
+    PoolRegistry --> PoolSF
+    PoolRegistry --> PoolCC
+    PoolRegistry --> PoolGD
+    
+    PoolSF -->|"access own schema"| ExtSF
+    PoolCC -->|"access own schema"| ExtCC
+    PoolGD -->|"access own schema"| ExtGD
+    
+    PoolSF -->|"read core"| CoreSchema
+    PoolCC -->|"read core"| CoreSchema
+    PoolGD -->|"read core"| CoreSchema
+````
+
 ### Prompt
 
 ```markdown
 # Agent 7: API Sandbox Runtime
 
-Implement the V8 sandbox runtime for extension server handlers.
+Implement the per-extension V8 isolate pool runtime for extension server handlers.
 
 ## Context
 
 When extensions with server components are installed, their handlers run in 
-isolated V8 sandboxes on the org's API server. This is similar to Cloudflare 
-Workers or Atlassian Forge functions.
+**per-extension isolated V8 pools** on the org's API server. Unlike a shared pool,
+each extension gets its own pool so:
+
+- One extension's load can't starve another
+- Crashes/memory leaks are contained
+- Rate limits are enforced per pool
+- Each pool only accesses its own database schema
+
+## Per-Extension Pool Architecture
+
+```
+
+┌─────────────────────────────────────────────────────────────┐
+
+│                    ISOLATE POOL REGISTRY                     │
+
+│  ┌─────────────────┐ ┌─────────────────┐ ┌───────────────┐  │
+
+│  │ Pool:           │ │ Pool:           │ │ Pool:         │  │
+
+│  │ source-files    │ │ change-control  │ │ google-drive  │  │
+
+│  │ [2 isolates]    │ │ [2 isolates]    │ │ [1 isolate]   │  │
+
+│  │ 100 req/min     │ │ 100 req/min     │ │ 50 req/min    │  │
+
+│  │ 128MB mem       │ │ 128MB mem       │ │ 64MB mem      │  │
+
+│  └─────────────────┘ └─────────────────┘ └───────────────┘  │
+
+└─────────────────────────────────────────────────────────────┘
+
+````
 
 ## Security Model
 
 - Handlers run in V8 isolates (no Node.js access)
 - Limited to ExtensionServerAPI only
-- Each extension isolated from others
+- Each extension isolated in its own pool
+- Pools only access their own Postgres schema
 - All HTTP requests logged
-- Per-extension rate limiting
+- Per-pool rate limiting (independent)
 - Secret access audited
 
 ## Deliverables
 
-### 1. api/src/extensions/sandbox.ts
-
-V8 isolate pool management:
+### 1. api/src/extensions/pool-registry.ts
 
 ```typescript
-interface IsolatePoolConfig {
-  poolSize: number           // Default: 10
+interface PoolConfig {
+  poolSize: number           // Default: 2
   memoryLimitMB: number      // Default: 128
   timeoutMs: number          // Default: 30000
+  requestsPerMinute: number  // Default: 100
 }
 
+class IsolatePoolRegistry {
+  private pools = new Map<string, IsolatePool>()
+  
+  /** Create pool for extension (on install) */
+  async createPool(extensionId: string, config?: Partial<PoolConfig>): Promise<void>
+  
+  /** Destroy pool (on uninstall) */
+  async destroyPool(extensionId: string): Promise<void>
+  
+  /** Get pool for routing */
+  getPool(extensionId: string): IsolatePool | undefined
+  
+  /** Get or create pool (lazy initialization) */
+  async ensurePool(extensionId: string, config?: Partial<PoolConfig>): Promise<IsolatePool>
+  
+  /** Get all pool stats */
+  getAllStats(): Record<string, PoolStats>
+  
+  /** Graceful shutdown all pools */
+  async dispose(): Promise<void>
+}
+````
+
+### 2. api/src/extensions/isolate-pool.ts
+
+```typescript
 class IsolatePool {
-  constructor(config?: Partial<IsolatePoolConfig>)
+  constructor(extensionId: string, config: PoolConfig)
   
-  // Get warm isolate or create new one
-  async acquire(): Promise<Isolate>
-  
-  // Return to pool or dispose if over limit
-  release(isolate: Isolate): void
-  
-  // Execute handler in isolate
+  /** Execute handler in isolate from this pool */
   async execute(
-    extensionId: string,
     handlerCode: string,
     api: ExtensionServerAPI
   ): Promise<Response>
   
-  // Graceful shutdown
-  async dispose(): Promise<void>
+  /** Check rate limit for this pool */
+  checkRateLimit(requestSize: number): { allowed: boolean; retryAfter?: number }
   
-  // Stats for monitoring
+  /** Get pool stats */
   getStats(): PoolStats
+  
+  /** Dispose all isolates in pool */
+  async dispose(): Promise<void>
 }
-````
 
-Performance targets:
+interface PoolStats {
+  extensionId: string
+  poolSize: number
+  activeIsolates: number
+  requestsThisMinute: number
+  memoryUsageMB: number
+  avgExecutionMs: number
+}
+```
 
-- Cold start: < 100ms
-- Warm execution: < 50ms (excluding business logic)
-- Memory limit per isolate: 128MB
-
-### 2. api/src/extensions/runtime.ts
+### 3. api/src/extensions/runtime.ts
 
 ```typescript
 interface ExtensionServerAPI {
-  // Extension-scoped storage (database)
+  // Extension-scoped storage (uses extension's Postgres schema)
   storage: {
     get<T>(key: string): Promise<T | undefined>
     set<T>(key: string, value: T): Promise<void>
@@ -1703,6 +2405,12 @@ interface ExtensionServerAPI {
   // HTTP client (logged, domain-restricted)
   http: {
     fetch(url: string, options?: RequestInit): Promise<Response>
+  }
+  
+  // Database access (scoped to extension's schema)
+  db: {
+    query<T>(sql: string, params?: unknown[]): Promise<T[]>
+    execute(sql: string, params?: unknown[]): Promise<{ rowCount: number }>
   }
   
   // Request context
@@ -1731,61 +2439,58 @@ interface ExtensionServerAPI {
 }
 ```
 
-### 3. api/src/extensions/ratelimit.ts
-
-```typescript
-interface RateLimitConfig {
-  requestsPerMinute: number  // Default: 100
-  requestSizeBytes: number   // Default: 1MB
-}
-
-async function checkRateLimit(
-  extensionId: string,
-  requestSize: number
-): Promise<{ allowed: boolean; retryAfter?: number }>
-```
-
 ### 4. api/routes/extensions.ts
 
 ```typescript
 // Admin endpoints
 POST /admin/extensions/install
-  Body: { extensionId, version, handlers, routes, allowedDomains }
-  -> Load handlers into sandbox, register routes
+  Body: { extensionId, version, handlers, routes, allowedDomains, poolConfig }
+  -> Create isolate pool for extension
+  -> Load handlers into pool
+  -> Register routes
+  -> Create/update org_installed_extensions record
 
 DELETE /admin/extensions/:id
-  -> Remove handlers and routes
+  -> Mark as disabled (soft delete)
+  -> Destroy isolate pool
+  -> Schema preserved for re-enable
+
+POST /admin/extensions/:id/enable
+  -> Re-enable extension
+  -> Recreate isolate pool
 
 GET /admin/extensions
-  -> List installed extensions
+  -> List installed extensions with pool stats
 
 GET /admin/extensions/:id/stats
-  -> Rate limit stats, storage usage, etc.
+  -> Detailed pool stats, rate limit usage, storage size
 
-// Extension routes (forwarded to sandbox)
+// Extension routes (forwarded to correct pool)
 ALL /extensions/:extensionId/*
-  -> Check rate limit
-  -> Route to appropriate handler in sandbox
+  -> Get pool from registry
+  -> Check pool rate limit
+  -> Route to handler in pool
   -> Log request/response
 ```
 
-### 5. Org Database Tables
+### 5. Core Database Tables (in core schema)
 
 ```sql
 -- Track installed extensions per org
-CREATE TABLE org_installed_extensions (
-  org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+CREATE TABLE core.org_installed_extensions (
+  org_id UUID REFERENCES core.organizations(id) ON DELETE CASCADE,
   extension_id TEXT NOT NULL,
   version TEXT NOT NULL,
   installed_at TIMESTAMPTZ DEFAULT NOW(),
   installed_by UUID REFERENCES auth.users(id),
   pinned_version TEXT,           -- NULL = auto-update
   enabled BOOLEAN DEFAULT TRUE,
+  pool_config JSONB DEFAULT '{}', -- Pool size, memory, rate limits
   PRIMARY KEY (org_id, extension_id)
 );
 
 -- Extension configuration per org
-CREATE TABLE org_extension_config (
+CREATE TABLE core.org_extension_config (
   org_id UUID,
   extension_id TEXT,
   config JSONB DEFAULT '{}',
@@ -1794,29 +2499,20 @@ CREATE TABLE org_extension_config (
   PRIMARY KEY (org_id, extension_id)
 );
 
--- Extension-scoped storage
-CREATE TABLE extension_storage (
-  org_id UUID,
-  extension_id TEXT,
-  key TEXT,
-  value JSONB,
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  PRIMARY KEY (org_id, extension_id, key)
-);
-
--- Extension secrets (encrypted)
-CREATE TABLE extension_secrets (
+-- Extension secrets (encrypted) - in core for security
+CREATE TABLE core.extension_secrets (
   org_id UUID,
   extension_id TEXT,
   name TEXT,
   encrypted_value TEXT,          -- AES-256-GCM
+  version INTEGER DEFAULT 1,     -- For rotation
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (org_id, extension_id, name)
 );
 
 -- Secret access audit log
-CREATE TABLE extension_secret_access (
+CREATE TABLE core.extension_secret_access (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID,
   extension_id TEXT,
@@ -1825,15 +2521,29 @@ CREATE TABLE extension_secret_access (
   accessed_by TEXT,              -- user_id or 'system'
   accessed_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- HTTP request log (for audit/debugging)
+CREATE TABLE core.extension_http_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID,
+  extension_id TEXT,
+  url TEXT,
+  method TEXT,
+  status_code INTEGER,
+  duration_ms INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
 ## Quality Requirements
 
-- Handlers cannot escape sandbox
+- Handlers cannot escape isolate sandbox
+- Each pool isolated from others
 - Timeout enforcement (default 30s)
-- Memory limits per isolate (128MB)
+- Memory limits per pool (configurable)
 - Comprehensive logging
 - Audit trail for secrets
+- Pool health monitoring
 
 ## When Complete
 
@@ -1843,21 +2553,352 @@ Include:
 
 - DATABASE TABLES: All tables created
 - API ENDPOINTS: All endpoints
-- Performance: Cold start and warm execution times
+- Performance: Pool cold start, warm execution times
 ```
 
 ### Tasks
 
-- [ ] Set up V8 isolate pool with warm instances
-- [ ] Implement ExtensionServerAPI
-- [ ] Implement extension-scoped storage
+- [ ] Implement IsolatePoolRegistry class
+- [ ] Implement IsolatePool class with warm instances
+- [ ] Implement ExtensionServerAPI with db access
+- [ ] Implement extension-scoped storage (using extension schema)
 - [ ] Implement encrypted secrets with audit logging
-- [ ] Implement per-extension rate limiting
+- [ ] Implement per-pool rate limiting
 - [ ] Implement handler loader with domain restriction
-- [ ] Create install/uninstall endpoints
-- [ ] Create request router with logging
-- [ ] Create org database migration
-- [ ] Add security controls
+- [ ] Create install/uninstall endpoints with pool lifecycle
+- [ ] Create request router that routes to correct pool
+- [ ] Create core database migration for extension tables
+- [ ] Add pool health monitoring
+- [ ] Write completion report
+
+---
+
+## Agent 7B: Extension Schema Manager
+
+### Overview
+
+| Attribute | Value |
+|-----------|-------|
+| **Wave** | 2 (Infrastructure) |
+| **Dependencies** | Agent 1 |
+| **Parallel With** | Agents 4, 5, 6, 7 |
+| **Report** | `AGENT7B_SCHEMA_MANAGER_REPORT.md` |
+
+### Owns (Exclusive Write)
+
+```
+
+
+api/src/extensions/schema/
+
+├── manager.ts           <- Schema lifecycle management
+
+├── migrator.ts          <- Run extension migrations
+
+├── validator.ts         <- Validate migration SQL
+
+├── cross-refs.ts        <- Handle cross-schema foreign keys
+
+└── index.ts
+
+supabase/core.sql        <- Add schema management tables (if needed)
+
+````
+
+### Architecture
+
+```mermaid
+flowchart TB
+    subgraph SchemaManager["Extension Schema Manager"]
+        Manager[Schema Manager]
+        Migrator[Migration Runner]
+        Validator[SQL Validator]
+    end
+    
+    subgraph Database["Org Supabase"]
+        CoreSchema["core schema"]
+        ExtSF["ext_source_files schema"]
+        ExtCC["ext_change_control schema"]
+    end
+    
+    Manager -->|"CREATE SCHEMA"| ExtSF
+    Manager -->|"CREATE SCHEMA"| ExtCC
+    Migrator -->|"run migrations"| ExtSF
+    Migrator -->|"run migrations"| ExtCC
+    
+    ExtSF -->|"FK to core.organizations"| CoreSchema
+    ExtCC -->|"FK to core.organizations"| CoreSchema
+    ExtCC -.->|"nullable FK"| ExtSF
+````
+
+### Prompt
+
+```markdown
+# Agent 7B: Extension Schema Manager
+
+Implement the database schema manager for extension Postgres schemas.
+
+## Context
+
+Extensions have their own Postgres schemas that are created on install, preserved 
+on soft-disable, and can be dropped on hard delete. The Schema Manager handles:
+
+- Creating schemas on extension install
+- Running extension migrations in order
+- Setting up cross-schema foreign keys
+- Managing schema permissions (RLS)
+- Soft-disable (mark as disabled, preserve data)
+- Hard delete (DROP SCHEMA CASCADE)
+
+## Schema Lifecycle
+
+```
+
+Extension Install
+
+│
+
+▼
+
+┌─────────────────────────────────────────┐
+
+│ 1. Create schema: ext_{extension_name}  │
+
+│ 2. Run migrations in order              │
+
+│ 3. Set up RLS policies                  │
+
+│ 4. Grant permissions to API role        │
+
+│ 5. Record in org_installed_extensions   │
+
+└─────────────────────────────────────────┘
+
+│
+
+▼
+
+Extension Active
+
+│
+
+▼ (uninstall)
+
+┌─────────────────────────────────────────┐
+
+│ SOFT DISABLE (default)                  │
+
+│ - Set enabled = false                   │
+
+│ - Schema and data preserved             │
+
+│ - Can re-enable later                   │
+
+└─────────────────────────────────────────┘
+
+│
+
+▼ (hard delete - admin action)
+
+┌─────────────────────────────────────────┐
+
+│ HARD DELETE                             │
+
+│ - DROP SCHEMA ext_{name} CASCADE        │
+
+│ - All data permanently deleted          │
+
+│ - Requires explicit confirmation        │
+
+└─────────────────────────────────────────┘
+
+````
+
+## Deliverables
+
+### 1. api/src/extensions/schema/manager.ts
+
+```typescript
+class ExtensionSchemaManager {
+  /** Create schema for newly installed extension */
+  async createSchema(
+    orgId: string,
+    extensionId: string,
+    migrations: string[]
+  ): Promise<void>
+  
+  /** Soft disable - preserve schema, mark as disabled */
+  async disableSchema(orgId: string, extensionId: string): Promise<void>
+  
+  /** Re-enable a soft-disabled extension */
+  async enableSchema(orgId: string, extensionId: string): Promise<void>
+  
+  /** Hard delete - DROP SCHEMA CASCADE */
+  async deleteSchema(
+    orgId: string, 
+    extensionId: string,
+    confirmation: string  // Must match "DELETE {extensionId}"
+  ): Promise<void>
+  
+  /** Check if schema exists */
+  async schemaExists(orgId: string, extensionId: string): Promise<boolean>
+  
+  /** Get schema info */
+  async getSchemaInfo(orgId: string, extensionId: string): Promise<SchemaInfo>
+}
+
+interface SchemaInfo {
+  name: string
+  tableCount: number
+  totalSizeBytes: number
+  createdAt: Date
+  enabled: boolean
+}
+````
+
+### 2. api/src/extensions/schema/migrator.ts
+
+```typescript
+class ExtensionMigrator {
+  /** Run all pending migrations for an extension */
+  async runMigrations(
+    orgId: string,
+    extensionId: string,
+    migrations: MigrationFile[]
+  ): Promise<MigrationResult>
+  
+  /** Get current migration version */
+  async getCurrentVersion(orgId: string, extensionId: string): Promise<number>
+  
+  /** Rollback to specific version (if supported) */
+  async rollback(
+    orgId: string,
+    extensionId: string,
+    targetVersion: number
+  ): Promise<void>
+}
+
+interface MigrationFile {
+  version: number
+  name: string
+  sql: string
+}
+
+interface MigrationResult {
+  success: boolean
+  migrationsRun: number
+  errors?: string[]
+}
+```
+
+### 3. api/src/extensions/schema/cross-refs.ts
+
+Handle cross-schema foreign keys:
+
+```typescript
+/** 
+ * Set up FK from extension table to core table 
+ * E.g., ext_source_files.vaults.org_id → core.organizations.id
+ */
+async function createCoreReference(
+  extensionSchema: string,
+  table: string,
+  column: string,
+  coreTable: string,
+  coreColumn: string,
+  onDelete: 'CASCADE' | 'SET NULL' | 'RESTRICT'
+): Promise<void>
+
+/**
+ * Set up nullable FK from one extension to another
+ * E.g., ext_change_control.file_ecos.file_id → ext_source_files.files.id
+ */
+async function createExtensionReference(
+  sourceSchema: string,
+  sourceTable: string,
+  sourceColumn: string,
+  targetSchema: string,
+  targetTable: string,
+  targetColumn: string
+): Promise<void>
+```
+
+### 4. Migration Table (in each extension schema)
+
+```sql
+-- Created automatically in each extension schema
+CREATE TABLE {ext_schema}._migrations (
+  version INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  applied_at TIMESTAMPTZ DEFAULT NOW(),
+  checksum TEXT  -- SHA256 of migration SQL
+);
+```
+
+### 5. Extension Manifest Schema Declaration
+
+Extensions declare their schema requirements:
+
+```json
+{
+  "id": "blueplm.change-control",
+  "schema": {
+    "name": "ext_change_control",
+    "migrations": [
+      "migrations/001_initial.sql",
+      "migrations/002_reviews.sql",
+      "migrations/003_file_bridge.sql"
+    ],
+    "coreReferences": [
+      {
+        "table": "ecos",
+        "column": "org_id",
+        "references": "core.organizations.id",
+        "onDelete": "CASCADE"
+      }
+    ],
+    "extensionReferences": [
+      {
+        "table": "file_ecos",
+        "column": "file_id",
+        "references": "ext_source_files.files.id",
+        "optional": true
+      }
+    ]
+  }
+}
+```
+
+## Quality Requirements
+
+- Migrations must be idempotent where possible
+- Rollback support for failed migrations
+- Comprehensive logging of all schema changes
+- Validate SQL before execution (no DROP DATABASE, etc.)
+- Handle cross-schema FK failures gracefully
+
+## When Complete
+
+Run `npm run typecheck` in api/ and report results in AGENT7B_SCHEMA_MANAGER_REPORT.md
+
+Include:
+
+- All schema management functions
+- Migration runner implementation
+- Cross-reference handling
+```
+
+### Tasks
+
+- [ ] Implement ExtensionSchemaManager class
+- [ ] Implement ExtensionMigrator class
+- [ ] Implement cross-schema FK management
+- [ ] Implement SQL validation (block dangerous operations)
+- [ ] Create migration table template
+- [ ] Add soft-disable logic
+- [ ] Add hard-delete with confirmation
+- [ ] Implement schema info queries
+- [ ] Add comprehensive logging
 - [ ] Write completion report
 
 ---

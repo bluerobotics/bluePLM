@@ -5,6 +5,7 @@ import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/commands/types'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { getFilesWithCache, updateCachedUserInfo } from '@/lib/cache/vaultFileCache'
+import { getSyncIndex, updateSyncIndexFromServer } from '@/lib/cache/localSyncIndex'
 import type { LightweightFile } from '@/lib/supabase/files/queries'
 
 /**
@@ -94,8 +95,15 @@ export function useLoadFiles() {
           )
         : Promise.resolve({ files: null, error: null, cacheHit: false, deltaCount: 0, timing: { cacheReadMs: 0, fetchMs: 0, mergeMs: 0 } })
       
-      // Wait for both to complete
-      const [localResult, serverResultWithCache] = await Promise.all([localPromise, serverPromise])
+      // Also load the local sync index for detecting orphaned files
+      // The sync index tracks files that were previously synced - if they're not on server anymore,
+      // they were deleted by another user (orphaned)
+      const syncIndexPromise = currentVaultId 
+        ? getSyncIndex(currentVaultId)
+        : Promise.resolve(new Set<string>())
+      
+      // Wait for all to complete
+      const [localResult, serverResultWithCache, localSyncIndex] = await Promise.all([localPromise, serverPromise, syncIndexPromise])
       
       // Extract files from cache result
       const serverResult = {
@@ -242,6 +250,16 @@ export function useLoadFiles() {
             }
           }
           
+          // Create a map of existing files' localVersion to preserve tracked version numbers
+          // localVersion tracks which version's content is actually on disk (set during download/checkin)
+          const existingLocalVersions = new Map<string, number>()
+          for (const f of currentFiles) {
+            if (f.localVersion !== undefined) {
+              existingLocalVersions.set(f.path, f.localVersion)
+              existingLocalVersions.set(f.relativePath, f.localVersion)
+            }
+          }
+          
           // Create a map of existing files' localHash to preserve computed hashes
           // This prevents re-computing hashes or falling back to timestamp-based diff detection
           // when the file watcher triggers a refresh after operations like checkin
@@ -329,6 +347,10 @@ export function useLoadFiles() {
             const existingLocalActiveVersion = existingLocalActiveVersions.get(localFile.path) 
               || existingLocalActiveVersions.get(localFile.relativePath)
             
+            // Preserve localVersion from existing file (tracks actual version on disk)
+            const existingLocalVersion = existingLocalVersions.get(localFile.path) 
+              || existingLocalVersions.get(localFile.relativePath)
+            
             // Debug: log when localActiveVersion is being preserved (helps diagnose rollback issues)
             if (existingLocalActiveVersion !== undefined) {
               window.electronAPI?.log('debug', '[LoadFiles] Preserving localActiveVersion', {
@@ -364,14 +386,27 @@ export function useLoadFiles() {
             }
             
             // Determine diff status
-            let diffStatus: 'added' | 'modified' | 'outdated' | 'moved' | 'ignored' | undefined
+            let diffStatus: 'added' | 'modified' | 'outdated' | 'moved' | 'ignored' | 'deleted_remote' | undefined
             if (!pdmData) {
               // File exists locally but not on server
               // Check if it's in the ignore list (keep local only)
               if (isIgnoredPath(localFile.relativePath)) {
                 diffStatus = 'ignored'
               } else {
-                diffStatus = 'added'
+                // Check if this file was previously synced (in sync index)
+                // If it was synced before but is no longer on server, it was deleted by another user
+                const wasPrevinouslySynced = localSyncIndex.has(localFile.relativePath.toLowerCase())
+                if (wasPrevinouslySynced) {
+                  // File was synced before but no longer on server = orphaned (deleted_remote)
+                  diffStatus = 'deleted_remote'
+                  window.electronAPI?.log('debug', '[LoadFiles] Detected orphaned file', {
+                    path: localFile.relativePath,
+                    reason: 'in_sync_index_but_not_on_server'
+                  })
+                } else {
+                  // File was never synced = genuinely new (added)
+                  diffStatus = 'added'
+                }
               }
             } else if (isMovedFile) {
               // File was moved - needs check-in to update server path (but no version increment)
@@ -392,35 +427,50 @@ export function useLoadFiles() {
                 }
               }
             } else if (pdmData.content_hash) {
-              // No local hash (fresh or preserved) - use TIMESTAMP-BASED diff detection (fast, no disk I/O)
-              // This avoids expensive hash computation on startup
+              // No local hash available - use VERSION-BASED detection first, then TIMESTAMP fallback
               const localModTime = new Date(localFile.modifiedTime).getTime()
               const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
               const isCheckedOutByMe = pdmData.checked_out_by === user?.id
               
-              // Tolerance for "modified" detection (my file, local newer)
-              // Small tolerance is OK since false positives are less harmful (just shows yellow instead of nothing)
-              const MODIFIED_TOLERANCE_MS = 5000
-              
-              // CONSERVATIVE tolerance for "outdated" detection (server newer)
-              // We use a large tolerance because false "outdated" positives are confusing to users
-              // (files showing purple/outdated when they're actually synced)
-              // If no local hash is available, we only mark as outdated if the server is significantly newer
-              // Background hash computation will eventually set the accurate status
-              const OUTDATED_TOLERANCE_MS = 600000 // 10 minutes
-              
-              if (isCheckedOutByMe && localModTime > cloudUpdateTime + MODIFIED_TOLERANCE_MS) {
-                // I have it checked out and local file is newer → I modified it
-                diffStatus = 'modified'
-              } else if (!isCheckedOutByMe && cloudUpdateTime > localModTime + OUTDATED_TOLERANCE_MS) {
-                // Someone else updated it and server is much newer → likely outdated
-                // Using conservative 10-minute window to avoid false positives from:
-                // - Windows preserving server timestamps on download
-                // - Clock drift between client and server
-                // - Server metadata updates without content changes
-                diffStatus = 'outdated'
+              // PRIORITY 1: Use tracked localVersion for accurate outdated detection
+              // This is set when files are downloaded, checked in, or rolled back
+              if (existingLocalVersion !== undefined && pdmData.version !== undefined) {
+                if (existingLocalVersion < pdmData.version) {
+                  // Server has a newer version - file is definitely outdated
+                  diffStatus = 'outdated'
+                } else if (existingLocalVersion === pdmData.version) {
+                  // Versions match - file should be synced
+                  // But if checked out by me and local is newer, might be modified
+                  if (isCheckedOutByMe && localModTime > cloudUpdateTime + 5000) {
+                    diffStatus = 'modified'
+                  }
+                  // Otherwise: leave as synced (diffStatus undefined)
+                }
+                // If existingLocalVersion > pdmData.version: local has uncommitted changes (modified)
+                // This shouldn't normally happen, but leave status as-is
+              } else {
+                // PRIORITY 2: Timestamp-based fallback when no localVersion available
+                // Be VERY conservative - false "outdated" is worse than missing it
+                // Background hash computation will eventually determine accurate status
+                
+                // Tolerance for "modified" detection (my file, local newer)
+                const MODIFIED_TOLERANCE_MS = 5000
+                
+                // VERY CONSERVATIVE tolerance for "outdated" detection
+                // Only mark as outdated if absolutely certain to avoid false positives
+                const OUTDATED_TOLERANCE_MS = 1800000 // 30 minutes (increased from 10)
+                
+                if (isCheckedOutByMe && localModTime > cloudUpdateTime + MODIFIED_TOLERANCE_MS) {
+                  // I have it checked out and local file is newer → I modified it
+                  diffStatus = 'modified'
+                } else if (!isCheckedOutByMe && cloudUpdateTime > localModTime + OUTDATED_TOLERANCE_MS) {
+                  // Someone else updated it and server is MUCH newer → likely outdated
+                  // Note: Without localVersion, we can't be certain, so use large tolerance
+                  // Background hash computation will confirm/correct this
+                  diffStatus = 'outdated'
+                }
+                // Otherwise: timestamps are close enough → assume synced until hash computation confirms
               }
-              // Otherwise: timestamps are close enough → assume synced until hash computation confirms
             }
             // The background hash computation will set the proper status once hashes are computed
             
@@ -480,6 +530,13 @@ export function useLoadFiles() {
               ? 'modified' as const
               : diffStatus
             
+            // Determine localVersion:
+            // - If file is synced (hashes match or no diff), use server version
+            // - If preserved from previous state, use that
+            // - Otherwise undefined (will be set when downloaded or checked in)
+            const isSyncedWithServer = pdmData && !finalDiffStatus && pdmData.content_hash && effectiveLocalHash && pdmData.content_hash === effectiveLocalHash
+            const computedLocalVersion = isSyncedWithServer ? pdmData.version : existingLocalVersion
+            
             return {
               ...localFile,
               pdmData: finalPdmData || undefined,
@@ -487,6 +544,8 @@ export function useLoadFiles() {
               diffStatus: finalDiffStatus,
               // Preserve rollback state if it exists
               localActiveVersion: existingLocalActiveVersion,
+              // Track actual version on disk
+              localVersion: computedLocalVersion,
               // Preserve localHash from existing file if not computed fresh
               localHash: effectiveLocalHash,
               // Preserve pendingMetadata so user's unsaved edits survive file refresh
@@ -578,13 +637,24 @@ export function useLoadFiles() {
           const syncedCount = localFiles.filter(f => !f.isDirectory && f.isSynced).length
           const addedCount = localFiles.filter(f => !f.isDirectory && f.diffStatus === 'added').length
           const cloudCount = localFiles.filter(f => !f.isDirectory && f.diffStatus === 'cloud').length
+          const orphanedCount = localFiles.filter(f => !f.isDirectory && f.diffStatus === 'deleted_remote').length
           window.electronAPI?.log('info', '[LoadFiles] Merge summary', {
             serverFiles: pdmFiles.length,
             localFilesAfterMerge: localFiles.filter(f => !f.isDirectory).length,
             synced: syncedCount,
             added: addedCount,
             cloudOnly: cloudCount,
+            orphaned: orphanedCount,
           })
+          
+          // Update the local sync index with all server file paths
+          // This ensures we track which files have been synced for orphan detection
+          if (currentVaultId) {
+            const serverPaths = pdmFiles.map((f: any) => f.file_path as string)
+            updateSyncIndexFromServer(currentVaultId, serverPaths).catch(err => {
+              window.electronAPI?.log('warn', '[LoadFiles] Failed to update sync index', { error: String(err) })
+            })
+          }
         }
       } else {
         // Offline mode or no org - local files are "added" unless ignored
@@ -798,6 +868,7 @@ export function useLoadFiles() {
                   
                   // Recompute diff status with the new hash
                   let newDiffStatus = f.diffStatus
+                  let newLocalVersion = f.localVersion
                   if (f.pdmData?.content_hash && computedHash) {
                     if (f.pdmData.content_hash !== computedHash) {
                       // Hashes differ - check which is newer
@@ -815,15 +886,17 @@ export function useLoadFiles() {
                         checkedOut: !!f.pdmData.checked_out_by
                       })
                     } else {
-                      // Hashes match - no diff
+                      // Hashes match - file is synced with server version
                       newDiffStatus = undefined
+                      newLocalVersion = f.pdmData.version
                     }
                   }
                   
                   return {
                     ...f,
                     localHash: computedHash,
-                    diffStatus: newDiffStatus
+                    diffStatus: newDiffStatus,
+                    localVersion: newLocalVersion
                   }
                 })
                 const updateDuration = performance.now() - updateStart
@@ -999,6 +1072,43 @@ export function useLoadFiles() {
                 } catch (err) {
                   window.electronAPI?.log('error', '[AutoDownload] Failed to update outdated files', { error: String(err) })
                 }
+              }
+            }
+          }
+          
+          // 4. Auto-discard orphaned files (if enabled)
+          // Orphaned files are local files that were previously synced but no longer exist on the server
+          // (deleted by another user). They have diffStatus === 'deleted_remote'.
+          // IMPORTANT: Skip on silent refreshes to prevent infinite loops
+          const { autoDiscardOrphanedFiles } = usePDMStore.getState()
+          
+          if (!silent && autoDiscardOrphanedFiles && !isVaultStale()) {
+            const latestFiles = usePDMStore.getState().files
+            
+            // Get orphaned files (local files that were synced but no longer on server)
+            const orphanedFiles = latestFiles.filter(f => 
+              !f.isDirectory && f.diffStatus === 'deleted_remote'
+            )
+            
+            if (orphanedFiles.length > 0) {
+              window.electronAPI?.log('info', '[AutoDiscard] Discarding orphaned files', { 
+                count: orphanedFiles.length,
+                files: orphanedFiles.map(f => ({
+                  name: f.name,
+                  relativePath: f.relativePath
+                }))
+              })
+              
+              try {
+                const result = await executeCommand('discard-orphaned', { files: orphanedFiles })
+                if (result.succeeded > 0) {
+                  addToast('info', `Auto-discarded ${result.succeeded} orphaned file${result.succeeded > 1 ? 's' : ''}`)
+                }
+                if (result.failed > 0) {
+                  window.electronAPI?.log('warn', '[AutoDiscard] Some files failed to discard', { failed: result.failed, errors: result.errors })
+                }
+              } catch (err) {
+                window.electronAPI?.log('error', '[AutoDiscard] Failed to discard orphaned files', { error: String(err) })
               }
             }
           }

@@ -14,6 +14,7 @@ import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
 import { FileOperationTracker } from '../../fileOperationTracker'
+import { addToSyncIndex } from '../../cache/localSyncIndex'
 
 // Number of retry attempts for failed downloads
 const MAX_RETRY_ATTEMPTS = 3
@@ -361,6 +362,7 @@ export const downloadCommand: Command<DownloadParams> = {
           path: file.path,
           updates: {
             localHash: file.pdmData.content_hash, // Downloaded content matches server hash
+            localVersion: file.pdmData.version,   // Track the version we downloaded
             diffStatus: undefined,                 // No longer cloud-only, now synced
             isSynced: true                        // File exists in cloud
           }
@@ -512,6 +514,21 @@ export const downloadCommand: Command<DownloadParams> = {
       ctx.addToast('error', `Download failed: ${firstError}${moreText}`)
     } else {
       ctx.addToast('success', `Downloaded ${succeeded} file${succeeded > 1 ? 's' : ''}`)
+    }
+    
+    // Update the local sync index with successfully downloaded file paths
+    // This tracks which files have been synced for orphan detection
+    if (succeeded > 0 && ctx.activeVaultId) {
+      const downloadedPaths = pendingUpdates.map(u => {
+        const file = cloudFiles.find(f => f.path === u.path)
+        return file?.relativePath
+      }).filter((p): p is string => !!p)
+      
+      if (downloadedPaths.length > 0) {
+        addToSyncIndex(ctx.activeVaultId, downloadedPaths).catch(err => {
+          logDownload('warn', 'Failed to update sync index after download', { error: String(err) })
+        })
+      }
     }
     
     // Complete operation tracking

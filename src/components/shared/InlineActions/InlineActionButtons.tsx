@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { Cloud, ArrowDown, ArrowUp, HardDrive, RefreshCw, Loader2, Lock, Clock, Check, X, Bell } from 'lucide-react'
-import { getInitials } from '@/lib/utils'
+import { getInitials, getAvatarColor } from '@/lib/utils'
 import { requestCheckout } from '@/lib/supabase/notifications'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
@@ -597,28 +597,31 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
       >
         {/* Avatars */}
         <div className="flex -space-x-1 z-10">
-          {users.map((u) => (
-            <div 
-              key={u.id} 
-              className="rounded-full overflow-hidden flex-shrink-0"
-              style={{ width: avatarSize, height: avatarSize }}
-            >
-              {u.avatar_url ? (
-                <img
-                  src={u.avatar_url}
-                  alt={u.name}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div 
-                  className="w-full h-full flex items-center justify-center text-[8px] font-medium bg-plm-accent/30 text-plm-accent rounded-full"
-                >
-                  {getInitials(u.name)}
-                </div>
-              )}
-            </div>
-          ))}
+          {users.map((u) => {
+            const avatarColors = getAvatarColor(u.email || u.name)
+            return (
+              <div 
+                key={u.id} 
+                className="rounded-full overflow-hidden flex-shrink-0"
+                style={{ width: avatarSize, height: avatarSize }}
+              >
+                {u.avatar_url ? (
+                  <img
+                    src={u.avatar_url}
+                    alt={u.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div 
+                    className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${avatarColors.bg} ${avatarColors.text} rounded-full`}
+                  >
+                    {getInitials(u.name)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
           {hasOverflow && (
             <div
               className="rounded-full bg-plm-bg-light flex items-center justify-center text-[8px] text-plm-fg-muted flex-shrink-0"
@@ -664,18 +667,21 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
                     className="rounded-full overflow-hidden flex-shrink-0"
                     style={{ width: 24, height: 24 }}
                   >
-                    {u.avatar_url ? (
-                      <img
-                        src={u.avatar_url}
-                        alt={u.name}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[9px] font-medium bg-plm-accent/30 text-plm-accent rounded-full">
-                        {getInitials(u.name)}
-                      </div>
-                    )}
+                    {(() => {
+                      const avatarColors = getAvatarColor(u.email || u.name)
+                      return u.avatar_url ? (
+                        <img
+                          src={u.avatar_url}
+                          alt={u.name}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center text-[9px] font-medium ${avatarColors.bg} ${avatarColors.text} rounded-full`}>
+                          {getInitials(u.name)}
+                        </div>
+                      )
+                    })()}
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-plm-fg truncate">{u.name}</div>
@@ -817,18 +823,21 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
             {/* My avatar - 18px to match other users */}
             <div className="absolute left-0.5 inset-y-0 flex items-center z-10">
               <div className="rounded-full overflow-hidden flex-shrink-0" style={{ width: 18, height: 18 }}>
-                {myUser.avatar_url ? (
-                  <img
-                    src={myUser.avatar_url}
-                    alt={myUser.name}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[8px] font-medium bg-plm-accent/30 text-plm-accent">
-                    {getInitials(myUser.name)}
-                  </div>
-                )}
+                {(() => {
+                  const avatarColors = getAvatarColor(myUser.email || myUser.name)
+                  return myUser.avatar_url ? (
+                    <img
+                      src={myUser.avatar_url}
+                      alt={myUser.name}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${avatarColors.bg} ${avatarColors.text}`}>
+                      {getInitials(myUser.name)}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
             {/* Box with lock + count */}
@@ -876,28 +885,29 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
       {/* All avatars - positioned to overlap the box */}
       <div className="absolute left-0.5 inset-y-0 flex items-center z-10">
         <div className="flex -space-x-1">
-          {displayedUsersForFallback.map((u) => (
-            <div 
-              key={u.id} 
-              className="rounded-full overflow-hidden flex-shrink-0 relative"
-              style={{ width: fallbackAvatarSize, height: fallbackAvatarSize }}
-            >
-              {u.avatar_url ? (
-                <img
-                  src={u.avatar_url}
-                  alt={u.name}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${
-                  u.isMe ? 'bg-plm-accent/30 text-plm-accent' : 'bg-plm-accent/30 text-plm-accent'
-                }`}>
-                  {getInitials(u.name)}
-                </div>
-              )}
-            </div>
-          ))}
+          {displayedUsersForFallback.map((u) => {
+            const avatarColors = getAvatarColor(u.email || u.name)
+            return (
+              <div 
+                key={u.id} 
+                className="rounded-full overflow-hidden flex-shrink-0 relative"
+                style={{ width: fallbackAvatarSize, height: fallbackAvatarSize }}
+              >
+                {u.avatar_url ? (
+                  <img
+                    src={u.avatar_url}
+                    alt={u.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${avatarColors.bg} ${avatarColors.text}`}>
+                    {getInitials(u.name)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
           {hasOverflowFallback && (
             <div 
               className="rounded-full bg-plm-bg-light flex items-center justify-center text-[8px] text-plm-fg-muted flex-shrink-0"

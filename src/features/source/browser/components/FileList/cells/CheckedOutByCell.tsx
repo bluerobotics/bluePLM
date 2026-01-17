@@ -2,7 +2,7 @@
  * Checked Out By column cell renderer
  */
 import { Monitor } from 'lucide-react'
-import { getInitials } from '@/lib/utils'
+import { getInitials, getAvatarColor } from '@/lib/utils'
 import { NotifiableCheckoutAvatar } from '@/components/shared/Avatar'
 import { useFilePaneContext } from '../../../context'
 import type { CellRendererBaseProps } from './types'
@@ -44,6 +44,9 @@ export function CheckedOutByCell({ file }: CellRendererBaseProps): React.ReactNo
   }
   
   // For own checkouts, show the standard display
+  // Get consistent avatar colors based on user identifier
+  const avatarColors = getAvatarColor(email || fullName)
+  
   return (
     <span 
       className={`flex items-center gap-2 ${isMe ? (onDifferentMachine ? 'text-plm-warning' : 'text-plm-warning') : 'text-plm-fg'}`} 
@@ -65,7 +68,7 @@ export function CheckedOutByCell({ file }: CellRendererBaseProps): React.ReactNo
           />
         ) : null}
         <div 
-          className={`w-5 h-5 rounded-full ${onDifferentMachine ? 'bg-plm-warning/30' : 'bg-plm-accent/30'} flex items-center justify-center text-xs absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
+          className={`w-5 h-5 rounded-full ${onDifferentMachine ? 'bg-plm-warning/50 text-plm-warning' : `${avatarColors.bg} ${avatarColors.text}`} flex items-center justify-center text-xs font-medium absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
           title={tooltipName}
         >
           {getInitials(displayName)}

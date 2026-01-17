@@ -426,6 +426,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     hasPendingMetadataChanges,
     getSelectedConfigsForFile,
     toggleFileConfigExpansion,
+    toggleConfigBomExpansion,
   } = useConfigHandlers({
     files,
     lastClickedConfigRef,
@@ -1136,6 +1137,24 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     }
   }
 
+  // Handler for toggling BOM expansion under a configuration row
+  const handleConfigBomToggle = useCallback((e: React.MouseEvent, file: LocalFile, configName: string) => {
+    e.stopPropagation()
+    toggleConfigBomExpansion(file, configName)
+  }, [toggleConfigBomExpansion])
+
+  // Handler for clicking on a BOM item row - navigate to the file
+  const handleConfigBomRowClick = useCallback((e: React.MouseEvent, _file: LocalFile, item: import('@/stores/types').ConfigBomItem) => {
+    e.stopPropagation()
+    if (item.file_path && vaultPath) {
+      // Navigate to the folder containing the file
+      const folderPath = item.file_path.split('/').slice(0, -1).join('/')
+      if (folderPath) {
+        navigateToFolder(folderPath)
+      }
+    }
+  }, [vaultPath, navigateToFolder])
+
   // Listen for menu events (File > Add Files / Add Folder)
   useEffect(() => {
     if (!window.electronAPI) return
@@ -1353,6 +1372,8 @@ export function FilePane({ onRefresh }: FilePaneProps) {
             onConfigContextMenu={handleConfigContextMenu}
             onConfigDescriptionChange={handleConfigDescriptionChange}
             onConfigTabChange={handleConfigTabChange}
+            onConfigBomToggle={handleConfigBomToggle}
+            onConfigBomRowClick={handleConfigBomRowClick}
             renderCellContent={renderCellContent}
           />
         </table>

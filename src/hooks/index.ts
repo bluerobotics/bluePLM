@@ -39,3 +39,7 @@ export { useDeepLinkInstall } from './useDeepLinkInstall'
 // Notification filtering
 export { useNotificationFilter, shouldShowToast, playNotificationSound } from './useNotificationFilter'
 export type { NotificationFilterResult } from './useNotificationFilter'
+
+// Auto-scroll during drag operations
+export { useAutoScrollOnDrag } from './useAutoScrollOnDrag'
+export type { AutoScrollOptions } from './useAutoScrollOnDrag'

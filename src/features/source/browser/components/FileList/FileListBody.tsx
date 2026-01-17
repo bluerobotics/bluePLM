@@ -3,8 +3,10 @@ import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { FolderOpen } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { ConfigWithDepth } from '../../types'
+import type { ConfigBomItem } from '@/stores/types'
 import { FileRow } from './FileRow'
 import { ConfigRow } from './ConfigRow'
+import { ConfigBomRow } from './ConfigBomRow'
 import { useFilePaneContext } from '../../context'
 
 // ============================================================================
@@ -35,6 +37,21 @@ interface ConfigVirtualRow {
   basePartNumber: string
   /** Configuration-specific revision (from drawing propagation) */
   configRevision?: string
+  /** Whether this config can be expanded to show BOM (only for assemblies) */
+  isExpandable: boolean
+  /** Whether the BOM section is currently expanded */
+  isBomExpanded: boolean
+  /** Whether the BOM is currently loading */
+  isBomLoading: boolean
+}
+
+/** Config BOM row data (part/assembly under a configuration) */
+interface ConfigBomVirtualRow {
+  type: 'config-bom'
+  file: LocalFile
+  configName: string
+  configDepth: number
+  item: ConfigBomItem
 }
 
 /** New folder input row */
@@ -42,7 +59,7 @@ interface NewFolderVirtualRow {
   type: 'new-folder'
 }
 
-type VirtualRow = FileVirtualRow | ConfigVirtualRow | NewFolderVirtualRow
+type VirtualRow = FileVirtualRow | ConfigVirtualRow | ConfigBomVirtualRow | NewFolderVirtualRow
 
 // ============================================================================
 // Props Interface
@@ -77,6 +94,10 @@ export interface FileListBodyProps {
   onConfigContextMenu: (e: React.MouseEvent, filePath: string, configName: string) => void
   onConfigDescriptionChange: (filePath: string, configName: string, value: string) => void
   onConfigTabChange: (filePath: string, configName: string, value: string) => void
+  onConfigBomToggle: (e: React.MouseEvent, file: LocalFile, configName: string) => void
+  
+  // Config BOM row event handlers
+  onConfigBomRowClick: (e: React.MouseEvent, file: LocalFile, item: ConfigBomItem) => void
   
   // Cell rendering
   renderCellContent: (file: LocalFile, columnId: string) => React.ReactNode
@@ -103,6 +124,8 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
   onConfigContextMenu,
   onConfigDescriptionChange,
   onConfigTabChange,
+  onConfigBomToggle,
+  onConfigBomRowClick,
   renderCellContent,
 }, ref) {
   // Get state from context
@@ -115,6 +138,9 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     expandedConfigFiles,
     fileConfigurations,
     selectedConfigs,
+    expandedConfigBoms,
+    configBomData,
+    loadingConfigBoms,
     isCreatingFolder,
     newFolderName,
     newFolderInputRef,
@@ -132,6 +158,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
   // Row heights
   const fileRowHeight = listRowSize + 8
   const configRowHeight = listRowSize + 4
+  const configBomRowHeight = listRowSize // Slightly smaller for BOM items
   const newFolderRowHeight = 40 // Fixed height for new folder input
 
   // ============================================================================
@@ -182,8 +209,15 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         const configs = fileConfigurations.get(file.path) || []
         // Get configuration revisions from file's pdmData (propagated from drawings)
         const configRevisions = (file.pdmData?.configuration_revisions || {}) as Record<string, string>
+        
+        // Check if file is an assembly (can show BOM)
+        const isAssemblyFile = file.extension?.toLowerCase() === '.sldasm'
+        
         configs.forEach((config) => {
           const configKey = `${file.path}::${config.name}`
+          const isBomExpanded = expandedConfigBoms.has(configKey)
+          const isBomLoading = loadingConfigBoms.has(configKey)
+          
           rows.push({
             type: 'config',
             file,
@@ -192,7 +226,24 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
             isEditable,
             basePartNumber,
             configRevision: configRevisions[config.name],
+            isExpandable: isAssemblyFile,
+            isBomExpanded,
+            isBomLoading,
           })
+          
+          // Add BOM rows if config BOM is expanded
+          if (isBomExpanded) {
+            const bomItems = configBomData.get(configKey) || []
+            bomItems.forEach((item) => {
+              rows.push({
+                type: 'config-bom',
+                file,
+                configName: config.name,
+                configDepth: config.depth,
+                item,
+              })
+            })
+          }
         })
       }
     })
@@ -208,6 +259,9 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     expandedConfigFiles,
     fileConfigurations,
     selectedConfigs,
+    expandedConfigBoms,
+    configBomData,
+    loadingConfigBoms,
     isBeingProcessed,
   ])
 
@@ -224,11 +278,13 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         return newFolderRowHeight
       case 'config':
         return configRowHeight
+      case 'config-bom':
+        return configBomRowHeight
       case 'file':
       default:
         return fileRowHeight
     }
-  }, [virtualRows, fileRowHeight, configRowHeight, newFolderRowHeight])
+  }, [virtualRows, fileRowHeight, configRowHeight, configBomRowHeight, newFolderRowHeight])
 
   const virtualizer = useVirtualizer({
     count: virtualRows.length,
@@ -319,7 +375,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
   ])
 
   const renderConfigRow = useCallback((row: ConfigVirtualRow) => {
-    const { file, config, isSelected, isEditable, basePartNumber, configRevision } = row
+    const { file, config, isSelected, isEditable, basePartNumber, configRevision, isExpandable, isBomExpanded, isBomLoading } = row
     const configs = fileConfigurations.get(file.path) || []
     
     return (
@@ -332,10 +388,14 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         visibleColumns={visibleColumns}
         basePartNumber={basePartNumber}
         configRevision={configRevision}
+        isExpandable={isExpandable}
+        isBomExpanded={isBomExpanded}
+        isBomLoading={isBomLoading}
         onClick={(e) => onConfigRowClick(e, file.path, config.name, configs)}
         onContextMenu={(e) => onConfigContextMenu(e, file.path, config.name)}
         onDescriptionChange={(value) => onConfigDescriptionChange(file.path, config.name, value)}
         onTabChange={(value) => onConfigTabChange(file.path, config.name, value)}
+        onToggleBom={(e) => onConfigBomToggle(e, file, config.name)}
       />
     )
   }, [
@@ -346,6 +406,27 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     onConfigContextMenu,
     onConfigDescriptionChange,
     onConfigTabChange,
+    onConfigBomToggle,
+  ])
+
+  const renderConfigBomRow = useCallback((row: ConfigBomVirtualRow) => {
+    const { file, configDepth, item } = row
+    
+    return (
+      <ConfigBomRow
+        key={`${file.path}::bom::${row.configName}::${item.id}`}
+        item={item}
+        depth={0}
+        configDepth={configDepth}
+        rowHeight={configBomRowHeight}
+        visibleColumns={visibleColumns}
+        onClick={(e) => onConfigBomRowClick(e, file, item)}
+      />
+    )
+  }, [
+    configBomRowHeight,
+    visibleColumns,
+    onConfigBomRowClick,
   ])
 
   // ============================================================================
@@ -388,6 +469,12 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
             return (
               <React.Fragment key={`config::${row.file.path}::${row.config.name}`}>
                 {renderConfigRow(row)}
+              </React.Fragment>
+            )
+          case 'config-bom':
+            return (
+              <React.Fragment key={`config-bom::${row.file.path}::${row.configName}::${row.item.id}`}>
+                {renderConfigBomRow(row)}
               </React.Fragment>
             )
           default:

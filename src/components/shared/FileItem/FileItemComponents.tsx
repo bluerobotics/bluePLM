@@ -23,7 +23,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { LocalFile } from '@/stores/pdmStore'
-import { getFileIconType, getInitials } from '@/lib/utils'
+import { getFileIconType, getInitials, getAvatarColor } from '@/lib/utils'
 
 // ============================================================================
 // FILE ICON - Loads OS thumbnail with fallback to type-based icons
@@ -494,16 +494,21 @@ export function CheckoutAvatars({
               }}
             />
           ) : null}
-          <div 
-            className={`w-full h-full flex items-center justify-center font-medium ${
-              u.isMe 
-                ? (u.isDifferentMachine ? 'bg-plm-warning/30 text-plm-warning' : 'bg-plm-accent/30 text-plm-accent') 
-                : 'bg-plm-accent/30 text-plm-accent'
-            } ${u.avatar_url ? 'hidden' : ''}`}
-            style={{ fontSize }}
-          >
-            {getInitials(u.name)}
-          </div>
+          {(() => {
+            const avatarColors = getAvatarColor(u.email || u.name)
+            return (
+              <div 
+                className={`w-full h-full flex items-center justify-center font-medium ${
+                  u.isMe && u.isDifferentMachine
+                    ? 'bg-plm-warning/50 text-plm-warning' 
+                    : `${avatarColors.bg} ${avatarColors.text}`
+                } ${u.avatar_url ? 'hidden' : ''}`}
+                style={{ fontSize }}
+              >
+                {getInitials(u.name)}
+              </div>
+            )
+          })()}
         </div>
       ))}
       {hasOverflow && (
@@ -591,6 +596,8 @@ export function StatusIcon({ file, userId, size = 12 }: StatusIconProps) {
     const avatarSize = Math.max(16, size * 1.5)
     const fontSize = Math.max(8, avatarSize * 0.45)
     
+    const avatarColors = getAvatarColor(checkedOutUser?.email || displayName)
+    
     return (
       <div 
         className="relative flex-shrink-0" 
@@ -611,7 +618,7 @@ export function StatusIcon({ file, userId, size = 12 }: StatusIconProps) {
           />
         ) : null}
         <div 
-          className={`w-full h-full rounded-full bg-plm-accent/30 text-plm-accent flex items-center justify-center font-medium absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
+          className={`w-full h-full rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center font-medium absolute inset-0 ${avatarUrl ? 'hidden' : ''}`}
           style={{ fontSize }}
         >
           {getInitials(displayName)}

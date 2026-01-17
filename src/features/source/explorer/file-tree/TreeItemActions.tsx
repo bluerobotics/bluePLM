@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { OperationType, StagedCheckin, ToastType } from '@/stores/types'
 import type { User } from '@/types/pdm'
-import { getInitials } from '@/lib/utils'
+import { getInitials, getAvatarColor } from '@/lib/utils'
 import { 
   InlineCheckoutButton, 
   InlineDownloadButton, 
@@ -278,11 +278,16 @@ export function FileActionButtons({
                     }}
                   />
                 ) : null}
-                <div 
-                  className={`w-5 h-5 rounded-full bg-plm-accent/30 text-plm-accent flex items-center justify-center text-[9px] font-medium ring-2 ring-plm-accent ${user?.avatar_url ? 'hidden' : ''}`}
-                >
-                  {getInitials(user?.full_name || user?.email?.split('@')[0] || 'U')}
-                </div>
+                {(() => {
+                  const avatarColors = getAvatarColor(user?.email || user?.full_name)
+                  return (
+                    <div 
+                      className={`w-5 h-5 rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center text-[9px] font-medium ring-2 ring-plm-accent ${user?.avatar_url ? 'hidden' : ''}`}
+                    >
+                      {getInitials(user?.full_name || user?.email?.split('@')[0] || 'U')}
+                    </div>
+                  )
+                })()}
               </div>
             )}
             {checkedOutByOther && checkedOutUser && file.pdmData?.id && (

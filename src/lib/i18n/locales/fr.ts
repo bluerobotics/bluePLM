@@ -212,6 +212,11 @@ export const fr: TranslationDict = {
     excludedFiles: 'Fichiers exclus',
     excludedFilesDesc: '{{count}} fichier(s) exclus du téléchargement automatique (supprimés manuellement)',
     clearExcludedFiles: 'Effacer la liste',
+    autoDiscardOrphanedFiles: 'Supprimer auto les fichiers orphelins',
+    autoDiscardOrphanedFilesDesc: 'Supprimer automatiquement les fichiers locaux qui n\'existent plus sur le serveur',
+    discardOrphaned: 'Supprimer orphelins',
+    discardOrphanedCount: 'Supprimer orphelins ({{count}} fichier{{plural}})',
+    orphanedFilesDescription: 'Ces fichiers ont été synchronisés précédemment mais ont été supprimés du serveur par un autre utilisateur',
   },
 
   sidebar: {

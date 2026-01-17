@@ -212,6 +212,11 @@ export const es: TranslationDict = {
     excludedFiles: 'Archivos excluidos',
     excludedFilesDesc: '{{count}} archivo(s) excluido(s) de descarga automática (eliminados manualmente)',
     clearExcludedFiles: 'Limpiar lista',
+    autoDiscardOrphanedFiles: 'Descartar archivos huérfanos automáticamente',
+    autoDiscardOrphanedFilesDesc: 'Eliminar automáticamente archivos locales que ya no existen en el servidor',
+    discardOrphaned: 'Descartar huérfanos',
+    discardOrphanedCount: 'Descartar huérfanos ({{count}} archivo{{plural}})',
+    orphanedFilesDescription: 'Estos archivos fueron sincronizados previamente pero han sido eliminados del servidor por otro usuario',
   },
 
   sidebar: {

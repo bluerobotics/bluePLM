@@ -333,6 +333,105 @@ export async function getContains(fileId: string) {
   return { references: data, error }
 }
 
+/**
+ * BOM item for configuration-specific display
+ */
+export interface ConfigBomItem {
+  id: string
+  child_file_id: string
+  file_name: string
+  file_path: string
+  file_type: 'part' | 'assembly' | 'drawing' | 'other'
+  part_number: string | null
+  description: string | null
+  revision: string | null
+  state: string | null
+  quantity: number
+  configuration: string | null
+  in_database: boolean
+}
+
+/**
+ * Get BOM components for a specific assembly configuration.
+ * Returns only the components that are included in the specified configuration.
+ * 
+ * @param fileId - Assembly file ID
+ * @param configName - Configuration name to filter by (null for all configs)
+ * @returns Array of BOM items for the configuration
+ */
+export async function getContainsByConfiguration(
+  fileId: string, 
+  configName: string | null
+): Promise<{ items: ConfigBomItem[] | null; error: any }> {
+  const client = getSupabaseClient()
+  
+  let query = client
+    .from('file_references')
+    .select(`
+      id,
+      child_file_id,
+      quantity,
+      configuration,
+      reference_type,
+      child:files!child_file_id(
+        id, file_name, file_path, file_type, part_number, revision, state, description
+      )
+    `)
+    .eq('parent_file_id', fileId)
+    .eq('reference_type', 'component')
+  
+  // Filter by configuration if specified
+  if (configName !== null) {
+    query = query.eq('configuration', configName)
+  }
+  
+  const { data, error } = await query.order('child(file_name)', { ascending: true })
+  
+  if (error) {
+    return { items: null, error }
+  }
+  
+  // Transform to ConfigBomItem format
+  const items: ConfigBomItem[] = (data || []).map(ref => {
+    const child = ref.child as {
+      id: string
+      file_name: string
+      file_path: string
+      file_type: string | null
+      part_number: string | null
+      revision: string | null
+      state: string | null
+      description: string | null
+    } | null
+    
+    // Determine file type from extension if not set
+    let fileType: ConfigBomItem['file_type'] = 'other'
+    if (child?.file_name) {
+      const ext = child.file_name.toLowerCase().split('.').pop()
+      if (ext === 'sldprt') fileType = 'part'
+      else if (ext === 'sldasm') fileType = 'assembly'
+      else if (ext === 'slddrw') fileType = 'drawing'
+    }
+    
+    return {
+      id: ref.id,
+      child_file_id: ref.child_file_id,
+      file_name: child?.file_name || 'Unknown',
+      file_path: child?.file_path || '',
+      file_type: fileType,
+      part_number: child?.part_number || null,
+      description: child?.description || null,
+      revision: child?.revision || null,
+      state: child?.state || null,
+      quantity: ref.quantity ?? 1,
+      configuration: ref.configuration,
+      in_database: !!child?.id
+    }
+  })
+  
+  return { items, error: null }
+}
+
 // ============================================
 // Recursive BOM Tree Types and Functions
 // ============================================

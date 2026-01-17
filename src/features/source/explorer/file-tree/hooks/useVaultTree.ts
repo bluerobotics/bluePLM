@@ -87,6 +87,7 @@ export function useVaultTree() {
   // Selective state selectors - each subscription only triggers on its own changes
   const files = usePDMStore(s => s.files)
   const hideSolidworksTempFiles = usePDMStore(s => s.hideSolidworksTempFiles)
+  const hideCloudOnlyFolders = usePDMStore(s => s.hideCloudOnlyFolders)
   const user = usePDMStore(s => s.user)
   const processingOperations = usePDMStore(s => s.processingOperations)
   
@@ -109,7 +110,7 @@ export function useVaultTree() {
   
   // Build folder tree structure
   const tree = useMemo<TreeMap>(() => {
-    console.log('[useVaultTree] Building tree, files count:', files.length)
+    console.log('[useVaultTree] Building tree, files count:', files.length, 'hideCloudOnlyFolders:', hideCloudOnlyFolders)
     const treeMap: TreeMap = { '': [] }
     
     // Filter out any undefined or invalid files and optionally hide SolidWorks temp files
@@ -120,8 +121,50 @@ export function useVaultTree() {
       return true
     })
     
+    // When hideCloudOnlyFolders is enabled, compute which folders have downloaded files
+    // A folder is considered "has downloads" if any file in it (recursively) is NOT cloud-only
+    let foldersWithDownloads: Set<string> | null = null
+    if (hideCloudOnlyFolders) {
+      foldersWithDownloads = new Set<string>()
+      
+      for (const file of validFiles) {
+        // Check if this file is downloaded (not cloud-only)
+        if (!file.isDirectory && file.diffStatus !== 'cloud') {
+          // Mark all parent folders as having downloads
+          const parts = file.relativePath.split('/')
+          let currentPath = ''
+          for (let i = 0; i < parts.length - 1; i++) {
+            currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i]
+            foldersWithDownloads.add(currentPath)
+          }
+        }
+      }
+    }
+    
     validFiles.forEach(file => {
       const parts = file.relativePath.split('/')
+      
+      // When filtering, skip files/folders in cloud-only folders
+      if (hideCloudOnlyFolders && foldersWithDownloads) {
+        if (file.isDirectory) {
+          // Skip folders that don't have any downloaded files
+          if (!foldersWithDownloads.has(file.relativePath)) {
+            return
+          }
+        } else {
+          // Skip cloud-only files in cloud-only folders
+          // But keep cloud files that are in folders WITH downloaded files (mixed folders)
+          if (file.diffStatus === 'cloud') {
+            // If this cloud file's immediate parent doesn't have downloads, skip it
+            // This ensures we show cloud files in mixed folders but not in pure cloud folders
+            const immediateParent = parts.slice(0, -1).join('/')
+            if (!foldersWithDownloads.has(immediateParent) && immediateParent !== '') {
+              return
+            }
+          }
+        }
+      }
+      
       if (parts.length === 1) {
         treeMap[''].push(file)
       } else {
@@ -135,7 +178,7 @@ export function useVaultTree() {
     
     console.log('[useVaultTree] Tree built, root items:', treeMap['']?.length)
     return treeMap
-  }, [files, hideSolidworksTempFiles])
+  }, [files, hideSolidworksTempFiles, hideCloudOnlyFolders])
 
   /**
    * Pre-computed folder metrics in a single O(N) pass.

@@ -8,11 +8,11 @@
  * NOTE: Drawing files can have their item number locked via settings because
  * it typically comes from the referenced model, not from editable properties.
  */
-import { useState } from 'react'
-import { Sparkles, Loader2, FileInput } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Sparkles, Loader2, FileInput, Check } from 'lucide-react'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import { usePDMStore } from '@/stores/pdmStore'
-import { getNextSerialNumber } from '@/lib/serialization'
+import { getNextSerialNumber, previewNextSerialNumber } from '@/lib/serialization'
 import type { CellRendererBaseProps } from './types'
 
 export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode {
@@ -39,6 +39,33 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   const [isGenerating, setIsGenerating] = useState(false)
   const [localTabValue, setLocalTabValue] = useState(file.pendingMetadata?.tab_number ?? '')
   
+  // Confirmation state for inline BR number generation
+  const [confirmingGenerate, setConfirmingGenerate] = useState(false)
+  const [previewNumber, setPreviewNumber] = useState<string | null>(null)
+  const confirmContainerRef = useRef<HTMLDivElement>(null)
+  
+  // Click-outside handler to cancel confirmation
+  useEffect(() => {
+    if (!confirmingGenerate) return
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (confirmContainerRef.current && !confirmContainerRef.current.contains(e.target as Node)) {
+        setConfirmingGenerate(false)
+        setPreviewNumber(null)
+      }
+    }
+    
+    // Use timeout to avoid immediate trigger from the click that opened confirmation
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+    }, 0)
+    
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [confirmingGenerate])
+  
   if (file.isDirectory) return ''
   
   // Drawing files can have their item number locked via settings
@@ -46,6 +73,33 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   const isDrawingLocked = isDrawing && lockDrawingItemNumber
   const canEditItemNumber = isFileEditable(file) && !isDrawingLocked
   const isEditingItemNumber = editingCell?.path === file.path && editingCell?.column === 'itemNumber'
+  
+  // Handle starting confirmation flow for BR number generation (from hover button)
+  const handleStartConfirm = async () => {
+    if (!organization?.id) {
+      addToast('error', 'No organization connected')
+      return
+    }
+    
+    try {
+      const preview = await previewNextSerialNumber(organization.id)
+      if (!preview) {
+        addToast('error', 'Serialization is disabled or failed')
+        return
+      }
+      setPreviewNumber(preview)
+      setConfirmingGenerate(true)
+    } catch (err) {
+      addToast('error', `Failed to preview serial: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  
+  // Handle confirming the BR number generation
+  const handleConfirmGenerate = async () => {
+    setConfirmingGenerate(false)
+    setPreviewNumber(null)
+    await handleGenerateSerial(true)
+  }
   
   // Handle inline tab number change (when Tab column is hidden)
   const handleInlineTabChange = (value: string) => {
@@ -113,7 +167,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
     return (
       <div className="flex items-center gap-1">
         {/* Base number input with generate button inside - sized to content */}
-        <div className="relative inline-flex">
+        <div className="relative inline-flex min-w-[60px]">
           <input
             ref={inlineEditInputRef}
             type="text"
@@ -139,7 +193,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             draggable={false}
             disabled={isGenerating}
             size={Math.max(editValue.length || 6, 6)}
-            className="bg-plm-bg border border-plm-accent rounded pl-1 pr-5 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent disabled:opacity-50"
+            className="bg-plm-bg border border-plm-accent rounded pl-1 pr-8 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent disabled:opacity-50"
           />
           <button
             data-generate-btn="true"
@@ -196,39 +250,76 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
         // Stop mousedown from triggering row drag or file focus
         e.stopPropagation()
       }}
+      onDragStart={(e) => {
+        // Prevent row drag when user is trying to select text
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+      draggable={false}
       title={getTooltip()}
     >
-      {/* Base number with generate button - compact box like edit mode */}
+      {/* Base number with generate button and inline confirmation */}
       <div 
-        className={`relative inline-flex items-center rounded pl-1 pr-5 py-0 ${canEditItemNumber ? 'cursor-text border border-transparent group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg' : ''}`}
-        onClick={(e) => {
-          e.stopPropagation()
-          e.preventDefault()
-          if (canEditItemNumber) {
-            handleStartCellEdit(file, 'itemNumber')
-          }
-        }}
+        ref={confirmContainerRef}
+        className="flex items-center"
       >
-        <span className={`text-sm ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}>
-          {displayValue}
-        </span>
-        {canEditItemNumber && (
+        {/* Main item number box */}
+        <div 
+          className={`relative inline-flex items-center min-w-[60px] rounded-l pl-1 pr-8 py-0 ${canEditItemNumber ? 'cursor-text border border-transparent group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg' : ''} ${confirmingGenerate ? 'border-plm-accent/50 bg-plm-bg rounded-l rounded-r-none' : 'rounded'}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            if (canEditItemNumber && !confirmingGenerate) {
+              handleStartCellEdit(file, 'itemNumber')
+            }
+          }}
+        >
+          <span className={`text-sm ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}>
+            {displayValue}
+          </span>
+          {canEditItemNumber && !confirmingGenerate && (
+            <button
+              data-generate-btn="true"
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                handleStartConfirm()
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              disabled={isGenerating}
+              className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/cell:opacity-100 p-0.5 rounded text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/20 disabled:opacity-50 transition-all"
+              title="Generate next serial number"
+            >
+              {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            </button>
+          )}
+          {isDrawingLocked && <FileInput size={12} className="ml-1 text-plm-fg-muted/50 flex-shrink-0" />}
+        </div>
+        
+        {/* Inline confirmation expansion */}
+        <div 
+          className={`flex items-center gap-1.5 overflow-hidden transition-all duration-200 ease-out ${
+            confirmingGenerate 
+              ? 'max-w-[200px] opacity-100 pl-2 pr-1.5 py-0.5 border border-l-0 border-plm-accent/50 bg-plm-bg rounded-r' 
+              : 'max-w-0 opacity-0'
+          }`}
+        >
+          <span className="text-plm-fg-muted text-xs whitespace-nowrap">→</span>
+          <span className="text-sm text-plm-accent font-medium whitespace-nowrap">{previewNumber}</span>
           <button
-            data-generate-btn="true"
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
-              handleGenerateSerial(true)
+              handleConfirmGenerate()
             }}
             onMouseDown={(e) => e.stopPropagation()}
             disabled={isGenerating}
-            className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/cell:opacity-100 p-0.5 rounded text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/20 disabled:opacity-50 transition-all"
-            title="Generate next serial number"
+            className="p-1 rounded bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30 disabled:opacity-50 transition-colors"
+            title="Confirm generation"
           >
-            {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
           </button>
-        )}
-        {isDrawingLocked && <FileInput size={12} className="ml-1 text-plm-fg-muted/50 flex-shrink-0" />}
+        </div>
       </div>
       {/* Tab number input (when Tab column is hidden) - subtle styling to match item number */}
       {showInlineTab && (

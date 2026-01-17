@@ -669,6 +669,7 @@ export const checkinCommand: Command<CheckinParams> = {
               updates: {
                 pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
                 localHash: file.localHash,
+                localVersion: result.file.version, // Track the new version after checkin
                 diffStatus: undefined,
                 localActiveVersion: undefined,
                 pendingMetadata: undefined,
@@ -894,6 +895,7 @@ export const checkinCommand: Command<CheckinParams> = {
               updates: {
                 pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
                 localHash: fileHash,
+                localVersion: result.file.version, // Track the new version after checkin
                 diffStatus: undefined,
                 localActiveVersion: undefined,
                 pendingMetadata: undefined,
@@ -1025,6 +1027,7 @@ export const checkinCommand: Command<CheckinParams> = {
               updates: {
                 pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
                 localHash: result.file.content_hash,
+                localVersion: result.file.version, // Track the new version after checkin
                 diffStatus: undefined,
                 localActiveVersion: undefined,
                 pendingMetadata: undefined,

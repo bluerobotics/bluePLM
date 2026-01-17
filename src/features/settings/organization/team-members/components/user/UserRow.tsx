@@ -18,7 +18,7 @@ import {
   Loader2,
   X
 } from 'lucide-react'
-import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
+import { getInitials, getEffectiveAvatarUrl, getAvatarColor } from '@/lib/utils'
 import { formatLastOnline, getTitleIcon, getTeamIcon, getRoleIcon } from '../../utils'
 import type { UserRowProps } from '../../types'
 
@@ -68,18 +68,21 @@ export function UserRow({
         onClick={onViewProfile}
         className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
       >
-        {getEffectiveAvatarUrl(user) ? (
-          <img 
-            src={getEffectiveAvatarUrl(user) || ''} 
-            alt=""
-            className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover`}
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <div className={`${compact ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'} rounded-full bg-plm-fg-muted/20 flex items-center justify-center font-medium`}>
-            {getInitials(user.full_name || user.email)}
-          </div>
-        )}
+        {(() => {
+          const avatarColors = getAvatarColor(user.email || user.full_name)
+          return getEffectiveAvatarUrl(user) ? (
+            <img 
+              src={getEffectiveAvatarUrl(user) || ''} 
+              alt=""
+              className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover`}
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className={`${compact ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'} rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center font-medium`}>
+              {getInitials(user.full_name || user.email)}
+            </div>
+          )
+        })()}
         <div className="flex-1 min-w-0">
           <div className={`${compact ? 'text-sm' : 'text-base'} text-plm-fg truncate flex items-center gap-2`}>
             {user.full_name || user.email}

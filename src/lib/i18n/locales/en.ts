@@ -227,6 +227,11 @@ export const en: TranslationDict = {
     excludedFiles: 'Excluded files',
     excludedFilesDesc: '{{count}} file(s) excluded from auto-download (manually removed)',
     clearExcludedFiles: 'Clear list',
+    autoDiscardOrphanedFiles: 'Auto-discard orphaned files',
+    autoDiscardOrphanedFilesDesc: 'Automatically remove local files that no longer exist on the server',
+    discardOrphaned: 'Discard Orphaned',
+    discardOrphanedCount: 'Discard Orphaned ({{count}} file{{plural}})',
+    orphanedFilesDescription: 'These files were previously synced but have been deleted from the server by another user',
   },
 
   // Activity bar / Sidebar

@@ -8,7 +8,7 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Bell, Lock, Loader2 } from 'lucide-react'
-import { getInitials } from '@/lib/utils'
+import { getInitials, getAvatarColor } from '@/lib/utils'
 import { requestCheckout } from '@/lib/supabase/notifications'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
@@ -87,6 +87,7 @@ export function NotifiableCheckoutAvatar({
   const displayName = user.full_name || user.email?.split('@')[0] || 'User'
   const initials = getInitials(displayName)
   const calculatedFontSize = fontSize ?? size * 0.45
+  const avatarColors = getAvatarColor(user.email || user.full_name)
   
   // Determine if this is a folder with multiple files
   // Support both folderFileIds array and isFolder + fileCount props
@@ -206,7 +207,7 @@ export function NotifiableCheckoutAvatar({
           />
         ) : null}
         <div
-          className={`w-full h-full rounded-full bg-plm-accent/30 text-plm-accent flex items-center justify-center font-medium ${
+          className={`w-full h-full rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center font-medium ${
             user.avatar_url ? 'hidden' : ''
           }`}
           style={{ fontSize: calculatedFontSize }}

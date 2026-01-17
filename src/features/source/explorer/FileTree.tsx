@@ -16,7 +16,9 @@ import {
   RefreshCw,
   Plus,
   Lock,
-  X
+  X,
+  Filter,
+  CloudOff
 } from 'lucide-react'
 // Shared file/folder components
 import { 
@@ -42,7 +44,7 @@ import { useFlattenedTree } from './file-tree/hooks/useFlattenedTree'
 import { useTreeDragDrop } from './file-tree/hooks/useTreeDragDrop'
 import { useTreeKeyboardNav } from './file-tree/hooks/useTreeKeyboardNav'
 // Shared hooks
-import { useSelectionCategories, useClipboard, useSelectionBox, useSlowDoubleClick } from '@/hooks'
+import { useSelectionCategories, useClipboard, useSelectionBox, useSlowDoubleClick, useAutoScrollOnDrag } from '@/hooks'
 // Constants
 import { 
   TREE_BASE_PADDING_PX, 
@@ -85,6 +87,8 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   const isLoading = usePDMStore(s => s.isLoading)
   const filesLoaded = usePDMStore(s => s.filesLoaded)
   const hideSolidworksTempFiles = usePDMStore(s => s.hideSolidworksTempFiles)
+  const hideCloudOnlyFolders = usePDMStore(s => s.hideCloudOnlyFolders)
+  const setHideCloudOnlyFolders = usePDMStore(s => s.setHideCloudOnlyFolders)
   const tabsEnabled = usePDMStore(s => s.tabsEnabled)
   const activeTabId = usePDMStore(s => s.activeTabId)
   
@@ -236,6 +240,9 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   
   // Use keyboard navigation hook
   useTreeKeyboardNav({ containerRef: fileTreeContainerRef, tree, onRefresh })
+  
+  // Auto-scroll when dragging near edges of the scrollable container
+  useAutoScrollOnDrag(scrollableContainerRef, { edgeThreshold: 50, maxScrollSpeed: 15 })
   
   // Clear selection helper
   const clearSelection = useCallback(() => {
@@ -956,6 +963,31 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         onRefresh={onRefresh}
         renderTreeItem={renderTreeItem}
       />
+      
+      {/* Filter bar - above vault list */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-plm-border bg-plm-bg">
+        <button
+          onClick={() => setHideCloudOnlyFolders(!hideCloudOnlyFolders)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+            hideCloudOnlyFolders 
+              ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30' 
+              : 'text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg border border-transparent'
+          }`}
+          title={hideCloudOnlyFolders ? 'Showing downloaded only - click to show all' : 'Show only folders with downloaded files'}
+        >
+          {hideCloudOnlyFolders ? (
+            <>
+              <CloudOff size={12} />
+              <span>Downloaded only</span>
+            </>
+          ) : (
+            <>
+              <Filter size={12} />
+              <span>Filter</span>
+            </>
+          )}
+        </button>
+      </div>
       
       {/* Vault list - scrollable container for virtualization */}
       <div 

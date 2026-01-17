@@ -261,9 +261,31 @@ namespace BluePLM.SolidWorksService
             finally
             {
                 // Close the document to release file locks
+                // IMPORTANT: Use doc.GetTitle() instead of outputPath because after SaveAs3,
+                // SolidWorks's internal document name is the FILENAME (not full path).
+                // CloseDoc requires the exact document title or full path to match.
                 if (doc != null)
                 {
-                    try { CloseDocument(outputPath!); } catch { }
+                    try 
+                    { 
+                        var sw = _swApp;
+                        if (sw != null)
+                        {
+                            // Get the actual document title (filename after SaveAs)
+                            var docTitle = doc.GetTitle();
+                            
+                            // Explicitly close by title
+                            sw.CloseDoc(docTitle);
+                        }
+                    } 
+                    catch { }
+                    finally
+                    {
+                        // Release COM reference to ensure file lock is freed
+                        // This is critical - without releasing, the file can remain locked
+                        try { Marshal.ReleaseComObject(doc); } catch { }
+                        doc = null;
+                    }
                 }
                 CloseSolidWorksIfWeStartedIt();
             }

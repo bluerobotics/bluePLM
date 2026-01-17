@@ -7,9 +7,10 @@
  * Designed for future extraction to a SOLIDWORKS extension.
  */
 import { memo, useState, useRef } from 'react'
-import { FileBox, Boxes, FileText } from 'lucide-react'
+import { FileBox, Boxes, FileText, Loader2 } from 'lucide-react'
 import { useSolidWorksFileCreation, type SolidWorksFileType, type TemplateFile } from '../hooks'
 import { ContextSubmenu } from '@/features/source/browser/components/ContextMenu/components'
+import { usePDMStore } from '@/stores/pdmStore'
 
 export interface SolidWorksContextMenuItemsProps {
   /** Target folder path where new files will be created */
@@ -29,6 +30,10 @@ interface FileTypeMenuItemProps {
   onClose: () => void
   onFileCreated?: (filePath: string) => void
   createFromTemplate: (templatePath: string, targetFolder: string, fileType: SolidWorksFileType) => Promise<string | null>
+  /** Whether any file creation is currently in progress */
+  isCreating: boolean
+  /** Set creating state */
+  setIsCreating: (creating: boolean) => void
 }
 
 /**
@@ -42,18 +47,34 @@ const FileTypeMenuItem = memo(function FileTypeMenuItem({
   targetFolder,
   onClose,
   onFileCreated,
-  createFromTemplate
+  createFromTemplate,
+  isCreating,
+  setIsCreating
 }: FileTypeMenuItemProps) {
   const [showSubmenu, setShowSubmenu] = useState(false)
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const addToast = usePDMStore(s => s.addToast)
   
   const handleCreateFromTemplate = async (e: React.MouseEvent, template: TemplateFile) => {
     e.stopPropagation()
+    
+    // Prevent duplicate clicks while creating
+    if (isCreating) return
+    
+    setIsCreating(true)
+    
+    // Show immediate feedback toast
+    addToast('info', `Creating ${fileType}...`, 2000)
+    
+    // Close menu immediately so user knows action was received
+    onClose()
+    
     const filePath = await createFromTemplate(template.path, targetFolder, fileType)
     if (filePath) {
       onFileCreated?.(filePath)
     }
-    onClose()
+    
+    setIsCreating(false)
   }
   
   const handleMouseEnter = () => {
@@ -71,19 +92,19 @@ const FileTypeMenuItem = memo(function FileTypeMenuItem({
   
   return (
     <div 
-      className="context-menu-item relative"
+      className={`context-menu-item relative ${isCreating ? 'disabled' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={(e) => {
         e.stopPropagation()
-        setShowSubmenu(!showSubmenu)
+        if (!isCreating) setShowSubmenu(!showSubmenu)
       }}
     >
-      {icon}
+      {isCreating ? <Loader2 size={14} className="animate-spin" /> : icon}
       {label}
       <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
       
-      {showSubmenu && (
+      {showSubmenu && !isCreating && (
         <ContextSubmenu
           minWidth={180}
           onMouseEnter={handleMouseEnter}
@@ -124,6 +145,8 @@ export const SolidWorksContextMenuItems = memo(function SolidWorksContextMenuIte
   onClose,
   onFileCreated
 }: SolidWorksContextMenuItemsProps) {
+  const [isCreating, setIsCreating] = useState(false)
+  
   const {
     canCreateSolidWorksFiles,
     isIntegrationEnabled,
@@ -169,6 +192,8 @@ export const SolidWorksContextMenuItems = memo(function SolidWorksContextMenuIte
         onClose={onClose}
         onFileCreated={onFileCreated}
         createFromTemplate={createFromTemplate}
+        isCreating={isCreating}
+        setIsCreating={setIsCreating}
       />
       
       {/* Assembly */}
@@ -181,6 +206,8 @@ export const SolidWorksContextMenuItems = memo(function SolidWorksContextMenuIte
         onClose={onClose}
         onFileCreated={onFileCreated}
         createFromTemplate={createFromTemplate}
+        isCreating={isCreating}
+        setIsCreating={setIsCreating}
       />
       
       {/* Drawing */}
@@ -193,6 +220,8 @@ export const SolidWorksContextMenuItems = memo(function SolidWorksContextMenuIte
         onClose={onClose}
         onFileCreated={onFileCreated}
         createFromTemplate={createFromTemplate}
+        isCreating={isCreating}
+        setIsCreating={setIsCreating}
       />
     </>
   )

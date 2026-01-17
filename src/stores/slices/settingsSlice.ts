@@ -95,6 +95,9 @@ export const createSettingsSlice: StateCreator<
   language: 'en',
   keybindings: defaultKeybindings,
   
+  // Initial state - Tree Filtering
+  hideCloudOnlyFolders: false,  // Show all folders by default
+  
   // Initial state - Theme Effects
   christmasSnowOpacity: 40,
   christmasSnowDensity: 100,
@@ -118,6 +121,9 @@ export const createSettingsSlice: StateCreator<
   autoDownloadUpdates: false,
   autoDownloadSizeLimit: 1024,  // Default: 1 GB (1024 MB) - 0 means no limit
   autoDownloadExcludedFiles: {},
+  
+  // Initial state - Auto-discard orphaned files
+  autoDiscardOrphanedFiles: false,  // Default: OFF - automatically remove local files that no longer exist on server
   
   // Initial state - Upload warnings
   uploadSizeWarningEnabled: true,  // Warn by default
@@ -176,6 +182,9 @@ export const createSettingsSlice: StateCreator<
   })),
   resetKeybindings: () => set({ keybindings: defaultKeybindings }),
   
+  // Actions - Tree Filtering
+  setHideCloudOnlyFolders: (hideCloudOnlyFolders) => set({ hideCloudOnlyFolders }),
+  
   // Actions - Theme Effects
   setChristmasSnowOpacity: (christmasSnowOpacity) => set({ christmasSnowOpacity }),
   setChristmasSnowDensity: (christmasSnowDensity) => set({ christmasSnowDensity }),
@@ -198,6 +207,9 @@ export const createSettingsSlice: StateCreator<
   setAutoDownloadCloudFiles: (autoDownloadCloudFiles) => set({ autoDownloadCloudFiles }),
   setAutoDownloadUpdates: (autoDownloadUpdates) => set({ autoDownloadUpdates }),
   setAutoDownloadSizeLimit: (autoDownloadSizeLimit) => set({ autoDownloadSizeLimit: Math.max(0, autoDownloadSizeLimit) }),
+  
+  // Actions - Auto-discard orphaned files
+  setAutoDiscardOrphanedFiles: (autoDiscardOrphanedFiles) => set({ autoDiscardOrphanedFiles }),
   
   // Actions - Upload warnings
   setUploadSizeWarningEnabled: (uploadSizeWarningEnabled) => set({ uploadSizeWarningEnabled }),

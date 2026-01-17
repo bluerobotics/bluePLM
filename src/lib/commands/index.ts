@@ -57,6 +57,7 @@ import { downloadCommand } from './handlers/download'
 import { getLatestCommand } from './handlers/getLatest'
 import { deleteLocalCommand, deleteServerCommand } from './handlers/delete'
 import { discardCommand } from './handlers/discard'
+import { discardOrphanedCommand } from './handlers/discardOrphaned'
 import { forceReleaseCommand } from './handlers/forceRelease'
 import { 
   openCommand, 
@@ -86,6 +87,7 @@ function initializeCommands() {
   registerCommand('delete-local', deleteLocalCommand)
   registerCommand('delete-server', deleteServerCommand)
   registerCommand('discard', discardCommand)
+  registerCommand('discard-orphaned', discardOrphanedCommand)
   registerCommand('force-release', forceReleaseCommand)
   
   // File operations
@@ -186,6 +188,16 @@ export async function discard(
   onRefresh?: (silent?: boolean) => void
 ) {
   return executeCommand('discard', { files }, { onRefresh })
+}
+
+/**
+ * Discard orphaned files (local files that no longer exist on server)
+ */
+export async function discardOrphaned(
+  files: LocalFile[],
+  onRefresh?: (silent?: boolean) => void
+) {
+  return executeCommand('discard-orphaned', { files }, { onRefresh })
 }
 
 /**

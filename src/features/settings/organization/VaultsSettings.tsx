@@ -73,6 +73,8 @@ export function VaultsSettings() {
     setAutoDownloadUpdates,
     autoDownloadSizeLimit,
     setAutoDownloadSizeLimit,
+    autoDiscardOrphanedFiles,
+    setAutoDiscardOrphanedFiles,
     uploadSizeWarningEnabled,
     setUploadSizeWarningEnabled,
     uploadSizeWarningThreshold,
@@ -1000,6 +1002,33 @@ export function VaultsSettings() {
                 )}
               </div>
             )}
+            
+            {/* Auto-discard orphaned files */}
+            <div className="pt-3 border-t border-plm-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-plm-highlight">
+                    <FolderX size={18} className="text-plm-fg-muted" />
+                  </div>
+                  <div>
+                    <div className="text-base text-plm-fg">Auto-discard orphaned files</div>
+                    <div className="text-sm text-plm-fg-muted mt-0.5">
+                      Automatically remove local files that no longer exist on the server
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAutoDiscardOrphanedFiles(!autoDiscardOrphanedFiles)}
+                  className="text-plm-accent"
+                >
+                  {autoDiscardOrphanedFiles ? (
+                    <ToggleRight size={28} />
+                  ) : (
+                    <ToggleLeft size={28} className="text-plm-fg-muted" />
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -577,9 +577,18 @@ export function ContainsTab({ file }: { file: LocalFile }) {
       })
       
       if (result?.success && result.data) {
-        const swBom = result.data.items.map((item: { fileName: string; filePath: string; fileType: string; quantity: number; configuration: string; partNumber: string; description: string; material: string; revision: string; properties: Record<string, string> }) => ({
-          ...item,
-          fileType: (item.fileType === 'Part' || item.fileType === 'Assembly' ? item.fileType : 'Other') as 'Part' | 'Assembly' | 'Other'
+        // Data is already in camelCase from the preload API
+        const swBom = result.data.items.map((item) => ({
+          fileName: item.fileName,
+          filePath: item.filePath,
+          fileType: (item.fileType === 'Part' || item.fileType === 'Assembly' ? item.fileType : 'Other') as 'Part' | 'Assembly' | 'Other',
+          quantity: item.quantity ?? 1,
+          configuration: item.configuration || '',
+          partNumber: item.partNumber || '',
+          description: item.description || '',
+          material: item.material || '',
+          revision: item.revision || '',
+          properties: item.properties || {}
         }))
         setBom(swBom)
         setDataSource('solidworks')

@@ -185,6 +185,10 @@ export interface LocalFile {
   // Local active version (set after rollback, before check-in)
   // This tracks which version's content is currently in the local file
   localActiveVersion?: number
+  // Tracked local version (the version number of content currently on disk)
+  // Set when: file is downloaded, checked in, or rolled back
+  // Used for accurate version display instead of assuming "cloudVersion - 1"
+  localVersion?: number
   // Pending version notes (version_id -> note, synced on check-in)
   // Allows editing notes on historical versions while file is checked out
   pendingVersionNotes?: Record<string, string>
@@ -236,6 +240,22 @@ export interface SWConfiguration {
   tabNumber?: string
   description?: string
   depth: number  // Tree depth for indentation
+}
+
+// BOM item for configuration-specific display in file browser
+export interface ConfigBomItem {
+  id: string
+  child_file_id: string
+  file_name: string
+  file_path: string
+  file_type: 'part' | 'assembly' | 'drawing' | 'other'
+  part_number: string | null
+  description: string | null
+  revision: string | null
+  state: string | null
+  quantity: number
+  configuration: string | null
+  in_database: boolean
 }
 
 // Orphaned checkout - file was force-checked-in from another machine
@@ -470,6 +490,9 @@ export interface SettingsSlice {
   language: Language
   keybindings: KeybindingsConfig
   
+  // State - Tree Filtering
+  hideCloudOnlyFolders: boolean  // Hide folders containing only cloud (non-downloaded) files
+  
   // State - Theme Effects
   christmasSnowOpacity: number
   christmasSnowDensity: number
@@ -493,6 +516,9 @@ export interface SettingsSlice {
   autoDownloadUpdates: boolean
   autoDownloadSizeLimit: number  // Max file size in MB for auto-download (0 = no limit)
   autoDownloadExcludedFiles: Record<string, string[]>
+  
+  // State - Auto-discard orphaned files
+  autoDiscardOrphanedFiles: boolean  // Automatically remove local files that no longer exist on server
   
   // State - Upload warnings
   uploadSizeWarningEnabled: boolean  // Warn when uploading files over threshold
@@ -549,6 +575,9 @@ export interface SettingsSlice {
   setKeybinding: (action: KeybindingAction, keybinding: Keybinding) => void
   resetKeybindings: () => void
   
+  // Actions - Tree Filtering
+  setHideCloudOnlyFolders: (enabled: boolean) => void
+  
   // Actions - Theme Effects
   setChristmasSnowOpacity: (opacity: number) => void
   setChristmasSnowDensity: (density: number) => void
@@ -572,6 +601,9 @@ export interface SettingsSlice {
   setAutoDownloadUpdates: (enabled: boolean) => void
   setAutoDownloadSizeLimit: (sizeMB: number) => void
   addAutoDownloadExclusion: (vaultId: string, relativePath: string) => void
+  
+  // Actions - Auto-discard orphaned files
+  setAutoDiscardOrphanedFiles: (enabled: boolean) => void
   
   // Actions - Upload warnings
   setUploadSizeWarningEnabled: (enabled: boolean) => void
@@ -717,6 +749,11 @@ export interface FilesSlice {
   fileConfigurations: Map<string, SWConfiguration[]>  // Cached configurations per file
   loadingConfigs: Set<string>                   // Files currently loading configs
   
+  // State - Configuration BOM expansion (nested under configs)
+  expandedConfigBoms: Set<string>               // Expanded config BOMs (format: "filePath::configName")
+  configBomData: Map<string, ConfigBomItem[]>   // Cached BOM data per config (format: "filePath::configName")
+  loadingConfigBoms: Set<string>                // Configs currently loading BOM data
+  
   // State - Realtime update debouncing (prevents state drift from stale realtime events)
   recentlyModifiedFiles: Map<string, number>    // fileId -> timestamp of local modification
   
@@ -791,6 +828,14 @@ export interface FilesSlice {
   setLoadingConfigs: (paths: Set<string>) => void
   addLoadingConfig: (filePath: string) => void
   removeLoadingConfig: (filePath: string) => void
+  
+  // Actions - Configuration BOM expansion
+  toggleConfigBomExpansion: (configKey: string) => void
+  setExpandedConfigBoms: (keys: Set<string>) => void
+  setConfigBomData: (configKey: string, items: ConfigBomItem[]) => void
+  clearConfigBomData: (configKey: string) => void
+  addLoadingConfigBom: (configKey: string) => void
+  removeLoadingConfigBom: (configKey: string) => void
   
   // Actions - Realtime update debouncing
   /** Mark a file as recently modified locally. Realtime updates will be skipped for this file. */

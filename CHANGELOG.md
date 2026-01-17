@@ -2,6 +2,42 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.10.0] - 2026-01-16
+
+### Added
+- **Local assembly BOM viewing**: Configuration BOM dropdown now works for local-only assemblies and synced assemblies without extracted references:
+  - Fetches BOM data directly from SolidWorks when files aren't in the database
+  - Automatically enriches BOM items with metadata from matching local vault files (part numbers, descriptions, revisions)
+  - Falls back to SolidWorks service when database returns empty results for synced assemblies
+  - Shows file type icons, quantities, and available metadata for all components
+- **Auto-scroll when dragging files**: Dragging files near the top or bottom edge of the file tree now automatically scrolls the view. Scroll speed increases as you move closer to the edge, making it easy to move files across large folder structures
+- **Orphaned file detection and cleanup**: When another user deletes files from the vault, those files now show as "orphaned" (deleted from server) on your machine instead of appearing as new unsynced files. This makes it clear which local files are stale vs genuinely new:
+  - Files previously synced but deleted by another user → marked with `deleted_remote` status (red highlight)
+  - Files you created locally that were never synced → marked as `added` (green highlight)
+  - Right-click context menu option "Discard Orphaned" to remove orphaned files
+  - New setting in Vault Settings: "Auto-discard orphaned files" (off by default) to automatically clean up orphaned files on vault load
+- **Active Files hierarchical view**: The Active Files section in the Pending tab now displays open SolidWorks files in a structured hierarchy:
+  - Files are sorted by type (assemblies first, then parts, then drawings) and alphabetically within each type
+  - Open assemblies show their referenced parts/sub-assemblies as collapsible children with an expand/collapse chevron
+  - Child count badge shows how many components are open for each assembly
+  - Clicking a file name navigates to the file location in the file browser AND highlights/selects it
+  - Removed the "R/O" (read-only) badge for cleaner display
+- **Filter downloaded folders**: New filter button above the vault list to hide folders with no downloaded files. Click "Filter" to show only folders containing at least one downloaded file - useful for focusing on your local working set in large vaults with many cloud-only files
+- **Collapsible sections in Pending Changes**: All sections in the Pending Changes tab (Active Files, New Files, Checked Out Files, Checked Out by Others, Deleted from Server) now have expand/collapse toggles. Click the section header to collapse or expand - useful for focusing on specific file categories
+
+### Improved
+- **BR number generation UX**: Enhanced the item number cell with better usability:
+  - Minimum width on empty item number boxes (no longer tiny when showing just "-")
+  - More padding between item number text and the generate button to prevent accidental clicks
+  - New inline confirmation: clicking the sparkle button now shows the next BR number preview with a confirm checkmark that expands smoothly from the box. Click outside to cancel
+
+### Fixed
+- **Active Files assembly expand arrow not showing**: Fixed the expandable chevron arrow not appearing next to assemblies in the Active Files section. Assembly files now always show the expand arrow, and clicking it loads the referenced components on-demand with a loading spinner. Previously, the arrow only appeared if references were pre-loaded successfully during initial load
+- **Text selection in editable cells triggering file drag**: Fixed issue where clicking and dragging to select text in description, revision, item number, or tab number cells would initiate a file drag operation instead of text selection
+- **Inconsistent avatar colors in file browser**: Fixed avatar fallbacks (initials in circles) appearing nearly transparent in file/folder lines while showing proper colored backgrounds in organization profiles. All avatar fallbacks now use consistent, visible colored backgrounds based on the user's email/name
+
+---
+
 ## [3.9.0] - 2026-01-16
 
 ### Added

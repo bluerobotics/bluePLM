@@ -15,6 +15,7 @@ const execAsync = promisify(exec)
 let mainWindow: BrowserWindow | null = null
 let workingDirectory: string | null = null
 let fileWatcher: FSWatcher | null = null
+let currentWatchPath: string | null = null  // Track current watched path for deduplication
 let pendingDeleteOperations = 0
 let deleteWatcherStopPromise: Promise<void> | null = null
 
@@ -213,16 +214,24 @@ async function stopFileWatcher(): Promise<void> {
     log('Stopping file watcher')
     const watcher = fileWatcher
     fileWatcher = null
+    currentWatchPath = null
     await watcher.close()
     log('File watcher closed')
   }
 }
 
 // File watcher for detecting external changes
-function startFileWatcher(dirPath: string) {
-  stopFileWatcher()
+async function startFileWatcher(dirPath: string): Promise<void> {
+  // Skip if already watching this exact path (prevents rapid restarts during HMR)
+  if (fileWatcher && currentWatchPath === dirPath) {
+    log('File watcher already active for: ' + dirPath)
+    return
+  }
+  
+  await stopFileWatcher()
   
   log('Starting file watcher for: ' + dirPath)
+  currentWatchPath = dirPath
   
   let debounceTimer: NodeJS.Timeout | null = null
   const changedFiles = new Set<string>()
@@ -355,7 +364,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       workingDirectory = result.filePaths[0]
       hashCache.clear()
       log('Working directory set: ' + workingDirectory)
-      startFileWatcher(workingDirectory)
+      await startFileWatcher(workingDirectory)
       return { success: true, path: workingDirectory }
     }
     return { success: false, canceled: true }
@@ -375,7 +384,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     if (fs.existsSync(newPath)) {
       workingDirectory = newPath
       hashCache.clear()
-      startFileWatcher(newPath)
+      await startFileWatcher(newPath)
       return { success: true, path: workingDirectory }
     }
     return { success: false, error: 'Path does not exist' }
@@ -395,7 +404,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       }
       workingDirectory = expandedPath
       hashCache.clear()
-      startFileWatcher(expandedPath)
+      await startFileWatcher(expandedPath)
       return { success: true, path: workingDirectory }
     } catch (err) {
       log('Error creating working directory: ' + String(err))
@@ -1200,7 +1209,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
             deleteWatcherStopPromise = null
             if (workingDirectory && fs.existsSync(workingDirectory)) {
               log(`[Delete] All deletes complete, restarting file watcher`)
-              startFileWatcher(workingDirectory)
+              await startFileWatcher(workingDirectory)
             }
           }
         }
@@ -1363,7 +1372,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       // Restart watcher ONCE after all deletions complete
       if (needsWatcherPause && workingDirectory && fs.existsSync(workingDirectory)) {
         log(`[DeleteBatch #${batchId}] Restarting file watcher after batch operation`)
-        startFileWatcher(workingDirectory)
+        await startFileWatcher(workingDirectory)
       }
     }
     
@@ -1436,7 +1445,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       // Restart watcher ONCE after all operations complete
       if (needsWatcherPause && workingDirectory && fs.existsSync(workingDirectory)) {
         log(`[TrashBatch #${batchId}] Restarting file watcher after batch operation`)
-        startFileWatcher(workingDirectory)
+        await startFileWatcher(workingDirectory)
       }
     }
     
@@ -1698,6 +1707,7 @@ export async function cleanupFs(timeoutMs: number = 2000): Promise<void> {
     log('Stopping file watcher for cleanup')
     const watcher = fileWatcher
     fileWatcher = null
+    currentWatchPath = null
     
     try {
       // Race between watcher.close() and a hard timeout

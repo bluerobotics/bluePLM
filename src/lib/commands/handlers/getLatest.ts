@@ -15,6 +15,7 @@ import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency
 import { log } from '@/lib/logger'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { FileOperationTracker } from '../../fileOperationTracker'
+import { addToSyncIndex } from '../../cache/localSyncIndex'
 
 // Retry configuration
 const MAX_RETRY_ATTEMPTS = 3
@@ -354,6 +355,7 @@ export const getLatestCommand: Command<GetLatestParams> = {
           path: file.path,
           updates: {
             localHash: file.pdmData.content_hash,
+            localVersion: file.pdmData.version, // Track the version we downloaded
             diffStatus: undefined // No longer outdated
           }
         })
@@ -361,7 +363,8 @@ export const getLatestCommand: Command<GetLatestParams> = {
         logGetLatest('info', 'File updated successfully', {
           operationId,
           fileName: file.name,
-          newLocalHash: file.pdmData.content_hash?.substring(0, 12)
+          newLocalHash: file.pdmData.content_hash?.substring(0, 12),
+          downloadedVersion: file.pdmData.version
         })
         
         progress.update()
@@ -529,6 +532,21 @@ export const getLatestCommand: Command<GetLatestParams> = {
       // If only missing storage issues, the modal provides the information
     } else {
       ctx.addToast('success', `Updated ${succeeded} file${succeeded > 1 ? 's' : ''}`)
+    }
+    
+    // Update the local sync index with successfully updated file paths
+    // This tracks which files have been synced for orphan detection
+    if (succeeded > 0 && ctx.activeVaultId) {
+      const updatedPaths = pendingUpdates.map(u => {
+        const file = filesToProcess.find(f => f.path === u.path)
+        return file?.relativePath
+      }).filter((p): p is string => !!p)
+      
+      if (updatedPaths.length > 0) {
+        addToSyncIndex(ctx.activeVaultId, updatedPaths).catch(err => {
+          logGetLatest('warn', 'Failed to update sync index after get-latest', { error: String(err) })
+        })
+      }
     }
     
     // Record operation complete for DevTools monitoring

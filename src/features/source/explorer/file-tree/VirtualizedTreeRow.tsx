@@ -415,6 +415,9 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
           }}
           autoFocus
           onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDragStart={(e) => e.preventDefault()}
+          draggable={false}
         />
       ) : (
         <span className={`truncate text-sm flex-1 ${
