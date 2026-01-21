@@ -961,6 +961,9 @@ namespace BluePLM.SolidWorksService
 
                 if (configsToExport.Length > 0)
                 {
+                    // Track used filenames to detect collisions (case-insensitive for Windows)
+                    var usedFilenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    
                     foreach (var configName in configsToExport)
                     {
                         doc.ShowConfiguration2(configName);
@@ -980,6 +983,18 @@ namespace BluePLM.SolidWorksService
                         {
                             configOutputPath = Path.Combine(outputDir, $"{baseName}_{configName}.step");
                         }
+
+                        // Check for filename collision and append config name if needed
+                        if (usedFilenames.Contains(configOutputPath))
+                        {
+                            // Collision detected - append config name to make unique
+                            var dir = Path.GetDirectoryName(configOutputPath)!;
+                            var nameWithoutExt = Path.GetFileNameWithoutExtension(configOutputPath);
+                            var ext = Path.GetExtension(configOutputPath);
+                            configOutputPath = Path.Combine(dir, $"{nameWithoutExt}_({configName}){ext}");
+                            Console.Error.WriteLine($"[Export] Filename collision detected, renamed to: {Path.GetFileName(configOutputPath)}");
+                        }
+                        usedFilenames.Add(configOutputPath);
 
                         bool success = doc.Extension.SaveAs3(
                             configOutputPath,
@@ -1225,6 +1240,9 @@ namespace BluePLM.SolidWorksService
 
                 if (configsToExport.Length > 0)
                 {
+                    // Track used filenames to detect collisions (case-insensitive for Windows)
+                    var usedFilenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    
                     foreach (var configName in configsToExport)
                     {
                         doc.ShowConfiguration2(configName);
@@ -1244,6 +1262,18 @@ namespace BluePLM.SolidWorksService
                         {
                             configOutputPath = Path.Combine(outputDir, $"{baseName}_{configName}.stl");
                         }
+
+                        // Check for filename collision and append config name if needed
+                        if (usedFilenames.Contains(configOutputPath))
+                        {
+                            // Collision detected - append config name to make unique
+                            var dir = Path.GetDirectoryName(configOutputPath)!;
+                            var nameWithoutExt = Path.GetFileNameWithoutExtension(configOutputPath);
+                            var ext = Path.GetExtension(configOutputPath);
+                            configOutputPath = Path.Combine(dir, $"{nameWithoutExt}_({configName}){ext}");
+                            Console.Error.WriteLine($"[Export] Filename collision detected, renamed to: {Path.GetFileName(configOutputPath)}");
+                        }
+                        usedFilenames.Add(configOutputPath);
 
                         bool success = doc.Extension.SaveAs3(
                             configOutputPath,

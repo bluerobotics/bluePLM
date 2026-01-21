@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.10.2] - 2026-01-21
+
+### Fixed
+- **Multi-config export overwrites files**: Fixed issue where exporting a file with multiple configurations as STEP or STL would overwrite previous exports when configurations don't have unique tab numbers and the filename pattern doesn't include `{config}`. Now automatically appends `_(configName)` to the filename when a collision is detected (e.g., `BR-100_RevA.step`, `BR-100_RevA_(Tall).step`, `BR-100_RevA_(Short).step`)
+
+---
+
 ## [3.10.1] - 2026-01-21
 
 ### Fixed
