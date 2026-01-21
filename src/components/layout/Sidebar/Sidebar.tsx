@@ -305,7 +305,7 @@ export function Sidebar() {
 
   return (
     <div
-      className="bg-plm-sidebar flex flex-col overflow-hidden"
+      className="bg-plm-sidebar flex flex-col overflow-hidden border-l border-plm-border"
       style={{ width: effectiveWidth }}
     >
       {/* Sidebar header - compact uppercase style for all views */}

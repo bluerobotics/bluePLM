@@ -177,11 +177,11 @@ export function ActivityBar() {
     <ExpandedContext.Provider value={isExpanded}>
       <SidebarRectContext.Provider value={sidebarRect}>
       {/* Container with relative positioning for the overlay */}
-      <div className={`relative flex-shrink-0 transition-[width] duration-200 ${containerWidth}`}>
+      <div className={`relative flex-shrink-0 transition-[width] duration-200 bg-plm-activitybar ${containerWidth}`}>
         {/* Actual activity bar - expands on hover, overlays content */}
         <div 
           ref={sidebarRef}
-          className={`absolute inset-y-0 left-0 bg-plm-activitybar flex flex-col border-r border-plm-border z-40 transition-[width,box-shadow] duration-200 ease-out ${
+          className={`absolute inset-y-0 left-0 bg-plm-activitybar flex flex-col z-40 transition-[width,box-shadow] duration-200 ease-out ${
             isExpanded ? 'w-64' : 'w-[53px]'
           } ${activityBarMode === 'hover' && isExpanded ? 'shadow-xl' : ''}`}
           onMouseEnter={() => setIsHovering(true)}

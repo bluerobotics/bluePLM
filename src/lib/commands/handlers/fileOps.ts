@@ -8,6 +8,7 @@
 import type { Command, RenameParams, MoveParams, CopyParams, NewFolderParams, CommandResult, LocalFile } from '../types'
 import { ProgressTracker } from '../executor'
 import { updateFilePath, updateFolderPath } from '../../supabase'
+import { getExtension } from '../../utils/path'
 
 /**
  * Rename Command - Rename a file or folder
@@ -39,11 +40,24 @@ export const renameCommand: Command<RenameParams> = {
   
   async execute({ file, newName }, ctx): Promise<CommandResult> {
     try {
+      // Preserve the original file extension if not provided in the new name
+      // Only applies to files, not directories
+      let finalName = newName
+      if (!file.isDirectory) {
+        const originalExt = getExtension(file.name)
+        const newNameExt = getExtension(newName)
+        
+        // If original file had an extension but new name doesn't, append the original extension
+        if (originalExt && !newNameExt) {
+          finalName = newName + originalExt
+        }
+      }
+      
       // Rename locally first
       const oldPath = file.path
       const sep = file.path.includes('\\') ? '\\' : '/'
       const parentDir = oldPath.substring(0, oldPath.lastIndexOf(sep))
-      const newPath = `${parentDir}${sep}${newName}`
+      const newPath = `${parentDir}${sep}${finalName}`
       
       const renameResult = await window.electronAPI?.renameItem(oldPath, newPath)
       if (!renameResult?.success) {
@@ -59,7 +73,7 @@ export const renameCommand: Command<RenameParams> = {
       // Compute new relative path
       const oldRelPath = file.relativePath
       const relParentDir = oldRelPath.substring(0, oldRelPath.lastIndexOf('/'))
-      const newRelPath = relParentDir ? `${relParentDir}/${newName}` : newName
+      const newRelPath = relParentDir ? `${relParentDir}/${finalName}` : finalName
       
       // For synced files, update server path
       if (file.pdmData?.id) {
@@ -71,14 +85,14 @@ export const renameCommand: Command<RenameParams> = {
       }
       
       // Optimistic UI update: rename in store immediately
-      ctx.renameFileInStore(oldPath, newPath, newName, false)
+      ctx.renameFileInStore(oldPath, newPath, finalName, false)
       
-      ctx.addToast('success', `Renamed to ${newName}`)
+      ctx.addToast('success', `Renamed to ${finalName}`)
       // No onRefresh needed - UI updates instantly via renameFileInStore
       
       return {
         success: true,
-        message: `Renamed to ${newName}`,
+        message: `Renamed to ${finalName}`,
         total: 1,
         succeeded: 1,
         failed: 0

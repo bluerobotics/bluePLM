@@ -40,61 +40,74 @@
 flowchart TB
     subgraph BluePLMSite["blueplm-site repo (Blue Robotics hosted)"]
         subgraph Store["Extension Store (marketplace.blueplm.io)"]
-            StoreAPI[Store API]
-            StoreDB[(Store Supabase)]
             StoreFE[Marketplace Frontend]
+            StoreAPI["Store API (Hono on Workers)"]
+            StoreDB[("Store Supabase: publishers, extensions, versions, reports")]
         end
-        MainSite[Main Website]
     end
 
-    subgraph BluePLMRepo["bluePLM repo (Self-hosted by orgs)"]
-        subgraph App["BluePLM App (Electron)"]
-            subgraph MainProc["Main Process"]
-                ExtManager[Extension Manager]
-                Watchdog[Watchdog]
-                IPCHub[IPC Hub]
+    subgraph BluePLMRepo["bluePLM repo (Self-hosted by organizations)"]
+        subgraph ElectronApp["BluePLM Desktop App"]
+            subgraph MainProcess["Main Process"]
+                ExtRegistry["Extension Registry (lifecycle, discovery)"]
+                ExtProcessMgr["Process Manager (spawn, terminate)"]
+                Watchdog["Watchdog (heartbeat, memory, CPU)"]
+                IPCHub["IPC Hub (message routing)"]
+                NativeLoader["Native Extension Loader (verified only)"]
             end
             
-            subgraph ExtProcesses["Extension Processes (one per extension)"]
-                ExtProcA["Process: Source Files"]
-                ExtProcB["Process: Change Control"]
-                ExtProcC["Process: Google Drive"]
+            subgraph SandboxedProcs["Sandboxed Extension Processes"]
+                ExtProc1["Process: Extension A (API Bridge + Sandbox)"]
+                ExtProc2["Process: Extension B (API Bridge + Sandbox)"]
+                ExtProc3["Process: Extension C (API Bridge + Sandbox)"]
             end
             
-            Renderer[App Renderer]
+            subgraph NativeExts["Native Extensions (Main Process)"]
+                NativeExt1["SolidWorks Integration"]
+            end
+            
+            Renderer["App Renderer (React UI)"]
         end
 
         subgraph OrgAPI["Organization API Server"]
             Router[Request Router]
+            SchemaMgr["Schema Manager (CREATE/DROP schema)"]
+            SecretMgr["Secret Manager (AES-256 + audit)"]
             
-            subgraph IsolatePools["Per-Extension Isolate Pools"]
-                PoolA["Pool: Source Files"]
-                PoolB["Pool: Change Control"]
-                PoolC["Pool: Google Drive"]
+            subgraph IsolatePools["V8 Isolate Pools (per-extension)"]
+                Pool1["Pool: ext-a (2 isolates, 100 req/min)"]
+                Pool2["Pool: ext-b (2 isolates, 100 req/min)"]
             end
             
-            subgraph OrgDB["Org Supabase (Modular Schemas)"]
-                CoreSchema["core schema"]
-                ExtSFSchema["ext_source_files schema"]
-                ExtCCSchema["ext_change_control schema"]
+            subgraph OrgDB["Org Supabase"]
+                CoreSchema["core schema: orgs, users, installed_extensions"]
+                ExtSchema1["ext_a schema: extension tables"]
+                ExtSchema2["ext_b schema: extension tables"]
             end
         end
     end
 
-    External[External APIs: Odoo, Google, etc.]
+    External["External APIs: Google, Odoo, etc."]
 
-    StoreFE -->|API calls| StoreAPI
+    StoreFE -->|"browse/search"| StoreAPI
     StoreAPI --> StoreDB
-    Store -->|Download .bpx| MainProc
-    IPCHub <-->|"child_process IPC"| ExtProcA
-    IPCHub <-->|"child_process IPC"| ExtProcB
-    IPCHub <-->|"child_process IPC"| ExtProcC
-    MainProc <-->|Electron IPC| Renderer
-    Watchdog -->|monitor| ExtProcesses
-    ExtProcesses -->|callOrgApi| OrgAPI
+    StoreAPI -->|"download .bpx"| ExtRegistry
+
+    ExtRegistry -->|"spawn"| ExtProcessMgr
+    ExtProcessMgr -->|"fork()"| SandboxedProcs
+    Watchdog -->|"ping/monitor"| SandboxedProcs
+    IPCHub <-->|"process.send/on"| SandboxedProcs
+    NativeLoader -->|"require()"| NativeExts
+
+    Renderer <-->|"Electron IPC"| MainProcess
+
+    SandboxedProcs -->|"callOrgApi"| Router
     Router --> IsolatePools
     IsolatePools --> OrgDB
-    IsolatePools --> External
+    IsolatePools -->|"http.fetch"| External
+
+    SchemaMgr -->|"CREATE SCHEMA"| OrgDB
+    SecretMgr --> CoreSchema
 ```
 
 > **Repository Split:** The marketplace (Store API, Store Database, Marketplace Frontend) lives in the `blueplm-site` repository, maintained by Blue Robotics. The BluePLM application and Org API live in the `bluePLM` repository, self-hosted by organizations.
@@ -102,6 +115,111 @@ flowchart TB
 > **Process Isolation (Chrome Model):** Each extension runs in its own OS process via `child_process.fork()`. If Extension C crashes, Extensions A and B continue running unaffected. The Watchdog in the Main Process monitors all extension processes externally.
 
 > **Database Isolation:** Each extension has its own Postgres schema (e.g., `ext_source_files`, `ext_change_control`). Core tables live in the `core` schema. Extensions can reference core tables and optionally enhance other extensions via nullable foreign keys.
+
+### Miro-Friendly Component List
+
+Copy the components below into Miro as shapes/sticky notes. Use the connections section to draw arrows.
+
+```
+=== BLUEPLM-SITE REPO (Blue Robotics Hosted) ===
+
+[Marketplace Frontend]
+React SPA on Cloudflare Pages
+Browse, search, submit extensions
+
+[Store API]
+Hono on Cloudflare Workers
+REST endpoints for marketplace
+
+[Store Supabase]
+publishers, extensions, extension_versions
+extension_reports, extension_deprecations
+
+---
+
+=== BLUEPLM REPO (Self-hosted by Organizations) ===
+
+-- ELECTRON MAIN PROCESS --
+
+[Extension Registry]
+Singleton managing all extension lifecycle
+Discovery, install, activate, deactivate, update, rollback
+
+[Process Manager]
+Spawns child_process.fork() per sandboxed extension
+Tracks running processes, handles termination
+
+[Watchdog Service]
+External monitoring of all extension processes
+Heartbeat (5s ping), memory limits, CPU tracking
+Kills unresponsive processes
+
+[IPC Hub]
+Routes messages between Main and Extension Processes
+Request/response correlation, event broadcasting
+
+[Native Extension Loader]
+Loads verified-only native extensions directly in Main
+For SolidWorks, system integrations
+
+-- EXTENSION PROCESSES (one per sandboxed extension) --
+
+[Extension Process]
+Isolated Node.js child_process
+Contains: IPC Layer, Heartbeat Responder, API Bridge, Extension Code
+Cannot access other extensions or main process memory
+
+-- RENDERER --
+
+[App Renderer]
+React UI with Zustand state
+Communicates with Main via Electron IPC
+
+-- ORG API SERVER --
+
+[Request Router]
+Routes /extensions/:id/* to correct isolate pool
+
+[Schema Manager]
+Creates/migrates extension Postgres schemas
+Handles soft-disable and hard-delete
+
+[Secret Manager]
+AES-256-GCM encrypted secrets
+Access audit logging
+
+[V8 Isolate Pool]
+Per-extension pool of warm isolates
+Independent rate limits, memory limits
+
+-- ORG DATABASE --
+
+[core schema]
+organizations, users, teams, permissions
+org_installed_extensions, extension_secrets
+
+[ext_{name} schema]
+Extension-specific tables
+Created on install, preserved on soft-disable
+
+---
+
+=== CONNECTIONS ===
+
+Marketplace Frontend -> Store API: API calls
+Store API -> Store Supabase: Database queries
+Store API -> Extension Registry: Download .bpx
+Extension Registry -> Process Manager: Spawn/terminate
+Process Manager -> Extension Process: fork()
+Watchdog -> Extension Process: ping/pong heartbeat
+IPC Hub <-> Extension Process: process.send/on messages
+Renderer <-> Main Process: Electron IPC
+Extension Process -> Org API: callOrgApi()
+Request Router -> Isolate Pool: Route by extensionId
+Isolate Pool -> Org DB: Query extension schema
+Isolate Pool -> External APIs: http.fetch (logged)
+Schema Manager -> Org DB: CREATE/DROP SCHEMA
+```
 
 ---
 

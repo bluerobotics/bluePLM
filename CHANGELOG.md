@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.10.1] - 2026-01-21
+
+### Fixed
+- **File rename drops extension**: Fixed issue where renaming a checked-out file via the client UI would remove the file extension if the user only typed a new base name. Now the original extension is automatically preserved when no extension is provided in the new name (e.g., renaming "PartA.sldprt" to "PartB" now correctly results in "PartB.sldprt")
+
+---
+
 ## [3.10.0] - 2026-01-16
 
 ### Added
