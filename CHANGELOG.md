@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.10.3] - 2026-01-21
+
+### Fixed
+- **SolidWorks DM license key exposed in logs**: Removed logging of Document Manager license key prefix from SolidWorks service startup and configuration. Log files no longer contain any part of the license key value
+
+---
+
 ## [3.10.2] - 2026-01-21
 
 ### Fixed

@@ -76,11 +76,8 @@ namespace BluePLM.SolidWorksService
 
             // Initialize Document Manager API (for FAST operations - no SW launch!)
             Console.Error.WriteLine("=== BluePLM SolidWorks Service Startup ===");
-            Console.Error.WriteLine($"[Startup] DM License key from command line: {(dmLicenseKey == null ? "not provided" : $"provided ({dmLicenseKey.Length} chars)")}");
-            if (dmLicenseKey != null && dmLicenseKey.Length > 0)
-            {
-                Console.Error.WriteLine($"[Startup] License key prefix: {(dmLicenseKey.Length > 30 ? dmLicenseKey.Substring(0, 30) + "..." : dmLicenseKey)}");
-            }
+            Console.Error.WriteLine($"[Startup] DM License key from command line: {(dmLicenseKey == null ? "not provided" : "provided")}");
+
             
             Console.Error.WriteLine("[Startup] Creating DocumentManagerAPI instance...");
             _dmApi = new DocumentManagerAPI(dmLicenseKey);
@@ -501,8 +498,7 @@ namespace BluePLM.SolidWorksService
             if (licenseKey == null || licenseKey.Length == 0)
                 return new CommandResult { Success = false, Error = "Missing 'licenseKey'" };
 
-            Console.Error.WriteLine($"[Service] License key length: {licenseKey.Length}");
-            Console.Error.WriteLine($"[Service] License key prefix: {(licenseKey.Length > 30 ? licenseKey.Substring(0, 30) + "..." : licenseKey)}");
+            Console.Error.WriteLine("[Service] License key provided for update");
 
             if (_dmApi == null)
             {
