@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.10.4] - 2026-01-21
+
+### Fixed
+- **Auto-update not working**: Fixed missing version bump in package.json for 3.10.3 release, which prevented auto-update from detecting newer versions
+
+---
+
 ## [3.10.3] - 2026-01-21
 
 ### Fixed
