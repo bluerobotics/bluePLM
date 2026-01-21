@@ -988,10 +988,10 @@ namespace BluePLM.SolidWorksService
                         if (usedFilenames.Contains(configOutputPath))
                         {
                             // Collision detected - append config name to make unique
-                            var dir = Path.GetDirectoryName(configOutputPath)!;
+                            var collisionDir = Path.GetDirectoryName(configOutputPath)!;
                             var nameWithoutExt = Path.GetFileNameWithoutExtension(configOutputPath);
-                            var ext = Path.GetExtension(configOutputPath);
-                            configOutputPath = Path.Combine(dir, $"{nameWithoutExt}_({configName}){ext}");
+                            var fileExt = Path.GetExtension(configOutputPath);
+                            configOutputPath = Path.Combine(collisionDir, $"{nameWithoutExt}_({configName}){fileExt}");
                             Console.Error.WriteLine($"[Export] Filename collision detected, renamed to: {Path.GetFileName(configOutputPath)}");
                         }
                         usedFilenames.Add(configOutputPath);
@@ -1267,10 +1267,10 @@ namespace BluePLM.SolidWorksService
                         if (usedFilenames.Contains(configOutputPath))
                         {
                             // Collision detected - append config name to make unique
-                            var dir = Path.GetDirectoryName(configOutputPath)!;
+                            var collisionDir = Path.GetDirectoryName(configOutputPath)!;
                             var nameWithoutExt = Path.GetFileNameWithoutExtension(configOutputPath);
-                            var ext = Path.GetExtension(configOutputPath);
-                            configOutputPath = Path.Combine(dir, $"{nameWithoutExt}_({configName}){ext}");
+                            var fileExt = Path.GetExtension(configOutputPath);
+                            configOutputPath = Path.Combine(collisionDir, $"{nameWithoutExt}_({configName}){fileExt}");
                             Console.Error.WriteLine($"[Export] Filename collision detected, renamed to: {Path.GetFileName(configOutputPath)}");
                         }
                         usedFilenames.Add(configOutputPath);
