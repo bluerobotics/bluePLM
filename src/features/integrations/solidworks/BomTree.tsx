@@ -184,10 +184,15 @@ function BomTreeRow({
 }: BomTreeRowProps) {
   const hasChildren = node.children.length > 0
   const indentPx = isFlat ? 0 : level * 20
+  const isBroken = node.pathStatus?.status === 'broken'
 
   return (
     <div
-      className="flex items-center gap-2 py-1.5 px-2 hover:bg-plm-bg-light rounded cursor-pointer group border-b border-plm-border/20 last:border-b-0"
+      className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer group border-b border-plm-border/20 last:border-b-0 ${
+        isBroken 
+          ? 'bg-red-500/10 hover:bg-red-500/15' 
+          : 'hover:bg-plm-bg-light'
+      }`}
       style={{ paddingLeft: `${indentPx + 8}px` }}
       onClick={() => onNavigate?.(node)}
     >
@@ -668,6 +673,8 @@ export interface LegacyBomItem {
   fileId?: string
   inDatabase?: boolean
   state?: string
+  /** True if the referenced file doesn't exist on disk (broken reference) */
+  isBroken?: boolean
 }
 
 export function convertLegacyBomToBomNodes(items: LegacyBomItem[]): BomNode[] {

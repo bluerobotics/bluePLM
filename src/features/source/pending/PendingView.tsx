@@ -1,12 +1,14 @@
 import { useState, useMemo, useCallback, memo, useEffect } from 'react'
-import { Lock, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, AlertTriangle, Shield, Unlock, FolderOpen, CloudOff, Monitor, FileEdit, ExternalLink, RotateCcw, Pencil, ChevronRight, Loader2 } from 'lucide-react'
+import { Lock, ArrowUp, Undo2, CheckSquare, Square, Plus, Trash2, Upload, X, AlertTriangle, Shield, Unlock, FolderOpen, CloudOff, Monitor, ExternalLink, RotateCcw, Pencil, ChevronRight, Loader2, MousePointer2, FileEdit } from 'lucide-react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { getInitials } from '@/lib/utils'
-// Shared file icon component for consistent file type icons
-import { FileTypeIcon } from '@/components/shared/FileItem'
+// Shared file icon components - FileIcon supports thumbnails, FileTypeIcon is extension-only
+import { FileIcon, FileTypeIcon } from '@/components/shared/FileItem'
 // Use command system instead of direct supabase calls
 import { executeCommand } from '@/lib/commands'
 import { isMachineOnline } from '@/lib/supabase'
+// Context menu for pending rows
+import { PendingContextMenu, type PendingRowType } from './PendingContextMenu'
 
 // ============================================
 // Types for Open Documents
@@ -26,6 +28,15 @@ interface OpenDocument {
 interface OpenDocumentWithChildren extends OpenDocument {
   children: OpenDocument[]  // Parts/sub-assemblies referenced by this assembly
   isChild?: boolean         // Whether this doc is shown as a child of another
+}
+
+// Type for files selected in SolidWorks
+interface SelectedFile {
+  filePath: string
+  fileName: string
+  componentName: string
+  fileType: string
+  isVirtual: boolean
 }
 
 // ============================================
@@ -50,9 +61,14 @@ const sortOpenDocuments = <T extends OpenDocument>(docs: T[]): T[] => {
 }
 
 // Normalize Windows paths for reliable comparison
-// Handles: backslash/forward slash differences, casing, drive letter variations
+// Handles: backslash/forward slash differences, casing, whitespace, trailing slashes
 const normalizePath = (p: string): string => {
-  return p.replace(/\\/g, '/').toLowerCase()
+  return p
+    .trim()                           // Remove leading/trailing whitespace
+    .replace(/\\/g, '/')              // Backslash to forward slash
+    .replace(/\/+/g, '/')             // Collapse multiple slashes
+    .replace(/\/$/, '')               // Remove trailing slash
+    .toLowerCase()
 }
 
 // ============================================
@@ -67,6 +83,7 @@ interface FileRowProps {
   isBeingProcessed: boolean
   onToggleSelect: (path: string) => void
   onNavigate: (file: LocalFile) => void
+  onContextMenu: (e: React.MouseEvent, file: LocalFile) => void
 }
 
 const FileRow = memo(function FileRow({ 
@@ -76,7 +93,8 @@ const FileRow = memo(function FileRow({
   isSelected, 
   isBeingProcessed,
   onToggleSelect,
-  onNavigate
+  onNavigate,
+  onContextMenu
 }: FileRowProps) {
   const checkedOutUser = (file.pdmData as any)?.checked_out_user
   const userName = checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Unknown'
@@ -105,10 +123,11 @@ const FileRow = memo(function FileRow({
   
   return (
     <div
-      className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${
-        canSelect ? 'cursor-pointer' : ''
-      } ${isSelected ? 'bg-plm-highlight' : canSelect ? 'hover:bg-plm-highlight/50' : ''}`}
+      className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors cursor-pointer hover:bg-plm-highlight/50 ${
+        isSelected ? 'bg-plm-highlight' : ''
+      }`}
       onClick={handleClick}
+      onContextMenu={(e) => onContextMenu(e, file)}
     >
       {canSelect && (
         <button 
@@ -177,6 +196,7 @@ interface AddedFileRowProps {
   isBeingProcessed: boolean
   onToggleSelect: (path: string) => void
   onNavigate: (file: LocalFile) => void
+  onContextMenu: (e: React.MouseEvent, file: LocalFile) => void
 }
 
 const AddedFileRow = memo(function AddedFileRow({ 
@@ -184,7 +204,8 @@ const AddedFileRow = memo(function AddedFileRow({
   isSelected, 
   isBeingProcessed,
   onToggleSelect,
-  onNavigate
+  onNavigate,
+  onContextMenu
 }: AddedFileRowProps) {
   // Show processing state for files being uploaded
   if (isBeingProcessed) {
@@ -206,6 +227,7 @@ const AddedFileRow = memo(function AddedFileRow({
         isSelected ? 'bg-plm-highlight' : 'hover:bg-plm-highlight/50'
       }`}
       onClick={() => onToggleSelect(file.path)}
+      onContextMenu={(e) => onContextMenu(e, file)}
     >
       <button 
         className="flex-shrink-0"
@@ -246,6 +268,7 @@ interface DeletedRemoteFileRowProps {
   isBeingProcessed: boolean
   onToggleSelect: (path: string) => void
   onNavigate: (file: LocalFile) => void
+  onContextMenu: (e: React.MouseEvent, file: LocalFile) => void
 }
 
 const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({ 
@@ -253,7 +276,8 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
   isSelected, 
   isBeingProcessed,
   onToggleSelect,
-  onNavigate
+  onNavigate,
+  onContextMenu
 }: DeletedRemoteFileRowProps) {
   // Show processing state for files being processed
   if (isBeingProcessed) {
@@ -272,9 +296,10 @@ const DeletedRemoteFileRow = memo(function DeletedRemoteFileRow({
   return (
     <div
       className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer transition-colors ${
-        isSelected ? 'bg-plm-error/20' : 'hover:bg-plm-error/10'
+        isSelected ? 'bg-plm-highlight' : 'hover:bg-plm-highlight/50'
       }`}
       onClick={() => onToggleSelect(file.path)}
+      onContextMenu={(e) => onContextMenu(e, file)}
     >
       <button 
         className="flex-shrink-0"
@@ -314,6 +339,7 @@ interface OpenFileRowProps {
   localFile?: LocalFile
   onNavigate: (filePath: string, localFile?: LocalFile) => void
   onOpen: (filePath: string) => void
+  onContextMenu: (e: React.MouseEvent, filePath: string, fileName: string, localFile?: LocalFile) => void
   isChild?: boolean  // Whether this is a child item (indented)
 }
 
@@ -322,23 +348,32 @@ const OpenFileRow = memo(function OpenFileRow({
   localFile,
   onNavigate,
   onOpen,
+  onContextMenu,
   isChild = false
 }: OpenFileRowProps) {
+  // Create minimal LocalFile for icon rendering when localFile is undefined
+  const iconFile: LocalFile = localFile || {
+    path: doc.filePath,
+    name: doc.fileName,
+    relativePath: doc.filePath,
+    extension: doc.extension,
+    isDirectory: false,
+    size: 0,
+    modifiedTime: new Date().toISOString()
+  }
+  
   return (
     <div
-      className={`flex items-center gap-2 py-1.5 rounded text-sm hover:bg-plm-highlight/50 transition-colors ${
+      className={`flex items-center gap-2 py-1.5 rounded text-sm hover:bg-plm-highlight/50 transition-colors cursor-pointer ${
         isChild ? 'pl-7 pr-2' : 'px-2'
       }`}
+      onClick={() => onNavigate(doc.filePath, localFile)}
+      onContextMenu={(e) => onContextMenu(e, doc.filePath, doc.fileName, localFile)}
     >
-      <FileEdit size={14} className={`flex-shrink-0 ${doc.isDirty ? 'text-plm-warning' : 'text-plm-accent'}`} />
-      <FileTypeIcon extension={doc.extension} size={14} />
+      <FileIcon file={iconFile} size={16} className="flex-shrink-0" />
       <span 
-        className="truncate flex-1 cursor-pointer hover:text-plm-accent hover:underline transition-colors" 
+        className="truncate flex-1" 
         title={doc.filePath}
-        onClick={(e) => {
-          e.stopPropagation()
-          onNavigate(doc.filePath, localFile)
-        }}
       >
         {doc.fileName}
       </span>
@@ -365,6 +400,67 @@ const OpenFileRow = memo(function OpenFileRow({
 })
 
 // ============================================
+// Selected File Row Component (for SW selections)
+// ============================================
+
+interface SelectedFileRowProps {
+  file: SelectedFile
+  localFile?: LocalFile
+  onNavigate: (filePath: string, localFile?: LocalFile) => void
+  onContextMenu: (e: React.MouseEvent, filePath: string, fileName: string, localFile?: LocalFile) => void
+}
+
+const SelectedFileRow = memo(function SelectedFileRow({
+  file,
+  localFile,
+  onNavigate,
+  onContextMenu
+}: SelectedFileRowProps) {
+  const extension = '.' + file.fileName.split('.').pop()?.toLowerCase() || ''
+  
+  // Create minimal LocalFile for icon rendering when localFile is undefined
+  const iconFile: LocalFile = localFile || {
+    path: file.filePath,
+    name: file.fileName,
+    relativePath: file.filePath,
+    extension: extension,
+    isDirectory: false,
+    size: 0,
+    modifiedTime: new Date().toISOString()
+  }
+  
+  return (
+    <div
+      className="flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-plm-highlight/50 transition-colors cursor-pointer"
+      onClick={() => onNavigate(file.filePath, localFile)}
+      onContextMenu={(e) => onContextMenu(e, file.filePath, file.fileName, localFile)}
+    >
+      <FileIcon file={iconFile} size={16} className="flex-shrink-0" />
+      <span className="truncate flex-1" title={file.filePath}>
+        {file.fileName}
+      </span>
+      {/* Virtual component indicator */}
+      {file.isVirtual && (
+        <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] rounded bg-plm-fg-muted/20 text-plm-fg-muted font-medium" title="Virtual component">
+          Virtual
+        </span>
+      )}
+      {/* Show file location button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          window.electronAPI?.showInExplorer(file.filePath)
+        }}
+        className="flex-shrink-0 p-0.5 rounded hover:bg-plm-highlight text-plm-fg-muted hover:text-plm-fg transition-colors"
+        title="Show in Explorer"
+      >
+        <FolderOpen size={14} />
+      </button>
+    </div>
+  )
+})
+
+// ============================================
 // Assembly Group Component (collapsible)
 // ============================================
 
@@ -374,6 +470,7 @@ interface OpenFileGroupProps {
   childLocalFiles: Map<string, LocalFile | undefined>
   onNavigate: (filePath: string, localFile?: LocalFile) => void
   onOpen: (filePath: string) => void
+  onContextMenu: (e: React.MouseEvent, filePath: string, fileName: string, localFile?: LocalFile) => void
   isExpanded: boolean
   isLoading: boolean  // Whether references are being loaded
   onToggleExpand: (filePath: string) => void
@@ -385,6 +482,7 @@ const OpenFileGroup = memo(function OpenFileGroup({
   childLocalFiles,
   onNavigate,
   onOpen,
+  onContextMenu,
   isExpanded,
   isLoading,
   onToggleExpand
@@ -394,11 +492,24 @@ const OpenFileGroup = memo(function OpenFileGroup({
   // Show chevron for assemblies (even if no children loaded yet) or files with children
   const showChevron = isAssembly || hasChildren
   
+  // Create minimal LocalFile for icon rendering when localFile is undefined
+  const iconFile: LocalFile = localFile || {
+    path: doc.filePath,
+    name: doc.fileName,
+    relativePath: doc.filePath,
+    extension: doc.extension,
+    isDirectory: false,
+    size: 0,
+    modifiedTime: new Date().toISOString()
+  }
+  
   return (
     <div>
       {/* Parent assembly row */}
       <div
-        className="flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-plm-highlight/50 transition-colors"
+        className="flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-plm-highlight/50 transition-colors cursor-pointer"
+        onClick={() => onNavigate(doc.filePath, localFile)}
+        onContextMenu={(e) => onContextMenu(e, doc.filePath, doc.fileName, localFile)}
       >
         {/* Expand/collapse toggle - show for assemblies or items with children */}
         {showChevron ? (
@@ -422,15 +533,10 @@ const OpenFileGroup = memo(function OpenFileGroup({
         ) : (
           <div className="w-5" /> // Spacer for alignment
         )}
-        <FileEdit size={14} className={`flex-shrink-0 ${doc.isDirty ? 'text-plm-warning' : 'text-plm-accent'}`} />
-        <FileTypeIcon extension={doc.extension} size={14} />
+        <FileIcon file={iconFile} size={16} className="flex-shrink-0" />
         <span 
-          className="truncate flex-1 cursor-pointer hover:text-plm-accent hover:underline transition-colors" 
+          className="truncate flex-1" 
           title={doc.filePath}
-          onClick={(e) => {
-            e.stopPropagation()
-            onNavigate(doc.filePath, localFile)
-          }}
         >
           {doc.fileName}
         </span>
@@ -470,6 +576,7 @@ const OpenFileGroup = memo(function OpenFileGroup({
               localFile={childLocalFiles.get(child.filePath)}
               onNavigate={onNavigate}
               onOpen={onOpen}
+              onContextMenu={onContextMenu}
               isChild={true}
             />
           ))}
@@ -495,7 +602,7 @@ interface PendingViewProps {
 }
 
 export function PendingView({ onRefresh }: PendingViewProps) {
-  const { files, user, setCurrentFolder, toggleFolder, expandedFolders, hideSolidworksTempFiles, setSelectedFiles: setStoreSelectedFiles } = usePDMStore()
+  const { files, user, setCurrentFolder, toggleFolder, expandedFolders, hideSolidworksTempFiles, setSelectedFiles: setStoreSelectedFiles, expandedPendingSections, togglePendingSection } = usePDMStore()
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [selectedAddedFiles, setSelectedAddedFiles] = useState<Set<string>>(new Set())
   const [selectedOthersFiles, setSelectedOthersFiles] = useState<Set<string>>(new Set())
@@ -521,10 +628,22 @@ export function PendingView({ onRefresh }: PendingViewProps) {
   const [loadingAssemblies, setLoadingAssemblies] = useState<Set<string>>(new Set()) // assemblies currently loading references
   const [isLoadingOpenDocs, setIsLoadingOpenDocs] = useState(false)
   
-  // Section expand/collapse state - all expanded by default
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['activeFiles', 'newFiles', 'checkedOut', 'checkedOutOthers', 'deletedFromServer'])
-  )
+  // Selected files in SolidWorks - tracks components selected in the active assembly
+  const [selectedInSW, setSelectedInSW] = useState<{
+    activeDocument: string | null
+    files: SelectedFile[]
+  }>({ activeDocument: null, files: [] })
+  
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    file: LocalFile | null
+    filePath: string
+    fileName: string
+    rowType: PendingRowType
+  } | null>(null)
+  
   const solidworksIntegrationEnabled = usePDMStore(state => state.solidworksIntegrationEnabled)
   const vaultPath = usePDMStore(state => state.vaultPath)
   
@@ -547,6 +666,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     if (!solidworksIntegrationEnabled) {
       setOpenDocuments([])
       setAssemblyReferences(new Map())
+      setExpandedAssemblies(new Set())
       return
     }
     
@@ -559,24 +679,99 @@ export function PendingView({ onRefresh }: PendingViewProps) {
           .filter(doc => !vaultPath || doc.filePath.startsWith(vaultPath))
           .map(doc => ({
             ...doc,
+            fileType: doc.fileType?.toLowerCase() || doc.fileType,
             extension: '.' + doc.fileName.split('.').pop()?.toLowerCase() || ''
           }))
         
         // Sort documents by type (assembly > part > drawing) then alphabetically
         const sortedDocs = sortOpenDocuments(docs)
-        setOpenDocuments(sortedDocs)
         
-        // Note: Assembly references are loaded on-demand when user expands an assembly
-        // This avoids upfront API calls that may fail or be slow
-        // Clear stale references when documents change (they'll be reloaded on expand)
-        setAssemblyReferences(new Map())
+        // Auto-load references for all assemblies to show open children immediately
+        const assemblies = docs.filter(d => d.fileType === 'assembly')
+        
+        // Build lookup maps for matching references to open documents
+        // getReferences may return just filenames, so we need to match by filename
+        const openDocPaths = new Set(docs.map(d => normalizePath(d.filePath)))
+        // Map from normalized filename (without extension) to full path
+        const openDocByName = new Map<string, string>()
+        docs.forEach(d => {
+          // Extract filename without extension, normalized
+          const fileName = d.fileName.replace(/\.[^.]+$/, '').toLowerCase()
+          openDocByName.set(fileName, d.filePath)
+        })
+        
+        // Prepare state values - will be set atomically at the end
+        let newRefs = new Map<string, string[]>()
+        let newExpanded = new Set<string>()
+        
+        if (assemblies.length > 0) {
+          // Debug: Log open document paths for comparison
+          window.electronAPI?.log('info', '[OpenFiles] Open doc paths (normalized)', Array.from(openDocPaths))
+          window.electronAPI?.log('info', '[OpenFiles] Open doc by name', Object.fromEntries(openDocByName))
+          
+          // Load references for all assemblies in parallel
+          const refPromises = assemblies.map(async (asm) => {
+            try {
+              const refResult = await window.electronAPI?.solidworks?.getReferences?.(asm.filePath)
+              if (refResult?.success && refResult.data?.references) {
+                // Match references to open documents
+                // References may be full paths OR just filenames, so try both
+                const childPaths: string[] = []
+                
+                for (const ref of refResult.data.references) {
+                  const refPath = ref.path
+                  const normalizedRefPath = normalizePath(refPath)
+                  
+                  // First try exact path match
+                  if (openDocPaths.has(normalizedRefPath)) {
+                    childPaths.push(refPath)
+                    continue
+                  }
+                  
+                  // If no exact match, try matching by filename (without extension)
+                  // This handles cases where getReferences returns just "Part7" instead of full path
+                  const refFileName = refPath.replace(/\\/g, '/').split('/').pop()?.replace(/\.[^.]+$/, '')?.toLowerCase() || ''
+                  const matchedFullPath = openDocByName.get(refFileName)
+                  if (matchedFullPath) {
+                    childPaths.push(matchedFullPath) // Use the full path from open docs
+                  }
+                }
+                
+                // Debug: Log reference matching
+                window.electronAPI?.log('info', `[OpenFiles] Assembly "${asm.fileName}" matched children`, childPaths)
+                
+                return { assemblyPath: asm.filePath, childPaths }
+              }
+              return { assemblyPath: asm.filePath, childPaths: [] as string[] }
+            } catch {
+              return { assemblyPath: asm.filePath, childPaths: [] as string[] }
+            }
+          })
+          
+          const refResults = await Promise.all(refPromises)
+          
+          // Build assemblyReferences map
+          refResults.forEach(r => newRefs.set(r.assemblyPath, r.childPaths))
+          
+          // Auto-expand all assemblies by default
+          newExpanded = new Set(assemblies.map(a => a.filePath))
+        }
+        
+        // Set ALL state atomically to avoid race conditions
+        // This ensures openDocuments, assemblyReferences, and expandedAssemblies
+        // are always consistent with each other
+        setOpenDocuments(sortedDocs)
+        setAssemblyReferences(newRefs)
+        setExpandedAssemblies(newExpanded)
       } else {
         setOpenDocuments([])
         setAssemblyReferences(new Map())
+        setExpandedAssemblies(new Set())
       }
     } catch {
       setOpenDocuments([])
       setAssemblyReferences(new Map())
+      setExpandedAssemblies(new Set())
     } finally {
       setIsLoadingOpenDocs(false)
     }
@@ -593,6 +788,41 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     }
     return undefined
   }, [loadOpenDocuments, solidworksIntegrationEnabled])
+  
+  // Poll selection state when SolidWorks has open documents
+  // Uses faster polling (500ms) for responsive selection tracking
+  useEffect(() => {
+    // Only poll if SW integration is enabled and there are open documents
+    if (!solidworksIntegrationEnabled || openDocuments.length === 0) {
+      setSelectedInSW({ activeDocument: null, files: [] })
+      return
+    }
+    
+    const pollSelection = async () => {
+      try {
+        const result = await window.electronAPI?.solidworks?.getSelectedFiles?.()
+        if (result?.success && result.data) {
+          // Filter to only show files in the current vault
+          const filteredFiles = (result.data.files || []).filter(
+            (file: SelectedFile) => !vaultPath || file.filePath.startsWith(vaultPath)
+          )
+          setSelectedInSW({
+            activeDocument: result.data.activeDocument || null,
+            files: filteredFiles
+          })
+        } else {
+          setSelectedInSW({ activeDocument: null, files: [] })
+        }
+      } catch {
+        setSelectedInSW({ activeDocument: null, files: [] })
+      }
+    }
+    
+    // Poll immediately then every 500ms for responsive updates
+    pollSelection()
+    const interval = setInterval(pollSelection, 500)
+    return () => clearInterval(interval)
+  }, [solidworksIntegrationEnabled, openDocuments.length, vaultPath])
   
   // Navigate to open document location in file pane (stays in current view)
   const navigateToOpenDoc = useCallback((filePath: string, localFile?: LocalFile) => {
@@ -647,13 +877,33 @@ export function PendingView({ onRefresh }: PendingViewProps) {
       try {
         const refResult = await window.electronAPI?.solidworks?.getReferences?.(assemblyPath)
         if (refResult?.success && refResult.data?.references) {
-          // Build set of currently open document paths for filtering
+          // Build lookup maps for matching - same logic as loadOpenDocuments
           const openDocPaths = new Set(openDocuments.map(d => normalizePath(d.filePath)))
+          const openDocByName = new Map<string, string>()
+          openDocuments.forEach(d => {
+            const fileName = d.fileName.replace(/\.[^.]+$/, '').toLowerCase()
+            openDocByName.set(fileName, d.filePath)
+          })
           
-          // Filter to only include references that are also open documents
-          const childPaths = refResult.data.references
-            .map(ref => ref.path)
-            .filter(path => openDocPaths.has(normalizePath(path)))
+          // Match references to open documents by path or filename
+          const childPaths: string[] = []
+          for (const ref of refResult.data.references) {
+            const refPath = ref.path
+            const normalizedRefPath = normalizePath(refPath)
+            
+            // First try exact path match
+            if (openDocPaths.has(normalizedRefPath)) {
+              childPaths.push(refPath)
+              continue
+            }
+            
+            // If no exact match, try matching by filename (without extension)
+            const refFileName = refPath.replace(/\\/g, '/').split('/').pop()?.replace(/\.[^.]+$/, '')?.toLowerCase() || ''
+            const matchedFullPath = openDocByName.get(refFileName)
+            if (matchedFullPath) {
+              childPaths.push(matchedFullPath)
+            }
+          }
           
           // Update assemblyReferences with the new data
           setAssemblyReferences(prev => {
@@ -686,18 +936,6 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     }
   }, [expandedAssemblies, assemblyReferences, openDocuments])
   
-  // Toggle expand/collapse for sections
-  const toggleSection = useCallback((sectionId: string) => {
-    setExpandedSections(prev => {
-      const next = new Set(prev)
-      if (next.has(sectionId)) {
-        next.delete(sectionId)
-      } else {
-        next.add(sectionId)
-      }
-      return next
-    })
-  }, [])
   
   // Open file in SolidWorks (focus it)
   const openInSolidWorks = useCallback((filePath: string) => {
@@ -830,7 +1068,9 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     
     // Update file pane location without switching sidebar view
     setCurrentFolder(parentPath)
-  }, [expandedFolders, toggleFolder, setCurrentFolder])
+    // Highlight the file in the file browser
+    setStoreSelectedFiles([file.path])
+  }, [expandedFolders, toggleFolder, setCurrentFolder, setStoreSelectedFiles])
   
   const selectAll = useCallback(() => {
     setSelectedFiles(new Set(myCheckedOutFiles.map(f => f.path)))
@@ -1084,24 +1324,198 @@ export function PendingView({ onRefresh }: PendingViewProps) {
       setIsProcessingDeletedRemote(false)
     }
   }, [selectedDeletedRemoteFiles, deletedRemoteFiles, onRefresh])
+  
+  // ============================================
+  // Context Menu Handlers
+  // ============================================
+  
+  // Generic context menu handler for LocalFile-based rows
+  const handleContextMenu = useCallback((
+    e: React.MouseEvent, 
+    file: LocalFile, 
+    rowType: PendingRowType
+  ) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      file,
+      filePath: file.path,
+      fileName: file.name,
+      rowType
+    })
+  }, [])
+  
+  // Context menu handler for open files (OpenDocument-based rows)
+  const handleOpenFileContextMenu = useCallback((
+    e: React.MouseEvent, 
+    filePath: string, 
+    fileName: string,
+    localFile?: LocalFile
+  ) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      file: localFile || null,
+      filePath,
+      fileName,
+      rowType: 'open-file'
+    })
+  }, [])
+  
+  // Context menu handler for selected items
+  const handleSelectedItemContextMenu = useCallback((
+    e: React.MouseEvent,
+    filePath: string,
+    fileName: string,
+    localFile?: LocalFile
+  ) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      file: localFile || null,
+      filePath,
+      fileName,
+      rowType: 'selected-item'
+    })
+  }, [])
+  
+  // Context menu action handlers
+  const handleContextMenuOpen = useCallback((filePath: string) => {
+    window.electronAPI?.openFile(filePath)
+  }, [])
+  
+  const handleContextMenuShowInExplorer = useCallback((filePath: string) => {
+    window.electronAPI?.showInExplorer(filePath)
+  }, [])
+  
+  const handleContextMenuCopyPath = useCallback((filePath: string) => {
+    navigator.clipboard.writeText(filePath)
+  }, [])
+  
+  const handleContextMenuCheckIn = useCallback(async (file: LocalFile) => {
+    setProcessingPaths(prev => new Set([...prev, file.path]))
+    try {
+      if (file.diffStatus === 'added') {
+        // New file - sync it
+        await executeCommand('sync', { files: [file] }, { onRefresh })
+      } else {
+        // Checked out file - check it in
+        await executeCommand('checkin', { files: [file] }, { onRefresh })
+      }
+    } finally {
+      setProcessingPaths(prev => {
+        const next = new Set(prev)
+        next.delete(file.path)
+        return next
+      })
+    }
+  }, [onRefresh])
+  
+  const handleContextMenuDelete = useCallback(async (file: LocalFile) => {
+    setProcessingPaths(prev => new Set([...prev, file.path]))
+    try {
+      await executeCommand('delete-local', { files: [file] }, { onRefresh })
+    } finally {
+      setProcessingPaths(prev => {
+        const next = new Set(prev)
+        next.delete(file.path)
+        return next
+      })
+    }
+  }, [onRefresh])
+  
+  const handleContextMenuDiscard = useCallback(async (file: LocalFile) => {
+    setProcessingPaths(prev => new Set([...prev, file.path]))
+    try {
+      await executeCommand('discard', { files: [file] }, { onRefresh })
+    } finally {
+      setProcessingPaths(prev => {
+        const next = new Set(prev)
+        next.delete(file.path)
+        return next
+      })
+    }
+  }, [onRefresh])
+  
+  const handleContextMenuReupload = useCallback(async (file: LocalFile) => {
+    setProcessingPaths(prev => new Set([...prev, file.path]))
+    try {
+      await executeCommand('sync', { files: [file] }, { onRefresh })
+    } finally {
+      setProcessingPaths(prev => {
+        const next = new Set(prev)
+        next.delete(file.path)
+        return next
+      })
+    }
+  }, [onRefresh])
+  
+  const handleContextMenuForceRelease = useCallback(async (file: LocalFile) => {
+    setProcessingPaths(prev => new Set([...prev, file.path]))
+    try {
+      await executeCommand('force-release', { files: [file] }, { onRefresh })
+    } finally {
+      setProcessingPaths(prev => {
+        const next = new Set(prev)
+        next.delete(file.path)
+        return next
+      })
+    }
+  }, [onRefresh])
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Active Files - files currently open in applications like SolidWorks */}
+        {/* Selected Items - shows components selected in the active assembly (topmost section) */}
+        {solidworksIntegrationEnabled && selectedInSW.files.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2">
+                <MousePointer2 size={12} className="text-plm-accent" />
+                Selected Items ({selectedInSW.files.length})
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              {selectedInSW.files.map(file => {
+                const localFile = files.find(f => 
+                  normalizePath(f.path) === normalizePath(file.filePath)
+                )
+                return (
+                  <SelectedFileRow
+                    key={file.filePath}
+                    file={file}
+                    localFile={localFile}
+                    onNavigate={navigateToOpenDoc}
+                    onContextMenu={handleSelectedItemContextMenu}
+                  />
+                )
+              })}
+            </div>
+            {selectedInSW.activeDocument && (
+              <div className="text-xs text-plm-fg-dim mt-1 px-2 truncate" title={selectedInSW.activeDocument}>
+                in {selectedInSW.activeDocument.split(/[\\/]/).pop()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Open Files - files currently open in applications like SolidWorks */}
         {solidworksIntegrationEnabled && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <button
-                onClick={() => toggleSection('activeFiles')}
+                onClick={() => togglePendingSection('activeFiles')}
                 className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2 hover:text-plm-fg transition-colors"
               >
                 <ChevronRight 
                   size={12} 
-                  className={`transition-transform ${expandedSections.has('activeFiles') ? 'rotate-90' : ''}`}
+                  className={`transition-transform ${expandedPendingSections.has('activeFiles') ? 'rotate-90' : ''}`}
                 />
                 <FileEdit size={12} className="text-plm-accent" />
-                Active Files ({openDocuments.length})
+                Open Files ({openDocuments.length})
                 {isLoadingOpenDocs && (
                   <div className="w-3 h-3 border border-plm-accent border-t-transparent rounded-full animate-spin" />
                 )}
@@ -1117,7 +1531,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               </button>
             </div>
             
-            {expandedSections.has('activeFiles') && (openDocuments.length === 0 ? (
+            {expandedPendingSections.has('activeFiles') && (openDocuments.length === 0 ? (
               <div className="text-sm text-plm-fg-muted py-4 text-center">
                 {isLoadingOpenDocs ? 'Loading...' : 'No active files'}
               </div>
@@ -1139,6 +1553,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                           childLocalFiles={localFilesByPath}
                           onNavigate={navigateToOpenDoc}
                           onOpen={openInSolidWorks}
+                          onContextMenu={handleOpenFileContextMenu}
                           isExpanded={expandedAssemblies.has(doc.filePath)}
                           isLoading={loadingAssemblies.has(doc.filePath)}
                           onToggleExpand={toggleAssemblyExpand}
@@ -1154,6 +1569,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                         localFile={localFile}
                         onNavigate={navigateToOpenDoc}
                         onOpen={openInSolidWorks}
+                        onContextMenu={handleOpenFileContextMenu}
                       />
                     )
                   })}
@@ -1174,12 +1590,12 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         <div>
           <div className="flex items-center justify-between mb-2">
             <button
-              onClick={() => toggleSection('newFiles')}
+              onClick={() => togglePendingSection('newFiles')}
               className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2 hover:text-plm-fg transition-colors"
             >
               <ChevronRight 
                 size={12} 
-                className={`transition-transform ${expandedSections.has('newFiles') ? 'rotate-90' : ''}`}
+                className={`transition-transform ${expandedPendingSections.has('newFiles') ? 'rotate-90' : ''}`}
               />
               <Plus size={12} className="text-plm-success" />
               New Files ({addedFiles.length})
@@ -1194,7 +1610,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             )}
           </div>
           
-          {expandedSections.has('newFiles') && selectedAddedCount > 0 && (
+          {expandedPendingSections.has('newFiles') && selectedAddedCount > 0 && (
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-plm-border">
               <span className="text-xs text-plm-fg-muted">{selectedAddedCount} selected</span>
               <div className="flex-1" />
@@ -1217,7 +1633,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             </div>
           )}
           
-          {expandedSections.has('newFiles') && (addedFiles.length === 0 ? (
+          {expandedPendingSections.has('newFiles') && (addedFiles.length === 0 ? (
             <div className="text-sm text-plm-fg-muted py-4 text-center">
               No new files
             </div>
@@ -1232,6 +1648,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                     isBeingProcessed={processingPaths.has(file.path)}
                     onToggleSelect={toggleSelectAdded}
                     onNavigate={navigateToFile}
+                    onContextMenu={(e, f) => handleContextMenu(e, f, 'new-file')}
                   />
                 ))}
               </div>
@@ -1248,12 +1665,12 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         <div>
           <div className="flex items-center justify-between mb-2">
             <button
-              onClick={() => toggleSection('checkedOut')}
+              onClick={() => togglePendingSection('checkedOut')}
               className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2 hover:text-plm-fg transition-colors"
             >
               <ChevronRight 
                 size={12} 
-                className={`transition-transform ${expandedSections.has('checkedOut') ? 'rotate-90' : ''}`}
+                className={`transition-transform ${expandedPendingSections.has('checkedOut') ? 'rotate-90' : ''}`}
               />
               <Lock size={12} className="text-plm-warning" />
               Checked Out Files ({myCheckedOutFiles.length})
@@ -1268,7 +1685,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             )}
           </div>
           
-          {expandedSections.has('checkedOut') && selectedCount > 0 && (
+          {expandedPendingSections.has('checkedOut') && selectedCount > 0 && (
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-plm-border">
               <span className="text-xs text-plm-fg-muted">{selectedCount} selected</span>
               <div className="flex-1" />
@@ -1291,7 +1708,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             </div>
           )}
           
-          {expandedSections.has('checkedOut') && (myCheckedOutFiles.length === 0 ? (
+          {expandedPendingSections.has('checkedOut') && (myCheckedOutFiles.length === 0 ? (
             <div className="text-sm text-plm-fg-muted py-4 text-center">
               No files checked out
             </div>
@@ -1306,6 +1723,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                   isBeingProcessed={processingPaths.has(file.path)}
                   onToggleSelect={toggleSelect}
                   onNavigate={navigateToFile}
+                  onContextMenu={(e, f) => handleContextMenu(e, f, 'checked-out-mine')}
                 />
               ))}
             </div>
@@ -1317,12 +1735,12 @@ export function PendingView({ onRefresh }: PendingViewProps) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <button
-                onClick={() => toggleSection('checkedOutOthers')}
+                onClick={() => togglePendingSection('checkedOutOthers')}
                 className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2 hover:text-plm-fg transition-colors"
               >
                 <ChevronRight 
                   size={12} 
-                  className={`transition-transform ${expandedSections.has('checkedOutOthers') ? 'rotate-90' : ''}`}
+                  className={`transition-transform ${expandedPendingSections.has('checkedOutOthers') ? 'rotate-90' : ''}`}
                 />
                 <Lock size={12} className="text-plm-error" />
                 Checked Out by Others ({othersCheckedOutFiles.length})
@@ -1337,7 +1755,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               )}
             </div>
             
-            {expandedSections.has('checkedOutOthers') && isAdmin && selectedOthersCount > 0 && (
+            {expandedPendingSections.has('checkedOutOthers') && isAdmin && selectedOthersCount > 0 && (
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-plm-border">
                 <span className="text-xs text-plm-fg-muted flex items-center gap-1">
                   <Shield size={10} className="text-plm-error" />
@@ -1356,14 +1774,14 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               </div>
             )}
             
-            {expandedSections.has('checkedOutOthers') && isAdmin && selectedOthersCount === 0 && (
+            {expandedPendingSections.has('checkedOutOthers') && isAdmin && selectedOthersCount === 0 && (
               <div className="text-xs text-plm-fg-muted mb-2 px-2 py-1 bg-plm-bg/50 rounded flex items-center gap-1">
                 <Shield size={10} />
                 Admin: Select files to force release checkout
               </div>
             )}
             
-            {expandedSections.has('checkedOutOthers') && (
+            {expandedPendingSections.has('checkedOutOthers') && (
               <div className="space-y-1">
                 {othersCheckedOutFiles.map(file => (
                   <FileRow 
@@ -1375,6 +1793,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                     isBeingProcessed={processingPaths.has(file.path)}
                     onToggleSelect={toggleSelectOthers}
                     onNavigate={navigateToFile}
+                    onContextMenu={(e, f) => handleContextMenu(e, f, 'checked-out-other')}
                   />
                 ))}
               </div>
@@ -1387,12 +1806,12 @@ export function PendingView({ onRefresh }: PendingViewProps) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <button
-                onClick={() => toggleSection('deletedFromServer')}
+                onClick={() => togglePendingSection('deletedFromServer')}
                 className="text-xs text-plm-fg-muted uppercase tracking-wide flex items-center gap-2 hover:text-plm-fg transition-colors"
               >
                 <ChevronRight 
                   size={12} 
-                  className={`transition-transform ${expandedSections.has('deletedFromServer') ? 'rotate-90' : ''}`}
+                  className={`transition-transform ${expandedPendingSections.has('deletedFromServer') ? 'rotate-90' : ''}`}
                 />
                 <CloudOff size={12} className="text-plm-error" />
                 Deleted from Server ({deletedRemoteFiles.length})
@@ -1407,7 +1826,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               )}
             </div>
             
-            {expandedSections.has('deletedFromServer') && selectedDeletedRemoteCount > 0 && (
+            {expandedPendingSections.has('deletedFromServer') && selectedDeletedRemoteCount > 0 && (
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-plm-border">
                 <span className="text-xs text-plm-fg-muted">{selectedDeletedRemoteCount} selected</span>
                 <div className="flex-1" />
@@ -1432,14 +1851,14 @@ export function PendingView({ onRefresh }: PendingViewProps) {
               </div>
             )}
             
-            {expandedSections.has('deletedFromServer') && selectedDeletedRemoteCount === 0 && (
+            {expandedPendingSections.has('deletedFromServer') && selectedDeletedRemoteCount === 0 && (
               <div className="text-xs text-plm-fg-muted mb-2 px-2 py-1 bg-plm-error/10 border border-plm-error/20 rounded flex items-center gap-1">
                 <AlertTriangle size={10} className="text-plm-error" />
                 Another user deleted these files from the server. Your local copies are orphaned.
               </div>
             )}
             
-            {expandedSections.has('deletedFromServer') && (
+            {expandedPendingSections.has('deletedFromServer') && (
               <div className="space-y-1">
                 {deletedRemoteFiles.map(file => (
                   <DeletedRemoteFileRow 
@@ -1449,6 +1868,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
                     isBeingProcessed={processingPaths.has(file.path)}
                     onToggleSelect={toggleSelectDeletedRemote}
                     onNavigate={navigateToFile}
+                    onContextMenu={(e, f) => handleContextMenu(e, f, 'deleted-remote')}
                   />
                 ))}
               </div>
@@ -1593,6 +2013,28 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Context Menu */}
+      {contextMenu && (
+        <PendingContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          file={contextMenu.file}
+          filePath={contextMenu.filePath}
+          fileName={contextMenu.fileName}
+          rowType={contextMenu.rowType}
+          isAdmin={isAdmin}
+          onClose={() => setContextMenu(null)}
+          onOpen={handleContextMenuOpen}
+          onShowInExplorer={handleContextMenuShowInExplorer}
+          onCopyPath={handleContextMenuCopyPath}
+          onCheckIn={handleContextMenuCheckIn}
+          onDelete={handleContextMenuDelete}
+          onDiscard={handleContextMenuDiscard}
+          onReupload={handleContextMenuReupload}
+          onForceRelease={handleContextMenuForceRelease}
+        />
       )}
     </div>
   )

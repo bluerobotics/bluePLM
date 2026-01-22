@@ -256,6 +256,8 @@ export interface ConfigBomItem {
   quantity: number
   configuration: string | null
   in_database: boolean
+  /** True if the referenced file doesn't exist on disk (broken reference) */
+  is_broken?: boolean
 }
 
 // Orphaned checkout - file was force-checked-in from another machine
@@ -757,6 +759,9 @@ export interface FilesSlice {
   // State - Realtime update debouncing (prevents state drift from stale realtime events)
   recentlyModifiedFiles: Map<string, number>    // fileId -> timestamp of local modification
   
+  // State - Pending pane section expansion
+  expandedPendingSections: Set<string>          // Section IDs that are expanded
+  
   // Actions - Files
   setFiles: (files: LocalFile[]) => void
   setServerFiles: (files: ServerFile[]) => void
@@ -778,6 +783,7 @@ export interface FilesSlice {
   selectAllFiles: () => void
   clearSelection: () => void
   toggleFolder: (path: string) => void
+  collapseAllFolders: () => void
   setCurrentFolder: (path: string) => void
   
   // Actions - Realtime Updates
@@ -844,6 +850,9 @@ export interface FilesSlice {
   clearRecentlyModified: (fileId: string) => void
   /** Check if a file was recently modified locally (within 15s window). */
   isFileRecentlyModified: (fileId: string) => boolean
+  
+  // Actions - Pending pane sections
+  togglePendingSection: (sectionId: string) => void
   
   /**
    * Atomic update: combines file updates + clearing processing state in a single set() call.

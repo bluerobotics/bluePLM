@@ -20,10 +20,22 @@ namespace BluePLM.SolidWorksService
         private bool _weStartedSW;
         private bool _keepRunning;
         private bool _disposed;
+        private readonly ComStabilityLayer? _comStability;
 
-        public SolidWorksAPI(bool keepRunning = true)
+        /// <summary>
+        /// Creates a new SolidWorksAPI instance.
+        /// </summary>
+        /// <param name="keepRunning">Whether to keep SolidWorks running after operations.</param>
+        /// <param name="comStability">Optional COM stability layer for retry logic and health checks.</param>
+        public SolidWorksAPI(bool keepRunning = true, ComStabilityLayer? comStability = null)
         {
             _keepRunning = keepRunning;
+            _comStability = comStability;
+            
+            if (_comStability != null)
+            {
+                Console.Error.WriteLine("[SW-API] ComStabilityLayer integration enabled");
+            }
         }
 
         #region Connection Management
@@ -112,12 +124,20 @@ namespace BluePLM.SolidWorksService
             }
         }
 
-        private ModelDoc2? OpenDocument(string filePath, out int errors, out int warnings, bool readOnly = true)
+        private ModelDoc2? OpenDocument(string filePath, out int errors, out int warnings, out bool wasAlreadyOpen, bool readOnly = true)
         {
             errors = 0;
             warnings = 0;
+            wasAlreadyOpen = false;
 
+            // IMPORTANT: Initialize _swApp FIRST via GetSolidWorks()
+            // Then check if document is already open (requires _swApp to be set)
             var sw = GetSolidWorks();
+            
+            // Now check if document is already open - this ensures _swApp is initialized
+            // so IsDocumentAlreadyOpen can actually check the running SolidWorks instance
+            wasAlreadyOpen = IsDocumentAlreadyOpen(filePath);
+            
             var docType = GetDocumentType(filePath);
 
             if (docType == swDocumentTypes_e.swDocNONE)
@@ -144,6 +164,89 @@ namespace BluePLM.SolidWorksService
                 _swApp?.CloseDoc(filePath);
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Check if a document is already open in SolidWorks.
+        /// Used to avoid closing documents that the user had open before we touched them.
+        /// </summary>
+        private bool IsDocumentAlreadyOpen(string filePath)
+        {
+            if (_swApp == null) return false;
+            try
+            {
+                var docs = (object[])_swApp.GetDocuments();
+                if (docs == null) return false;
+                
+                foreach (ModelDoc2 doc in docs)
+                {
+                    if (string.Equals(doc.GetPathName(), filePath, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>
+        /// Check if a file is currently open in a running SolidWorks instance.
+        /// Used to decide whether to use DM API (if file not open) or SW API (if file is open).
+        /// This avoids the DM API conflict where accessing a file open in SW causes SW to close it.
+        /// </summary>
+        public bool IsFileOpenInSolidWorks(string filePath)
+        {
+            Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: Checking {Path.GetFileName(filePath)}");
+            try
+            {
+                // Try to get running SolidWorks instance (don't start a new one)
+                ISldWorks? swApp = null;
+                try
+                {
+                    swApp = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
+                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: Got SolidWorks instance");
+                }
+                catch (Exception ex)
+                {
+                    // SolidWorks not running or not accessible
+                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: SolidWorks not accessible - {ex.Message}");
+                    return false;
+                }
+                
+                if (swApp == null)
+                {
+                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: swApp is null");
+                    return false;
+                }
+                
+                // Check if this file is open
+                var docs = (object[])swApp.GetDocuments();
+                if (docs == null || docs.Length == 0)
+                {
+                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: No documents open in SolidWorks");
+                    return false;
+                }
+                
+                Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: Found {docs.Length} open documents");
+                
+                foreach (ModelDoc2 doc in docs)
+                {
+                    var openPath = doc.GetPathName();
+                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: Open doc: {Path.GetFileName(openPath)}");
+                    if (string.Equals(openPath, filePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: MATCH FOUND - file is open!");
+                        return true;
+                    }
+                }
+                
+                Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: File not found in open documents");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: Exception - {ex.Message}");
+                return false; // Any error means we can't confirm it's open
+            }
         }
 
         private swDocumentTypes_e GetDocumentType(string filePath)
@@ -311,9 +414,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = "BOM extraction only works on assembly files (.sldasm)" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -400,8 +504,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -421,9 +525,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -465,8 +570,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -490,9 +595,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -532,8 +638,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -556,9 +662,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = "Missing or empty 'properties'" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings, readOnly: false);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen, readOnly: false);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -588,8 +695,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -667,9 +774,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -709,8 +817,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -734,9 +842,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -781,8 +890,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -1099,9 +1208,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -1136,8 +1246,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -1404,9 +1514,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -1441,8 +1552,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -1462,9 +1573,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(filePath!, out var errors, out var warnings);
+                doc = OpenDocument(filePath!, out var errors, out var warnings, out wasAlreadyOpen);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
@@ -1503,8 +1615,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(filePath!); } catch { }
                 }
@@ -1531,9 +1643,10 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"New component not found: {newComponent}" };
 
             ModelDoc2? doc = null;
+            bool wasAlreadyOpen = false;
             try
             {
-                doc = OpenDocument(assemblyPath!, out var errors, out var warnings, readOnly: false);
+                doc = OpenDocument(assemblyPath!, out var errors, out var warnings, out wasAlreadyOpen, readOnly: false);
                 if (doc == null)
                     return new CommandResult { Success = false, Error = $"Failed to open assembly: errors={errors}" };
 
@@ -1587,8 +1700,8 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
-                // ALWAYS close the document to release file locks
-                if (doc != null)
+                // Only close if WE opened it - don't close user's open documents!
+                if (doc != null && !wasAlreadyOpen)
                 {
                     try { CloseDocument(assemblyPath!); } catch { }
                 }
@@ -2270,6 +2383,31 @@ namespace BluePLM.SolidWorksService
         /// </summary>
         public CommandResult GetOpenDocuments()
         {
+            // Use COM stability layer if available
+            if (_comStability != null)
+            {
+                var result = _comStability.ExecuteSerialized(() => GetOpenDocumentsInternal(), operationName: "GetOpenDocuments");
+                if (!result.IsSuccess)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = result.ErrorMessage,
+                        ErrorDetails = result.ErrorDetails,
+                        ErrorCode = result.ErrorCode.ToString()
+                    };
+                }
+                return result.Data!;
+            }
+            
+            return GetOpenDocumentsInternal();
+        }
+
+        /// <summary>
+        /// Internal implementation of GetOpenDocuments
+        /// </summary>
+        private CommandResult GetOpenDocumentsInternal()
+        {
             try
             {
                 // Only try to connect to running instance, don't start SW
@@ -2299,15 +2437,24 @@ namespace BluePLM.SolidWorksService
                     var filePath = doc.GetPathName();
                     if (!string.IsNullOrEmpty(filePath))
                     {
-                        documents.Add(new
+                        // Only include documents that have a visible window
+                        // This filters out components loaded in memory (as part of an assembly)
+                        // but not explicitly opened by the user with their own window
+                        // If ActiveView is null, the document has no window (loaded as component only)
+                        bool isVisible = doc.ActiveView != null;
+                        
+                        if (isVisible)
                         {
-                            filePath,
-                            fileName = Path.GetFileName(filePath),
-                            fileType = GetFileType(filePath),
-                            isReadOnly = doc.IsOpenedReadOnly(),
-                            isDirty = doc.GetSaveFlag(), // true if has unsaved changes
-                            activeConfiguration = doc.ConfigurationManager?.ActiveConfiguration?.Name ?? ""
-                        });
+                            documents.Add(new
+                            {
+                                filePath,
+                                fileName = Path.GetFileName(filePath),
+                                fileType = GetFileType(filePath),
+                                isReadOnly = doc.IsOpenedReadOnly(),
+                                isDirty = doc.GetSaveFlag(), // true if has unsaved changes
+                                activeConfiguration = doc.ConfigurationManager?.ActiveConfiguration?.Name ?? ""
+                            });
+                        }
                     }
                     doc = (ModelDoc2)doc.GetNext();
                 }
@@ -2330,6 +2477,176 @@ namespace BluePLM.SolidWorksService
         }
 
         /// <summary>
+        /// Get list of currently selected components in the active assembly.
+        /// Returns file paths of selected parts/sub-assemblies for display in BluePLM.
+        /// </summary>
+        public CommandResult GetSelectedFiles()
+        {
+            // Use COM stability layer if available
+            if (_comStability != null)
+            {
+                var result = _comStability.ExecuteSerialized(() => GetSelectedFilesInternal(), operationName: "GetSelectedFiles", quiet: true);
+                if (!result.IsSuccess)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = result.ErrorMessage,
+                        ErrorDetails = result.ErrorDetails,
+                        ErrorCode = result.ErrorCode.ToString()
+                    };
+                }
+                return result.Data!;
+            }
+            
+            return GetSelectedFilesInternal();
+        }
+
+        /// <summary>
+        /// Internal implementation of GetSelectedFiles
+        /// </summary>
+        private CommandResult GetSelectedFilesInternal()
+        {
+            try
+            {
+                // Only try to connect to running instance, don't start SW
+                ISldWorks? sw = null;
+                try
+                {
+                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
+                }
+                catch
+                {
+                    return new CommandResult
+                    {
+                        Success = true,
+                        Data = new
+                        {
+                            solidWorksRunning = false,
+                            activeDocument = (string?)null,
+                            files = new List<object>(),
+                            count = 0
+                        }
+                    };
+                }
+
+                // Get the active document
+                var activeDoc = sw.ActiveDoc as ModelDoc2;
+                if (activeDoc == null)
+                {
+                    return new CommandResult
+                    {
+                        Success = true,
+                        Data = new
+                        {
+                            solidWorksRunning = true,
+                            activeDocument = (string?)null,
+                            files = new List<object>(),
+                            count = 0
+                        }
+                    };
+                }
+
+                var activeDocPath = activeDoc.GetPathName();
+                var selectedFiles = new List<object>();
+                var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // Get the SelectionManager
+                var selMgr = activeDoc.SelectionManager as SelectionMgr;
+                if (selMgr == null)
+                {
+                    return new CommandResult
+                    {
+                        Success = true,
+                        Data = new
+                        {
+                            solidWorksRunning = true,
+                            activeDocument = activeDocPath,
+                            files = new List<object>(),
+                            count = 0
+                        }
+                    };
+                }
+
+                // Get count of selected objects (-1 = all marks)
+                int selCount = selMgr.GetSelectedObjectCount2(-1);
+
+                // Iterate through selections (SOLIDWORKS uses 1-based indexing)
+                for (int i = 1; i <= selCount; i++)
+                {
+                    try
+                    {
+                        // Get the type of selection
+                        int selType = selMgr.GetSelectedObjectType3(i, -1);
+                        Component2? comp = null;
+
+                        // Direct component selection (from FeatureManager tree)
+                        if (selType == (int)swSelectType_e.swSelCOMPONENTS)
+                        {
+                            comp = selMgr.GetSelectedObject6(i, -1) as Component2;
+                        }
+                        else
+                        {
+                            // Graphics area selection - get component from face/edge/vertex/body via IEntity
+                            object selObj = selMgr.GetSelectedObject6(i, -1);
+                            // Use IEntity interface which provides GetComponent2() for all geometric entities
+                            if (selObj is IEntity entity)
+                            {
+                                try
+                                {
+                                    comp = entity.GetComponent() as Component2;
+                                }
+                                catch
+                                {
+                                    // Some entities may not have a component (e.g., in part documents)
+                                }
+                            }
+                        }
+
+                        // Add component if found and not already seen
+                        if (comp != null)
+                        {
+                            string compPath = comp.GetPathName();
+                            if (!string.IsNullOrEmpty(compPath) && !seenPaths.Contains(compPath))
+                            {
+                                seenPaths.Add(compPath);
+                                selectedFiles.Add(new
+                                {
+                                    filePath = compPath,
+                                    fileName = Path.GetFileName(compPath),
+                                    componentName = comp.Name2 ?? Path.GetFileNameWithoutExtension(compPath),
+                                    fileType = GetFileType(compPath),
+                                    isVirtual = comp.IsVirtual
+                                });
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Skip individual selection errors, log for debugging
+                        Console.Error.WriteLine($"[SW-API] GetSelectedFiles: Error processing selection {i}: {ex.Message}");
+                    }
+                }
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Data = new
+                    {
+                        solidWorksRunning = true,
+                        activeDocument = activeDocPath,
+                        files = selectedFiles,
+                        count = selectedFiles.Count
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
+            }
+        }
+
+        /// <summary>
         /// Check if a specific file is open in SolidWorks
         /// </summary>
         public CommandResult IsDocumentOpen(string? filePath)
@@ -2337,6 +2654,31 @@ namespace BluePLM.SolidWorksService
             if (string.IsNullOrEmpty(filePath))
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
 
+            // Use COM stability layer if available
+            if (_comStability != null)
+            {
+                var result = _comStability.ExecuteSerialized(() => IsDocumentOpenInternal(filePath), operationName: "IsDocumentOpen");
+                if (!result.IsSuccess)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = result.ErrorMessage,
+                        ErrorDetails = result.ErrorDetails,
+                        ErrorCode = result.ErrorCode.ToString()
+                    };
+                }
+                return result.Data!;
+            }
+            
+            return IsDocumentOpenInternal(filePath);
+        }
+
+        /// <summary>
+        /// Internal implementation of IsDocumentOpen
+        /// </summary>
+        private CommandResult IsDocumentOpenInternal(string filePath)
+        {
             try
             {
                 ISldWorks? sw = null;
@@ -2389,6 +2731,51 @@ namespace BluePLM.SolidWorksService
             if (string.IsNullOrEmpty(filePath))
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
 
+            // Use COM stability layer if available
+            if (_comStability != null)
+            {
+                // Health check before critical operation
+                var health = _comStability.HealthCheck();
+                if (health != SwHealthStatus.Healthy)
+                {
+                    Console.Error.WriteLine($"[SW-API] SetDocumentReadOnly: Health check failed - {health}");
+                    var errorCode = health switch
+                    {
+                        SwHealthStatus.Busy => ComErrorCode.SwBusy,
+                        SwHealthStatus.Unresponsive => ComErrorCode.SwUnresponsive,
+                        SwHealthStatus.NotRunning => ComErrorCode.SwNotRunning,
+                        _ => ComErrorCode.Unknown
+                    };
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = $"SolidWorks is not ready: {health}",
+                        ErrorCode = errorCode.ToString()
+                    };
+                }
+
+                var result = _comStability.ExecuteSerialized(() => SetDocumentReadOnlyInternal(filePath, readOnly), operationName: "SetDocumentReadOnly");
+                if (!result.IsSuccess)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = result.ErrorMessage,
+                        ErrorDetails = result.ErrorDetails,
+                        ErrorCode = result.ErrorCode.ToString()
+                    };
+                }
+                return result.Data!;
+            }
+            
+            return SetDocumentReadOnlyInternal(filePath, readOnly);
+        }
+
+        /// <summary>
+        /// Internal implementation of SetDocumentReadOnly
+        /// </summary>
+        private CommandResult SetDocumentReadOnlyInternal(string filePath, bool readOnly)
+        {
             try
             {
                 ISldWorks? sw = null;
@@ -2401,7 +2788,8 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult
                     {
                         Success = false,
-                        Error = "SolidWorks is not running"
+                        Error = "SolidWorks is not running",
+                        ErrorCode = ComErrorCode.SwNotRunning.ToString()
                     };
                 }
 
@@ -2411,7 +2799,8 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult
                     {
                         Success = false,
-                        Error = $"File is not open in SolidWorks: {Path.GetFileName(filePath)}"
+                        Error = $"File is not open in SolidWorks: {Path.GetFileName(filePath)}",
+                        ErrorCode = ComErrorCode.FileNotOpen.ToString()
                     };
                 }
 
@@ -2452,6 +2841,51 @@ namespace BluePLM.SolidWorksService
             if (string.IsNullOrEmpty(filePath))
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
 
+            // Use COM stability layer if available
+            if (_comStability != null)
+            {
+                // Health check before critical operation
+                var health = _comStability.HealthCheck();
+                if (health != SwHealthStatus.Healthy)
+                {
+                    Console.Error.WriteLine($"[SW-API] SaveDocument: Health check failed - {health}");
+                    var errorCode = health switch
+                    {
+                        SwHealthStatus.Busy => ComErrorCode.SwBusy,
+                        SwHealthStatus.Unresponsive => ComErrorCode.SwUnresponsive,
+                        SwHealthStatus.NotRunning => ComErrorCode.SwNotRunning,
+                        _ => ComErrorCode.Unknown
+                    };
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = $"SolidWorks is not ready: {health}",
+                        ErrorCode = errorCode.ToString()
+                    };
+                }
+
+                var result = _comStability.ExecuteSerialized(() => SaveDocumentInternal(filePath), operationName: "SaveDocument");
+                if (!result.IsSuccess)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = result.ErrorMessage,
+                        ErrorDetails = result.ErrorDetails,
+                        ErrorCode = result.ErrorCode.ToString()
+                    };
+                }
+                return result.Data!;
+            }
+            
+            return SaveDocumentInternal(filePath);
+        }
+
+        /// <summary>
+        /// Internal implementation of SaveDocument
+        /// </summary>
+        private CommandResult SaveDocumentInternal(string filePath)
+        {
             try
             {
                 ISldWorks? sw = null;
@@ -2464,7 +2898,8 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult
                     {
                         Success = false,
-                        Error = "SolidWorks is not running"
+                        Error = "SolidWorks is not running",
+                        ErrorCode = ComErrorCode.SwNotRunning.ToString()
                     };
                 }
 
@@ -2474,7 +2909,8 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult
                     {
                         Success = false,
-                        Error = $"File is not open in SolidWorks: {Path.GetFileName(filePath)}"
+                        Error = $"File is not open in SolidWorks: {Path.GetFileName(filePath)}",
+                        ErrorCode = ComErrorCode.FileNotOpen.ToString()
                     };
                 }
 
@@ -2553,6 +2989,31 @@ namespace BluePLM.SolidWorksService
             if (properties == null || properties.Count == 0)
                 return new CommandResult { Success = false, Error = "Missing or empty 'properties'" };
 
+            // Use COM stability layer if available
+            if (_comStability != null)
+            {
+                var result = _comStability.ExecuteSerialized(() => SetDocumentPropertiesInternal(filePath, properties, configuration), operationName: "SetDocumentProperties");
+                if (!result.IsSuccess)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = result.ErrorMessage,
+                        ErrorDetails = result.ErrorDetails,
+                        ErrorCode = result.ErrorCode.ToString()
+                    };
+                }
+                return result.Data!;
+            }
+            
+            return SetDocumentPropertiesInternal(filePath, properties, configuration);
+        }
+
+        /// <summary>
+        /// Internal implementation of SetDocumentProperties
+        /// </summary>
+        private CommandResult SetDocumentPropertiesInternal(string filePath, Dictionary<string, string> properties, string? configuration)
+        {
             try
             {
                 ISldWorks? sw = null;
@@ -2565,7 +3026,8 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult
                     {
                         Success = false,
-                        Error = "SolidWorks is not running"
+                        Error = "SolidWorks is not running",
+                        ErrorCode = ComErrorCode.SwNotRunning.ToString()
                     };
                 }
 
@@ -2575,7 +3037,8 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult
                     {
                         Success = false,
-                        Error = $"File is not open in SolidWorks: {Path.GetFileName(filePath)}"
+                        Error = $"File is not open in SolidWorks: {Path.GetFileName(filePath)}",
+                        ErrorCode = ComErrorCode.FileNotOpen.ToString()
                     };
                 }
 
@@ -2620,6 +3083,31 @@ namespace BluePLM.SolidWorksService
             if (string.IsNullOrEmpty(filePath))
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
 
+            // Use COM stability layer if available
+            if (_comStability != null)
+            {
+                var result = _comStability.ExecuteSerialized(() => GetDocumentInfoInternal(filePath), operationName: "GetDocumentInfo");
+                if (!result.IsSuccess)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        Error = result.ErrorMessage,
+                        ErrorDetails = result.ErrorDetails,
+                        ErrorCode = result.ErrorCode.ToString()
+                    };
+                }
+                return result.Data!;
+            }
+            
+            return GetDocumentInfoInternal(filePath);
+        }
+
+        /// <summary>
+        /// Internal implementation of GetDocumentInfo
+        /// </summary>
+        private CommandResult GetDocumentInfoInternal(string filePath)
+        {
             try
             {
                 ISldWorks? sw = null;
@@ -2886,16 +3374,41 @@ namespace BluePLM.SolidWorksService
     /// </summary>
     public class BomItem
     {
+        [Newtonsoft.Json.JsonProperty("fileName")]
         public string FileName { get; set; } = "";
+        
+        [Newtonsoft.Json.JsonProperty("filePath")]
         public string FilePath { get; set; } = "";
+        
+        [Newtonsoft.Json.JsonProperty("fileType")]
         public string FileType { get; set; } = "";
+        
+        [Newtonsoft.Json.JsonProperty("quantity")]
         public int Quantity { get; set; } = 1;
+        
+        [Newtonsoft.Json.JsonProperty("configuration")]
         public string Configuration { get; set; } = "";
+        
+        [Newtonsoft.Json.JsonProperty("partNumber")]
         public string PartNumber { get; set; } = "";
+        
+        [Newtonsoft.Json.JsonProperty("description")]
         public string Description { get; set; } = "";
+        
+        [Newtonsoft.Json.JsonProperty("material")]
         public string Material { get; set; } = "";
+        
+        [Newtonsoft.Json.JsonProperty("revision")]
         public string Revision { get; set; } = "";
+        
+        [Newtonsoft.Json.JsonProperty("properties")]
         public Dictionary<string, string> Properties { get; set; } = new();
+        
+        /// <summary>
+        /// True if the referenced file doesn't exist on disk (broken reference)
+        /// </summary>
+        [Newtonsoft.Json.JsonProperty("isBroken")]
+        public bool IsBroken { get; set; } = false;
     }
 }
 

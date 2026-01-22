@@ -134,6 +134,9 @@ export const createFilesSlice: StateCreator<
   // Initial state - Realtime update debouncing
   recentlyModifiedFiles: new Map<string, number>(),
   
+  // Initial state - Pending pane sections (collapsed by default)
+  expandedPendingSections: new Set<string>(),
+  
   // Actions - Files
   setFiles: (files) => {
     // Restore any persisted pending metadata to the files
@@ -658,6 +661,10 @@ export const createFilesSlice: StateCreator<
     set({ expandedFolders: newExpanded })
   },
   
+  collapseAllFolders: () => {
+    set({ expandedFolders: new Set<string>() })
+  },
+  
   setCurrentFolder: (currentFolder) => set({ currentFolder }),
   
   // Actions - Realtime Updates (incremental without full refresh)
@@ -1123,6 +1130,18 @@ export const createFilesSlice: StateCreator<
     // 15 second window - after this, realtime updates are allowed again
     const DEBOUNCE_WINDOW_MS = 15000
     return Date.now() - timestamp < DEBOUNCE_WINDOW_MS
+  },
+  
+  // Actions - Pending pane sections
+  togglePendingSection: (sectionId: string) => {
+    const { expandedPendingSections } = get()
+    const newExpanded = new Set(expandedPendingSections)
+    if (newExpanded.has(sectionId)) {
+      newExpanded.delete(sectionId)
+    } else {
+      newExpanded.add(sectionId)
+    }
+    set({ expandedPendingSections: newExpanded })
   },
   
   // Getters

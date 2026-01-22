@@ -8,6 +8,7 @@
  */
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import { usePDMStore } from '@/stores/pdmStore'
+import { validateTabInput, getTabPlaceholder } from '@/lib/tabValidation'
 import type { CellRendererBaseProps } from './types'
 
 export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode {
@@ -17,9 +18,10 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
   // Handlers from FilePaneHandlersContext
   const { isFileEditable, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit, saveConfigsToSWFile, canHaveConfigs } = useFilePaneHandlers()
   
-  // Store selectors for updating pending metadata
+  // Store selectors for updating pending metadata and getting settings
   const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
   const expandedConfigFiles = usePDMStore(s => s.expandedConfigFiles)
+  const tabPaddingDigits = usePDMStore(s => s.organization?.serialization_settings?.padding_digits) ?? 3
   
   if (file.isDirectory) return ''
   
@@ -42,16 +44,17 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
           ref={inlineEditInputRef}
           type="text"
           value={editValue}
-          onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+          onChange={(e) => setEditValue(validateTabInput(e.target.value, tabPaddingDigits))}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
-              // Update pending metadata
-              updatePendingMetadata(file.path, { tab_number: editValue.toUpperCase() || null })
+              // Update pending metadata with validated value
+              const validated = validateTabInput(editValue, tabPaddingDigits)
+              updatePendingMetadata(file.path, { tab_number: validated || null })
               handleSaveCellEdit()
               // Auto-save to SW file
               const ext = file.extension?.toLowerCase() || ''
               if (['.sldprt', '.sldasm', '.slddrw'].includes(ext)) {
-                const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, tab_number: editValue.toUpperCase() || null } }
+                const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, tab_number: validated || null } }
                 saveConfigsToSWFile(updatedFile)
               }
             } else if (e.key === 'Escape') {
@@ -60,13 +63,14 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
             e.stopPropagation()
           }}
           onBlur={() => {
-            // Update pending metadata on blur
-            updatePendingMetadata(file.path, { tab_number: editValue.toUpperCase() || null })
+            // Update pending metadata on blur with validated value
+            const validated = validateTabInput(editValue, tabPaddingDigits)
+            updatePendingMetadata(file.path, { tab_number: validated || null })
             handleSaveCellEdit()
             // Auto-save to SW file
             const ext = file.extension?.toLowerCase() || ''
             if (['.sldprt', '.sldasm', '.slddrw'].includes(ext)) {
-              const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, tab_number: editValue.toUpperCase() || null } }
+              const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, tab_number: validated || null } }
               saveConfigsToSWFile(updatedFile)
             }
           }}
@@ -74,7 +78,7 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
           onMouseDown={(e) => e.stopPropagation()}
           onDragStart={(e) => e.preventDefault()}
           draggable={false}
-          placeholder="-XXX"
+          placeholder={getTabPlaceholder(tabPaddingDigits)}
           className="w-full bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
         />
       </div>

@@ -414,6 +414,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setDocumentProperties: (filePath: string, properties: Record<string, string>, configuration?: string) => 
       ipcRenderer.invoke('solidworks:set-document-properties', filePath, properties, configuration),
     
+    // Selection tracking - get currently selected components in the active assembly
+    getSelectedFiles: () => ipcRenderer.invoke('solidworks:get-selected-files'),
+    
     // File Locations (Registry) - for template folder configuration
     getInstalledVersions: () => ipcRenderer.invoke('solidworks:get-installed-versions'),
     getFileLocations: () => ipcRenderer.invoke('solidworks:get-file-locations'),

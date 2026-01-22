@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react'
+import { useShallow } from 'zustand/shallow'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { logSearch } from '@/lib/userActionLogger'
 import type { CommandSearchProps, GoogleDriveFileResult, SearchFilter } from './types'
@@ -21,7 +22,24 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     recentSearches,
     clearRecentSearches,
     setSearchQuery,
-  } = usePDMStore()
+    setCurrentFolder,
+    setSelectedFiles,
+    expandedFolders,
+    toggleFolder,
+  } = usePDMStore(
+    useShallow(s => ({
+      toggleFileSelection: s.toggleFileSelection,
+      setGdriveOpenDocument: s.setGdriveOpenDocument,
+      setActiveView: s.setActiveView,
+      recentSearches: s.recentSearches,
+      clearRecentSearches: s.clearRecentSearches,
+      setSearchQuery: s.setSearchQuery,
+      setCurrentFolder: s.setCurrentFolder,
+      setSelectedFiles: s.setSelectedFiles,
+      expandedFolders: s.expandedFolders,
+      toggleFolder: s.toggleFolder,
+    }))
+  )
 
   // Core search state
   const {
@@ -90,6 +108,32 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
       window.open(file.webViewLink, '_blank')
     }
   }, [setIsOpen, localQuery, addRecentSearch, setActiveView, setGdriveOpenDocument])
+
+  // Handle "Open file location" - navigate to parent folder and select the file
+  const handleOpenFileLocation = useCallback((file: LocalFile) => {
+    setIsOpen(false)
+    
+    // Get the parent folder path from relativePath
+    const parts = file.relativePath.split('/')
+    parts.pop() // Remove the file name
+    const parentPath = parts.join('/')
+    
+    // Expand all ancestor folders so the file is visible in the tree
+    if (parentPath) {
+      for (let i = 1; i <= parts.length; i++) {
+        const ancestorPath = parts.slice(0, i).join('/')
+        if (!expandedFolders.has(ancestorPath)) {
+          toggleFolder(ancestorPath)
+        }
+      }
+    }
+    
+    // Navigate to the parent folder
+    setCurrentFolder(parentPath)
+    
+    // Select/highlight the file
+    setSelectedFiles([file.path])
+  }, [setIsOpen, expandedFolders, toggleFolder, setCurrentFolder, setSelectedFiles])
 
   // Keyboard navigation handlers
   const handleEnter = useCallback((index: number) => {
@@ -232,6 +276,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
         onShowMoreFilters={() => setShowFilters(true)}
         onSelectLocalResult={handleSelectResult}
         onSelectDriveResult={handleSelectDriveResult}
+        onOpenFileLocation={handleOpenFileLocation}
         onRecentSearchClick={handleRecentSearchClick}
         onClearRecentSearches={() => clearRecentSearches?.()}
         onHighlightChange={setHighlightedIndex}

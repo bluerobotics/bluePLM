@@ -18,7 +18,8 @@ import {
   Lock,
   X,
   Filter,
-  CloudOff
+  CloudOff,
+  FolderMinus
 } from 'lucide-react'
 // Shared file/folder components
 import { 
@@ -1048,6 +1049,16 @@ export function FileTree({ onRefresh }: FileTreeProps) {
             >
               <RefreshCw size={14} />
               Refresh
+            </button>
+            <button
+              className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
+              onClick={() => {
+                setVaultContextMenu(null)
+                usePDMStore.getState().collapseAllFolders()
+              }}
+            >
+              <FolderMinus size={14} />
+              Collapse All Folders
             </button>
             {(() => {
               const swFilesInVault = files.filter(f => 

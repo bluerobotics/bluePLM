@@ -5,6 +5,21 @@ import path from 'path'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import * as CFB from 'cfb'
 
+// Import error handling utilities from COM stability layer
+import {
+  SwErrorCode,
+  parseServiceError,
+  isRetryableError,
+  getOperationTimeout,
+  shouldRetry,
+  calculateRetryDelay,
+  formatErrorForLogging,
+  createErrorNotification,
+  DEFAULT_RETRY_CONFIG,
+  type SwServiceResult,
+  type SwParsedError
+} from './solidworksErrors'
+
 // ============================================
 // Configuration Constants
 // ============================================
@@ -87,6 +102,19 @@ const ORPHAN_CHECK_INTERVAL_MS = 5000 // 5 seconds - tasklist is very lightweigh
 let orphanWatchdogTimer: ReturnType<typeof setInterval> | null = null
 
 /**
+ * Counter for active Document Manager operations (getBom, getReferences).
+ * When > 0, the watchdog skips orphan cleanup because the DM API may have
+ * spawned a SolidWorks process with __wgldummywindowfodder window title.
+ * 
+ * After the DM operation completes, the counter decrements and orphaned
+ * processes from previous runs will be cleaned up on the next watchdog cycle.
+ */
+let activeDmOperations = 0
+
+/** Actions that use Document Manager API and may spawn background SW processes */
+const DM_OPERATIONS = new Set(['getBom', 'getReferences'])
+
+/**
  * Placeholder for future use - records when a SolidWorks file was opened.
  * Currently not used since we only kill definitive zombie processes.
  */
@@ -94,12 +122,7 @@ export function recordSolidWorksFileOpen(): void {
   // No-op for now - we only kill __wgldummywindowfodder which is always safe
 }
 
-interface SWServiceResult {
-  success: boolean
-  data?: unknown
-  error?: string
-  errorDetails?: string
-}
+// SWServiceResult is imported from solidworksErrors.ts
 
 // ============================================
 // Process Management Helpers
@@ -202,9 +225,17 @@ async function killOrphanedSolidWorksProcesses(forceAll: boolean = false): Promi
   killed: number
   errors: string[]
 }> {
-  log('[SolidWorks] ═══════════════════════════════════════')
-  log(`[SolidWorks] 🔍 SCANNING FOR ${forceAll ? 'ALL' : 'ORPHANED'} SLDWORKS PROCESSES`)
-  log('[SolidWorks] ═══════════════════════════════════════')
+  // Skip orphan cleanup while DM operations are in progress
+  // The DM API may spawn a __wgldummywindowfodder process that we shouldn't kill
+  // After DM operations complete, orphans from previous runs will be cleaned up next cycle
+  if (!forceAll && activeDmOperations > 0) {
+    log(`[SolidWorks Watchdog] Skipping orphan check - ${activeDmOperations} DM operation(s) in progress`)
+    return { found: 0, orphaned: 0, killed: 0, errors: [] }
+  }
+  
+  log('[SolidWorks] =======================================')
+  log(`[SolidWorks] [SCAN] SCANNING FOR ${forceAll ? 'ALL' : 'ORPHANED'} SLDWORKS PROCESSES`)
+  log('[SolidWorks] =======================================')
   
   const processes = findSolidWorksProcesses()
   log(`[SolidWorks] Found ${processes.length} SLDWORKS.exe process(es)`)
@@ -238,10 +269,10 @@ async function killOrphanedSolidWorksProcesses(forceAll: boolean = false): Promi
           timeout: 10000
         })
         result.killed++
-        log(`[SolidWorks] ✓ Killed PID ${proc.pid}`)
+        log(`[SolidWorks] [OK] Killed PID ${proc.pid}`)
       } catch (err) {
         const errMsg = `Failed to kill PID ${proc.pid}: ${String(err)}`
-        log(`[SolidWorks] ❌ ${errMsg}`)
+        log(`[SolidWorks] [FAIL] ${errMsg}`)
         result.errors.push(errMsg)
       }
     } else {
@@ -342,7 +373,7 @@ async function runOrphanCheck(): Promise<void> {
     const result = await killOrphanedSolidWorksProcesses(false)
     
     if (result.killed > 0) {
-      log(`[SolidWorks Watchdog] ✓ Cleaned up ${result.killed} orphaned process(es)`)
+      log(`[SolidWorks Watchdog] [OK] Cleaned up ${result.killed} orphaned process(es)`)
       
       // Notify the renderer about the cleanup
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -402,7 +433,7 @@ function clearServiceState(reason: string, force: boolean = false): void {
   // Stop the orphaned process watchdog since service is no longer running
   stopOrphanWatchdog()
   
-  log(`[SolidWorks] ⚠️ CLEARING SERVICE STATE: ${reason}`)
+  log(`[SolidWorks] [WARN] CLEARING SERVICE STATE: ${reason}`)
   log(`[SolidWorks] Pending requests to reject: ${swPendingRequests.size}`)
   log(`[SolidWorks] Queued commands to cancel: ${commandQueue.length}`)
   
@@ -478,67 +509,81 @@ function processQueue(): void {
   }
 }
 
+/** Maximum retries for auto-retry logic on retryable errors */
+const MAX_AUTO_RETRIES = 2
+
 /**
  * Internal function that directly sends a command to the service.
  * Use sendSWCommand for queued execution.
+ * 
+ * Includes:
+ * - Operation-specific timeouts via getOperationTimeout()
+ * - Error classification via parseServiceError()
+ * - Auto-retry for retryable errors (max 2 retries)
+ * - Error notifications to renderer
  */
 async function executeCommandDirect(
   command: Record<string, unknown>,
-  options?: { timeoutMs?: number }
-): Promise<SWServiceResult> {
+  options?: { timeoutMs?: number },
+  attemptNumber: number = 0
+): Promise<SwServiceResult> {
   const action = command.action as string
   const filePath = command.filePath as string | undefined
   
   if (!swServiceProcess?.stdin) {
-    log(`[SolidWorks Cmd] ❌ ${action} - service not running`, { filePath })
+    log(`[SolidWorks Cmd] [FAIL] ${action} - service not running`, { filePath })
     return { success: false, error: 'SolidWorks service not running. Start it first.' }
   }
   
-  const timeoutMs = options?.timeoutMs ?? 300000 // Default 5 min
+  // Use operation-specific timeout if not explicitly provided
+  const timeoutMs = options?.timeoutMs ?? getOperationTimeout(action)
   const startTime = Date.now()
   const id = ++swRequestId
   
-  // Log command being sent (skip verbose logging for pings)
-  if (action !== 'ping') {
-    log(`[SolidWorks Cmd] → ${action} (id: ${id}, timeout: ${timeoutMs}ms)`, { 
+  // Log command being sent (skip verbose logging for polling operations)
+  const isQuietOperation = action === 'ping' || action === 'getSelectedFiles'
+  if (!isQuietOperation) {
+    const retryInfo = attemptNumber > 0 ? ` [retry ${attemptNumber}/${MAX_AUTO_RETRIES}]` : ''
+    log(`[SolidWorks Cmd] -> ${action} (id: ${id}, timeout: ${timeoutMs}ms)${retryInfo}`, { 
       filePath: filePath ? path.basename(filePath) : undefined,
       pendingRequests: swPendingRequests.size + 1,
       activeCommands: activeCommandCount
     })
   }
   
-  return new Promise((resolve) => {
+  const result = await new Promise<SwServiceResult>((resolve) => {
     const timeout = setTimeout(() => {
       swPendingRequests.delete(id)
       const elapsed = Date.now() - startTime
-      log(`[SolidWorks Cmd] ⏱️ TIMEOUT: ${action} (id: ${id}) after ${elapsed}ms`, {
+      log(`[SolidWorks Cmd] [TIMEOUT] TIMEOUT: ${action} (id: ${id}) after ${elapsed}ms`, {
         filePath: filePath ? path.basename(filePath) : undefined,
         remainingPendingRequests: swPendingRequests.size
       })
-      resolve({ success: false, error: 'Command timed out' })
+      resolve({ success: false, error: 'Command timed out', errorCode: 'TIMEOUT' })
     }, timeoutMs)
     
     swPendingRequests.set(id, {
-      resolve: (result) => {
+      resolve: (rawResult) => {
         clearTimeout(timeout)
         const elapsed = Date.now() - startTime
         
-        // Log command completion (skip verbose logging for fast pings)
-        if (action !== 'ping' || elapsed > 500 || !result.success) {
-          const status = result.success ? '✓' : '✗'
+        // Log command completion (skip verbose logging for fast polling operations)
+        if (!isQuietOperation || elapsed > 500 || !rawResult.success) {
+          const status = rawResult.success ? '[OK]' : '[FAIL]'
           log(`[SolidWorks Cmd] ${status} ${action} (id: ${id}) completed in ${elapsed}ms`, {
-            success: result.success,
-            error: result.error,
+            success: rawResult.success,
+            error: rawResult.error,
+            errorCode: rawResult.errorCode,
             filePath: filePath ? path.basename(filePath) : undefined
           })
         }
         
-        resolve(result)
+        resolve(rawResult)
       },
       reject: () => {
         clearTimeout(timeout)
         const elapsed = Date.now() - startTime
-        log(`[SolidWorks Cmd] ❌ ${action} (id: ${id}) REJECTED after ${elapsed}ms`, {
+        log(`[SolidWorks Cmd] [FAIL] ${action} (id: ${id}) REJECTED after ${elapsed}ms`, {
           filePath: filePath ? path.basename(filePath) : undefined
         })
         resolve({ success: false, error: 'Request rejected' })
@@ -550,6 +595,43 @@ async function executeCommandDirect(
     const json = JSON.stringify(commandWithId) + '\n'
     swServiceProcess!.stdin!.write(json)
   })
+
+  // If command failed, parse the error and potentially retry
+  if (!result.success) {
+    const parsedError = parseServiceError(result)
+    
+    // Log structured error information
+    if (action !== 'ping') {
+      log(formatErrorForLogging(parsedError, { 
+        operation: action, 
+        filePath: filePath || undefined,
+        additionalInfo: `attempt ${attemptNumber + 1}/${MAX_AUTO_RETRIES + 1}`
+      }))
+    }
+    
+    // Check if we should auto-retry
+    const retryConfig = { ...DEFAULT_RETRY_CONFIG, maxRetries: MAX_AUTO_RETRIES }
+    if (shouldRetry(parsedError, attemptNumber, retryConfig)) {
+      const delay = calculateRetryDelay(attemptNumber, retryConfig)
+      log(`[SolidWorks Cmd] [RETRY] ${action}: Retrying in ${delay}ms (attempt ${attemptNumber + 1}/${MAX_AUTO_RETRIES})`)
+      
+      await new Promise(r => setTimeout(r, delay))
+      return executeCommandDirect(command, options, attemptNumber + 1)
+    }
+    
+    // No more retries - send notification to renderer for user-facing errors
+    if (mainWindow && !mainWindow.isDestroyed() && action !== 'ping') {
+      const notification = createErrorNotification(parsedError)
+      mainWindow.webContents.send('solidworks:error', {
+        ...notification,
+        operation: action,
+        filePath: filePath || undefined,
+        errorCode: parsedError.code
+      })
+    }
+  }
+  
+  return result
 }
 
 /**
@@ -716,6 +798,7 @@ async function sendSWCommand(
   options?: { timeoutMs?: number; bypassQueue?: boolean }
 ): Promise<SWServiceResult> {
   const action = command.action as string
+  const isDmOperation = DM_OPERATIONS.has(action)
   
   if (!swServiceProcess?.stdin) {
     if (action !== 'ping') {
@@ -724,11 +807,24 @@ async function sendSWCommand(
     return { success: false, error: 'SolidWorks service not running. Start it first.' }
   }
   
+  // Track DM operations to prevent watchdog from killing their spawned processes
+  if (isDmOperation) {
+    activeDmOperations++
+    log(`[SolidWorks] DM operation ${action} started (active: ${activeDmOperations})`)
+  }
+  
   // Ping commands bypass queue for immediate status checks
   const bypassQueue = options?.bypassQueue || command.action === 'ping'
   
   if (bypassQueue) {
-    return executeCommandDirect(command, options)
+    try {
+      return await executeCommandDirect(command, options)
+    } finally {
+      if (isDmOperation) {
+        activeDmOperations--
+        log(`[SolidWorks] DM operation ${action} completed (active: ${activeDmOperations})`)
+      }
+    }
   }
   
   // Queue the command and process
@@ -740,13 +836,22 @@ async function sendSWCommand(
     }
     
     if (stats.queueDepth > 15) {
-      log(`[SolidWorks Queue] ⚠️ HIGH QUEUE DEPTH: ${stats.queueDepth + 1} pending commands!`)
+      log(`[SolidWorks Queue] [WARN] HIGH QUEUE DEPTH: ${stats.queueDepth + 1} pending commands!`)
+    }
+    
+    // Wrap resolve to decrement DM counter when command completes
+    const wrappedResolve = (result: SWServiceResult) => {
+      if (isDmOperation) {
+        activeDmOperations--
+        log(`[SolidWorks] DM operation ${action} completed (active: ${activeDmOperations})`)
+      }
+      resolve(result)
     }
     
     commandQueue.push({
       command,
       options,
-      resolve,
+      resolve: wrappedResolve,
       queuedAt: Date.now()
     })
     
@@ -764,9 +869,9 @@ async function sendSWCommand(
  */
 async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): Promise<SWServiceResult> {
   const startTime = Date.now()
-  log('[SolidWorks] ═══════════════════════════════════════')
-  log('[SolidWorks] 🚀 START SERVICE REQUESTED')
-  log('[SolidWorks] ═══════════════════════════════════════')
+  log('[SolidWorks] =======================================')
+  log('[SolidWorks] [START] START SERVICE REQUESTED')
+  log('[SolidWorks] =======================================')
   logServiceState('startSWService called')
   
   // Optionally cleanup orphaned SLDWORKS.exe processes before starting
@@ -774,12 +879,12 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
     log('[SolidWorks] Checking for orphaned SLDWORKS.exe processes...')
     const cleanupResult = await killOrphanedSolidWorksProcesses(false)
     if (cleanupResult.killed > 0) {
-      log(`[SolidWorks] ✓ Cleaned up ${cleanupResult.killed} orphaned process(es)`)
+      log(`[SolidWorks] [OK] Cleaned up ${cleanupResult.killed} orphaned process(es)`)
     }
   }
   
   if (!isSolidWorksInstalled()) {
-    log('[SolidWorks] ❌ SolidWorks not installed on this machine')
+    log('[SolidWorks] [FAIL] SolidWorks not installed on this machine')
     return { 
       success: false, 
       error: 'SolidWorks not installed',
@@ -796,7 +901,7 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
     
     if (!processAlive) {
       // Process is truly dead - clean up state (force since we verified it's dead)
-      log('[SolidWorks] ⚠️ Existing process is dead, cleaning up stale state')
+      log('[SolidWorks] [WARN] Existing process is dead, cleaning up stale state')
       clearServiceState('Process no longer exists', true)
     } else {
       // Process exists - verify it's responsive with a health ping (15 second timeout for busy service)
@@ -805,7 +910,7 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       
       if (!pingResult.success) {
         // Ping failed but process is alive - service may be busy, not stale
-        log('[SolidWorks] ⚠️ Service process alive (PID: ' + pid + ') but not responding to ping')
+        log('[SolidWorks] [WARN] Service process alive (PID: ' + pid + ') but not responding to ping')
         log('[SolidWorks] Service may be busy processing commands - not killing')
         return { 
           success: true, 
@@ -816,12 +921,12 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
         }
       } else {
         // Process is alive and responsive
-        log('[SolidWorks] ✓ Service already running and healthy (PID: ' + pid + ')')
+        log('[SolidWorks] [OK] Service already running and healthy (PID: ' + pid + ')')
         if (dmLicenseKey) {
           log('[SolidWorks] Updating DM license key on running service...')
           const result = await sendSWCommand({ action: 'setDmLicense', licenseKey: dmLicenseKey })
           if (result.success) {
-            log('[SolidWorks] ✓ License key updated successfully')
+            log('[SolidWorks] [OK] License key updated successfully')
             return { success: true, data: { message: 'Service running, license key updated' } }
           }
         }
@@ -857,7 +962,7 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
   
   return new Promise((resolve) => {
     try {
-      log('[SolidWorks] ───────────────────────────────────────')
+      log('[SolidWorks] ---------------------------------------')
       log('[SolidWorks] Spawning new service process...')
       log(`[SolidWorks] Executable: ${servicePath}`)
       log(`[SolidWorks] Args: ${args.length > 0 ? args.join(' ') : '(none)'}`)
@@ -871,7 +976,7 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       const pid = swServiceProcess.pid
       // Save PID separately so we can detect if process is alive even if reference is lost
       lastKnownServicePid = pid ?? null
-      log(`[SolidWorks] ✓ Process spawned with PID: ${pid}`)
+      log(`[SolidWorks] [OK] Process spawned with PID: ${pid}`)
       
       swServiceProcess.stdout?.on('data', (data: Buffer) => {
         handleSWServiceOutput(data.toString())
@@ -899,9 +1004,9 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       
       swServiceProcess.on('error', (err) => {
         // Error event can fire for IPC issues without the process dying
-        log('[SolidWorks] ═══════════════════════════════════════')
-        log('[SolidWorks] ❌ PROCESS ERROR EVENT')
-        log('[SolidWorks] ═══════════════════════════════════════')
+        log('[SolidWorks] =======================================')
+        log('[SolidWorks] [FAIL] PROCESS ERROR EVENT')
+        log('[SolidWorks] =======================================')
         log(`[SolidWorks] Error: ${String(err)}`)
         logServiceState('After process error event')
         // Don't force clear - let clearServiceState verify process is dead
@@ -910,9 +1015,9 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       
       swServiceProcess.on('close', (code, signal) => {
         // Close event means process actually exited - force clear state
-        log('[SolidWorks] ═══════════════════════════════════════')
-        log('[SolidWorks] 💀 PROCESS EXITED')
-        log('[SolidWorks] ═══════════════════════════════════════')
+        log('[SolidWorks] =======================================')
+        log('[SolidWorks] [DEAD] PROCESS EXITED')
+        log('[SolidWorks] =======================================')
         log(`[SolidWorks] Exit code: ${code}`)
         log(`[SolidWorks] Signal: ${signal}`)
         logServiceState('After process close event')
@@ -921,9 +1026,9 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       
       swServiceProcess.on('disconnect', () => {
         // Disconnect can happen due to stdio issues without process dying
-        log('[SolidWorks] ═══════════════════════════════════════')
-        log('[SolidWorks] ⚠️ PROCESS DISCONNECTED')
-        log('[SolidWorks] ═══════════════════════════════════════')
+        log('[SolidWorks] =======================================')
+        log('[SolidWorks] [WARN] PROCESS DISCONNECTED')
+        log('[SolidWorks] =======================================')
         logServiceState('After process disconnect event')
         // Don't force clear - let clearServiceState verify process is dead
         clearServiceState('Process disconnected', false)
@@ -934,9 +1039,9 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       pollServiceUntilReady().then((result) => {
         const totalTime = Date.now() - startTime
         if (result.success) {
-          log('[SolidWorks] ═══════════════════════════════════════')
-          log(`[SolidWorks] ✓ SERVICE STARTED SUCCESSFULLY`)
-          log('[SolidWorks] ═══════════════════════════════════════')
+          log('[SolidWorks] =======================================')
+          log(`[SolidWorks] [OK] SERVICE STARTED SUCCESSFULLY`)
+          log('[SolidWorks] =======================================')
           log(`[SolidWorks] Startup time: ${totalTime}ms`)
           log(`[SolidWorks] PID: ${pid}`)
           logServiceState('After successful startup')
@@ -944,9 +1049,9 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
           // Start the orphaned process watchdog
           startOrphanWatchdog()
         } else {
-          log('[SolidWorks] ═══════════════════════════════════════')
-          log(`[SolidWorks] ❌ SERVICE FAILED TO START`)
-          log('[SolidWorks] ═══════════════════════════════════════')
+          log('[SolidWorks] =======================================')
+          log(`[SolidWorks] [FAIL] SERVICE FAILED TO START`)
+          log('[SolidWorks] =======================================')
           log(`[SolidWorks] Error: ${result.error}`)
           log(`[SolidWorks] Time elapsed: ${totalTime}ms`)
           logServiceState('After failed startup')
@@ -954,9 +1059,9 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
         resolve(result)
       }).catch((err) => {
         const totalTime = Date.now() - startTime
-        log('[SolidWorks] ═══════════════════════════════════════')
-        log(`[SolidWorks] ❌ SERVICE STARTUP EXCEPTION`)
-        log('[SolidWorks] ═══════════════════════════════════════')
+        log('[SolidWorks] =======================================')
+        log(`[SolidWorks] [FAIL] SERVICE STARTUP EXCEPTION`)
+        log('[SolidWorks] =======================================')
         log(`[SolidWorks] Error: ${String(err)}`)
         log(`[SolidWorks] Time elapsed: ${totalTime}ms`)
         logServiceState('After startup exception')
@@ -969,7 +1074,7 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       
     } catch (err) {
       const errorMsg = String(err)
-      log('[SolidWorks] ❌ Failed to spawn service process: ' + errorMsg)
+      log('[SolidWorks] [FAIL] Failed to spawn service process: ' + errorMsg)
       resolve({ 
         success: false, 
         error: 'Failed to start service',
@@ -981,9 +1086,9 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
 
 // Stop the SolidWorks service
 async function stopSWService(): Promise<void> {
-  log('[SolidWorks] ═══════════════════════════════════════')
+  log('[SolidWorks] =======================================')
   log('[SolidWorks] 🛑 STOP SERVICE REQUESTED')
-  log('[SolidWorks] ═══════════════════════════════════════')
+  log('[SolidWorks] =======================================')
   logServiceState('stopSWService called')
   
   // Stop the orphaned process watchdog
@@ -999,15 +1104,15 @@ async function stopSWService(): Promise<void> {
   
   try {
     await sendSWCommand({ action: 'quit' }, { timeoutMs: 5000 })
-    log('[SolidWorks] ✓ Quit command sent successfully')
+    log('[SolidWorks] [OK] Quit command sent successfully')
   } catch (err) {
-    log(`[SolidWorks] ⚠️ Quit command failed: ${err}`)
+    log(`[SolidWorks] [WARN] Quit command failed: ${err}`)
   }
   
   log('[SolidWorks] Killing process...')
   swServiceProcess.kill()
   swServiceProcess = null
-  log('[SolidWorks] ✓ Service stopped')
+  log('[SolidWorks] [OK] Service stopped')
   logServiceState('After stopSWService')
 }
 
@@ -1805,9 +1910,9 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   })
 
   ipcMain.handle('solidworks:force-restart', async (_, dmLicenseKey?: string) => {
-    log('[SolidWorks] ═══════════════════════════════════════')
-    log('[SolidWorks] 🔄 FORCE RESTART REQUESTED')
-    log('[SolidWorks] ═══════════════════════════════════════')
+    log('[SolidWorks] =======================================')
+    log('[SolidWorks] [RESTART] FORCE RESTART REQUESTED')
+    log('[SolidWorks] =======================================')
     logServiceState('Before force restart')
     
     // Kill existing process if any
@@ -1816,9 +1921,9 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       log(`[SolidWorks] Force killing process (PID: ${pid})...`)
       try {
         swServiceProcess.kill('SIGKILL')
-        log('[SolidWorks] ✓ SIGKILL sent')
+        log('[SolidWorks] [OK] SIGKILL sent')
       } catch (err) {
-        log(`[SolidWorks] ⚠️ Kill failed: ${err}`)
+        log(`[SolidWorks] [WARN] Kill failed: ${err}`)
       }
       swServiceProcess = null
     } else {
@@ -2075,6 +2180,11 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'setDocumentProperties', filePath, properties, configuration }, { timeoutMs: 30000 })
   })
 
+  // Selection tracking - get currently selected components in the active assembly
+  ipcMain.handle('solidworks:get-selected-files', async () => {
+    return sendSWCommand({ action: 'getSelectedFiles' }, { timeoutMs: 2000 }) // Short timeout for responsiveness
+  })
+
   // eDrawings handlers
   ipcMain.handle('edrawings:check-installed', async () => {
     const paths = [
@@ -2270,7 +2380,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       log('[SolidWorks] License Manager not found in any known location')
       return { 
         success: false, 
-        error: 'SOLIDWORKS License Manager not found. Open it from Start Menu → SOLIDWORKS Tools → SOLIDWORKS License Manager.' 
+        error: 'SOLIDWORKS License Manager not found. Open it from Start Menu -> SOLIDWORKS Tools -> SOLIDWORKS License Manager.' 
       }
     }
 
@@ -2299,6 +2409,7 @@ export function unregisterSolidWorksHandlers(): void {
     'solidworks:replace-component', 'solidworks:pack-and-go',
     'solidworks:get-open-documents', 'solidworks:is-document-open', 'solidworks:get-document-info',
     'solidworks:set-document-readonly', 'solidworks:save-document', 'solidworks:set-document-properties',
+    'solidworks:get-selected-files',
     'solidworks:get-installed-versions', 'solidworks:get-file-locations', 'solidworks:set-file-locations',
     'solidworks:get-license-registry', 'solidworks:set-license-registry', 'solidworks:remove-license-registry', 'solidworks:check-license-registry', 'solidworks:open-license-manager',
     'edrawings:check-installed', 'edrawings:native-available', 'edrawings:open-file', 'edrawings:get-window-handle',
@@ -2317,9 +2428,9 @@ export function unregisterSolidWorksHandlers(): void {
  * Should be registered with app.on('before-quit').
  */
 export async function cleanupSolidWorksService(): Promise<void> {
-  log('[SolidWorks] ═══════════════════════════════════════')
-  log('[SolidWorks] 🧹 APP QUIT - CLEANUP STARTED')
-  log('[SolidWorks] ═══════════════════════════════════════')
+  log('[SolidWorks] =======================================')
+  log('[SolidWorks] [CLEANUP] APP QUIT - CLEANUP STARTED')
+  log('[SolidWorks] =======================================')
   logServiceState('App quit cleanup')
   
   // Stop the orphaned process watchdog
@@ -2337,9 +2448,9 @@ export async function cleanupSolidWorksService(): Promise<void> {
     // Try to send quit command gracefully (short timeout)
     log('[SolidWorks] Sending quit command...')
     await sendSWCommand({ action: 'quit' }, { timeoutMs: 2000 })
-    log('[SolidWorks] ✓ Quit command sent')
+    log('[SolidWorks] [OK] Quit command sent')
   } catch (err) {
-    log(`[SolidWorks] ⚠️ Quit command failed: ${err}`)
+    log(`[SolidWorks] [WARN] Quit command failed: ${err}`)
   }
   
   // Force kill if still running
@@ -2347,9 +2458,9 @@ export async function cleanupSolidWorksService(): Promise<void> {
     try {
       log('[SolidWorks] Force killing process...')
       swServiceProcess.kill('SIGKILL')
-      log('[SolidWorks] ✓ SIGKILL sent')
+      log('[SolidWorks] [OK] SIGKILL sent')
     } catch (err) {
-      log('[SolidWorks] ❌ Error killing process: ' + String(err))
+      log('[SolidWorks] [FAIL] Error killing process: ' + String(err))
     }
   }
   

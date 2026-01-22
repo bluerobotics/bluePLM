@@ -1,6 +1,7 @@
 import React, { memo } from 'react'
 import { Layers, FileInput, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
 import type { ConfigWithDepth } from '../../types'
+import { validateTabInput, getTabPlaceholder } from '@/lib/tabValidation'
 
 export interface ConfigRowProps {
   config: ConfigWithDepth
@@ -17,6 +18,8 @@ export interface ConfigRowProps {
   isBomExpanded?: boolean
   /** Whether the BOM is currently loading */
   isBomLoading?: boolean
+  /** Maximum digits for tab number (from serialization settings) */
+  tabPaddingDigits?: number
   onClick: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onDescriptionChange: (value: string) => void
@@ -49,6 +52,7 @@ function areConfigRowPropsEqual(
   if (prevProps.isExpandable !== nextProps.isExpandable) return false
   if (prevProps.isBomExpanded !== nextProps.isBomExpanded) return false
   if (prevProps.isBomLoading !== nextProps.isBomLoading) return false
+  if (prevProps.tabPaddingDigits !== nextProps.tabPaddingDigits) return false
   
   // Compare visibleColumns array (shallow check on length and ids)
   if (prevProps.visibleColumns.length !== nextProps.visibleColumns.length) return false
@@ -71,12 +75,18 @@ export const ConfigRow = memo(function ConfigRow({
   isExpandable,
   isBomExpanded,
   isBomLoading,
+  tabPaddingDigits = 3,
   onClick,
   onContextMenu,
   onDescriptionChange,
   onTabChange,
   onToggleBom,
 }: ConfigRowProps) {
+  // Handler that validates tab input before passing to parent
+  const handleTabChange = (value: string) => {
+    const validated = validateTabInput(value, tabPaddingDigits)
+    onTabChange(validated)
+  }
   return (
     <tr
       className={`config-row cursor-pointer ${isSelected ? 'selected' : ''}`}
@@ -178,11 +188,11 @@ export const ConfigRow = memo(function ConfigRow({
                 <input
                   type="text"
                   value={tabNumber}
-                  onChange={(e) => onTabChange(e.target.value.toUpperCase())}
+                  onChange={(e) => handleTabChange(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
-                  placeholder={basePartNumber ? 'Tab' : 'Item #'}
+                  placeholder={basePartNumber ? getTabPlaceholder(tabPaddingDigits) : 'Item #'}
                   className="w-14 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
                 />
               </div>
@@ -204,11 +214,11 @@ export const ConfigRow = memo(function ConfigRow({
               <input
                 type="text"
                 value={tabNumber}
-                onChange={(e) => onTabChange(e.target.value.toUpperCase())}
+                onChange={(e) => handleTabChange(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
-                placeholder="-XXX"
+                placeholder={getTabPlaceholder(tabPaddingDigits)}
                 className="w-16 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
               />
             )

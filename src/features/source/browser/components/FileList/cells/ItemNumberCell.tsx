@@ -8,11 +8,13 @@
  * NOTE: Drawing files can have their item number locked via settings because
  * it typically comes from the referenced model, not from editable properties.
  */
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Sparkles, Loader2, FileInput, Check } from 'lucide-react'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getNextSerialNumber, previewNextSerialNumber } from '@/lib/serialization'
+import { validateTabInput, getTabPlaceholder } from '@/lib/tabValidation'
 import type { CellRendererBaseProps } from './types'
 
 export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode {
@@ -27,6 +29,17 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   const addToast = usePDMStore(s => s.addToast)
   const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
   const lockDrawingItemNumber = usePDMStore(s => s.lockDrawingItemNumber)
+  const tabPaddingDigits = organization?.serialization_settings?.padding_digits ?? 3
+  
+  // Calculate minimum width for item number box based on serialization settings
+  // This ensures consistent sizing and alignment across all rows
+  const serializationSettings = organization?.serialization_settings
+  const prefixLength = serializationSettings?.prefix?.length ?? 3
+  const paddingDigits = serializationSettings?.padding_digits ?? 5
+  const suffixLength = serializationSettings?.suffix?.length ?? 0
+  // Each character is roughly 7px wide in our font, add buffer for generate button (24px) and padding (8px)
+  const expectedSerialLength = prefixLength + paddingDigits + suffixLength
+  const minItemNumberWidth = Math.max(60, expectedSerialLength * 7 + 32)
   
   // Check if Tab column is visible
   const isTabColumnVisible = columns.some(c => c.id === 'tabNumber' && c.visible)
@@ -42,16 +55,39 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   // Confirmation state for inline BR number generation
   const [confirmingGenerate, setConfirmingGenerate] = useState(false)
   const [previewNumber, setPreviewNumber] = useState<string | null>(null)
-  const confirmContainerRef = useRef<HTMLDivElement>(null)
+  const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null)
+  const itemBoxRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const justDismissedRef = useRef(false)
+  
+  // Calculate popup position when confirmation opens
+  useLayoutEffect(() => {
+    if (confirmingGenerate && itemBoxRef.current) {
+      const rect = itemBoxRef.current.getBoundingClientRect()
+      setPopupPosition({
+        top: rect.top + rect.height / 2,
+        left: rect.right + 4 // 4px gap from the box
+      })
+    }
+  }, [confirmingGenerate])
   
   // Click-outside handler to cancel confirmation
   useEffect(() => {
     if (!confirmingGenerate) return
     
     const handleClickOutside = (e: MouseEvent) => {
-      if (confirmContainerRef.current && !confirmContainerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      // Check if click is outside both the item box and the popup
+      const isOutsideItemBox = itemBoxRef.current && !itemBoxRef.current.contains(target)
+      const isOutsidePopup = popupRef.current && !popupRef.current.contains(target)
+      
+      if (isOutsideItemBox && isOutsidePopup) {
         setConfirmingGenerate(false)
         setPreviewNumber(null)
+        // Mark that we just dismissed - prevents the same click from triggering edit mode
+        justDismissedRef.current = true
+        // Clear the flag after a tick so future clicks work normally
+        setTimeout(() => { justDismissedRef.current = false }, 0)
       }
     }
     
@@ -103,9 +139,9 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   
   // Handle inline tab number change (when Tab column is hidden)
   const handleInlineTabChange = (value: string) => {
-    const upperValue = value.toUpperCase()
-    setLocalTabValue(upperValue)
-    updatePendingMetadata(file.path, { tab_number: upperValue || null })
+    const validated = validateTabInput(value, tabPaddingDigits)
+    setLocalTabValue(validated)
+    updatePendingMetadata(file.path, { tab_number: validated || null })
   }
   
   // Handle generating a serial number for item number - auto-saves immediately
@@ -166,8 +202,8 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   if (isEditingItemNumber && canEditItemNumber) {
     return (
       <div className="flex items-center gap-1">
-        {/* Base number input with generate button inside - sized to content */}
-        <div className="relative inline-flex min-w-[60px]">
+        {/* Base number input with generate button inside - sized based on serialization settings */}
+        <div ref={itemBoxRef} className="relative inline-flex" style={{ minWidth: minItemNumberWidth }}>
           <input
             ref={inlineEditInputRef}
             type="text"
@@ -182,9 +218,10 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
               e.stopPropagation()
             }}
             onBlur={(e) => {
-              // Don't save on blur if clicking the generate button or tab input
+              // Don't save on blur if clicking the generate button, tab input, or confirmation popup
               const relatedTarget = e.relatedTarget as HTMLElement | null
               if (relatedTarget?.dataset?.generateBtn || relatedTarget?.dataset?.tabInput) return
+              if (confirmingGenerate) return
               handleSaveCellEdit()
             }}
             onClick={(e) => e.stopPropagation()}
@@ -200,16 +237,46 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
-              handleGenerateSerial()
+              handleStartConfirm()
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            disabled={isGenerating}
+            disabled={isGenerating || confirmingGenerate}
             className="absolute right-0.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/20 disabled:opacity-50 transition-colors"
             title="Generate next serial number"
           >
             {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
           </button>
         </div>
+        
+        {/* Confirmation popup - rendered via portal to escape table overflow */}
+        {confirmingGenerate && popupPosition && createPortal(
+          <div 
+            ref={popupRef}
+            className="fixed z-[9999] flex items-center gap-1 px-2 py-1 bg-plm-bg rounded shadow-lg animate-in fade-in slide-in-from-left-2 duration-150"
+            style={{ 
+              top: popupPosition.top,
+              left: popupPosition.left,
+              transform: 'translateY(-50%)'
+            }}
+          >
+            <span className="text-plm-fg-muted text-xs whitespace-nowrap">→</span>
+            <span className="text-sm text-green-500 font-medium whitespace-nowrap">{previewNumber}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                handleConfirmGenerate()
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              disabled={isGenerating}
+              className="p-0.5 rounded bg-green-700 text-white hover:bg-green-400 disabled:opacity-50 transition-colors"
+              title="Confirm generation"
+            >
+              {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            </button>
+          </div>,
+          document.body
+        )}
         {/* Tab number input (when Tab column is hidden) */}
         {showInlineTab && (
           <>
@@ -226,7 +293,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
                 else if (e.key === 'Escape') handleCancelCellEdit()
                 e.stopPropagation()
               }}
-              placeholder="Tab"
+              placeholder={getTabPlaceholder(tabPaddingDigits)}
               className="w-12 shrink-0 bg-plm-bg/30 border border-plm-border/20 rounded px-1 py-0 text-sm text-plm-fg-muted text-center focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:text-plm-fg focus:ring-1 focus:ring-plm-accent"
             />
           </>
@@ -258,54 +325,55 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
       draggable={false}
       title={getTooltip()}
     >
-      {/* Base number with generate button and inline confirmation */}
+      {/* Main item number box - sized based on serialization settings */}
       <div 
-        ref={confirmContainerRef}
-        className="flex items-center"
+        ref={itemBoxRef}
+        className={`relative inline-flex items-center rounded pl-1 pr-8 py-0 ${canEditItemNumber ? 'cursor-text border border-transparent group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg' : ''}`}
+        style={{ minWidth: minItemNumberWidth }}
+        onClick={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+          // Don't start edit if we just dismissed confirmation (same click)
+          if (canEditItemNumber && !confirmingGenerate && !justDismissedRef.current) {
+            handleStartCellEdit(file, 'itemNumber')
+          }
+        }}
       >
-        {/* Main item number box */}
+        <span className={`text-sm ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}>
+          {displayValue}
+        </span>
+        {canEditItemNumber && !confirmingGenerate && (
+          <button
+            data-generate-btn="true"
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              handleStartConfirm()
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            disabled={isGenerating}
+            className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/cell:opacity-100 p-0.5 rounded text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/20 disabled:opacity-50 transition-all"
+            title="Generate next serial number"
+          >
+            {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+          </button>
+        )}
+        {isDrawingLocked && <FileInput size={12} className="ml-1 text-plm-fg-muted/50 flex-shrink-0" />}
+      </div>
+      
+      {/* Confirmation popup - rendered via portal to escape table overflow */}
+      {confirmingGenerate && popupPosition && createPortal(
         <div 
-          className={`relative inline-flex items-center min-w-[60px] rounded-l pl-1 pr-8 py-0 ${canEditItemNumber ? 'cursor-text border border-transparent group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg' : ''} ${confirmingGenerate ? 'border-plm-accent/50 bg-plm-bg rounded-l rounded-r-none' : 'rounded'}`}
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            if (canEditItemNumber && !confirmingGenerate) {
-              handleStartCellEdit(file, 'itemNumber')
-            }
+          ref={popupRef}
+          className="fixed z-[9999] flex items-center gap-1 px-2 py-1 bg-plm-bg rounded shadow-lg animate-in fade-in slide-in-from-left-2 duration-150"
+          style={{ 
+            top: popupPosition.top,
+            left: popupPosition.left,
+            transform: 'translateY(-50%)'
           }}
         >
-          <span className={`text-sm ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}>
-            {displayValue}
-          </span>
-          {canEditItemNumber && !confirmingGenerate && (
-            <button
-              data-generate-btn="true"
-              onClick={(e) => {
-                e.stopPropagation()
-                e.preventDefault()
-                handleStartConfirm()
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              disabled={isGenerating}
-              className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/cell:opacity-100 p-0.5 rounded text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/20 disabled:opacity-50 transition-all"
-              title="Generate next serial number"
-            >
-              {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            </button>
-          )}
-          {isDrawingLocked && <FileInput size={12} className="ml-1 text-plm-fg-muted/50 flex-shrink-0" />}
-        </div>
-        
-        {/* Inline confirmation expansion */}
-        <div 
-          className={`flex items-center gap-1.5 overflow-hidden transition-all duration-200 ease-out ${
-            confirmingGenerate 
-              ? 'max-w-[200px] opacity-100 pl-2 pr-1.5 py-0.5 border border-l-0 border-plm-accent/50 bg-plm-bg rounded-r' 
-              : 'max-w-0 opacity-0'
-          }`}
-        >
           <span className="text-plm-fg-muted text-xs whitespace-nowrap">→</span>
-          <span className="text-sm text-plm-accent font-medium whitespace-nowrap">{previewNumber}</span>
+          <span className="text-sm text-green-500 font-medium whitespace-nowrap">{previewNumber}</span>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -314,17 +382,18 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             }}
             onMouseDown={(e) => e.stopPropagation()}
             disabled={isGenerating}
-            className="p-1 rounded bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30 disabled:opacity-50 transition-colors"
+            className="p-0.5 rounded bg-green-700 text-white hover:bg-green-400 disabled:opacity-50 transition-colors"
             title="Confirm generation"
           >
-            {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           </button>
-        </div>
-      </div>
-      {/* Tab number input (when Tab column is hidden) - subtle styling to match item number */}
+        </div>,
+        document.body
+      )}
+      {/* Tab number input (when Tab column is hidden) - styled to match item number */}
       {showInlineTab && (
         <>
-          <span className="text-plm-fg-dim text-sm shrink-0">-</span>
+          <span className="text-plm-fg text-sm shrink-0 -ml-0.5">-</span>
           <input
             data-tab-input="true"
             type="text"
@@ -339,8 +408,8 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             }}
             onMouseDown={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
-            placeholder="Tab"
-            className="w-12 shrink-0 bg-transparent border border-transparent rounded px-1 py-0 text-sm text-plm-fg-muted text-center hover:border-plm-border/30 hover:bg-plm-bg/30 focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:text-plm-fg focus:ring-1 focus:ring-plm-accent"
+            placeholder={getTabPlaceholder(tabPaddingDigits)}
+            className="w-10 shrink-0 bg-transparent border border-transparent rounded px-0.5 py-0 text-sm text-plm-fg text-center cursor-text group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:ring-1 focus:ring-plm-accent"
           />
         </>
       )}

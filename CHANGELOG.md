@@ -2,6 +2,38 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.11.0] - 2026-01-22
+
+### Added
+- **Collapse all folders in vault**: Right-click context menu on a vault now includes "Collapse All Folders" option to collapse every expanded folder in the vault at once
+- **Serial number generation confirmation**: Clicking the generate serial number button now shows a preview popup with the next number before committing. Click the green checkmark to confirm, or click away to cancel. This prevents accidental serial number generation and wasted numbers
+- **Right-click context menu for Pending pane**: All rows in the Pending sidebar view now support right-click context menus with actions appropriate to each file type:
+  - Open Files / Selected Items: Open, Show in Explorer, Copy Path
+  - New Files: Open, Show in Explorer, Copy Path, Check In, Delete
+  - Checked Out (mine): Open, Show in Explorer, Copy Path, Check In, Discard
+  - Checked Out (others): Open, Show in Explorer, Copy Path, Force Release (admin)
+  - Deleted from Server: Open, Show in Explorer, Copy Path, Re-upload, Delete Local
+
+### Changed
+- **Standardized Pending pane hover behavior**: Removed inconsistent blue underlined link-style hover from file names in the Pending view. All rows now use a consistent subtle highlight effect on hover, matching the main file browser behavior
+- **Item number box sizing**: The item number input box width is now calculated based on the serialization settings (prefix + digits + suffix), ensuring consistent alignment across all rows
+- **Tab placeholder text**: Changed the tab number placeholder from "001" to "tab" to make it clearer when no tab number has been assigned
+- **Tab number hover effect**: The inline tab number input now shows the same hover box effect as the item number when hovering over the cell
+
+### Fixed
+- **Serial number preview showing tab number**: Fixed the serial number preview incorrectly showing a sample tab number (e.g., "BR-00001-001") when tabs were enabled, even though generation only produces the base number. Preview now correctly shows just the base number that will be generated
+- **BOM extraction hanging for assemblies**: Fixed issue where viewing the Bill of Materials for SolidWorks assemblies would hang for ~30 seconds and fail. The orphaned process watchdog was incorrectly killing a background SolidWorks process spawned by the Document Manager API during reference resolution. The watchdog now pauses during BOM and reference extraction operations
+- **BOM items showing empty**: Fixed JSON serialization mismatch where BOM item properties (fileName, filePath, quantity, etc.) were serialized with PascalCase but the frontend expected camelCase, resulting in empty/undefined values
+- **Tab number input validation**: Fixed confusing placeholder text in configuration tab number inputs that showed "-XXX", causing users to think they needed to type the dash. Placeholder now shows "001" (matching configured digit padding). Added input validation to only allow digits and limit to the configured number of digits (default 3). Secondary sanitization layer strips any invalid characters before writing to SOLIDWORKS properties
+- **Tab bar disappearing on Pending view**: Fixed the browser tab bar disappearing when navigating to the Pending, History, or Trash sidebar views. The tab bar now remains visible for all views that display the file browser
+- **Open Files assembly expand arrow not showing**: Fixed the expand/collapse chevron not appearing next to assemblies in the Pending View's Open Files section. The SolidWorks service returns file types with capitalized names ("Assembly") but the frontend checked for lowercase ("assembly"), causing the comparison to always fail
+- **Duplicate preview in bottom panel**: Fixed SolidWorks files showing two previews stacked on top of each other in the Preview tab. Both the SWDatacardPanel and the generic preview block were rendering simultaneously
+
+### Removed
+- **Legacy SolidWorks service folders**: Removed empty legacy folders from `solidworks-service/` that were left over from project renaming (`BluePDM.SolidWorks`, `BluePDM.SolidWorksService`, `BluePLM.SolidWorks`)
+
+---
+
 ## [3.10.4] - 2026-01-21
 
 ### Fixed

@@ -8,6 +8,7 @@ import { FileRow } from './FileRow'
 import { ConfigRow } from './ConfigRow'
 import { ConfigBomRow } from './ConfigBomRow'
 import { useFilePaneContext } from '../../context'
+import { usePDMStore } from '@/stores/pdmStore'
 
 // ============================================================================
 // Types
@@ -148,6 +149,9 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     setIsCreatingFolder,
     tableRef,
   } = useFilePaneContext()
+
+  // Get tab padding digits from organization serialization settings
+  const tabPaddingDigits = usePDMStore(s => s.organization?.serialization_settings?.padding_digits) ?? 3
 
   // Local ref for the tbody element
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
@@ -391,6 +395,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         isExpandable={isExpandable}
         isBomExpanded={isBomExpanded}
         isBomLoading={isBomLoading}
+        tabPaddingDigits={tabPaddingDigits}
         onClick={(e) => onConfigRowClick(e, file.path, config.name, configs)}
         onContextMenu={(e) => onConfigContextMenu(e, file.path, config.name)}
         onDescriptionChange={(value) => onConfigDescriptionChange(file.path, config.name, value)}
@@ -402,6 +407,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     configRowHeight,
     visibleColumns,
     fileConfigurations,
+    tabPaddingDigits,
     onConfigRowClick,
     onConfigContextMenu,
     onConfigDescriptionChange,

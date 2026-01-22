@@ -32,6 +32,7 @@ import type { Organization } from '@/stores/types'
 import { getEffectiveExportSettings } from '@/features/settings/system'
 import { buildConfigTreeFlat } from '../utils/configTree'
 import { getSerializationSettings, combineBaseAndTab } from '@/lib/serialization'
+import { sanitizeTabNumber } from '@/lib/tabValidation'
 import { getContainsByConfiguration, type ConfigBomItem } from '@/lib/supabase/files/queries'
 import { log } from '@/lib/logger'
 
@@ -47,6 +48,8 @@ interface SWBomItem {
   material: string
   revision: string
   properties: Record<string, string>
+  /** True if the referenced file doesn't exist on disk (broken reference) */
+  isBroken?: boolean
 }
 
 /**
@@ -133,7 +136,8 @@ function transformSwBomToConfigBomItems(
       state: state,
       quantity: item.quantity ?? 1,
       configuration: configName,
-      in_database: inDatabase
+      in_database: inDatabase,
+      is_broken: item.isBroken
     }
   })
 }
@@ -352,7 +356,10 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       const baseNumber = pm.part_number ?? file.pdmData?.part_number ?? ''
       const baseDesc = pm.description ?? file.pdmData?.description ?? ''
       const revision = pm.revision ?? file.pdmData?.revision ?? ''
-      const fileTabNumber = pm.tab_number ?? ''
+      const fileTabNumber = sanitizeTabNumber(pm.tab_number) // Sanitize to prevent invalid characters
+      
+      // Fetch serialization settings for proper tab number formatting
+      const serSettings = organization?.id ? await getSerializationSettings(organization.id) : null
       
       // Get current user for DrawnBy property
       const currentUser = usePDMStore.getState().user
@@ -376,10 +383,14 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         for (const config of configs.filter(c => changedConfigNames.has(c.name))) {
           const props: Record<string, string> = {}
           
-          // Build full part number (base + tab)
-          const configTab = pendingTabs[config.name] ?? config.tabNumber ?? ''
+          // Build full part number (base + tab) with sanitized tab number
+          const rawConfigTab = pendingTabs[config.name] ?? config.tabNumber ?? ''
+          const configTab = sanitizeTabNumber(rawConfigTab) // Secondary protection: strip non-digits
           if (baseNumber) {
-            props['Number'] = configTab ? `${baseNumber}-${configTab}` : baseNumber
+            // Use combineBaseAndTab for proper separator from settings, fallback to dash
+            props['Number'] = configTab 
+              ? (serSettings?.tab_enabled ? combineBaseAndTab(baseNumber, configTab, serSettings) : `${baseNumber}-${configTab}`)
+              : baseNumber
             props['Base Item Number'] = baseNumber  // Always write base separately
             if (configTab) props['Tab Number'] = configTab
           }
@@ -413,9 +424,13 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         // Single config or no configs loaded - save file-level properties
         const props: Record<string, string> = {}
         
-        // Build full part number (base + file-level tab)
+        // Build full part number (base + file-level tab) with sanitized tab number
+        // fileTabNumber is already sanitized above
         if (baseNumber) {
-          props['Number'] = fileTabNumber ? `${baseNumber}-${fileTabNumber}` : baseNumber
+          // Use combineBaseAndTab for proper separator from settings, fallback to dash
+          props['Number'] = fileTabNumber 
+            ? (serSettings?.tab_enabled ? combineBaseAndTab(baseNumber, fileTabNumber, serSettings) : `${baseNumber}-${fileTabNumber}`)
+            : baseNumber
           props['Base Item Number'] = baseNumber
           if (fileTabNumber) props['Tab Number'] = fileTabNumber
         }

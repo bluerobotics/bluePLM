@@ -31,6 +31,7 @@ namespace BluePLM.SolidWorksService
     {
         private static DocumentManagerAPI? _dmApi;
         private static SolidWorksAPI? _swApi;
+        private static ComStabilityLayer? _comStability;
 
         static int Main(string[] args)
         {
@@ -78,6 +79,12 @@ namespace BluePLM.SolidWorksService
             Console.Error.WriteLine("=== BluePLM SolidWorks Service Startup ===");
             Console.Error.WriteLine($"[Startup] DM License key from command line: {(dmLicenseKey == null ? "not provided" : "provided")}");
 
+            // Initialize COM Stability Layer FIRST (before any COM operations)
+            Console.Error.WriteLine("[Startup] Creating ComStabilityLayer instance...");
+            _comStability = new ComStabilityLayer();
+            var comInitResult = _comStability.Initialize();
+            Console.Error.WriteLine($"[Startup] ComStabilityLayer initialized: {comInitResult}");
+            Console.Error.WriteLine($"[Startup] IMessageFilter registered: {_comStability.IsMessageFilterRegistered}");
             
             Console.Error.WriteLine("[Startup] Creating DocumentManagerAPI instance...");
             _dmApi = new DocumentManagerAPI(dmLicenseKey);
@@ -89,8 +96,9 @@ namespace BluePLM.SolidWorksService
             Console.Error.WriteLine($"[Startup] InitializationError: {_dmApi.InitializationError ?? "(none)"}");
             
             // Initialize SolidWorks API handler (for exports - launches SW on demand)
+            // Pass the COM stability layer for wrapped COM operations
             Console.Error.WriteLine("[Startup] Creating SolidWorksAPI instance...");
-            _swApi = new SolidWorksAPI(keepSwRunning);
+            _swApi = new SolidWorksAPI(keepSwRunning, _comStability);
             Console.Error.WriteLine($"[Startup] SolidWorks available: {_swApi.IsSolidWorksAvailable()}");
 
             // Single command mode
@@ -102,7 +110,7 @@ namespace BluePLM.SolidWorksService
             }
 
             // Interactive mode - read commands from stdin
-            var dmStatus = _dmApi.IsAvailable ? "✓ READY (fast mode enabled)" : $"✗ {_dmApi.InitializationError}";
+            var dmStatus = _dmApi.IsAvailable ? "[OK] READY (fast mode enabled)" : $"[FAIL] {_dmApi.InitializationError}";
             Console.Error.WriteLine("=== Service Ready ===");
             Console.Error.WriteLine("BluePLM SolidWorks Service v1.0.0");
             Console.Error.WriteLine($"  Document Manager API: {dmStatus}");
@@ -114,18 +122,38 @@ namespace BluePLM.SolidWorksService
             {
                 while ((line = Console.ReadLine()) != null)
                 {
-                    Console.Error.WriteLine($"[Service] Received command: {line.Substring(0, Math.Min(50, line.Length))}...");
-                    
                     if (string.IsNullOrWhiteSpace(line)) continue;
+                    
+                    // Extract action to determine if this is a quiet polling operation
+                    string? action = null;
+                    try
+                    {
+                        var parsed = JsonConvert.DeserializeObject<JObject>(line);
+                        action = parsed?["action"]?.ToString();
+                    }
+                    catch { /* Ignore parse errors here, will be handled in ProcessCommand */ }
+                    
+                    bool isQuietOperation = action == "ping" || action == "getSelectedFiles";
+                    
+                    if (!isQuietOperation)
+                    {
+                        Console.Error.WriteLine($"[Service] Received command: {line.Substring(0, Math.Min(50, line.Length))}...");
+                    }
                     
                     try
                     {
                         var result = ProcessCommand(line);
                         var response = JsonConvert.SerializeObject(result);
-                        Console.Error.WriteLine($"[Service] Sending response ({response.Length} chars)");
+                        if (!isQuietOperation)
+                        {
+                            Console.Error.WriteLine($"[Service] Sending response ({response.Length} chars)");
+                        }
                         Console.WriteLine(response);
                         Console.Out.Flush();
-                        Console.Error.WriteLine("[Service] Response sent, waiting for next command...");
+                        if (!isQuietOperation)
+                        {
+                            Console.Error.WriteLine("[Service] Response sent, waiting for next command...");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -151,6 +179,7 @@ namespace BluePLM.SolidWorksService
             Console.Error.WriteLine("[Service] Cleaning up...");
             _dmApi?.Dispose();
             _swApi?.Dispose();
+            _comStability?.Dispose();
             Console.Error.WriteLine("[Service] Cleanup complete, exiting with code 0");
 
             return 0;
@@ -203,6 +232,7 @@ namespace BluePLM.SolidWorksService
                     "setDocumentProperties" => _swApi!.SetDocumentProperties(filePath,
                         command["properties"]?.ToObject<System.Collections.Generic.Dictionary<string, string>>(),
                         command["configuration"]?.ToString()),
+                    "getSelectedFiles" => _swApi!.GetSelectedFiles(),
                     
                     // ========================================
                     // SLOW operations (Full SolidWorks API)
@@ -290,7 +320,17 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult GetBomFast(string? filePath, JObject command)
         {
-            // Try Document Manager first (NO SW launch!)
+            // If SolidWorks has this file open, use full SW API to avoid DM API conflict
+            // (DM API accessing a file open in SW can cause SW to close the file)
+            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
+            {
+                Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
+                return _swApi.GetBillOfMaterials(filePath, 
+                    command["includeChildren"]?.Value<bool>() ?? true,
+                    command["configuration"]?.ToString());
+            }
+            
+            // Try Document Manager first (NO SW launch!) - only if file NOT open in SW
             if (_dmApi != null && _dmApi.IsAvailable)
             {
                 var result = _dmApi.GetBillOfMaterials(filePath, command["configuration"]?.ToString());
@@ -305,6 +345,14 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult GetPropertiesFast(string? filePath, JObject command)
         {
+            // If SolidWorks has this file open, use full SW API to avoid DM API conflict
+            // (DM API accessing a file open in SW can cause SW to close the file)
+            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
+            {
+                Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
+                return _swApi.GetCustomProperties(filePath, command["configuration"]?.ToString());
+            }
+            
             // ONLY use Document Manager API - NEVER fall back to full SolidWorks!
             // Opening SolidWorks just for property extraction can take 20-30+ seconds.
             // If Document Manager fails, the user can manually use "Refresh Metadata" 
@@ -316,7 +364,7 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult 
                 { 
                     Success = false, 
-                    Error = "Document Manager not available. Configure DM license in Settings → Integrations → SOLIDWORKS, or use 'Refresh Metadata' for manual extraction." 
+                    Error = "Document Manager not available. Configure DM license in Settings -> Integrations -> SOLIDWORKS, or use 'Refresh Metadata' for manual extraction." 
                 };
             }
             
@@ -348,7 +396,15 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult GetConfigurationsFast(string? filePath)
         {
-            // Try Document Manager first (NO SW launch!)
+            // If SolidWorks has this file open, use full SW API to avoid DM API conflict
+            // (DM API accessing a file open in SW can cause SW to close the file)
+            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
+            {
+                Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
+                return _swApi.GetConfigurations(filePath);
+            }
+            
+            // Try Document Manager first (NO SW launch!) - only if file NOT open in SW
             if (_dmApi != null && _dmApi.IsAvailable)
             {
                 var result = _dmApi.GetConfigurations(filePath);
@@ -361,7 +417,15 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult GetReferencesFast(string? filePath)
         {
-            // Try Document Manager first (NO SW launch!)
+            // If SolidWorks has this file open, use full SW API to avoid DM API conflict
+            // (DM API accessing a file open in SW can cause SW to close the file)
+            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
+            {
+                Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
+                return _swApi.GetExternalReferences(filePath);
+            }
+            
+            // Try Document Manager first (NO SW launch!) - only if file NOT open in SW
             if (_dmApi != null && _dmApi.IsAvailable)
             {
                 var result = _dmApi.GetExternalReferences(filePath);
@@ -526,6 +590,7 @@ namespace BluePLM.SolidWorksService
         {
             _dmApi?.Dispose();
             _swApi?.Dispose();
+            _comStability?.Dispose();
             Environment.Exit(0);
             return new CommandResult { Success = true };
         }
@@ -562,7 +627,7 @@ Options:
 Getting a Document Manager License Key (FREE with SW subscription):
   1. Go to https://customerportal.solidworks.com/
   2. Log in with your SolidWorks subscription
-  3. Navigate to 'API Support' → 'Request Document Manager Key'
+  3. Navigate to 'API Support' -> 'Request Document Manager Key'
   4. Copy the key and use with --dm-license or setDmLicense command
 
 Commands:
@@ -608,6 +673,9 @@ Commands:
 
         [JsonProperty("errorDetails", NullValueHandling = NullValueHandling.Ignore)]
         public string? ErrorDetails { get; set; }
+
+        [JsonProperty("errorCode", NullValueHandling = NullValueHandling.Ignore)]
+        public string? ErrorCode { get; set; }
 
         [JsonProperty("requestId", NullValueHandling = NullValueHandling.Ignore)]
         public int? RequestId { get; set; }

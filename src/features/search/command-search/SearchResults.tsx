@@ -26,6 +26,7 @@ export function SearchResults({
   onShowMoreFilters,
   onSelectLocalResult,
   onSelectDriveResult,
+  onOpenFileLocation,
   onRecentSearchClick,
   onClearRecentSearches,
   onHighlightChange,
@@ -71,6 +72,7 @@ export function SearchResults({
                 isHighlighted={highlightedIndex === index}
                 onSelect={() => onSelectLocalResult(file)}
                 onMouseEnter={() => onHighlightChange(index)}
+                onOpenFileLocation={() => onOpenFileLocation(file)}
               />
             ))}
           </div>

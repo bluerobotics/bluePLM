@@ -372,6 +372,18 @@ declare global {
         setDocumentProperties: (filePath: string, properties: Record<string, string>, configuration?: string) => 
           Promise<{ success: boolean; data?: { filePath: string; fileName: string; propertiesSet: number; configuration: string }; error?: string }>
         
+        // Selection tracking - get currently selected components in the active assembly
+        getSelectedFiles: () => Promise<{ success: boolean; data?: {
+          activeDocument: string | null
+          files: Array<{
+            filePath: string
+            fileName: string
+            componentName: string
+            fileType: string
+            isVirtual: boolean
+          }>
+        }; error?: string }>
+        
         // File Locations (Registry) - for template folder configuration
         getInstalledVersions: () => Promise<{ success: boolean; versions?: Array<{ version: string; year: number; registryPath: string }>; error?: string }>
         getFileLocations: () => Promise<{ 

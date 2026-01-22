@@ -41,6 +41,8 @@ interface BomItem {
   material: string
   revision: string
   properties: Record<string, string>
+  /** True if the referenced file doesn't exist on disk (broken reference) */
+  isBroken?: boolean
 }
 
 interface Configuration {

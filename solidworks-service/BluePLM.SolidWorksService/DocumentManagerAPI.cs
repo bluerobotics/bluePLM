@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace BluePLM.SolidWorksService
 {
@@ -13,7 +14,7 @@ namespace BluePLM.SolidWorksService
     /// Reads metadata, properties, BOM, configurations WITHOUT launching SolidWorks!
     /// 
     /// Requires a Document Manager API license key (free with SolidWorks subscription).
-    /// Get yours at: https://customerportal.solidworks.com/ → API Support
+    /// Get yours at: https://customerportal.solidworks.com/ -> API Support
     /// 
     /// Note: This feature dynamically loads the Document Manager DLL at runtime
     /// from the user's SolidWorks installation. Works on any machine with SolidWorks installed.
@@ -163,7 +164,7 @@ namespace BluePLM.SolidWorksService
                 
                 if (string.IsNullOrEmpty(key))
                 {
-                    _initError = "Document Manager license key not provided. Configure it in Settings → Integrations → SOLIDWORKS.";
+                    _initError = "Document Manager license key not provided. Configure it in Settings -> Integrations -> SOLIDWORKS.";
                     LogDebug($"FAILED: {_initError}");
                     _initialized = true;
                     return false;
@@ -1634,10 +1635,26 @@ namespace BluePLM.SolidWorksService
                         dynamic dynSearchOpt = searchOpt;
                         dynSearchOpt.SearchFilters = 3; // SwDmSearchForPart | SwDmSearchForAssembly
 
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Calling GetAllExternalReferences...");
                         var swGetRefs = System.Diagnostics.Stopwatch.StartNew();
-                        var dependencies = (string[]?)dynDoc.GetAllExternalReferences(searchOpt);
+                        
+                        // Wrap in Task with timeout as safety net in case DM API hangs
+                        // (e.g., searching for missing references on slow/unavailable network paths)
+                        string[]? dependencies = null;
+                        var refTask = Task.Run(() => (string[]?)dynDoc.GetAllExternalReferences(searchOpt));
+                        if (!refTask.Wait(TimeSpan.FromSeconds(15)))
+                        {
+                            swGetRefs.Stop();
+                            Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetAllExternalReferences TIMED OUT after 15s");
+                            return new CommandResult { 
+                                Success = false, 
+                                Error = "Reference resolution timed out after 15 seconds - assembly may have issues with missing or network references"
+                            };
+                        }
+                        dependencies = refTask.Result;
+                        
                         swGetRefs.Stop();
-                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetAllExternalReferences took {swGetRefs.ElapsedMilliseconds}ms, found {dependencies?.Length ?? 0} refs");
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetAllExternalReferences returned in {swGetRefs.ElapsedMilliseconds}ms, found {dependencies?.Length ?? 0} refs");
 
                         if (dependencies != null)
                         {
@@ -1665,6 +1682,13 @@ namespace BluePLM.SolidWorksService
 
                                 // Skip opening component files - this was causing 30+ second delays!
                                 // Just return path info, let frontend get properties from DB
+                                // Check if file exists to mark broken references
+                                var isBroken = !File.Exists(depPath);
+                                if (isBroken)
+                                {
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Broken reference - file not found: {depPath}");
+                                }
+                                
                                 bom.Add(new BomItem
                                 {
                                     FileName = Path.GetFileName(depPath),
@@ -1676,7 +1700,8 @@ namespace BluePLM.SolidWorksService
                                     Description = "", // Will be filled from DB by frontend
                                     Material = "", // Will be filled from DB by frontend
                                     Revision = "", // Will be filled from DB by frontend
-                                    Properties = new Dictionary<string, string>()
+                                    Properties = new Dictionary<string, string>(),
+                                    IsBroken = isBroken
                                 });
                             }
                         }

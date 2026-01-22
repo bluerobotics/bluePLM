@@ -2282,9 +2282,6 @@ DECLARE
   suffix TEXT;
   letter_prefix TEXT;
   padding_digits INTEGER;
-  tab_enabled BOOLEAN;
-  tab_separator TEXT;
-  tab_padding_digits INTEGER;
 BEGIN
   -- Get serialization settings for the organization
   SELECT serialization_settings INTO settings
@@ -2300,9 +2297,6 @@ BEGIN
   suffix := COALESCE(settings->>'suffix', '');
   letter_prefix := COALESCE(settings->>'letter_prefix', '');
   padding_digits := COALESCE((settings->>'padding_digits')::integer, 5);
-  tab_enabled := COALESCE((settings->>'tab_enabled')::boolean, false);
-  tab_separator := COALESCE(settings->>'tab_separator', '-');
-  tab_padding_digits := COALESCE((settings->>'tab_padding_digits')::integer, 3);
   
   -- Calculate next counter (current + 1)
   next_counter := COALESCE((settings->>'current_counter')::integer, 0) + 1;
@@ -2319,16 +2313,8 @@ BEGIN
     END IF;
   END LOOP;
   
-  -- Build the serial number
-  result := prefix || letter_prefix || LPAD(next_counter::text, padding_digits, '0');
-  
-  -- Add tab number example if enabled
-  IF tab_enabled THEN
-    result := result || tab_separator || LPAD('1', tab_padding_digits, '0');
-  END IF;
-  
-  -- Add suffix
-  result := result || suffix;
+  -- Build the serial number (base only - no tab number since we only generate base)
+  result := prefix || letter_prefix || LPAD(next_counter::text, padding_digits, '0') || suffix;
   
   RETURN result;
 END;

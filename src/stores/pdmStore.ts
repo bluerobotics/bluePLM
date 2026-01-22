@@ -119,6 +119,7 @@ export const usePDMStore = create<PDMStoreState>()(
         tabsEnabled: state.tabsEnabled,
         currentFolder: state.currentFolder,
         expandedFolders: Array.from(state.expandedFolders),
+        expandedPendingSections: Array.from(state.expandedPendingSections),
         
         // ═══════════════════════════════════════════════════════════════
         // Display Preferences
@@ -280,6 +281,8 @@ export const usePDMStore = create<PDMStoreState>()(
           vaultPath: validVaultPath,
           // Convert expandedFolders back to Set
           expandedFolders: new Set(persisted.expandedFolders as string[] || []),
+          // Convert expandedPendingSections back to Set
+          expandedPendingSections: new Set(persisted.expandedPendingSections as string[] || []),
           // Ensure cadPreviewMode has a default
           cadPreviewMode: (persisted.cadPreviewMode as 'thumbnail' | 'edrawings') || 'thumbnail',
           // Restore SolidWorks settings

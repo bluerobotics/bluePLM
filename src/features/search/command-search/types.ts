@@ -77,6 +77,7 @@ export interface LocalFileResultProps {
   isHighlighted: boolean
   onSelect: () => void
   onMouseEnter: () => void
+  onOpenFileLocation: () => void
 }
 
 export interface DriveFileResultProps {
@@ -116,6 +117,7 @@ export interface SearchResultsProps {
   onShowMoreFilters: () => void
   onSelectLocalResult: (file: LocalFile) => void
   onSelectDriveResult: (file: GoogleDriveFileResult) => void
+  onOpenFileLocation: (file: LocalFile) => void
   onRecentSearchClick: (search: string) => void
   onClearRecentSearches: () => void
   onHighlightChange: (index: number) => void

@@ -58,8 +58,8 @@ export function MainContent({
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden min-w-0 ${isResizingSidebar || isResizingRightPanel ? 'pointer-events-none' : ''}`}>
-      {/* Tab bar (browser-like tabs) - only shown when tabs are enabled and in file explorer view */}
-      {!showWelcome && activeView === 'explorer' && <TabBar />}
+      {/* Tab bar (browser-like tabs) - shown when FilePane is visible (not settings, google-drive, or workflows) */}
+      {!showWelcome && !['settings', 'google-drive', 'workflows'].includes(activeView) && <TabBar />}
       
       {showWelcome ? (
         <WelcomeScreen 

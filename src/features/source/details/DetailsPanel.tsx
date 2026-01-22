@@ -883,7 +883,7 @@ export function DetailsPanel() {
               )
             )}
 
-            {detailsPanelTab === 'preview' && (
+            {detailsPanelTab === 'preview' && !(isSolidWorksFile && !isFolder) && (
               <div className="flex flex-col items-center justify-center h-full py-4">
                 {!file ? (
                   <div className="text-sm text-plm-fg-muted">Select a file to preview</div>
