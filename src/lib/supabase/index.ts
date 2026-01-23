@@ -86,10 +86,16 @@ export {
   transitionFileState,
   updateVersionNote,
   getFileReferenceDiagnostics,
-  getVaultFilesForDiagnostics
+  getVaultFilesForDiagnostics,
+  // Folder operations
+  syncFolder,
+  getVaultFolders,
+  updateFolderServerPath,
+  deleteFolderOnServer,
+  deleteFolderByPath
 } from './files'
 
-export type { SWReference, UpsertReferencesResult, BomTreeNode, FileReferenceDiagnostic, VaultFileSummary } from './files'
+export type { SWReference, UpsertReferencesResult, BomTreeNode, FileReferenceDiagnostic, VaultFileSummary, FolderRecord } from './files'
 
 // ============================================
 // Team exports

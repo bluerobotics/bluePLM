@@ -148,11 +148,11 @@ export interface NotificationPreferences {
 // ============================================================================
 
 /**
- * Default category preference (all enabled).
+ * Default category preference (toasts enabled, sounds disabled).
  */
 export const DEFAULT_CATEGORY_PREFERENCE: CategoryPreference = {
   toastEnabled: true,
-  soundEnabled: true,
+  soundEnabled: false,
 }
 
 /**
@@ -175,10 +175,10 @@ export const DEFAULT_QUIET_HOURS: QuietHoursConfig = {
 }
 
 /**
- * Default sound settings.
+ * Default sound settings (disabled by default).
  */
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = {
-  enabled: true,
+  enabled: false,
   volume: 50,
 }
 

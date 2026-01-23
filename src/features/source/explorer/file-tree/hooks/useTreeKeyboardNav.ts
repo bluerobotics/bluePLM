@@ -64,9 +64,9 @@ export function useTreeKeyboardNav({ containerRef, tree, onRefresh }: UseTreeKey
         return
       }
       
-      // Only handle arrow keys without modifiers (except shift for range selection)
+      // Only handle specific keys without modifiers (except shift for range selection)
       if (e.ctrlKey || e.metaKey || e.altKey) return
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) return
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Delete'].includes(e.key)) return
       
       const visibleFiles = getVisibleFiles()
       if (visibleFiles.length === 0) return
@@ -182,6 +182,24 @@ export function useTreeKeyboardNav({ containerRef, tree, onRefresh }: UseTreeKey
         } else if (window.electronAPI) {
           window.electronAPI.openFile(selectedFile.path)
         }
+        return
+      }
+      
+      // Delete - delete selected files/folders
+      if (e.key === 'Delete') {
+        if (selectedFiles.length === 0) return
+        
+        e.preventDefault()
+        e.stopPropagation()
+        
+        // Get selected items from visible files
+        const selectedItems = visibleFiles.filter(f => selectedFiles.includes(f.path))
+        if (selectedItems.length === 0) return
+        
+        // For folders, delete directly (no confirmation dialog - unified delete behavior)
+        // For files or mixed selection, also delete directly
+        // The delete-local command handles both local deletion and server sync for folders
+        executeCommand('delete-local', { files: selectedItems }, { onRefresh })
         return
       }
     }

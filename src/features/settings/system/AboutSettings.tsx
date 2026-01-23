@@ -25,6 +25,7 @@ export function AboutSettings() {
   const [releases, setReleases] = useState<GitHubRelease[]>([])
   const [isLoadingReleases, setIsLoadingReleases] = useState(false)
   const [releasesError, setReleasesError] = useState<string | null>(null)
+  const [fetchingRelease, setFetchingRelease] = useState<string | null>(null)
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -55,6 +56,8 @@ export function AboutSettings() {
   }
   
   const handleInstallVersion = async (release: GitHubRelease) => {
+    log.info('[About]', 'Installing version', { version: release.tag_name })
+    
     const { setUpdateAvailable, setShowUpdateModal, setUpdateDownloading, setUpdateDownloaded, setInstallerPath } = usePDMStore.getState()
     
     // Determine the correct asset for this platform
@@ -66,9 +69,20 @@ export function AboutSettings() {
     
     const extensions = platformExtensions[platform] || ['.exe']
     
-    // Fetch release assets
+    // Set loading state
+    setFetchingRelease(release.tag_name)
+    
+    // Fetch release assets with timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+    
     try {
-      const response = await fetch(`https://api.github.com/repos/bluerobotics/bluePLM/releases/tags/${release.tag_name}`)
+      const response = await fetch(
+        `https://api.github.com/repos/bluerobotics/bluePLM/releases/tags/${release.tag_name}`,
+        { signal: controller.signal }
+      )
+      clearTimeout(timeoutId)
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch release: ${response.status}`)
       }
@@ -116,8 +130,15 @@ export function AboutSettings() {
       setShowUpdateModal(true)
       
     } catch (err) {
-      log.error('[About]', 'Failed to get release assets', { error: err })
-      addToast('error', `Failed to get download URL: ${err instanceof Error ? err.message : String(err)}`)
+      clearTimeout(timeoutId)
+      const isTimeout = err instanceof Error && err.name === 'AbortError'
+      const message = isTimeout 
+        ? 'Request timed out. Please try again.' 
+        : `Failed to get download URL: ${err instanceof Error ? err.message : String(err)}`
+      log.error('[About]', 'Failed to get release assets', { error: err, isTimeout })
+      addToast('error', message)
+    } finally {
+      setFetchingRelease(null)
     }
   }
   
@@ -333,13 +354,20 @@ export function AboutSettings() {
                   {!isCurrent && (
                     <button
                       onClick={() => handleInstallVersion(release)}
+                      disabled={fetchingRelease === release.tag_name}
                       className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                        isNewer
+                        fetchingRelease === release.tag_name
+                          ? 'bg-plm-highlight text-plm-fg-muted cursor-wait'
+                          : isNewer
                           ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
                           : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
                       }`}
                     >
-                      <Download size={10} />
+                      {fetchingRelease === release.tag_name ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : (
+                        <Download size={10} />
+                      )}
                       {isNewer ? 'Upgrade' : 'Rollback'}
                     </button>
                   )}

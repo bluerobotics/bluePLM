@@ -24,7 +24,7 @@ import {
   getSyncedFilesFromSelection, 
   getUnsyncedFilesFromSelection
 } from '../types'
-import { checkinFile, softDeleteFile } from '../../supabase'
+import { checkinFile, softDeleteFile, deleteFolderByPath } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
 import { FileOperationTracker } from '../../fileOperationTracker'
@@ -280,6 +280,10 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
       await new Promise(resolve => setTimeout(resolve, 0))
       
       const folderPaths = localFolders.map(f => f.path)
+      const folderRelativePaths = localFolders.map(f => f.relativePath)
+      
+      // Register expected file changes to suppress file watcher during operation
+      ctx.addExpectedFileChanges(folderRelativePaths)
       
       // Use batch delete for folders
       const batchResult = await window.electronAPI?.deleteBatch(folderPaths, true) as BatchDeleteResult | undefined
@@ -295,20 +299,44 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
           ctx.removeFilesFromStore(deletedPaths)
         }
         
+        // Also delete folders from server (soft delete)
+        // Always try to delete by path - harmless if folder doesn't exist on server
+        if (ctx.activeVaultId && ctx.user?.id) {
+          for (const folder of localFolders) {
+            try {
+              await deleteFolderByPath(ctx.activeVaultId, folder.relativePath, ctx.user.id)
+              logDelete('info', 'Deleted folder from server', { 
+                relativePath: folder.relativePath
+              })
+            } catch (err) {
+              logDelete('warn', 'Failed to delete folder from server', { 
+                relativePath: folder.relativePath,
+                error: err instanceof Error ? err.message : String(err)
+              })
+            }
+          }
+        }
+        
+        // Mark operation complete to help suppress file watcher
+        ctx.setLastOperationCompletedAt(Date.now())
+        
         if (deleted > 0) {
-          ctx.addToast('success', `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''}`)
+          ctx.addToast('success', `Deleted ${deleted} folder${deleted !== 1 ? 's' : ''}`)
         }
         
         tracker.endOperation('completed')
         return {
           success: true,
-          message: `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''}`,
+          message: `Deleted ${deleted} folder${deleted !== 1 ? 's' : ''}`,
           total: localFolders.length,
           succeeded: deleted,
           failed: localFolders.length - deleted,
           duration: batchResult.summary.duration
         }
       }
+      
+      // Mark operation complete to help suppress file watcher
+      ctx.setLastOperationCompletedAt(Date.now())
       
       tracker.endOperation('failed', 'Delete operation failed')
       return {
@@ -336,6 +364,9 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     const foldersBeingProcessed = files.filter(f => f.isDirectory).map(f => f.relativePath)
     const filesBeingProcessed = files.filter(f => !f.isDirectory).map(f => f.relativePath)
     const allPathsBeingProcessed = [...foldersBeingProcessed, ...filesBeingProcessed]
+    
+    // Register expected file changes to suppress file watcher during operation
+    ctx.addExpectedFileChanges(allPathsBeingProcessed)
     
     const total = filesToRemove.length
     
@@ -652,6 +683,25 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       if (hasCloudOnlyFolders) {
         const emptyFolders = files.filter(f => f.isDirectory && f.diffStatus === 'cloud')
         const pathsToRemove = emptyFolders.map(f => f.path)
+        
+        // Delete folders from server (soft delete)
+        // Always try to delete by path - harmless if folder doesn't exist on server
+        if (ctx.activeVaultId && ctx.user?.id) {
+          for (const folder of emptyFolders) {
+            try {
+              await deleteFolderByPath(ctx.activeVaultId, folder.relativePath, ctx.user.id)
+              logDelete('info', 'Deleted folder from server', { 
+                relativePath: folder.relativePath
+              })
+            } catch (err) {
+              logDelete('warn', 'Failed to delete folder from server', { 
+                relativePath: folder.relativePath,
+                error: err instanceof Error ? err.message : String(err)
+              })
+            }
+          }
+        }
+        
         ctx.removeFilesFromStore(pathsToRemove)
         ctx.addToast('success', `Removed ${emptyFolders.length} empty folder${emptyFolders.length !== 1 ? 's' : ''}`)
         tracker.endOperation('completed')
@@ -679,6 +729,9 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       const foldersToDelete = files.filter(f => f.isDirectory && f.diffStatus !== 'cloud')
       const folderPaths = foldersToDelete.map(f => f.relativePath)
       const folderAbsolutePaths = foldersToDelete.map(f => f.path)
+      
+      // Register expected file changes to suppress file watcher during operation
+      ctx.addExpectedFileChanges(folderPaths)
       
       ctx.addProcessingFoldersSync(folderPaths, 'delete')
       
@@ -711,14 +764,35 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
           }
         }
         
+        // Also delete folders from server (soft delete)
+        // Always try to delete by path - harmless if folder doesn't exist on server
+        if (ctx.activeVaultId && ctx.user?.id) {
+          const deletedFolders = foldersToDelete.filter(f => 
+            batchResult.results.some(r => r.path === f.path && r.success)
+          )
+          for (const folder of deletedFolders) {
+            try {
+              await deleteFolderByPath(ctx.activeVaultId, folder.relativePath, ctx.user.id)
+              logDelete('info', 'Deleted folder from server', { 
+                relativePath: folder.relativePath
+              })
+            } catch (err) {
+              logDelete('warn', 'Failed to delete folder from server', { 
+                relativePath: folder.relativePath,
+                error: err instanceof Error ? err.message : String(err)
+              })
+            }
+          }
+        }
+        
         if (deleted > 0) {
-          ctx.addToast('success', `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''} (not synced to server)`)
+          ctx.addToast('success', `Deleted ${deleted} folder${deleted !== 1 ? 's' : ''}`)
         }
         
         tracker.endOperation('completed')
         return {
           success: true,
-          message: `Removed ${deleted} local folder${deleted !== 1 ? 's' : ''} (not synced to server)`,
+          message: `Deleted ${deleted} folder${deleted !== 1 ? 's' : ''}`,
           total: foldersToDelete.length,
           succeeded: deleted,
           failed: failedCount,
@@ -742,6 +816,13 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     const foldersSelected = files.filter(f => f.isDirectory).map(f => f.relativePath)
     const pathsBeingProcessed = uniqueFiles.map(f => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...pathsBeingProcessed, ...foldersSelected])]
+    
+    // Register expected file changes to suppress file watcher during operation
+    // Only needed when deleting local copies (deleteLocal = true)
+    if (deleteLocal) {
+      const localPathsToDelete = files.filter(f => f.diffStatus !== 'cloud').map(f => f.relativePath)
+      ctx.addExpectedFileChanges(localPathsToDelete)
+    }
     
     const toastId = `delete-server-${Date.now()}`
     const totalFiles = uniqueFiles.length
@@ -873,6 +954,27 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
           ctx.addFilesToStore(localOnlyFiles)
           logDelete('info', 'Re-added kept local files with local-only status', {
             count: keptLocalFiles.length
+          })
+          
+          // Clear read-only attribute for kept local files
+          // Local-only files should always be writable
+          const batchFiles = keptLocalFiles.map(f => ({ path: f.path, readonly: false }))
+          window.electronAPI?.setReadonlyBatch(batchFiles).then(result => {
+            if (result?.success === false || result?.results?.some(r => !r.success)) {
+              const failedCount = result?.results?.filter(r => !r.success).length ?? 0
+              logDelete('warn', 'Some files failed to clear read-only flag', {
+                totalFiles: keptLocalFiles.length,
+                failedCount
+              })
+            } else {
+              logDelete('debug', 'Cleared read-only flag for kept local files', {
+                count: keptLocalFiles.length
+              })
+            }
+          }).catch(err => {
+            logDelete('warn', 'Failed to clear read-only flags', {
+              error: err instanceof Error ? err.message : String(err)
+            })
           })
         }
       }

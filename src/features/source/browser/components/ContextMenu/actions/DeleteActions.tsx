@@ -47,7 +47,6 @@ export function DeleteActions({
     files,
     user,
     addToast,
-    removeFilesFromStore,
   } = usePDMStore()
 
   // Helper to get all files including those inside folders
@@ -90,13 +89,18 @@ export function DeleteActions({
     (!f.pdmData || f.diffStatus === 'added' || f.diffStatus === 'deleted_remote') && 
     f.diffStatus !== 'cloud'
   )
+  
+  // Check if selection is ONLY folders (no files) - folders get simplified delete UX
+  const isOnlyFolders = contextFiles.every(f => f.isDirectory)
+  // Check if any folders in selection are synced (have pdmData from folders table)
+  const hasSyncedFolders = contextFiles.some(f => f.isDirectory && f.pdmData?.id)
 
   return (
     <>
       <div className="context-menu-separator" />
       
-      {/* Remove Local Copy - removes local copy of synced files, keeps server */}
-      {hasLocalFiles && hasSyncedFiles && (
+      {/* Remove Local Copy - removes local copy of synced files, keeps server (not for folder-only selections) */}
+      {hasLocalFiles && hasSyncedFiles && !isOnlyFolders && (
         <div 
           className="context-menu-item"
           onClick={async () => {
@@ -128,8 +132,8 @@ export function DeleteActions({
         </div>
       )}
       
-      {/* Delete Locally - for unsynced local files only */}
-      {hasUnsyncedLocalFiles && !hasSyncedFiles && !state.allCloudOnly && (
+      {/* Delete Locally - for unsynced local files only (not for folder-only selections with synced folders) */}
+      {hasUnsyncedLocalFiles && !hasSyncedFiles && !state.allCloudOnly && !(isOnlyFolders && hasSyncedFolders) && (
         <div 
           className="context-menu-item danger"
           onClick={async () => {
@@ -149,12 +153,15 @@ export function DeleteActions({
           }}
         >
           <Trash2 size={14} />
-          Delete Locally ({unsyncedFilesInDelete.length} file{unsyncedFilesInDelete.length !== 1 ? 's' : ''}{counts.folderCount > 0 ? `, ${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''}` : ''})
+          {isOnlyFolders
+            ? `Delete${counts.folderCount > 0 ? ` (${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''})` : ''}`
+            : `Delete (${unsyncedFilesInDelete.length} file${unsyncedFilesInDelete.length !== 1 ? 's' : ''}${counts.folderCount > 0 ? `, ${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''}` : ''})`
+          }
         </div>
       )}
       
-      {/* Delete from Server (Keep Local) */}
-      {hasSyncedFiles && !state.allCloudOnly && (
+      {/* Delete from Server (Keep Local) - not for folder-only selections */}
+      {hasSyncedFiles && !state.allCloudOnly && !isOnlyFolders && (
         <div 
           className="context-menu-item"
           onClick={() => {
@@ -178,8 +185,8 @@ export function DeleteActions({
         </div>
       )}
       
-      {/* Delete Local & Server */}
-      {(hasSyncedFiles || state.allCloudOnly) && (
+      {/* Delete Local & Server (or just "Delete" for folder-only selections) */}
+      {(hasSyncedFiles || state.allCloudOnly || (isOnlyFolders && hasSyncedFolders)) && (
         <div 
           className="context-menu-item danger"
           onClick={async () => {
@@ -205,10 +212,8 @@ export function DeleteActions({
               const uniqueCloudFiles = [...new Map(allCloudFiles.map(f => [f.path, f])).values()]
               
               if (uniqueCloudFiles.length === 0) {
-                const emptyFolders = contextFiles.filter(f => f.isDirectory && f.diffStatus === 'cloud')
-                const pathsToRemove = emptyFolders.map(f => f.path)
-                removeFilesFromStore(pathsToRemove)
-                addToast('success', `Removed ${emptyFolders.length} empty folder${emptyFolders.length !== 1 ? 's' : ''}`)
+                // Empty folders - delete directly
+                executeCommand('delete-server', { files: contextFiles, deleteLocal: true }, { onRefresh })
                 return
               }
               
@@ -224,6 +229,10 @@ export function DeleteActions({
                   executeCommand('delete-server', { files: storedCloudFiles, deleteLocal: false }, { onRefresh })
                 }
               })
+            } else if (isOnlyFolders) {
+              // For folder-only selections, delete directly without complex confirmation
+              onClose()
+              executeCommand('delete-local', { files: contextFiles }, { onRefresh })
             } else {
               setDeleteEverywhere(true)
               setDeleteConfirm(firstFile)
@@ -231,8 +240,11 @@ export function DeleteActions({
             }
           }}
         >
-          <CloudOff size={14} />
-          {state.allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} ({syncedFilesInDelete.length + counts.cloudOnlyCount} file{(syncedFilesInDelete.length + counts.cloudOnlyCount) !== 1 ? 's' : ''}{counts.folderCount > 0 ? `, ${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''}` : ''})
+          <Trash2 size={14} />
+          {isOnlyFolders 
+            ? `Delete${counts.folderCount > 0 ? ` (${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''})` : ''}`
+            : `${state.allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} (${syncedFilesInDelete.length + counts.cloudOnlyCount} file${(syncedFilesInDelete.length + counts.cloudOnlyCount) !== 1 ? 's' : ''}${counts.folderCount > 0 ? `, ${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''}` : ''})`
+          }
         </div>
       )}
       

@@ -1,6 +1,6 @@
 import { useCallback, startTransition } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { getFilesLightweight, getCheckedOutUsers } from '@/lib/supabase'
+import { getFilesLightweight, getCheckedOutUsers, getVaultFolders } from '@/lib/supabase'
 import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/commands/types'
 import { recordMetric } from '@/lib/performanceMetrics'
@@ -102,8 +102,14 @@ export function useLoadFiles() {
         ? getSyncIndex(currentVaultId)
         : Promise.resolve(new Set<string>())
       
+      // Fetch server folders (for empty folder sync feature)
+      // These are explicit folder records, separate from implicit folders derived from file paths
+      const serverFoldersPromise = shouldFetchServer && currentVaultId
+        ? getVaultFolders(currentVaultId)
+        : Promise.resolve({ folders: [], error: undefined })
+      
       // Wait for all to complete
-      const [localResult, serverResultWithCache, localSyncIndex] = await Promise.all([localPromise, serverPromise, syncIndexPromise])
+      const [localResult, serverResultWithCache, localSyncIndex, serverFoldersResult] = await Promise.all([localPromise, serverPromise, syncIndexPromise, serverFoldersPromise])
       
       // Extract files from cache result
       const serverResult = {
@@ -203,9 +209,16 @@ export function useLoadFiles() {
           // Windows filesystems are case-insensitive, so we normalize to lowercase for matching
           const pdmMap = new Map(pdmFiles.map((f: any) => [f.file_path.toLowerCase(), f]))
           
+          // Create a map of server folders by path (case-insensitive for Windows compatibility)
+          // These are explicit folder records from the folders table (for empty folder sync)
+          const serverFoldersMap = new Map(
+            (serverFoldersResult.folders || []).map(f => [f.folder_path.toLowerCase(), f])
+          )
+          
           // Debug: verify pdmMap keys
           const pdmMapKeys = Array.from(pdmMap.keys()).slice(0, 3)
           window.electronAPI?.log('info', '[LoadFiles] pdmMap sample keys (lowercase)', pdmMapKeys)
+          window.electronAPI?.log('info', '[LoadFiles] Server folders count', { count: serverFoldersMap.size })
           
           // Store server files for tracking deletions
           const serverFilesList = pdmFiles.map((f: any) => ({
@@ -223,8 +236,9 @@ export function useLoadFiles() {
             usePDMStore.getState().cleanupStaleExclusions(currentVaultId, serverFilePaths)
           }
           
-          // Compute all folder paths that exist on the server
+          // Compute all folder paths that exist on the server (from file paths + explicit folder records)
           const serverFolderPathsSet = new Set<string>()
+          // Add folders implied by file paths
           for (const file of pdmFiles as any[]) {
             const pathParts = file.file_path.split('/')
             let currentPath = ''
@@ -232,6 +246,10 @@ export function useLoadFiles() {
               currentPath = currentPath ? `${currentPath}/${pathParts[i]}` : pathParts[i]
               serverFolderPathsSet.add(currentPath)
             }
+          }
+          // Add explicit folder records (for empty folders)
+          for (const folder of serverFoldersResult.folders || []) {
+            serverFolderPathsSet.add(folder.folder_path)
           }
           setServerFolderPaths(serverFolderPathsSet)
           
@@ -325,7 +343,20 @@ export function useLoadFiles() {
           const unmatchedSamples: string[] = []
           
           localFiles = localFiles.map(localFile => {
-            if (localFile.isDirectory) return localFile
+            if (localFile.isDirectory) {
+              // Check if this folder exists on server (from explicit folder records)
+              const folderKey = localFile.relativePath.toLowerCase()
+              const serverFolder = serverFoldersMap.get(folderKey)
+              if (serverFolder) {
+                // Attach folder pdmData for synced folders
+                return {
+                  ...localFile,
+                  isSynced: true,
+                  pdmData: { id: serverFolder.id, folder_path: serverFolder.folder_path } as any
+                }
+              }
+              return localFile
+            }
             
             // Use lowercase for case-insensitive matching (Windows compatibility)
             const lookupKey = localFile.relativePath.toLowerCase()
@@ -618,18 +649,71 @@ export function useLoadFiles() {
             }
           }
           
-          // Add cloud folders (folders that exist on server but not locally)
+          // Auto-create server folders locally (folders that exist on server but not locally)
+          // Since folders sync immediately, we should also auto-create them on the receiving end
+          // This is instant (just mkdir operations) - no content to download
+          const addedCloudFolderPaths = new Set<string>()
+          const foldersToCreate: Array<{ path: string; fullPath: string; folderPath: string; serverFolder?: any }> = []
+          
+          // Collect implicit cloud folders (from file paths)
           for (const folderPath of cloudFolders) {
+            const fullPath = buildFullPath(loadingForVaultPath, folderPath)
+            const serverFolder = serverFoldersMap.get(folderPath.toLowerCase())
+            addedCloudFolderPaths.add(folderPath.toLowerCase())
+            foldersToCreate.push({ path: folderPath, fullPath, folderPath, serverFolder })
+          }
+          
+          // Collect explicit server folders that aren't already added
+          for (const serverFolder of serverFoldersResult.folders || []) {
+            const folderPathLower = serverFolder.folder_path.toLowerCase()
+            if (addedCloudFolderPaths.has(folderPathLower) || localPathSet.has(folderPathLower)) {
+              continue
+            }
+            const fullPath = buildFullPath(loadingForVaultPath, serverFolder.folder_path)
+            foldersToCreate.push({ 
+              path: serverFolder.folder_path, 
+              fullPath, 
+              folderPath: serverFolder.folder_path, 
+              serverFolder 
+            })
+          }
+          
+          // Create all folders locally in parallel (fast - just mkdir operations)
+          if (foldersToCreate.length > 0 && window.electronAPI) {
+            window.electronAPI.log('info', '[LoadFiles] Auto-creating server folders locally', { 
+              count: foldersToCreate.length 
+            })
+            
+            // Create folders in parallel - this is very fast (sub-ms per folder)
+            await Promise.all(
+              foldersToCreate.map(async ({ fullPath }) => {
+                try {
+                  await window.electronAPI?.createFolder(fullPath)
+                } catch (err) {
+                  // Folder might already exist or creation failed - that's okay
+                  window.electronAPI?.log('debug', '[LoadFiles] Folder creation skipped/failed', { 
+                    fullPath, 
+                    error: err instanceof Error ? err.message : String(err)
+                  })
+                }
+              })
+            )
+          }
+          
+          // Add all server folders to localFiles as synced (they now exist locally)
+          for (const { path: folderPath, fullPath, serverFolder } of foldersToCreate) {
             const folderName = folderPath.split('/').pop() || folderPath
             localFiles.push({
               name: folderName,
-              path: buildFullPath(loadingForVaultPath, folderPath),
+              path: fullPath,
               relativePath: folderPath,
               isDirectory: true,
               extension: '',
               size: 0,
-              modifiedTime: '',
-              diffStatus: 'cloud'
+              modifiedTime: serverFolder?.created_at || '',
+              diffStatus: undefined, // Not cloud anymore - they exist locally now
+              isSynced: true,
+              pdmData: serverFolder ? { id: serverFolder.id, folder_path: serverFolder.folder_path } as any : undefined
             })
           }
           

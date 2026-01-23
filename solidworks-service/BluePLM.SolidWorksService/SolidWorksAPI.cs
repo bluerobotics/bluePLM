@@ -2381,12 +2381,15 @@ namespace BluePLM.SolidWorksService
         /// <summary>
         /// Get list of currently open documents in SolidWorks
         /// </summary>
-        public CommandResult GetOpenDocuments()
+        /// <param name="includeComponents">If true, includes all loaded documents (components of assemblies) 
+        /// even if they don't have their own visible window. If false (default), only returns documents 
+        /// that the user explicitly opened with their own window.</param>
+        public CommandResult GetOpenDocuments(bool includeComponents = false)
         {
             // Use COM stability layer if available
             if (_comStability != null)
             {
-                var result = _comStability.ExecuteSerialized(() => GetOpenDocumentsInternal(), operationName: "GetOpenDocuments");
+                var result = _comStability.ExecuteSerialized(() => GetOpenDocumentsInternal(includeComponents), operationName: "GetOpenDocuments");
                 if (!result.IsSuccess)
                 {
                     return new CommandResult
@@ -2400,13 +2403,14 @@ namespace BluePLM.SolidWorksService
                 return result.Data!;
             }
             
-            return GetOpenDocumentsInternal();
+            return GetOpenDocumentsInternal(includeComponents);
         }
 
         /// <summary>
         /// Internal implementation of GetOpenDocuments
         /// </summary>
-        private CommandResult GetOpenDocumentsInternal()
+        /// <param name="includeComponents">If true, includes all loaded documents including assembly components</param>
+        private CommandResult GetOpenDocumentsInternal(bool includeComponents)
         {
             try
             {
@@ -2437,13 +2441,14 @@ namespace BluePLM.SolidWorksService
                     var filePath = doc.GetPathName();
                     if (!string.IsNullOrEmpty(filePath))
                     {
-                        // Only include documents that have a visible window
-                        // This filters out components loaded in memory (as part of an assembly)
-                        // but not explicitly opened by the user with their own window
+                        // Check if document has a visible window
+                        // Documents without windows are components loaded in memory as part of an assembly
                         // If ActiveView is null, the document has no window (loaded as component only)
                         bool isVisible = doc.ActiveView != null;
                         
-                        if (isVisible)
+                        // Include document if it has a visible window, OR if includeComponents is true
+                        // This allows checkout/checkin to update read-only state of all loaded documents
+                        if (isVisible || includeComponents)
                         {
                             documents.Add(new
                             {
@@ -2452,7 +2457,8 @@ namespace BluePLM.SolidWorksService
                                 fileType = GetFileType(filePath),
                                 isReadOnly = doc.IsOpenedReadOnly(),
                                 isDirty = doc.GetSaveFlag(), // true if has unsaved changes
-                                activeConfiguration = doc.ConfigurationManager?.ActiveConfiguration?.Name ?? ""
+                                activeConfiguration = doc.ConfigurationManager?.ActiveConfiguration?.Name ?? "",
+                                isComponent = !isVisible // true if loaded as component without its own window
                             });
                         }
                     }
@@ -2732,28 +2738,11 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
 
             // Use COM stability layer if available
+            // NOTE: No health check here - ExecuteSerialized already has retry logic with exponential backoff
+            // and IMessageFilter integration. The previous health check caused false "Unresponsive" failures
+            // when assemblies with components were open (the health check spawns a new thread that can deadlock).
             if (_comStability != null)
             {
-                // Health check before critical operation
-                var health = _comStability.HealthCheck();
-                if (health != SwHealthStatus.Healthy)
-                {
-                    Console.Error.WriteLine($"[SW-API] SetDocumentReadOnly: Health check failed - {health}");
-                    var errorCode = health switch
-                    {
-                        SwHealthStatus.Busy => ComErrorCode.SwBusy,
-                        SwHealthStatus.Unresponsive => ComErrorCode.SwUnresponsive,
-                        SwHealthStatus.NotRunning => ComErrorCode.SwNotRunning,
-                        _ => ComErrorCode.Unknown
-                    };
-                    return new CommandResult
-                    {
-                        Success = false,
-                        Error = $"SolidWorks is not ready: {health}",
-                        ErrorCode = errorCode.ToString()
-                    };
-                }
-
                 var result = _comStability.ExecuteSerialized(() => SetDocumentReadOnlyInternal(filePath, readOnly), operationName: "SetDocumentReadOnly");
                 if (!result.IsSuccess)
                 {

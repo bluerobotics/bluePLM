@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { buildFullPath } from '@/lib/utils'
-import { moveFileOnServer } from '@/lib/supabase/files'
+import { moveFileOnServer, updateFolderPath } from '@/lib/supabase/files'
 import { PDM_FILES_DATA_TYPE, MIME_TYPES } from '../constants'
 
 /**
@@ -462,14 +462,26 @@ export function useTreeDragDrop(): DragDropHandlers {
       const destPath = buildFullPath(vaultPath, newRelPath)
       
       try {
-        // For synced files, update server first (atomic operation with checkout validation)
-        if (file.pdmData?.id && user?.id) {
-          const serverResult = await moveFileOnServer(file.pdmData.id, user.id, newRelPath, fileName)
-          if (!serverResult.success) {
-            failed++
-            log.error('[TreeDragDrop]', 'Server move failed', { error: serverResult.error })
-            addToast('error', serverResult.error || 'Failed to move file on server')
-            continue
+        // For synced items, update server first
+        if (user?.id) {
+          if (file.isDirectory) {
+            // For directories, update all files inside the folder on the server
+            const folderResult = await updateFolderPath(file.relativePath, newRelPath)
+            if (!folderResult.success) {
+              failed++
+              log.error('[TreeDragDrop]', 'Server folder move failed', { error: folderResult.error })
+              addToast('error', folderResult.error || 'Failed to move folder on server')
+              continue
+            }
+          } else if (file.pdmData?.id) {
+            // For synced files, use atomic move with checkout validation
+            const serverResult = await moveFileOnServer(file.pdmData.id, user.id, newRelPath, fileName)
+            if (!serverResult.success) {
+              failed++
+              log.error('[TreeDragDrop]', 'Server move failed', { error: serverResult.error })
+              addToast('error', serverResult.error || 'Failed to move file on server')
+              continue
+            }
           }
         }
         
@@ -655,16 +667,30 @@ export function useTreeDragDrop(): DragDropHandlers {
       addProcessingFolder(file.relativePath, 'sync')
       
       try {
-        // For synced files, update server first (atomic operation with checkout validation)
-        if (file.pdmData?.id && user?.id) {
-          const serverResult = await moveFileOnServer(file.pdmData.id, user.id, newRelPath, file.name)
-          if (!serverResult.success) {
-            failed++
-            log.error('[TreeDragDrop]', 'Server move failed', { error: serverResult.error })
-            addToast('error', serverResult.error || 'Failed to move file on server')
-            removeProcessingFolder(file.relativePath)
-            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
-            continue
+        // For synced items, update server first
+        if (user?.id) {
+          if (file.isDirectory) {
+            // For directories, update all files inside the folder on the server
+            const folderResult = await updateFolderPath(file.relativePath, newRelPath)
+            if (!folderResult.success) {
+              failed++
+              log.error('[TreeDragDrop]', 'Server folder move failed', { error: folderResult.error })
+              addToast('error', folderResult.error || 'Failed to move folder on server')
+              removeProcessingFolder(file.relativePath)
+              updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+              continue
+            }
+          } else if (file.pdmData?.id) {
+            // For synced files, use atomic move with checkout validation
+            const serverResult = await moveFileOnServer(file.pdmData.id, user.id, newRelPath, file.name)
+            if (!serverResult.success) {
+              failed++
+              log.error('[TreeDragDrop]', 'Server move failed', { error: serverResult.error })
+              addToast('error', serverResult.error || 'Failed to move file on server')
+              removeProcessingFolder(file.relativePath)
+              updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+              continue
+            }
           }
         }
         
@@ -672,8 +698,8 @@ export function useTreeDragDrop(): DragDropHandlers {
         const result = await window.electronAPI.moveFile(file.path, newFullPath)
         if (result.success) {
           succeeded++
-          // For synced files, don't mark as 'moved' since server is already updated
-          const markAsMoved = !file.pdmData?.id
+          // For synced items (files or folders), don't mark as 'moved' since server is already updated
+          const markAsMoved = !file.isDirectory && !file.pdmData?.id
           renameFileInStore(file.path, newFullPath, newRelPath, markAsMoved)
         } else {
           failed++

@@ -2,7 +2,6 @@ import { useCallback } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
-import { buildFullPath } from '@/lib/utils/path'
 
 // SolidWorks file extensions that support custom properties
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -91,43 +90,55 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
   } = deps
 
   const handleCreateFolder = useCallback(async () => {
-    if (!newFolderName.trim() || !vaultPath || !window.electronAPI) {
+    if (!newFolderName.trim() || !vaultPath) {
       setIsCreatingFolder(false)
       setNewFolderName('')
       return
     }
 
     const folderName = newFolderName.trim()
-    const folderPath = currentPath 
-      ? buildFullPath(vaultPath, `${currentPath}/${folderName}`)
-      : buildFullPath(vaultPath, folderName)
-
-    try {
-      const result = await window.electronAPI.createFolder(folderPath)
-      if (result.success) {
-        addToast('success', `Created folder "${folderName}"`)
-        onRefresh()
-      } else {
-        addToast('error', `Failed to create folder: ${result.error}`)
-      }
-    } catch (err) {
-      addToast('error', `Failed to create folder: ${err instanceof Error ? err.message : String(err)}`)
-    }
-
+    
     setIsCreatingFolder(false)
     setNewFolderName('')
-  }, [newFolderName, vaultPath, currentPath, setIsCreatingFolder, setNewFolderName, addToast, onRefresh])
+    
+    // Use command system which has optimistic updates + expectedFileChanges
+    // This avoids triggering a full loadFiles() scan
+    await executeCommand('new-folder', { parentPath: currentPath, folderName })
+  }, [newFolderName, vaultPath, currentPath, setIsCreatingFolder, setNewFolderName])
 
   const startCreatingFolder = useCallback(() => {
     setEmptyContextMenu(null)
     setIsCreatingFolder(true)
-    setNewFolderName('New Folder')
+    
+    // Generate a unique folder name (New Folder, New Folder (2), etc.)
+    // Only check folders in the current directory
+    const existingFolderNames = new Set(
+      files
+        .filter(f => f.isDirectory)
+        .filter(f => {
+          // Only consider folders in the current directory
+          const parentPath = f.relativePath.includes('/') 
+            ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
+            : ''
+          return parentPath === currentPath
+        })
+        .map(f => f.name.toLowerCase())
+    )
+    
+    let folderName = 'New Folder'
+    let counter = 2
+    while (existingFolderNames.has(folderName.toLowerCase()) && counter < 1000) {
+      folderName = `New Folder (${counter})`
+      counter++
+    }
+    
+    setNewFolderName(folderName)
     // Focus input after render
     setTimeout(() => {
       newFolderInputRef.current?.focus()
       newFolderInputRef.current?.select()
     }, 10)
-  }, [setEmptyContextMenu, setIsCreatingFolder, setNewFolderName, newFolderInputRef])
+  }, [files, currentPath, setEmptyContextMenu, setIsCreatingFolder, setNewFolderName, newFolderInputRef])
 
   const startRenaming = useCallback((file: LocalFile) => {
     setContextMenu(null)
@@ -227,6 +238,9 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
         break
       case 'revision':
         currentValue = file.pendingMetadata?.revision ?? file.pdmData?.revision ?? 'A'
+        break
+      case 'tabNumber':
+        currentValue = file.pendingMetadata?.tab_number ?? ''
         break
     }
     

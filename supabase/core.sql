@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 48, 'preview_next_serial_number now returns base number only (no sample tab)', NOW(), 'migration')
+VALUES (1, 49, 'folders table for persisting empty folder structures (immediate sync on creation)', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,

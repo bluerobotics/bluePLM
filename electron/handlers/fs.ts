@@ -284,6 +284,25 @@ async function startFileWatcher(dirPath: string): Promise<void> {
   fileWatcher.on('add', handleChange)
   fileWatcher.on('unlink', handleChange)
   
+  // Directory events - sync folder changes to server
+  fileWatcher.on('addDir', (addedDirPath: string) => {
+    // Skip the root watch directory itself
+    if (addedDirPath === dirPath) return
+    const relativePath = path.relative(dirPath, addedDirPath).replace(/\\/g, '/')
+    if (relativePath && mainWindow) {
+      log('Directory added: ' + relativePath)
+      mainWindow.webContents.send('directory-added', relativePath)
+    }
+  })
+  
+  fileWatcher.on('unlinkDir', (removedDirPath: string) => {
+    const relativePath = path.relative(dirPath, removedDirPath).replace(/\\/g, '/')
+    if (relativePath && mainWindow) {
+      log('Directory removed: ' + relativePath)
+      mainWindow.webContents.send('directory-removed', relativePath)
+    }
+  })
+  
   fileWatcher.on('error', (error: unknown) => {
     const err = error as NodeJS.ErrnoException
     if (err.code === 'EPERM' || err.code === 'EACCES') {

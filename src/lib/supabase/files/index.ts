@@ -67,3 +67,14 @@ export {
   moveFileOnServer,
   moveFilesOnServer
 } from './move'
+
+// Folder functions - sync empty folders to server
+export {
+  syncFolder,
+  getVaultFolders,
+  updateFolderServerPath,
+  deleteFolderOnServer,
+  deleteFolderByPath
+} from './folders'
+
+export type { FolderRecord } from './folders'

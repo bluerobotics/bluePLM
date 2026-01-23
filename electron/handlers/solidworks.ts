@@ -2154,8 +2154,8 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   })
 
   // Open document management
-  ipcMain.handle('solidworks:get-open-documents', async () => {
-    return sendSWCommand({ action: 'getOpenDocuments' })
+  ipcMain.handle('solidworks:get-open-documents', async (_, options?: { includeComponents?: boolean }) => {
+    return sendSWCommand({ action: 'getOpenDocuments', includeComponents: options?.includeComponents ?? false })
   })
 
   ipcMain.handle('solidworks:is-document-open', async (_, filePath: string) => {

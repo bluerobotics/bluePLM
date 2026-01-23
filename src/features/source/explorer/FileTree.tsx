@@ -396,8 +396,29 @@ export function FileTree({ onRefresh }: FileTreeProps) {
       ? contextMenu.file.relativePath 
       : contextMenu.file.relativePath.substring(0, contextMenu.file.relativePath.lastIndexOf('/'))
     
+    // Generate a unique folder name (New Folder, New Folder (2), etc.)
+    // Only check folders in the target parent directory
+    const existingFolderNames = new Set(
+      files
+        .filter(f => f.isDirectory)
+        .filter(f => {
+          const folderParent = f.relativePath.includes('/') 
+            ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
+            : ''
+          return folderParent === parentPath
+        })
+        .map(f => f.name.toLowerCase())
+    )
+    
+    let folderName = 'New Folder'
+    let counter = 2
+    while (existingFolderNames.has(folderName.toLowerCase()) && counter < 1000) {
+      folderName = `New Folder (${counter})`
+      counter++
+    }
+    
     setNewFolderParentPath(parentPath)
-    setNewFolderName('New Folder')
+    setNewFolderName(folderName)
     setShowNewFolderDialog(true)
   }
 

@@ -313,7 +313,6 @@ export function FileContextMenu({
           firstFile={firstFile}
           multiSelect={multiSelect}
           isFolder={isFolder}
-          allCloudOnly={allCloudOnly}
           platform={state.platform}
           userId={user?.id}
           onRename={onRename}

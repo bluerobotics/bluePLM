@@ -405,7 +405,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:add-component', assemblyPath, componentPath, coordinates),
     
     // Open Document Management (control files open in SolidWorks without closing them!)
-    getOpenDocuments: () => ipcRenderer.invoke('solidworks:get-open-documents'),
+    getOpenDocuments: (options?: { includeComponents?: boolean }) => 
+      ipcRenderer.invoke('solidworks:get-open-documents', options),
     isDocumentOpen: (filePath: string) => ipcRenderer.invoke('solidworks:is-document-open', filePath),
     getDocumentInfo: (filePath: string) => ipcRenderer.invoke('solidworks:get-document-info', filePath),
     setDocumentReadOnly: (filePath: string, readOnly: boolean) => 
@@ -546,6 +547,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     return () => {
       ipcRenderer.removeListener('files-changed', handler)
+    }
+  },
+  
+  // Directory change listeners (for syncing external folder changes to server)
+  onDirectoryAdded: (callback: (relativePath: string) => void) => {
+    const handler = (_: unknown, relativePath: string) => callback(relativePath)
+    ipcRenderer.on('directory-added', handler)
+    
+    return () => {
+      ipcRenderer.removeListener('directory-added', handler)
+    }
+  },
+  
+  onDirectoryRemoved: (callback: (relativePath: string) => void) => {
+    const handler = (_: unknown, relativePath: string) => callback(relativePath)
+    ipcRenderer.on('directory-removed', handler)
+    
+    return () => {
+      ipcRenderer.removeListener('directory-removed', handler)
     }
   },
   
@@ -903,6 +923,10 @@ declare global {
       
       // File change events
       onFilesChanged: (callback: (files: string[]) => void) => () => void
+      
+      // Directory change events (for syncing external folder changes to server)
+      onDirectoryAdded: (callback: (relativePath: string) => void) => () => void
+      onDirectoryRemoved: (callback: (relativePath: string) => void) => () => void
       
       // Auth session events (for OAuth callback in production)
       onSetSession: (callback: (tokens: { access_token: string; refresh_token: string; expires_in?: number; expires_at?: number }) => void) => () => void

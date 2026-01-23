@@ -350,7 +350,7 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
                 const percent = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0
                 
                 if (mainWindow) {
-                  mainWindow.webContents.send('update-download-progress', {
+                  mainWindow.webContents.send('updater:download-progress', {
                     percent,
                     bytesPerSecond,
                     transferred: downloadedBytes,

@@ -27,6 +27,7 @@
  */
 import { useCallback, useMemo } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import { usePDMStore } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import type { UseDialogStateReturn } from './useDialogState'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '@/lib/concurrency'
@@ -237,6 +238,13 @@ export function useDeleteHandler({
     // Yield to let React paint the updated state
     await new Promise(resolve => setTimeout(resolve, 0))
     
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REGISTER EXPECTED FILE CHANGES to suppress file watcher during deletion
+    // ═══════════════════════════════════════════════════════════════════════════
+    const { addExpectedFileChanges, setLastOperationCompletedAt } = usePDMStore.getState()
+    const relativePaths = itemsToDelete.map(f => f.relativePath)
+    addExpectedFileChanges(relativePaths)
+    
     let deletedLocal = 0
     let deletedServer = 0
     let failedServer = 0
@@ -244,29 +252,33 @@ export function useDeleteHandler({
     
     try {
       if (isDeleteEverywhere) {
-        // STEP 1: Delete ALL local items first (files and folders) in parallel
-        // Don't filter by diffStatus - we want to try deleting everything that might exist locally
+        // STEP 1: Release checkouts first (in parallel)
+        const itemsWithCheckout = itemsToDelete.filter(
+          item => item.pdmData?.checked_out_by === user?.id && item.pdmData?.id
+        )
+        if (itemsWithCheckout.length > 0) {
+          const { checkinFile } = await import('@/lib/supabase')
+          await Promise.all(
+            itemsWithCheckout.map(item => 
+              checkinFile(item.pdmData!.id!, user!.id).catch(() => {})
+            )
+          )
+        }
+        
+        // STEP 2: Delete ALL local items using batch API (single watcher stop/start)
         const localItemsToDelete = [...itemsToDelete]
         
         if (localItemsToDelete.length > 0) {
-          const localResults = await processWithConcurrency(localItemsToDelete, CONCURRENT_OPERATIONS, async (item) => {
-            try {
-              // Release checkout if needed
-              if (item.pdmData?.checked_out_by === user?.id && item.pdmData?.id) {
-                const { checkinFile } = await import('@/lib/supabase')
-                await checkinFile(item.pdmData.id, user!.id).catch(() => {})
-              }
-              const result = await window.electronAPI?.deleteItem(item.path)
-              return { path: item.path, success: result?.success || false }
-            } catch {
-              return { path: item.path, success: false }
-            }
-          })
-          deletedLocal = localResults.filter(r => r.success).length
-          failedPaths.push(...localResults.filter(r => !r.success).map(r => r.path))
+          const paths = localItemsToDelete.map(f => f.path)
+          const batchResult = await window.electronAPI?.deleteBatch(paths, true)
+          
+          if (batchResult?.results) {
+            deletedLocal = batchResult.results.filter(r => r.success).length
+            failedPaths.push(...batchResult.results.filter(r => !r.success).map(r => r.path))
+          }
         }
         
-        // STEP 2: Delete from server with concurrency limit
+        // STEP 3: Delete from server with concurrency limit
         if (syncedFiles.length > 0) {
           const { softDeleteFile } = await import('@/lib/supabase')
           
@@ -285,29 +297,41 @@ export function useDeleteHandler({
           failedPaths.push(...serverResults.filter(r => !r.success).map(r => r.path))
         }
       } else {
-        // Regular local-only delete - with concurrency limit
+        // Regular local-only delete
         const localItemsToDelete = itemsToDelete.filter(f => f.diffStatus !== 'cloud')
         
-        const results = await processWithConcurrency(localItemsToDelete, CONCURRENT_OPERATIONS, async (file) => {
-          try {
-            // Release checkout if needed
-            if (file.pdmData?.checked_out_by === user?.id && file.pdmData?.id) {
-              const { checkinFile } = await import('@/lib/supabase')
-              await checkinFile(file.pdmData.id, user!.id).catch(() => {})
-            }
-            const result = await window.electronAPI?.deleteItem(file.path)
-            if (result?.success) {
-              setUndoStack(prev => [...prev, { type: 'delete', file, originalPath: file.path }])
-              return { path: file.path, success: true }
-            }
-            return { path: file.path, success: false }
-          } catch {
-            return { path: file.path, success: false }
-          }
-        })
+        // Release checkouts first (in parallel)
+        const itemsWithCheckout = localItemsToDelete.filter(
+          item => item.pdmData?.checked_out_by === user?.id && item.pdmData?.id
+        )
+        if (itemsWithCheckout.length > 0) {
+          const { checkinFile } = await import('@/lib/supabase')
+          await Promise.all(
+            itemsWithCheckout.map(item => 
+              checkinFile(item.pdmData!.id!, user!.id).catch(() => {})
+            )
+          )
+        }
         
-        deletedLocal = results.filter(r => r.success).length
-        failedPaths.push(...results.filter(r => !r.success).map(r => r.path))
+        // Use batch delete API (single watcher stop/start)
+        if (localItemsToDelete.length > 0) {
+          const paths = localItemsToDelete.map(f => f.path)
+          const batchResult = await window.electronAPI?.deleteBatch(paths, true)
+          
+          if (batchResult?.results) {
+            // Add successfully deleted files to undo stack
+            for (const result of batchResult.results) {
+              if (result.success) {
+                const file = localItemsToDelete.find(f => f.path === result.path)
+                if (file) {
+                  setUndoStack(prev => [...prev, { type: 'delete', file, originalPath: file.path }])
+                }
+              }
+            }
+            deletedLocal = batchResult.results.filter(r => r.success).length
+            failedPaths.push(...batchResult.results.filter(r => !r.success).map(r => r.path))
+          }
+        }
       }
       
       // Remove progress toast
@@ -334,6 +358,9 @@ export function useDeleteHandler({
     } finally {
       // Clean up spinners - batch remove
       removeProcessingFolders(pathsBeingDeleted)
+      
+      // Mark operation complete for file watcher suppression window
+      setLastOperationCompletedAt(Date.now())
       
       // If any deletions failed, we may need to restore those files to the UI
       // For now, the next refresh will fix any inconsistencies

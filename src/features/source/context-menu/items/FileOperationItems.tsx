@@ -7,7 +7,6 @@ interface FileOperationItemsProps {
   firstFile: LocalFile
   multiSelect: boolean
   isFolder: boolean
-  allCloudOnly: boolean
   platform: string
   userId: string | undefined
   onRename?: (file: LocalFile) => void
@@ -20,7 +19,6 @@ export function FileOperationItems({
   firstFile,
   multiSelect,
   isFolder,
-  allCloudOnly,
   platform,
   userId,
   onRename,
@@ -42,11 +40,16 @@ export function FileOperationItems({
   const isSynced = !!firstFile.pdmData
   const isCheckedOutByMe = firstFile.pdmData?.checked_out_by === userId
   const canRename = !isSynced || isCheckedOutByMe
+  
+  // Check if the specific file/folder exists locally (not cloud-only)
+  // This is different from allCloudOnly which derives folder status from children,
+  // causing empty local folders to be incorrectly treated as cloud-only
+  const isLocalItem = firstFile.diffStatus !== 'cloud'
 
   return (
     <>
       {/* Open - only for local files/folders (not cloud-only) */}
-      {!multiSelect && !allCloudOnly && (
+      {!multiSelect && isLocalItem && (
         <div className="context-menu-item" onClick={handleOpen}>
           <ExternalLink size={14} />
           {isFolder ? 'Open Folder' : 'Open'}
@@ -54,7 +57,7 @@ export function FileOperationItems({
       )}
       
       {/* Show in Explorer/Finder */}
-      {!allCloudOnly && (
+      {isLocalItem && (
         <div className="context-menu-item" onClick={handleShowInExplorer}>
           <FolderOpen size={14} />
           {platform === 'darwin' ? 'Reveal in Finder' : 'Show in Explorer'}
@@ -62,7 +65,7 @@ export function FileOperationItems({
       )}
       
       {/* Rename - right after pin */}
-      {onRename && !multiSelect && !allCloudOnly && (
+      {onRename && !multiSelect && isLocalItem && (
         <div 
           className={`context-menu-item ${!canRename ? 'disabled' : ''}`}
           onClick={() => { 
@@ -82,7 +85,7 @@ export function FileOperationItems({
       )}
       
       {/* New Folder */}
-      {onNewFolder && isFolder && !multiSelect && !allCloudOnly && (
+      {onNewFolder && isFolder && !multiSelect && isLocalItem && (
         <>
           <div className="context-menu-separator" />
           <div className="context-menu-item" onClick={() => { onNewFolder(); onClose(); }}>

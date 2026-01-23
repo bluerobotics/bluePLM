@@ -328,62 +328,77 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
       )}
       
       {/* Checkout/Checkin buttons for FILES - each shows independently */}
-      {!file.isDirectory && operationType !== 'delete' && (
-        <span className="flex items-center gap-0.5 flex-shrink-0">
-          {file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && (
-            <InlineCheckoutButton
-              onClick={(e) => handleInlineCheckout(e, file)}
-              isProcessing={operationType === 'checkout'}
-              selectedCount={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 ? selectedCheckoutableFiles.length : undefined}
-              isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 && isCheckoutHovered}
-              onMouseEnter={() => selectedCheckoutableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckoutHovered(true)}
-              onMouseLeave={() => setIsCheckoutHovered(false)}
-            />
-          )}
-          {file.pdmData?.checked_out_by === user?.id && file.diffStatus !== 'deleted' && (
-            <InlineCheckinButton
-              onClick={(e) => handleInlineCheckin(e, file)}
-              isProcessing={operationType === 'checkin'}
-              userAvatarUrl={user?.avatar_url ?? undefined}
-              userFullName={user?.full_name ?? undefined}
-              userEmail={user?.email}
-              selectedCount={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 ? selectedCheckinableFiles.length : undefined}
-              isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 && isCheckinHovered}
-              onMouseEnter={() => selectedCheckinableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckinHovered(true)}
-              onMouseLeave={() => setIsCheckinHovered(false)}
-            />
-          )}
-          {/* Avatar for files checked out by OTHERS - NotifiableCheckoutAvatar for notification capability */}
-          {file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id && file.pdmData.id && checkoutUsers.filter(u => !u.isMe).length > 0 && (
-            <span className="flex items-center flex-shrink-0 -space-x-1.5 ml-0.5">
-              {checkoutUsers.filter(u => !u.isMe).slice(0, maxShow).map((u, i) => (
-                <div key={u.id} className="relative" style={{ zIndex: maxShow - i }}>
-                  <NotifiableCheckoutAvatar
-                    user={{
-                      id: u.id,
-                      email: u.email,
-                      full_name: u.name,
-                      avatar_url: u.avatar_url
-                    }}
-                    fileId={file.pdmData!.id!}
-                    fileName={file.name}
-                    size={20}
-                    fontSize={9}
-                  />
-                </div>
-              ))}
-              {checkoutUsers.filter(u => !u.isMe).length > maxShow && (
-                <div 
-                  className="w-5 h-5 rounded-full bg-plm-bg-light flex items-center justify-center text-[9px] font-medium text-plm-fg-muted"
-                  style={{ zIndex: 0 }}
-                >
-                  +{checkoutUsers.filter(u => !u.isMe).length - maxShow}
-                </div>
-              )}
-            </span>
-          )}
-        </span>
-      )}
+      {!file.isDirectory && operationType !== 'delete' && (() => {
+        // Calculate visibility conditions upfront to avoid rendering empty span
+        // (empty span still causes gap-1 spacing which misaligns icons)
+        const showCheckout = file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud'
+        const showCheckin = file.pdmData?.checked_out_by === user?.id && file.diffStatus !== 'deleted'
+        const otherCheckoutUsers = checkoutUsers.filter(u => !u.isMe)
+        const hasOtherCheckoutUsers = file.pdmData?.checked_out_by && 
+          file.pdmData.checked_out_by !== user?.id && 
+          file.pdmData.id && 
+          otherCheckoutUsers.length > 0
+        
+        // Return null if nothing to show - prevents empty span from affecting flex gap
+        if (!showCheckout && !showCheckin && !hasOtherCheckoutUsers) return null
+        
+        return (
+          <span className="flex items-center gap-0.5 flex-shrink-0">
+            {showCheckout && (
+              <InlineCheckoutButton
+                onClick={(e) => handleInlineCheckout(e, file)}
+                isProcessing={operationType === 'checkout'}
+                selectedCount={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 ? selectedCheckoutableFiles.length : undefined}
+                isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 && isCheckoutHovered}
+                onMouseEnter={() => selectedCheckoutableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckoutHovered(true)}
+                onMouseLeave={() => setIsCheckoutHovered(false)}
+              />
+            )}
+            {showCheckin && (
+              <InlineCheckinButton
+                onClick={(e) => handleInlineCheckin(e, file)}
+                isProcessing={operationType === 'checkin'}
+                userAvatarUrl={user?.avatar_url ?? undefined}
+                userFullName={user?.full_name ?? undefined}
+                userEmail={user?.email}
+                selectedCount={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 ? selectedCheckinableFiles.length : undefined}
+                isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 && isCheckinHovered}
+                onMouseEnter={() => selectedCheckinableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckinHovered(true)}
+                onMouseLeave={() => setIsCheckinHovered(false)}
+              />
+            )}
+            {/* Avatar for files checked out by OTHERS - NotifiableCheckoutAvatar for notification capability */}
+            {hasOtherCheckoutUsers && (
+              <span className="flex items-center flex-shrink-0 -space-x-1.5 ml-0.5">
+                {otherCheckoutUsers.slice(0, maxShow).map((u, i) => (
+                  <div key={u.id} className="relative" style={{ zIndex: maxShow - i }}>
+                    <NotifiableCheckoutAvatar
+                      user={{
+                        id: u.id,
+                        email: u.email,
+                        full_name: u.name,
+                        avatar_url: u.avatar_url
+                      }}
+                      fileId={file.pdmData!.id!}
+                      fileName={file.name}
+                      size={20}
+                      fontSize={9}
+                    />
+                  </div>
+                ))}
+                {otherCheckoutUsers.length > maxShow && (
+                  <div 
+                    className="w-5 h-5 rounded-full bg-plm-bg-light flex items-center justify-center text-[9px] font-medium text-plm-fg-muted"
+                    style={{ zIndex: 0 }}
+                  >
+                    +{otherCheckoutUsers.length - maxShow}
+                  </div>
+                )}
+              </span>
+            )}
+          </span>
+        )
+      })()}
     </div>
   )
 }

@@ -7,8 +7,9 @@
 
 import type { Command, RenameParams, MoveParams, CopyParams, NewFolderParams, CommandResult, LocalFile } from '../types'
 import { ProgressTracker } from '../executor'
-import { updateFilePath, updateFolderPath } from '../../supabase'
+import { updateFilePath, updateFolderPath, syncFolder, updateFolderServerPath } from '../../supabase'
 import { getExtension } from '../../utils/path'
+import { log } from '@/lib/logger'
 
 /**
  * Rename Command - Rename a file or folder
@@ -59,6 +60,14 @@ export const renameCommand: Command<RenameParams> = {
       const parentDir = oldPath.substring(0, oldPath.lastIndexOf(sep))
       const newPath = `${parentDir}${sep}${finalName}`
       
+      // Compute paths for file watcher suppression
+      const oldRelPath = file.relativePath
+      const relParentDir = oldRelPath.substring(0, oldRelPath.lastIndexOf('/'))
+      const newRelPath = relParentDir ? `${relParentDir}/${finalName}` : finalName
+      
+      // Register expected file changes to suppress file watcher during operation
+      ctx.addExpectedFileChanges([oldRelPath, newRelPath])
+      
       const renameResult = await window.electronAPI?.renameItem(oldPath, newPath)
       if (!renameResult?.success) {
         return {
@@ -70,15 +79,20 @@ export const renameCommand: Command<RenameParams> = {
         }
       }
       
-      // Compute new relative path
-      const oldRelPath = file.relativePath
-      const relParentDir = oldRelPath.substring(0, oldRelPath.lastIndexOf('/'))
-      const newRelPath = relParentDir ? `${relParentDir}/${finalName}` : finalName
-      
       // For synced files, update server path
       if (file.pdmData?.id) {
         if (file.isDirectory) {
+          // Update file paths within the folder
           await updateFolderPath(oldRelPath, newRelPath)
+          // Also update the folder record itself if it has one
+          try {
+            await updateFolderServerPath(file.pdmData.id, newRelPath)
+            log.info('[Rename]', 'Updated folder path on server', { oldRelPath, newRelPath })
+          } catch (err) {
+            log.warn('[Rename]', 'Failed to update folder path on server', { 
+              error: err instanceof Error ? err.message : String(err)
+            })
+          }
         } else {
           await updateFilePath(file.pdmData.id, newRelPath)
         }
@@ -86,6 +100,9 @@ export const renameCommand: Command<RenameParams> = {
       
       // Optimistic UI update: rename in store immediately
       ctx.renameFileInStore(oldPath, newPath, finalName, false)
+      
+      // Mark operation complete to help suppress file watcher
+      ctx.setLastOperationCompletedAt(Date.now())
       
       ctx.addToast('success', `Renamed to ${finalName}`)
       // No onRefresh needed - UI updates instantly via renameFileInStore
@@ -140,6 +157,16 @@ export const moveCommand: Command<MoveParams> = {
     let failed = 0
     const errors: string[] = []
     
+    // Register expected file changes to suppress file watcher during operation
+    // Include both source (old) and destination (new) relative paths
+    const expectedPaths: string[] = []
+    for (const file of files) {
+      expectedPaths.push(file.relativePath) // Source path
+      const newRelPath = targetFolder ? `${targetFolder}/${file.name}` : file.name
+      expectedPaths.push(newRelPath) // Destination path
+    }
+    ctx.addExpectedFileChanges(expectedPaths)
+    
     for (const file of files) {
       try {
         // Move locally
@@ -163,7 +190,20 @@ export const moveCommand: Command<MoveParams> = {
         // Update server if synced
         if (file.pdmData?.id) {
           if (file.isDirectory) {
+            // Update file paths within the folder
             await updateFolderPath(file.relativePath, newRelPath)
+            // Also update the folder record itself if it has one
+            try {
+              await updateFolderServerPath(file.pdmData.id, newRelPath)
+              log.info('[Move]', 'Updated folder path on server', { 
+                oldPath: file.relativePath, 
+                newPath: newRelPath 
+              })
+            } catch (err) {
+              log.warn('[Move]', 'Failed to update folder path on server', { 
+                error: err instanceof Error ? err.message : String(err)
+              })
+            }
           } else {
             await updateFilePath(file.pdmData.id, newRelPath)
           }
@@ -181,6 +221,9 @@ export const moveCommand: Command<MoveParams> = {
     }
     
     const { duration } = progress.finish()
+    
+    // Mark operation complete to help suppress file watcher
+    ctx.setLastOperationCompletedAt(Date.now())
     
     if (!ctx.silent) {
       if (failed > 0) {
@@ -298,6 +341,15 @@ export const copyCommand: Command<CopyParams> = {
           }
         }
         
+        // Compute destination relative path for file watcher suppression
+        const destName = destPath.substring(destPath.lastIndexOf(sep) + 1)
+        const destRelativePath = targetFolder 
+          ? `${targetFolder}/${destName}`
+          : destName
+        
+        // Register expected file change before copy operation
+        ctx.addExpectedFileChanges([destRelativePath])
+        
         const copyResult = await window.electronAPI?.copyFile(file.path, destPath)
         if (!copyResult?.success) {
           failed++
@@ -306,11 +358,6 @@ export const copyCommand: Command<CopyParams> = {
           succeeded++
           
           // Construct LocalFile for optimistic UI update
-          const destName = destPath.substring(destPath.lastIndexOf(sep) + 1)
-          const destRelativePath = targetFolder 
-            ? `${targetFolder}/${destName}`
-            : destName
-          
           const newFile: LocalFile = {
             name: destName,
             path: destPath,
@@ -340,6 +387,9 @@ export const copyCommand: Command<CopyParams> = {
       // Yield to browser to allow UI to repaint
       await new Promise(resolve => setTimeout(resolve, 0))
     }
+    
+    // Mark operation complete to help suppress file watcher
+    ctx.setLastOperationCompletedAt(Date.now())
     
     if (!ctx.silent) {
       if (failed > 0) {
@@ -399,6 +449,12 @@ export const newFolderCommand: Command<NewFolderParams> = {
         ? `${vaultPath}${sep}${parentPath.replace(/\//g, sep)}${sep}${folderName}`
         : `${vaultPath}${sep}${folderName}`
       
+      // Compute relative path for file watcher suppression
+      const relativePath = parentPath ? `${parentPath}/${folderName}` : folderName
+      
+      // Register expected file changes to suppress file watcher during operation
+      ctx.addExpectedFileChanges([relativePath])
+      
       const result = await window.electronAPI?.createFolder(fullPath)
       if (!result?.success) {
         return {
@@ -410,8 +466,28 @@ export const newFolderCommand: Command<NewFolderParams> = {
         }
       }
       
+      // Sync folder to server immediately (if online and connected)
+      let folderPdmData: { id: string; folder_path: string } | undefined
+      if (ctx.activeVaultId && ctx.organization?.id && ctx.user?.id && !ctx.isOfflineMode) {
+        const { folder, error } = await syncFolder(
+          ctx.organization.id,
+          ctx.activeVaultId,
+          ctx.user.id,
+          relativePath
+        )
+        if (error) {
+          // Log warning but don't fail - local folder still created
+          log.warn('[NewFolder]', 'Failed to sync folder to server', { 
+            relativePath, 
+            error: error instanceof Error ? error.message : String(error) 
+          })
+        } else if (folder) {
+          folderPdmData = { id: folder.id, folder_path: folder.folder_path }
+          log.info('[NewFolder]', 'Folder synced to server', { relativePath, folderId: folder.id })
+        }
+      }
+      
       // Optimistic UI update: add new folder to store immediately
-      const relativePath = parentPath ? `${parentPath}/${folderName}` : folderName
       const newFolder: LocalFile = {
         name: folderName,
         path: fullPath,
@@ -420,13 +496,18 @@ export const newFolderCommand: Command<NewFolderParams> = {
         extension: '',
         size: 0,
         modifiedTime: new Date().toISOString(),
-        isSynced: false,
-        diffStatus: 'added'
+        isSynced: !!folderPdmData,
+        diffStatus: folderPdmData ? undefined : 'added',
+        // Store folder PDM data if synced (uses same pdmData field but with folder-specific shape)
+        pdmData: folderPdmData ? { id: folderPdmData.id, folder_path: folderPdmData.folder_path } as any : undefined
       }
       ctx.addFilesToStore([newFolder])
       
       // Yield to browser to allow UI to repaint
       await new Promise(resolve => setTimeout(resolve, 0))
+      
+      // Mark operation complete to help suppress file watcher
+      ctx.setLastOperationCompletedAt(Date.now())
       
       ctx.addToast('success', `Created folder: ${folderName}`)
       // No onRefresh needed - UI updates instantly via addFilesToStore

@@ -521,6 +521,30 @@ CREATE INDEX IF NOT EXISTS idx_file_references_parent ON file_references(parent_
 CREATE INDEX IF NOT EXISTS idx_file_references_child ON file_references(child_file_id);
 
 -- ===========================================
+-- FOLDERS (Explicit folder records for empty folders)
+-- ===========================================
+
+CREATE TABLE IF NOT EXISTS folders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  vault_id UUID NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  folder_path TEXT NOT NULL,  -- relative path, e.g., "Assemblies" or "Project/Assemblies"
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ,
+  deleted_by UUID REFERENCES users(id)
+);
+
+-- Partial unique index: only one active folder per path per vault
+CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_unique_active 
+  ON folders(vault_id, folder_path) 
+  WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_folders_org_id ON folders(org_id);
+CREATE INDEX IF NOT EXISTS idx_folders_vault_id ON folders(vault_id);
+CREATE INDEX IF NOT EXISTS idx_folders_deleted_at ON folders(deleted_at) WHERE deleted_at IS NOT NULL;
+
+-- ===========================================
 -- ACTIVITY LOG
 -- ===========================================
 
@@ -1216,6 +1240,7 @@ ALTER TABLE files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_references ENABLE ROW LEVEL SECURITY;
+ALTER TABLE folders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workflow_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workflow_states ENABLE ROW LEVEL SECURITY;
@@ -1343,6 +1368,27 @@ DROP POLICY IF EXISTS "Engineers can manage references" ON file_references;
 CREATE POLICY "Engineers can manage references"
   ON file_references FOR ALL
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
+
+-- Folders
+DROP POLICY IF EXISTS "Users can view org folders" ON folders;
+CREATE POLICY "Users can view org folders"
+  ON folders FOR SELECT
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+
+DROP POLICY IF EXISTS "Engineers can insert folders" ON folders;
+CREATE POLICY "Engineers can insert folders"
+  ON folders FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'create'));
+
+DROP POLICY IF EXISTS "Engineers can update folders" ON folders;
+CREATE POLICY "Engineers can update folders"
+  ON folders FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
+
+DROP POLICY IF EXISTS "Engineers can delete folders" ON folders;
+CREATE POLICY "Engineers can delete folders"
+  ON folders FOR DELETE
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'delete'));
 
 -- Activity
 DROP POLICY IF EXISTS "Users can view org activity" ON activity;

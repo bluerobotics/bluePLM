@@ -7,8 +7,9 @@
  * - Grouped submenus: File Actions, Edit, Export
  * - Delete actions (always visible)
  * - Expandable "More Actions": Collaboration (where used, properties, refresh metadata, reviews, etc.)
+ *   Only shown when total items exceed threshold (otherwise items shown inline)
  */
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Clipboard, FileOutput, FolderOpen } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -27,6 +28,7 @@ import {
   useContextMenuSelectionState,
 } from './actions'
 import { ContextMenuGroup, ExpandableSection } from './components'
+import { shouldShowExpandableSection, countCollaborationActions } from './utils'
 
 export interface FileContextMenuProps {
   // Core menu data (required)
@@ -151,8 +153,8 @@ export function FileContextMenu({
   stateSubmenuTimeoutRef,
   savingConfigsToSW,
 }: FileContextMenuProps) {
-  // Get user from store
-  const { user } = usePDMStore()
+  // Get user and other values from store
+  const { user, files, getEffectiveRole, solidworksIntegrationEnabled } = usePDMStore()
   
   // State for expandable section
   const [isExpanded, setIsExpanded] = useState(false)
@@ -169,6 +171,30 @@ export function FileContextMenu({
       contextFiles,
       userId: user?.id,
     })
+  
+  // Compute whether to show expandable "More Actions" section
+  // Only show when total menu items exceed threshold, otherwise show all items inline
+  const menuCountProps = useMemo(() => ({
+    contextFiles,
+    multiSelect,
+    firstFile,
+    counts,
+    state,
+    userId: user?.id,
+    isAdmin: getEffectiveRole() === 'admin',
+    solidworksEnabled: solidworksIntegrationEnabled,
+    allFiles: files,
+  }), [contextFiles, multiSelect, firstFile, counts, state, user?.id, getEffectiveRole, solidworksIntegrationEnabled, files])
+  
+  const showExpandable = useMemo(() => 
+    shouldShowExpandableSection(menuCountProps), 
+    [menuCountProps]
+  )
+  
+  const collaborationItemCount = useMemo(() => 
+    countCollaborationActions(menuCountProps),
+    [menuCountProps]
+  )
 
   // Close menu and clear submenus
   const handleCloseMenu = () => {
@@ -332,33 +358,59 @@ export function FileContextMenu({
           handleUndo={handleUndo}
         />
         
-        {/* ===== EXPANDABLE "MORE ACTIONS" SECTION ===== */}
-        <ExpandableSection
-          expanded={isExpanded}
-          onToggle={() => setIsExpanded(!isExpanded)}
-          hiddenCount={isExpanded ? undefined : 3}
-        >
-          {/* Collaboration actions (where used, properties, review, notify, watch, share, ECO) */}
-          <CollaborationActions
-            contextFiles={contextFiles}
-            multiSelect={multiSelect}
-            firstFile={firstFile}
-            onClose={onClose}
-            onRefresh={onRefresh}
-            state={state}
-            setDetailsPanelTab={setDetailsPanelTab}
-            setDetailsPanelVisible={setDetailsPanelVisible}
-            handleOpenReviewModal={handleOpenReviewModal}
-            handleOpenCheckoutRequestModal={handleOpenCheckoutRequestModal}
-            handleOpenMentionModal={handleOpenMentionModal}
-            handleOpenECOModal={handleOpenECOModal}
-            watchingFiles={watchingFiles}
-            isTogglingWatch={isTogglingWatch}
-            handleToggleWatch={handleToggleWatch}
-            isCreatingShareLink={isCreatingShareLink}
-            handleQuickShareLink={handleQuickShareLink}
-          />
-        </ExpandableSection>
+        {/* ===== COLLABORATION ACTIONS ===== */}
+        {/* Show in expandable section only when total items exceed threshold */}
+        {showExpandable ? (
+          <ExpandableSection
+            expanded={isExpanded}
+            onToggle={() => setIsExpanded(!isExpanded)}
+            hiddenCount={isExpanded ? undefined : collaborationItemCount}
+          >
+            <CollaborationActions
+              contextFiles={contextFiles}
+              multiSelect={multiSelect}
+              firstFile={firstFile}
+              onClose={onClose}
+              onRefresh={onRefresh}
+              state={state}
+              setDetailsPanelTab={setDetailsPanelTab}
+              setDetailsPanelVisible={setDetailsPanelVisible}
+              handleOpenReviewModal={handleOpenReviewModal}
+              handleOpenCheckoutRequestModal={handleOpenCheckoutRequestModal}
+              handleOpenMentionModal={handleOpenMentionModal}
+              handleOpenECOModal={handleOpenECOModal}
+              watchingFiles={watchingFiles}
+              isTogglingWatch={isTogglingWatch}
+              handleToggleWatch={handleToggleWatch}
+              isCreatingShareLink={isCreatingShareLink}
+              handleQuickShareLink={handleQuickShareLink}
+            />
+          </ExpandableSection>
+        ) : (
+          /* Show collaboration actions inline when few total items */
+          <>
+            <div className="context-menu-separator" />
+            <CollaborationActions
+              contextFiles={contextFiles}
+              multiSelect={multiSelect}
+              firstFile={firstFile}
+              onClose={onClose}
+              onRefresh={onRefresh}
+              state={state}
+              setDetailsPanelTab={setDetailsPanelTab}
+              setDetailsPanelVisible={setDetailsPanelVisible}
+              handleOpenReviewModal={handleOpenReviewModal}
+              handleOpenCheckoutRequestModal={handleOpenCheckoutRequestModal}
+              handleOpenMentionModal={handleOpenMentionModal}
+              handleOpenECOModal={handleOpenECOModal}
+              watchingFiles={watchingFiles}
+              isTogglingWatch={isTogglingWatch}
+              handleToggleWatch={handleToggleWatch}
+              isCreatingShareLink={isCreatingShareLink}
+              handleQuickShareLink={handleQuickShareLink}
+            />
+          </>
+        )}
       </div>
     </>
   )

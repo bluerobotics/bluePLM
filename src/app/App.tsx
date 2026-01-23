@@ -11,7 +11,7 @@ import { AppShell } from '@/components/layout'
 import { executeTerminalCommand } from '@/lib/commands/parser'
 import { logUserAction } from '@/lib/userActionLogger'
 import { checkSchemaCompatibility } from '@/lib/schemaVersion'
-import { getAccessibleVaults } from '@/lib/supabase'
+import { getAccessibleVaults, syncFolder, deleteFolderByPath } from '@/lib/supabase'
 import {
   useTheme,
   useLanguage,
@@ -501,6 +501,94 @@ function App() {
     
     return cleanup
   }, [vaultPath, loadFiles])
+
+  // Directory change watcher - sync folder changes from Windows Explorer to server
+  useEffect(() => {
+    if (!window.electronAPI || !vaultPath) return
+    
+    const { organization, activeVaultId, user, isOfflineMode } = usePDMStore.getState()
+    
+    // Skip if offline or missing required data
+    if (isOfflineMode || !organization?.id || !activeVaultId || !user?.id) return
+    
+    const orgId = organization.id
+    const vaultId = activeVaultId
+    const userId = user.id
+    
+    // Handle directory added - sync to server
+    const cleanupAdded = window.electronAPI.onDirectoryAdded(async (relativePath) => {
+      // Check suppression window - don't sync folders we just created ourselves
+      const { lastOperationCompletedAt, expectedFileChanges } = usePDMStore.getState()
+      const msSinceLastOp = Date.now() - lastOperationCompletedAt
+      const SUPPRESSION_WINDOW_MS = 3000
+      
+      // Check if this is an expected change (we created it ourselves)
+      if (expectedFileChanges.has(relativePath) && msSinceLastOp < SUPPRESSION_WINDOW_MS) {
+        window.electronAPI?.log('debug', '[DirectoryWatcher] Skipping sync for expected folder', { relativePath })
+        return
+      }
+      
+      window.electronAPI?.log('info', '[DirectoryWatcher] Syncing new folder to server', { relativePath })
+      
+      try {
+        const result = await syncFolder(orgId, vaultId, userId, relativePath)
+        if (result.error) {
+          window.electronAPI?.log('warn', '[DirectoryWatcher] Failed to sync folder', { 
+            relativePath, 
+            error: result.error 
+          })
+        } else {
+          window.electronAPI?.log('info', '[DirectoryWatcher] Folder synced to server', { 
+            relativePath,
+            folderId: result.folder?.id
+          })
+        }
+      } catch (err) {
+        window.electronAPI?.log('warn', '[DirectoryWatcher] Exception syncing folder', { 
+          relativePath, 
+          error: err instanceof Error ? err.message : String(err) 
+        })
+      }
+    })
+    
+    // Handle directory removed - delete from server
+    const cleanupRemoved = window.electronAPI.onDirectoryRemoved(async (relativePath) => {
+      // Check suppression window - don't delete folders we just deleted ourselves
+      const { lastOperationCompletedAt, expectedFileChanges } = usePDMStore.getState()
+      const msSinceLastOp = Date.now() - lastOperationCompletedAt
+      const SUPPRESSION_WINDOW_MS = 3000
+      
+      // Check if this is an expected change (we deleted it ourselves)
+      if (expectedFileChanges.has(relativePath) && msSinceLastOp < SUPPRESSION_WINDOW_MS) {
+        window.electronAPI?.log('debug', '[DirectoryWatcher] Skipping delete for expected folder', { relativePath })
+        return
+      }
+      
+      window.electronAPI?.log('info', '[DirectoryWatcher] Deleting folder from server', { relativePath })
+      
+      try {
+        const result = await deleteFolderByPath(vaultId, relativePath, userId)
+        if (result.error) {
+          window.electronAPI?.log('warn', '[DirectoryWatcher] Failed to delete folder from server', { 
+            relativePath, 
+            error: result.error 
+          })
+        } else {
+          window.electronAPI?.log('info', '[DirectoryWatcher] Folder deleted from server', { relativePath })
+        }
+      } catch (err) {
+        window.electronAPI?.log('warn', '[DirectoryWatcher] Exception deleting folder', { 
+          relativePath, 
+          error: err instanceof Error ? err.message : String(err) 
+        })
+      }
+    })
+    
+    return () => {
+      cleanupAdded()
+      cleanupRemoved()
+    }
+  }, [vaultPath])
 
   // Load files when ready - wait for organization to be loaded when online
   useEffect(() => {

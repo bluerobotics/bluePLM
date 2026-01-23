@@ -578,19 +578,42 @@ export const checkinCommand: Command<CheckinParams> = {
           file.name !== file.pdmData.file_name
         
         // ========================================
-        // FAST PATH OPTIMIZATION: Skip hash computation for truly unchanged files
+        // FAST PATH OPTIMIZATION: Skip file upload for truly unchanged files
+        // 
+        // We ALWAYS compute a fresh hash to ensure we detect actual file changes.
+        // The cached localHash can be stale if the file was modified in SolidWorks
+        // and the file watcher didn't recompute it (for performance reasons).
         // 
         // If ALL of these are true:
-        // 1. We have a cached local hash
-        // 2. Local hash matches server hash (no content change)
-        // 3. No pending metadata to send to server
-        // 4. File wasn't moved or renamed
+        // 1. Fresh hash matches server hash (no content change)
+        // 2. No pending metadata to send to server
+        // 3. File wasn't moved or renamed
         // 
-        // Then we can skip expensive operations (hash computation, file upload).
-        // This is a significant optimization for files checked out but never edited.
+        // Then we can skip the file upload (but we still needed to compute the hash).
         // ========================================
         const hasPendingMetadata = !!file.pendingMetadata
-        const contentUnchanged = file.localHash && file.localHash === file.pdmData?.content_hash
+        
+        // CRITICAL: Always compute fresh hash - cached localHash may be stale
+        // This fixes a bug where files modified in SolidWorks were not detected
+        // because the file watcher preserves old hashes for performance.
+        const hashStartTime = performance.now()
+        const freshHashResult = await window.electronAPI?.hashFile(file.path)
+        recordSubstepTiming('hashFile', performance.now() - hashStartTime)
+        
+        const freshHash = freshHashResult?.success ? freshHashResult.hash : undefined
+        const freshSize = freshHashResult?.success ? freshHashResult.size : file.size
+        
+        if (!freshHash) {
+          logCheckin('error', 'Failed to compute hash for file', {
+            operationId,
+            ...fileCtx,
+            hashError: freshHashResult?.error
+          })
+          progress.update()
+          return { success: false, error: `${file.name}: Failed to hash file - ${freshHashResult?.error || 'Unknown error'}` }
+        }
+        
+        const contentUnchanged = freshHash === file.pdmData?.content_hash
         const canTakeFastPath = contentUnchanged && !hasPendingMetadata && !wasFileMoved && !wasFileRenamed
         
         logCheckin('debug', 'Checking in file', {
@@ -611,14 +634,14 @@ export const checkinCommand: Command<CheckinParams> = {
           logCheckin('info', 'Taking fast path - file unchanged', {
             operationId,
             fileName: file.name,
-            localHash: file.localHash?.substring(0, 12)
+            freshHash: freshHash?.substring(0, 12)
           })
           
           const checkinAPIStart = performance.now()
           const result = await checkinFile(file.pdmData!.id, user.id, {
-            // No content change - pass existing hash
-            newContentHash: file.localHash,
-            newFileSize: file.size,
+            // No content change - pass fresh hash (verified to match server)
+            newContentHash: freshHash,
+            newFileSize: freshSize,
             localActiveVersion: file.localActiveVersion,
             comment: file.pendingCheckinNote,
             // Batch optimization: skip per-file machine mismatch check
@@ -668,7 +691,7 @@ export const checkinCommand: Command<CheckinParams> = {
               path: file.path,
               updates: {
                 pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
-                localHash: file.localHash,
+                localHash: freshHash, // Use fresh hash - cached localHash may have been stale
                 localVersion: result.file.version, // Track the new version after checkin
                 diffStatus: undefined,
                 localActiveVersion: undefined,
@@ -677,6 +700,13 @@ export const checkinCommand: Command<CheckinParams> = {
                 pendingCheckinNote: undefined
               }
             })
+            
+            // CRITICAL: Clear recently modified flag so LoadFiles doesn't restore stale state
+            // The file may have been marked as recently modified when user saved in SolidWorks.
+            // After checkin, we want LoadFiles to use our fresh state (diffStatus: undefined).
+            if (file.pdmData?.id) {
+              ctx.clearRecentlyModified(file.pdmData.id)
+            }
             
             // Flush periodically for real-time UI feedback
             if (shouldFlush()) {
@@ -703,47 +733,19 @@ export const checkinCommand: Command<CheckinParams> = {
         }
         
         // ========================================
-        // HASH COMPUTATION: Use cached hash if available, otherwise compute fresh
+        // USE FRESH HASH: We already computed it above before the fast path check
         // Note: Metadata writing to SW file is handled by "Save to File" button during editing.
         // Check-in no longer writes to SW files - it only updates server and sets read-only.
         // ========================================
-        let fileHash: string | undefined
-        let fileSize: number | undefined
+        const fileHash = freshHash
+        const fileSize = freshSize
         
-        if (file.localHash) {
-          // Use cached hash - file hasn't been modified since last scan
-          fileHash = file.localHash
-          fileSize = file.size
-          logCheckin('debug', 'Using cached hash', {
-            operationId,
-            fileName: file.name,
-            cachedHash: fileHash?.substring(0, 12)
-          })
-        } else {
-          // Compute fresh hash using streaming (memory-efficient for large files)
-          const hashFileStart = performance.now()
-          const hashResult = await window.electronAPI?.hashFile(file.path)
-          recordSubstepTiming('hashFile', performance.now() - hashFileStart)
-          
-          if (!hashResult?.success) {
-            logCheckin('error', 'Failed to hash local file', {
-              operationId,
-              ...fileCtx,
-              hashError: hashResult?.error
-            })
-            progress.update()
-            return { success: false, error: `${file.name}: Failed to hash file - ${hashResult?.error || 'Unknown error'}` }
-          }
-          
-          fileHash = hashResult.hash
-          fileSize = hashResult.size
-          logCheckin('debug', 'Computed fresh hash using streaming', {
-            operationId,
-            fileName: file.name,
-            hash: fileHash?.substring(0, 12),
-            size: fileSize
-          })
-        }
+        logCheckin('debug', 'Using fresh hash for upload path', {
+          operationId,
+          fileName: file.name,
+          hash: fileHash?.substring(0, 12),
+          size: fileSize
+        })
         
         // Only use pending metadata if user made edits
         // Auto-extraction removed - it was opening every SW file in Document Manager
@@ -1130,9 +1132,12 @@ export const checkinCommand: Command<CheckinParams> = {
     // OPTIMIZATION: Fetch open documents ONCE before processing SW files
     // Then we only call setDocumentReadOnly for files that are actually open
     // This reduces N service calls to 1 + (number of open files)
+    // NOTE: We pass includeComponents: true to get ALL loaded documents, including
+    // sub-assemblies and parts loaded as components of an open assembly. This ensures
+    // we update the read-only state for all files, not just those with visible windows.
     if (swFiles.length > 0 && swServiceStatus.running) {
       try {
-        const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.()
+        const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.({ includeComponents: true })
         if (openDocsResult?.success && openDocsResult.data?.documents) {
           // Normalize paths for comparison (lowercase on Windows)
           openDocumentPaths = new Set(

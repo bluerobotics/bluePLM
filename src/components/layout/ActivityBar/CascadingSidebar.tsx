@@ -113,13 +113,10 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
     topPosition = Math.max(16, topPosition - bottomOverflow)
   }
   
-  // Width of the hover bridge zone (extends left of panel to prevent accidental close)
-  const hoverBridgeWidth = 20
-  
   const wrapperStyle: React.CSSProperties = {
     position: 'fixed',
     top: topPosition,
-    left: parentRect.right - hoverBridgeWidth, // Start bridge zone before the panel
+    left: parentRect.right, // Start flush with activity bar's right edge
     zIndex: 40 + depth,
     maxHeight: maxHeight,
   }
@@ -127,7 +124,6 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
   const panelStyle: React.CSSProperties = {
     minWidth: isExpanded ? '200px' : '53px',
     width: isExpanded ? 'fit-content' : '53px',
-    marginLeft: hoverBridgeWidth, // Offset to account for hover bridge
   }
   
   const handleChildMouseEnter = (childId: ModuleId, e: React.MouseEvent) => {
@@ -174,17 +170,10 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
   return (
     <div
       style={wrapperStyle}
-      className="flex"
       onMouseEnter={handlePanelMouseEnter}
       onMouseLeave={handlePanelMouseLeave}
     >
-      {/* Hover bridge zone - invisible area to prevent accidental close when moving mouse */}
-      <div 
-        style={{ width: hoverBridgeWidth }}
-        className="flex-shrink-0"
-      />
-      
-      {/* Actual panel */}
+      {/* Submenu panel - close delay (HOVER_CLOSE_DELAY) allows mouse to move from activity bar */}
       <div
         ref={panelRef}
         style={panelStyle}

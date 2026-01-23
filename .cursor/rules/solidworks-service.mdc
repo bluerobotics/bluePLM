@@ -1,0 +1,16 @@
+---
+description: SolidWorks service build requirements
+globs: solidworks-service/**
+---
+
+# SolidWorks Service
+
+## ALWAYS Rebuild After Changes
+
+After editing any file in `solidworks-service/`, rebuild the service:
+
+```powershell
+dotnet build solidworks-service/BluePLM.SolidWorksService.sln -c Release
+```
+
+Why: The Electron app bundles the compiled `.exe` from `bin/Release`. Without rebuilding, your code changes won't take effect.

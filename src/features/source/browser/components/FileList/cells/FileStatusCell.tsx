@@ -38,7 +38,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
     const label = OPERATION_LABELS[operationType] || 'Processing...'
     return (
       <span className="flex items-center gap-1 text-plm-fg-muted" title={label}>
-        <Loader2 size={12} className="animate-spin" />
+        <Loader2 size={12} className="animate-spin flex-shrink-0" />
         {label}
       </span>
     )
@@ -48,7 +48,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
   if (file.diffStatus === 'outdated') {
     return (
       <span className="flex items-center gap-1 text-purple-400" title="Server has a newer version - update available">
-        <ArrowDown size={12} />
+        <ArrowDown size={12} className="flex-shrink-0" />
         Update
       </span>
     )
@@ -58,7 +58,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
   if (file.diffStatus === 'cloud') {
     return (
       <span className="flex items-center gap-1 text-plm-info" title="Cloud file - download to work on it">
-        <Cloud size={12} />
+        <Cloud size={12} className="flex-shrink-0" />
         Cloud
       </span>
     )
@@ -120,7 +120,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
   if (file.pdmData) {
     return (
       <span className="flex items-center gap-1 text-plm-success" title="Synced and checked in">
-        <Cloud size={12} />
+        <Cloud size={12} className="flex-shrink-0" />
         Checked In
       </span>
     )
@@ -129,7 +129,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
   // 5. LOWEST: Local files (not synced - no pdmData)
   return (
     <span className="flex items-center gap-1 text-plm-fg-muted" title="Local file - not yet synced to cloud">
-      <HardDrive size={12} />
+      <HardDrive size={12} className="flex-shrink-0" />
       Local
     </span>
   )

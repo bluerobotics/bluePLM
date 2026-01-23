@@ -27,7 +27,7 @@ import { executeCommand } from '@/lib/commands'
 import { logFileAction } from '@/lib/userActionLogger'
 import { getSyncedFilesFromSelection } from '@/lib/commands/types'
 import { isMachineOnline } from '@/lib/supabase'
-import { moveFileOnServer } from '@/lib/supabase/files'
+import { moveFileOnServer, updateFolderPath } from '@/lib/supabase/files'
 import { buildFullPath } from '@/lib/utils/path'
 import type { CustomConfirmState } from './useDialogState'
 
@@ -266,28 +266,6 @@ export function useFileOperations({
       return
     }
     
-    // Check for reference issues
-    if (filesToCheckin.length > 0) {
-      const hasParentsNotCheckedIn = filesToCheckin.some(checkinFile => {
-        // Check if this file is a child reference and parent assembly is not in check-in set
-        const checkedOutAssemblies = files.filter(p => 
-          p.pdmData?.checked_out_by === userId && 
-          p.extension?.toLowerCase() === '.sldasm' &&
-          !filesToCheckin.some(ci => ci.path === p.path)
-        )
-        
-        // Simple check - if there are checked out assemblies not in the list
-        // and this file could be a child (part or sub-assembly)
-        const couldBeChild = checkinFile.extension?.toLowerCase() === '.sldprt' || 
-                            checkinFile.extension?.toLowerCase() === '.sldasm'
-        return couldBeChild && checkedOutAssemblies.length > 0
-      })
-      
-      if (hasParentsNotCheckedIn) {
-        addToast('warning', 'Some files may have parent assemblies still checked out')
-      }
-    }
-    
     executeCommand('checkin', { files: targetFiles }, { onRefresh })
     
     // Reset hover state after check-in
@@ -365,16 +343,30 @@ export function useFileOperations({
       addProcessingFolder(file.relativePath, 'sync')
       
       try {
-        // For synced files, update server first (atomic operation with checkout validation)
-        if (file.pdmData?.id && userId) {
-          const serverResult = await moveFileOnServer(file.pdmData.id, userId, newRelPath, file.name)
-          if (!serverResult.success) {
-            failed++
-            log.error('[FileOps]', 'Server move failed', { error: serverResult.error })
-            addToast('error', serverResult.error || 'Failed to move file on server')
-            removeProcessingFolder(file.relativePath)
-            updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
-            continue
+        // For synced items, update server first
+        if (userId) {
+          if (file.isDirectory) {
+            // For directories, update all files inside the folder on the server
+            const folderResult = await updateFolderPath(file.relativePath, newRelPath)
+            if (!folderResult.success) {
+              failed++
+              log.error('[FileOps]', 'Server folder move failed', { error: folderResult.error })
+              addToast('error', folderResult.error || 'Failed to move folder on server')
+              removeProcessingFolder(file.relativePath)
+              updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+              continue
+            }
+          } else if (file.pdmData?.id) {
+            // For synced files, use atomic move with checkout validation
+            const serverResult = await moveFileOnServer(file.pdmData.id, userId, newRelPath, file.name)
+            if (!serverResult.success) {
+              failed++
+              log.error('[FileOps]', 'Server move failed', { error: serverResult.error })
+              addToast('error', serverResult.error || 'Failed to move file on server')
+              removeProcessingFolder(file.relativePath)
+              updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
+              continue
+            }
           }
         }
         
@@ -383,8 +375,8 @@ export function useFileOperations({
         if (result.success) {
           succeeded++
           // Update file in store with new path
-          // For synced files, don't mark as 'moved' since server is already updated
-          const markAsMoved = !file.pdmData?.id
+          // For synced items (files or folders), don't mark as 'moved' since server is already updated
+          const markAsMoved = !file.isDirectory && !file.pdmData?.id
           renameFileInStore(file.path, newFullPath, newRelPath, markAsMoved)
         } else {
           failed++

@@ -594,9 +594,12 @@ export const checkoutCommand: Command<CheckoutParams> = {
     // OPTIMIZATION: Fetch open documents ONCE before processing SW files
     // Then we only call setDocumentReadOnly for files that are actually open
     // This reduces N service calls to 1 + (number of open files)
+    // NOTE: We pass includeComponents: true to get ALL loaded documents, including
+    // sub-assemblies and parts loaded as components of an open assembly. This ensures
+    // we update the read-only state for all files, not just those with visible windows.
     if (swFiles.length > 0 && swServiceRunning) {
       try {
-        const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.()
+        const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.({ includeComponents: true })
         if (openDocsResult?.success && openDocsResult.data?.documents) {
           // Normalize paths for comparison (lowercase on Windows)
           openDocumentPaths = new Set(

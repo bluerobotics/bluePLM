@@ -345,11 +345,12 @@ declare global {
           Promise<{ success: boolean; data?: { componentName: string; componentPath: string; assemblyPath: string; position: { x: number; y: number; z: number } }; error?: string }>
         
         // Open Document Management (control files open in SolidWorks without closing them!)
-        getOpenDocuments: () => Promise<{ success: boolean; data?: { 
+        getOpenDocuments: (options?: { includeComponents?: boolean }) => Promise<{ success: boolean; data?: { 
           solidWorksRunning: boolean; 
           documents: Array<{ 
             filePath: string; fileName: string; fileType: string; 
-            isReadOnly: boolean; isDirty: boolean; activeConfiguration: string 
+            isReadOnly: boolean; isDirty: boolean; activeConfiguration: string;
+            isComponent?: boolean; // true if loaded as component without its own window
           }>; 
           count: number 
         }; error?: string }>
@@ -590,6 +591,10 @@ declare global {
       
       // File change events
       onFilesChanged: (callback: (files: string[]) => void) => () => void
+      
+      // Directory change events (for syncing external folder changes to server)
+      onDirectoryAdded: (callback: (relativePath: string) => void) => () => void
+      onDirectoryRemoved: (callback: (relativePath: string) => void) => () => void
       
       // Auth session events (for OAuth callback in production)
       onSetSession: (callback: (tokens: { access_token: string; refresh_token: string; expires_in?: number; expires_at?: number }) => void) => () => void

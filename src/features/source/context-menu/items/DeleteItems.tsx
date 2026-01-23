@@ -128,6 +128,11 @@ export function DeleteItems({
   
   const hasUnsyncedLocalFiles = unsyncedFilesInSelection.length > 0
   
+  // Check if selection is ONLY folders (no files) - folders get simplified delete UX
+  const isOnlyFolders = contextFiles.every(f => f.isDirectory)
+  // Check if any folders in selection are synced (have pdmData from folders table)
+  const hasSyncedFolders = contextFiles.some(f => f.isDirectory && f.pdmData?.id)
+  
   // Get orphaned files (deleted_remote) from selection
   const orphanedFilesInSelection = getOrphanedFilesFromSelection(files, contextFiles)
   const hasOrphanedFiles = orphanedFilesInSelection.length > 0
@@ -298,8 +303,8 @@ export function DeleteItems({
         </div>
       )}
       
-      {/* Remove Local Copy - for synced files */}
-      {anySynced && !allCloudOnly && (
+      {/* Remove Local Copy - for synced files (not for folder-only selections) */}
+      {anySynced && !allCloudOnly && !isOnlyFolders && (
         <div 
           className={`context-menu-item ${!canDeleteLocal.allowed ? 'disabled' : ''}`}
           onClick={handleDeleteLocal}
@@ -311,7 +316,8 @@ export function DeleteItems({
         </div>
       )}
       
-      {/* Delete Locally - for local files/folders (keeps server copy) */}
+      {/* Delete Locally - for local files/folders that aren't synced */}
+      {/* For folder-only selections, simplify label to just "Delete" */}
       {(hasUnsyncedLocalFiles || hasLocalFolders) && !allCloudOnly && !anySynced && (
         <div 
           className={`context-menu-item ${canDeleteLocal.allowed ? 'danger' : 'disabled'}`}
@@ -319,13 +325,16 @@ export function DeleteItems({
           title={!canDeleteLocal.allowed ? `Requires ${getPermissionRequirement('delete-local')}` : ''}
         >
           <Trash2 size={14} />
-          Delete Locally ({unsyncedFilesInSelection.length} file{unsyncedFilesInSelection.length !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
+          {isOnlyFolders
+            ? `Delete${folderCount > 0 ? ` (${folderCount} folder${folderCount !== 1 ? 's' : ''})` : ''}`
+            : `Delete (${unsyncedFilesInSelection.length} file${unsyncedFilesInSelection.length !== 1 ? 's' : ''}${folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})`
+          }
           {!canDeleteLocal.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}
       
-      {/* Delete from Server (Keep Local) - for synced files that have local copies */}
-      {anySynced && !allCloudOnly && (
+      {/* Delete from Server (Keep Local) - for synced files that have local copies (not for folder-only selections) */}
+      {anySynced && !allCloudOnly && !isOnlyFolders && (
         <div 
           className={`context-menu-item ${!canDeleteServer.allowed ? 'disabled' : ''}`}
           onClick={() => handleDeleteFromServer(true)}
@@ -338,14 +347,18 @@ export function DeleteItems({
       )}
       
       {/* Delete Local & Server - show if any content exists on server (synced, cloud-only, or folder exists on server) */}
-      {(anySynced || allCloudOnly || contextFiles.some(f => f.diffStatus === 'cloud') || hasFoldersOnServer) && (
+      {/* For folder-only selections, simplify to just "Delete" since folders are always synced */}
+      {(anySynced || allCloudOnly || contextFiles.some(f => f.diffStatus === 'cloud') || hasFoldersOnServer || (isOnlyFolders && hasSyncedFolders)) && (
         <div 
           className={`context-menu-item ${canDeleteServer.allowed ? 'danger' : 'disabled'}`}
           onClick={() => handleDeleteFromServer(false)}
           title={!canDeleteServer.allowed ? `Requires ${getPermissionRequirement('delete-server')}` : ''}
         >
           <Trash2 size={14} />
-          {allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} ({syncedFilesInSelection.length + cloudOnlyFilesInSelection.length} file{(syncedFilesInSelection.length + cloudOnlyFilesInSelection.length) !== 1 ? 's' : ''}{folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})
+          {isOnlyFolders 
+            ? `Delete${folderCount > 0 ? ` (${folderCount} folder${folderCount !== 1 ? 's' : ''})` : ''}`
+            : `${allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} (${syncedFilesInSelection.length + cloudOnlyFilesInSelection.length} file${(syncedFilesInSelection.length + cloudOnlyFilesInSelection.length) !== 1 ? 's' : ''}${folderCount > 0 ? `, ${folderCount} folder${folderCount !== 1 ? 's' : ''}` : ''})`
+          }
           {!canDeleteServer.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}

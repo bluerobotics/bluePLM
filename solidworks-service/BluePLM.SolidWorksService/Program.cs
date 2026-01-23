@@ -223,7 +223,8 @@ namespace BluePLM.SolidWorksService
                     // Control documents open in running SolidWorks
                     // ========================================
                     
-                    "getOpenDocuments" => _swApi!.GetOpenDocuments(),
+                    "getOpenDocuments" => _swApi!.GetOpenDocuments(
+                        command["includeComponents"]?.Value<bool>() ?? false),
                     "isDocumentOpen" => _swApi!.IsDocumentOpen(filePath),
                     "getDocumentInfo" => _swApi!.GetDocumentInfo(filePath),
                     "setDocumentReadOnly" => _swApi!.SetDocumentReadOnly(filePath,

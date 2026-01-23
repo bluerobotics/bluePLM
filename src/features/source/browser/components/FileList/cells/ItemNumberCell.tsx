@@ -52,6 +52,11 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   const [isGenerating, setIsGenerating] = useState(false)
   const [localTabValue, setLocalTabValue] = useState(file.pendingMetadata?.tab_number ?? '')
   
+  // Sync localTabValue with file.pendingMetadata when it changes externally
+  useEffect(() => {
+    setLocalTabValue(file.pendingMetadata?.tab_number ?? '')
+  }, [file.pendingMetadata?.tab_number])
+  
   // Confirmation state for inline BR number generation
   const [confirmingGenerate, setConfirmingGenerate] = useState(false)
   const [previewNumber, setPreviewNumber] = useState<string | null>(null)
@@ -280,7 +285,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
         {/* Tab number input (when Tab column is hidden) */}
         {showInlineTab && (
           <>
-            <span className="text-plm-fg-dim text-sm shrink-0">-</span>
+            <span className="text-plm-fg text-sm shrink-0">-</span>
             <input
               data-tab-input="true"
               type="text"
@@ -293,8 +298,16 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
                 else if (e.key === 'Escape') handleCancelCellEdit()
                 e.stopPropagation()
               }}
+              onBlur={(e) => {
+                // Don't save if clicking back to base input or generate button
+                const relatedTarget = e.relatedTarget as HTMLElement | null
+                if (relatedTarget?.dataset?.generateBtn) return
+                if (relatedTarget === inlineEditInputRef.current) return
+                if (confirmingGenerate) return
+                handleSaveCellEdit()
+              }}
               placeholder={getTabPlaceholder(tabPaddingDigits)}
-              className="w-12 shrink-0 bg-plm-bg/30 border border-plm-border/20 rounded px-1 py-0 text-sm text-plm-fg-muted text-center focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:text-plm-fg focus:ring-1 focus:ring-plm-accent"
+              className="w-12 shrink-0 bg-transparent border border-plm-border/20 rounded px-1 py-0 text-sm text-plm-fg text-center focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:ring-1 focus:ring-plm-accent"
             />
           </>
         )}
@@ -399,17 +412,11 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             type="text"
             value={localTabValue}
             onChange={(e) => handleInlineTabChange(e.target.value)}
-            onClick={(e) => {
-              e.stopPropagation()
-              // Start edit mode when clicking tab input
-              if (canEditItemNumber && !isEditingItemNumber) {
-                handleStartCellEdit(file, 'itemNumber')
-              }
-            }}
+            onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
             placeholder={getTabPlaceholder(tabPaddingDigits)}
-            className="w-10 shrink-0 bg-transparent border border-transparent rounded px-0.5 py-0 text-sm text-plm-fg text-center cursor-text group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:ring-1 focus:ring-plm-accent"
+            className="w-12 shrink-0 bg-transparent border border-transparent rounded px-1 py-0 text-sm text-plm-fg text-center cursor-text group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:ring-1 focus:ring-plm-accent"
           />
         </>
       )}

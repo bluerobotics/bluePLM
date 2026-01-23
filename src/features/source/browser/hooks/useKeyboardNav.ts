@@ -240,14 +240,25 @@ export function useKeyboardNav({
       return
     }
     
-    // Delete key - always delete locally only, never from server
+    // Delete key - for folders, delete directly (no dialog). For files, show dialog.
     if (matchesKeybinding(e, 'delete') && selectedFiles.length > 0) {
       e.preventDefault()
       e.stopPropagation()
-      const selectedFile = files.find(f => f.path === selectedFiles[0])
-      if (selectedFile) {
-        setDeleteEverywhere(false) // Keyboard delete is local only
-        setDeleteConfirm(selectedFile)
+      
+      const selectedItems = sortedFiles.filter(f => selectedFiles.includes(f.path))
+      const isOnlyFolders = selectedItems.every(f => f.isDirectory)
+      
+      if (isOnlyFolders) {
+        // Folders: delete directly without confirmation dialog
+        // The delete-local command will also delete from server for synced folders
+        executeCommand('delete-local', { files: selectedItems }, { onRefresh })
+      } else {
+        // Files: show confirmation dialog
+        const selectedFile = files.find(f => f.path === selectedFiles[0])
+        if (selectedFile) {
+          setDeleteEverywhere(false) // Keyboard delete is local only
+          setDeleteConfirm(selectedFile)
+        }
       }
       return
     }
