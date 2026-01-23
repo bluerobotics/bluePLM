@@ -54,12 +54,10 @@ export const workflowService = {
    * Create a new workflow using the default workflow function
    */
   async createDefault(orgId: string, userId: string): Promise<WorkflowServiceResult<string>> {
-    // Cast to any to call RPC function that may not be in generated types
-    const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> })
-      .rpc('create_default_workflow', {
-        p_org_id: orgId,
-        p_created_by: userId
-      })
+    const { data, error } = await supabase.rpc('create_default_workflow', {
+      p_org_id: orgId,
+      p_created_by: userId
+    })
 
     return {
       data: data as string | null,

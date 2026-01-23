@@ -9,7 +9,9 @@
  *   5. Custom type unions not defined in the database
  * 
  * NOTE: supabase.ts is auto-generated. To regenerate after schema changes:
- *   npx supabase gen types typescript --project-id YOUR_PROJECT_ID --schema public > src/types/supabase.ts
+ *   npm run gen:types
+ * 
+ * Requires SUPABASE_ACCESS_TOKEN in .env file (get from supabase.com/dashboard/account/tokens)
  * 
  * @see ./supabase.ts for auto-generated types (DO NOT EDIT THAT FILE)
  */

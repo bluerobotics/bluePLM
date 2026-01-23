@@ -27,12 +27,11 @@ export async function moveFileOnServer(
   const client = getSupabaseClient()
   
   // Use atomic RPC to prevent race conditions and ensure proper validation
-  // Note: Using 'as any' for rpc name since move_file is a new RPC not yet in generated types
-  const { data, error } = await (client.rpc as any)('move_file', {
+  const { data, error } = await client.rpc('move_file', {
     p_file_id: fileId,
     p_user_id: userId,
     p_new_file_path: newFilePath,
-    p_new_file_name: newFileName || null
+    p_new_file_name: newFileName
   })
   
   if (error) {

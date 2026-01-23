@@ -1827,7 +1827,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create file share link
-SELECT drop_function_overloads('create_file_share_link');
+DO $$ BEGIN PERFORM drop_function_overloads('create_file_share_link'); END $$;
 CREATE OR REPLACE FUNCTION create_file_share_link(
   p_org_id UUID, p_file_id UUID, p_created_by UUID,
   p_expires_in_days INTEGER DEFAULT NULL,
@@ -1973,7 +1973,7 @@ GRANT EXECUTE ON FUNCTION get_user_vault_access(UUID) TO authenticated;
 -- Atomic checkout: prevents race conditions when two users try to checkout same file
 -- Returns JSONB with success status, error message, or file data
 -- Drop all overloads to prevent signature ambiguity
-SELECT drop_function_overloads('checkout_file');
+DO $$ BEGIN PERFORM drop_function_overloads('checkout_file'); END $$;
 CREATE OR REPLACE FUNCTION checkout_file(
   p_file_id UUID,
   p_user_id UUID,
@@ -2062,7 +2062,7 @@ GRANT EXECUTE ON FUNCTION checkout_file(UUID, UUID, TEXT, TEXT, TEXT) TO authent
 -- Only increments version when content, metadata, or version switch is detected
 -- Returns JSONB with success status, error message, or updated file data
 -- Drop all overloads to prevent signature ambiguity (critical for schema updates)
-SELECT drop_function_overloads('checkin_file');
+DO $$ BEGIN PERFORM drop_function_overloads('checkin_file'); END $$;
 CREATE OR REPLACE FUNCTION checkin_file(
   p_file_id UUID,
   p_user_id UUID,
@@ -2528,7 +2528,7 @@ GRANT EXECUTE ON FUNCTION get_vault_files_fast(UUID, UUID) TO authenticated;
 -- Atomic move: updates file_path and file_name on the server
 -- Used when user moves a checked-in file to a new location
 -- Returns JSONB with success status, error message, or updated file data
-SELECT drop_function_overloads('move_file');
+DO $$ BEGIN PERFORM drop_function_overloads('move_file'); END $$;
 CREATE OR REPLACE FUNCTION move_file(
   p_file_id UUID,
   p_user_id UUID,
@@ -2661,6 +2661,26 @@ END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION get_vault_files_delta(UUID, UUID, TIMESTAMPTZ) TO authenticated;
+
+-- ===========================================
+-- MIGRATIONS FOR EXISTING DATABASES
+-- ===========================================
+-- These ALTER statements add columns that may be missing from existing installations.
+-- Safe to run multiple times (uses IF NOT EXISTS or DO blocks with exception handling).
+
+-- v26: Storage bucket for vaults (already handled inline, but included for completeness)
+ALTER TABLE vaults ADD COLUMN IF NOT EXISTS storage_bucket TEXT;
+
+-- v31: Backup config endpoint and restic password
+ALTER TABLE backup_config ADD COLUMN IF NOT EXISTS endpoint TEXT;
+ALTER TABLE backup_config ADD COLUMN IF NOT EXISTS restic_password_encrypted TEXT;
+
+-- v45: File versions metadata snapshots (already handled inline, but included for completeness)
+ALTER TABLE file_versions ADD COLUMN IF NOT EXISTS part_number TEXT;
+ALTER TABLE file_versions ADD COLUMN IF NOT EXISTS description TEXT;
+
+-- v46: Configuration-specific revisions for multi-config parts/assemblies
+ALTER TABLE files ADD COLUMN IF NOT EXISTS configuration_revisions JSONB DEFAULT '{}'::jsonb;
 
 -- ===========================================
 -- END OF SOURCE FILES MODULE

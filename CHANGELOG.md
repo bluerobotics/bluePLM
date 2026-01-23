@@ -2,12 +2,20 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [3.11.1] - 2026-01-22
+## [3.11.1] - 2026-01-23
+
+### Added
+- **Type generation script**: New `npm run gen:types` command that loads `SUPABASE_ACCESS_TOKEN` from `.env` file and regenerates TypeScript types from the live database
 
 ### Fixed
 - **Delete from server keeps file read-only**: Fixed issue where deleting a checked-in file from the server while keeping the local copy would leave the file read-only. Local-only files are now correctly made writable after the server deletion
 - **Sub-assemblies stay read-only after folder checkout**: Fixed issue where sub-assemblies and parts loaded as components of an open assembly would remain read-only in SolidWorks after checking out the folder. The checkout now updates the read-only state for all loaded documents, not just those with visible windows
 - **SolidWorks checkout not clearing read-only state**: Fixed issue where checking out an assembly file that's open in SOLIDWORKS would fail to clear the read-only flag, requiring users to close and reopen the file to edit it. The health check before `setDocumentReadOnly` was spawning a new thread that would time out when assemblies with components were open, even though SOLIDWORKS was actually responsive. Removed the overly strict health check since `ExecuteSerialized()` already provides proper retry logic
+- **Folder deletion not working for folders with special characters**: Fixed issue where deleting folders with spaces or parentheses in their names (e.g., "New Folder (3)") would appear to succeed but the folder would reappear after refreshing. The server-side soft delete was failing silently due to improper query escaping
+- **Schema idempotency**: Fixed `10-source-files.sql` not being fully idempotent - `SELECT drop_function_overloads()` calls were returning result sets that interfered with Supabase SQL Editor execution. Changed to `DO/PERFORM` blocks. Added migrations section for columns that may be missing from existing databases (`configuration_revisions`, `endpoint`, `restic_password_encrypted`, etc.)
+
+### Changed
+- **Removed type workarounds**: Cleaned up `as any` type casts for `folders` table, `move_file` RPC, and `create_default_workflow` RPC now that types are regenerated
 
 ### Removed
 - **Speculative parent assembly warning**: Removed the warning toast "Some files may have parent assemblies still checked out" that appeared when checking in parts or assemblies. This warning was overly aggressive and triggered false positives - it would warn even when the checked-out assemblies had nothing to do with the files being checked in
@@ -33,7 +41,7 @@ All notable changes to BluePLM will be documented in this file.
 - **Tab number hover effect**: The inline tab number input now shows the same hover box effect as the item number when hovering over the cell
 
 ### Fixed
-- **Folder deletion not working for folders with special characters**: Fixed issue where deleting folders with spaces or parentheses in their names (e.g., "New Folder (3)") would appear to succeed but the folder would reappear after refreshing. The server-side soft delete was failing silently due to improper query escaping
+
 - **Serial number preview showing tab number**: Fixed the serial number preview incorrectly showing a sample tab number (e.g., "BR-00001-001") when tabs were enabled, even though generation only produces the base number. Preview now correctly shows just the base number that will be generated
 - **BOM extraction hanging for assemblies**: Fixed issue where viewing the Bill of Materials for SolidWorks assemblies would hang for ~30 seconds and fail. The orphaned process watchdog was incorrectly killing a background SolidWorks process spawned by the Document Manager API during reference resolution. The watchdog now pauses during BOM and reference extraction operations
 - **BOM items showing empty**: Fixed JSON serialization mismatch where BOM item properties (fileName, filePath, quantity, etc.) were serialized with PascalCase but the frontend expected camelCase, resulting in empty/undefined values

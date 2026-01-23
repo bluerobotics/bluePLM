@@ -7,11 +7,6 @@
 
 import { getSupabaseClient } from '../client'
 
-// Note: The 'folders' table exists in the database but isn't in the generated types yet.
-// We use type assertions to work around this until types are regenerated.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnySupabaseClient = ReturnType<typeof getSupabaseClient> & { from: (table: string) => any }
-
 // ============================================
 // Types
 // ============================================
@@ -58,7 +53,7 @@ export async function syncFolder(
   userId: string,
   folderPath: string
 ): Promise<{ folder: FolderRecord | null; error: any }> {
-  const client = getSupabaseClient() as AnySupabaseClient
+  const client = getSupabaseClient()
   const logFn = getLogFn()
   
   // Normalize path: use forward slashes, no leading/trailing slashes
@@ -89,7 +84,7 @@ export async function syncFolder(
  * Internal helper to sync a single folder (no parent handling)
  */
 async function syncSingleFolder(
-  client: AnySupabaseClient,
+  client: ReturnType<typeof getSupabaseClient>,
   orgId: string,
   vaultId: string,
   userId: string,
@@ -162,7 +157,7 @@ async function syncSingleFolder(
 export async function getVaultFolders(
   vaultId: string
 ): Promise<{ folders: FolderRecord[]; error?: string }> {
-  const client = getSupabaseClient() as AnySupabaseClient
+  const client = getSupabaseClient()
   const logFn = getLogFn()
   
   logFn('debug', '[getVaultFolders] Fetching folders', { vaultId })
@@ -205,7 +200,7 @@ export async function updateFolderServerPath(
   folderId: string,
   newPath: string
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient() as AnySupabaseClient
+  const client = getSupabaseClient()
   const logFn = getLogFn()
   
   // Normalize path
@@ -286,7 +281,7 @@ export async function deleteFolderOnServer(
   folderId: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient() as AnySupabaseClient
+  const client = getSupabaseClient()
   const logFn = getLogFn()
   
   logFn('debug', '[deleteFolderOnServer] Soft deleting folder', { folderId, userId })
@@ -358,7 +353,7 @@ export async function deleteFolderByPath(
   folderPath: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient() as AnySupabaseClient
+  const client = getSupabaseClient()
   const logFn = getLogFn()
   
   // Normalize path

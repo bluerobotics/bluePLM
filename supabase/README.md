@@ -58,10 +58,17 @@ When making schema changes:
 
 After making schema changes, regenerate the TypeScript types:
 
-```powershell
-$env:SUPABASE_ACCESS_TOKEN="your-access-token"
-npx supabase gen types typescript --project-id vvyhpdzqdizvorrhjhvq > src/types/supabase.ts
+```bash
+npm run gen:types
 ```
+
+This requires `SUPABASE_ACCESS_TOKEN` in your `.env` file:
+
+```env
+SUPABASE_ACCESS_TOKEN=your-token-here
+```
+
+Get your token from: https://supabase.com/dashboard/account/tokens
 
 ## Tools
 
