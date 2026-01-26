@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { usePDMStore, LocalFile, DetailsPanelTab } from '@/stores/pdmStore'
+import { thumbnailCache } from '@/lib/thumbnailCache'
 import { getFileIconType } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils'
 import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/DraggableTab'
@@ -30,9 +31,10 @@ function RightPanelIcon({ file, size = 24 }: { file: LocalFile; size?: number })
     
     const loadIcon = async () => {
       try {
-        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-        if (!cancelled && result?.success && result.data) {
-          setIcon(result.data)
+        // Use global thumbnail cache to avoid repeated IPC calls
+        const data = await thumbnailCache.get(file.path)
+        if (!cancelled && data) {
+          setIcon(data)
         }
       } catch {
         // Silently fail
@@ -187,10 +189,10 @@ export function RightPanel() {
           return
         }
         
-        // Fall back to OS thumbnail
-        const thumbResult = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-        if (thumbResult?.success && thumbResult.data) {
-          setCadPreview(thumbResult.data)
+        // Fall back to OS thumbnail (uses cache)
+        const thumbData = await thumbnailCache.get(file.path)
+        if (thumbData) {
+          setCadPreview(thumbData)
         } else {
           setCadPreview(null)
         }

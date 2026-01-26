@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { log } from '@/lib/logger'
-import { SW_THUMBNAIL_EXTENSIONS, MAX_THUMBNAIL_SIZE } from '../../../constants'
+import { thumbnailCache } from '@/lib/thumbnailCache'
+import { SW_THUMBNAIL_EXTENSIONS } from '../../../constants'
 
 export interface UseThumbnailParams {
   file: {
@@ -41,18 +41,10 @@ export function useThumbnail({ file, iconSize, isProcessing }: UseThumbnailParam
         setLoadingThumbnail(true)
         setThumbnailError(false)
         try {
-          const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-          if (result?.success && result.data && result.data.startsWith('data:image/')) {
-            if (result.data.length > 100 && result.data.length < MAX_THUMBNAIL_SIZE) {
-              setThumbnail(result.data)
-            } else {
-              setThumbnail(null)
-            }
-          } else {
-            setThumbnail(null)
-          }
-        } catch (err) {
-          log.error('[Thumbnail]', 'Failed to extract thumbnail', { error: err })
+          // Use global thumbnail cache to avoid repeated IPC calls
+          const data = await thumbnailCache.get(file.path)
+          setThumbnail(data)
+        } catch {
           setThumbnail(null)
         } finally {
           setLoadingThumbnail(false)

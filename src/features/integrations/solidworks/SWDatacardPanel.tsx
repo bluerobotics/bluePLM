@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
+import { thumbnailCache } from '@/lib/thumbnailCache'
 import {
   FileBox,
   Layers,
@@ -108,11 +109,11 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           return
         }
         
-        // OLE failed - Fall back to OS thumbnail as immediate fallback
-        const thumbResult = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-        if (thumbResult?.success && thumbResult.data) {
+        // OLE failed - Fall back to OS thumbnail as immediate fallback (uses cache)
+        const thumbData = await thumbnailCache.get(file.path)
+        if (thumbData) {
           log.debug('[Preview]', 'Using OS thumbnail fallback')
-          setPreview(thumbResult.data)
+          setPreview(thumbData)
         }
       } catch (err) {
         log.error('[Preview]', 'Failed to load OLE preview', { error: err })
@@ -178,9 +179,10 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         }
       }
       
-      const thumbResult = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-      if (thumbResult?.success && thumbResult.data) {
-        setPreview(thumbResult.data)
+      // Fall back to OS thumbnail (uses cache)
+      const thumbData = await thumbnailCache.get(file.path)
+      if (thumbData) {
+        setPreview(thumbData)
       }
     } catch {
       // Silent fail

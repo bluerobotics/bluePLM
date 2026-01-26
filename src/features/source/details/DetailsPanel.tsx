@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile, DetailsPanelTab } from '@/stores/pdmStore'
+import { thumbnailCache } from '@/lib/thumbnailCache'
 import { getFileIconType } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils'
 import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/DraggableTab'
@@ -54,9 +55,10 @@ function DetailsPanelIcon({ file, size = 32 }: { file: LocalFile; size?: number 
     
     const loadIcon = async () => {
       try {
-        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-        if (!cancelled && result?.success && result.data) {
-          setIcon(result.data)
+        // Use global thumbnail cache to avoid repeated IPC calls
+        const data = await thumbnailCache.get(file.path)
+        if (!cancelled && data) {
+          setIcon(data)
         }
       } catch {
         // Silently fail
@@ -266,11 +268,11 @@ export function DetailsPanel() {
           return
         }
         
-        // Fall back to OS thumbnail extraction
-        const thumbResult = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-        if (thumbResult?.success && thumbResult.data) {
+        // Fall back to OS thumbnail extraction (uses cache)
+        const thumbData = await thumbnailCache.get(file.path)
+        if (thumbData) {
           log.debug('[Preview]', 'Using OS thumbnail fallback')
-          setCadThumbnail(thumbResult.data)
+          setCadThumbnail(thumbData)
         } else {
           setCadThumbnail(null)
         }

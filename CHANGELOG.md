@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.12.1] - 2026-01-26
+
+### Fixed
+- **Memory leak from thumbnail loading**: Fixed severe memory leak where navigating between folders would repeatedly request thumbnails for the same files, causing RAM usage to grow unbounded (8GB+ observed). Added a global LRU thumbnail cache with 200 entry limit (~6MB max), request deduplication for concurrent loads, and 5-minute TTL. Same file previously requested 100+ times now makes a single IPC call. Cache is automatically invalidated when files are moved, renamed, or deleted
+
+---
+
 ## [3.12.0] - 2026-01-23
 
 ### Added

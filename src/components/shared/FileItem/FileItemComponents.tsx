@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { LocalFile } from '@/stores/pdmStore'
 import { getFileIconType, getInitials, getAvatarColor } from '@/lib/utils'
+import { thumbnailCache } from '@/lib/thumbnailCache'
 
 // ============================================================================
 // FILE ICON - Loads OS thumbnail with fallback to type-based icons
@@ -55,9 +56,10 @@ export const FileIcon = memo(function FileIcon({ file, size = 16, className = ''
     
     const loadIcon = async () => {
       try {
-        const result = await window.electronAPI?.extractSolidWorksThumbnail(file.path)
-        if (!cancelled && result?.success && result.data) {
-          setIcon(result.data)
+        // Use global thumbnail cache to avoid repeated IPC calls
+        const data = await thumbnailCache.get(file.path)
+        if (!cancelled && data) {
+          setIcon(data)
         }
       } catch {
         // Silently fail - will show default icon

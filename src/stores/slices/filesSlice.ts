@@ -4,6 +4,7 @@ import type { PDMFile } from '../../types/pdm'
 import { buildFullPath } from '@/lib/utils/path'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { log } from '@/lib/logger'
+import { thumbnailCache } from '@/lib/thumbnailCache'
 
 // ============================================================================
 // Processing Operations Batching
@@ -384,6 +385,10 @@ export const createFilesSlice: StateCreator<
       samplePaths: paths.slice(0, 3),
       beforeCount
     })
+    // Invalidate thumbnail cache for removed files
+    for (const p of paths) {
+      thumbnailCache.invalidate(p)
+    }
     set(state => ({
       files: state.files.filter(f => !pathSet.has(f.path.toLowerCase())),
       selectedFiles: state.selectedFiles.filter(p => !pathSet.has(p.toLowerCase()))
@@ -708,6 +713,11 @@ export const createFilesSlice: StateCreator<
         newRelPath: newRelPathForItem,
         timestamp: Date.now()
       })
+      // Invalidate thumbnail cache for all files in the folder
+      thumbnailCache.invalidateFolder(oldPath)
+    } else {
+      // Invalidate thumbnail cache for the renamed file
+      thumbnailCache.invalidate(oldPath)
     }
     
     // Determine path separator for nested file updates
