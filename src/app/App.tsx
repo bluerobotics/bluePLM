@@ -309,7 +309,7 @@ function App() {
     // This handles the case where the watcher's debounce timer fires AFTER the operation clears
     // its processingOperations. The watcher would otherwise trigger a full filesystem rescan
     // even though the operation already applied incremental store updates.
-    const SUPPRESSION_WINDOW_MS = 3000
+    const SUPPRESSION_WINDOW_MS = 5000
     
     let refreshTimeout: NodeJS.Timeout | null = null
     
@@ -413,7 +413,7 @@ function App() {
         clearTimeout(refreshTimeout)
       }
       
-      refreshTimeout = setTimeout(() => {
+      refreshTimeout = setTimeout(async () => {
         const currentState = usePDMStore.getState()
         if (currentState.syncProgress.isActive || currentState.processingOperations.size > 0) {
           window.electronAPI?.log('info', '[FileWatcher] Decision (after debounce)', {
@@ -464,36 +464,12 @@ function App() {
         log.debug('[FileWatcher]', 'Triggering loadFiles for unexpected external changes', {
           unexpectedCount: unexpectedChanges.length
         })
-        loadFiles(true)
         
-        // Auto-refresh metadata for SolidWorks files if setting is enabled
-        const { autoRefreshMetadataOnSave, files } = usePDMStore.getState()
-        if (autoRefreshMetadataOnSave) {
-          const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
-          const changedSwFiles = unexpectedChanges.filter(filePath => {
-            const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase()
-            return swExtensions.includes(ext)
-          })
-          
-          if (changedSwFiles.length > 0) {
-            // Find LocalFile objects for the changed paths
-            const swFilesToRefresh = files.filter(f => 
-              changedSwFiles.some(changed => 
-                f.relativePath === changed || f.relativePath.replace(/\\/g, '/') === changed
-              )
-            )
-            
-            if (swFilesToRefresh.length > 0) {
-              window.electronAPI?.log('info', '[FileWatcher] Auto-refreshing metadata for SW files', {
-                count: swFilesToRefresh.length
-              })
-              // Import and execute command - use dynamic import to avoid circular deps
-              import('@/lib/commands').then(({ executeCommand }) => {
-                executeCommand('refresh-local-metadata', { files: swFilesToRefresh })
-              })
-            }
-          }
-        }
+        await loadFiles(true)
+        
+        // Note: Auto-refresh metadata on file save was removed.
+        // Metadata sync is now an explicit user action via "Sync Metadata" command
+        // on checked-out files only.
         
         refreshTimeout = null
       }, 1000)
@@ -520,7 +496,7 @@ function App() {
       // Check suppression window - don't sync folders we just created ourselves
       const { lastOperationCompletedAt, expectedFileChanges } = usePDMStore.getState()
       const msSinceLastOp = Date.now() - lastOperationCompletedAt
-      const SUPPRESSION_WINDOW_MS = 3000
+      const SUPPRESSION_WINDOW_MS = 5000
       
       // Check if this is an expected change (we created it ourselves)
       if (expectedFileChanges.has(relativePath) && msSinceLastOp < SUPPRESSION_WINDOW_MS) {
@@ -556,7 +532,7 @@ function App() {
       // Check suppression window - don't delete folders we just deleted ourselves
       const { lastOperationCompletedAt, expectedFileChanges } = usePDMStore.getState()
       const msSinceLastOp = Date.now() - lastOperationCompletedAt
-      const SUPPRESSION_WINDOW_MS = 3000
+      const SUPPRESSION_WINDOW_MS = 5000
       
       // Check if this is an expected change (we deleted it ourselves)
       if (expectedFileChanges.has(relativePath) && msSinceLastOp < SUPPRESSION_WINDOW_MS) {

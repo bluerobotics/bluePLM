@@ -36,102 +36,8 @@ const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 const FLUSH_INTERVAL = 25  // Flush every 25 files
 const FLUSH_TIME_MS = 500  // Flush at least every 500ms
 
-/**
- * Extract metadata from SolidWorks file using the SW service
- * Returns null if service unavailable or extraction fails
- * @param swServiceRunning - Pre-cached service status to avoid redundant IPC calls
- */
-async function extractSolidWorksMetadata(
-  fullPath: string,
-  extension: string,
-  swServiceRunning: boolean
-): Promise<{
-  part_number?: string | null
-  description?: string | null
-} | null> {
-  // Only process SolidWorks files
-  if (!SW_EXTENSIONS.includes(extension.toLowerCase())) {
-    return null
-  }
-  
-  // Use pre-cached service status
-  if (!swServiceRunning) {
-    return null
-  }
-  
-  try {
-    const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
-    
-    if (!result?.success || !result.data) {
-      return null
-    }
-    
-    const data = result.data as {
-      fileProperties?: Record<string, string>
-      configurationProperties?: Record<string, Record<string, string>>
-    }
-    
-    // Merge file-level and active configuration properties
-    const allProps: Record<string, string> = { ...data.fileProperties }
-    
-    // Also check configuration properties (use first config or "Default")
-    const configProps = data.configurationProperties
-    if (configProps) {
-      const configName = Object.keys(configProps).find(k => 
-        k.toLowerCase() === 'default' || k.toLowerCase() === 'standard'
-      ) || Object.keys(configProps)[0]
-      
-      if (configName && configProps[configName]) {
-        Object.assign(allProps, configProps[configName])
-      }
-    }
-    
-    // Extract part number from common property names
-    // IMPORTANT: "Number" must be first - it's the property written by "Save to File" in the UI
-    // and represents the user's current/intended part number. "Base Item Number" may contain
-    // legacy or template values that would incorrectly override user edits.
-    const partNumberKeys = [
-      // Blue Robotics primary - this is what gets written by "Save to File"
-      'Number', 'No', 'No.',
-      // SolidWorks Document Manager standard property (may be stale)
-      'Base Item Number',
-      'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
-      'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
-      'PN', 'P/N'
-    ]
-    let part_number: string | null = null
-    for (const key of partNumberKeys) {
-      if (allProps[key] && allProps[key].trim()) {
-        part_number = allProps[key].trim()
-        break
-      }
-    }
-    // Case-insensitive fallback
-    if (!part_number) {
-      for (const [key, value] of Object.entries(allProps)) {
-        const lowerKey = key.toLowerCase()
-        if ((lowerKey.includes('part') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
-            (lowerKey.includes('item') && (lowerKey.includes('number') || lowerKey.includes('no'))) ||
-            lowerKey === 'pn' || lowerKey === 'p/n') {
-          if (value && value.trim()) {
-            part_number = value.trim()
-            break
-          }
-        }
-      }
-    }
-    
-    // Extract description
-    const description = allProps['Description'] || allProps['description'] || null
-    
-    return {
-      part_number,
-      description: description?.trim() || null
-    }
-  } catch {
-    return null
-  }
-}
+// Note: Metadata extraction on checkout was removed.
+// Metadata sync is now an explicit user action via "Sync Metadata" command.
 
 // Logging for checkout operations
 function logCheckout(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
@@ -471,28 +377,6 @@ export const checkoutCommand: Command<CheckoutParams> = {
               operationId,
               fileName: file.name
             })
-          }
-          
-          // OPTIMIZATION: Skip metadata extraction on checkout for batch operations
-          // Rationale: 
-          // 1. On checkout, the file hasn't changed since last check-in
-          // 2. BluePLM already has correct metadata from the last check-in
-          // 3. Any user changes will be synced back on check-in via setProperties
-          // 4. For explicit sync, users can run "Sync SW Metadata" command
-          // This saves ~500-1000ms per SW file in batch operations
-          const isBatchOperation = swFiles.length > 10
-          if (!isBatchOperation) {
-            const extractMetaStart = performance.now()
-            const swMetadata = await extractSolidWorksMetadata(file.path, file.extension, swServiceRunning)
-            recordSubstepTiming('extractMeta', performance.now() - extractMetaStart)
-            if (swMetadata) {
-              logCheckout('debug', 'Extracted SolidWorks metadata on checkout', {
-                operationId,
-                fileName: file.name,
-                partNumber: swMetadata.part_number,
-                description: swMetadata.description?.substring(0, 50)
-              })
-            }
           }
           
           // Queue update for batch processing

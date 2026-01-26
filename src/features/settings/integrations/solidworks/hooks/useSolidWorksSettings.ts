@@ -104,8 +104,6 @@ export function useSolidWorksSettings() {
     setHideSolidworksTempFiles,
     ignoreSolidworksTempFiles,
     setIgnoreSolidworksTempFiles,
-    autoRefreshMetadataOnSave,
-    setAutoRefreshMetadataOnSave,
     lockDrawingRevision,
     setLockDrawingRevision,
     lockDrawingItemNumber,
@@ -468,24 +466,47 @@ export function useSolidWorksSettings() {
   // ============================================
 
   // Compute overall integration status:
-  // Green: Both SW API and DM API are up
-  // Yellow: SW API is down (no SW installed), but DM API is up  
-  // Red: DM API is down
+  // online (green): Both SW API and DM API are available - all features work
+  // partial (yellow): Only DM API available - file properties, BOM, etc. work, but no exports
+  // offline (red): Neither API available - need to configure DM license key
+  // stopped (gray): Service not running
   const getOverallStatus = useCallback((): OverallStatus => {
     if (!status.running) return 'stopped'
-    if (status.dmApiAvailable) {
-      return status.swInstalled ? 'online' : 'partial'
-    }
+    // Full mode: both APIs available
+    if (status.dmApiAvailable && status.swInstalled) return 'online'
+    // DM-only mode: Document Manager works, but no SolidWorks
+    if (status.dmApiAvailable) return 'partial'
+    // Limited: service running but no DM (missing license key?)
     return 'offline'
   }, [status])
 
   const overallStatus = getOverallStatus()
   
   const overallStatusConfig: Record<OverallStatus, { color: string; textColor: string; label: string; description: string }> = {
-    online: { color: 'bg-green-500', textColor: 'text-green-400', label: 'Fully Connected', description: 'Both SolidWorks API and Document Manager API are available' },
-    partial: { color: 'bg-yellow-500', textColor: 'text-yellow-400', label: 'Partial', description: 'Document Manager API is available, but SolidWorks is not installed' },
-    offline: { color: 'bg-red-500', textColor: 'text-red-400', label: 'Limited', description: 'Document Manager API is not available' },
-    stopped: { color: 'bg-plm-fg-dim', textColor: 'text-plm-fg-dim', label: 'Stopped', description: 'Service is not running' },
+    online: { 
+      color: 'bg-green-500', 
+      textColor: 'text-green-400', 
+      label: 'Full Mode', 
+      description: 'All features available - SolidWorks and Document Manager APIs connected' 
+    },
+    partial: { 
+      color: 'bg-yellow-500', 
+      textColor: 'text-yellow-400', 
+      label: 'Document Manager Mode', 
+      description: 'File properties and BOM extraction work. Install SolidWorks for exports.' 
+    },
+    offline: { 
+      color: 'bg-red-500', 
+      textColor: 'text-red-400', 
+      label: 'Limited', 
+      description: 'Configure a Document Manager license key to enable file operations' 
+    },
+    stopped: { 
+      color: 'bg-plm-fg-dim', 
+      textColor: 'text-plm-fg-dim', 
+      label: 'Stopped', 
+      description: 'Service is not running' 
+    },
   }
 
   return {
@@ -510,8 +531,6 @@ export function useSolidWorksSettings() {
     setHideSolidworksTempFiles,
     ignoreSolidworksTempFiles,
     setIgnoreSolidworksTempFiles,
-    autoRefreshMetadataOnSave,
-    setAutoRefreshMetadataOnSave,
     // Drawing field lockouts
     lockDrawingRevision,
     setLockDrawingRevision,

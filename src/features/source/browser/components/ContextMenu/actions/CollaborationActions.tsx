@@ -129,29 +129,29 @@ export function CollaborationActions({
         Properties
       </div>
       
-      {/* Refresh Metadata - for synced SW files or folders containing them */}
-      {isSWFile && (
+      {/* Sync Metadata - for SW files checked out by current user (or folders containing them) */}
+      {isSWFile && firstFile.pdmData?.checked_out_by === user?.id && (
         <div 
           className="context-menu-item"
           onClick={() => {
             onClose()
-            executeCommand('sync-sw-metadata', { files: multiSelect ? contextFiles : [firstFile] }, { onRefresh })
+            executeCommand('sync-metadata', { files: multiSelect ? contextFiles : [firstFile] }, { onRefresh })
           }}
         >
           <RefreshCw size={14} className="text-plm-accent" />
-          Refresh Metadata
+          Sync Metadata
         </div>
       )}
-      {isFolder && !multiSelect && swFilesInFolder.length > 0 && (
+      {isFolder && !multiSelect && swFilesInFolder.filter(f => f.pdmData?.checked_out_by === user?.id).length > 0 && (
         <div 
           className="context-menu-item"
           onClick={() => {
             onClose()
-            executeCommand('sync-sw-metadata', { files: swFilesInFolder }, { onRefresh })
+            executeCommand('sync-metadata', { files: swFilesInFolder }, { onRefresh })
           }}
         >
           <RefreshCw size={14} className="text-plm-accent" />
-          Refresh Metadata ({swFilesInFolder.length} files)
+          Sync Metadata ({swFilesInFolder.filter(f => f.pdmData?.checked_out_by === user?.id).length} files)
         </div>
       )}
       

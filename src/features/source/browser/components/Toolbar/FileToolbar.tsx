@@ -42,6 +42,12 @@ export interface FileToolbarProps {
   // Misc
   platform: string
   addToast: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void
+  
+  // Drag-drop for breadcrumb
+  onCrumbDragOver?: (e: React.DragEvent, path: string) => void
+  onCrumbDragLeave?: (e: React.DragEvent) => void
+  onCrumbDrop?: (e: React.DragEvent, path: string) => void
+  dragOverPath?: string | null
 }
 
 /**
@@ -72,7 +78,11 @@ export const FileToolbar = memo(function FileToolbar({
   onAddFiles,
   onAddFolder,
   platform,
-  addToast
+  addToast,
+  onCrumbDragOver,
+  onCrumbDragLeave,
+  onCrumbDrop,
+  dragOverPath
 }: FileToolbarProps) {
   return (
     <div className="crumb-bar-container h-12 bg-plm-bg-lighter border-b border-plm-border flex items-center px-3 flex-shrink-0 gap-2">
@@ -96,6 +106,10 @@ export const FileToolbar = memo(function FileToolbar({
           canGoBack={canGoBack}
           canGoForward={canGoForward}
           onRefresh={onRefresh}
+          onCrumbDragOver={onCrumbDragOver}
+          onCrumbDragLeave={onCrumbDragLeave}
+          onCrumbDrop={onCrumbDrop}
+          dragOverPath={dragOverPath}
         />
       )}
       

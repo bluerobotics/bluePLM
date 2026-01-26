@@ -45,8 +45,10 @@ const PING_CACHE_TTL_MS = 1000
 
 let mainWindow: BrowserWindow | null = null
 
-// External log function reference
+// External log function references
 let log: (message: string, data?: unknown) => void = console.log
+let logError: (message: string, data?: unknown) => void = console.error
+let logWarn: (message: string, data?: unknown) => void = console.warn
 
 // SolidWorks service state
 let swServiceProcess: ChildProcess | null = null
@@ -233,9 +235,7 @@ async function killOrphanedSolidWorksProcesses(forceAll: boolean = false): Promi
     return { found: 0, orphaned: 0, killed: 0, errors: [] }
   }
   
-  log('[SolidWorks] =======================================')
   log(`[SolidWorks] [SCAN] SCANNING FOR ${forceAll ? 'ALL' : 'ORPHANED'} SLDWORKS PROCESSES`)
-  log('[SolidWorks] =======================================')
   
   const processes = findSolidWorksProcesses()
   log(`[SolidWorks] Found ${processes.length} SLDWORKS.exe process(es)`)
@@ -272,7 +272,7 @@ async function killOrphanedSolidWorksProcesses(forceAll: boolean = false): Promi
         log(`[SolidWorks] [OK] Killed PID ${proc.pid}`)
       } catch (err) {
         const errMsg = `Failed to kill PID ${proc.pid}: ${String(err)}`
-        log(`[SolidWorks] [FAIL] ${errMsg}`)
+        logError(`[SolidWorks] [FAIL] ${errMsg}`)
         result.errors.push(errMsg)
       }
     } else {
@@ -384,7 +384,7 @@ async function runOrphanCheck(): Promise<void> {
       }
     }
   } catch (err) {
-    log(`[SolidWorks Watchdog] Error during orphan check: ${String(err)}`)
+    logError(`[SolidWorks Watchdog] Error during orphan check: ${String(err)}`)
   }
 }
 
@@ -433,7 +433,7 @@ function clearServiceState(reason: string, force: boolean = false): void {
   // Stop the orphaned process watchdog since service is no longer running
   stopOrphanWatchdog()
   
-  log(`[SolidWorks] [WARN] CLEARING SERVICE STATE: ${reason}`)
+  logWarn(`[SolidWorks] [WARN] CLEARING SERVICE STATE: ${reason}`)
   log(`[SolidWorks] Pending requests to reject: ${swPendingRequests.size}`)
   log(`[SolidWorks] Queued commands to cancel: ${commandQueue.length}`)
   
@@ -477,6 +477,51 @@ function getQueueStats(): { queueDepth: number; activeCommands: number } {
 }
 
 /**
+ * Cancel queued preview/thumbnail extractions for files inside a folder.
+ * Used before moving folders to prevent EPERM errors from open file handles.
+ * Returns info about what was cancelled and what's still active.
+ */
+function cancelPreviewsForFolder(folderPath: string): { 
+  cancelledCount: number
+  activeCount: number
+  activePaths: string[]
+} {
+  const normalizedFolder = folderPath.replace(/\\/g, '/').toLowerCase()
+  
+  // Cancel queued getPreview commands for files in this folder
+  let cancelledCount = 0
+  for (let i = commandQueue.length - 1; i >= 0; i--) {
+    const queued = commandQueue[i]
+    const filePath = queued.command.filePath as string | undefined
+    const action = queued.command.action as string | undefined
+    
+    if (filePath && (action === 'getPreview' || action === 'getThumbnail')) {
+      const normalizedFile = filePath.replace(/\\/g, '/').toLowerCase()
+      if (normalizedFile.startsWith(normalizedFolder + '/') || normalizedFile === normalizedFolder) {
+        commandQueue.splice(i, 1)
+        queued.resolve({ success: false, error: 'Cancelled: folder being moved' })
+        cancelledCount++
+      }
+    }
+  }
+  
+  // Check for active thumbnail extractions in this folder
+  const activePaths: string[] = []
+  for (const activePath of thumbnailsInProgress) {
+    const normalizedActive = activePath.replace(/\\/g, '/').toLowerCase()
+    if (normalizedActive.startsWith(normalizedFolder + '/') || normalizedActive === normalizedFolder) {
+      activePaths.push(activePath)
+    }
+  }
+  
+  if (cancelledCount > 0 || activePaths.length > 0) {
+    log(`[SolidWorks] Cancelled ${cancelledCount} queued previews for folder move, ${activePaths.length} still active`)
+  }
+  
+  return { cancelledCount, activeCount: activePaths.length, activePaths }
+}
+
+/**
  * Processes the next command in the queue if capacity is available.
  * Called after each command completes or when new commands are queued.
  */
@@ -502,7 +547,7 @@ function processQueue(): void {
       })
       .catch((err) => {
         activeCommandCount--
-        log(`[SolidWorks Queue] ${action} execution failed: ${err}`)
+        logError(`[SolidWorks Queue] ${action} execution failed: ${err}`)
         queued.resolve({ success: false, error: 'Command execution failed' })
         processQueue()
       })
@@ -531,7 +576,7 @@ async function executeCommandDirect(
   const filePath = command.filePath as string | undefined
   
   if (!swServiceProcess?.stdin) {
-    log(`[SolidWorks Cmd] [FAIL] ${action} - service not running`, { filePath })
+    logError(`[SolidWorks Cmd] [FAIL] ${action} - service not running`, { filePath })
     return { success: false, error: 'SolidWorks service not running. Start it first.' }
   }
   
@@ -555,7 +600,7 @@ async function executeCommandDirect(
     const timeout = setTimeout(() => {
       swPendingRequests.delete(id)
       const elapsed = Date.now() - startTime
-      log(`[SolidWorks Cmd] [TIMEOUT] TIMEOUT: ${action} (id: ${id}) after ${elapsed}ms`, {
+      logError(`[SolidWorks Cmd] [TIMEOUT] TIMEOUT: ${action} (id: ${id}) after ${elapsed}ms`, {
         filePath: filePath ? path.basename(filePath) : undefined,
         remainingPendingRequests: swPendingRequests.size
       })
@@ -583,7 +628,7 @@ async function executeCommandDirect(
       reject: () => {
         clearTimeout(timeout)
         const elapsed = Date.now() - startTime
-        log(`[SolidWorks Cmd] [FAIL] ${action} (id: ${id}) REJECTED after ${elapsed}ms`, {
+        logError(`[SolidWorks Cmd] [FAIL] ${action} (id: ${id}) REJECTED after ${elapsed}ms`, {
           filePath: filePath ? path.basename(filePath) : undefined
         })
         resolve({ success: false, error: 'Request rejected' })
@@ -602,7 +647,7 @@ async function executeCommandDirect(
     
     // Log structured error information
     if (action !== 'ping') {
-      log(formatErrorForLogging(parsedError, { 
+      logError(formatErrorForLogging(parsedError, { 
         operation: action, 
         filePath: filePath || undefined,
         additionalInfo: `attempt ${attemptNumber + 1}/${MAX_AUTO_RETRIES + 1}`
@@ -673,9 +718,9 @@ async function pollServiceUntilReady(
         return pingResult
       }
       
-      log(`[SolidWorks] Ping attempt ${attemptCount} failed, retrying...`)
+      logError(`[SolidWorks] Ping attempt ${attemptCount} failed, retrying...`)
     } catch (err) {
-      log(`[SolidWorks] Ping attempt ${attemptCount} threw error: ${String(err)}`)
+      logError(`[SolidWorks] Ping attempt ${attemptCount} threw error: ${String(err)}`)
     }
     
     // Wait before next attempt
@@ -802,7 +847,7 @@ async function sendSWCommand(
   
   if (!swServiceProcess?.stdin) {
     if (action !== 'ping') {
-      log(`[SolidWorks] Command ${action} failed - service not running`)
+      logError(`[SolidWorks] Command ${action} failed - service not running`)
     }
     return { success: false, error: 'SolidWorks service not running. Start it first.' }
   }
@@ -836,7 +881,7 @@ async function sendSWCommand(
     }
     
     if (stats.queueDepth > 15) {
-      log(`[SolidWorks Queue] [WARN] HIGH QUEUE DEPTH: ${stats.queueDepth + 1} pending commands!`)
+      logWarn(`[SolidWorks Queue] [WARN] HIGH QUEUE DEPTH: ${stats.queueDepth + 1} pending commands!`)
     }
     
     // Wrap resolve to decrement DM counter when command completes
@@ -869,9 +914,7 @@ async function sendSWCommand(
  */
 async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): Promise<SWServiceResult> {
   const startTime = Date.now()
-  log('[SolidWorks] =======================================')
   log('[SolidWorks] [START] START SERVICE REQUESTED')
-  log('[SolidWorks] =======================================')
   logServiceState('startSWService called')
   
   // Optionally cleanup orphaned SLDWORKS.exe processes before starting
@@ -883,13 +926,11 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
     }
   }
   
-  if (!isSolidWorksInstalled()) {
-    log('[SolidWorks] [FAIL] SolidWorks not installed on this machine')
-    return { 
-      success: false, 
-      error: 'SolidWorks not installed',
-      errorDetails: 'SolidWorks is not installed on this machine. Please install SolidWorks to use this feature.'
-    }
+  // Allow service to start without SolidWorks - Document Manager API can work independently
+  // The service will report its capabilities (dmApiAvailable, swInstalled) via ping response
+  const swInstalled = isSolidWorksInstalled()
+  if (!swInstalled) {
+    log('[SolidWorks] [WARN] SolidWorks not installed - starting in Document Manager-only mode')
   }
 
   if (swServiceProcess) {
@@ -962,10 +1003,8 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
   
   return new Promise((resolve) => {
     try {
-      log('[SolidWorks] ---------------------------------------')
       log('[SolidWorks] Spawning new service process...')
       log(`[SolidWorks] Executable: ${servicePath}`)
-      log(`[SolidWorks] Args: ${args.length > 0 ? args.join(' ') : '(none)'}`)
       log(`[SolidWorks] DM License: ${dmLicenseKey ? 'provided' : 'not provided'}`)
       
       swServiceProcess = spawn(servicePath, args, {
@@ -1004,10 +1043,7 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       
       swServiceProcess.on('error', (err) => {
         // Error event can fire for IPC issues without the process dying
-        log('[SolidWorks] =======================================')
-        log('[SolidWorks] [FAIL] PROCESS ERROR EVENT')
-        log('[SolidWorks] =======================================')
-        log(`[SolidWorks] Error: ${String(err)}`)
+        logError(`[SolidWorks] [FAIL] PROCESS ERROR EVENT: ${String(err)}`)
         logServiceState('After process error event')
         // Don't force clear - let clearServiceState verify process is dead
         clearServiceState(`Process error: ${String(err)}`, false)
@@ -1015,20 +1051,14 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       
       swServiceProcess.on('close', (code, signal) => {
         // Close event means process actually exited - force clear state
-        log('[SolidWorks] =======================================')
-        log('[SolidWorks] [DEAD] PROCESS EXITED')
-        log('[SolidWorks] =======================================')
-        log(`[SolidWorks] Exit code: ${code}`)
-        log(`[SolidWorks] Signal: ${signal}`)
+        log(`[SolidWorks] [DEAD] PROCESS EXITED (code: ${code}, signal: ${signal})`)
         logServiceState('After process close event')
         clearServiceState(`Process exited (code: ${code}, signal: ${signal})`, true)
       })
       
       swServiceProcess.on('disconnect', () => {
         // Disconnect can happen due to stdio issues without process dying
-        log('[SolidWorks] =======================================')
         log('[SolidWorks] [WARN] PROCESS DISCONNECTED')
-        log('[SolidWorks] =======================================')
         logServiceState('After process disconnect event')
         // Don't force clear - let clearServiceState verify process is dead
         clearServiceState('Process disconnected', false)
@@ -1039,31 +1069,19 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
       pollServiceUntilReady().then((result) => {
         const totalTime = Date.now() - startTime
         if (result.success) {
-          log('[SolidWorks] =======================================')
-          log(`[SolidWorks] [OK] SERVICE STARTED SUCCESSFULLY`)
-          log('[SolidWorks] =======================================')
-          log(`[SolidWorks] Startup time: ${totalTime}ms`)
-          log(`[SolidWorks] PID: ${pid}`)
+          log(`[SolidWorks] [OK] SERVICE STARTED SUCCESSFULLY (${totalTime}ms, PID: ${pid})`)
           logServiceState('After successful startup')
           
           // Start the orphaned process watchdog
           startOrphanWatchdog()
         } else {
-          log('[SolidWorks] =======================================')
-          log(`[SolidWorks] [FAIL] SERVICE FAILED TO START`)
-          log('[SolidWorks] =======================================')
-          log(`[SolidWorks] Error: ${result.error}`)
-          log(`[SolidWorks] Time elapsed: ${totalTime}ms`)
+          logError(`[SolidWorks] [FAIL] SERVICE FAILED TO START: ${result.error} (${totalTime}ms)`)
           logServiceState('After failed startup')
         }
         resolve(result)
       }).catch((err) => {
         const totalTime = Date.now() - startTime
-        log('[SolidWorks] =======================================')
-        log(`[SolidWorks] [FAIL] SERVICE STARTUP EXCEPTION`)
-        log('[SolidWorks] =======================================')
-        log(`[SolidWorks] Error: ${String(err)}`)
-        log(`[SolidWorks] Time elapsed: ${totalTime}ms`)
+        logError(`[SolidWorks] [FAIL] SERVICE STARTUP EXCEPTION: ${String(err)} (${totalTime}ms)`)
         logServiceState('After startup exception')
         resolve({ 
           success: false, 
@@ -1106,7 +1124,7 @@ async function stopSWService(): Promise<void> {
     await sendSWCommand({ action: 'quit' }, { timeoutMs: 5000 })
     log('[SolidWorks] [OK] Quit command sent successfully')
   } catch (err) {
-    log(`[SolidWorks] [WARN] Quit command failed: ${err}`)
+    logWarn(`[SolidWorks] [WARN] Quit command failed: ${err}`)
   }
   
   log('[SolidWorks] Killing process...')
@@ -1191,7 +1209,7 @@ async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: 
       // Don't log header signature errors as they're expected for new format files
       const errStr = String(cfbErr)
       if (!errStr.includes('Header Signature')) {
-        log(`[SWThumbnail] CFB extraction failed for ${fileName}: ${cfbErr}`)
+        logError(`[SWThumbnail] CFB extraction failed for ${fileName}: ${cfbErr}`)
       }
     }
     
@@ -1289,7 +1307,7 @@ async function extractSolidWorksPreview(filePath: string): Promise<{ success: bo
     return { success: false, error: 'No preview stream found in file' }
     
   } catch (err) {
-    log(`[SWPreview] Failed to extract preview from ${fileName}: ${err}`)
+    logError(`[SWPreview] Failed to extract preview from ${fileName}: ${err}`)
     return { success: false, error: String(err) }
   }
 }
@@ -1431,7 +1449,7 @@ function writeRegistryValue(keyPath: string, valueName: string, paths: string[])
     )
     return true
   } catch (err) {
-    log(`[SolidWorks Registry] Failed to write ${valueName}: ${String(err)}`)
+    logError(`[SolidWorks Registry] Failed to write ${valueName}: ${String(err)}`)
     return false
   }
 }
@@ -1473,7 +1491,7 @@ function writeRegistryDword(keyPath: string, valueName: string, value: number): 
     )
     return true
   } catch (err) {
-    log(`[SolidWorks Registry] Failed to write DWORD ${valueName}: ${String(err)}`)
+    logError(`[SolidWorks Registry] Failed to write DWORD ${valueName}: ${String(err)}`)
     return false
   }
 }
@@ -1741,7 +1759,7 @@ function getSolidWorksLicenseFromRegistry(): LicenseRegistryResult {
       log('[SolidWorks License] Registry key does not exist (no licenses installed)')
       return { success: true, serialNumbers: [] }
     }
-    log(`[SolidWorks License] Failed to read registry: ${errorStr}`)
+    logError(`[SolidWorks License] Failed to read registry: ${errorStr}`)
     return { success: false, error: errorStr }
   }
 }
@@ -1792,7 +1810,7 @@ function setSolidWorksLicenseInRegistry(serialNumber: string): LicenseWriteResul
         requiresAdmin: true 
       }
     }
-    log(`[SolidWorks License] Failed to write registry: ${errorStr}`)
+    logError(`[SolidWorks License] Failed to write registry: ${errorStr}`)
     return { success: false, error: errorStr }
   }
 }
@@ -1841,7 +1859,7 @@ function removeSolidWorksLicenseFromRegistry(serialNumber: string): LicenseWrite
       log(`[SolidWorks License] Serial number not found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
       return { success: true } // Treat as success - it's already gone
     }
-    log(`[SolidWorks License] Failed to remove from registry: ${errorStr}`)
+    logError(`[SolidWorks License] Failed to remove from registry: ${errorStr}`)
     return { success: false, error: errorStr }
   }
 }
@@ -1875,18 +1893,22 @@ function checkLicenseInRegistry(serialNumber: string): LicenseCheckResult {
       log(`[SolidWorks License] Serial number not found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
       return { success: true, found: false }
     }
-    log(`[SolidWorks License] Failed to check registry: ${errorStr}`)
+    logError(`[SolidWorks License] Failed to check registry: ${errorStr}`)
     return { success: false, found: false, error: errorStr }
   }
 }
 
 export interface SolidWorksHandlerDependencies {
   log: (message: string, data?: unknown) => void
+  logError: (message: string, data?: unknown) => void
+  logWarn: (message: string, data?: unknown) => void
 }
 
 export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWorksHandlerDependencies): void {
   mainWindow = window
   log = deps.log
+  logError = deps.logError
+  logWarn = deps.logWarn
 
   // Thumbnail extraction
   ipcMain.handle('solidworks:extract-thumbnail', async (_, filePath: string) => {
@@ -1923,7 +1945,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
         swServiceProcess.kill('SIGKILL')
         log('[SolidWorks] [OK] SIGKILL sent')
       } catch (err) {
-        log(`[SolidWorks] [WARN] Kill failed: ${err}`)
+        logWarn(`[SolidWorks] [WARN] Kill failed: ${err}`)
       }
       swServiceProcess = null
     } else {
@@ -1947,8 +1969,11 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     const swInstalled = isSolidWorksInstalled()
     const queueStats = getQueueStats()
     
-    if (!swInstalled) {
-      return { success: true, data: { running: false, installed: false, ...queueStats } }
+    // Helper to determine operational mode
+    const getMode = (dmAvailable: boolean, swApiAvailable: boolean): string => {
+      if (dmAvailable && swApiAvailable) return 'full'
+      if (dmAvailable) return 'dm-only'
+      return 'limited'
     }
     
     // If we don't have a process reference, check if we have a saved PID
@@ -1963,14 +1988,14 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
           data: { 
             running: true, 
             busy: true, 
-            installed: true,
+            installed: swInstalled,
             referenceRecoveryNeeded: true,
             message: 'Service running but IPC connection lost - restart recommended',
             ...queueStats 
           } 
         }
       }
-      return { success: true, data: { running: false, installed: true, ...queueStats } }
+      return { success: true, data: { running: false, installed: swInstalled, ...queueStats } }
     }
     
     // First check if process is alive at OS level
@@ -1980,25 +2005,29 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     if (!processAlive) {
       log('[SolidWorks] Status check: process not alive at OS level, cleaning up')
       clearServiceState('Process no longer exists (detected during status check)', true)
-      return { success: true, data: { running: false, installed: true, ...queueStats } }
+      return { success: true, data: { running: false, installed: swInstalled, ...queueStats } }
     }
     
     // Check ping cache to avoid redundant checks
     const now = Date.now()
     if (pingCache && (now - pingCache.timestamp) < PING_CACHE_TTL_MS) {
       const cachedData = pingCache.result.data as Record<string, unknown> | undefined
+      const dmAvailable = cachedData?.documentManagerAvailable as boolean ?? false
+      const swApiAvailable = (cachedData?.swInstalled as boolean ?? false) && swInstalled
       return { 
         success: true, 
         data: { 
           running: pingCache.result.success,
           busy: !pingCache.result.success,
-          installed: true,
+          installed: swInstalled,
           cached: true,
           version: cachedData?.version,
           swInstalled: cachedData?.swInstalled,
+          swApiAvailable,
           documentManagerAvailable: cachedData?.documentManagerAvailable,
           documentManagerError: cachedData?.documentManagerError,
           fastModeEnabled: cachedData?.fastModeEnabled,
+          mode: getMode(dmAvailable, swApiAvailable),
           ...queueStats
         } 
       }
@@ -2022,17 +2051,22 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       log(`[SolidWorks] Status check: process alive but ping failed - marking as busy (queue: ${queueStats.queueDepth}, active: ${queueStats.activeCommands})`)
     }
     
+    const dmAvailable = data?.documentManagerAvailable as boolean ?? false
+    const swApiAvailable = (data?.swInstalled as boolean ?? false) && swInstalled
+    
     return { 
       success: true, 
       data: { 
         running: result.success,
         busy: isBusy,
-        installed: true, 
+        installed: swInstalled, 
         version: data?.version,
         swInstalled: data?.swInstalled,
+        swApiAvailable,
         documentManagerAvailable: data?.documentManagerAvailable,
         documentManagerError: data?.documentManagerError,
         fastModeEnabled: data?.fastModeEnabled,
+        mode: getMode(dmAvailable, swApiAvailable),
         ...queueStats
       } 
     }
@@ -2055,6 +2089,38 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return { 
       success: result.errors.length === 0 || result.killed > 0,
       data: result
+    }
+  })
+
+  // Cancel queued previews for folder move
+  ipcMain.handle('sw:cancel-previews-for-folder', async (_, folderPath: string) => {
+    return cancelPreviewsForFolder(folderPath)
+  })
+
+  // Release DM handles for folder move operations
+  ipcMain.handle('sw:release-handles', async () => {
+    log('[SolidWorks] Releasing handles for folder move...')
+    const result = await sendSWCommand({ action: 'releaseHandles' }, { timeoutMs: 5000 })
+    log(`[SolidWorks] Release handles result: ${JSON.stringify(result)}`)
+    return result
+  })
+
+  // Check if SLDWORKS.exe process is running (lightweight, no service call)
+  // This is useful for detecting if SolidWorks is open BEFORE attempting file operations
+  ipcMain.handle('sw:is-process-running', async () => {
+    try {
+      const result = execSync('tasklist /FI "IMAGENAME eq SLDWORKS.exe" /FO CSV /NH', { 
+        encoding: 'utf8',
+        timeout: 5000,
+        windowsHide: true
+      })
+      const isRunning = result.toLowerCase().includes('sldworks.exe')
+      log(`[SolidWorks] Process check: SLDWORKS.exe ${isRunning ? 'IS running' : 'is NOT running'}`)
+      return isRunning
+    } catch (err) {
+      // If tasklist fails, assume SW is not running
+      logWarn(`[SolidWorks] Process check failed: ${err}`)
+      return false
     }
   })
 
@@ -2392,7 +2458,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       }).unref()
       return { success: true }
     } catch (err) {
-      log(`[SolidWorks] Failed to open License Manager: ${String(err)}`)
+      logError(`[SolidWorks] Failed to open License Manager: ${String(err)}`)
       return { success: false, error: String(err) }
     }
   })
@@ -2402,7 +2468,7 @@ export function unregisterSolidWorksHandlers(): void {
   const handlers = [
     'solidworks:extract-thumbnail', 'solidworks:extract-preview',
     'solidworks:start-service', 'solidworks:stop-service', 'solidworks:force-restart', 'solidworks:service-status', 'solidworks:is-installed',
-    'solidworks:get-process-status', 'solidworks:kill-orphaned-processes',
+    'solidworks:get-process-status', 'solidworks:kill-orphaned-processes', 'sw:cancel-previews-for-folder', 'sw:release-handles',
     'solidworks:get-bom', 'solidworks:get-properties', 'solidworks:set-properties', 'solidworks:set-properties-batch',
     'solidworks:get-configurations', 'solidworks:get-references', 'solidworks:get-preview', 'solidworks:get-mass-properties',
     'solidworks:export-pdf', 'solidworks:export-step', 'solidworks:export-dxf', 'solidworks:export-iges', 'solidworks:export-stl', 'solidworks:export-image',
@@ -2450,7 +2516,7 @@ export async function cleanupSolidWorksService(): Promise<void> {
     await sendSWCommand({ action: 'quit' }, { timeoutMs: 2000 })
     log('[SolidWorks] [OK] Quit command sent')
   } catch (err) {
-    log(`[SolidWorks] [WARN] Quit command failed: ${err}`)
+    logWarn(`[SolidWorks] [WARN] Quit command failed: ${err}`)
   }
   
   // Force kill if still running

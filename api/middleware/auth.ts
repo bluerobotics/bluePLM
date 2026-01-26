@@ -2,12 +2,22 @@
  * BluePLM API Authentication Middleware
  * 
  * Fastify plugin that validates JWT tokens and attaches user profile to requests.
+ * 
+ * Security note: Verbose logging is disabled by default. Do not log tokens,
+ * full user IDs, or email addresses in production.
  */
 
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify'
 import fp from 'fastify-plugin'
 import { createSupabaseClient } from '../src/infrastructure/supabase.js'
 import type { UserProfile } from '../types.js'
+
+/**
+ * Truncate a UUID for safe logging (shows first 8 characters)
+ */
+function truncateId(id: string): string {
+  return id.length > 8 ? `${id.substring(0, 8)}...` : id
+}
 
 const authPluginImpl: FastifyPluginAsync = async (fastify) => {
   // Decorate request with user, supabase client, and access token
@@ -20,14 +30,11 @@ const authPluginImpl: FastifyPluginAsync = async (fastify) => {
     request: FastifyRequest, 
     reply: FastifyReply
   ): Promise<void> {
-    console.log('>>> [Auth] authenticate() ENTRY')
-    
     try {
       const authHeader = request.headers.authorization
-      console.log('>>> [Auth] Header:', authHeader ? authHeader.substring(0, 30) + '...' : 'NONE')
       
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.log('>>> [Auth] FAIL: Missing or invalid auth header')
+        fastify.log.warn('[Auth] Missing or invalid auth header')
         reply.code(401).send({ 
           error: 'Unauthorized',
           message: 'Missing or invalid Authorization header'
@@ -38,7 +45,7 @@ const authPluginImpl: FastifyPluginAsync = async (fastify) => {
       const token = authHeader.substring(7)
       
       if (!token || token === 'undefined' || token === 'null') {
-        console.log('>>> [Auth] FAIL: Empty or invalid token string')
+        fastify.log.warn('[Auth] Empty or invalid token string')
         reply.code(401).send({ 
           error: 'Unauthorized',
           message: 'Invalid or missing access token'
@@ -46,12 +53,11 @@ const authPluginImpl: FastifyPluginAsync = async (fastify) => {
         throw new Error('Auth: Invalid token string')
       }
       
-      console.log('>>> [Auth] Verifying token with Supabase...')
       const supabase = createSupabaseClient(token)
       const { data: { user }, error } = await supabase.auth.getUser(token)
       
       if (error || !user) {
-        console.log('>>> [Auth] FAIL: Token verification failed:', error?.message)
+        fastify.log.warn('[Auth] Token verification failed')
         reply.code(401).send({ 
           error: 'Invalid token',
           message: error?.message || 'Token verification failed',
@@ -60,7 +66,6 @@ const authPluginImpl: FastifyPluginAsync = async (fastify) => {
         throw new Error('Auth: Token verification failed')
       }
       
-      console.log('>>> [Auth] Token valid, looking up profile for user:', user.id)
       const { data: profile, error: profileError } = await supabase
         .from('users')
         .select('id, email, role, org_id, full_name')
@@ -68,7 +73,7 @@ const authPluginImpl: FastifyPluginAsync = async (fastify) => {
         .single()
       
       if (profileError || !profile) {
-        console.log('>>> [Auth] FAIL: Profile lookup failed:', profileError?.message)
+        fastify.log.warn({ msg: '[Auth] Profile lookup failed', userId: truncateId(user.id) })
         reply.code(401).send({ 
           error: 'Profile not found',
           message: 'User profile does not exist'
@@ -77,7 +82,7 @@ const authPluginImpl: FastifyPluginAsync = async (fastify) => {
       }
       
       if (!profile.org_id) {
-        console.log('>>> [Auth] FAIL: User has no organization:', profile.email)
+        fastify.log.warn({ msg: '[Auth] User has no organization', userId: truncateId(user.id) })
         reply.code(403).send({ 
           error: 'No organization',
           message: 'User is not a member of any organization'
@@ -89,11 +94,11 @@ const authPluginImpl: FastifyPluginAsync = async (fastify) => {
       request.user = profile as UserProfile
       request.supabase = supabase
       request.accessToken = token
-      console.log('>>> [Auth] SUCCESS: Authenticated', profile.email)
-      fastify.log.info({ msg: '>>> [Auth] Authenticated', email: profile.email })
+      
+      // Log success with minimal info (no email, truncated ID)
+      fastify.log.debug({ msg: '[Auth] Authenticated', userId: truncateId(profile.id) })
     } catch (err) {
-      // Re-throw to stop the request lifecycle
-      console.log('>>> [Auth] Exception caught:', err instanceof Error ? err.message : err)
+      // Re-throw to stop the request lifecycle (error already logged above)
       throw err
     }
   })

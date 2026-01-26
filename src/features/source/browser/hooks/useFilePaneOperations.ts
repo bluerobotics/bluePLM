@@ -101,8 +101,7 @@ export function useFilePaneOperations({
     addProgressToast,
     updateProgressToast,
     removeToast,
-    setStatusMessage,
-    handleMoveFiles: fileOps.handleMoveFiles,
+    setStatusMessage
   })
 
   // Delete handler - state managed externally, just expose setters
@@ -232,7 +231,8 @@ export function useFilePaneOperations({
     handleFolderDragLeave: dragOps.handleFolderDragLeave,
     handleDropOnFolder: dragOps.handleDropOnFolder,
     
-    // Delete state (for parent component to use with useDeleteHandler)
+    // Delete state (DEPRECATED: no longer used - delete operations now use command system)
+    // TODO: Remove these unused state variables in future cleanup
     deleteConfirm,
     setDeleteConfirm,
     deleteEverywhere,

@@ -1,6 +1,8 @@
-import { Info, Play, Square, Loader2, RefreshCw, Database } from 'lucide-react'
+import { Info, Play, Square, Loader2, RefreshCw, Database, AlertTriangle, ChevronDown, Check, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useSolidWorksSettings } from '../hooks'
 import { executeCommand } from '@/lib/commands'
+import { checkSwServiceCompatibility, EXPECTED_SW_SERVICE_VERSION } from '@/lib/swServiceVersion'
 
 export function ServiceTab() {
   const {
@@ -22,14 +24,24 @@ export function ServiceTab() {
     addToast,
   } = useSolidWorksSettings()
 
+  // Check service version compatibility
+  const versionCheck = useMemo(() => {
+    if (!status.running) return null
+    return checkSwServiceCompatibility(status.version || null)
+  }, [status.running, status.version])
+
+  // Filter to only files checked out by current user
+  const { user } = useSolidWorksSettings()
+  const checkedOutSwFiles = syncedSwFiles.filter(f => f.pdmData?.checked_out_by === user?.id)
+
   const handleSyncAllVaultMetadata = async () => {
     if (!status.running) {
       addToast('error', 'SolidWorks service must be running to sync metadata')
       return
     }
     
-    if (syncedSwFiles.length === 0) {
-      addToast('info', 'No SolidWorks files found in vault to sync')
+    if (checkedOutSwFiles.length === 0) {
+      addToast('info', 'No SolidWorks files checked out by you. Check out files first to sync metadata.')
       return
     }
     
@@ -37,28 +49,27 @@ export function ServiceTab() {
     setLastMetadataSyncResult(null)
     
     try {
-      const result = await executeCommand('sync-sw-metadata', { files: syncedSwFiles })
+      const result = await executeCommand('sync-metadata', { files: checkedOutSwFiles })
       
       // Parse result to show stats
-      // Result message is like "Synced 10 files: 5 updated, 5 unchanged"
-      const updated = result.details?.filter(d => d.includes('updated')).length || 
-        (result.message?.match(/(\d+) updated/)?.[1] ? parseInt(result.message.match(/(\d+) updated/)![1]) : 0)
-      const unchanged = result.message?.match(/(\d+) unchanged/)?.[1] 
-        ? parseInt(result.message.match(/(\d+) unchanged/)![1]) 
-        : result.succeeded - updated
+      // Result message is like "Sync complete: 2 drawings updated, 3 parts/assemblies synced"
+      const drawingsMatch = result.message?.match(/(\d+) drawing/)
+      const partsMatch = result.message?.match(/(\d+) part/)
+      const pulled = drawingsMatch ? parseInt(drawingsMatch[1]) : 0
+      const pushed = partsMatch ? parseInt(partsMatch[1]) : 0
       
       setLastMetadataSyncResult({
-        updated: updated,
-        unchanged: unchanged,
+        updated: pulled + pushed,
+        unchanged: result.succeeded - (pulled + pushed),
         failed: result.failed
       })
       
       if (result.failed > 0) {
         addToast('warning', `Synced ${result.succeeded}/${result.total} files. ${result.failed} failed.`)
-      } else if (updated > 0) {
-        addToast('success', `Metadata synced! ${updated} file${updated > 1 ? 's' : ''} updated.`)
+      } else if (pulled > 0 || pushed > 0) {
+        addToast('success', `Metadata synced! ${pulled} drawings updated, ${pushed} parts/assemblies synced.`)
       } else {
-        addToast('info', 'All metadata is already up to date')
+        addToast('info', 'No metadata changes to sync')
       }
     } catch (err) {
       addToast('error', `Metadata sync failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -92,6 +103,29 @@ export function ServiceTab() {
               </div>
             </div>
           </div>
+
+          {/* Version Mismatch Warning */}
+          {status.running && versionCheck && versionCheck.status !== 'current' && versionCheck.status !== 'ahead' && (
+            <div className={`flex items-start gap-3 p-3 rounded-lg border ${
+              versionCheck.status === 'incompatible' 
+                ? 'bg-red-500/10 border-red-500/30' 
+                : 'bg-yellow-500/10 border-yellow-500/30'
+            }`}>
+              <AlertTriangle size={16} className={`mt-0.5 flex-shrink-0 ${
+                versionCheck.status === 'incompatible' ? 'text-red-400' : 'text-yellow-400'
+              }`} />
+              <div className="flex-1">
+                <div className={`text-sm font-medium ${
+                  versionCheck.status === 'incompatible' ? 'text-red-400' : 'text-yellow-400'
+                }`}>
+                  {versionCheck.message}
+                </div>
+                <div className="text-xs text-plm-fg-muted mt-1">
+                  {versionCheck.details}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Detailed Status indicator */}
           <div className="flex items-center justify-between">
@@ -147,6 +181,33 @@ export function ServiceTab() {
                   {status.running && !status.dmApiAvailable && status.dmApiError && (
                     <span className="text-xs text-red-400/70" title={status.dmApiError}>
                       (No license key)
+                    </span>
+                  )}
+                </div>
+                {/* Service Version */}
+                <div className="flex items-center gap-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${
+                    !status.running ? 'bg-plm-fg-dim' :
+                    versionCheck?.status === 'current' ? 'bg-green-500' :
+                    versionCheck?.status === 'incompatible' ? 'bg-red-500' :
+                    versionCheck?.status === 'outdated' || versionCheck?.status === 'unknown' ? 'bg-yellow-500' :
+                    'bg-green-500'
+                  }`} />
+                  <span className="text-sm text-plm-fg-muted">Service Version:</span>
+                  <span className={`text-sm font-medium ${
+                    !status.running ? 'text-plm-fg-dim' :
+                    versionCheck?.status === 'current' ? 'text-green-400' :
+                    versionCheck?.status === 'incompatible' ? 'text-red-400' :
+                    versionCheck?.status === 'outdated' || versionCheck?.status === 'unknown' ? 'text-yellow-400' :
+                    'text-green-400'
+                  }`}>
+                    {status.running 
+                      ? (status.version || 'Unknown')
+                      : 'Stopped'}
+                  </span>
+                  {status.running && (
+                    <span className="text-xs text-plm-fg-dim">
+                      (expected: v{EXPECTED_SW_SERVICE_VERSION})
                     </span>
                   )}
                 </div>
@@ -210,11 +271,20 @@ export function ServiceTab() {
             <Info size={16} className="mt-0.5 flex-shrink-0" />
             <span>
               The SolidWorks service enables BOM extraction, property reading, and file export features.
-              It requires SolidWorks to be installed on this computer.
+              {status.swInstalled 
+                ? ' Full functionality available with your SolidWorks installation.'
+                : ' Basic features work with just a Document Manager license key. Install SolidWorks for full export capabilities.'}
             </span>
           </div>
         </div>
       </div>
+
+      {/* Feature Capabilities */}
+      <CapabilitiesSection 
+        dmApiAvailable={!!(status.running && status.dmApiAvailable)}
+        swInstalled={!!(status.running && status.swInstalled)}
+        isServiceRunning={status.running}
+      />
 
       {/* Vault Metadata Sync */}
       <div className="space-y-3">
@@ -225,9 +295,8 @@ export function ServiceTab() {
           <div className="flex items-start gap-2 text-sm text-plm-fg-muted">
             <Database size={16} className="mt-0.5 flex-shrink-0" />
             <span>
-              Extract part numbers, descriptions, and revisions from SolidWorks custom properties 
-              and sync them to the database. This is useful after bulk imports or if metadata 
-              wasn't extracted during initial check-in.
+              Sync metadata between BluePLM and SolidWorks files. For drawings, reads metadata from the file. 
+              For parts and assemblies, writes BluePLM metadata into the file. Only works on files you have checked out.
             </span>
           </div>
           
@@ -235,33 +304,35 @@ export function ServiceTab() {
           <div className="flex items-center justify-between pt-2 border-t border-plm-border">
             <div>
               <div className="text-sm text-plm-fg">
-                {syncedSwFiles.length > 0 
-                  ? `${syncedSwFiles.length} SolidWorks file${syncedSwFiles.length > 1 ? 's' : ''} in vault`
-                  : 'No SolidWorks files found'
+                {checkedOutSwFiles.length > 0 
+                  ? `${checkedOutSwFiles.length} SolidWorks file${checkedOutSwFiles.length > 1 ? 's' : ''} checked out by you`
+                  : syncedSwFiles.length > 0
+                    ? `${syncedSwFiles.length} file${syncedSwFiles.length > 1 ? 's' : ''} in vault (check out to sync)`
+                    : 'No SolidWorks files found'
                 }
               </div>
               <div className="text-xs text-plm-fg-muted">
-                Parts, assemblies, and drawings with server records
+                Sync only works on files you have checked out for editing
               </div>
             </div>
             <button
               onClick={handleSyncAllVaultMetadata}
-              disabled={isSyncingMetadata || !status.running || syncedSwFiles.length === 0}
+              disabled={isSyncingMetadata || !status.running || checkedOutSwFiles.length === 0}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                !status.running 
+                !status.running || checkedOutSwFiles.length === 0
                   ? 'bg-plm-bg-secondary text-plm-fg-dim cursor-not-allowed'
                   : isSyncingMetadata
                     ? 'bg-plm-accent/50 text-white cursor-wait'
                     : 'bg-plm-accent text-white hover:bg-plm-accent/80'
               }`}
-              title={!status.running ? 'Start the SolidWorks service first' : undefined}
+              title={!status.running ? 'Start the SolidWorks service first' : checkedOutSwFiles.length === 0 ? 'Check out files first' : undefined}
             >
               {isSyncingMetadata ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 <RefreshCw size={16} />
               )}
-              {isSyncingMetadata ? 'Syncing...' : 'Sync All Vault Metadata'}
+              {isSyncingMetadata ? 'Syncing...' : 'Sync Checked Out Files'}
             </button>
           </div>
           
@@ -287,15 +358,119 @@ export function ServiceTab() {
             </div>
           )}
           
-          {/* Warning if service not running */}
+          {/* Warning if service not running or no checked out files */}
           {!status.running && (
             <div className="flex items-center gap-2 text-sm text-yellow-400 pt-2 border-t border-plm-border">
               <Info size={14} />
-              Start the SolidWorks service to enable metadata extraction
+              Start the SolidWorks service to enable metadata sync
+            </div>
+          )}
+          {status.running && checkedOutSwFiles.length === 0 && syncedSwFiles.length > 0 && (
+            <div className="flex items-center gap-2 text-sm text-plm-fg-muted pt-2 border-t border-plm-border">
+              <Info size={14} />
+              Check out SolidWorks files to sync their metadata
             </div>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Collapsible section showing which features are available based on current setup
+ */
+function CapabilitiesSection({ 
+  dmApiAvailable, 
+  swInstalled,
+  isServiceRunning 
+}: { 
+  dmApiAvailable: boolean
+  swInstalled: boolean
+  isServiceRunning: boolean
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  
+  // Feature availability indicator
+  const FeatureItem = ({ available, children }: { available: boolean; children: React.ReactNode }) => (
+    <li className={`flex items-center gap-2 ${available ? '' : 'opacity-50'}`}>
+      {available ? (
+        <Check size={14} className="text-green-400 flex-shrink-0" />
+      ) : (
+        <X size={14} className="text-red-400 flex-shrink-0" />
+      )}
+      <span>{children}</span>
+    </li>
+  )
+  
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-sm text-plm-fg-muted uppercase tracking-wide font-medium hover:text-plm-fg transition-colors w-full"
+      >
+        <ChevronDown 
+          size={16} 
+          className={`transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} 
+        />
+        Feature Availability
+      </button>
+      
+      {isExpanded && (
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+          {!isServiceRunning ? (
+            <p className="text-sm text-plm-fg-muted">
+              Start the service to see available features.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {/* Document Manager Features */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-2 h-2 rounded-full ${dmApiAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-sm font-medium text-plm-fg">Document Manager API</span>
+                  <span className="text-xs text-plm-fg-dim">(No SolidWorks required)</span>
+                </div>
+                <ul className="ml-4 text-sm text-plm-fg-muted space-y-1">
+                  <FeatureItem available={dmApiAvailable}>Read file properties</FeatureItem>
+                  <FeatureItem available={dmApiAvailable}>Extract BOM from assemblies</FeatureItem>
+                  <FeatureItem available={dmApiAvailable}>Get configurations list</FeatureItem>
+                  <FeatureItem available={dmApiAvailable}>Read external references</FeatureItem>
+                  <FeatureItem available={dmApiAvailable}>Extract preview images</FeatureItem>
+                  <FeatureItem available={dmApiAvailable}>Write custom properties</FeatureItem>
+                </ul>
+                {!dmApiAvailable && (
+                  <p className="text-xs text-yellow-400/80 mt-2 ml-4">
+                    Configure a Document Manager license key in the Settings tab to enable these features.
+                  </p>
+                )}
+              </div>
+              
+              {/* Full SolidWorks Features */}
+              <div className="pt-3 border-t border-plm-border">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-2 h-2 rounded-full ${swInstalled ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                  <span className="text-sm font-medium text-plm-fg">Full SolidWorks API</span>
+                  <span className="text-xs text-plm-fg-dim">(Requires SolidWorks installation)</span>
+                </div>
+                <ul className="ml-4 text-sm text-plm-fg-muted space-y-1">
+                  <FeatureItem available={swInstalled}>Export to PDF</FeatureItem>
+                  <FeatureItem available={swInstalled}>Export to STEP/STL/IGES/DXF</FeatureItem>
+                  <FeatureItem available={swInstalled}>Get mass properties</FeatureItem>
+                  <FeatureItem available={swInstalled}>Create from template</FeatureItem>
+                  <FeatureItem available={swInstalled}>Pack and Go</FeatureItem>
+                  <FeatureItem available={swInstalled}>Live document sync</FeatureItem>
+                </ul>
+                {!swInstalled && (
+                  <p className="text-xs text-yellow-400/80 mt-2 ml-4">
+                    Install SolidWorks on this computer to enable export and advanced features.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

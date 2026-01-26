@@ -33,6 +33,17 @@ export interface ConflictDialogState {
   onResolve: (resolution: 'overwrite' | 'rename' | 'skip', applyToAll: boolean) => void
 }
 
+export interface FolderConflictDialogState {
+  sourceFolder: LocalFile
+  targetPath: string
+  existingFolderPath: string
+  /** Total number of folders with conflicts (for multi-folder moves) */
+  totalConflicts: number
+  /** Current conflict index (1-based, for "1 of 3" display) */
+  currentIndex: number
+  onResolve: (resolution: 'merge' | 'rename' | 'skip' | 'cancel', applyToAll: boolean) => void
+}
+
 export interface UseDialogStateReturn {
   // Delete confirmation
   deleteConfirm: LocalFile | null
@@ -48,9 +59,13 @@ export interface UseDialogStateReturn {
   deleteLocalCheckoutConfirm: DeleteLocalCheckoutConfirmState | null
   setDeleteLocalCheckoutConfirm: (state: DeleteLocalCheckoutConfirmState | null) => void
   
-  // Conflict resolution dialog
+  // Conflict resolution dialog (for file conflicts)
   conflictDialog: ConflictDialogState | null
   setConflictDialog: (state: ConflictDialogState | null) => void
+  
+  // Folder conflict resolution dialog (for folder name conflicts during moves)
+  folderConflictDialog: FolderConflictDialogState | null
+  setFolderConflictDialog: (state: FolderConflictDialogState | null) => void
   
   // Close all dialogs
   closeAllDialogs: () => void
@@ -62,6 +77,7 @@ export function useDialogState(): UseDialogStateReturn {
   const [customConfirm, setCustomConfirm] = useState<CustomConfirmState | null>(null)
   const [deleteLocalCheckoutConfirm, setDeleteLocalCheckoutConfirm] = useState<DeleteLocalCheckoutConfirmState | null>(null)
   const [conflictDialog, setConflictDialog] = useState<ConflictDialogState | null>(null)
+  const [folderConflictDialog, setFolderConflictDialog] = useState<FolderConflictDialogState | null>(null)
   
   const closeAllDialogs = () => {
     setDeleteConfirm(null)
@@ -69,6 +85,7 @@ export function useDialogState(): UseDialogStateReturn {
     setCustomConfirm(null)
     setDeleteLocalCheckoutConfirm(null)
     setConflictDialog(null)
+    setFolderConflictDialog(null)
   }
   
   return {
@@ -82,6 +99,8 @@ export function useDialogState(): UseDialogStateReturn {
     setDeleteLocalCheckoutConfirm,
     conflictDialog,
     setConflictDialog,
+    folderConflictDialog,
+    setFolderConflictDialog,
     closeAllDialogs,
   }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { usePDMStore, useHasHydrated } from '@/stores/pdmStore'
 import { log as logger } from '@/lib/logger'
+import { checkSwServiceCompatibility } from '@/lib/swServiceVersion'
 import type { Organization } from '@/types/pdm'
 
 /** Maximum retry attempts for auto-start failures */
@@ -76,9 +77,32 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
     }
   }, [])
   
-  const showToast = useCallback((type: 'warning' | 'error' | 'info', message: string) => {
-    usePDMStore.getState().addToast(type, message)
+  const showToast = useCallback((type: 'warning' | 'error' | 'info', message: string, duration?: number) => {
+    usePDMStore.getState().addToast(type, message, duration)
   }, [])
+  
+  /**
+   * Check service version after successful start and warn if mismatched
+   */
+  const checkServiceVersion = useCallback(async () => {
+    try {
+      const statusResult = await window.electronAPI?.solidworks?.getServiceStatus()
+      if (statusResult?.success && statusResult.data) {
+        const version = (statusResult.data as { version?: string }).version
+        const versionCheck = checkSwServiceCompatibility(version || null)
+        
+        log('info', `[SolidWorks] Service version: ${version || 'unknown'}, status: ${versionCheck.status}`)
+        
+        if (versionCheck.status === 'incompatible') {
+          showToast('error', `${versionCheck.message}: ${versionCheck.details}`, 15000)
+        } else if (versionCheck.status === 'outdated' || versionCheck.status === 'unknown') {
+          showToast('warning', `${versionCheck.message}: ${versionCheck.details}`, 10000)
+        }
+      }
+    } catch (err) {
+      log('warn', `[SolidWorks] Failed to check service version: ${err}`)
+    }
+  }, [log, showToast])
   
   useEffect(() => {
     // Cleanup any pending retry on unmount or dependency change
@@ -246,6 +270,9 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
           usePDMStore.getState().setIntegrationStatus('solidworks', 'online')
           usePDMStore.getState().setSolidworksAutoStartInProgress(false)
           
+          // Check service version and warn if mismatched
+          checkServiceVersion()
+          
         } else if (dmLicenseKey && !data.documentManagerAvailable) {
           log('info', '[SolidWorks] Service running but DM API not available, sending license key...')
           
@@ -266,6 +293,9 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
           usePDMStore.getState().setIntegrationStatus('solidworks', 'online')
           usePDMStore.getState().setSolidworksAutoStartInProgress(false)
           
+          // Check service version and warn if mismatched
+          checkServiceVersion()
+          
         } else {
           log('info', '[SolidWorks] Service already running, no action needed')
           state.succeeded = true
@@ -274,6 +304,9 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
           // Sync with integrations slice so UI shows correct status immediately
           usePDMStore.getState().setIntegrationStatus('solidworks', 'online')
           usePDMStore.getState().setSolidworksAutoStartInProgress(false)
+          
+          // Check service version and warn if mismatched
+          checkServiceVersion()
         }
         
       } catch (err) {
@@ -291,6 +324,7 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
     autoStartSolidworksService,
     solidworksIntegrationEnabled,
     log,
-    showToast
+    showToast,
+    checkServiceVersion
   ])
 }

@@ -78,8 +78,6 @@ export interface FileContextMenuProps {
   handleQuickShareLink: (file: LocalFile) => void
   
   // Delete operations
-  setDeleteConfirm: (file: LocalFile | null) => void
-  setDeleteEverywhere: (value: boolean) => void
   setCustomConfirm: (state: {
     title: string
     message: string
@@ -139,8 +137,6 @@ export function FileContextMenu({
   handleToggleWatch,
   isCreatingShareLink,
   handleQuickShareLink,
-  setDeleteConfirm,
-  setDeleteEverywhere,
   setCustomConfirm,
   setDeleteLocalCheckoutConfirm,
   undoStack,
@@ -350,8 +346,6 @@ export function FileContextMenu({
           onRefresh={onRefresh}
           counts={counts}
           state={state}
-          setDeleteConfirm={setDeleteConfirm}
-          setDeleteEverywhere={setDeleteEverywhere}
           setCustomConfirm={setCustomConfirm}
           setDeleteLocalCheckoutConfirm={setDeleteLocalCheckoutConfirm}
           undoStack={undoStack}

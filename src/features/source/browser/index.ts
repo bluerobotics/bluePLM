@@ -55,7 +55,7 @@ export {
   DragOverlay,
   CustomConfirmDialog,
   ConflictDialog,
-  DeleteConfirmDialog,
+  FolderConflictDialog,
   DeleteLocalCheckoutDialog,
   ColumnContextMenu,
   ConfigContextMenu,
@@ -90,7 +90,7 @@ export type {
   DragOverlayProps,
   CustomConfirmDialogProps,
   ConflictDialogProps,
-  DeleteConfirmDialogProps,
+  FolderConflictDialogProps,
   DeleteLocalCheckoutDialogProps,
   ColumnContextMenuProps,
   ConfigContextMenuProps,
@@ -169,6 +169,7 @@ export type {
   CheckoutUser,
   ConfigWithDepth,
   FileConflict,
+  FolderConflictDialogState,
   SortDirection,
   SortColumn
 } from './types'

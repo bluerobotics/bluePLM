@@ -23,6 +23,7 @@ export function FileSystemActions({
   userId,
 }: FileSystemActionsProps) {
   const {
+    files,
     activeVaultId,
     connectedVaults,
     pinnedFolders,
@@ -42,7 +43,16 @@ export function FileSystemActions({
   // Check rename eligibility
   const isSyncedFile = !!firstFile.pdmData
   const isCheckedOutByMe = firstFile.pdmData?.checked_out_by === userId
-  const canRename = !isSyncedFile || isCheckedOutByMe
+  
+  // Empty folders don't require checkout to rename - there are no files to protect
+  const isEmptyFolder = isFolder && !files.some(f => {
+    if (f.isDirectory) return false
+    const filePath = f.relativePath.replace(/\\/g, '/')
+    const folderPath = firstFile.relativePath.replace(/\\/g, '/')
+    return filePath.startsWith(folderPath + '/')
+  })
+  
+  const canRename = !isSyncedFile || isCheckedOutByMe || isEmptyFolder
 
   // Check pin status
   const isPinned = activeVaultId ? pinnedFolders.some(

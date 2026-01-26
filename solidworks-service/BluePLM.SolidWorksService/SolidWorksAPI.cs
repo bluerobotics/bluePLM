@@ -68,6 +68,7 @@ namespace BluePLM.SolidWorksService
                 }
                 catch
                 {
+                    Console.Error.WriteLine("[SW-API] Existing SolidWorks connection lost, will reconnect");
                     _swApp = null;
                 }
             }
@@ -77,12 +78,21 @@ namespace BluePLM.SolidWorksService
             {
                 _swApp = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
                 _weStartedSW = false;
+                Console.Error.WriteLine("[SW-API] Connected to existing SolidWorks instance");
                 return _swApp;
             }
             catch
             {
                 // No running instance, start one
+                Console.Error.WriteLine("[SW-API] No running SolidWorks instance found");
             }
+
+            // *** CRITICAL: About to launch SolidWorks! ***
+            // This should only happen for explicit user actions that require full SW API
+            // (e.g., creating new files from templates, explicit metadata refresh)
+            // NEVER for background operations like preview/references/BOM extraction
+            Console.Error.WriteLine("[SW-API] *** LAUNCHING SOLIDWORKS ***");
+            Console.Error.WriteLine($"[SW-API] Called from: {new System.Diagnostics.StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown"}");
 
             // Start SolidWorks
             var swType = Type.GetTypeFromProgID("SldWorks.Application");
@@ -96,6 +106,8 @@ namespace BluePLM.SolidWorksService
             _swApp.Visible = false;
             _swApp.UserControl = false;
 
+            Console.Error.WriteLine("[SW-API] Waiting for SolidWorks startup to complete...");
+
             // Wait for SolidWorks to be ready
             int attempts = 0;
             while (!_swApp.StartupProcessCompleted && attempts < 120)
@@ -106,6 +118,8 @@ namespace BluePLM.SolidWorksService
 
             if (!_swApp.StartupProcessCompleted)
                 throw new Exception("SolidWorks failed to start within 60 seconds");
+
+            Console.Error.WriteLine($"[SW-API] SolidWorks started successfully (took {attempts * 500}ms)");
 
             return _swApp;
         }

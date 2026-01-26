@@ -176,7 +176,9 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void, exis
     addProcessingFoldersSync: store.addProcessingFoldersSync,
     removeProcessingFolder: store.removeProcessingFolder,
     removeProcessingFolders: store.removeProcessingFolders,
+    removeProcessingFoldersSync: store.removeProcessingFoldersSync,
     updateFilesAndClearProcessing: store.updateFilesAndClearProcessing,
+    processingOperations: store.processingOperations,
     
     // Auto-download exclusion (scoped to active vault)
     addAutoDownloadExclusion: (relativePath: string) => {
@@ -423,6 +425,19 @@ async function executeCommandDirect<K extends CommandId>(
     
     // Add timing
     result.duration = Date.now() - startTime
+    
+    // Log command result when it indicates failure (red toast scenarios)
+    if (!result.success) {
+      log.warn('[Commands]', `Command ${commandId} completed with failure`, {
+        commandId,
+        message: result.message,
+        total: result.total,
+        succeeded: result.succeeded,
+        failed: result.failed,
+        errors: result.errors?.slice(0, 5), // Limit logged errors for readability
+        duration: result.duration
+      })
+    }
     
     // Record in history
     const historyEntry: CommandHistoryEntry = {

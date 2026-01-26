@@ -29,6 +29,12 @@ namespace BluePLM.SolidWorksService
     /// </summary>
     class Program
     {
+        /// <summary>
+        /// Service version - bump this when making changes that affect functionality.
+        /// The app checks this version and warns if there's a mismatch.
+        /// </summary>
+        private const string SERVICE_VERSION = "1.1.0";
+        
         private static DocumentManagerAPI? _dmApi;
         private static SolidWorksAPI? _swApi;
         private static ComStabilityLayer? _comStability;
@@ -112,7 +118,7 @@ namespace BluePLM.SolidWorksService
             // Interactive mode - read commands from stdin
             var dmStatus = _dmApi.IsAvailable ? "[OK] READY (fast mode enabled)" : $"[FAIL] {_dmApi.InitializationError}";
             Console.Error.WriteLine("=== Service Ready ===");
-            Console.Error.WriteLine("BluePLM SolidWorks Service v1.0.0");
+            Console.Error.WriteLine($"BluePLM SolidWorks Service v{SERVICE_VERSION}");
             Console.Error.WriteLine($"  Document Manager API: {dmStatus}");
             Console.Error.WriteLine("  Full SolidWorks API: launches on demand for exports");
             Console.Error.WriteLine("Ready for commands...");
@@ -185,6 +191,26 @@ namespace BluePLM.SolidWorksService
             return 0;
         }
 
+        /// <summary>
+        /// Helper to wrap operations that require full SolidWorks installation.
+        /// Returns a clear error if SolidWorks is not available.
+        /// </summary>
+        static CommandResult RequiresSolidWorks(Func<CommandResult> operation, string operationName)
+        {
+            if (_swApi == null || !_swApi.IsSolidWorksAvailable())
+            {
+                return new CommandResult 
+                { 
+                    Success = false, 
+                    Error = $"This operation requires SolidWorks to be installed",
+                    ErrorCode = "SW_NOT_INSTALLED",
+                    ErrorDetails = $"The '{operationName}' operation requires a full SolidWorks installation. " +
+                                   "Document Manager-only mode does not support exports, mass properties, or document management features."
+                };
+            }
+            return operation();
+        }
+
         static CommandResult ProcessCommand(string json)
         {
             int? requestId = null;
@@ -221,46 +247,50 @@ namespace BluePLM.SolidWorksService
                     // ========================================
                     // Open Document Management
                     // Control documents open in running SolidWorks
+                    // Requires full SolidWorks installation
                     // ========================================
                     
-                    "getOpenDocuments" => _swApi!.GetOpenDocuments(
-                        command["includeComponents"]?.Value<bool>() ?? false),
-                    "isDocumentOpen" => _swApi!.IsDocumentOpen(filePath),
-                    "getDocumentInfo" => _swApi!.GetDocumentInfo(filePath),
-                    "setDocumentReadOnly" => _swApi!.SetDocumentReadOnly(filePath,
-                        command["readOnly"]?.Value<bool>() ?? true),
-                    "saveDocument" => _swApi!.SaveDocument(filePath),
-                    "setDocumentProperties" => _swApi!.SetDocumentProperties(filePath,
+                    "getOpenDocuments" => RequiresSolidWorks(() => _swApi!.GetOpenDocuments(
+                        command["includeComponents"]?.Value<bool>() ?? false), "getOpenDocuments"),
+                    "isDocumentOpen" => RequiresSolidWorks(() => _swApi!.IsDocumentOpen(filePath), "isDocumentOpen"),
+                    "getDocumentInfo" => RequiresSolidWorks(() => _swApi!.GetDocumentInfo(filePath), "getDocumentInfo"),
+                    "setDocumentReadOnly" => RequiresSolidWorks(() => _swApi!.SetDocumentReadOnly(filePath,
+                        command["readOnly"]?.Value<bool>() ?? true), "setDocumentReadOnly"),
+                    "saveDocument" => RequiresSolidWorks(() => _swApi!.SaveDocument(filePath), "saveDocument"),
+                    "setDocumentProperties" => RequiresSolidWorks(() => _swApi!.SetDocumentProperties(filePath,
                         command["properties"]?.ToObject<System.Collections.Generic.Dictionary<string, string>>(),
-                        command["configuration"]?.ToString()),
-                    "getSelectedFiles" => _swApi!.GetSelectedFiles(),
+                        command["configuration"]?.ToString()), "setDocumentProperties"),
+                    "getSelectedFiles" => RequiresSolidWorks(() => _swApi!.GetSelectedFiles(), "getSelectedFiles"),
                     
                     // ========================================
                     // SLOW operations (Full SolidWorks API)
                     // Launches SolidWorks when needed
                     // ========================================
                     
+                    // setProperties uses DM API first, falls back to SW API if needed
                     "setProperties" => SetPropertiesFast(filePath, 
                         command["properties"]?.ToObject<System.Collections.Generic.Dictionary<string, string>>(),
                         command["configuration"]?.ToString()),
                     "setPropertiesBatch" => SetPropertiesBatchFast(filePath,
                         command["configProperties"]?.ToObject<System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>>>()),
-                    "getMassProperties" => _swApi!.GetMassProperties(filePath,
-                        command["configuration"]?.ToString()),
                     
-                    // Exports (need full SW)
-                    "exportPdf" => _swApi!.ExportToPdf(filePath, 
+                    // getMassProperties requires full SolidWorks (needs rebuild)
+                    "getMassProperties" => RequiresSolidWorks(() => _swApi!.GetMassProperties(filePath,
+                        command["configuration"]?.ToString()), "getMassProperties"),
+                    
+                    // Exports (require full SW)
+                    "exportPdf" => RequiresSolidWorks(() => _swApi!.ExportToPdf(filePath, 
                         command["outputPath"]?.ToString(),
                         command["filenamePattern"]?.ToString(),
-                        command["pdmMetadata"]?.ToObject<PdmMetadata>()),
-                    "exportStep" => _swApi!.ExportToStep(filePath,
+                        command["pdmMetadata"]?.ToObject<PdmMetadata>()), "exportPdf"),
+                    "exportStep" => RequiresSolidWorks(() => _swApi!.ExportToStep(filePath,
                         command["outputPath"]?.ToString(),
                         command["configuration"]?.ToString(),
                         command["exportAllConfigs"]?.Value<bool>() ?? false,
                         command["configurations"]?.ToObject<string[]>(),
                         command["filenamePattern"]?.ToString(),
-                        command["pdmMetadata"]?.ToObject<PdmMetadata>()),
-                    "exportStl" => _swApi!.ExportToStl(filePath,
+                        command["pdmMetadata"]?.ToObject<PdmMetadata>()), "exportStep"),
+                    "exportStl" => RequiresSolidWorks(() => _swApi!.ExportToStl(filePath,
                         command["outputPath"]?.ToString(),
                         command["configuration"]?.ToString(),
                         command["exportAllConfigs"]?.Value<bool>() ?? false,
@@ -270,36 +300,37 @@ namespace BluePLM.SolidWorksService
                         command["customDeviation"]?.Value<double>(),
                         command["customAngle"]?.Value<double>(),
                         command["filenamePattern"]?.ToString(),
-                        command["pdmMetadata"]?.ToObject<PdmMetadata>()),
-                    "exportIges" => _swApi!.ExportToIges(filePath,
-                        command["outputPath"]?.ToString()),
-                    "exportDxf" => _swApi!.ExportToDxf(filePath,
-                        command["outputPath"]?.ToString()),
-                    "exportImage" => _swApi!.ExportToImage(filePath,
+                        command["pdmMetadata"]?.ToObject<PdmMetadata>()), "exportStl"),
+                    "exportIges" => RequiresSolidWorks(() => _swApi!.ExportToIges(filePath,
+                        command["outputPath"]?.ToString()), "exportIges"),
+                    "exportDxf" => RequiresSolidWorks(() => _swApi!.ExportToDxf(filePath,
+                        command["outputPath"]?.ToString()), "exportDxf"),
+                    "exportImage" => RequiresSolidWorks(() => _swApi!.ExportToImage(filePath,
                         command["outputPath"]?.ToString(),
                         command["width"]?.Value<int>() ?? 800,
-                        command["height"]?.Value<int>() ?? 600),
+                        command["height"]?.Value<int>() ?? 600), "exportImage"),
                     
-                    // Document creation (need full SW)
-                    "createDocumentFromTemplate" => _swApi!.CreateDocumentFromTemplate(
+                    // Document creation (requires full SW)
+                    "createDocumentFromTemplate" => RequiresSolidWorks(() => _swApi!.CreateDocumentFromTemplate(
                         command["templatePath"]?.ToString(),
-                        command["outputPath"]?.ToString()),
+                        command["outputPath"]?.ToString()), "createDocumentFromTemplate"),
                     
-                    // Assembly operations (need full SW)
-                    "replaceComponent" => _swApi!.ReplaceComponent(filePath,
+                    // Assembly operations (require full SW)
+                    "replaceComponent" => RequiresSolidWorks(() => _swApi!.ReplaceComponent(filePath,
                         command["oldComponent"]?.ToString(),
-                        command["newComponent"]?.ToString()),
-                    "packAndGo" => _swApi!.PackAndGo(filePath,
+                        command["newComponent"]?.ToString()), "replaceComponent"),
+                    "packAndGo" => RequiresSolidWorks(() => _swApi!.PackAndGo(filePath,
                         command["outputFolder"]?.ToString(),
                         command["prefix"]?.ToString(),
-                        command["suffix"]?.ToString()),
-                    "addComponent" => _swApi!.AddComponent(filePath,
+                        command["suffix"]?.ToString()), "packAndGo"),
+                    "addComponent" => RequiresSolidWorks(() => _swApi!.AddComponent(filePath,
                         command["componentPath"]?.ToString(),
-                        command["coordinates"]?.ToObject<double[]>()),
+                        command["coordinates"]?.ToObject<double[]>()), "addComponent"),
                     
                     // Service control
                     "ping" => Ping(),
                     "setDmLicense" => SetDmLicense(command["licenseKey"]?.ToString()),
+                    "releaseHandles" => ReleaseHandles(),
                     "quit" => Quit(),
                     
                     _ => new CommandResult { Success = false, Error = $"Unknown action: {action}" }
@@ -316,7 +347,8 @@ namespace BluePLM.SolidWorksService
         }
 
         // ========================================
-        // FAST operations - use DM API, fall back to SW API
+        // FAST operations - use DM API only, NEVER fall back to SW API
+        // Launching SolidWorks is too slow/disruptive for background operations
         // ========================================
 
         static CommandResult GetBomFast(string? filePath, JObject command)
@@ -331,17 +363,25 @@ namespace BluePLM.SolidWorksService
                     command["configuration"]?.ToString());
             }
             
-            // Try Document Manager first (NO SW launch!) - only if file NOT open in SW
-            if (_dmApi != null && _dmApi.IsAvailable)
+            // Use Document Manager API ONLY - NEVER fall back to full SW API
+            // Note: We only check for null here. The DM methods internally call Initialize()
+            // which handles reinitialization after ReleaseHandles() was called.
+            if (_dmApi == null)
             {
-                var result = _dmApi.GetBillOfMaterials(filePath, command["configuration"]?.ToString());
-                if (result.Success) return result;
+                Console.Error.WriteLine($"[Service] Document Manager API not created for: {Path.GetFileName(filePath)}");
+                return new CommandResult 
+                { 
+                    Success = false, 
+                    Error = "Document Manager not available. Configure DM license in Settings -> Integrations -> SOLIDWORKS." 
+                };
             }
             
-            // Fall back to full SW API (will launch SW - slower)
-            return _swApi!.GetBillOfMaterials(filePath, 
-                command["includeChildren"]?.Value<bool>() ?? true,
-                command["configuration"]?.ToString());
+            var result = _dmApi.GetBillOfMaterials(filePath, command["configuration"]?.ToString());
+            if (!result.Success)
+            {
+                Console.Error.WriteLine($"[Service] DM API failed for getBom: {result.Error}");
+            }
+            return result;  // Return DM result - no fallback to SW API!
         }
 
         static CommandResult GetPropertiesFast(string? filePath, JObject command)
@@ -358,10 +398,12 @@ namespace BluePLM.SolidWorksService
             // Opening SolidWorks just for property extraction can take 20-30+ seconds.
             // If Document Manager fails, the user can manually use "Refresh Metadata" 
             // which intentionally uses full SW API.
+            // Note: We only check for null here. The DM methods internally call Initialize()
+            // which handles reinitialization after ReleaseHandles() was called.
             
-            if (_dmApi == null || !_dmApi.IsAvailable)
+            if (_dmApi == null)
             {
-                Console.Error.WriteLine($"[Service] Document Manager not available for: {Path.GetFileName(filePath)}");
+                Console.Error.WriteLine($"[Service] Document Manager API not created for: {Path.GetFileName(filePath)}");
                 return new CommandResult 
                 { 
                     Success = false, 
@@ -405,15 +447,26 @@ namespace BluePLM.SolidWorksService
                 return _swApi.GetConfigurations(filePath);
             }
             
-            // Try Document Manager first (NO SW launch!) - only if file NOT open in SW
-            if (_dmApi != null && _dmApi.IsAvailable)
+            // Use Document Manager API ONLY - NEVER fall back to full SW API
+            // Launching SolidWorks just for configuration extraction is too slow/disruptive
+            // Note: We only check for null here. The DM methods internally call Initialize()
+            // which handles reinitialization after ReleaseHandles() was called.
+            if (_dmApi == null)
             {
-                var result = _dmApi.GetConfigurations(filePath);
-                if (result.Success) return result;
+                Console.Error.WriteLine($"[Service] Document Manager API not created for: {Path.GetFileName(filePath)}");
+                return new CommandResult 
+                { 
+                    Success = false, 
+                    Error = "Document Manager not available. Configure DM license in Settings -> Integrations -> SOLIDWORKS." 
+                };
             }
             
-            // Fall back to full SW API (will launch SW - slower)
-            return _swApi!.GetConfigurations(filePath);
+            var result = _dmApi.GetConfigurations(filePath);
+            if (!result.Success)
+            {
+                Console.Error.WriteLine($"[Service] DM API failed for getConfigurations: {result.Error}");
+            }
+            return result;  // Return DM result - no fallback to SW API!
         }
 
         static CommandResult GetReferencesFast(string? filePath)
@@ -426,15 +479,26 @@ namespace BluePLM.SolidWorksService
                 return _swApi.GetExternalReferences(filePath);
             }
             
-            // Try Document Manager first (NO SW launch!) - only if file NOT open in SW
-            if (_dmApi != null && _dmApi.IsAvailable)
+            // Use Document Manager API ONLY - NEVER fall back to full SW API
+            // Launching SolidWorks just for reference extraction is too slow/disruptive
+            // Note: We only check for null here. The DM methods internally call Initialize()
+            // which handles reinitialization after ReleaseHandles() was called.
+            if (_dmApi == null)
             {
-                var result = _dmApi.GetExternalReferences(filePath);
-                if (result.Success) return result;
+                Console.Error.WriteLine($"[Service] Document Manager API not created for: {Path.GetFileName(filePath)}");
+                return new CommandResult 
+                { 
+                    Success = false, 
+                    Error = "Document Manager not available. Configure DM license in Settings -> Integrations -> SOLIDWORKS." 
+                };
             }
             
-            // Fall back to full SW API (will launch SW - slower)
-            return _swApi!.GetExternalReferences(filePath);
+            var result = _dmApi.GetExternalReferences(filePath);
+            if (!result.Success)
+            {
+                Console.Error.WriteLine($"[Service] DM API failed for getReferences: {result.Error}");
+            }
+            return result;  // Return DM result - no fallback to SW API!
         }
 
         // Track if Document Manager previews work (they don't for newer SW file formats)
@@ -451,7 +515,9 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = "File path is required" };
             
             // Try Document Manager first (if it's working)
-            if (_dmPreviewWorks && _dmApi != null && _dmApi.IsAvailable)
+            // Note: We only check for null here. The DM methods internally call Initialize()
+            // which handles reinitialization after ReleaseHandles() was called.
+            if (_dmPreviewWorks && _dmApi != null)
             {
                 var result = _dmApi.GetPreviewImage(filePath, configuration);
                 if (result.Success)
@@ -470,28 +536,19 @@ namespace BluePLM.SolidWorksService
                 }
             }
             
-            // Fall back to Windows Shell thumbnail extraction
-            // This uses SolidWorks' shell extension to generate thumbnails
-            Console.Error.WriteLine("[Service] Trying Windows Shell thumbnail extraction...");
-            var shellResult = WindowsShellThumbnail.GetThumbnail(filePath, 256);
-            if (shellResult.Success)
-            {
-                Console.Error.WriteLine("[Service] SUCCESS! Got thumbnail via Windows Shell.");
-                return shellResult;
-            }
-            
-            Console.Error.WriteLine($"[Service] Shell thumbnail also failed: {shellResult.Error}");
-            return new CommandResult 
-            { 
-                Success = false, 
-                Error = "Preview extraction failed (DM API and Shell both unavailable)" 
-            };
+            // Windows Shell thumbnail fallback
+            // Note: Shell thumbnail extraction may hold file handles temporarily, which can
+            // occasionally interfere with folder moves. However, this is better than no previews.
+            Console.Error.WriteLine("[Service] DM API preview failed, trying Shell fallback...");
+            return WindowsShellThumbnail.GetThumbnail(filePath!, 256);
         }
 
         static CommandResult SetPropertiesFast(string? filePath, System.Collections.Generic.Dictionary<string, string>? properties, string? configuration)
         {
             // Try Document Manager first (NO SW launch!)
-            if (_dmApi != null && _dmApi.IsAvailable)
+            // Note: We only check for null here. The DM methods internally call Initialize()
+            // which handles reinitialization after ReleaseHandles() was called.
+            if (_dmApi != null)
             {
                 var result = _dmApi.SetCustomProperties(filePath, properties, configuration);
                 if (result.Success) return result;
@@ -504,7 +561,9 @@ namespace BluePLM.SolidWorksService
         static CommandResult SetPropertiesBatchFast(string? filePath, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>>? configProperties)
         {
             // Try Document Manager first (NO SW launch!)
-            if (_dmApi != null && _dmApi.IsAvailable)
+            // Note: We only check for null here. The DM methods internally call Initialize()
+            // which handles reinitialization after ReleaseHandles() was called.
+            if (_dmApi != null)
             {
                 var result = _dmApi.SetCustomPropertiesBatch(filePath, configProperties);
                 if (result.Success) return result;
@@ -540,17 +599,32 @@ namespace BluePLM.SolidWorksService
             Console.Error.WriteLine($"[Service] DM API InitError: {_dmApi?.InitializationError ?? "(none)"}");
             Console.Error.WriteLine($"[Service] SW API IsSolidWorksAvailable: {_swApi?.IsSolidWorksAvailable() ?? false}");
             
+            var dmAvailable = _dmApi?.IsAvailable ?? false;
+            var swAvailable = _swApi!.IsSolidWorksAvailable();
+            
+            // Determine operational mode
+            // full: both DM and SW APIs available
+            // dm-only: only Document Manager API (no SW installation)
+            // limited: neither API available (missing license key)
+            var mode = dmAvailable 
+                ? (swAvailable ? "full" : "dm-only")
+                : "limited";
+            
             return new CommandResult 
             { 
                 Success = true, 
                 Data = new 
                 { 
                     message = "pong", 
-                    version = "1.0.0",
-                    documentManagerAvailable = _dmApi?.IsAvailable ?? false,
-                    documentManagerError = _dmApi?.IsAvailable == false ? _dmApi?.InitializationError : null,
-                    swInstalled = _swApi!.IsSolidWorksAvailable(),
-                    fastModeEnabled = _dmApi?.IsAvailable ?? false
+                    version = SERVICE_VERSION,
+                    // Capability flags
+                    documentManagerAvailable = dmAvailable,
+                    documentManagerError = !dmAvailable ? _dmApi?.InitializationError : null,
+                    swInstalled = swAvailable,
+                    swApiAvailable = swAvailable,
+                    fastModeEnabled = dmAvailable,
+                    // Operational mode
+                    mode = mode
                 } 
             };
         }
@@ -587,6 +661,21 @@ namespace BluePLM.SolidWorksService
             };
         }
 
+        static CommandResult ReleaseHandles()
+        {
+            Console.Error.WriteLine("[Service] Processing releaseHandles command");
+            if (_dmApi != null)
+            {
+                var released = _dmApi.ReleaseHandles();
+                return new CommandResult 
+                { 
+                    Success = true, 
+                    Data = new { released = true, dmAvailable = _dmApi.IsAvailable }
+                };
+            }
+            return new CommandResult { Success = true, Data = new { released = false, reason = "DM not initialized" } };
+        }
+
         static CommandResult Quit()
         {
             _dmApi?.Dispose();
@@ -598,8 +687,8 @@ namespace BluePLM.SolidWorksService
 
         static void PrintUsage()
         {
-            Console.WriteLine(@"
-BluePLM SolidWorks Service v1.0.0
+            Console.WriteLine($@"
+BluePLM SolidWorks Service v{SERVICE_VERSION}
 =================================
 
 FAST operations (Document Manager API - NO SolidWorks launch!):
@@ -632,31 +721,31 @@ Getting a Document Manager License Key (FREE with SW subscription):
   4. Copy the key and use with --dm-license or setDmLicense command
 
 Commands:
-  {""action"": ""ping""}
-  {""action"": ""setDmLicense"", ""licenseKey"": ""YOUR_KEY_HERE""}
+  {{""action"": ""ping""}}
+  {{""action"": ""setDmLicense"", ""licenseKey"": ""YOUR_KEY_HERE""}}
   
   -- FAST (no SW launch with DM key) --
-  {""action"": ""getBom"", ""filePath"": ""...""}
-  {""action"": ""getProperties"", ""filePath"": ""..."", ""configuration"": ""Default""}
-  {""action"": ""setProperties"", ""filePath"": ""..."", ""properties"": {""PartNumber"": ""BR-12345""}}
-  {""action"": ""getConfigurations"", ""filePath"": ""...""}
-  {""action"": ""getReferences"", ""filePath"": ""...""}
-  {""action"": ""getPreview"", ""filePath"": ""..."", ""configuration"": ""Default""}
+  {{""action"": ""getBom"", ""filePath"": ""...""}}
+  {{""action"": ""getProperties"", ""filePath"": ""..."", ""configuration"": ""Default""}}
+  {{""action"": ""setProperties"", ""filePath"": ""..."", ""properties"": {{""PartNumber"": ""BR-12345""}}}}
+  {{""action"": ""getConfigurations"", ""filePath"": ""...""}}
+  {{""action"": ""getReferences"", ""filePath"": ""...""}}
+  {{""action"": ""getPreview"", ""filePath"": ""..."", ""configuration"": ""Default""}}
   
   -- Open Document Management (checkout/checkin without closing SW!) --
-  {""action"": ""getOpenDocuments""}
-  {""action"": ""isDocumentOpen"", ""filePath"": ""...""}
-  {""action"": ""getDocumentInfo"", ""filePath"": ""...""}
-  {""action"": ""setDocumentReadOnly"", ""filePath"": ""..."", ""readOnly"": false}
-  {""action"": ""saveDocument"", ""filePath"": ""...""}
+  {{""action"": ""getOpenDocuments""}}
+  {{""action"": ""isDocumentOpen"", ""filePath"": ""...""}}
+  {{""action"": ""getDocumentInfo"", ""filePath"": ""...""}}
+  {{""action"": ""setDocumentReadOnly"", ""filePath"": ""..."", ""readOnly"": false}}
+  {{""action"": ""saveDocument"", ""filePath"": ""...""}}
   
   -- SLOW (launches SolidWorks) --
-  {""action"": ""getMassProperties"", ""filePath"": ""...""}
-  {""action"": ""exportPdf"", ""filePath"": ""...""}
-  {""action"": ""exportStep"", ""filePath"": ""...""}
-  {""action"": ""createDocumentFromTemplate"", ""templatePath"": ""C:\\templates\\Part.prtdot"", ""outputPath"": ""C:\\output\\NewPart.sldprt""}
-  {""action"": ""replaceComponent"", ""filePath"": ""..."", ""oldComponent"": ""..."", ""newComponent"": ""...""}
-  {""action"": ""packAndGo"", ""filePath"": ""..."", ""outputFolder"": ""...""}
+  {{""action"": ""getMassProperties"", ""filePath"": ""...""}}
+  {{""action"": ""exportPdf"", ""filePath"": ""...""}}
+  {{""action"": ""exportStep"", ""filePath"": ""...""}}
+  {{""action"": ""createDocumentFromTemplate"", ""templatePath"": ""C:\\templates\\Part.prtdot"", ""outputPath"": ""C:\\output\\NewPart.sldprt""}}
+  {{""action"": ""replaceComponent"", ""filePath"": ""..."", ""oldComponent"": ""..."", ""newComponent"": ""...""}}
+  {{""action"": ""packAndGo"", ""filePath"": ""..."", ""outputFolder"": ""...""}}
 ");
         }
     }

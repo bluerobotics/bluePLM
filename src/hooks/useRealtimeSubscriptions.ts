@@ -28,7 +28,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
     
     // Batch notifications to avoid toast spam when someone does bulk operations
     // Collects notifications over 500ms then shows a single summary toast
-    type NotificationType = 'checkout' | 'checkin' | 'version' | 'state' | 'add'
+    type NotificationType = 'checkout' | 'checkin' | 'version' | 'state' | 'add' | 'move'
     interface PendingNotification {
       type: NotificationType
       userId: string
@@ -45,11 +45,49 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       version: 'fileOperations',
       state: 'workflow',
       add: 'fileOperations',
+      move: 'fileOperations',
     }
     
     const pendingNotifications: Map<string, PendingNotification> = new Map()
     let flushTimeout: ReturnType<typeof setTimeout> | null = null
     const userNameCache: Map<string, string> = new Map()
+    
+    // Batch file location updates to prevent render cascade when folder is moved
+    // When a folder moves, each file inside sends its own UPDATE event - without batching,
+    // this causes N re-renders for N files which can freeze the UI
+    interface PendingLocationUpdate {
+      fileId: string
+      newRelativePath: string
+      newFileName: string
+      pdmData: any // PDMFile type
+    }
+    const pendingLocationUpdates: Map<string, PendingLocationUpdate> = new Map()
+    let locationFlushTimeout: ReturnType<typeof setTimeout> | null = null
+    
+    const flushLocationUpdates = () => {
+      locationFlushTimeout = null
+      if (pendingLocationUpdates.size === 0) return
+      
+      const updates = Array.from(pendingLocationUpdates.values())
+      pendingLocationUpdates.clear()
+      
+      log.info('[Realtime]', 'Flushing batched file location updates', { count: updates.length })
+      
+      // Use the batch update function for a single set() call
+      const { batchUpdateFileLocationsFromServer } = usePDMStore.getState()
+      batchUpdateFileLocationsFromServer(updates)
+    }
+    
+    const queueLocationUpdate = (fileId: string, newRelativePath: string, newFileName: string, pdmData: any) => {
+      // Overwrite if same file gets multiple updates (last one wins)
+      pendingLocationUpdates.set(fileId, { fileId, newRelativePath, newFileName, pdmData })
+      
+      // Start/reset the flush timer - use short delay (100ms) for responsiveness
+      if (locationFlushTimeout) {
+        clearTimeout(locationFlushTimeout)
+      }
+      locationFlushTimeout = setTimeout(flushLocationUpdates, 100)
+    }
     
     const flushNotifications = () => {
       flushTimeout = null
@@ -84,6 +122,9 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
             case 'add':
               message = `${userName} added ${fileName}`
               break
+            case 'move':
+              message = `${userName} moved ${fileName}`
+              break
           }
         } else {
           // Multiple files - show count
@@ -102,6 +143,9 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
               break
             case 'add':
               message = `${userName} added ${count} files`
+              break
+            case 'move':
+              message = `${userName} moved ${count} files`
               break
           }
         }
@@ -174,15 +218,17 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           break
           
         case 'UPDATE':
-          // File updated - could be checkout, version change, state change, etc.
+          // File updated - could be checkout, version change, state change, path change (move), etc.
           if (newFile) {
-            const { isFileRecentlyModified, files } = usePDMStore.getState()
+            const { isFileRecentlyModified, files, vaultPath } = usePDMStore.getState()
             const localFile = files.find(f => f.pdmData?.id === newFile.id)
             
             // Log incoming realtime event for debugging
             log.debug('[Realtime]', 'UPDATE event received', {
               fileId: newFile.id,
               serverPartNumber: newFile.part_number,
+              oldPath: oldFile?.file_path,
+              newPath: newFile.file_path,
               isRecentlyModified: isFileRecentlyModified(newFile.id),
               hasPendingMetadata: !!(localFile?.pendingMetadata && Object.keys(localFile.pendingMetadata).length > 0),
               localPartNumber: localFile?.pdmData?.part_number
@@ -207,36 +253,76 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
             // This is critical for cross-machine scenarios where user releases checkout from another machine
             const checkoutStatusChanged = oldFile?.checked_out_by !== newFile.checked_out_by
             
+            // Check if file path changed (file was moved)
+            // This is critical for cross-machine scenarios where user moves file from another machine
+            const pathChanged = oldFile?.file_path !== newFile.file_path
+            
             // Update local state if:
             // 1. Update is from another user (normal case)
             // 2. OR checkout status changed (handles cross-machine checkout releases by same user)
+            // 3. OR path changed (handles cross-machine file moves by same user)
             // This prevents state drift between local and database
-            if (newFile.updated_by !== currentUserId || checkoutStatusChanged) {
-              // Check if file is newly checked out by someone else
-              // Realtime updates don't include the joined checked_out_user info,
-              // so we need to fetch it separately
-              const isNewlyCheckedOut = newFile.checked_out_by && 
-                (!oldFile?.checked_out_by || oldFile.checked_out_by !== newFile.checked_out_by)
+            if (newFile.updated_by !== currentUserId || checkoutStatusChanged || pathChanged) {
               
-              if (isNewlyCheckedOut && newFile.checked_out_by !== currentUserId) {
-                // Fetch user info for the person who checked out the file
-                import('@/lib/supabase').then(({ getUserBasicInfo }) => {
-                  getUserBasicInfo(newFile.checked_out_by!).then(({ user }) => {
-                    if (user) {
-                      // Update with user info
-                      updateFilePdmData(newFile.id, {
-                        ...newFile,
-                        checked_out_user: user
-                      } as any)
-                    } else {
-                      // Still update even without user info
-                      updateFilePdmData(newFile.id, newFile)
-                    }
-                  })
+              // Handle path changes (file moved) - must update LocalFile properties, not just pdmData
+              // Use batched updates to prevent render cascade when a folder move generates
+              // many individual file UPDATE events
+              if (pathChanged && vaultPath) {
+                const isCurrentUserMove = newFile.updated_by === currentUserId
+                
+                log.info('[Realtime]', 'File path changed (moved)', {
+                  fileId: newFile.id,
+                  oldPath: oldFile?.file_path,
+                  newPath: newFile.file_path,
+                  updatedBy: newFile.updated_by,
+                  isCurrentUser: isCurrentUserMove
                 })
+                
+                // IMPORTANT: Skip location updates for current user's own path changes
+                // Local optimistic updates (via renameFileInStore) already handle the move.
+                // Processing realtime events would create duplicate "cloud" folder entries
+                // because batchUpdateFileLocationsFromServer creates parent folders.
+                // Only process path changes from OTHER users or cross-machine scenarios.
+                if (isCurrentUserMove && localFile) {
+                  log.debug('[Realtime]', 'SKIP: path change from current user (optimistic update handles this)', {
+                    fileId: newFile.id,
+                    hasLocalFile: !!localFile
+                  })
+                  // Still update pdmData to keep file_path in sync, but don't create folders
+                  updateFilePdmData(newFile.id, newFile)
+                } else {
+                  // Queue the update for batching - multiple file moves from a folder move
+                  // will be combined into a single store update after 100ms debounce
+                  queueLocationUpdate(newFile.id, newFile.file_path, newFile.file_name, newFile)
+                }
               } else {
-                // No new checkout by others, just update normally
-                updateFilePdmData(newFile.id, newFile)
+                // Normal pdmData update (checkout, version changes, etc.)
+                // Check if file is newly checked out by someone else
+                // Realtime updates don't include the joined checked_out_user info,
+                // so we need to fetch it separately
+                const isNewlyCheckedOut = newFile.checked_out_by && 
+                  (!oldFile?.checked_out_by || oldFile.checked_out_by !== newFile.checked_out_by)
+                
+                if (isNewlyCheckedOut && newFile.checked_out_by !== currentUserId) {
+                  // Fetch user info for the person who checked out the file
+                  import('@/lib/supabase').then(({ getUserBasicInfo }) => {
+                    getUserBasicInfo(newFile.checked_out_by!).then(({ user }) => {
+                      if (user) {
+                        // Update with user info
+                        updateFilePdmData(newFile.id, {
+                          ...newFile,
+                          checked_out_user: user
+                        } as any)
+                      } else {
+                        // Still update even without user info
+                        updateFilePdmData(newFile.id, newFile)
+                      }
+                    })
+                  })
+                } else {
+                  // No new checkout by others, just update normally
+                  updateFilePdmData(newFile.id, newFile)
+                }
               }
             }
             
@@ -297,8 +383,12 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
             
             // Queue batched notifications for important changes from other users
             if (newFile.updated_by && newFile.updated_by !== currentUserId) {
+              // Check for path change (file moved) - highest priority notification
+              if (pathChanged) {
+                queueNotification('move', newFile.updated_by, newFile.file_name)
+              }
               // Check for checkout changes
-              if (oldFile?.checked_out_by !== newFile.checked_out_by) {
+              else if (oldFile?.checked_out_by !== newFile.checked_out_by) {
                 if (newFile.checked_out_by) {
                   queueNotification('checkout', newFile.updated_by, newFile.file_name)
                 } else {
@@ -639,6 +729,11 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       // Clear any pending notification timeout
       if (flushTimeout) {
         clearTimeout(flushTimeout)
+      }
+      // Clear any pending location update timeout and flush remaining updates
+      if (locationFlushTimeout) {
+        clearTimeout(locationFlushTimeout)
+        flushLocationUpdates() // Flush any pending updates before cleanup
       }
       unsubscribeFiles()
       unsubscribeActivity()

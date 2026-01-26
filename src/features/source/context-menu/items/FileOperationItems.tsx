@@ -1,6 +1,7 @@
 // src/features/source/context-menu/items/FileOperationItems.tsx
 import { ExternalLink, FolderOpen, Edit, FolderPlus } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
+import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
 
 interface FileOperationItemsProps {
@@ -26,6 +27,8 @@ export function FileOperationItems({
   onClose,
   onRefresh
 }: FileOperationItemsProps) {
+  const { files } = usePDMStore()
+  
   const handleOpen = () => {
     onClose()
     executeCommand('open', { file: firstFile }, { onRefresh })
@@ -39,7 +42,16 @@ export function FileOperationItems({
   // Check rename permissions
   const isSynced = !!firstFile.pdmData
   const isCheckedOutByMe = firstFile.pdmData?.checked_out_by === userId
-  const canRename = !isSynced || isCheckedOutByMe
+  
+  // Empty folders don't require checkout to rename - there are no files to protect
+  const isEmptyFolder = isFolder && !files.some(f => {
+    if (f.isDirectory) return false
+    const filePath = f.relativePath.replace(/\\/g, '/')
+    const folderPath = firstFile.relativePath.replace(/\\/g, '/')
+    return filePath.startsWith(folderPath + '/')
+  })
+  
+  const canRename = !isSynced || isCheckedOutByMe || isEmptyFolder
   
   // Check if the specific file/folder exists locally (not cloud-only)
   // This is different from allCloudOnly which derives folder status from children,

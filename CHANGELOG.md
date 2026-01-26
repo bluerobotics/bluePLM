@@ -2,10 +2,14 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [3.11.1] - 2026-01-23
+## [3.12.0] - 2026-01-23
 
 ### Added
 - **Type generation script**: New `npm run gen:types` command that loads `SUPABASE_ACCESS_TOKEN` from `.env` file and regenerates TypeScript types from the live database
+- **SolidWorks service versioning**: The SolidWorks service now reports its version, and the app checks for compatibility. Version mismatch warnings appear in the Service tab when the service is outdated or incompatible, with clear instructions to rebuild
+- **Metadata preservation when copying**: Copying files now preserves part number, description, and revision from the source file. Metadata is copied from pending local edits if present, otherwise from synced server data
+- **Checkout protection for destructive operations**: Files checked out by other users are now protected from delete, move, and rename operations. Commands show clear error messages indicating which files are locked and by whom. Context menu items appear disabled with "(locked)" indicator when selection includes files checked out by others. Drag-and-drop moves show "not allowed" cursor for locked files
+- **Document Manager-only mode**: The SolidWorks service can now run without a full SolidWorks installation. Users with just the Document Manager API license key can read/write file properties, extract BOMs, get configurations, read references, and extract previews. A new "Feature Availability" collapsible section in the Service tab shows which features work in each mode. Operations requiring full SolidWorks (exports, mass properties, Pack and Go, etc.) now return clear error messages with `SW_NOT_INSTALLED` error code instead of failing silently
 
 ### Fixed
 - **Delete from server keeps file read-only**: Fixed issue where deleting a checked-in file from the server while keeping the local copy would leave the file read-only. Local-only files are now correctly made writable after the server deletion
@@ -16,6 +20,11 @@ All notable changes to BluePLM will be documented in this file.
 
 ### Changed
 - **Removed type workarounds**: Cleaned up `as any` type casts for `folders` table, `move_file` RPC, and `create_default_workflow` RPC now that types are regenerated
+- **Bulk delete performance overhaul**: Large file deletions no longer use optimistic UI updates. Files now remain visible with spinners during the deletion process, and both the file tree and main browser update together when the operation completes. This prevents visual inconsistencies where files would disappear then reappear if deletion failed
+- **Folder move reliability**: Moving folders now releases Document Manager file handles before the operation, cancels any queued thumbnail extractions, and checks for ongoing file operations (downloads, syncs) before proceeding. Previously, moves could fail with EPERM errors when files inside the folder were being processed
+- **Rename/move error handling**: Rename and move operations now detect locked files and identify the blocking process (e.g., "Cannot rename: file is in use by SLDWORKS.exe"). Operations retry up to 3 times with backoff before failing
+- **Folder copy accuracy**: Copying folders now accurately reports the total number of files copied (not just the folder count) and shows proper progress. Nested files inside copied folders are immediately visible in the UI without requiring a refresh
+- **Multi-machine folder sync**: When another user moves a folder, the app now batches all file location updates into a single render instead of processing each file individually. This prevents UI freezes when large folders are moved by teammates
 
 ### Removed
 - **Speculative parent assembly warning**: Removed the warning toast "Some files may have parent assemblies still checked out" that appeared when checking in parts or assemblies. This warning was overly aggressive and triggered false positives - it would warn even when the checked-out assemblies had nothing to do with the files being checked in

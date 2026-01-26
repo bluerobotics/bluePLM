@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand'
-import type { PDMStoreState, FilesSlice, LocalFile, DiffStatus, OperationType } from '../types'
+import type { PDMStoreState, FilesSlice, LocalFile, DiffStatus, OperationType, FileLocationUpdate } from '../types'
 import type { PDMFile } from '../../types/pdm'
 import { buildFullPath } from '@/lib/utils/path'
 import { recordMetric } from '@/lib/performanceMetrics'
@@ -147,7 +147,40 @@ export const createFilesSlice: StateCreator<
       console.log('[filesSlice] persistedPendingMetadata keys:', persistedKeys)
     }
     
-    const filesWithRestoredMetadata = files.map(f => {
+    // Deduplicate by path (case-insensitive for Windows compatibility)
+    // When duplicates exist, prefer LOCAL files over CLOUD files
+    const seenPaths = new Map<string, number>() // lowercase path -> index in deduped array
+    const deduped: typeof files = []
+    let duplicateCount = 0
+    
+    for (const file of files) {
+      const pathLower = file.path.toLowerCase()
+      const existingIdx = seenPaths.get(pathLower)
+      
+      if (existingIdx !== undefined) {
+        duplicateCount++
+        const existing = deduped[existingIdx]
+        // Prefer local file over cloud - local files have more accurate local state
+        if (file.diffStatus !== 'cloud' && existing.diffStatus === 'cloud') {
+          deduped[existingIdx] = file
+        }
+      } else {
+        seenPaths.set(pathLower, deduped.length)
+        deduped.push(file)
+      }
+    }
+    
+    // Log if duplicates were filtered
+    if (duplicateCount > 0) {
+      window.electronAPI?.log('warn', '[Store] setFiles filtered duplicates', {
+        duplicateCount,
+        originalCount: files.length,
+        dedupedCount: deduped.length,
+        timestamp: Date.now()
+      })
+    }
+    
+    const filesWithRestoredMetadata = deduped.map(f => {
       const persisted = persistedPendingMetadata[f.path]
       if (persisted) {
         console.log('[filesSlice] setFiles: restoring metadata for', f.path, persisted)
@@ -372,13 +405,39 @@ export const createFilesSlice: StateCreator<
   
   addFilesToStore: (newFiles) => {
     const beforeCount = get().files.length
-    set(state => ({
-      files: [...state.files, ...newFiles]
-    }))
+    set(state => {
+      // Build set of existing paths (case-insensitive for Windows compatibility)
+      const existingPaths = new Set(
+        state.files.map(f => f.path.toLowerCase())
+      )
+      // Filter out duplicates - files with paths that already exist
+      const uniqueNewFiles = newFiles.filter(
+        f => !existingPaths.has(f.path.toLowerCase())
+      )
+      const duplicateCount = newFiles.length - uniqueNewFiles.length
+      
+      // Log if duplicates were filtered
+      if (duplicateCount > 0) {
+        const duplicatePaths = newFiles
+          .filter(f => existingPaths.has(f.path.toLowerCase()))
+          .slice(0, 5)
+          .map(f => f.path)
+        window.electronAPI?.log('warn', '[Store] addFilesToStore filtered duplicates', {
+          duplicateCount,
+          sampleDuplicates: duplicatePaths,
+          timestamp: Date.now()
+        })
+      }
+      
+      return {
+        files: [...state.files, ...uniqueNewFiles]
+      }
+    })
     window.electronAPI?.log('info', '[Store] addFilesToStore', { 
-      addedCount: newFiles.length, 
+      requestedCount: newFiles.length,
       beforeCount, 
       afterCount: get().files.length,
+      actuallyAdded: get().files.length - beforeCount,
       paths: newFiles.slice(0, 5).map(f => f.path),
       timestamp: Date.now()
     })
@@ -386,6 +445,28 @@ export const createFilesSlice: StateCreator<
   
   updatePendingMetadata: (path, metadata) => {
     console.log('[filesSlice] updatePendingMetadata called:', path, metadata)
+    
+    // Guard: Never set pendingMetadata on non-editable files
+    // This prevents accidental metadata changes on files not checked out by the user
+    const state = get()
+    const file = state.files.find(f => f.path === path)
+    
+    if (file?.pdmData?.id) {
+      const checkedOutBy = file.pdmData.checked_out_by
+      const currentUserId = state.user?.id
+      
+      if (!checkedOutBy || checkedOutBy !== currentUserId) {
+        console.warn('[filesSlice] updatePendingMetadata: Skipping non-editable file', path)
+        window.electronAPI?.log('warn', '[filesSlice] Attempted to set pendingMetadata on non-editable file', {
+          path,
+          checkedOutBy,
+          currentUserId,
+          reason: !checkedOutBy ? 'not_checked_out' : 'checked_out_by_other'
+        })
+        return
+      }
+    }
+    
     set(state => {
       // Calculate new pending metadata
       const file = state.files.find(f => f.path === path)
@@ -583,9 +664,65 @@ export const createFilesSlice: StateCreator<
   renameFileInStore: (oldPath, newPath, newNameOrRelPath, isMove = false) => {
     const { files, selectedFiles } = get()
     
+    // Log rename operation start for debugging
+    window.electronAPI?.log('info', '[Store] renameFileInStore START', {
+      oldPath,
+      newPath,
+      newNameOrRelPath,
+      isMove,
+      totalFilesInStore: files.length,
+      timestamp: Date.now()
+    })
+    
+    // Use case-insensitive matching for Windows compatibility
+    const oldPathLower = oldPath.toLowerCase()
+    
+    // Find the item being renamed to check if it's a directory
+    const targetItem = files.find(f => f.path.toLowerCase() === oldPathLower)
+    const isDirectory = targetItem?.isDirectory
+    const oldRelPath = targetItem?.relativePath || ''
+    
+    // Log if target item was found
+    if (!targetItem) {
+      window.electronAPI?.log('warn', '[Store] renameFileInStore: target item not found in store', {
+        oldPath,
+        oldPathLower,
+        timestamp: Date.now()
+      })
+    }
+    
+    // Compute the new relative path for the item being renamed
+    let newRelPathForItem: string
+    if (isMove) {
+      newRelPathForItem = newNameOrRelPath
+    } else {
+      const pathParts = oldRelPath.split('/')
+      pathParts[pathParts.length - 1] = newNameOrRelPath
+      newRelPathForItem = pathParts.join('/')
+    }
+    
+    // Log directory rename details
+    if (isDirectory) {
+      window.electronAPI?.log('info', '[Store] renameFileInStore: directory rename', {
+        oldRelPath,
+        newRelPath: newRelPathForItem,
+        timestamp: Date.now()
+      })
+    }
+    
+    // Determine path separator for nested file updates
+    const separator = oldPath.includes('\\') ? '\\' : '/'
+    const oldPathWithSep = oldPathLower + separator
+    
+    // Track how many nested files are updated (for debugging)
+    let nestedUpdatedCount = 0
+    
     // Update file in the files array
     const updatedFiles = files.map(f => {
-      if (f.path === oldPath) {
+      const fPathLower = f.path.toLowerCase()
+      
+      // Exact match - the item being renamed
+      if (fPathLower === oldPathLower) {
         let newRelativePath: string
         let newName: string
         
@@ -603,24 +740,56 @@ export const createFilesSlice: StateCreator<
           newRelativePath = pathParts.join('/')
         }
         
-        // If the file is synced and being moved, mark it as 'moved'
-        const shouldMarkAsMoved = isMove && f.pdmData?.id
-        
         return {
           ...f,
           path: newPath,
           name: newName,
           relativePath: newRelativePath,
-          extension: newName.includes('.') ? newName.split('.').pop()?.toLowerCase() || '' : '',
-          // Set diffStatus to 'moved' if this is a synced file being moved
-          ...(shouldMarkAsMoved ? { diffStatus: 'moved' as const } : {})
+          extension: newName.includes('.') ? newName.split('.').pop()?.toLowerCase() || '' : ''
         }
       }
+      
+      // For directories, also update all nested items (files and folders inside)
+      if (isDirectory && fPathLower.startsWith(oldPathWithSep)) {
+        nestedUpdatedCount++
+        // Replace the old path prefix with the new path prefix
+        const newNestedPath = newPath + f.path.slice(oldPath.length)
+        // Replace the old relative path prefix with the new relative path prefix
+        const newNestedRelPath = newRelPathForItem + f.relativePath.slice(oldRelPath.length)
+        
+        return {
+          ...f,
+          path: newNestedPath,
+          relativePath: newNestedRelPath
+        }
+      }
+      
       return f
     })
     
-    // Update selected files if the renamed file was selected
-    const updatedSelectedFiles = selectedFiles.map(p => p === oldPath ? newPath : p)
+    // Log nested file updates for debugging
+    if (isDirectory && nestedUpdatedCount > 0) {
+      window.electronAPI?.log('info', '[Store] renameFileInStore updated nested items', {
+        oldPath: oldRelPath,
+        newPath: newRelPathForItem,
+        nestedItemsUpdated: nestedUpdatedCount,
+        timestamp: Date.now()
+      })
+    }
+    
+    // Update selected files if the renamed file was selected (case-insensitive)
+    // Also update any selected files that were inside a renamed directory
+    const updatedSelectedFiles = selectedFiles.map(p => {
+      const pLower = p.toLowerCase()
+      if (pLower === oldPathLower) {
+        return newPath
+      }
+      // If this selected file was inside the renamed directory, update its path too
+      if (isDirectory && pLower.startsWith(oldPathWithSep)) {
+        return newPath + p.slice(oldPath.length)
+      }
+      return p
+    })
     
     set({ 
       files: updatedFiles,
@@ -672,12 +841,17 @@ export const createFilesSlice: StateCreator<
     const { files, vaultPath } = get()
     if (!vaultPath) return
     
-    // Check if file already exists (by server ID or path)
+    // Check if file already exists (by server ID or path) - case-insensitive for Windows
     const existingByPath = files.find(f => 
       f.relativePath.toLowerCase() === pdmFile.file_path.toLowerCase()
     )
     if (existingByPath) {
-      // File already exists locally - update its pdmData instead
+      // File already exists locally - update its pdmData instead (not a true duplicate, just merging)
+      window.electronAPI?.log('debug', '[Store] addCloudFile merging with existing local file', {
+        path: pdmFile.file_path,
+        existingDiffStatus: existingByPath.diffStatus,
+        timestamp: Date.now()
+      })
       set(state => ({
         files: state.files.map(f => {
           if (f.relativePath.toLowerCase() !== pdmFile.file_path.toLowerCase()) {
@@ -724,7 +898,9 @@ export const createFilesSlice: StateCreator<
       const folderExists = files.some(f => 
         f.relativePath.toLowerCase() === currentPath.toLowerCase()
       )
-      if (!folderExists && !newFiles.some(f => f.relativePath === currentPath)) {
+      // Case-insensitive check for folders we're about to add in this batch
+      const currentPathLower = currentPath.toLowerCase()
+      if (!folderExists && !newFiles.some(f => f.relativePath.toLowerCase() === currentPathLower)) {
         newFiles.push({
           name: pathParts[i],
           path: buildFullPath(vaultPath, currentPath),
@@ -824,6 +1000,186 @@ export const createFilesSlice: StateCreator<
         return f
       })
     }))
+  },
+  
+  /**
+   * Update a file's location from a realtime event (handles path changes from other users).
+   * This is called when a file is moved by another user (or same user on different machine).
+   * Updates path, relativePath, name, and pdmData, and creates parent folders if needed.
+   */
+  updateFileLocationFromServer: (fileId, newRelativePath, newFileName, pdmData) => {
+    const { vaultPath } = get()
+    if (!vaultPath) return
+    
+    const newFullPath = buildFullPath(vaultPath, newRelativePath)
+    
+    log.info('[filesSlice]', 'updateFileLocationFromServer', {
+      fileId,
+      newRelativePath,
+      newFileName
+    })
+    
+    set(state => {
+      // Find current file to get old path for selectedFiles update
+      const existingFile = state.files.find(f => f.pdmData?.id === fileId)
+      const oldPath = existingFile?.path
+      
+      // Ensure parent folders exist (for cloud-only files moved to new location)
+      const pathParts = newRelativePath.split('/')
+      const newFolders: LocalFile[] = []
+      let currentPath = ''
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        currentPath = currentPath ? `${currentPath}/${pathParts[i]}` : pathParts[i]
+        const folderExists = state.files.some(f => 
+          f.relativePath.toLowerCase() === currentPath.toLowerCase()
+        )
+        // Case-insensitive check for folders we're about to add in this batch
+        if (!folderExists && !newFolders.some(f => f.relativePath.toLowerCase() === currentPath.toLowerCase())) {
+          newFolders.push({
+            name: pathParts[i],
+            path: buildFullPath(vaultPath, currentPath),
+            relativePath: currentPath,
+            isDirectory: true,
+            extension: '',
+            size: 0,
+            modifiedTime: '',
+            diffStatus: 'cloud'
+          })
+        }
+      }
+      
+      // Update the file's location
+      const updatedFiles = state.files.map(f => {
+        if (f.pdmData?.id !== fileId) return f
+        return {
+          ...f,
+          path: newFullPath,
+          relativePath: newRelativePath,
+          name: newFileName,
+          extension: newFileName.includes('.') ? newFileName.split('.').pop()?.toLowerCase() || '' : '',
+          pdmData: { ...f.pdmData, ...pdmData } as PDMFile
+        }
+      })
+      
+      // Update selectedFiles if needed
+      const updatedSelectedFiles = oldPath && state.selectedFiles.includes(oldPath)
+        ? state.selectedFiles.map(p => p === oldPath ? newFullPath : p)
+        : state.selectedFiles
+      
+      return {
+        files: [...updatedFiles, ...newFolders],
+        selectedFiles: updatedSelectedFiles
+      }
+    })
+  },
+  
+  /**
+   * Batch update multiple file locations from realtime events.
+   * This prevents render cascade when a folder is moved and multiple files
+   * receive individual realtime UPDATE events - instead of N set() calls
+   * causing N re-renders, we do a single set() with all updates combined.
+   */
+  batchUpdateFileLocationsFromServer: (updates: FileLocationUpdate[]) => {
+    if (updates.length === 0) return
+    
+    const { vaultPath } = get()
+    if (!vaultPath) return
+    
+    log.info('[filesSlice]', 'batchUpdateFileLocationsFromServer', {
+      updateCount: updates.length,
+      fileIds: updates.map(u => u.fileId).slice(0, 5)
+    })
+    
+    set(state => {
+      // Build a map of fileId -> update for O(1) lookups
+      const updateMap = new Map(updates.map(u => [u.fileId, u]))
+      
+      // Collect all new folders that need to be created
+      const newFolders: LocalFile[] = []
+      
+      // Build a comprehensive set of existing paths (case-insensitive) to prevent duplicates
+      // Include ALL files/folders, not just directories, to catch edge cases where
+      // an entry might exist with wrong isDirectory flag or from concurrent updates
+      const existingPaths = new Set(
+        state.files.map(f => f.relativePath.toLowerCase())
+      )
+      // Also track by full path for extra safety
+      const existingFullPaths = new Set(
+        state.files.map(f => f.path.toLowerCase())
+      )
+      
+      // Track old paths for selectedFiles update
+      const oldPathToNewPath = new Map<string, string>()
+      
+      // Pre-create all parent folders needed (only if they truly don't exist)
+      for (const update of updates) {
+        const pathParts = update.newRelativePath.split('/')
+        let currentPath = ''
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          currentPath = currentPath ? `${currentPath}/${pathParts[i]}` : pathParts[i]
+          const lowerPath = currentPath.toLowerCase()
+          const fullPath = buildFullPath(vaultPath, currentPath)
+          const lowerFullPath = fullPath.toLowerCase()
+          
+          // Skip if folder already exists in state OR was already queued for creation
+          // Check both relativePath and full path for robustness
+          if (existingPaths.has(lowerPath) || 
+              existingFullPaths.has(lowerFullPath) ||
+              newFolders.some(f => f.relativePath.toLowerCase() === lowerPath)) {
+            continue
+          }
+          
+          newFolders.push({
+            name: pathParts[i],
+            path: fullPath,
+            relativePath: currentPath,
+            isDirectory: true,
+            extension: '',
+            size: 0,
+            modifiedTime: '',
+            diffStatus: 'cloud'
+          })
+          // Add to tracking sets to prevent duplicates within this batch
+          existingPaths.add(lowerPath)
+          existingFullPaths.add(lowerFullPath)
+        }
+      }
+      
+      if (newFolders.length > 0) {
+        log.debug('[filesSlice]', 'batchUpdateFileLocationsFromServer creating folders', {
+          folderCount: newFolders.length,
+          paths: newFolders.map(f => f.relativePath)
+        })
+      }
+      
+      // Update all files in a single pass
+      const updatedFiles = state.files.map(f => {
+        const update = f.pdmData?.id ? updateMap.get(f.pdmData.id) : undefined
+        if (!update) return f
+        
+        const newFullPath = buildFullPath(vaultPath, update.newRelativePath)
+        oldPathToNewPath.set(f.path, newFullPath)
+        
+        return {
+          ...f,
+          path: newFullPath,
+          relativePath: update.newRelativePath,
+          name: update.newFileName,
+          extension: update.newFileName.includes('.') ? update.newFileName.split('.').pop()?.toLowerCase() || '' : '',
+          pdmData: { ...f.pdmData, ...update.pdmData } as PDMFile
+        }
+      })
+      
+      // Update selectedFiles if any were moved
+      const updatedSelectedFiles = state.selectedFiles.map(p => 
+        oldPathToNewPath.get(p) || p
+      )
+      
+      return {
+        files: [...updatedFiles, ...newFolders],
+        selectedFiles: updatedSelectedFiles
+      }
+    })
   },
   
   removeCloudFile: (fileId) => {
@@ -994,6 +1350,18 @@ export const createFilesSlice: StateCreator<
     }
     scheduleProcessingFlush(get, set)
   },
+  
+  removeProcessingFoldersSync: (paths) => {
+    if (paths.length === 0) return
+    // Add all to pending removes
+    for (const path of paths) {
+      pendingProcessingAdds.delete(path)
+      pendingProcessingRemoves.add(path)
+    }
+    // Flush synchronously so UI updates IMMEDIATELY after operation completes
+    flushProcessingSync(get, set)
+  },
+  
   clearProcessingFolders: () => set({ processingOperations: new Map() }),
   getProcessingOperation: (path, _isDirectory = false) => {
     const { processingOperations } = get()
@@ -1198,7 +1566,9 @@ export const createFilesSlice: StateCreator<
   
   getFileByPath: (path) => {
     const { files } = get()
-    return files.find(f => f.path === path)
+    // Case-insensitive matching for Windows compatibility
+    const pathLower = path.toLowerCase()
+    return files.find(f => f.path.toLowerCase() === pathLower)
   },
   
   getDeletedFiles: () => {

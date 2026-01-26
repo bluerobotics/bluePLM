@@ -149,9 +149,9 @@ export function getFilesInFolder(
       // File must be exactly one level deeper than current path
       if (fileParts.length !== currentParts.length + 1) return false
 
-      // File must start with current path
+      // File must start with current path (case-insensitive for Windows compatibility)
       for (let i = 0; i < currentParts.length; i++) {
-        if (fileParts[i] !== currentParts[i]) return false
+        if (fileParts[i].toLowerCase() !== currentParts[i].toLowerCase()) return false
       }
 
       return true

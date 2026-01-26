@@ -136,7 +136,7 @@ export function useSolidWorksFileCreation(): UseSolidWorksFileCreationReturn {
       console.log('[SWFileCreation] listDirFiles result:', result?.success, 'fileCount:', result?.files?.length)
       
       if (!result?.success || !result.files) {
-        console.log('[SWFileCreation] Failed to list files or empty result:', result?.error)
+        console.warn('[SWFileCreation] Failed to list files or empty result:', result?.error)
         setAvailableTemplates({ parts: [], assemblies: [], drawings: [] })
         return
       }

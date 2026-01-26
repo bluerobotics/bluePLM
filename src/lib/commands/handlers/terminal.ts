@@ -404,7 +404,7 @@ Collaboration:
   add-to-eco <p> [eco] Add file to ECO (alias: eco-add)
 
 SolidWorks Operations:
-  sync-sw-metadata <p> Sync SW properties to server (alias: sw-sync)
+  sync-metadata <path> Sync metadata with SW files (aliases: sync-sw-metadata, sw-sync)
 
 Batch Operations:
   sync-all             Sync all unsynced files

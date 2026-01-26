@@ -57,6 +57,13 @@ export interface CommandContext {
   addProcessingFoldersSync: (paths: string[], operationType: OperationType) => void  // Synchronous state update (no batching delay)
   removeProcessingFolder: (path: string) => void
   removeProcessingFolders: (paths: string[]) => void  // Batch remove (single state update)
+  removeProcessingFoldersSync: (paths: string[]) => void  // Synchronous remove (no batching delay)
+  
+  /** 
+   * Read-only access to processing operations map.
+   * Used to check if file operations are in progress for files inside folders being moved.
+   */
+  processingOperations: Map<string, OperationType>
   
   /**
    * Atomic update: combines file updates + clearing processing state in ONE store update.
@@ -279,6 +286,33 @@ export interface MoveParams extends BaseCommandParams {
    * Must be an existing directory within the vault.
    */
   targetFolder: string
+  
+  /**
+   * Optional resolved name to use instead of the original file name.
+   * Used when renaming a folder during move to avoid conflicts.
+   */
+  resolvedName?: string
+}
+
+/**
+ * Parameters for the merge-folder command.
+ * Merges a folder's contents into an existing folder with the same name.
+ */
+export interface MergeFolderParams {
+  /** The source folder to merge from. */
+  sourceFolder: LocalFile
+  
+  /** 
+   * The target folder path (relative to vault root).
+   * A folder with sourceFolder.name must already exist here.
+   */
+  targetFolder: string
+  
+  /**
+   * How to resolve file conflicts during merge.
+   * @default 'prompt' - will return conflicts for user to resolve
+   */
+  conflictResolution?: 'overwrite' | 'rename' | 'skip' | 'prompt'
 }
 
 /**
@@ -363,16 +397,15 @@ export interface ShowInExplorerParams {
 }
 
 /**
- * Parameters for the refresh-local-metadata command.
- * Extracts metadata from local SolidWorks files and updates pendingMetadata.
+ * Parameters for the sync-metadata command.
+ * 
+ * Consolidated metadata sync command that handles both directions:
+ * - For drawings (.slddrw): PULL - reads from SW file, updates pendingMetadata
+ * - For parts/assemblies (.sldprt/.sldasm): PUSH - writes from pendingMetadata to SW file
+ * 
+ * Only works on files checked out by the current user.
  */
-export interface RefreshLocalMetadataParams extends BaseCommandParams {}
-
-/**
- * Parameters for the sync-sw-metadata command.
- * Extracts and syncs SolidWorks custom properties to the database.
- */
-export interface SyncSwMetadataParams extends BaseCommandParams {}
+export interface SyncMetadataParams extends BaseCommandParams {}
 
 /**
  * Parameters for the extract-references command.
@@ -415,13 +448,13 @@ export type CommandId =
   | 'move'
   | 'copy'
   | 'new-folder'
+  | 'merge-folder'
   | 'pin'
   | 'unpin'
   | 'ignore'
   | 'open'
   | 'show-in-explorer'
-  | 'refresh-local-metadata'
-  | 'sync-sw-metadata'
+  | 'sync-metadata'
   | 'extract-references'
 
 export interface Command<TParams = unknown> {
@@ -461,13 +494,13 @@ export type CommandMap = {
   'move': Command<MoveParams>
   'copy': Command<CopyParams>
   'new-folder': Command<NewFolderParams>
+  'merge-folder': Command<MergeFolderParams>
   'pin': Command<PinParams>
   'unpin': Command<UnpinParams>
   'ignore': Command<IgnoreParams>
   'open': Command<OpenParams>
   'show-in-explorer': Command<ShowInExplorerParams>
-  'refresh-local-metadata': Command<RefreshLocalMetadataParams>
-  'sync-sw-metadata': Command<SyncSwMetadataParams>
+  'sync-metadata': Command<SyncMetadataParams>
   'extract-references': Command<ExtractReferencesParams>
 }
 
@@ -606,6 +639,21 @@ export function getDiscardableFilesFromSelection(files: LocalFile[], selection: 
   }
   
   return [...new Map(result.map(f => [f.path, f])).values()]
+}
+
+// Helper to get files checked out by others (cannot be modified)
+// Used by delete, move, rename commands to block operations on locked files
+export function getFilesCheckedOutByOthers(
+  allFiles: LocalFile[],
+  selection: LocalFile[],
+  userId: string | undefined
+): LocalFile[] {
+  // Get all synced files from selection (including nested in folders)
+  const selectedFiles = getSyncedFilesFromSelection(allFiles, selection)
+  return selectedFiles.filter(f => 
+    f.pdmData?.checked_out_by && 
+    f.pdmData.checked_out_by !== userId
+  )
 }
 
 // Format bytes to human readable

@@ -25,6 +25,30 @@ const hashCache = new Map<string, { size: number; mtime: number; hash: string }>
 // Track delete operations for debugging
 let deleteOperationCounter = 0
 
+// Cache for handle.exe availability (checked once at startup to avoid slow timeouts)
+let handleExeAvailable: boolean | null = null
+let handleExePath: string | null = null
+
+// Check handle.exe availability once at startup
+async function checkHandleExeAvailability(): Promise<void> {
+  if (handleExeAvailable !== null) return // Already checked
+  
+  for (const exe of ['handle64.exe', 'handle.exe']) {
+    try {
+      // Quick check with very short timeout - just see if command exists
+      await execAsync(`where ${exe}`, { timeout: 1000 })
+      handleExeAvailable = true
+      handleExePath = exe
+      log(`[LockDetect] Found Sysinternals ${exe} - will use for process detection`)
+      return
+    } catch {
+      // Not found in PATH, try next
+    }
+  }
+  handleExeAvailable = false
+  log(`[LockDetect] Sysinternals handle.exe not found - process detection will be limited`)
+}
+
 // External log function reference (will be set during registration)
 let log: (message: string, data?: unknown) => void = console.log
 let logDebug: (message: string, data?: unknown) => void = console.log
@@ -84,24 +108,46 @@ async function hashFileAsync(filePath: string): Promise<{ hash: string; size: nu
   })
 }
 
+// Helper to recursively count files in a directory (not including subdirectories themselves)
+function countFilesInDir(dirPath: string): number {
+  let count = 0
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+  
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      count += countFilesInDir(fullPath)
+    } else {
+      count++
+    }
+  }
+  
+  return count
+}
+
 // Helper to recursively copy a directory
-function copyDirSync(src: string, dest: string) {
+// Returns the number of files (not directories) copied
+function copyDirSync(src: string, dest: string): number {
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true })
   }
   
   const entries = fs.readdirSync(src, { withFileTypes: true })
+  let fileCount = 0
   
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)
     
     if (entry.isDirectory()) {
-      copyDirSync(srcPath, destPath)
+      fileCount += copyDirSync(srcPath, destPath)
     } else {
       fs.copyFileSync(srcPath, destPath)
+      fileCount++
     }
   }
+  
+  return fileCount
 }
 
 // Helper to recursively get all files in a directory with relative paths
@@ -141,72 +187,55 @@ function getAllFilesInDir(dirPath: string, _baseFolder: string): Array<{ name: s
 }
 
 // Try to find what process has a file locked using Windows commands
+// Returns the process name if known, or "Unknown" if the file is locked but process can't be determined
+// OPTIMIZED: Fast checks first, slow handle.exe check only if available (cached at startup)
 async function findLockingProcess(filePath: string): Promise<string | null> {
-  const fileName = path.basename(filePath)
-  
   try {
-    // Method 1: Try handle.exe / handle64.exe from Sysinternals
-    for (const handleExe of ['handle64.exe', 'handle.exe']) {
-      try {
-        const { stdout } = await execAsync(`${handleExe} -accepteula "${fileName}" 2>nul`, { timeout: 5000 })
-        if (stdout && stdout.trim() && !stdout.includes('No matching handles found')) {
-          const lines = stdout.split('\n').filter((l: string) => l.includes(fileName) || l.match(/^\w+\.exe/i))
-          if (lines.length > 0) {
-            log(`[LockDetect] ${handleExe} output:\n${stdout.trim()}`)
-            return `${handleExe}: ${lines.slice(0, 3).join(' | ')}`
-          }
-        }
-      } catch {
-        // handle.exe not available
-      }
-    }
-    
-    // Method 2: Try PowerShell to check for processes
-    try {
-      const psCommand = `Get-Process | Where-Object { $_.Path -like '*SolidWorks*' -or $_.ProcessName -like '*SLDWORKS*' -or $_.ProcessName -like '*explorer*' } | Select-Object ProcessName, Id | ConvertTo-Json`
-      const { stdout } = await execAsync(`powershell -Command "${psCommand}"`, { timeout: 5000 })
-      if (stdout && stdout.trim()) {
-        const processes = JSON.parse(stdout)
-        const procList = Array.isArray(processes) ? processes : [processes]
-        if (procList.length > 0) {
-          const procInfo = procList.map((p: { ProcessName: string; Id: number }) => `${p.ProcessName}(${p.Id})`).join(', ')
-          log(`[LockDetect] Potential locking processes: ${procInfo}`)
-          return `Potential: ${procInfo}`
-        }
-      }
-    } catch (e) {
-      log(`[LockDetect] PowerShell check failed: ${e}`)
-    }
-    
-    // Method 3: Check for SolidWorks temp files
+    // FAST CHECK 1: SolidWorks temp files (~$filename) - instant, reliable indicator
     const dir = path.dirname(filePath)
     const baseName = path.basename(filePath, path.extname(filePath))
     const tempFile = path.join(dir, `~$${baseName}${path.extname(filePath)}`)
     if (fs.existsSync(tempFile)) {
-      log(`[LockDetect] Found SolidWorks temp file: ${tempFile}`)
-      return `SolidWorks temp file exists: ~$${fileName} (file is open in SolidWorks)`
+      return 'SLDWORKS.exe'
     }
     
-    // Method 4: Try to open the file exclusively
+    // FAST CHECK 2: Confirm file is actually locked (instant)
     try {
-      const fd = fs.openSync(filePath, fs.constants.O_RDWR | fs.constants.O_EXCL)
+      const fd = fs.openSync(filePath, fs.constants.O_RDWR)
       fs.closeSync(fd)
-      log(`[LockDetect] File is NOT locked (opened successfully)`)
-      return null
+      return null  // File is NOT locked
     } catch (openErr: unknown) {
       const nodeErr = openErr as NodeJS.ErrnoException
-      if (nodeErr.code === 'EBUSY' || nodeErr.code === 'EACCES') {
-        log(`[LockDetect] Confirmed file is locked: ${nodeErr.code}`)
-        return `File is locked (${nodeErr.code}) but process unknown`
+      if (nodeErr.code !== 'EBUSY' && nodeErr.code !== 'EACCES' && nodeErr.code !== 'EPERM') {
+        return null  // Some other error, not a lock
+      }
+      // File is locked, continue to try to identify process
+    }
+    
+    // SLOW CHECK: Only try handle.exe if we know it's available (checked at startup)
+    if (handleExeAvailable && handleExePath) {
+      const fileName = path.basename(filePath)
+      try {
+        const { stdout } = await execAsync(`${handleExePath} -accepteula "${fileName}" 2>nul`, { timeout: 500 })
+        if (stdout && stdout.trim() && !stdout.includes('No matching handles found')) {
+          // Parse handle.exe output to extract process name
+          const processMatch = stdout.match(/^(\w+\.exe)\s+pid:/im)
+          if (processMatch) {
+            return processMatch[1]
+          }
+        }
+      } catch {
+        // Timeout or error - just return Unknown
       }
     }
     
-    return null
+    return 'Unknown'  // File is locked but we can't determine the process
   } catch (err) {
     log(`[LockDetect] Detection failed: ${err}`)
     return null
   }
 }
+
 
 // Stop file watcher
 async function stopFileWatcher(): Promise<void> {
@@ -369,6 +398,11 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   isFileBeingThumbnailed = deps.isFileBeingThumbnailed
   thumbnailsInProgress = deps.thumbnailsInProgress
   restoreMainWindowFocus = deps.restoreMainWindowFocus
+  
+  // Check handle.exe availability once at startup (async, non-blocking)
+  checkHandleExeAvailability().catch(() => {
+    // Ignore errors, handleExeAvailable will remain false
+  })
 
   // Working directory handlers
   ipcMain.handle('working-dir:select', async () => {
@@ -1537,21 +1571,478 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   })
 
   ipcMain.handle('fs:rename', async (_, oldPath: string, newPath: string) => {
+    const maxRetries = 3
+    const fileName = path.basename(oldPath)
+    const startTime = Date.now()
+    
+    // Debug logging
+    log(`[Rename-DEBUG] Starting rename operation`)
+    log(`[Rename-DEBUG] Source: ${oldPath}`)
+    log(`[Rename-DEBUG] Dest: ${newPath}`)
+    log(`[Rename-DEBUG] Timestamp: ${new Date().toISOString()}`)
+    
+    // Count files before rename (for accurate reporting on success)
+    let fileCount = 1
+    let isDirectory = false
     try {
-      fs.renameSync(oldPath, newPath)
-      return { success: true }
+      const stats = fs.statSync(oldPath)
+      isDirectory = stats.isDirectory()
+      if (isDirectory) {
+        fileCount = countFilesInDir(oldPath)
+        log(`[Rename-DEBUG] Is directory with ${fileCount} files`)
+        // NOTE: Lock checking is now done at the UI level BEFORE calling rename,
+        // using the fs:check-folder-locks IPC handler which shows a modal to the user
+      } else {
+        log(`[Rename-DEBUG] Is single file`)
+      }
+    } catch {
+      // If we can't stat, assume it's a single file
+      log(`[Rename-DEBUG] Could not stat source, assuming single file`)
+    }
+    
+    // For directories within the working directory, pause the file watcher
+    // Chokidar holds handles on directories which prevents Windows from renaming them
+    const needsWatcherPause = isDirectory && workingDirectory && (
+      oldPath === workingDirectory || 
+      workingDirectory.startsWith(oldPath) ||
+      oldPath.startsWith(workingDirectory) ||
+      newPath.startsWith(workingDirectory)
+    )
+    
+    if (needsWatcherPause && fileWatcher) {
+      log(`[Rename] Stopping file watcher for directory rename`)
+      await stopFileWatcher()
+      // Wait for Windows to release kernel-level directory handles
+      // 500ms gives Windows kernel time to flush handle caches after chokidar releases them
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+    
+    try {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const attemptStart = Date.now()
+      try {
+        fs.renameSync(oldPath, newPath)
+        const totalDuration = Date.now() - startTime
+        log(`[Rename-DEBUG] SUCCESS on attempt ${attempt} after ${totalDuration}ms`)
+        log(`Renamed: ${oldPath} -> ${newPath} (${fileCount} files)`)
+        return { success: true, fileCount }
+      } catch (err) {
+        const attemptDuration = Date.now() - attemptStart
+        const errStr = String(err)
+        const isLocked = errStr.includes('EPERM') || errStr.includes('EBUSY') || 
+                         errStr.includes('operation not permitted')
+        
+        log(`[Rename-DEBUG] Attempt ${attempt}/${maxRetries} failed after ${attemptDuration}ms, isLocked=${isLocked}`)
+        
+        if (isLocked && attempt < maxRetries) {
+          // Try to identify the locking process
+          log(`[Rename] Attempt ${attempt}/${maxRetries} failed for ${fileName}, detecting lock...`)
+          const lockInfo = await findLockingProcess(oldPath)
+          if (lockInfo) {
+            log(`[Rename] LOCK DETECTION: ${lockInfo}`)
+          }
+          
+          const delay = attempt * 500 // 500ms, 1000ms
+          log(`[Rename] Waiting ${delay}ms before retry...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Final failure - get lock info for error message
+        const totalDuration = Date.now() - startTime
+        log(`[Rename-DEBUG] FINAL FAILURE after ${totalDuration}ms total`)
+        logError('Rename FAILED: ' + oldPath + ' -> ' + newPath + ' | Error: ' + errStr)
+        
+        if (isLocked) {
+          const lockInfo = await findLockingProcess(oldPath)
+          let lockDetail = lockInfo || 'unknown process'
+          
+          // For directories, probe ALL files inside to find which specific file(s) are locked
+          // Note: This scans ALL files with no limit, checking read-only vs truly locked
+          let lockedFiles: Array<{ path: string; name: string; error: string }> = []
+          try {
+            const stats = fs.statSync(oldPath)
+            if (stats.isDirectory()) {
+              log(`[Rename] Probing ALL files in folder to find locked file(s)...`)
+              
+              // Inline recursive scan - no sampling, no limit
+              function scanForLocks(dir: string): void {
+                try {
+                  const entries = fs.readdirSync(dir, { withFileTypes: true })
+                  for (const entry of entries) {
+                    const fullPath = path.join(dir, entry.name)
+                    if (entry.isDirectory()) {
+                      scanForLocks(fullPath)
+                    } else {
+                      // Try to open file with O_RDWR to detect locks
+                      try {
+                        const fd = fs.openSync(fullPath, fs.constants.O_RDWR)
+                        fs.closeSync(fd)
+                        // File is not locked
+                      } catch (err: unknown) {
+                        const nodeErr = err as NodeJS.ErrnoException
+                        if (nodeErr.code === 'EBUSY' || nodeErr.code === 'EACCES' || nodeErr.code === 'EPERM') {
+                          // Check if read-only (can still be moved) vs truly locked
+                          try {
+                            const fileStats = fs.statSync(fullPath)
+                            const isReadOnly = (fileStats.mode & 0o200) === 0
+                            if (!isReadOnly) {
+                              // Truly locked, not just read-only
+                              lockedFiles.push({
+                                path: fullPath,
+                                name: entry.name,
+                                error: nodeErr.code
+                              })
+                            }
+                          } catch {
+                            // Can't stat, assume locked
+                            lockedFiles.push({
+                              path: fullPath,
+                              name: entry.name,
+                              error: nodeErr.code || 'UNKNOWN'
+                            })
+                          }
+                        }
+                      }
+                    }
+                  }
+                } catch (readErr) {
+                  log(`[Rename] Cannot read directory: ${dir} - ${readErr}`)
+                }
+              }
+              
+              scanForLocks(oldPath)
+              
+              if (lockedFiles.length > 0) {
+                const lockedFileNames = lockedFiles.map(f => f.name).join(', ')
+                log(`[Rename] LOCKED FILES FOUND: ${lockedFileNames}`)
+                // Include locked file summary in the lock detail (avoid massive strings for many files)
+                if (lockedFiles.length > 5) {
+                  // Show count for large numbers of locked files
+                  lockDetail = `${lockDetail} | ${lockedFiles.length} files locked`
+                } else {
+                  // Show individual file names for small numbers
+                  lockDetail = `${lockDetail} | Locked: ${lockedFileNames}`
+                }
+              } else {
+                log(`[Rename] No locked files found (lock may be on folder itself)`)
+              }
+            }
+          } catch (statErr) {
+            log(`[Rename] Could not stat path for folder detection: ${statErr}`)
+          }
+          
+          log(`[Rename] Final lock detection: ${lockDetail}`)
+          
+          // Try PowerShell fallback for directory moves when fs.renameSync fails
+          // PowerShell's Move-Item uses Windows Shell APIs (IFileOperation) which have
+          // better handle management and can often succeed when Node.js fs.renameSync fails
+          // Only available on Windows - Mac doesn't have the same handle locking issues
+          if (isDirectory && process.platform === 'win32') {
+            const psStartTime = Date.now()
+            log(`[Rename-PS] === PowerShell Fallback Attempt ===`)
+            log(`[Rename-PS] Source: ${oldPath}`)
+            log(`[Rename-PS] Destination: ${newPath}`)
+            log(`[Rename-PS] File count: ${fileCount}`)
+            
+            try {
+              // Use -LiteralPath to handle paths with special characters (brackets, etc.)
+              // Escape single quotes in paths by doubling them for PowerShell
+              const escapedOldPath = oldPath.replace(/'/g, "''")
+              const escapedNewPath = newPath.replace(/'/g, "''")
+              const psCommand = `powershell -NoProfile -Command "Move-Item -LiteralPath '${escapedOldPath}' -Destination '${escapedNewPath}' -Force"`
+              
+              log(`[Rename-PS] Executing: ${psCommand}`)
+              
+              const { stdout, stderr } = await execAsync(psCommand, { timeout: 30000 })
+              
+              const psDuration = Date.now() - psStartTime
+              log(`[Rename-PS] SUCCESS in ${psDuration}ms`)
+              if (stdout && stdout.trim()) {
+                log(`[Rename-PS] stdout: ${stdout.trim()}`)
+              }
+              if (stderr && stderr.trim()) {
+                log(`[Rename-PS] stderr: ${stderr.trim()}`)
+              }
+              
+              // Verify the move actually happened
+              const sourceGone = !fs.existsSync(oldPath)
+              const destExists = fs.existsSync(newPath)
+              log(`[Rename-PS] Verification: sourceGone=${sourceGone}, destExists=${destExists}`)
+              
+              if (sourceGone && destExists) {
+                log(`[Rename-PS] Move verified successfully`)
+                return { success: true, fileCount }
+              } else {
+                log(`[Rename-PS] Move verification FAILED - source still exists or dest missing`)
+                // Fall through to return original error
+              }
+            } catch (psErr: unknown) {
+              const psDuration = Date.now() - psStartTime
+              const psError = psErr as { stdout?: string; stderr?: string; code?: number; message?: string }
+              log(`[Rename-PS] FAILED after ${psDuration}ms`)
+              log(`[Rename-PS] Error: ${psError.message || String(psErr)}`)
+              if (psError.code !== undefined) {
+                log(`[Rename-PS] Exit code: ${psError.code}`)
+              }
+              if (psError.stdout && psError.stdout.trim()) {
+                log(`[Rename-PS] stdout: ${psError.stdout.trim()}`)
+              }
+              if (psError.stderr && psError.stderr.trim()) {
+                log(`[Rename-PS] stderr: ${psError.stderr.trim()}`)
+              }
+              // Continue to return the original error
+            }
+            log(`[Rename-PS] === End PowerShell Fallback ===`)
+          }
+          
+          return { 
+            success: false, 
+            error: errStr,
+            lockInfo: lockDetail,
+            lockedFiles: lockedFiles.length > 0 ? lockedFiles : undefined
+          }
+        }
+        
+        return { success: false, error: errStr }
+      }
+    }
+    
+    return { success: false, error: 'Max retries exceeded' }
+    } finally {
+      // Restart watcher if we paused it
+      if (needsWatcherPause && workingDirectory && fs.existsSync(workingDirectory)) {
+        log(`[Rename] Restarting file watcher after rename`)
+        await startFileWatcher(workingDirectory)
+      }
+    }
+  })
+
+  // Test file locks in a folder - useful for debugging move failures
+  // Note: This now scans ALL files (no sampling) and properly distinguishes read-only vs locked
+  ipcMain.handle('fs:test-file-locks', async (_, folderPath: string, _sampleSize: number = 10) => {
+    log(`[LockTest] Testing file locks in: ${folderPath}`)
+    
+    const startTime = Date.now()
+    
+    try {
+      const stats = fs.statSync(folderPath)
+      if (!stats.isDirectory()) {
+        log(`[LockTest] Path is not a directory`)
+        return { tested: 0, locked: 0, unlocked: 0, lockedFiles: [], error: 'Not a directory' }
+      }
     } catch (err) {
-      return { success: false, error: String(err) }
+      log(`[LockTest] Error accessing path: ${err}`)
+      return { tested: 0, locked: 0, unlocked: 0, lockedFiles: [], error: String(err) }
+    }
+    
+    // Inline lock detection - scans ALL files, distinguishes read-only vs truly locked
+    const lockedFiles: Array<{ name: string; path: string }> = []
+    let totalFiles = 0
+    
+    function scanDir(dir: string): void {
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            scanDir(fullPath)
+          } else {
+            totalFiles++
+            try {
+              const fd = fs.openSync(fullPath, fs.constants.O_RDWR)
+              fs.closeSync(fd)
+              // File is not locked
+            } catch (err: unknown) {
+              const nodeErr = err as NodeJS.ErrnoException
+              if (nodeErr.code === 'EBUSY' || nodeErr.code === 'EACCES' || nodeErr.code === 'EPERM') {
+                // Check if read-only vs truly locked
+                try {
+                  const fileStats = fs.statSync(fullPath)
+                  const isReadOnly = (fileStats.mode & 0o200) === 0
+                  if (!isReadOnly) {
+                    lockedFiles.push({ name: entry.name, path: fullPath })
+                  }
+                } catch {
+                  lockedFiles.push({ name: entry.name, path: fullPath })
+                }
+              }
+            }
+          }
+        }
+      } catch (readErr) {
+        log(`[LockTest] Cannot read directory: ${dir} - ${readErr}`)
+      }
+    }
+    
+    scanDir(folderPath)
+    
+    const duration = Date.now() - startTime
+    
+    const result = {
+      tested: totalFiles,
+      locked: lockedFiles.length,
+      unlocked: totalFiles - lockedFiles.length,
+      lockedFiles: lockedFiles.map(f => f.name),
+      duration
+    }
+    
+    log(`[LockTest] Result: ${result.locked}/${result.tested} locked (${duration}ms)`)
+    if (result.locked > 0) {
+      log(`[LockTest] Locked files: ${result.lockedFiles.join(', ')}`)
+    }
+    
+    return result
+  })
+
+  // Check ALL files in a folder for locks (no sampling) - used before folder moves
+  // Returns detailed info about each locked file including process name
+  // Emits progress events via 'fs:check-folder-locks-progress' channel
+  ipcMain.handle('fs:check-folder-locks', async (event, folderPath: string) => {
+    log(`[LockCheck] Checking ALL files for locks in: ${folderPath}`)
+    
+    const startTime = Date.now()
+    
+    try {
+      const stats = fs.statSync(folderPath)
+      if (!stats.isDirectory()) {
+        log(`[LockCheck] Path is not a directory`)
+        return { 
+          lockedFiles: [], 
+          totalFiles: 0, 
+          error: 'Not a directory' 
+        }
+      }
+    } catch (err) {
+      log(`[LockCheck] Error accessing path: ${err}`)
+      return { 
+        lockedFiles: [], 
+        totalFiles: 0, 
+        error: String(err) 
+      }
+    }
+    
+    interface LockedFileInfo {
+      filename: string      // Just the filename
+      relativePath: string  // Path relative to folderPath
+      fullPath: string      // Full absolute path
+      process: string       // Process name or "Unknown"
+    }
+    
+    const lockedFiles: LockedFileInfo[] = []
+    let totalFiles = 0
+    
+    // Send progress updates every 100ms
+    let lastProgressTime = Date.now()
+    const sendProgress = () => {
+      const now = Date.now()
+      if (now - lastProgressTime >= 100) {
+        event.sender.send('fs:check-folder-locks-progress', {
+          scanned: totalFiles,
+          locked: lockedFiles.length,
+          folderPath
+        })
+        lastProgressTime = now
+      }
+    }
+    
+    // Recursively scan all files
+    function scanDir(dir: string): void {
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
+        
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name)
+          
+          if (entry.isDirectory()) {
+            scanDir(fullPath)
+          } else {
+            totalFiles++
+            sendProgress()  // Send progress update
+            
+            // Try to open file with O_RDWR to detect locks
+            // If it fails, check if it's read-only (which CAN be moved) vs truly locked
+            try {
+              const fd = fs.openSync(fullPath, fs.constants.O_RDWR)
+              fs.closeSync(fd)
+              // File is not locked
+            } catch (err: unknown) {
+              const nodeErr = err as NodeJS.ErrnoException
+              if (nodeErr.code === 'EBUSY' || nodeErr.code === 'EACCES' || nodeErr.code === 'EPERM') {
+                // O_RDWR failed - but is it locked or just read-only?
+                // Check the read-only attribute AFTER the failure
+                try {
+                  const stats = fs.statSync(fullPath)
+                  const isReadOnly = (stats.mode & 0o200) === 0  // No user write permission
+                  
+                  if (!isReadOnly) {
+                    // File is NOT read-only, so it's truly locked by another process
+                    const relativePath = path.relative(folderPath, fullPath).replace(/\\/g, '/')
+                    
+                    // Quick check: SolidWorks temp file indicates SLDWORKS.exe
+                    const baseName = path.basename(fullPath, path.extname(fullPath))
+                    const tempFile = path.join(path.dirname(fullPath), `~$${baseName}${path.extname(fullPath)}`)
+                    const processName = fs.existsSync(tempFile) ? 'SLDWORKS.exe' : 'Unknown'
+                    
+                    lockedFiles.push({
+                      filename: entry.name,
+                      relativePath,
+                      fullPath,
+                      process: processName
+                    })
+                  }
+                  // If isReadOnly, file CAN be moved on Windows - don't report as locked
+                } catch {
+                  // Can't stat file, assume it's locked to be safe
+                  const relativePath = path.relative(folderPath, fullPath).replace(/\\/g, '/')
+                  lockedFiles.push({
+                    filename: entry.name,
+                    relativePath,
+                    fullPath,
+                    process: 'Unknown'
+                  })
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        log(`[LockCheck] Cannot read directory: ${dir} - ${err}`)
+      }
+    }
+    
+    scanDir(folderPath)
+    
+    // Send final progress
+    event.sender.send('fs:check-folder-locks-progress', {
+      scanned: totalFiles,
+      locked: lockedFiles.length,
+      folderPath,
+      complete: true
+    })
+    
+    const duration = Date.now() - startTime
+    
+    log(`[LockCheck] Scanned ${totalFiles} files, found ${lockedFiles.length} locked (${duration}ms)`)
+    if (lockedFiles.length > 0) {
+      log(`[LockCheck] Locked files: ${lockedFiles.slice(0, 10).map(f => f.filename).join(', ')}${lockedFiles.length > 10 ? ` and ${lockedFiles.length - 10} more` : ''}`)
+    }
+    
+    return {
+      lockedFiles,
+      totalFiles,
+      duration
     }
   })
 
   ipcMain.handle('fs:copy-file', async (_, sourcePath: string, destPath: string) => {
     try {
       const stats = fs.statSync(sourcePath)
+      let fileCount = 0
       
       if (stats.isDirectory()) {
-        copyDirSync(sourcePath, destPath)
-        log('Copied directory: ' + sourcePath + ' -> ' + destPath)
+        fileCount = copyDirSync(sourcePath, destPath)
+        log(`Copied directory: ${sourcePath} -> ${destPath} (${fileCount} files)`)
       } else {
         const destDir = path.dirname(destPath)
         if (!fs.existsSync(destDir)) {
@@ -1559,10 +2050,11 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
         }
         
         fs.copyFileSync(sourcePath, destPath)
+        fileCount = 1
         log('Copied file: ' + sourcePath + ' -> ' + destPath)
       }
       
-      return { success: true }
+      return { success: true, fileCount }
     } catch (err) {
       log('Error copying: ' + String(err))
       return { success: false, error: String(err) }
@@ -1572,6 +2064,10 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   ipcMain.handle('fs:move-file', async (_, sourcePath: string, destPath: string) => {
     try {
       const stats = fs.statSync(sourcePath)
+      const isDirectory = stats.isDirectory()
+      
+      // Count files before move (for accurate reporting)
+      const fileCount = isDirectory ? countFilesInDir(sourcePath) : 1
       
       const destDir = path.dirname(destPath)
       if (!fs.existsSync(destDir)) {
@@ -1580,23 +2076,23 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       
       try {
         fs.renameSync(sourcePath, destPath)
-        log('Moved (rename): ' + sourcePath + ' -> ' + destPath)
-        return { success: true }
+        log(`Moved (rename): ${sourcePath} -> ${destPath} (${fileCount} files)`)
+        return { success: true, fileCount }
       } catch (renameErr) {
         log('Rename failed, trying copy+delete: ' + String(renameErr))
       }
       
-      if (stats.isDirectory()) {
-        copyDirSync(sourcePath, destPath)
+      if (isDirectory) {
+        const copiedCount = copyDirSync(sourcePath, destPath)
         fs.rmSync(sourcePath, { recursive: true, force: true })
-        log('Moved (copy+delete) directory: ' + sourcePath + ' -> ' + destPath)
+        log(`Moved (copy+delete) directory: ${sourcePath} -> ${destPath} (${copiedCount} files)`)
+        return { success: true, fileCount: copiedCount }
       } else {
         fs.copyFileSync(sourcePath, destPath)
         fs.unlinkSync(sourcePath)
         log('Moved (copy+delete) file: ' + sourcePath + ' -> ' + destPath)
+        return { success: true, fileCount: 1 }
       }
-      
-      return { success: true }
     } catch (err) {
       log('Error moving: ' + String(err))
       return { success: false, error: String(err) }

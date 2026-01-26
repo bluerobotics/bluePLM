@@ -15,6 +15,8 @@ import type { FileMetadataColumn } from '@/types/database'
 import { executeCommand } from '@/lib/commands'
 // CrumbBar is now used inside FileToolbar
 import { useTranslation } from '@/lib/i18n'
+// Modal for locked files during folder move
+import { LockedFilesModal, type LockedFileInfo } from '@/components/core/Dialog'
 
 // Shared hooks from Agent 1's foundation
 import { useClipboard } from '@/hooks/useClipboard'
@@ -35,7 +37,7 @@ import {
   ColumnHeaders,
   CustomConfirmDialog,
   ConflictDialog,
-  DeleteConfirmDialog,
+  FolderConflictDialog,
   DeleteLocalCheckoutDialog,
   ColumnContextMenu,
   ConfigContextMenu,
@@ -85,7 +87,6 @@ import {
   useFileEditHandlers,
   useConfigHandlers,
   useModalHandlers,
-  useDeleteHandler,
   useAddFiles
 } from './hooks'
 
@@ -187,23 +188,19 @@ export function FilePane({ onRefresh }: FilePaneProps) {
   )
   
   // File mutation actions
-  const { renameFileInStore, updateFileInStore, updatePendingMetadata, removeFilesFromStore, updateFilesInStore } = usePDMStore(
+  const { renameFileInStore, updateFileInStore, updatePendingMetadata } = usePDMStore(
     useShallow(s => ({
       renameFileInStore: s.renameFileInStore,
       updateFileInStore: s.updateFileInStore,
-      updatePendingMetadata: s.updatePendingMetadata,
-      removeFilesFromStore: s.removeFilesFromStore,
-      updateFilesInStore: s.updateFilesInStore
+      updatePendingMetadata: s.updatePendingMetadata
     }))
   )
   
   // Processing operation actions
-  const { addProcessingFolder, addProcessingFolders, removeProcessingFolder, removeProcessingFolders, getProcessingOperation } = usePDMStore(
+  const { addProcessingFolder, removeProcessingFolder, getProcessingOperation } = usePDMStore(
     useShallow(s => ({
       addProcessingFolder: s.addProcessingFolder,
-      addProcessingFolders: s.addProcessingFolders,
       removeProcessingFolder: s.removeProcessingFolder,
-      removeProcessingFolders: s.removeProcessingFolders,
       getProcessingOperation: s.getProcessingOperation
     }))
   )
@@ -262,11 +259,10 @@ export function FilePane({ onRefresh }: FilePaneProps) {
 
   // Dialog state (confirmations, delete dialogs, conflict resolution)
   const {
-    deleteConfirm, setDeleteConfirm,
-    deleteEverywhere, setDeleteEverywhere,
     customConfirm, setCustomConfirm,
     deleteLocalCheckoutConfirm, setDeleteLocalCheckoutConfirm,
-    conflictDialog, setConflictDialog
+    conflictDialog, setConflictDialog,
+    folderConflictDialog, setFolderConflictDialog
   } = useDialogState()
 
   // Rename and inline editing state (file rename, new folder, cell editing)
@@ -329,7 +325,6 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     handleCheckout: handleInlineCheckout,
     handleCheckin: handleInlineCheckin,
     handleUpload: handleInlineUpload,
-    handleMoveFiles,
     selectedDownloadableFiles,
     selectedCheckoutableFiles,
     selectedCheckinableFiles,
@@ -353,11 +348,56 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     savingConfigsToSW
   })
 
+  // Locked files modal state (shown when folder move encounters locked files)
+  // Must be defined before useDragState which uses onLockedFilesFound callback
+  const [lockedFilesModalData, setLockedFilesModalData] = useState<{
+    lockedFiles: LockedFileInfo[]
+    totalFiles: number
+    folderName: string
+    resolve: (proceed: boolean) => void
+  } | null>(null)
+  
+  // Callback for useDragState when locked files are found during folder move
+  const handleLockedFilesFound = useCallback((result: {
+    lockedFiles: LockedFileInfo[]
+    totalFiles: number
+    folderName: string
+  }): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setLockedFilesModalData({
+        ...result,
+        resolve
+      })
+    })
+  }, [])
+
+  // Callback for useDragState when folder conflicts are found during folder move
+  const handleFolderConflict = useCallback((
+    conflicts: Array<{ sourceFolder: LocalFile; targetPath: string; existingFolderPath: string }>,
+    totalConflicts: number
+  ): Promise<{ resolution: 'merge' | 'rename' | 'skip' | 'cancel'; applyToAll: boolean }> => {
+    return new Promise((resolve) => {
+      const conflict = conflicts[0] // We handle one conflict at a time
+      setFolderConflictDialog({
+        sourceFolder: conflict.sourceFolder,
+        targetPath: conflict.targetPath,
+        existingFolderPath: conflict.existingFolderPath,
+        totalConflicts,
+        currentIndex: 1, // Always showing first one since we handle one at a time
+        onResolve: (resolution, applyToAll) => {
+          setFolderConflictDialog(null)
+          resolve({ resolution, applyToAll })
+        }
+      })
+    })
+  }, [setFolderConflictDialog])
+
   // Drag and drop state and handlers
   const {
     isDraggingOver,
     isExternalDrag,
     dragOverFolder,
+    draggedFiles,
     draggingColumn, setDraggingColumn,
     dragOverColumn, setDragOverColumn,
     resizingColumn, setResizingColumn,
@@ -381,7 +421,8 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     updateProgressToast,
     removeToast,
     setStatusMessage,
-    handleMoveFiles
+    onLockedFilesFound: handleLockedFilesFound,
+    onFolderConflict: handleFolderConflict
   })
 
   // Column handlers (resize, drag-drop reorder, context menu)
@@ -404,6 +445,67 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     setColumnContextMenu,
   })
   
+  // Breadcrumb drag-drop state and handlers
+  const [crumbDragOverPath, setCrumbDragOverPath] = useState<string | null>(null)
+  
+  const handleCrumbDragOver = useCallback((e: React.DragEvent, path: string) => {
+    e.preventDefault()
+    // Accept if we have local dragged files OR cross-view drag from Explorer
+    const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
+    if (draggedFiles.length === 0 && !hasPdmFiles) return
+    
+    // Don't allow dropping if target is same as current folder
+    if (path === currentFolder) return
+    
+    // For local drags, check if we're dropping into a parent of the dragged files (valid move)
+    // Note: We can't drop files into their own parent - that's a no-op
+    if (draggedFiles.length > 0) {
+      const wouldStayInPlace = draggedFiles.every(f => {
+        const parentPath = f.relativePath.includes('/') 
+          ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
+          : ''
+        return parentPath === path
+      })
+      if (wouldStayInPlace) return
+    }
+    
+    e.dataTransfer.dropEffect = 'move'
+    setCrumbDragOverPath(path)
+  }, [draggedFiles, currentFolder])
+  
+  const handleCrumbDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setCrumbDragOverPath(null)
+  }, [])
+  
+  const handleCrumbDrop = useCallback(async (e: React.DragEvent, targetPath: string) => {
+    e.preventDefault()
+    setCrumbDragOverPath(null)
+    
+    // Get files from local state or from data transfer (cross-view drag)
+    let filesToMove: LocalFile[] = []
+    
+    if (draggedFiles.length > 0) {
+      filesToMove = draggedFiles
+    } else {
+      // Try to get from data transfer (drag from Explorer View)
+      const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
+      if (pdmFilesData) {
+        try {
+          const relativePaths: string[] = JSON.parse(pdmFilesData)
+          filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
+        } catch (err) {
+          return
+        }
+      }
+    }
+    
+    if (filesToMove.length === 0) return
+    
+    // Use the command system to perform the move
+    await executeCommand('move', { files: filesToMove, targetFolder: targetPath })
+  }, [draggedFiles, files])
+
   // Configuration local state (refs and UI state that can't be in Zustand)
   // Config expansion/selection state is now in Zustand store (like expandedFolders/selectedFiles)
   const lastClickedConfigRef = useRef<string | null>(null)
@@ -579,6 +681,21 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     ecoNotes, setEcoNotes,
     isAddingToECO, setIsAddingToECO
   } = useECOModal()
+  
+  // Handle user's choice in locked files modal (state is defined earlier, before useDragState)
+  const handleLockedFilesModalClose = useCallback(() => {
+    if (lockedFilesModalData) {
+      lockedFilesModalData.resolve(false) // Cancel
+    }
+    setLockedFilesModalData(null)
+  }, [lockedFilesModalData])
+  
+  const handleLockedFilesModalProceed = useCallback(() => {
+    if (lockedFilesModalData) {
+      lockedFilesModalData.resolve(true) // Proceed with partial move
+    }
+    setLockedFilesModalData(null)
+  }, [lockedFilesModalData])
 
   // Modal handlers (review, checkout request, mention, share, ECO)
   const {
@@ -746,34 +863,6 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     setSelectedFiles,
     clearSelection,
     excludeSelector: 'th'  // Don't start selection when clicking headers
-  })
-
-  // Delete handler (delete dialog logic and execution)
-  const {
-    filesToDelete,
-    syncedFilesCount,
-    showDeleteDialog,
-    handleCancelDelete,
-    handleToggleDeleteEverywhere,
-    handleConfirmDelete,
-  } = useDeleteHandler({
-    deleteConfirm,
-    setDeleteConfirm,
-    deleteEverywhere,
-    setDeleteEverywhere,
-    selectedFiles,
-    sortedFiles,
-    files,
-    user,
-    clearSelection,
-    addProcessingFolders,
-    removeProcessingFolders,
-    setUndoStack,
-    removeFilesFromStore,
-    updateFilesInStore,
-    addToast,
-    addProgressToast,
-    removeToast,
   })
 
   // Add files and folders handlers
@@ -1111,8 +1200,6 @@ export function FilePane({ onRefresh }: FilePaneProps) {
     handleCut,
     handlePaste,
     handleUndo,
-    setDeleteConfirm,
-    setDeleteEverywhere,
     clearSelection,
     toggleDetailsPanel,
     onRefresh
@@ -1298,6 +1385,10 @@ export function FilePane({ onRefresh }: FilePaneProps) {
         onAddFolder={handleAddFolder}
         platform={platform}
         addToast={addToast}
+        onCrumbDragOver={handleCrumbDragOver}
+        onCrumbDragLeave={handleCrumbDragLeave}
+        onCrumbDrop={handleCrumbDrop}
+        dragOverPath={crumbDragOverPath}
       />
 
       {/* File View - List or Icons */}
@@ -1358,6 +1449,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
           <FileListBody
             displayFiles={sortedFiles}
             visibleColumns={visibleColumns}
+            dragOverFolder={dragOverFolder}
             isBeingProcessed={isBeingProcessed}
             handleCreateFolder={handleCreateFolder}
             onRowClick={handleRowClick}
@@ -1419,8 +1511,6 @@ export function FilePane({ onRefresh }: FilePaneProps) {
           handleToggleWatch={handleToggleWatch}
           isCreatingShareLink={isCreatingShareLink}
           handleQuickShareLink={handleQuickShareLink}
-          setDeleteConfirm={setDeleteConfirm}
-          setDeleteEverywhere={setDeleteEverywhere}
           setCustomConfirm={setCustomConfirm}
           setDeleteLocalCheckoutConfirm={setDeleteLocalCheckoutConfirm}
           undoStack={undoStack}
@@ -1504,6 +1594,19 @@ export function FilePane({ onRefresh }: FilePaneProps) {
         />
       )}
 
+      {/* Folder conflict resolution dialog (for folder move conflicts) */}
+      {folderConflictDialog && (
+        <FolderConflictDialog
+          sourceFolder={folderConflictDialog.sourceFolder}
+          targetPath={folderConflictDialog.targetPath}
+          existingFolderPath={folderConflictDialog.existingFolderPath}
+          totalConflicts={folderConflictDialog.totalConflicts}
+          currentIndex={folderConflictDialog.currentIndex}
+          onResolve={folderConflictDialog.onResolve}
+          onCancel={() => folderConflictDialog.onResolve('cancel', false)}
+        />
+      )}
+
       {/* Custom confirmation dialog */}
       {customConfirm && (
         <CustomConfirmDialog
@@ -1536,18 +1639,6 @@ export function FilePane({ onRefresh }: FilePaneProps) {
         />
       )}
 
-      {/* Delete confirmation dialog */}
-      {showDeleteDialog && (
-        <DeleteConfirmDialog
-          filesToDelete={filesToDelete}
-          deleteEverywhere={deleteEverywhere}
-          syncedFilesCount={syncedFilesCount}
-          onToggleDeleteEverywhere={handleToggleDeleteEverywhere}
-          onConfirm={handleConfirmDelete}
-          onCancel={handleCancelDelete}
-        />
-      )}
-      
       {/* Review Request Modal */}
       {showReviewModal && reviewModalFile && (
         <ReviewRequestModal
@@ -1619,6 +1710,18 @@ export function FilePane({ onRefresh }: FilePaneProps) {
           onNotesChange={setEcoNotes}
           onSubmit={handleAddToECO}
           onClose={() => { setShowECOModal(false); setSelectedECO(null); setEcoNotes(''); }}
+        />
+      )}
+      
+      {/* Locked Files Modal - shown when folder move encounters locked files */}
+      {lockedFilesModalData && (
+        <LockedFilesModal
+          open={true}
+          onClose={handleLockedFilesModalClose}
+          lockedFiles={lockedFilesModalData.lockedFiles}
+          totalFiles={lockedFilesModalData.totalFiles}
+          folderName={lockedFilesModalData.folderName}
+          onProceed={handleLockedFilesModalProceed}
         />
       )}
     </div>

@@ -94,7 +94,9 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   }
 
   const solidWorksHandlerDeps: SolidWorksHandlerDependencies = {
-    log
+    log,
+    logError,
+    logWarn
   }
 
   const dialogHandlerDeps: DialogHandlerDependencies = {

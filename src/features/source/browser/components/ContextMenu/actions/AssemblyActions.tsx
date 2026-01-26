@@ -27,7 +27,9 @@ export function AssemblyActions({
   const [openAssemblies, setOpenAssemblies] = useState<OpenAssembly[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isInserting, setIsInserting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasFetchedRef = useRef(false)
   
   const { addToast } = usePDMStore()
   const solidworksEnabled = usePDMStore(s => s.solidworksIntegrationEnabled)
@@ -44,10 +46,22 @@ export function AssemblyActions({
     firstFile.diffStatus !== 'cloud' &&
     solidworksEnabled
   
-  // Fetch open assemblies when submenu is shown
+  // Reset state when submenu closes so re-opening can fetch fresh data
   useEffect(() => {
-    if (showSubmenu && openAssemblies.length === 0 && !isLoading) {
+    if (!showSubmenu) {
+      hasFetchedRef.current = false
+      setOpenAssemblies([])
+      setError(null)
+    }
+  }, [showSubmenu])
+  
+  // Fetch open assemblies when submenu is shown (only once per open)
+  useEffect(() => {
+    if (showSubmenu && !hasFetchedRef.current) {
+      hasFetchedRef.current = true
       setIsLoading(true)
+      setError(null)
+      
       window.electronAPI?.solidworks.getOpenDocuments()
         .then(result => {
           if (result?.success && result.data?.documents) {
@@ -56,16 +70,21 @@ export function AssemblyActions({
               doc => doc.fileType === 'Assembly' || doc.filePath.toLowerCase().endsWith('.sldasm')
             )
             setOpenAssemblies(assemblies)
+          } else if (!result?.success) {
+            setError(result?.error || 'Failed to check SolidWorks')
+            log.error('[AssemblyActions]', 'getOpenDocuments returned failure', { error: result?.error })
           }
         })
         .catch(err => {
-          log.error('[AssemblyActions]', 'Failed to fetch open documents', { error: err instanceof Error ? err.message : String(err) })
+          const errorMsg = err instanceof Error ? err.message : String(err)
+          setError('Failed to connect to SolidWorks')
+          log.error('[AssemblyActions]', 'Failed to fetch open documents', { error: errorMsg })
         })
         .finally(() => {
           setIsLoading(false)
         })
     }
-  }, [showSubmenu, openAssemblies.length, isLoading])
+  }, [showSubmenu])
   
   // Handle insert into assembly
   const handleInsert = async (assembly: OpenAssembly) => {
@@ -142,6 +161,10 @@ export function AssemblyActions({
             {isLoading ? (
               <div className="context-menu-item disabled">
                 <span className="animate-pulse">Checking SolidWorks...</span>
+              </div>
+            ) : error ? (
+              <div className="context-menu-item disabled text-plm-error">
+                {error}
               </div>
             ) : openAssemblies.length > 0 ? (
               openAssemblies.map((assembly) => (

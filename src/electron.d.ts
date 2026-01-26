@@ -112,6 +112,10 @@ interface OperationResult {
   error?: string
 }
 
+interface FileOperationResult extends OperationResult {
+  fileCount?: number  // Number of files processed (for copy/move of directories)
+}
+
 interface FileSelectResult {
   success: boolean
   files?: { name: string; path: string; data: string }[]
@@ -239,9 +243,9 @@ declare global {
       }>
       isDirEmpty: (path: string) => Promise<{ success: boolean; empty?: boolean; error?: string }>
       isDirectory: (path: string) => Promise<{ success: boolean; isDirectory?: boolean; error?: string }>
-      renameItem: (oldPath: string, newPath: string) => Promise<OperationResult>
-      copyFile: (sourcePath: string, destPath: string) => Promise<OperationResult>
-      moveFile: (sourcePath: string, destPath: string) => Promise<OperationResult>
+      renameItem: (oldPath: string, newPath: string) => Promise<FileOperationResult>
+      copyFile: (sourcePath: string, destPath: string) => Promise<FileOperationResult>
+      moveFile: (sourcePath: string, destPath: string) => Promise<FileOperationResult>
       ensureDir: (path: string) => Promise<OperationResult>
       openInExplorer: (path: string) => Promise<OperationResult>
       showInExplorer: (path: string) => Promise<OperationResult>
@@ -252,6 +256,23 @@ declare global {
         results?: Array<{ path: string; success: boolean; error?: string }>
       }>
       isReadonly: (path: string) => Promise<{ success: boolean; readonly?: boolean; error?: string }>
+      
+      // Check ALL files in a folder for locks before move operations
+      checkFolderLocks: (folderPath: string) => Promise<{
+        lockedFiles: Array<{
+          filename: string
+          relativePath: string
+          fullPath: string
+          process: string
+        }>
+        totalFiles: number
+        duration?: number
+        error?: string
+      }>
+      
+      // Listen for folder lock check progress events
+      onFolderLockProgress: (callback: (progress: { scanned: number; locked: number; folderPath: string; complete?: boolean }) => void) => () => void
+      
       startDrag: (filePaths: string[]) => void
       onDownloadProgress: (callback: (progress: { loaded: number; total: number; speed: number }) => void) => () => void
       
@@ -273,6 +294,9 @@ declare global {
       
       // SolidWorks high-quality preview extraction (reads OLE stream directly)
       extractSolidWorksPreview: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>
+      
+      // Check if SLDWORKS.exe process is running (lightweight check, no service call)
+      isSolidWorksProcessRunning: () => Promise<boolean>
       
       // SolidWorks Service API (requires SolidWorks installed)
       solidworks: {

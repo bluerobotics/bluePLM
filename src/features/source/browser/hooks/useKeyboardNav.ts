@@ -46,8 +46,6 @@ export interface UseKeyboardNavOptions {
   handleCut: () => void
   handlePaste: () => void
   handleUndo: () => void
-  setDeleteConfirm: (file: LocalFile | null) => void
-  setDeleteEverywhere: (everywhere: boolean) => void
   clearSelection: () => void
   toggleDetailsPanel: () => void
   onRefresh?: (silent?: boolean) => void
@@ -73,8 +71,6 @@ export function useKeyboardNav({
   handleCut,
   handlePaste,
   handleUndo,
-  setDeleteConfirm,
-  setDeleteEverywhere,
   clearSelection,
   toggleDetailsPanel,
   onRefresh
@@ -246,20 +242,10 @@ export function useKeyboardNav({
       e.stopPropagation()
       
       const selectedItems = sortedFiles.filter(f => selectedFiles.includes(f.path))
-      const isOnlyFolders = selectedItems.every(f => f.isDirectory)
       
-      if (isOnlyFolders) {
-        // Folders: delete directly without confirmation dialog
-        // The delete-local command will also delete from server for synced folders
-        executeCommand('delete-local', { files: selectedItems }, { onRefresh })
-      } else {
-        // Files: show confirmation dialog
-        const selectedFile = files.find(f => f.path === selectedFiles[0])
-        if (selectedFile) {
-          setDeleteEverywhere(false) // Keyboard delete is local only
-          setDeleteConfirm(selectedFile)
-        }
-      }
+      // Delete files/folders using the command system
+      // The delete-local command handles confirmation internally if needed
+      executeCommand('delete-local', { files: selectedItems }, { onRefresh })
       return
     }
     
@@ -304,8 +290,6 @@ export function useKeyboardNav({
     handleCut,
     handlePaste,
     handleUndo,
-    setDeleteConfirm,
-    setDeleteEverywhere,
     clearSelection,
     toggleDetailsPanel,
     onRefresh

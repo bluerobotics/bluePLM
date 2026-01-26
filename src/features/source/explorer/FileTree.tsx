@@ -937,7 +937,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   // Main render - multiple vaults mode
   return (
     <TreeHoverProvider>
-    <div ref={fileTreeContainerRef} className="flex flex-col h-full" tabIndex={-1}>
+    <div ref={fileTreeContainerRef} className="flex flex-col h-full outline-none" tabIndex={-1}>
       {/* Pinned section */}
       <PinnedFoldersSection
         pinnedFolders={pinnedFolders}
@@ -1082,23 +1082,24 @@ export function FileTree({ onRefresh }: FileTreeProps) {
               Collapse All Folders
             </button>
             {(() => {
-              const swFilesInVault = files.filter(f => 
+              // Only show sync option for SW files checked out by current user
+              const swFilesCheckedOut = files.filter(f => 
                 !f.isDirectory && 
                 SOLIDWORKS_EXTENSIONS.includes(f.extension.toLowerCase()) &&
-                f.pdmData?.id
+                f.pdmData?.checked_out_by === user?.id
               )
               
-              if (swFilesInVault.length > 0) {
+              if (swFilesCheckedOut.length > 0) {
                 return (
                   <button
                     className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
                     onClick={() => {
                       setVaultContextMenu(null)
-                      executeCommand('sync-sw-metadata', { files: swFilesInVault }, { onRefresh })
+                      executeCommand('sync-metadata', { files: swFilesCheckedOut }, { onRefresh })
                     }}
                   >
                     <RefreshCw size={14} className="text-plm-accent" />
-                    Refresh SW Metadata ({swFilesInVault.length})
+                    Sync SW Metadata ({swFilesCheckedOut.length})
                   </button>
                 )
               }

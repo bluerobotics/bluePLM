@@ -86,7 +86,7 @@ export function useFileStatus(file: LocalFile | null, userId?: string): FileStat
     const canEdit = isCheckedOutByMe || isLocalOnly
     const canRename = !isSynced || isCheckedOutByMe
     const canDelete = !isCheckedOutByOthers
-    const canMove = true // Checkout not required for moving files
+    const canMove = !isCheckedOutByOthers
     
     return {
       // Sync status
@@ -166,7 +166,7 @@ export function getFileStatus(file: LocalFile | null, userId?: string): FileStat
   const canEdit = isCheckedOutByMe || isLocalOnly
   const canRename = !isSynced || isCheckedOutByMe
   const canDelete = !isCheckedOutByOthers
-  const canMove = true // Checkout not required for moving files
+  const canMove = !isCheckedOutByOthers
   
   return {
     // Sync status

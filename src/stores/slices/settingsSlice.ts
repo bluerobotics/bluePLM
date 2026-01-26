@@ -76,7 +76,6 @@ export const createSettingsSlice: StateCreator<
   autoStartSolidworksService: true,
   hideSolidworksTempFiles: true,
   ignoreSolidworksTempFiles: true,
-  autoRefreshMetadataOnSave: true,
   // Drawing metadata lockouts - when ON, drawing fields are read-only (inherited from model)
   lockDrawingRevision: true,
   lockDrawingItemNumber: true,
@@ -161,7 +160,6 @@ export const createSettingsSlice: StateCreator<
   setAutoStartSolidworksService: (autoStartSolidworksService) => set({ autoStartSolidworksService }),
   setHideSolidworksTempFiles: (hideSolidworksTempFiles) => set({ hideSolidworksTempFiles }),
   setIgnoreSolidworksTempFiles: (ignoreSolidworksTempFiles) => set({ ignoreSolidworksTempFiles }),
-  setAutoRefreshMetadataOnSave: (autoRefreshMetadataOnSave) => set({ autoRefreshMetadataOnSave }),
   setLockDrawingRevision: (lockDrawingRevision) => set({ lockDrawingRevision }),
   setLockDrawingItemNumber: (lockDrawingItemNumber) => set({ lockDrawingItemNumber }),
   setLockDrawingDescription: (lockDrawingDescription) => set({ lockDrawingDescription }),

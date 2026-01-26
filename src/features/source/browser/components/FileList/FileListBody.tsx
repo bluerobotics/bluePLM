@@ -74,6 +74,9 @@ export interface FileListBodyProps {
   // Computed values (not in context)
   visibleColumns: { id: string; width: number }[]
   
+  // Drag state (from useDragState, not context)
+  dragOverFolder: string | null
+  
   // Processing state helper
   isBeingProcessed: (path: string) => boolean
   
@@ -111,6 +114,7 @@ export interface FileListBodyProps {
 export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProps>(function FileListBody({
   displayFiles,
   visibleColumns,
+  dragOverFolder,
   isBeingProcessed,
   handleCreateFolder,
   onRowClick,
@@ -135,7 +139,6 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     clipboard,
     listRowSize,
     user,
-    dragOverFolder,
     expandedConfigFiles,
     fileConfigurations,
     selectedConfigs,

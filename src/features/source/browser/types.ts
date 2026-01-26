@@ -189,6 +189,20 @@ export interface ConflictDialogState {
 }
 
 /**
+ * Folder conflict dialog state for folder move operations
+ */
+export interface FolderConflictDialogState {
+  sourceFolder: LocalFile
+  targetPath: string
+  existingFolderPath: string
+  /** Total number of folders with conflicts (for multi-folder moves) */
+  totalConflicts: number
+  /** Current conflict index (1-based, for "1 of 3" display) */
+  currentIndex: number
+  onResolve: (resolution: 'merge' | 'rename' | 'skip' | 'cancel', applyToAll: boolean) => void
+}
+
+/**
  * Context menu state
  */
 export interface ContextMenuState {

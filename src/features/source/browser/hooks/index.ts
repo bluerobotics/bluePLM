@@ -19,7 +19,6 @@
  * PDM file operations:
  * - `useFileOperations` - Download, upload, checkout, checkin, discard, move
  * - `useFileSelection` - Row click, shift-select, range selection
- * - `useDeleteHandler` - Delete confirmation workflow and execution
  * - `useAddFiles` - Add files/folders with conflict resolution
  * 
  * Note: Download operations use the command system (executeCommand('download')) for
@@ -76,7 +75,8 @@ export type {
   UseDialogStateReturn,
   CustomConfirmState,
   DeleteLocalCheckoutConfirmState,
-  ConflictDialogState
+  ConflictDialogState,
+  FolderConflictDialogState
 } from './useDialogState'
 
 // Configuration expansion state is now in Zustand store (usePDMStore.expandedConfigFiles, etc.)
@@ -88,7 +88,7 @@ export type { UseInlineActionHoverReturn } from './useInlineActionHover'
 
 // Drag and drop state
 export { useDragState } from './useDragState'
-export type { UseDragStateReturn, SelectionBox } from './useDragState'
+export type { UseDragStateReturn, SelectionBox, FolderConflictInfo } from './useDragState'
 
 // Rename and inline editing state
 export { useRenameState } from './useRenameState'
@@ -149,10 +149,6 @@ export type { ConfigHandlersDeps, UseConfigHandlersReturn } from './useConfigHan
 // Modal handlers (review, checkout request, mention, share, ECO)
 export { useModalHandlers } from './useModalHandlers'
 export type { ModalHandlersDeps, UseModalHandlersReturn } from './useModalHandlers'
-
-// Delete handler (delete dialog logic and execution)
-export { useDeleteHandler } from './useDeleteHandler'
-export type { UseDeleteHandlerOptions, UseDeleteHandlerReturn } from './useDeleteHandler'
 
 // Add files/folders handlers
 export { useAddFiles } from './useAddFiles'

@@ -46,6 +46,14 @@ interface CrumbBarProps {
   canGoForward?: boolean
   /** Optional class name */
   className?: string
+  /** Drag-drop: called when dragging over a path segment */
+  onCrumbDragOver?: (e: React.DragEvent, path: string) => void
+  /** Drag-drop: called when drag leaves a path segment */
+  onCrumbDragLeave?: (e: React.DragEvent) => void
+  /** Drag-drop: called when dropping on a path segment */
+  onCrumbDrop?: (e: React.DragEvent, path: string) => void
+  /** Drag-drop: currently highlighted path segment (for drop target styling) */
+  dragOverPath?: string | null
 }
 
 export function CrumbBar({
@@ -60,7 +68,11 @@ export function CrumbBar({
   onRefresh,
   canGoBack = false,
   canGoForward = false,
-  className = ''
+  className = '',
+  onCrumbDragOver,
+  onCrumbDragLeave,
+  onCrumbDrop,
+  dragOverPath
 }: CrumbBarProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -224,7 +236,24 @@ export function CrumbBar({
                 e.stopPropagation()
                 onNavigateRoot()
               }}
-              className="flex items-center gap-2 text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors px-2 py-1 rounded-md flex-shrink-0"
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onCrumbDragOver?.(e, '')
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onCrumbDragLeave?.(e)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onCrumbDrop?.(e, '')
+              }}
+              className={`flex items-center gap-2 text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors px-2 py-1 rounded-md flex-shrink-0 ${
+                dragOverPath === '' ? 'ring-2 ring-plm-accent ring-dashed bg-plm-accent/20' : ''
+              }`}
               title="Go to vault root"
             >
               <Home size={18} />
@@ -235,6 +264,7 @@ export function CrumbBar({
             {pathParts.map((part, i) => {
               const pathUpToHere = pathParts.slice(0, i + 1).join('/')
               const isLast = i === pathParts.length - 1
+              const isDragTarget = dragOverPath === pathUpToHere
               
               return (
                 <div key={pathUpToHere} className="flex items-center gap-0.5 min-w-0">
@@ -244,11 +274,26 @@ export function CrumbBar({
                       e.stopPropagation()
                       onNavigate(pathUpToHere)
                     }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onCrumbDragOver?.(e, pathUpToHere)
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onCrumbDragLeave?.(e)
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onCrumbDrop?.(e, pathUpToHere)
+                    }}
                     className={`px-2 py-1 rounded-md truncate max-w-[150px] hover:bg-plm-highlight transition-colors text-sm ${
                       isLast
                         ? 'text-plm-fg font-medium'
                         : 'text-plm-fg-dim hover:text-plm-fg'
-                    }`}
+                    } ${isDragTarget ? 'ring-2 ring-plm-accent ring-dashed bg-plm-accent/20' : ''}`}
                     title={part}
                   >
                     {part}

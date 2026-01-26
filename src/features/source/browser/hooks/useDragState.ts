@@ -21,7 +21,7 @@
  *   handleDragOver,
  *   handleDrop
  * } = useDragState({
- *   files, selectedFiles, vaultPath, handleMoveFiles, ...
+ *   files, selectedFiles, vaultPath, currentFolder, ...
  * })
  */
 import { useState, useCallback } from 'react'
@@ -29,6 +29,7 @@ import type { LocalFile } from '@/stores/pdmStore'
 import { logDragDrop } from '@/lib/userActionLogger'
 import { log } from '@/lib/logger'
 import { buildFullPath } from '@/lib/utils/path'
+import { executeCommand } from '@/lib/commands'
 
 /**
  * Interface for collected entries from DataTransfer
@@ -178,6 +179,28 @@ export interface SelectionBox {
   currentY: number
 }
 
+export interface LockedFileInfo {
+  filename: string
+  relativePath: string
+  fullPath: string
+  process: string
+}
+
+export interface LockedFilesCheckResult {
+  lockedFiles: LockedFileInfo[]
+  totalFiles: number
+  folderName: string
+}
+
+/**
+ * Folder conflict info for conflict resolution during moves
+ */
+export interface FolderConflictInfo {
+  sourceFolder: LocalFile
+  targetPath: string
+  existingFolderPath: string
+}
+
 export interface UseDragStateOptions {
   files: LocalFile[]
   selectedFiles: string[]
@@ -190,7 +213,15 @@ export interface UseDragStateOptions {
   updateProgressToast: (id: string, current: number, percent: number) => void
   removeToast: (id: string) => void
   setStatusMessage: (msg: string) => void
-  handleMoveFiles: (filesToMove: LocalFile[], targetFolderPath: string) => Promise<void>
+  // Callback when locked files are found during folder move
+  // Returns true if user wants to proceed with partial move, false to cancel
+  onLockedFilesFound?: (result: LockedFilesCheckResult) => Promise<boolean>
+  // Callback when folder conflicts are found during folder move
+  // Returns the resolution for the conflict
+  onFolderConflict?: (conflicts: FolderConflictInfo[], totalConflicts: number) => Promise<{
+    resolution: 'merge' | 'rename' | 'skip' | 'cancel'
+    applyToAll: boolean
+  }>
 }
 
 export interface UseDragStateReturn {
@@ -254,7 +285,8 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
     updateProgressToast,
     removeToast,
     setStatusMessage,
-    handleMoveFiles
+    onLockedFilesFound,
+    onFolderConflict
   } = options
 
   const [draggedFiles, setDraggedFiles] = useState<LocalFile[]>([])
@@ -568,11 +600,182 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
     
     if (filesToMove.length === 0) return
     
-    // Use the helper function to perform the move
-    await handleMoveFiles(filesToMove, targetFolder.relativePath)
+    // Check for locked files in folders before moving
+    const foldersToMove = filesToMove.filter(f => f.isDirectory)
     
-    onRefresh(true)
-  }, [vaultPath, files, draggedFiles, addProgressToast, updateProgressToast, removeToast, addToast, setStatusMessage, onRefresh, handleMoveFiles])
+    if (foldersToMove.length > 0 && window.electronAPI?.checkFolderLocks && onLockedFilesFound) {
+      // Check each folder for locked files
+      for (const folder of foldersToMove) {
+        try {
+          const lockResult = await window.electronAPI.checkFolderLocks(folder.path)
+          
+          if (lockResult.lockedFiles && lockResult.lockedFiles.length > 0) {
+            log.info('[Move]', 'Found locked files in folder', {
+              folder: folder.name,
+              lockedCount: lockResult.lockedFiles.length,
+              totalFiles: lockResult.totalFiles
+            })
+            
+            // Ask user what to do
+            const shouldProceed = await onLockedFilesFound({
+              lockedFiles: lockResult.lockedFiles,
+              totalFiles: lockResult.totalFiles,
+              folderName: folder.name
+            })
+            
+            if (!shouldProceed) {
+              log.info('[Move]', 'User cancelled folder move due to locked files')
+              addToast('info', 'Move cancelled')
+              return
+            }
+            
+            // User wants to proceed with partial move
+            // For now, we'll still attempt the full folder move and let it fail on locked files
+            // TODO: Implement true partial move (file-by-file) when needed
+            log.info('[Move]', 'User chose to proceed with move despite locked files')
+          }
+        } catch (err) {
+          log.warn('[Move]', 'Failed to check folder locks', { error: err })
+          // Continue with move attempt if lock check fails
+        }
+      }
+    }
+    
+    // Check for folder name conflicts before moving
+    if (foldersToMove.length > 0 && onFolderConflict) {
+      // Find existing folders in the target location
+      const targetPathLower = targetFolder.relativePath.toLowerCase()
+      const existingFoldersInTarget = new Set(
+        files
+          .filter(f => f.isDirectory)
+          .filter(f => {
+            const parent = f.relativePath.includes('/') 
+              ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
+              : ''
+            return parent.toLowerCase() === targetPathLower
+          })
+          .map(f => f.name.toLowerCase())
+      )
+      
+      // Check for conflicts
+      const conflicts: FolderConflictInfo[] = []
+      for (const folder of foldersToMove) {
+        if (existingFoldersInTarget.has(folder.name.toLowerCase())) {
+          conflicts.push({
+            sourceFolder: folder,
+            targetPath: targetFolder.relativePath,
+            existingFolderPath: targetFolder.relativePath ? `${targetFolder.relativePath}/${folder.name}` : folder.name
+          })
+        }
+      }
+      
+      if (conflicts.length > 0) {
+        log.info('[Move]', 'Found folder name conflicts', {
+          conflictCount: conflicts.length,
+          folders: conflicts.map(c => c.sourceFolder.name)
+        })
+        
+        // Track resolutions for each conflict
+        const resolutions: Map<string, 'merge' | 'rename' | 'skip'> = new Map()
+        let applyToAllResolution: 'merge' | 'rename' | 'skip' | null = null
+        
+        for (let i = 0; i < conflicts.length; i++) {
+          const conflict = conflicts[i]
+          
+          // If we have an "apply to all" resolution, use it
+          if (applyToAllResolution) {
+            resolutions.set(conflict.sourceFolder.path, applyToAllResolution)
+            continue
+          }
+          
+          // Otherwise, ask user for resolution
+          const result = await onFolderConflict([conflict], conflicts.length)
+          
+          if (result.resolution === 'cancel') {
+            log.info('[Move]', 'User cancelled folder move due to conflicts')
+            addToast('info', 'Move cancelled')
+            return
+          }
+          
+          resolutions.set(conflict.sourceFolder.path, result.resolution)
+          
+          if (result.applyToAll) {
+            applyToAllResolution = result.resolution
+          }
+        }
+        
+        // Process files based on resolutions
+        const filesToMerge: LocalFile[] = []
+        const filesToRename: LocalFile[] = []
+        const filesToSkip: LocalFile[] = []
+        const nonConflictingFiles = filesToMove.filter(f => !f.isDirectory || !conflicts.some(c => c.sourceFolder.path === f.path))
+        
+        for (const conflict of conflicts) {
+          const resolution = resolutions.get(conflict.sourceFolder.path)
+          switch (resolution) {
+            case 'merge':
+              filesToMerge.push(conflict.sourceFolder)
+              break
+            case 'rename':
+              filesToRename.push(conflict.sourceFolder)
+              break
+            case 'skip':
+              filesToSkip.push(conflict.sourceFolder)
+              break
+          }
+        }
+        
+        log.info('[Move]', 'Folder conflict resolutions', {
+          merge: filesToMerge.length,
+          rename: filesToRename.length,
+          skip: filesToSkip.length,
+          nonConflicting: nonConflictingFiles.length
+        })
+        
+        // Skip folders the user chose to skip
+        if (filesToSkip.length > 0) {
+          addToast('info', `Skipped ${filesToSkip.length} folder${filesToSkip.length > 1 ? 's' : ''}`)
+        }
+        
+        // Handle merges
+        for (const folder of filesToMerge) {
+          await executeCommand('merge-folder', {
+            sourceFolder: folder,
+            targetFolder: targetFolder.relativePath
+          })
+        }
+        
+        // Handle renames - generate unique names
+        for (const folder of filesToRename) {
+          let counter = 2
+          let newName = `${folder.name} (${counter})`
+          while (existingFoldersInTarget.has(newName.toLowerCase()) && counter < 1000) {
+            counter++
+            newName = `${folder.name} (${counter})`
+          }
+          log.info('[Move]', 'Renaming folder to avoid conflict', { original: folder.name, newName })
+          await executeCommand('move', {
+            files: [folder],
+            targetFolder: targetFolder.relativePath,
+            resolvedName: newName
+          })
+          // Update the set so subsequent renames don't collide
+          existingFoldersInTarget.add(newName.toLowerCase())
+        }
+        
+        // Move non-conflicting files normally
+        if (nonConflictingFiles.length > 0) {
+          await executeCommand('move', { files: nonConflictingFiles, targetFolder: targetFolder.relativePath })
+        }
+        
+        return
+      }
+    }
+    
+    // Use the command system to perform the move (no conflicts)
+    await executeCommand('move', { files: filesToMove, targetFolder: targetFolder.relativePath })
+    // No refresh needed - store is already updated by the move command
+  }, [vaultPath, files, draggedFiles, addProgressToast, updateProgressToast, removeToast, addToast, setStatusMessage, onLockedFilesFound, onFolderConflict])
 
   // Drag and Drop handlers for container (supports external files + cross-view drag)
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -630,8 +833,41 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
         const filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
         
         if (filesToMove.length > 0) {
-          // Move to current folder
-          await handleMoveFiles(filesToMove, currentFolder)
+          // Check for locked files in folders before moving
+          const foldersToMove = filesToMove.filter(f => f.isDirectory)
+          
+          if (foldersToMove.length > 0 && window.electronAPI?.checkFolderLocks && onLockedFilesFound) {
+            for (const folder of foldersToMove) {
+              try {
+                const lockResult = await window.electronAPI.checkFolderLocks(folder.path)
+                
+                if (lockResult.lockedFiles && lockResult.lockedFiles.length > 0) {
+                  log.info('[Move]', 'Found locked files in folder', {
+                    folder: folder.name,
+                    lockedCount: lockResult.lockedFiles.length,
+                    totalFiles: lockResult.totalFiles
+                  })
+                  
+                  const shouldProceed = await onLockedFilesFound({
+                    lockedFiles: lockResult.lockedFiles,
+                    totalFiles: lockResult.totalFiles,
+                    folderName: folder.name
+                  })
+                  
+                  if (!shouldProceed) {
+                    log.info('[Move]', 'User cancelled folder move due to locked files')
+                    addToast('info', 'Move cancelled')
+                    return
+                  }
+                }
+              } catch (err) {
+                log.warn('[Move]', 'Failed to check folder locks', { error: err })
+              }
+            }
+          }
+          
+          // Move to current folder using the command system
+          await executeCommand('move', { files: filesToMove, targetFolder: currentFolder })
           return
         }
       } catch (err) {
@@ -755,7 +991,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
       removeToast(toastId)
       addToast('error', 'Failed to add files')
     }
-  }, [vaultPath, currentFolder, files, addProgressToast, updateProgressToast, removeToast, addToast, setStatusMessage, onRefresh, handleMoveFiles])
+  }, [vaultPath, currentFolder, files, addProgressToast, updateProgressToast, removeToast, addToast, setStatusMessage, onRefresh, onLockedFilesFound])
   
   return {
     draggedFiles,

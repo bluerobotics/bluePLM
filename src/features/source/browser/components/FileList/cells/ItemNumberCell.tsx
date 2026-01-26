@@ -327,8 +327,11 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
     <div 
       className="group/cell flex items-center h-full gap-1"
       onMouseDown={(e) => {
-        // Stop mousedown from triggering row drag or file focus
-        e.stopPropagation()
+        // Only stop propagation for editable cells to prevent row selection during edit
+        // For non-editable cells, allow native text selection
+        if (canEditItemNumber) {
+          e.stopPropagation()
+        }
       }}
       onDragStart={(e) => {
         // Prevent row drag when user is trying to select text
@@ -341,18 +344,19 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
       {/* Main item number box - sized based on serialization settings */}
       <div 
         ref={itemBoxRef}
-        className={`relative inline-flex items-center rounded pl-1 pr-8 py-0 ${canEditItemNumber ? 'cursor-text border border-transparent group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg' : ''}`}
+        className={`relative inline-flex items-center rounded pl-1 pr-8 py-0 ${canEditItemNumber ? 'cursor-text border border-transparent group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg' : 'select-text cursor-text'}`}
         style={{ minWidth: minItemNumberWidth }}
         onClick={(e) => {
-          e.stopPropagation()
-          e.preventDefault()
           // Don't start edit if we just dismissed confirmation (same click)
           if (canEditItemNumber && !confirmingGenerate && !justDismissedRef.current) {
+            e.stopPropagation()
+            e.preventDefault()
             handleStartCellEdit(file, 'itemNumber')
           }
+          // Allow click through for text selection when not editable
         }}
       >
-        <span className={`text-sm ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''}`}>
+        <span className={`text-sm ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''} ${!canEditItemNumber ? 'select-text' : ''}`}>
           {displayValue}
         </span>
         {canEditItemNumber && !confirmingGenerate && (

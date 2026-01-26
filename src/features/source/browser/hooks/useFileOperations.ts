@@ -21,7 +21,7 @@
  */
 import { useCallback, useMemo } from 'react'
 import { log } from '@/lib/logger'
-import type { LocalFile } from '@/stores/pdmStore'
+import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 import { executeCommand } from '@/lib/commands'
 import { logFileAction } from '@/lib/userActionLogger'
@@ -327,6 +327,16 @@ export function useFileOperations({
     })
     if (wouldStayInPlace) return
     
+    // Register expected file changes to suppress file watcher during operation
+    const { addExpectedFileChanges, setLastOperationCompletedAt } = usePDMStore.getState()
+    const expectedPaths: string[] = []
+    for (const file of filesToMove) {
+      expectedPaths.push(file.relativePath) // old path
+      const newRelPath = targetFolderPath ? `${targetFolderPath}/${file.name}` : file.name
+      expectedPaths.push(newRelPath) // new path
+    }
+    addExpectedFileChanges(expectedPaths)
+    
     // Perform the move
     const total = filesToMove.length
     const toastId = `move-${Date.now()}`
@@ -400,6 +410,9 @@ export function useFileOperations({
     } else {
       addToast('warning', `Moved ${succeeded}, failed ${failed}`)
     }
+    
+    // Mark operation complete to help suppress file watcher
+    setLastOperationCompletedAt(Date.now())
     
     // No need for full refresh - store is already updated
   }, [vaultPath, files, userId, addToast, addProgressToast, updateProgressToast, removeToast, addProcessingFolder, removeProcessingFolder, renameFileInStore])

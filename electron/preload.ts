@@ -7,6 +7,10 @@ interface OperationResult {
   canceled?: boolean
 }
 
+interface FileOperationResult extends OperationResult {
+  fileCount?: number  // Number of files processed (for copy/move of directories)
+}
+
 interface PathResult extends OperationResult {
   path?: string
 }
@@ -330,6 +334,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // SolidWorks high-quality preview extraction (reads OLE stream directly)
   extractSolidWorksPreview: (filePath: string) => ipcRenderer.invoke('solidworks:extract-preview', filePath),
+  
+  // Cancel queued thumbnail/preview extractions for files in a folder (used before folder moves)
+  cancelPreviewsForFolder: (folderPath: string) => ipcRenderer.invoke('sw:cancel-previews-for-folder', folderPath),
+  
+  // Release SolidWorks Document Manager handles (used before folder moves to prevent EPERM)
+  releaseHandles: () => ipcRenderer.invoke('sw:release-handles'),
+  
+  // Check if SLDWORKS.exe process is running (lightweight check, no service call)
+  // This is useful for detecting if SolidWorks is open BEFORE attempting file operations
+  isSolidWorksProcessRunning: () => ipcRenderer.invoke('sw:is-process-running'),
+  
+  // Test file locks in a folder (debugging tool for folder move failures)
+  testFileLocks: (folderPath: string, sampleSize?: number) => 
+    ipcRenderer.invoke('fs:test-file-locks', folderPath, sampleSize),
+  
+  // Check ALL files in a folder for locks before folder move operations
+  checkFolderLocks: (folderPath: string) => 
+    ipcRenderer.invoke('fs:check-folder-locks', folderPath),
+  
+  // Listen for folder lock check progress events
+  onFolderLockProgress: (callback: (progress: { scanned: number; locked: number; folderPath: string; complete?: boolean }) => void) => {
+    const listener = (_event: unknown, progress: { scanned: number; locked: number; folderPath: string; complete?: boolean }) => callback(progress)
+    ipcRenderer.on('fs:check-folder-locks-progress', listener)
+    return () => ipcRenderer.removeListener('fs:check-folder-locks-progress', listener)
+  },
   
   // SolidWorks Service API (requires SolidWorks installed)
   solidworks: {
@@ -794,8 +823,9 @@ declare global {
         results: Array<{ path: string; success: boolean; error?: string }>
         summary: { total: number; succeeded: number; failed: number; duration: number }
       }>
-      renameItem: (oldPath: string, newPath: string) => Promise<OperationResult>
-      copyFile: (sourcePath: string, destPath: string) => Promise<OperationResult>
+      renameItem: (oldPath: string, newPath: string) => Promise<FileOperationResult>
+      copyFile: (sourcePath: string, destPath: string) => Promise<FileOperationResult>
+      moveFile: (sourcePath: string, destPath: string) => Promise<FileOperationResult>
       openInExplorer: (path: string) => Promise<OperationResult>
       openFile: (path: string) => Promise<OperationResult>
       setReadonly: (path: string, readonly: boolean) => Promise<OperationResult>
@@ -818,6 +848,34 @@ declare global {
       
       // SolidWorks thumbnail extraction  
       extractSolidWorksThumbnail: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>
+      
+      // Cancel queued thumbnail/preview extractions for files in a folder (used before folder moves)
+      cancelPreviewsForFolder: (folderPath: string) => Promise<{ cancelledCount: number; activeCount: number; activePaths: string[] }>
+      
+      // Release SolidWorks Document Manager handles (used before folder moves to prevent EPERM)
+      releaseHandles: () => Promise<{ success: boolean; data?: { released: boolean; dmAvailable?: boolean; reason?: string }; error?: string }>
+      
+      // Check if SLDWORKS.exe process is running (lightweight check, no service call)
+      isSolidWorksProcessRunning: () => Promise<boolean>
+      
+      // Test file locks in a folder (debugging tool for folder move failures)
+      testFileLocks: (folderPath: string, sampleSize?: number) => Promise<{ tested: number; locked: number; unlocked: number; lockedFiles: string[]; duration?: number; error?: string }>
+      
+      // Check ALL files in a folder for locks before folder move operations
+      checkFolderLocks: (folderPath: string) => Promise<{
+        lockedFiles: Array<{
+          filename: string
+          relativePath: string
+          fullPath: string
+          process: string
+        }>
+        totalFiles: number
+        duration?: number
+        error?: string
+      }>
+      
+      // Listen for folder lock check progress events
+      onFolderLockProgress: (callback: (progress: { scanned: number; locked: number; folderPath: string; complete?: boolean }) => void) => () => void
       
       // SolidWorks Service API (requires SolidWorks installed)
       solidworks: {

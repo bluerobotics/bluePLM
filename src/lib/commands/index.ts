@@ -70,10 +70,10 @@ import {
   renameCommand,
   moveCommand,
   copyCommand,
-  newFolderCommand
+  newFolderCommand,
+  mergeFolderCommand
 } from './handlers/fileOps'
-import { refreshLocalMetadataCommand } from './handlers/refreshLocalMetadata'
-import { syncSwMetadataCommand } from './handlers/syncSwMetadata'
+import { syncMetadataCommand } from './handlers/syncMetadata'
 import { extractReferencesCommand } from './handlers/extractReferences'
 
 // Register all commands on module load
@@ -97,15 +97,15 @@ function initializeCommands() {
   registerCommand('unpin', unpinCommand)
   registerCommand('ignore', ignoreCommand)
   
-  // File management (rename, move, copy, new folder)
+  // File management (rename, move, copy, new folder, merge folder)
   registerCommand('rename', renameCommand)
   registerCommand('move', moveCommand)
   registerCommand('copy', copyCommand)
   registerCommand('new-folder', newFolderCommand)
+  registerCommand('merge-folder', mergeFolderCommand)
   
   // SolidWorks specific
-  registerCommand('refresh-local-metadata', refreshLocalMetadataCommand)
-  registerCommand('sync-sw-metadata', syncSwMetadataCommand)
+  registerCommand('sync-metadata', syncMetadataCommand)
   registerCommand('extract-references', extractReferencesCommand)
 }
 
@@ -221,23 +221,16 @@ export async function forceRelease(
 }
 
 /**
- * Refresh metadata from local SolidWorks files (reads from file, updates pendingMetadata)
+ * Sync metadata between BluePLM and SolidWorks files.
+ * - For drawings: PULL (reads from SW file, updates pendingMetadata)
+ * - For parts/assemblies: PUSH (writes from pendingMetadata to SW file)
+ * Only works on files checked out by the current user.
  */
-export async function refreshLocalMetadata(
+export async function syncMetadata(
   files: LocalFile[],
   onRefresh?: (silent?: boolean) => void
 ) {
-  return executeCommand('refresh-local-metadata', { files }, { onRefresh })
-}
-
-/**
- * Sync SolidWorks metadata from file properties (for synced files, updates database)
- */
-export async function syncSwMetadata(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
-  return executeCommand('sync-sw-metadata', { files }, { onRefresh })
+  return executeCommand('sync-metadata', { files }, { onRefresh })
 }
 
 /**

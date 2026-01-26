@@ -817,6 +817,82 @@ export function useLoadFiles() {
         folderCount: localFiles.filter((f: { isDirectory: boolean }) => f.isDirectory).length
       })
       
+      // Detect externally deleted synced files and add auto-download exclusions
+      // This prevents auto-download from re-downloading files the user deleted via Windows Explorer
+      // Detection: files that had local copies but now show as cloud-only
+      if (currentVaultId) {
+        const previousFiles = usePDMStore.getState().files
+        
+        // Only run detection if we have previous state (skip on first load)
+        if (previousFiles.length > 0) {
+          const { addAutoDownloadExclusion } = usePDMStore.getState()
+          
+          // Build set of paths that previously had local copies (synced files with local presence)
+          const previousLocalSyncedPaths = new Set(
+            previousFiles
+              .filter(f => !f.isDirectory && f.pdmData?.id && f.diffStatus !== 'cloud')
+              .map(f => f.relativePath)
+          )
+          
+          // Build set of folder paths that previously had local presence
+          const previousLocalFolderPaths = new Set(
+            previousFiles
+              .filter(f => f.isDirectory && f.diffStatus !== 'cloud')
+              .map(f => f.relativePath.toLowerCase())
+          )
+          
+          // Find files that transitioned from local to cloud-only (externally deleted)
+          const externallyDeletedFiles = localFiles.filter(f => 
+            !f.isDirectory && 
+            f.diffStatus === 'cloud' && 
+            f.pdmData?.id &&
+            previousLocalSyncedPaths.has(f.relativePath)
+          )
+          
+          // Find folders that transitioned from local to cloud-only (externally deleted)
+          const externallyDeletedFolders = localFiles.filter(f => 
+            f.isDirectory && 
+            f.diffStatus === 'cloud' &&
+            previousLocalFolderPaths.has(f.relativePath.toLowerCase())
+          )
+          
+          // Collect all files to exclude (directly deleted + files in deleted folders)
+          const filesToExclude = new Set<string>()
+          
+          // Add directly deleted files
+          for (const file of externallyDeletedFiles) {
+            filesToExclude.add(file.relativePath)
+          }
+          
+          // Add files within deleted folders
+          for (const folder of externallyDeletedFolders) {
+            const folderPrefix = folder.relativePath.toLowerCase() + '/'
+            for (const file of localFiles) {
+              if (!file.isDirectory && 
+                  file.diffStatus === 'cloud' &&
+                  file.relativePath.toLowerCase().startsWith(folderPrefix)) {
+                filesToExclude.add(file.relativePath)
+              }
+            }
+          }
+          
+          // Add exclusions for all externally deleted files
+          if (filesToExclude.size > 0) {
+            for (const relativePath of filesToExclude) {
+              addAutoDownloadExclusion(currentVaultId, relativePath)
+            }
+            
+            window.electronAPI?.log('info', '[LoadFiles] Added auto-download exclusions for externally deleted files', {
+              fileCount: externallyDeletedFiles.length,
+              folderCount: externallyDeletedFolders.length,
+              totalExcluded: filesToExclude.size,
+              paths: Array.from(filesToExclude).slice(0, 10), // Log first 10 paths
+              truncated: filesToExclude.size > 10
+            })
+          }
+        }
+      }
+      
       setFiles(localFiles)
       setFilesLoaded(true)  // Mark that initial load is complete
       const totalFiles = localFiles.filter(f => !f.isDirectory).length

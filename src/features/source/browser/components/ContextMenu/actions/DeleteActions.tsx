@@ -10,8 +10,6 @@ import type { RefreshableActionProps, SelectionCounts, SelectionState } from './
 interface DeleteActionsProps extends RefreshableActionProps {
   counts: SelectionCounts
   state: SelectionState
-  setDeleteConfirm: (file: LocalFile | null) => void
-  setDeleteEverywhere: (value: boolean) => void
   setCustomConfirm: (state: {
     title: string
     message: string
@@ -31,13 +29,11 @@ interface DeleteActionsProps extends RefreshableActionProps {
 
 export function DeleteActions({
   contextFiles,
-  firstFile,
+  firstFile: _firstFile,
   onClose,
   onRefresh,
   counts,
   state,
-  setDeleteConfirm,
-  setDeleteEverywhere,
   setCustomConfirm,
   setDeleteLocalCheckoutConfirm,
   undoStack,
@@ -94,13 +90,28 @@ export function DeleteActions({
   const isOnlyFolders = contextFiles.every(f => f.isDirectory)
   // Check if any folders in selection are synced (have pdmData from folders table)
   const hasSyncedFolders = contextFiles.some(f => f.isDirectory && f.pdmData?.id)
+  
+  // Check if any folder in selection has files inside
+  // Used to determine if we should show simplified UX (empty folders) or full options (folders with content)
+  const foldersHaveContent = contextFiles.some(item => {
+    if (!item.isDirectory) return false
+    const folderPath = item.relativePath.replace(/\\/g, '/')
+    return files.some(f => {
+      if (f.isDirectory) return false
+      const filePath = f.relativePath.replace(/\\/g, '/')
+      return filePath.startsWith(folderPath + '/')
+    })
+  })
+  
+  // Only use simplified folder UX when ALL folders are empty
+  const isEmptyFolderSelection = isOnlyFolders && !foldersHaveContent
 
   return (
     <>
       <div className="context-menu-separator" />
       
-      {/* Remove Local Copy - removes local copy of synced files, keeps server (not for folder-only selections) */}
-      {hasLocalFiles && hasSyncedFiles && !isOnlyFolders && (
+      {/* Remove Local Copy - removes local copy of synced files, keeps server (not for empty folder-only selections) */}
+      {hasLocalFiles && hasSyncedFiles && !isEmptyFolderSelection && (
         <div 
           className="context-menu-item"
           onClick={async () => {
@@ -148,20 +159,20 @@ export function DeleteActions({
               return
             }
             
-            setDeleteEverywhere(false)
-            setDeleteConfirm(firstFile)
+            // Use command system for delete
+            executeCommand('delete-local', { files: contextFiles }, { onRefresh })
           }}
         >
           <Trash2 size={14} />
-          {isOnlyFolders
+          {isEmptyFolderSelection
             ? `Delete${counts.folderCount > 0 ? ` (${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''})` : ''}`
             : `Delete (${unsyncedFilesInDelete.length} file${unsyncedFilesInDelete.length !== 1 ? 's' : ''}${counts.folderCount > 0 ? `, ${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''}` : ''})`
           }
         </div>
       )}
       
-      {/* Delete from Server (Keep Local) - not for folder-only selections */}
-      {hasSyncedFiles && !state.allCloudOnly && !isOnlyFolders && (
+      {/* Delete from Server (Keep Local) - not for empty folder-only selections */}
+      {hasSyncedFiles && !state.allCloudOnly && !isEmptyFolderSelection && (
         <div 
           className="context-menu-item"
           onClick={() => {
@@ -229,19 +240,19 @@ export function DeleteActions({
                   executeCommand('delete-server', { files: storedCloudFiles, deleteLocal: false }, { onRefresh })
                 }
               })
-            } else if (isOnlyFolders) {
-              // For folder-only selections, delete directly without complex confirmation
+            } else if (isEmptyFolderSelection) {
+              // For empty folder-only selections, delete directly without complex confirmation
               onClose()
               executeCommand('delete-local', { files: contextFiles }, { onRefresh })
             } else {
-              setDeleteEverywhere(true)
-              setDeleteConfirm(firstFile)
+              // Delete local & server using command system
               onClose()
+              executeCommand('delete-server', { files: contextFiles, deleteLocal: true }, { onRefresh })
             }
           }}
         >
           <Trash2 size={14} />
-          {isOnlyFolders 
+          {isEmptyFolderSelection 
             ? `Delete${counts.folderCount > 0 ? ` (${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''})` : ''}`
             : `${state.allCloudOnly ? 'Delete from Server' : 'Delete Local & Server'} (${syncedFilesInDelete.length + counts.cloudOnlyCount} file${(syncedFilesInDelete.length + counts.cloudOnlyCount) !== 1 ? 's' : ''}${counts.folderCount > 0 ? `, ${counts.folderCount} folder${counts.folderCount !== 1 ? 's' : ''}` : ''})`
           }

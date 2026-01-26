@@ -205,6 +205,14 @@ export interface ServerFile {
   content_hash: string
 }
 
+// File location update from realtime events (for batching multiple moves)
+export interface FileLocationUpdate {
+  fileId: string
+  newRelativePath: string
+  newFileName: string
+  pdmData: import('../types/pdm').PDMFile
+}
+
 // Queued operation for non-blocking file operations
 export interface QueuedOperation {
   id: string
@@ -473,7 +481,6 @@ export interface SettingsSlice {
   autoStartSolidworksService: boolean
   hideSolidworksTempFiles: boolean
   ignoreSolidworksTempFiles: boolean
-  autoRefreshMetadataOnSave: boolean
   // Drawing metadata lockouts - when true, drawing fields are read-only (inherited from model)
   lockDrawingRevision: boolean
   lockDrawingItemNumber: boolean
@@ -558,7 +565,6 @@ export interface SettingsSlice {
   setAutoStartSolidworksService: (enabled: boolean) => void
   setHideSolidworksTempFiles: (enabled: boolean) => void
   setIgnoreSolidworksTempFiles: (enabled: boolean) => void
-  setAutoRefreshMetadataOnSave: (enabled: boolean) => void
   setLockDrawingRevision: (enabled: boolean) => void
   setLockDrawingItemNumber: (enabled: boolean) => void
   setLockDrawingDescription: (enabled: boolean) => void
@@ -789,6 +795,10 @@ export interface FilesSlice {
   // Actions - Realtime Updates
   addCloudFile: (pdmFile: import('../types/pdm').PDMFile) => void
   updateFilePdmData: (fileId: string, pdmData: Partial<import('../types/pdm').PDMFile>) => void
+  /** Update a file's location from a realtime event (handles path changes from other users) */
+  updateFileLocationFromServer: (fileId: string, newRelativePath: string, newFileName: string, pdmData: import('../types/pdm').PDMFile) => void
+  /** Batch update multiple file locations from realtime events (prevents render cascade) */
+  batchUpdateFileLocationsFromServer: (updates: FileLocationUpdate[]) => void
   removeCloudFile: (fileId: string) => void
   
   // Actions - Search
@@ -822,6 +832,8 @@ export interface FilesSlice {
   addProcessingFoldersSync: (paths: string[], operationType: OperationType) => void
   removeProcessingFolder: (path: string) => void
   removeProcessingFolders: (paths: string[]) => void
+  /** Removes paths from processing and flushes synchronously. Use at end of operations where UI must update IMMEDIATELY. */
+  removeProcessingFoldersSync: (paths: string[]) => void
   clearProcessingFolders: () => void
   getProcessingOperation: (path: string, isDirectory?: boolean) => OperationType | null
   

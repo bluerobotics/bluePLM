@@ -61,7 +61,7 @@ export function PDMItems({
   const canSync = checkOperationPermission('sync', hasPermission)
   const canDownload = checkOperationPermission('download', hasPermission)
   const canDiscard = checkOperationPermission('discard', hasPermission)
-  const canSyncMetadata = checkOperationPermission('sync-sw-metadata', hasPermission)
+  const canSyncMetadata = checkOperationPermission('sync-metadata', hasPermission)
   const canExtractRefs = checkOperationPermission('extract-references', hasPermission)
   
   const handleCheckout = () => {
@@ -117,13 +117,13 @@ export function PDMItems({
     executeCommand('discard', { files: contextFiles }, { onRefresh })
   }
 
-  const handleSyncSwMetadata = () => {
+  const handleSyncMetadata = () => {
     if (!canSyncMetadata.allowed) {
-      addToast('error', canSyncMetadata.reason || getPermissionRequirement('sync-sw-metadata'))
+      addToast('error', canSyncMetadata.reason || getPermissionRequirement('sync-metadata'))
       return
     }
     onClose()
-    executeCommand('sync-sw-metadata', { files: contextFiles }, { onRefresh })
+    executeCommand('sync-metadata', { files: contextFiles }, { onRefresh })
   }
 
   const handleExtractReferences = () => {
@@ -135,9 +135,10 @@ export function PDMItems({
     executeCommand('extract-references', { files: contextFiles }, { onRefresh })
   }
 
-  // Get synced SolidWorks files (works for both files and folders)
-  const syncedSolidWorksFiles = syncedFilesInSelection.filter(f => 
-    SW_EXTENSIONS.includes(f.extension.toLowerCase())
+  // Get SolidWorks files checked out by current user (sync-metadata requires checkout)
+  const checkedOutSwFiles = syncedFilesInSelection.filter(f => 
+    SW_EXTENSIONS.includes(f.extension.toLowerCase()) &&
+    f.pdmData?.checked_out_by === userId
   )
 
   // Get synced assembly files (for BOM/reference extraction)
@@ -246,18 +247,18 @@ export function PDMItems({
         </div>
       )}
 
-      {/* Sync SolidWorks Metadata - for synced SW files (works for folders too) */}
-      {syncedSolidWorksFiles.length > 0 && (
+      {/* Sync Metadata - for SW files checked out by current user */}
+      {checkedOutSwFiles.length > 0 && (
         <div 
           className={`context-menu-item ${!canSyncMetadata.allowed ? 'disabled' : ''}`}
-          onClick={handleSyncSwMetadata}
+          onClick={handleSyncMetadata}
           title={!canSyncMetadata.allowed 
-            ? `Requires ${getPermissionRequirement('sync-sw-metadata')}`
-            : 'Extract metadata (part number, description, revision) from SolidWorks file properties and update the database'
+            ? `Requires ${getPermissionRequirement('sync-metadata')}`
+            : 'Sync metadata between BluePLM and SolidWorks files'
           }
         >
           <RefreshCw size={14} className={canSyncMetadata.allowed ? 'text-plm-accent' : 'text-plm-fg-muted'} />
-          Refresh Metadata {syncedSolidWorksFiles.length > 1 ? `(${syncedSolidWorksFiles.length} files)` : ''}
+          Sync Metadata {checkedOutSwFiles.length > 1 ? `(${checkedOutSwFiles.length} files)` : ''}
           {!canSyncMetadata.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}

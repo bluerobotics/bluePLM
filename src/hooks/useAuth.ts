@@ -17,6 +17,18 @@ import { log } from '@/lib/logger'
 import { recordMetric } from '@/lib/performanceMetrics'
 
 /**
+ * Truncate email for safe logging (e.g., "jo***@example.com")
+ * Masks most of the local part while preserving domain for debugging
+ */
+function truncateEmail(email: string | null | undefined): string {
+  if (!email) return '(no email)'
+  const [local, domain] = email.split('@')
+  if (!domain) return '***'
+  const visibleChars = Math.min(2, local.length)
+  return `${local.substring(0, visibleChars)}***@${domain}`
+}
+
+/**
  * Hook to manage authentication state and initialization
  * Handles:
  * - Supabase configuration check
@@ -117,7 +129,7 @@ export function useAuth() {
               created_at: session.user.created_at,
               last_sign_in: userProfile?.last_sign_in || null
             })
-            log.info('[Auth]', 'User signed in', { email: session.user.email, role: userProfile?.role || 'engineer' })
+            log.info('[Auth]', 'User signed in', { email: truncateEmail(session.user.email), role: userProfile?.role || 'engineer' })
             
             // Update last_online timestamp
             updateLastOnline().catch(err => log.warn('[Auth]', 'Failed to update last_online', { error: err }))
@@ -139,7 +151,7 @@ export function useAuth() {
               }
             } else if (event === 'INITIAL_SESSION') {
               // Session restored from storage - user is already signed in
-              log.info('[Auth]', 'Session restored from storage', { email: session.user.email })
+              log.info('[Auth]', 'Session restored from storage', { email: truncateEmail(session.user.email) })
             }
             
             // Load organization (setOrganization will clear isConnecting)

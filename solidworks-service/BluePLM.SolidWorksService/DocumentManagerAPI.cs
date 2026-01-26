@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -39,6 +40,24 @@ namespace BluePLM.SolidWorksService
 
         // Per-file lock to serialize DM operations on the same file (prevents race conditions)
         private static readonly ConcurrentDictionary<string, SemaphoreSlim> _fileLocks = new();
+
+        // Track recently opened files for debugging lock issues during folder moves
+        // Key: file path (lowercase), Value: timestamp when opened
+        private static readonly ConcurrentDictionary<string, DateTime> _recentlyOpenedFiles = new();
+
+        // Track currently open document handles for debugging
+        // Key: file path (lowercase), Value: handle hash code for identification
+        private static readonly ConcurrentDictionary<string, int> _openDocumentHandles = new();
+
+        /// <summary>
+        /// Log document close and update tracking. Call from every CloseDoc() site.
+        /// </summary>
+        private static void LogDocClose(string filePath)
+        {
+            var normalizedPath = filePath.ToLowerInvariant();
+            _openDocumentHandles.TryRemove(normalizedPath, out var handleId);
+            Console.Error.WriteLine($"[DM-DEBUG] CLOSED: {Path.GetFileName(filePath)} (handle: {handleId}, remaining open: {_openDocumentHandles.Count})");
+        }
 
         /// <summary>
         /// Get or create a lock for a specific file path (case-insensitive)
@@ -143,6 +162,12 @@ namespace BluePLM.SolidWorksService
             {
                 LogDebug($"Already initialized. _dmApp is {(_dmApp != null ? "available" : "null")}");
                 return _dmApp != null;
+            }
+
+            // If we get here after ReleaseHandles() was called, this is a reinitialization
+            if (_dmApp == null && _dmAssembly != null)
+            {
+                LogDebug("*** REINITIALIZING after ReleaseHandles() ***");
             }
 
             try
@@ -517,6 +542,17 @@ namespace BluePLM.SolidWorksService
                     {
                         LogDecodeError(error);
                     }
+                    
+                    // Track successfully opened files for debugging lock issues
+                    if (doc != null)
+                    {
+                        var handleId = doc.GetHashCode();
+                        var normalizedPath = filePath.ToLowerInvariant();
+                        _recentlyOpenedFiles[normalizedPath] = DateTime.UtcNow;
+                        _openDocumentHandles[normalizedPath] = handleId;
+                        Console.Error.WriteLine($"[DM-DEBUG] OPENED: {Path.GetFileName(filePath)} (handle: {handleId}, total open: {_openDocumentHandles.Count})");
+                    }
+                    
                     return doc;
                 }
                 
@@ -531,6 +567,16 @@ namespace BluePLM.SolidWorksService
                 if (error != 0)
                 {
                     LogDecodeError(error);
+                }
+                
+                // Track successfully opened files for debugging lock issues
+                if (result != null)
+                {
+                    var handleId = result.GetHashCode();
+                    var normalizedPath = filePath.ToLowerInvariant();
+                    _recentlyOpenedFiles[normalizedPath] = DateTime.UtcNow;
+                    _openDocumentHandles[normalizedPath] = handleId;
+                    Console.Error.WriteLine($"[DM-DEBUG] OPENED: {Path.GetFileName(filePath)} (handle: {handleId}, total open: {_openDocumentHandles.Count})");
                 }
                 
                 return result;
@@ -750,6 +796,7 @@ namespace BluePLM.SolidWorksService
                 if (doc != null)
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
+                    if (!string.IsNullOrEmpty(filePath)) LogDocClose(filePath!);
                 }
                 // Release per-file lock
                 fileLock.Release();
@@ -1121,6 +1168,7 @@ namespace BluePLM.SolidWorksService
                                         finally
                                         {
                                             try { ((dynamic)modelDoc).CloseDoc(); } catch { }
+                                            LogDocClose(primaryModelPath);
                                         }
                                     }
                                     else
@@ -1302,6 +1350,7 @@ namespace BluePLM.SolidWorksService
                 if (doc != null)
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
+                    if (!string.IsNullOrEmpty(filePath)) LogDocClose(filePath!);
                 }
                 // Release per-file lock
                 fileLock.Release();
@@ -1457,6 +1506,7 @@ namespace BluePLM.SolidWorksService
                 if (doc != null)
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
+                    if (!string.IsNullOrEmpty(filePath)) LogDocClose(filePath!);
                 }
                 // Release per-file lock
                 fileLock.Release();
@@ -1570,6 +1620,7 @@ namespace BluePLM.SolidWorksService
                 if (doc != null)
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
+                    if (!string.IsNullOrEmpty(filePath)) LogDocClose(filePath!);
                 }
             }
         }
@@ -1734,6 +1785,7 @@ namespace BluePLM.SolidWorksService
                 if (doc != null)
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
+                    if (!string.IsNullOrEmpty(filePath)) LogDocClose(filePath!);
                 }
             }
         }
@@ -1815,6 +1867,7 @@ namespace BluePLM.SolidWorksService
                 if (doc != null)
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
+                    if (!string.IsNullOrEmpty(filePath)) LogDocClose(filePath!);
                 }
             }
         }
@@ -2284,6 +2337,7 @@ namespace BluePLM.SolidWorksService
                 if (doc != null)
                 {
                     try { ((dynamic)doc).CloseDoc(); } catch { }
+                    if (!string.IsNullOrEmpty(filePath)) LogDocClose(filePath!);
                 }
             }
         }
@@ -2399,14 +2453,147 @@ namespace BluePLM.SolidWorksService
 
         #endregion
 
+        #region Handle Management
+
+        /// <summary>
+        /// Release all handles by disposing the DM app.
+        /// Call before folder move operations to release directory handles.
+        /// Does NOT reinitialize - let the next operation trigger lazy initialization.
+        /// </summary>
+        public bool ReleaseHandles()
+        {
+            Console.Error.WriteLine("[DM] ReleaseHandles: Starting...");
+            Console.Error.WriteLine($"[DM] ReleaseHandles: Currently tracking {_openDocumentHandles.Count} open documents");
+            
+            // Log open document handles for debugging
+            if (_openDocumentHandles.Count > 0)
+            {
+                Console.Error.WriteLine("[DM] ReleaseHandles: WARNING - Documents still tracked as open:");
+                foreach (var kvp in _openDocumentHandles.Take(10))
+                {
+                    Console.Error.WriteLine($"[DM]   - {Path.GetFileName(kvp.Key)} (handle: {kvp.Value})");
+                }
+                if (_openDocumentHandles.Count > 10)
+                {
+                    Console.Error.WriteLine($"[DM]   ... and {_openDocumentHandles.Count - 10} more");
+                }
+            }
+            
+            // Log recently accessed files for debugging lock issues during folder moves
+            var recentFiles = _recentlyOpenedFiles.ToArray();
+            Console.Error.WriteLine($"[DM] ReleaseHandles: {recentFiles.Length} recently accessed files");
+            if (recentFiles.Length > 0)
+            {
+                var now = DateTime.UtcNow;
+                foreach (var kvp in recentFiles.OrderByDescending(x => x.Value).Take(10))
+                {
+                    var age = (now - kvp.Value).TotalSeconds;
+                    Console.Error.WriteLine($"[DM]   - {Path.GetFileName(kvp.Key)} ({age:F1}s ago)");
+                }
+                if (recentFiles.Length > 10)
+                {
+                    Console.Error.WriteLine($"[DM]   ... and {recentFiles.Length - 10} more files");
+                }
+            }
+            
+            // Clear tracking dictionaries
+            _openDocumentHandles.Clear();
+            _recentlyOpenedFiles.Clear();
+            
+            // Dispose current instance (releases COM handles)
+            if (_dmApp != null)
+            {
+                Console.Error.WriteLine("[DM] ReleaseHandles: Releasing COM object...");
+                try 
+                { 
+                    Marshal.ReleaseComObject(_dmApp); 
+                    Console.Error.WriteLine("[DM] ReleaseHandles: COM object released successfully");
+                } 
+                catch (Exception ex) 
+                { 
+                    Console.Error.WriteLine($"[DM] ReleaseHandles: Exception releasing COM object: {ex.Message}"); 
+                }
+                _dmApp = null;
+            }
+            else
+            {
+                Console.Error.WriteLine("[DM] ReleaseHandles: No COM object to release (_dmApp was null)");
+            }
+            
+            _disposed = false;
+            _initialized = false;
+            
+            // Force thorough garbage collection
+            Console.Error.WriteLine("[DM] ReleaseHandles: Running garbage collection...");
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            Console.Error.WriteLine("[DM] ReleaseHandles: GC complete");
+            
+            // VERIFY: Test if recent files are actually unlocked now
+            var stillLocked = 0;
+            var filesToTest = recentFiles.Take(5).ToList();
+            if (filesToTest.Count > 0)
+            {
+                Console.Error.WriteLine($"[DM] ReleaseHandles: Verifying {filesToTest.Count} files are unlocked...");
+                foreach (var kvp in filesToTest)
+                {
+                    try
+                    {
+                        // Try to open with exclusive access to verify no handles are held
+                        using var fs = new FileStream(kvp.Key, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                        Console.Error.WriteLine($"[DM] ReleaseHandles: VERIFIED UNLOCKED: {Path.GetFileName(kvp.Key)}");
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        // File doesn't exist - that's fine
+                        Console.Error.WriteLine($"[DM] ReleaseHandles: File not found (OK): {Path.GetFileName(kvp.Key)}");
+                    }
+                    catch (IOException ex)
+                    {
+                        stillLocked++;
+                        Console.Error.WriteLine($"[DM] ReleaseHandles: STILL LOCKED: {Path.GetFileName(kvp.Key)} - {ex.Message}");
+                    }
+                    catch (UnauthorizedAccessException ex)
+                    {
+                        stillLocked++;
+                        Console.Error.WriteLine($"[DM] ReleaseHandles: ACCESS DENIED: {Path.GetFileName(kvp.Key)} - {ex.Message}");
+                    }
+                }
+            }
+            
+            // DO NOT reinitialize here - let the next operation trigger lazy initialization
+            // This ensures handles are fully released before any new operations
+            Console.Error.WriteLine($"[DM] ReleaseHandles: Complete. NOT reinitializing (will lazy-init on next operation). {stillLocked} files still locked.");
+            
+            return true;
+        }
+
+        #endregion
+
         #region IDisposable
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
-            _dmApp = null;
+            
+            // PROPER COM cleanup - release immediately, don't wait for GC
+            if (_dmApp != null)
+            {
+                try
+                {
+                    Marshal.ReleaseComObject(_dmApp);
+                }
+                catch { /* Ignore errors during cleanup */ }
+                _dmApp = null;
+            }
+            
             _dmAssembly = null;
+            
+            // Force GC to release any remaining handles
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             GC.Collect();
         }
 

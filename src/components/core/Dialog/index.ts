@@ -1,3 +1,5 @@
 export { Dialog } from './Dialog'
 export { ConfirmDialog } from './ConfirmDialog'
+export { LockedFilesModal } from './LockedFilesModal'
 export type { DialogProps, ConfirmDialogProps } from './types'
+export type { LockedFileInfo, LockedFilesModalProps } from './LockedFilesModal'

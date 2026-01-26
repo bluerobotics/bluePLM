@@ -24,7 +24,7 @@
  *   </div>
  * )
  */
-import { useState, useCallback, RefObject } from 'react'
+import { useState, useCallback, useRef, RefObject } from 'react'
 
 export interface SelectionBox {
   startX: number
@@ -59,6 +59,7 @@ export interface UseSelectionBoxReturn {
     onMouseMove: (e: React.MouseEvent) => void
     onMouseUp: (e: React.MouseEvent) => void
     onMouseLeave: (e: React.MouseEvent) => void
+    onDragStart: (e: React.DragEvent) => void
   }
 }
 
@@ -76,6 +77,10 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
   } = options
 
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null)
+  
+  // Ref to track selection intent immediately on mousedown (before state updates)
+  // This prevents race condition where dragstart fires before selectionBox state updates
+  const isSelectingRef = useRef(false)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Only start selection box on left click
@@ -95,6 +100,9 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
     const rect = container.getBoundingClientRect()
     const startX = e.clientX - rect.left + container.scrollLeft
     const startY = e.clientY - rect.top + container.scrollTop
+    
+    // Mark selection intent immediately (synchronous, before state update)
+    isSelectingRef.current = true
     
     setSelectionBox({ startX, startY, currentX: startX, currentY: startY })
     
@@ -145,12 +153,23 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
   }, [selectionBox, containerRef, rowSelector, getVisibleItems, setSelectedFiles])
 
   const handleMouseUp = useCallback(() => {
+    isSelectingRef.current = false
     setSelectionBox(null)
   }, [])
 
   const handleMouseLeave = useCallback(() => {
     if (selectionBox) {
+      isSelectingRef.current = false
       setSelectionBox(null)
+    }
+  }, [selectionBox])
+
+  // Prevent native drag from interfering with selection box
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    // If we're in selection mode (mousedown occurred on empty space),
+    // prevent native drag from taking over
+    if (isSelectingRef.current || selectionBox) {
+      e.preventDefault()
     }
   }, [selectionBox])
 
@@ -161,7 +180,8 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
       onMouseDown: handleMouseDown,
       onMouseMove: handleMouseMove,
       onMouseUp: handleMouseUp,
-      onMouseLeave: handleMouseLeave
+      onMouseLeave: handleMouseLeave,
+      onDragStart: handleDragStart
     }
   }
 }

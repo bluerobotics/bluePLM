@@ -180,8 +180,9 @@ export async function executeTerminalCommand(
     'discard': 'discard',
     'revert': 'discard',
     'force-release': 'force-release',
-    'sync-sw-metadata': 'sync-sw-metadata',
-    'sw-sync': 'sync-sw-metadata',
+    'sync-metadata': 'sync-metadata',
+    'sync-sw-metadata': 'sync-metadata',  // Legacy alias
+    'sw-sync': 'sync-metadata',
     'open': 'open',
     'o': 'open',
     'reveal': 'show-in-explorer',
@@ -239,7 +240,7 @@ export async function executeTerminalCommand(
       case 'delete-local':
       case 'discard':
       case 'force-release':
-      case 'sync-sw-metadata':
+      case 'sync-metadata':
         result = await executeCommand(commandId, { files: filesToProcess }, { onRefresh })
         break
       case 'delete-server':
@@ -301,7 +302,7 @@ export function getAutocompleteSuggestions(input: string, files: LocalFile[]): s
       'download', 'dl', 'get-latest', 'gl', 'update',
       'delete', 'rm', 'remove', 'rm-local',
       'discard', 'revert', 'force-release',
-      'sync-sw-metadata', 'sw-sync',
+      'sync-metadata', 'sync-sw-metadata', 'sw-sync',
       'open', 'o', 'reveal', 'show',
       'clear', 'cls'  // These are handled specially
     ]

@@ -38,7 +38,7 @@ export const OPERATION_PERMISSIONS = {
   'force-release': { resource: 'module:explorer', action: 'admin' as PermissionAction },
   
   // Metadata operations
-  'sync-sw-metadata': { resource: 'module:explorer', action: 'edit' as PermissionAction },
+  'sync-metadata': { resource: 'module:explorer', action: 'edit' as PermissionAction },
   'extract-references': { resource: 'module:explorer', action: 'edit' as PermissionAction },
 } as const
 
@@ -93,7 +93,7 @@ export function getPermissionDeniedMessage(operation: OperationId): string {
     'delete-server': 'delete files from server',
     'delete-local': 'remove local files',
     'force-release': 'force release checkouts',
-    'sync-sw-metadata': 'sync metadata',
+    'sync-metadata': 'sync metadata',
     'extract-references': 'extract references',
   }
   

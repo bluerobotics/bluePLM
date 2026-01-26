@@ -71,17 +71,21 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
   
   return (
     <span
-      className={`flex items-center gap-1 w-full h-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!hasValue || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
+      className={`flex items-center gap-1 w-full h-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : 'select-text cursor-text'} ${!hasValue || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
       onClick={(e) => {
-        e.stopPropagation()
-        e.preventDefault()
         if (canEditDescription) {
+          e.stopPropagation()
+          e.preventDefault()
           handleStartCellEdit(file, 'description')
         }
+        // Allow click through for text selection when not editable
       }}
       onMouseDown={(e) => {
-        // Stop mousedown from triggering row drag or file focus
-        e.stopPropagation()
+        // Only stop propagation for editable cells to prevent row selection during edit
+        // For non-editable cells, allow native text selection
+        if (canEditDescription) {
+          e.stopPropagation()
+        }
       }}
       onDragStart={(e) => {
         // Prevent row drag when user is trying to select text

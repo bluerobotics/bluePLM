@@ -76,7 +76,7 @@ interface VirtualizedTreeRowProps {
   selectedCheckinableFiles: LocalFile[]
   selectedUpdatableFiles: LocalFile[]
   // Drag handlers
-  onDragStart: (e: React.DragEvent, files: LocalFile[], primaryFile: LocalFile) => void
+  onDragStart: (e: React.DragEvent, file: LocalFile) => void
   onDragEnd: () => void
   onFolderDragOver: (e: React.DragEvent, file: LocalFile, draggedFiles: LocalFile[]) => void
   onFolderDragLeave: (e: React.DragEvent) => void
@@ -123,7 +123,7 @@ function useFolderIcon(
  * comparing props that actually affect THIS specific row's visual output.
  * 
  * Props NOT compared (and why):
- * - files: Only used for drag handler; stale data acceptable during drag
+ * - files: No longer used in this component (drag logic moved to parent hook)
  * - Callback functions: Should be stable references from parent
  * - Refs (draggedFilesRef): Always same object reference
  * - selectedFiles arrays: The isSelected prop captures selection state for this row
@@ -258,7 +258,7 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
   onFolderDragLeave,
   onDropOnFolder,
   draggedFilesRef,
-  files,
+  files: _files,  // No longer used here - parent gets files from store
   checkFolderSynced: _checkFolderSynced,
   checkFolderCheckoutStatus: _checkFolderCheckoutStatus,
   currentFolder,
@@ -327,20 +327,15 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
     onContextMenu(e, file)
   }, [onContextMenu, file])
   
-  // Drag start handler
+  // Drag start handler - simplified to let parent determine multi-select
+  // (Parent gets fresh selection from store to avoid stale closure issues)
   const handleDragStart = useCallback((e: React.DragEvent) => {
-    let filesToDrag: LocalFile[]
-    if (selectedFiles.includes(file.path) && selectedFiles.length > 1) {
-      filesToDrag = files.filter(f => selectedFiles.includes(f.path) && f.diffStatus !== 'cloud')
-    } else if (file.diffStatus !== 'cloud') {
-      filesToDrag = [file]
-    } else {
+    if (file.diffStatus === 'cloud') {
       e.preventDefault()
       return
     }
-    
-    onDragStart(e, filesToDrag, file)
-  }, [selectedFiles, files, file, onDragStart])
+    onDragStart(e, file)
+  }, [file, onDragStart])
   
   // Drag over handler
   const handleDragOver = useCallback((e: React.DragEvent) => {

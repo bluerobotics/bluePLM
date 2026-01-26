@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { buildFullPath } from '@/lib/utils'
-import { moveFileOnServer, updateFolderPath } from '@/lib/supabase/files'
+import { executeCommand } from '@/lib/commands'
 import { PDM_FILES_DATA_TYPE, MIME_TYPES } from '../constants'
 
 /**
@@ -155,7 +155,7 @@ interface DragDropHandlers {
   setDragOverFolder: (folder: string | null) => void
   
   // Handlers
-  handleDragStart: (e: React.DragEvent, filesToDrag: LocalFile[], file: LocalFile) => void
+  handleDragStart: (e: React.DragEvent, file: LocalFile) => void
   handleDragEnd: () => void
   handleFolderDragOver: (e: React.DragEvent, file: LocalFile, filesToCheck: LocalFile[]) => void
   handleFolderDragLeave: (e: React.DragEvent) => void
@@ -171,9 +171,8 @@ export function useTreeDragDrop(): DragDropHandlers {
   // Selective state selectors - each subscription only triggers on its own changes
   const files = usePDMStore(s => s.files)
   const vaultPath = usePDMStore(s => s.vaultPath)
-  const user = usePDMStore(s => s.user)
   
-  // Actions grouped with useShallow - toast actions
+  // Actions grouped with useShallow - toast actions (still needed for external file drop handling)
   const { addToast, addProgressToast, updateProgressToast, removeToast } = usePDMStore(
     useShallow(s => ({
       addToast: s.addToast,
@@ -183,28 +182,43 @@ export function useTreeDragDrop(): DragDropHandlers {
     }))
   )
   
-  // Actions grouped with useShallow - processing actions
-  const { addProcessingFolder, removeProcessingFolder, renameFileInStore } = usePDMStore(
-    useShallow(s => ({
-      addProcessingFolder: s.addProcessingFolder,
-      removeProcessingFolder: s.removeProcessingFolder,
-      renameFileInStore: s.renameFileInStore
-    }))
-  )
-  
   // State for drag over highlighting
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
   
   // Ref for tracking dragged files synchronously
   const draggedFilesRef = useRef<LocalFile[]>([])
   
-  // Check if files can be moved (always allow - checkout not required for moving)
-  const canMoveFiles = useCallback((_filesToCheck: LocalFile[]): boolean => {
-    return true
+  // Check if files can be moved (block if any file is checked out by others)
+  const canMoveFiles = useCallback((filesToCheck: LocalFile[]): boolean => {
+    const userId = usePDMStore.getState().user?.id
+    // Block if any file is checked out by others
+    return !filesToCheck.some(f => 
+      f.pdmData?.checked_out_by && 
+      f.pdmData.checked_out_by !== userId
+    )
   }, [])
   
   // Handle drag start
-  const handleDragStart = useCallback((e: React.DragEvent, filesToDrag: LocalFile[], file: LocalFile) => {
+  const handleDragStart = useCallback((e: React.DragEvent, file: LocalFile) => {
+    // Can't drag cloud-only files
+    if (file.diffStatus === 'cloud') {
+      e.preventDefault()
+      return
+    }
+    
+    // Get fresh selection from store (not from potentially stale props)
+    const selectedFiles = usePDMStore.getState().selectedFiles
+    
+    // Determine files to drag based on current selection
+    let filesToDrag: LocalFile[]
+    if (selectedFiles.includes(file.path) && selectedFiles.length > 1) {
+      // Multi-select: drag all selected files (except cloud-only)
+      filesToDrag = files.filter(f => selectedFiles.includes(f.path) && f.diffStatus !== 'cloud')
+    } else {
+      // Single file drag
+      filesToDrag = [file]
+    }
+    
     if (filesToDrag.length === 0) {
       e.preventDefault()
       return
@@ -242,7 +256,7 @@ export function useTreeDragDrop(): DragDropHandlers {
     document.body.appendChild(dragPreview)
     e.dataTransfer.setDragImage(dragPreview, 20, 20)
     setTimeout(() => dragPreview.remove(), 0)
-  }, [])
+  }, [files])
   
   // Handle drag end
   const handleDragEnd = useCallback(() => {
@@ -452,61 +466,14 @@ export function useTreeDragDrop(): DragDropHandlers {
       return
     }
     
-    let succeeded = 0
-    let failed = 0
-    
-    for (const file of filesToMove) {
-      const sourcePath = file.path
-      const fileName = file.name
-      const newRelPath = targetFolder.relativePath + '/' + fileName
-      const destPath = buildFullPath(vaultPath, newRelPath)
-      
-      try {
-        // For synced items, update server first
-        if (user?.id) {
-          if (file.isDirectory) {
-            // For directories, update all files inside the folder on the server
-            const folderResult = await updateFolderPath(file.relativePath, newRelPath)
-            if (!folderResult.success) {
-              failed++
-              log.error('[TreeDragDrop]', 'Server folder move failed', { error: folderResult.error })
-              addToast('error', folderResult.error || 'Failed to move folder on server')
-              continue
-            }
-          } else if (file.pdmData?.id) {
-            // For synced files, use atomic move with checkout validation
-            const serverResult = await moveFileOnServer(file.pdmData.id, user.id, newRelPath, fileName)
-            if (!serverResult.success) {
-              failed++
-              log.error('[TreeDragDrop]', 'Server move failed', { error: serverResult.error })
-              addToast('error', serverResult.error || 'Failed to move file on server')
-              continue
-            }
-          }
-        }
-        
-        // Now perform local move
-        const result = await window.electronAPI.moveFile(sourcePath, destPath)
-        if (result.success) {
-          succeeded++
-        } else {
-          failed++
-        }
-      } catch {
-        failed++
-      }
-    }
-    
-    if (failed === 0) {
-      addToast('success', `Moved ${succeeded} item${succeeded > 1 ? 's' : ''} to ${targetFolder.name}`)
-    } else if (succeeded > 0) {
-      addToast('warning', `Moved ${succeeded}, failed ${failed}`)
-    } else {
-      addToast('error', 'Failed to move items')
-    }
-    
-    onRefresh?.(true)
-  }, [files, vaultPath, user?.id, addToast, addProgressToast, updateProgressToast, removeToast])
+    // Use the command system for consistent move behavior
+    // This handles: addExpectedFileChanges, server sync, optimistic UI updates, toasts
+    await executeCommand('move', { 
+      files: filesToMove, 
+      targetFolder: targetFolder.relativePath 
+    })
+    // No onRefresh needed - command handles store updates via renameFileInStore
+  }, [files, vaultPath, addToast, addProgressToast, updateProgressToast, removeToast])
   
   // Handle drop on vault root
   const handleVaultRootDrop = useCallback(async (
@@ -651,77 +618,15 @@ export function useTreeDragDrop(): DragDropHandlers {
     const allInRoot = filesToMove.every(f => !f.relativePath.includes('/'))
     if (allInRoot) return
     
-    // Perform the moves to root
-    const total = filesToMove.length
-    const toastId = `move-root-${Date.now()}`
-    addProgressToast(toastId, `Moving ${total} item${total > 1 ? 's' : ''} to root...`, total)
-    
-    let succeeded = 0
-    let failed = 0
-    
-    for (let i = 0; i < filesToMove.length; i++) {
-      const file = filesToMove[i]
-      const newRelPath = file.name
-      const newFullPath = buildFullPath(vaultPath, newRelPath)
-      
-      addProcessingFolder(file.relativePath, 'sync')
-      
-      try {
-        // For synced items, update server first
-        if (user?.id) {
-          if (file.isDirectory) {
-            // For directories, update all files inside the folder on the server
-            const folderResult = await updateFolderPath(file.relativePath, newRelPath)
-            if (!folderResult.success) {
-              failed++
-              log.error('[TreeDragDrop]', 'Server folder move failed', { error: folderResult.error })
-              addToast('error', folderResult.error || 'Failed to move folder on server')
-              removeProcessingFolder(file.relativePath)
-              updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
-              continue
-            }
-          } else if (file.pdmData?.id) {
-            // For synced files, use atomic move with checkout validation
-            const serverResult = await moveFileOnServer(file.pdmData.id, user.id, newRelPath, file.name)
-            if (!serverResult.success) {
-              failed++
-              log.error('[TreeDragDrop]', 'Server move failed', { error: serverResult.error })
-              addToast('error', serverResult.error || 'Failed to move file on server')
-              removeProcessingFolder(file.relativePath)
-              updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
-              continue
-            }
-          }
-        }
-        
-        // Now perform local move
-        const result = await window.electronAPI.moveFile(file.path, newFullPath)
-        if (result.success) {
-          succeeded++
-          // For synced items (files or folders), don't mark as 'moved' since server is already updated
-          const markAsMoved = !file.isDirectory && !file.pdmData?.id
-          renameFileInStore(file.path, newFullPath, newRelPath, markAsMoved)
-        } else {
-          failed++
-        }
-      } catch {
-        failed++
-      }
-      
-      removeProcessingFolder(file.relativePath)
-      updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
-    }
-    
-    removeToast(toastId)
-    
-    if (failed === 0) {
-      addToast('success', `Moved ${succeeded} item${succeeded > 1 ? 's' : ''} to root`)
-    } else if (succeeded === 0) {
-      addToast('error', 'Failed to move items')
-    } else {
-      addToast('warning', `Moved ${succeeded}, failed ${failed}`)
-    }
-  }, [files, vaultPath, user?.id, addToast, addProgressToast, updateProgressToast, removeToast, addProcessingFolder, removeProcessingFolder, renameFileInStore])
+    // Use the command system for consistent move behavior
+    // targetFolder: '' means vault root
+    // This handles: addExpectedFileChanges, server sync, optimistic UI updates, toasts
+    await executeCommand('move', { 
+      files: filesToMove, 
+      targetFolder: '' 
+    })
+    // No onRefresh needed - command handles store updates via renameFileInStore
+  }, [files, vaultPath, addToast, addProgressToast, updateProgressToast, removeToast])
   
   return {
     draggedFilesRef,

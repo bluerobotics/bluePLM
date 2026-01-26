@@ -76,12 +76,13 @@ namespace BluePLM.SolidWorksService
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
 
             IntPtr hBitmap = IntPtr.Zero;
+            IShellItemImageFactory? factory = null;
             try
             {
                 Console.Error.WriteLine($"[ShellThumb] Getting thumbnail for: {Path.GetFileName(filePath)}, size: {size}");
 
                 // Get IShellItemImageFactory for the file
-                SHCreateItemFromParsingName(filePath, IntPtr.Zero, IShellItemImageFactoryGuid, out var factory);
+                SHCreateItemFromParsingName(filePath, IntPtr.Zero, IShellItemImageFactoryGuid, out factory);
 
                 var thumbnailSize = new SIZE { cx = size, cy = size };
 
@@ -140,8 +141,20 @@ namespace BluePLM.SolidWorksService
             }
             finally
             {
+                // CRITICAL: Release the bitmap handle
                 if (hBitmap != IntPtr.Zero)
                     DeleteObject(hBitmap);
+                
+                // CRITICAL: Release the COM object to free file handles held by shell extension
+                // Without this, the SolidWorks shell extension keeps files open!
+                if (factory != null)
+                {
+                    try
+                    {
+                        Marshal.ReleaseComObject(factory);
+                    }
+                    catch { /* Ignore release errors */ }
+                }
             }
         }
     }

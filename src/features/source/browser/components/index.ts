@@ -35,8 +35,8 @@ export type { SelectionBoxOverlayProps } from './Selection'
 export { DragOverlay } from './DragDrop'
 export type { DragOverlayProps } from './DragDrop'
 
-export { CustomConfirmDialog, ConflictDialog, DeleteConfirmDialog, DeleteLocalCheckoutDialog } from './Dialogs'
-export type { CustomConfirmDialogProps, ConflictDialogProps, DeleteConfirmDialogProps, DeleteLocalCheckoutDialogProps } from './Dialogs'
+export { CustomConfirmDialog, ConflictDialog, FolderConflictDialog, DeleteLocalCheckoutDialog } from './Dialogs'
+export type { CustomConfirmDialogProps, ConflictDialogProps, FolderConflictDialogProps, DeleteLocalCheckoutDialogProps } from './Dialogs'
 
 export { ColumnContextMenu, ConfigContextMenu, EmptyContextMenu, FileContextMenu } from './ContextMenu'
 export type { ColumnContextMenuProps, ConfigContextMenuProps, EmptyContextMenuProps, FileContextMenuProps } from './ContextMenu'
