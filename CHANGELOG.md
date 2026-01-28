@@ -2,6 +2,14 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.12.2] - 2026-01-28
+
+### Fixed
+- **DM-API write operations failing**: Fixed bug where `setProperties` and `setPropertiesBatch` would always fall back to the slow SolidWorks API. The Document Manager API's `OpenDocumentForWrite` was passing raw integers instead of proper `SwDmDocumentType` enums, causing COM interop failures. Write operations now use the same enum conversion pattern that works for reads
+- **Improved DM-API error logging**: Added detailed logging throughout the property write path to help diagnose failures, including the specific error when opening files for write access
+
+---
+
 ## [3.12.1] - 2026-01-26
 
 ### Fixed

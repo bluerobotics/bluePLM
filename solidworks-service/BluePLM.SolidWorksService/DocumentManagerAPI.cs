@@ -480,22 +480,27 @@ namespace BluePLM.SolidWorksService
             }
         }
 
-        private object? OpenDocument(string filePath, out int error)
+        /// <summary>
+        /// Internal helper to open a document with proper enum type conversion.
+        /// Handles both read-only and write access modes.
+        /// </summary>
+        private object? GetDocumentInternal(string filePath, bool readOnly, out int error)
         {
             error = 0; // swDmDocumentOpenErrorNone
+            var accessMode = readOnly ? "read-only" : "write";
             
             if (_dmApp == null)
             {
-                LogDebug("OpenDocument: _dmApp is null");
+                Console.Error.WriteLine($"[DM-API] GetDocumentInternal: _dmApp is null ({accessMode})");
                 error = 1; // swDmDocumentOpenErrorFail
                 return null;
             }
 
             var docTypeInt = GetDocumentTypeValue(filePath);
-            LogDebug($"OpenDocument: docType={docTypeInt} for {Path.GetFileName(filePath)}");
+            Console.Error.WriteLine($"[DM-API] GetDocumentInternal: docType={docTypeInt} for {Path.GetFileName(filePath)} ({accessMode})");
             if (docTypeInt == 0) // swDmDocumentUnknown
             {
-                LogDebug("OpenDocument: Unknown document type");
+                Console.Error.WriteLine($"[DM-API] GetDocumentInternal: Unknown document type");
                 error = 2; // swDmDocumentOpenErrorFileNotFound
                 return null;
             }
@@ -508,14 +513,15 @@ namespace BluePLM.SolidWorksService
                 
                 if (docTypeEnumType == null || errorEnumType == null)
                 {
-                    LogDebug("OpenDocument: Could not find enum types in assembly");
+                    Console.Error.WriteLine($"[DM-API] GetDocumentInternal: Could not find enum types in assembly");
                     error = 1;
                     return null;
                 }
                 
-                // Convert int to the actual enum type
+                // Convert int to the actual enum type - THIS IS THE FIX
+                // Raw integers cause COM interop failures; must use proper enum objects
                 var docTypeEnum = Enum.ToObject(docTypeEnumType, docTypeInt);
-                LogDebug($"OpenDocument: Calling GetDocument with enum type {docTypeEnum}");
+                Console.Error.WriteLine($"[DM-API] GetDocumentInternal: Converted to enum type {docTypeEnum}");
                 
                 // Use reflection to call GetDocument with proper enum types
                 var appType = _dmApp.GetType();
@@ -531,12 +537,12 @@ namespace BluePLM.SolidWorksService
                 
                 if (getDocMethod != null)
                 {
-                    LogDebug($"OpenDocument: Found GetDocument method via reflection");
+                    Console.Error.WriteLine($"[DM-API] GetDocumentInternal: Found GetDocument method via reflection");
                     var errorOut = Enum.ToObject(errorEnumType, 0);
-                    var parameters = new object[] { filePath, docTypeEnum, true, errorOut };
+                    var parameters = new object[] { filePath, docTypeEnum, readOnly, errorOut };
                     var doc = getDocMethod.Invoke(_dmApp, parameters);
                     error = Convert.ToInt32(parameters[3]);
-                    LogDebug($"OpenDocument: Reflection call returned, error={error}, doc={(doc != null ? "success" : "null")}");
+                    Console.Error.WriteLine($"[DM-API] GetDocumentInternal: Reflection call returned, error={error}, doc={(doc != null ? "success" : "null")}");
                     
                     if (error != 0)
                     {
@@ -550,19 +556,19 @@ namespace BluePLM.SolidWorksService
                         var normalizedPath = filePath.ToLowerInvariant();
                         _recentlyOpenedFiles[normalizedPath] = DateTime.UtcNow;
                         _openDocumentHandles[normalizedPath] = handleId;
-                        Console.Error.WriteLine($"[DM-DEBUG] OPENED: {Path.GetFileName(filePath)} (handle: {handleId}, total open: {_openDocumentHandles.Count})");
+                        Console.Error.WriteLine($"[DM-DEBUG] OPENED ({accessMode}): {Path.GetFileName(filePath)} (handle: {handleId}, total open: {_openDocumentHandles.Count})");
                     }
                     
                     return doc;
                 }
                 
                 // Fallback: try dynamic with enum
-                LogDebug("OpenDocument: Falling back to dynamic call with enum");
+                Console.Error.WriteLine($"[DM-API] GetDocumentInternal: Falling back to dynamic call with enum");
                 dynamic app = _dmApp;
                 dynamic errorEnum = Enum.ToObject(errorEnumType, 0);
-                var result = app.GetDocument(filePath, docTypeEnum, true, out errorEnum);
+                var result = app.GetDocument(filePath, docTypeEnum, readOnly, out errorEnum);
                 error = Convert.ToInt32(errorEnum);
-                LogDebug($"OpenDocument: Dynamic call returned, error={error}, doc={(result != null ? "success" : "null")}");
+                Console.Error.WriteLine($"[DM-API] GetDocumentInternal: Dynamic call returned, error={error}, doc={(result != null ? "success" : "null")}");
                 
                 if (error != 0)
                 {
@@ -576,21 +582,27 @@ namespace BluePLM.SolidWorksService
                     var normalizedPath = filePath.ToLowerInvariant();
                     _recentlyOpenedFiles[normalizedPath] = DateTime.UtcNow;
                     _openDocumentHandles[normalizedPath] = handleId;
-                    Console.Error.WriteLine($"[DM-DEBUG] OPENED: {Path.GetFileName(filePath)} (handle: {handleId}, total open: {_openDocumentHandles.Count})");
+                    Console.Error.WriteLine($"[DM-DEBUG] OPENED ({accessMode}): {Path.GetFileName(filePath)} (handle: {handleId}, total open: {_openDocumentHandles.Count})");
                 }
                 
                 return result;
             }
             catch (Exception ex)
             {
-                LogDebug($"OpenDocument: Exception - {ex.Message}");
+                Console.Error.WriteLine($"[DM-API] GetDocumentInternal exception ({accessMode}): {ex.Message}");
                 if (ex.InnerException != null)
                 {
-                    LogDebug($"OpenDocument: Inner exception - {ex.InnerException.Message}");
+                    Console.Error.WriteLine($"[DM-API] GetDocumentInternal inner exception: {ex.InnerException.Message}");
                 }
                 error = 1;
                 return null;
             }
+        }
+
+        private object? OpenDocument(string filePath, out int error)
+        {
+            // Delegate to shared helper with readOnly = true
+            return GetDocumentInternal(filePath, readOnly: true, out error);
         }
         
         private void LogDecodeError(int error)
@@ -1213,16 +1225,28 @@ namespace BluePLM.SolidWorksService
         public CommandResult SetCustomProperties(string? filePath, Dictionary<string, string>? properties, string? configuration = null)
         {
             if (!Initialize() || _dmApp == null)
+            {
+                Console.Error.WriteLine($"[DM-API] SetCustomProperties: Document Manager not available - {_initError}");
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
+            }
 
             if (string.IsNullOrEmpty(filePath))
+            {
+                Console.Error.WriteLine("[DM-API] SetCustomProperties: Missing 'filePath'");
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
+            }
 
             if (!File.Exists(filePath))
+            {
+                Console.Error.WriteLine($"[DM-API] SetCustomProperties: File not found: {filePath}");
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
+            }
 
             if (properties == null || properties.Count == 0)
+            {
+                Console.Error.WriteLine("[DM-API] SetCustomProperties: Missing or empty 'properties'");
                 return new CommandResult { Success = false, Error = "Missing or empty 'properties'" };
+            }
 
             // Acquire per-file lock to serialize operations on the same file
             var fileLock = GetFileLock(filePath!);
@@ -1234,7 +1258,10 @@ namespace BluePLM.SolidWorksService
                 // Open document for WRITE access (not read-only)
                 doc = OpenDocumentForWrite(filePath!, out var openError);
                 if (doc == null)
+                {
+                    Console.Error.WriteLine($"[DM-API] SetCustomProperties: Failed to open file for writing: {filePath}, error={openError}");
                     return new CommandResult { Success = false, Error = $"Failed to open file for writing: error code {openError}" };
+                }
 
                 dynamic dynDoc = doc;
                 int propsSet = 0;
@@ -1278,6 +1305,7 @@ namespace BluePLM.SolidWorksService
                     var config = configMgr.GetConfigurationByName(configuration);
                     if (config == null)
                     {
+                        Console.Error.WriteLine($"[DM-API] SetCustomProperties: Configuration not found: {configuration} in {filePath}");
                         return new CommandResult { Success = false, Error = $"Configuration not found: {configuration}" };
                     }
 
@@ -1342,6 +1370,7 @@ namespace BluePLM.SolidWorksService
             }
             catch (Exception ex)
             {
+                Console.Error.WriteLine($"[DM-API] SetCustomProperties exception: {ex.Message}");
                 return new CommandResult { Success = false, Error = ex.Message, ErrorDetails = ex.ToString() };
             }
             finally
@@ -1367,16 +1396,28 @@ namespace BluePLM.SolidWorksService
         public CommandResult SetCustomPropertiesBatch(string? filePath, Dictionary<string, Dictionary<string, string>>? configProperties)
         {
             if (!Initialize() || _dmApp == null)
+            {
+                Console.Error.WriteLine($"[DM-API] SetCustomPropertiesBatch: Document Manager not available - {_initError}");
                 return new CommandResult { Success = false, Error = _initError ?? "Document Manager not available" };
+            }
 
             if (string.IsNullOrEmpty(filePath))
+            {
+                Console.Error.WriteLine("[DM-API] SetCustomPropertiesBatch: Missing 'filePath'");
                 return new CommandResult { Success = false, Error = "Missing 'filePath'" };
+            }
 
             if (!File.Exists(filePath))
+            {
+                Console.Error.WriteLine($"[DM-API] SetCustomPropertiesBatch: File not found: {filePath}");
                 return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
+            }
 
             if (configProperties == null || configProperties.Count == 0)
+            {
+                Console.Error.WriteLine("[DM-API] SetCustomPropertiesBatch: Missing or empty 'configProperties'");
                 return new CommandResult { Success = false, Error = "Missing or empty 'configProperties'" };
+            }
 
             // Acquire per-file lock to serialize operations on the same file
             var fileLock = GetFileLock(filePath!);
@@ -1390,7 +1431,10 @@ namespace BluePLM.SolidWorksService
                 // Open document for WRITE access ONCE
                 doc = OpenDocumentForWrite(filePath!, out var openError);
                 if (doc == null)
+                {
+                    Console.Error.WriteLine($"[DM-API] SetCustomPropertiesBatch: Failed to open file for writing: {filePath}, error={openError}");
                     return new CommandResult { Success = false, Error = $"Failed to open file for writing: error code {openError}" };
+                }
 
                 dynamic dynDoc = doc;
                 var configMgr = dynDoc.ConfigurationManager;
@@ -1518,32 +1562,8 @@ namespace BluePLM.SolidWorksService
         /// </summary>
         private object? OpenDocumentForWrite(string filePath, out int error)
         {
-            error = 0;
-
-            if (_dmApp == null)
-            {
-                error = 1;
-                return null;
-            }
-
-            var docType = GetDocumentTypeValue(filePath);
-            if (docType == 0)
-            {
-                error = 1;
-                return null;
-            }
-
-            try
-            {
-                dynamic app = _dmApp;
-                // Open with write access (readOnly = false)
-                return app.GetDocument(filePath, docType, false, out error);
-            }
-            catch
-            {
-                error = 1;
-                return null;
-            }
+            // Delegate to shared helper with readOnly = false
+            return GetDocumentInternal(filePath, readOnly: false, out error);
         }
 
         #endregion
