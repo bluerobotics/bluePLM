@@ -552,6 +552,9 @@ namespace BluePLM.SolidWorksService
             {
                 var result = _dmApi.SetCustomProperties(filePath, properties, configuration);
                 if (result.Success) return result;
+                // Log why DM-API failed before falling back
+                Console.Error.WriteLine($"[Service] DM-API SetCustomProperties failed: {result.Error}");
+                Console.Error.WriteLine($"[Service] Falling back to SW-API for setProperties...");
             }
             
             // Fall back to full SW API (will launch SW - slower)
@@ -567,6 +570,9 @@ namespace BluePLM.SolidWorksService
             {
                 var result = _dmApi.SetCustomPropertiesBatch(filePath, configProperties);
                 if (result.Success) return result;
+                // Log why DM-API failed before falling back
+                Console.Error.WriteLine($"[Service] DM-API SetCustomPropertiesBatch failed: {result.Error}");
+                Console.Error.WriteLine($"[Service] Falling back to SW-API for setPropertiesBatch...");
             }
             
             // Fall back to doing it one at a time with SW API (slower)
