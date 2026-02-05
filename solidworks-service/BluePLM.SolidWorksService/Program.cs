@@ -412,18 +412,18 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult GetPropertiesFast(string? filePath, JObject command)
         {
-            // If SolidWorks has this file open, use full SW API to avoid DM API conflict
-            // (DM API accessing a file open in SW can cause SW to close the file)
+            // ONLY use SW API if THIS SPECIFIC FILE is already open in SolidWorks
+            // This prevents loading component files into SW when reading assembly properties
+            // (Opening an assembly via OpenDoc6 loads ALL component references, which stay orphaned
+            // in SW session even after closing the main assembly)
             if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
             {
                 Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
                 return _swApi.GetCustomProperties(filePath, command["configuration"]?.ToString());
             }
             
-            // ONLY use Document Manager API - NEVER fall back to full SolidWorks!
-            // Opening SolidWorks just for property extraction can take 20-30+ seconds.
-            // If Document Manager fails, the user can manually use "Refresh Metadata" 
-            // which intentionally uses full SW API.
+            // Use Document Manager API - fast and doesn't load files into SolidWorks
+            // DM API can read properties without launching SW or loading any component files
             // Note: We only check for null here. The DM methods internally call Initialize()
             // which handles reinitialization after ReleaseHandles() was called.
             
@@ -563,14 +563,22 @@ namespace BluePLM.SolidWorksService
                 bool swRunning = swApiAvailable && _swApi!.IsSolidWorksRunning();
                 Console.Error.WriteLine($"[Service-Fallback] refCount={refCount}, _swApi!=null={swApiAvailable}, swRunning={swRunning}");
                 
-                // Auto-start SW for drawings - removed swRunning check to enable auto-launch
+                // Only use SW API fallback if SolidWorks is already running
+                // Don't auto-launch - it creates zombie processes and long hangs
                 if (refCount == 0 && swApiAvailable)
                 {
                     if (!swRunning)
                     {
-                        Console.Error.WriteLine($"[Service-Fallback] SolidWorks not running - will auto-start in background for drawing references");
+                        // Don't auto-launch - return message asking user to open SW
+                        Console.Error.WriteLine($"[Service-Fallback] SolidWorks not running - skipping fallback (user must open SW manually)");
+                        return new CommandResult 
+                        { 
+                            Success = false, 
+                            Error = "SOLIDWORKS_NOT_RUNNING",
+                            Data = new { message = "SolidWorks must be running to read drawing references from parent model" }
+                        };
                     }
-                    Console.Error.WriteLine($"[Service-Fallback] ALL CONDITIONS MET - Attempting SW API fallback: {Path.GetFileName(filePath)}");
+                    Console.Error.WriteLine($"[Service-Fallback] SW is running - Attempting SW API fallback: {Path.GetFileName(filePath)}");
                     var swResult = _swApi!.GetExternalReferences(filePath);
                     if (swResult.Success)
                     {

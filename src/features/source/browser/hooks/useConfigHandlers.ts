@@ -274,13 +274,26 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     usePDMStore.getState().setLastOperationCompletedAt(Date.now())
     
     try {
+      // Get serialization settings and user info for full property build
+      const serSettings = organization?.id ? await getSerializationSettings(organization.id) : null
+      const currentUser = usePDMStore.getState().user
+      const drawnBy = currentUser?.full_name || currentUser?.email || ''
+      const dateStr = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+      
       const baseNumber = file.pendingMetadata?.part_number ?? file.pdmData?.part_number ?? ''
       const props: Record<string, string> = { 'Tab Number': upperValue }
       
-      // Also update the full Number property if we have a base number and tab
-      if (baseNumber && upperValue) {
-        props['Number'] = `${baseNumber}-${upperValue}`  // TODO: use serialization settings for separator
+      // Build full part number using serialization settings
+      if (baseNumber) {
+        props['Number'] = upperValue 
+          ? (serSettings?.tab_enabled ? combineBaseAndTab(baseNumber, upperValue, serSettings) : `${baseNumber}-${upperValue}`)
+          : baseNumber
+        props['Base Item Number'] = baseNumber
       }
+      
+      // PDM parity properties - always write Date and DrawnBy
+      props['Date'] = dateStr
+      if (drawnBy) props['DrawnBy'] = drawnBy
       
       const result = await window.electronAPI?.solidworks?.setProperties(filePath, props, configName)
       if (result?.success) {
@@ -292,7 +305,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       log.error('[ConfigHandlers]', 'Failed to write config tab to SW file', { filePath, configName, error: err })
       addToast('error', 'Failed to save tab number to file')
     }
-  }, [addToast])
+  }, [addToast, organization])
 
   // Update config description
   // NOTE: We read state from store via getState() to avoid stale closure issues.
@@ -327,7 +340,32 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     usePDMStore.getState().setLastOperationCompletedAt(Date.now())
     
     try {
-      const result = await window.electronAPI?.solidworks?.setProperties(filePath, { 'Description': value }, configName)
+      // Get serialization settings and user info for full property build
+      const serSettings = organization?.id ? await getSerializationSettings(organization.id) : null
+      const currentUser = usePDMStore.getState().user
+      const drawnBy = currentUser?.full_name || currentUser?.email || ''
+      const dateStr = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+      
+      const baseNumber = file.pendingMetadata?.part_number ?? file.pdmData?.part_number ?? ''
+      const configTab = file.pendingMetadata?.config_tabs?.[configName] ?? 
+        fileConfigurations.get(filePath)?.find(c => c.name === configName)?.tabNumber ?? ''
+      
+      const props: Record<string, string> = { 'Description': value }
+      
+      // Build full part number using serialization settings
+      if (baseNumber) {
+        props['Number'] = configTab 
+          ? (serSettings?.tab_enabled ? combineBaseAndTab(baseNumber, configTab, serSettings) : `${baseNumber}-${configTab}`)
+          : baseNumber
+        props['Base Item Number'] = baseNumber
+        if (configTab) props['Tab Number'] = configTab
+      }
+      
+      // PDM parity properties - always write Date and DrawnBy
+      props['Date'] = dateStr
+      if (drawnBy) props['DrawnBy'] = drawnBy
+      
+      const result = await window.electronAPI?.solidworks?.setProperties(filePath, props, configName)
       if (result?.success) {
         addToast('success', `Saved description to ${configName}`)
       } else {
@@ -337,7 +375,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       log.error('[ConfigHandlers]', 'Failed to write config description to SW file', { filePath, configName, error: err })
       addToast('error', 'Failed to save description to file')
     }
-  }, [addToast])
+  }, [addToast, organization])
 
   // Check if file can have configurations (sldprt or sldasm)
   const canHaveConfigs = useCallback((file: LocalFile): boolean => {

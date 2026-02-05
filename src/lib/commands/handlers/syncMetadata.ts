@@ -55,27 +55,44 @@ interface ExtractedMetadata {
 }
 
 /**
+ * Result type for getDrawingReferences
+ */
+interface DrawingReferencesResult {
+  references: Array<{
+    path: string
+    fileName: string
+    exists: boolean
+    fileType: string
+  }> | null
+  /** True if the error was specifically that SLDWORKS.EXE is not running */
+  solidworksNotRunning?: boolean
+}
+
+/**
  * Extract references from a drawing file
  */
-async function getDrawingReferences(fullPath: string): Promise<Array<{
-  path: string
-  fileName: string
-  exists: boolean
-  fileType: string
-}> | null> {
+async function getDrawingReferences(fullPath: string): Promise<DrawingReferencesResult> {
   try {
     const result = await window.electronAPI?.solidworks?.getReferences?.(fullPath)
-    if (!result?.success || !result.data?.references) {
-      return null
+    
+    // Check for specific SOLIDWORKS_NOT_RUNNING error from the service
+    if (!result?.success && result?.error === 'SOLIDWORKS_NOT_RUNNING') {
+      return { references: null, solidworksNotRunning: true }
     }
-    return result.data.references as Array<{
-      path: string
-      fileName: string
-      exists: boolean
-      fileType: string
-    }>
+    
+    if (!result?.success || !result.data?.references) {
+      return { references: null }
+    }
+    return {
+      references: result.data.references as Array<{
+        path: string
+        fileName: string
+        exists: boolean
+        fileType: string
+      }>
+    }
   } catch {
-    return null
+    return { references: null }
   }
 }
 
@@ -191,7 +208,20 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
     drawingDescription: drawingMetadata.description?.substring(0, 30)
   })
   
-  const drawingRefs = await getDrawingReferences(fullPath)
+  const { references: drawingRefs, solidworksNotRunning } = await getDrawingReferences(fullPath)
+  
+  // If SLDWORKS.EXE is not running, we can't get drawing references from parent model
+  // Return early with the flag so the UI can show a helpful message
+  if (solidworksNotRunning) {
+    logSync('warn', 'SolidWorks not running - cannot read drawing references from parent model', {
+      fullPath,
+      fallbackPartNumber: drawingMetadata.partNumber
+    })
+    return {
+      ...drawingMetadata,
+      drawingNeedsSwButNotRunning: true
+    }
+  }
   
   if (drawingRefs && drawingRefs.length > 0) {
     const parentRef = drawingRefs[0]
@@ -395,27 +425,8 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
     }
   }
   
-  // Parent lookup failed - check if SW is running to help user understand why
-  // (getReferences requires SW API for drawings to traverse views)
-  try {
-    const swStatus = await window.electronAPI?.solidworks?.getServiceStatus?.()
-    const swRunning = swStatus?.data?.running === true
-    
-    if (!swRunning) {
-      logSync('warn', 'Could not read from parent model - SolidWorks is not running', {
-        fullPath,
-        fallbackPartNumber: drawingMetadata.partNumber
-      })
-      return {
-        ...drawingMetadata,
-        drawingNeedsSwButNotRunning: true
-      }
-    }
-  } catch {
-    // If we can't check SW status, just return drawing metadata as fallback
-  }
-  
   // Fallback to drawing's own metadata if parent lookup failed
+  // (Note: SOLIDWORKS_NOT_RUNNING case is handled earlier via getDrawingReferences)
   logSync('warn', 'Parent model lookup failed, using drawing properties as fallback', {
     fullPath,
     partNumber: drawingMetadata.partNumber,
@@ -626,9 +637,11 @@ export async function refreshMetadataForFiles(
           }
         }
       } else {
-        // For parts/assemblies: Also PULL metadata (read from file)
-        // We read the file properties to update pendingMetadata
-        // This shows the user what's actually in the file after they saved it
+        // For parts/assemblies: Only refresh REVISION from file
+        // BluePLM is the source of truth for part_number, tab_number, and description.
+        // Auto-refreshing these from file would overwrite DB values with potentially
+        // stale file-level properties (e.g., legacy values from before BluePLM managed the file).
+        // Only revision is refreshed since it may be updated via SW revision tables.
         const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
         const data = result?.data as {
           fileProperties?: Record<string, string>
@@ -651,15 +664,7 @@ export async function refreshMetadataForFiles(
           const metadata = extractMetadataFromProperties(allProps)
           const pendingUpdates: Record<string, string | null | undefined> = {}
           
-          if (metadata.partNumber !== null) {
-            pendingUpdates.part_number = metadata.partNumber
-          }
-          if (metadata.tabNumber !== null) {
-            pendingUpdates.tab_number = metadata.tabNumber
-          }
-          if (metadata.description !== null) {
-            pendingUpdates.description = metadata.description
-          }
+          // Only update revision - BluePLM is source of truth for part_number, tab_number, description
           if (metadata.revision !== null) {
             pendingUpdates.revision = metadata.revision
           }
@@ -667,10 +672,9 @@ export async function refreshMetadataForFiles(
           if (Object.keys(pendingUpdates).length > 0) {
             store.updatePendingMetadata(file.path, pendingUpdates)
             refreshed++
-            logSync('info', 'Auto-refresh: updated metadata from file', {
+            logSync('info', 'Auto-refresh: updated revision from file', {
               filePath: file.relativePath,
-              revision: metadata.revision,
-              partNumber: metadata.partNumber
+              revision: metadata.revision
             })
           }
         }

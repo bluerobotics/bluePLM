@@ -2,6 +2,17 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.13.2] - 2026-02-05
+
+### Improved
+- **Config property writes now set full PDM metadata**: Editing tab number or description on a configuration now writes all related properties in a single operation - Number (combined part number), Base Item Number, Tab Number, Description, Date, and DrawnBy. This ensures files are complete when used outside BluePLM
+
+### Fixed
+- **Auto-refresh no longer overwrites part number and description**: For parts and assemblies, auto-refresh now only updates the revision from the file. BluePLM is the source of truth for part number, tab number, and description - reading these from the file would overwrite database values with potentially stale legacy properties
+- **SolidWorks no longer auto-launches for drawing sync**: Reading drawing references from the parent model now requires SolidWorks to already be running. The service no longer attempts to auto-start SolidWorks, which could create zombie processes and long hangs. Users see a clear message if SW needs to be opened
+
+---
+
 ## [3.13.1] - 2026-02-05
 
 ### Fixed
