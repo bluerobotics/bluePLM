@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.13.1] - 2026-02-05
+
+### Fixed
+- **Drawing sync not reading from parent model**: Fixed bug where "Sync Metadata" on a drawing would not update the item number from the parent part if the drawing had its own hardcoded properties. The sync now always traverses to the referenced part/assembly and reads the current values, using the drawing's own properties only as a fallback if the parent lookup fails
+
+---
+
 ## [3.13.0] - 2026-02-04
 
 ### Added

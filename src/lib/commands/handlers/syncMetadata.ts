@@ -180,42 +180,15 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
     }
   }
   
-  // Extract drawing's own metadata first
+  // Extract drawing's own metadata as fallback (used if parent lookup fails)
   const drawingMetadata = extractMetadataFromProperties(drawingProps)
   
-  // Helper to check if a value is a PRP reference (needs parent model lookup)
-  const isPrpValue = (val: string | null | undefined): boolean => {
-    return typeof val === 'string' && (val.startsWith('$PRP:') || val.startsWith('$PRPSHEET:'))
-  }
-  
-  // Check if we need parent model inheritance
-  const partNumberNeedsInheritance = !drawingMetadata.partNumber || isPrpValue(drawingMetadata.partNumber)
-  const descriptionNeedsInheritance = !drawingMetadata.description || isPrpValue(drawingMetadata.description)
-  
-  // Also check raw properties for PRP values
-  const rawPartNumberKeys = ['Number', 'PartNumber', 'Part Number', 'Part No', 'Part No.']
-  const rawDescriptionKeys = ['Description', 'Desc', 'Title']
-  const hasRawPrpPartNumber = rawPartNumberKeys.some(key => isPrpValue(drawingProps[key]))
-  const hasRawPrpDescription = rawDescriptionKeys.some(key => isPrpValue(drawingProps[key]))
-  
-  const needsParentInheritance = (partNumberNeedsInheritance || hasRawPrpPartNumber) && 
-                                 (descriptionNeedsInheritance || hasRawPrpDescription)
-  
-  // If drawing has valid metadata, skip expensive getReferences call
-  if (!needsParentInheritance) {
-    logSync('debug', 'Drawing has valid metadata - skipping parent model lookup', { 
-      fullPath,
-      partNumber: drawingMetadata.partNumber,
-      description: drawingMetadata.description?.substring(0, 30)
-    })
-    return drawingMetadata
-  }
-  
-  // Need parent model inheritance - this is expensive (9-13+ seconds for complex assemblies)
-  logSync('info', 'Drawing needs parent model inheritance', { 
+  // Always read from parent model for drawings - user expects "Sync Metadata" to pull
+  // current values from the referenced part/assembly, not use stale drawing properties
+  logSync('info', 'Reading metadata from parent model for drawing', { 
     fullPath,
-    partNumberNeedsInheritance,
-    descriptionNeedsInheritance
+    drawingPartNumber: drawingMetadata.partNumber,
+    drawingDescription: drawingMetadata.description?.substring(0, 30)
   })
   
   const drawingRefs = await getDrawingReferences(fullPath)
@@ -422,31 +395,32 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
     }
   }
   
-  // If getReferences didn't find a valid parent, check if SW is running
-  // This helps the user understand why inheritance didn't work for drawings
-  if (needsParentInheritance) {
-    // Check if SolidWorks is running - if not, we couldn't traverse drawing views
-    try {
-      const swStatus = await window.electronAPI?.solidworks?.getServiceStatus?.()
-      const swRunning = swStatus?.data?.running === true
-      
-      if (!swRunning) {
-        logSync('warn', 'Drawing needs parent inheritance but SolidWorks is not running', {
-          fullPath,
-          partNumberNeedsInheritance,
-          descriptionNeedsInheritance
-        })
-        return {
-          ...drawingMetadata,
-          drawingNeedsSwButNotRunning: true
-        }
+  // Parent lookup failed - check if SW is running to help user understand why
+  // (getReferences requires SW API for drawings to traverse views)
+  try {
+    const swStatus = await window.electronAPI?.solidworks?.getServiceStatus?.()
+    const swRunning = swStatus?.data?.running === true
+    
+    if (!swRunning) {
+      logSync('warn', 'Could not read from parent model - SolidWorks is not running', {
+        fullPath,
+        fallbackPartNumber: drawingMetadata.partNumber
+      })
+      return {
+        ...drawingMetadata,
+        drawingNeedsSwButNotRunning: true
       }
-    } catch {
-      // If we can't check SW status, just return metadata without flag
     }
+  } catch {
+    // If we can't check SW status, just return drawing metadata as fallback
   }
   
-  // Return drawing's own metadata
+  // Fallback to drawing's own metadata if parent lookup failed
+  logSync('warn', 'Parent model lookup failed, using drawing properties as fallback', {
+    fullPath,
+    partNumber: drawingMetadata.partNumber,
+    description: drawingMetadata.description?.substring(0, 30)
+  })
   return drawingMetadata
 }
 
