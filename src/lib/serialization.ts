@@ -20,6 +20,11 @@ export interface SerializationSettings {
   tab_separator: string
   tab_padding_digits: number
   tab_required: boolean  // If false, tab is optional (base numbers can exist without tab)
+  // Tab character settings
+  tab_allow_letters: boolean   // Allow A-Z in tab numbers
+  tab_allow_numbers: boolean   // Allow 0-9 in tab numbers
+  tab_allow_special: boolean   // Allow special characters in tab numbers
+  tab_special_chars: string    // Which special characters are allowed (e.g., "-_")
   // Auto-format settings
   auto_pad_numbers: boolean  // Auto-add leading zeros when editing
 }
@@ -46,6 +51,11 @@ const DEFAULT_SETTINGS: SerializationSettings = {
   tab_separator: '-',
   tab_padding_digits: 3,
   tab_required: false,  // Default: tabs are optional
+  // Tab character settings (defaults are backwards compatible - numbers only)
+  tab_allow_letters: false,
+  tab_allow_numbers: true,
+  tab_allow_special: false,
+  tab_special_chars: '-_',
   // Auto-format settings
   auto_pad_numbers: true  // Default to auto-padding
 }
@@ -397,6 +407,39 @@ export function autoPadTab(
   }
   // Non-numeric (like "XXX") - return as-is
   return value
+}
+
+/**
+ * Normalize a tab number by stripping leading separator characters
+ * 
+ * Some SolidWorks templates store tab numbers with a leading dash (e.g., "-500")
+ * which causes double separators when combined with base numbers.
+ * This function strips those leading separators to prevent "BR-107151--500".
+ * 
+ * @param tabNumber - The tab number value (may include leading separator)
+ * @param separator - The separator to strip (defaults to "-")
+ * @returns The tab number without leading separator, or empty string if null/undefined
+ * 
+ * @example
+ * normalizeTabNumber("-500", "-")  // returns "500"
+ * normalizeTabNumber("500", "-")   // returns "500"
+ * normalizeTabNumber("-XXX", "-")  // returns "XXX"
+ * normalizeTabNumber(null)         // returns ""
+ */
+export function normalizeTabNumber(
+  tabNumber: string | null | undefined,
+  separator: string = '-'
+): string {
+  if (!tabNumber) return ''
+  
+  let normalized = tabNumber.trim()
+  
+  // Strip leading separator(s) - handle cases like "--500" too
+  while (normalized.startsWith(separator)) {
+    normalized = normalized.slice(separator.length)
+  }
+  
+  return normalized
 }
 
 /**

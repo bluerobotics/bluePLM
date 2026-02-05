@@ -582,6 +582,112 @@ export async function getContainsRecursive(
   }
 }
 
+/**
+ * Get all drawings (.slddrw) that reference any of the given file IDs.
+ * Drawings reference parts/assemblies via file_references table where:
+ * - parent_file_id = drawing file ID
+ * - child_file_id = part/assembly file ID
+ * 
+ * This function finds drawings by querying file_references where child_file_id
+ * is in the provided fileIds, and the parent is a drawing file.
+ * 
+ * @param fileIds - Array of file IDs (parts/assemblies) to find drawings for
+ * @returns Array of lightweight file data for drawings that reference the given files
+ */
+export async function getDrawingsForFiles(fileIds: string[]): Promise<{
+  drawings: LightweightFile[]
+  error: any
+}> {
+  if (fileIds.length === 0) {
+    return { drawings: [], error: null }
+  }
+  
+  const client = getSupabaseClient()
+  
+  // Query file_references where child_file_id is in the given fileIds
+  // We'll filter for drawings by checking the parent file's extension
+  const { data, error } = await client
+    .from('file_references')
+    .select(`
+      parent_file_id,
+      parent:files!parent_file_id(
+        id,
+        file_path,
+        file_name,
+        extension,
+        file_type,
+        part_number,
+        description,
+        revision,
+        version,
+        content_hash,
+        file_size,
+        state,
+        checked_out_by,
+        checked_out_at,
+        updated_at
+      )
+    `)
+    .in('child_file_id', fileIds)
+  
+  if (error) {
+    log.error('[Files]', 'Failed to fetch drawings for files', { error: error.message, fileIds })
+    return { drawings: [], error }
+  }
+  
+  // Extract unique drawings from the results
+  // Multiple references might point to the same drawing
+  const drawingMap = new Map<string, LightweightFile>()
+  
+  for (const ref of data || []) {
+    const parent = ref.parent as {
+      id: string
+      file_path: string
+      file_name: string
+      extension: string | null
+      file_type: string | null
+      part_number: string | null
+      description: string | null
+      revision: string | null
+      version: number
+      content_hash: string | null
+      file_size: number | null
+      state: string | null
+      checked_out_by: string | null
+      checked_out_at: string | null
+      updated_at: string
+    } | null
+    
+    // Verify this is actually a drawing file
+    if (parent && parent.file_name?.toLowerCase().endsWith('.slddrw')) {
+      if (!drawingMap.has(parent.id)) {
+        drawingMap.set(parent.id, {
+          id: parent.id,
+          file_path: parent.file_path,
+          file_name: parent.file_name,
+          extension: parent.extension,
+          file_type: parent.file_type,
+          part_number: parent.part_number,
+          description: parent.description,
+          revision: parent.revision,
+          version: parent.version,
+          content_hash: parent.content_hash,
+          file_size: parent.file_size,
+          state: parent.state,
+          checked_out_by: parent.checked_out_by,
+          checked_out_at: parent.checked_out_at,
+          updated_at: parent.updated_at
+        })
+      }
+    }
+  }
+  
+  return {
+    drawings: Array.from(drawingMap.values()),
+    error: null
+  }
+}
+
 // ============================================
 // Checked Out Files (for current user)
 // ============================================

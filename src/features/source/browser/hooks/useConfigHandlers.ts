@@ -31,8 +31,8 @@ import type { ConfigContextMenuState } from './useContextMenuState'
 import type { Organization } from '@/stores/types'
 import { getEffectiveExportSettings } from '@/features/settings/system'
 import { buildConfigTreeFlat } from '../utils/configTree'
-import { getSerializationSettings, combineBaseAndTab } from '@/lib/serialization'
-import { sanitizeTabNumber } from '@/lib/tabValidation'
+import { getSerializationSettings, combineBaseAndTab, normalizeTabNumber } from '@/lib/serialization'
+import { sanitizeTabNumber, getTabValidationOptions } from '@/lib/tabValidation'
 import { getContainsByConfiguration, type ConfigBomItem } from '@/lib/supabase/files/queries'
 import { log } from '@/lib/logger'
 
@@ -217,6 +217,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
   const setExpandedConfigFiles = usePDMStore(s => s.setExpandedConfigFiles)
   const setSelectedConfigs = usePDMStore(s => s.setSelectedConfigs)
   const setFileConfigurations = usePDMStore(s => s.setFileConfigurations)
+  const clearFileConfigurations = usePDMStore(s => s.clearFileConfigurations)
   const addLoadingConfig = usePDMStore(s => s.addLoadingConfig)
   const removeLoadingConfig = usePDMStore(s => s.removeLoadingConfig)
   
@@ -225,6 +226,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
   const configBomData = usePDMStore(s => s.configBomData)
   const toggleConfigBomExpansionStore = usePDMStore(s => s.toggleConfigBomExpansion)
   const setConfigBomData = usePDMStore(s => s.setConfigBomData)
+  const clearConfigBomData = usePDMStore(s => s.clearConfigBomData)
   const addLoadingConfigBom = usePDMStore(s => s.addLoadingConfigBom)
   const removeLoadingConfigBom = usePDMStore(s => s.removeLoadingConfigBom)
 
@@ -240,42 +242,102 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
   }, [files])
 
   // Update config tab number
-  const handleConfigTabChange = useCallback((filePath: string, configName: string, value: string) => {
+  // NOTE: We read state from store via getState() to avoid stale closure issues.
+  // Same pattern as handleConfigDescriptionChange - prevents data loss when switching inputs.
+  // IMPORTANT: This immediately writes to the SW file so sync-metadata on drawings
+  // always reads fresh data.
+  const handleConfigTabChange = useCallback(async (filePath: string, configName: string, value: string) => {
+    // Read current state from store, not closure (prevents stale data when switching inputs)
+    const { files, fileConfigurations } = usePDMStore.getState()
+    
     const file = files.find(f => f.path === filePath)
     if (!file) return
     
-    // Update config in store
+    const upperValue = value.toUpperCase()
+    
+    // Update config in store (for immediate UI feedback)
     const configs = fileConfigurations.get(filePath)
     if (configs) {
-      const updated = configs.map(c => c.name === configName ? { ...c, tabNumber: value.toUpperCase() } : c)
-      setFileConfigurations(filePath, updated)
+      const updated = configs.map(c => c.name === configName ? { ...c, tabNumber: upperValue } : c)
+      usePDMStore.getState().setFileConfigurations(filePath, updated)
     }
     
-    // Update pending metadata
+    // Update pending metadata (for persistence across app restart)
     const existingTabs = file.pendingMetadata?.config_tabs || {}
     usePDMStore.getState().updatePendingMetadata(filePath, {
-      config_tabs: { ...existingTabs, [configName]: value.toUpperCase() }
+      config_tabs: { ...existingTabs, [configName]: upperValue }
     })
-  }, [files, fileConfigurations, setFileConfigurations])
+    
+    // Write to SW file immediately so sync-metadata on drawings reads the updated value
+    // Mark file change as expected so file watcher doesn't trigger a refresh that collapses configs
+    usePDMStore.getState().addExpectedFileChanges([file.relativePath])
+    usePDMStore.getState().setLastOperationCompletedAt(Date.now())
+    
+    try {
+      const baseNumber = file.pendingMetadata?.part_number ?? file.pdmData?.part_number ?? ''
+      const props: Record<string, string> = { 'Tab Number': upperValue }
+      
+      // Also update the full Number property if we have a base number and tab
+      if (baseNumber && upperValue) {
+        props['Number'] = `${baseNumber}-${upperValue}`  // TODO: use serialization settings for separator
+      }
+      
+      const result = await window.electronAPI?.solidworks?.setProperties(filePath, props, configName)
+      if (result?.success) {
+        addToast('success', `Saved tab number to ${configName}`)
+      } else {
+        addToast('error', `Failed to save tab number: ${result?.error || 'Unknown error'}`)
+      }
+    } catch (err) {
+      log.error('[ConfigHandlers]', 'Failed to write config tab to SW file', { filePath, configName, error: err })
+      addToast('error', 'Failed to save tab number to file')
+    }
+  }, [addToast])
 
   // Update config description
-  const handleConfigDescriptionChange = useCallback((filePath: string, configName: string, value: string) => {
+  // NOTE: We read state from store via getState() to avoid stale closure issues.
+  // When clicking between config description inputs, the blur handler may be called
+  // with a stale callback reference (due to memoization). Reading from store ensures
+  // we always get the current fileConfigurations and files arrays.
+  // IMPORTANT: This immediately writes to the SW file so sync-metadata on drawings
+  // always reads fresh data.
+  const handleConfigDescriptionChange = useCallback(async (filePath: string, configName: string, value: string) => {
+    // Read current state from store, not closure (prevents stale data when switching inputs)
+    const { files, fileConfigurations } = usePDMStore.getState()
+    
     const file = files.find(f => f.path === filePath)
     if (!file) return
     
-    // Update config in store
+    // Update config in store (for immediate UI feedback)
     const configs = fileConfigurations.get(filePath)
     if (configs) {
       const updated = configs.map(c => c.name === configName ? { ...c, description: value } : c)
-      setFileConfigurations(filePath, updated)
+      usePDMStore.getState().setFileConfigurations(filePath, updated)
     }
     
-    // Update pending metadata
+    // Update pending metadata (for persistence across app restart)
     const existingDescs = file.pendingMetadata?.config_descriptions || {}
     usePDMStore.getState().updatePendingMetadata(filePath, {
       config_descriptions: { ...existingDescs, [configName]: value }
     })
-  }, [files, fileConfigurations, setFileConfigurations])
+    
+    // Write to SW file immediately so sync-metadata on drawings reads the updated value
+    // Mark file change as expected so file watcher doesn't trigger a refresh that collapses configs
+    usePDMStore.getState().addExpectedFileChanges([file.relativePath])
+    usePDMStore.getState().setLastOperationCompletedAt(Date.now())
+    
+    try {
+      const result = await window.electronAPI?.solidworks?.setProperties(filePath, { 'Description': value }, configName)
+      if (result?.success) {
+        addToast('success', `Saved description to ${configName}`)
+      } else {
+        addToast('error', `Failed to save description: ${result?.error || 'Unknown error'}`)
+      }
+    } catch (err) {
+      log.error('[ConfigHandlers]', 'Failed to write config description to SW file', { filePath, configName, error: err })
+      addToast('error', 'Failed to save description to file')
+    }
+  }, [addToast])
 
   // Check if file can have configurations (sldprt or sldasm)
   const canHaveConfigs = useCallback((file: LocalFile): boolean => {
@@ -352,14 +414,15 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       let successCount = 0
       let failedCount = 0
       
+      // Fetch serialization settings for proper tab number formatting and validation
+      const serSettings = organization?.id ? await getSerializationSettings(organization.id) : null
+      const tabValidationOptions = getTabValidationOptions(serSettings)
+      
       // Get current values (pending or existing)
       const baseNumber = pm.part_number ?? file.pdmData?.part_number ?? ''
       const baseDesc = pm.description ?? file.pdmData?.description ?? ''
       const revision = pm.revision ?? file.pdmData?.revision ?? ''
-      const fileTabNumber = sanitizeTabNumber(pm.tab_number) // Sanitize to prevent invalid characters
-      
-      // Fetch serialization settings for proper tab number formatting
-      const serSettings = organization?.id ? await getSerializationSettings(organization.id) : null
+      const fileTabNumber = sanitizeTabNumber(pm.tab_number, tabValidationOptions) // Sanitize based on settings
       
       // Get current user for DrawnBy property
       const currentUser = usePDMStore.getState().user
@@ -385,7 +448,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           
           // Build full part number (base + tab) with sanitized tab number
           const rawConfigTab = pendingTabs[config.name] ?? config.tabNumber ?? ''
-          const configTab = sanitizeTabNumber(rawConfigTab) // Secondary protection: strip non-digits
+          const configTab = sanitizeTabNumber(rawConfigTab, tabValidationOptions) // Secondary protection: filter based on settings
           if (baseNumber) {
             // Use combineBaseAndTab for proper separator from settings, fallback to dash
             props['Number'] = configTab 
@@ -446,6 +509,57 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
             const result = await window.electronAPI?.solidworks?.setProperties(file.path, props)
             if (result?.success) {
               successCount++
+              
+              // After successful file-level write, propagate base number to ALL configs
+              // This ensures drawings that reference specific configs get the updated base number
+              if (baseNumber) {
+                try {
+                  // Fetch all configurations from the file (includes properties for each config)
+                  const configResult = await window.electronAPI?.solidworks?.getConfigurations(file.path)
+                  const allConfigs = configResult?.data?.configurations || []
+                  
+                  if (allConfigs.length > 0) {
+                    log.info('[ConfigHandlers]', 'Propagating base number to all configs', { 
+                      baseNumber, 
+                      configCount: allConfigs.length,
+                      configNames: allConfigs.map(c => c.name)
+                    })
+                    
+                    // For each config, update Base Item Number and recalculate Number
+                    for (const config of allConfigs) {
+                      try {
+                        // Extract config name string and get existing tab from config.properties
+                        const configName = config.name
+                        // Normalize tab number to strip leading separators (e.g., "-500" -> "500")
+                        // Some SW templates store tab with leading dash which causes double-dash in Number
+                        const rawTab = config.properties?.['Tab Number'] || ''
+                        const existingTab = normalizeTabNumber(rawTab, serSettings?.tab_separator || '-')
+                        
+                        // Build updated properties
+                        const configProps: Record<string, string> = {
+                          'Base Item Number': baseNumber,
+                          'Number': existingTab 
+                            ? (serSettings?.tab_enabled ? combineBaseAndTab(baseNumber, existingTab, serSettings) : `${baseNumber}-${existingTab}`)
+                            : baseNumber
+                        }
+                        
+                        log.debug('[ConfigHandlers]', `Updating config ${configName}`, { 
+                          configName, 
+                          rawTab,
+                          existingTab, 
+                          newNumber: configProps['Number'] 
+                        })
+                        
+                        await window.electronAPI?.solidworks?.setProperties(file.path, configProps, configName)
+                      } catch (configErr) {
+                        log.warn('[ConfigHandlers]', `Failed to update config ${config.name}`, { error: configErr })
+                      }
+                    }
+                  }
+                } catch (propagateErr) {
+                  log.warn('[ConfigHandlers]', 'Failed to propagate base to configs (non-fatal)', { error: propagateErr })
+                }
+              }
             } else {
               failedCount++
               log.error('[ConfigHandlers]', 'Failed to write file-level properties', { error: result?.error })
@@ -683,7 +797,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
             usePDMStore.getState().updatePendingMetadata(exportedPath, {
               part_number: fullItemNumber,
               description: finalDescription,
-              revision: file?.pdmData?.revision || 'A'
+              revision: file?.pdmData?.revision || ''
             })
           }
         }
@@ -717,6 +831,11 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       // Clear selected configs for this file
       const newSelected = new Set([...selectedConfigs].filter(key => !key.startsWith(file.path + '::')))
       setSelectedConfigs(newSelected)
+      // Clear cached configs so next expansion fetches fresh data from SolidWorks
+      clearFileConfigurations(file.path)
+      // Clear any cached BOM data for this file's configurations
+      const bomKeysToDelete = [...configBomData.keys()].filter(key => key.startsWith(file.path + '::'))
+      bomKeysToDelete.forEach(key => clearConfigBomData(key))
     } else {
       // Expand - load configurations if not already loaded
       newExpanded.add(file.path)
@@ -799,7 +918,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         }
       }
     }
-  }, [expandedConfigFiles, selectedConfigs, fileConfigurations, setExpandedConfigFiles, setSelectedConfigs, setFileConfigurations, addLoadingConfig, removeLoadingConfig])
+  }, [expandedConfigFiles, selectedConfigs, fileConfigurations, configBomData, setExpandedConfigFiles, setSelectedConfigs, setFileConfigurations, clearFileConfigurations, clearConfigBomData, addLoadingConfig, removeLoadingConfig])
 
   // Toggle BOM expansion for a specific configuration
   const toggleConfigBomExpansion = useCallback(async (file: LocalFile, configName: string) => {

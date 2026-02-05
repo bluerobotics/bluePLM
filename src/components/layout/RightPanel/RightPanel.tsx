@@ -295,7 +295,7 @@ export function RightPanel() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-plm-fg-muted">Revision</span>
-                    <span>{file.pdmData?.revision || 'A'}</span>
+                    <span>{file.pdmData?.revision || '-'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-plm-fg-muted">Version</span>

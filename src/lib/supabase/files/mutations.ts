@@ -290,7 +290,7 @@ export async function syncFile(
           content_hash: contentHash,
           file_size: fileSize,
           state: 'not_tracked',
-          revision: metadata?.revision || 'A',
+          revision: metadata?.revision || '',
           version: 1,
           part_number: metadata?.partNumber || null,
           description: metadata?.description || null,
@@ -320,7 +320,7 @@ export async function syncFile(
       () => client.from('file_versions').insert({
         file_id: insertedFile.id,
         version: 1,
-        revision: 'A',
+        revision: metadata?.revision || '',
         content_hash: contentHash,
         file_size: fileSize,
         state: 'not_tracked',

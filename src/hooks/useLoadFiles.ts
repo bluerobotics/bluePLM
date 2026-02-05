@@ -1,4 +1,5 @@
 import { useCallback, startTransition } from 'react'
+import { flushSync } from 'react-dom'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getFilesLightweight, getCheckedOutUsers, getVaultFolders } from '@/lib/supabase'
 import { executeCommand } from '@/lib/commands'
@@ -6,6 +7,7 @@ import { buildFullPath } from '@/lib/commands/types'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { getFilesWithCache, updateCachedUserInfo } from '@/lib/cache/vaultFileCache'
 import { getSyncIndex, updateSyncIndexFromServer } from '@/lib/cache/localSyncIndex'
+import { logExplorer } from '@/lib/userActionLogger'
 import type { LightweightFile } from '@/lib/supabase/files/queries'
 
 /**
@@ -46,6 +48,9 @@ export function useLoadFiles() {
     
     window.electronAPI?.log('info', '[LoadFiles] Called with', { vaultPath: loadingForVaultPath, currentVaultId: loadingForVaultId, silent, forceHashComputation })
     if (!window.electronAPI || !loadingForVaultPath) return
+    
+    // Clear configuration caches on refresh to ensure fresh data from SolidWorks
+    usePDMStore.getState().clearAllConfigCaches()
     
     if (!silent) {
       setIsLoading(true)
@@ -1287,5 +1292,190 @@ export function useLoadFiles() {
     }
   }, [vaultPath, organization, isOfflineMode, currentVaultId, user, setFiles, setServerFiles, setServerFolderPaths, setIsLoading, setStatusMessage, setFilesLoaded])
 
-  return { loadFiles }
+  /**
+   * Refresh only a specific folder (faster than full vault refresh)
+   * Uses cached server data and only scans the local folder
+   */
+  const refreshCurrentFolder = useCallback(async (folderPath: string) => {
+    logExplorer('refreshCurrentFolder ENTRY', { folderPath, vaultPath })
+    window.electronAPI?.log('info', '[RefreshFolder] Called with', { folderPath, vaultPath })
+    if (!window.electronAPI || !vaultPath) return
+    
+    // Force React to render loading state immediately before heavy work
+    // flushSync ensures the spinner is visible before the IPC call is made
+    logExplorer('refreshCurrentFolder BEFORE flushSync')
+    flushSync(() => {
+      setIsLoading(true)
+      setStatusMessage(`Refreshing folder...`)
+    })
+    logExplorer('refreshCurrentFolder AFTER flushSync')
+    
+    try {
+      // 1. Get existing files from store
+      const existingFiles = usePDMStore.getState().files
+      const serverFiles = usePDMStore.getState().serverFiles
+      
+      // 2. Scan only the target folder locally (fast - no hash computation)
+      const localResult = await window.electronAPI.listFolderFast(folderPath)
+      
+      if (!localResult.success || !localResult.files) {
+        window.electronAPI?.log('error', '[RefreshFolder] Failed to scan folder', { error: localResult.error })
+        setStatusMessage('Failed to refresh folder')
+        return
+      }
+      
+      window.electronAPI?.log('info', '[RefreshFolder] Scanned folder', { 
+        folderPath, 
+        localCount: localResult.files.length 
+      })
+      
+      // 2b. Preserve the current folder's own entry (will be excluded by filter but needs to stay)
+      // listFolderFast returns CONTENTS of the folder, not the folder entry itself
+      const currentFolderEntry = folderPath 
+        ? existingFiles.find(f => f.relativePath.toLowerCase() === folderPath.toLowerCase() && f.isDirectory)
+        : undefined
+      
+      // 3. Separate existing files: those in the folder vs those outside
+      const folderPrefix = folderPath ? folderPath.toLowerCase() + '/' : ''
+      const filesOutsideFolder = existingFiles.filter(f => {
+        const relPath = f.relativePath.toLowerCase()
+        // Keep files that are NOT in or under the refreshed folder
+        if (folderPath === '') {
+          // Refreshing root - replace everything
+          return false
+        }
+        return !relPath.startsWith(folderPrefix) && relPath !== folderPath.toLowerCase()
+      })
+      
+      // 4. Build COMPLETE pdmData map from existing files (not stripped serverFiles)
+      // This preserves version, part_number, checkout info, workflow_state, etc.
+      const existingPdmMap = new Map<string, NonNullable<typeof existingFiles[0]['pdmData']>>()
+      for (const f of existingFiles) {
+        if (f.pdmData) {
+          existingPdmMap.set(f.relativePath.toLowerCase(), f.pdmData)
+        }
+      }
+      
+      // Also build a set of server file paths for cloud-only detection
+      const serverPathSet = new Set<string>()
+      for (const sf of serverFiles) {
+        serverPathSet.add(sf.file_path.toLowerCase())
+      }
+      
+      // 5. Merge local folder files with COMPLETE server data from existing files
+      const userId = user?.id
+      const refreshedFolderFiles = localResult.files.map((localFile: any) => {
+        if (localFile.isDirectory) {
+          return {
+            ...localFile,
+            localHash: localFile.hash
+          }
+        }
+        
+        const lookupKey = localFile.relativePath.toLowerCase()
+        // Use complete pdmData from existing files (has version, part_number, etc.)
+        const pdmData = existingPdmMap.get(lookupKey)
+        
+        // Determine diff status
+        let diffStatus: 'added' | 'modified' | 'outdated' | 'cloud' | undefined
+        if (!pdmData) {
+          // Check if file exists on server but we don't have pdmData yet
+          // (shouldn't happen normally, but handle gracefully)
+          diffStatus = serverPathSet.has(lookupKey) ? undefined : 'added'
+        } else if (pdmData.content_hash && localFile.hash) {
+          if (pdmData.content_hash !== localFile.hash) {
+            const localModTime = new Date(localFile.modifiedTime).getTime()
+            const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
+            diffStatus = localModTime > cloudUpdateTime ? 'modified' : 'outdated'
+          }
+        } else if (pdmData.content_hash) {
+          // No local hash - use timestamp fallback
+          const localModTime = new Date(localFile.modifiedTime).getTime()
+          const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
+          const isCheckedOutByMe = pdmData.checked_out_by === userId
+          
+          if (isCheckedOutByMe && localModTime > cloudUpdateTime + 5000) {
+            diffStatus = 'modified'
+          } else if (!isCheckedOutByMe && cloudUpdateTime > localModTime + 1800000) {
+            diffStatus = 'outdated'
+          }
+        }
+        
+        return {
+          ...localFile,
+          localHash: localFile.hash,
+          pdmData: pdmData || undefined,
+          isSynced: !!pdmData,
+          diffStatus
+        }
+      })
+      
+      // 6. Add cloud-only files in this folder (exist on server but not locally)
+      const localPathSet = new Set(localResult.files.map((f: any) => f.relativePath.toLowerCase()))
+      for (const sf of serverFiles) {
+        const sfPath = sf.file_path.toLowerCase()
+        const isInFolder = folderPath === '' || sfPath.startsWith(folderPrefix)
+        
+        if (isInFolder && !localPathSet.has(sfPath)) {
+          // Use complete pdmData from existing files if available
+          const completePdmData = existingPdmMap.get(sfPath)
+          
+          refreshedFolderFiles.push({
+            name: sf.name,
+            path: buildFullPath(vaultPath, sf.file_path),
+            relativePath: sf.file_path,
+            isDirectory: false,
+            extension: sf.extension || '',
+            size: completePdmData?.file_size || 0,
+            modifiedTime: completePdmData?.updated_at || '',
+            pdmData: completePdmData || undefined,
+            isSynced: false,
+            diffStatus: 'cloud' as const
+          })
+        }
+      }
+      
+      // 7. Combine: files outside folder + refreshed folder files + current folder entry
+      // The current folder entry must be preserved so navigation back works correctly
+      const combinedFiles = [
+        ...filesOutsideFolder, 
+        ...refreshedFolderFiles,
+        ...(currentFolderEntry ? [currentFolderEntry] : [])
+      ]
+      
+      // Sort for consistent display
+      combinedFiles.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1
+        if (!a.isDirectory && b.isDirectory) return 1
+        return a.relativePath.localeCompare(b.relativePath)
+      })
+      
+      window.electronAPI?.log('info', '[RefreshFolder] Complete', { 
+        folderPath,
+        outsideFolder: filesOutsideFolder.length,
+        inFolder: refreshedFolderFiles.length,
+        total: combinedFiles.length
+      })
+      
+      // Use startTransition to mark this as a non-urgent update
+      // This allows React to render the loading spinner before processing the heavy file list
+      const stStart = performance.now()
+      logExplorer('startTransition CALLING', { combinedFilesCount: combinedFiles.length })
+      startTransition(() => {
+        logExplorer('startTransition EXECUTING setFiles', { delayMs: Math.round(performance.now() - stStart) })
+        setFiles(combinedFiles)
+      })
+      setStatusMessage(`Refreshed ${refreshedFolderFiles.length} items`)
+      
+    } catch (err) {
+      window.electronAPI?.log('error', '[RefreshFolder] Error', { error: String(err) })
+      setStatusMessage('Error refreshing folder')
+    } finally {
+      logExplorer('refreshCurrentFolder FINALLY - setting isLoading=false')
+      setIsLoading(false)
+      setTimeout(() => setStatusMessage(''), 3000)
+    }
+  }, [vaultPath, user, setFiles, setIsLoading, setStatusMessage])
+
+  return { loadFiles, refreshCurrentFolder }
 }

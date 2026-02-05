@@ -17,7 +17,7 @@ const db = supabase as any
 export function useSolidWorksServiceControl() {
   const [isStarting, setIsStarting] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
-  const { addToast, organization, autoStartSolidworksService } = usePDMStore()
+  const { addToast, organization, autoStartSolidworksService, solidworksServiceVerboseLogging } = usePDMStore()
   
   // Use consolidated status hook
   const { status, refreshStatus } = useSolidWorksStatus()
@@ -28,7 +28,7 @@ export function useSolidWorksServiceControl() {
   const startService = useCallback(async () => {
     setIsStarting(true)
     try {
-      const result = await window.electronAPI?.solidworks?.startService(dmLicenseKey || undefined)
+      const result = await window.electronAPI?.solidworks?.startService(dmLicenseKey || undefined, false, solidworksServiceVerboseLogging)
       if (result?.success) {
         addToast('success', 'SolidWorks service started')
         // Refresh status to pick up the change
@@ -41,7 +41,7 @@ export function useSolidWorksServiceControl() {
     } finally {
       setIsStarting(false)
     }
-  }, [addToast, dmLicenseKey, refreshStatus])
+  }, [addToast, dmLicenseKey, refreshStatus, solidworksServiceVerboseLogging])
 
   const stopService = useCallback(async () => {
     setIsStopping(true)
@@ -110,6 +110,8 @@ export function useSolidWorksSettings() {
     setLockDrawingItemNumber,
     lockDrawingDescription,
     setLockDrawingDescription,
+    solidworksServiceVerboseLogging,
+    setSolidworksServiceVerboseLogging,
     vaultPath,
     user,
     files,
@@ -538,6 +540,9 @@ export function useSolidWorksSettings() {
     setLockDrawingItemNumber,
     lockDrawingDescription,
     setLockDrawingDescription,
+    // Service logging
+    solidworksServiceVerboseLogging,
+    setSolidworksServiceVerboseLogging,
     
     // DM License key
     dmLicenseKeyInput,

@@ -10,6 +10,7 @@ import {
 } from '@/components/shared/FileItem'
 import type { TreeMap, FolderDiffCounts } from '../types'
 import { recordMetric } from '@/lib/performanceMetrics'
+import { logExplorer } from '@/lib/userActionLogger'
 
 /**
  * Pre-computed folder metrics for O(1) lookups instead of O(N) per-folder computations.
@@ -110,7 +111,8 @@ export function useVaultTree() {
   
   // Build folder tree structure
   const tree = useMemo<TreeMap>(() => {
-    console.log('[useVaultTree] Building tree, files count:', files.length, 'hideCloudOnlyFolders:', hideCloudOnlyFolders)
+    const _treeStart = performance.now()
+    logExplorer('tree useMemo START', { filesCount: files.length, hideCloudOnlyFolders })
     const treeMap: TreeMap = { '': [] }
     
     // Filter out any undefined or invalid files and optionally hide SolidWorks temp files
@@ -176,7 +178,11 @@ export function useVaultTree() {
       }
     })
     
-    console.log('[useVaultTree] Tree built, root items:', treeMap['']?.length)
+    logExplorer('tree useMemo END', { 
+      durationMs: Math.round(performance.now() - _treeStart), 
+      treeKeyCount: Object.keys(treeMap).length,
+      rootItems: treeMap['']?.length 
+    })
     return treeMap
   }, [files, hideSolidworksTempFiles, hideCloudOnlyFolders])
 
@@ -199,8 +205,9 @@ export function useVaultTree() {
   const folderMetrics = useMemo<FolderMetricsMap>(() => {
     const startTime = performance.now()
     const fileCount = deferredFiles.length
-    // Note: Logging removed - this runs on every render and floods logs with ~24k files
-    recordMetric('FolderMetrics', 'Starting computation', { fileCount, isDeferred: deferredFiles !== files })
+    const isDeferred = deferredFiles !== files
+    logExplorer('folderMetrics useMemo START', { fileCount, isDeferred })
+    recordMetric('FolderMetrics', 'Starting computation', { fileCount, isDeferred })
     
     const metrics = new Map<string, FolderMetrics>()
     // Track checkout users per folder using Map for O(1) deduplication during single pass
@@ -413,7 +420,10 @@ export function useVaultTree() {
     }
     
     const durationMs = performance.now() - startTime
-    // Note: Logging removed - this runs on every render and floods logs with ~24k files
+    logExplorer('folderMetrics useMemo END', { 
+      folderCount: metrics.size, 
+      durationMs: Math.round(durationMs) 
+    })
     recordMetric('FolderMetrics', 'Computation complete', { 
       folderCount: metrics.size, 
       durationMs: Math.round(durationMs * 100) / 100 

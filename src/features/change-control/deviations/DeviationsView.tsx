@@ -424,7 +424,7 @@ export function DeviationsView() {
           fileData.push({
             id: file.pdmData.id,
             version: file.pdmData.version || 1,
-            revision: file.pdmData.revision || 'A',
+            revision: file.pdmData.revision || '',
             partNumber: file.pdmData.part_number || null
           })
           if (file.pdmData.part_number) {
@@ -583,7 +583,7 @@ export function DeviationsView() {
             path: file.relativePath,
             partNumber: file.pdmData.part_number || null,
             currentVersion: file.pdmData.version || 1,
-            currentRevision: file.pdmData.revision || 'A'
+            currentRevision: file.pdmData.revision || ''
           })
         }
       }

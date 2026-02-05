@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, OperationsSlice, QueuedOperation, OrphanedCheckout, StagedCheckin, MissingStorageFile } from '../types'
 import type { NotificationWithDetails } from '../../types/database'
+import { logExplorer } from '@/lib/userActionLogger'
 
 /**
  * Check if two path arrays have any overlapping paths.
@@ -63,7 +64,11 @@ export const createOperationsSlice: StateCreator<
   expectedFileChanges: new Set<string>(),
   
   // Actions - Loading
-  setIsLoading: (isLoading) => set({ isLoading }),
+  setIsLoading: (isLoading) => {
+    const stack = new Error().stack?.split('\n').slice(1, 5).map(s => s.trim()).join(' | ') || 'no-stack'
+    logExplorer('setIsLoading CALLED', { isLoading, stack })
+    set({ isLoading })
+  },
   setIsRefreshing: (isRefreshing) => set({ isRefreshing }),
   setStatusMessage: (statusMessage) => set({ statusMessage }),
   setFilesLoaded: (filesLoaded) => set({ filesLoaded }),

@@ -38,6 +38,12 @@ namespace BluePLM.SolidWorksService
         private static DocumentManagerAPI? _dmApi;
         private static SolidWorksAPI? _swApi;
         private static ComStabilityLayer? _comStability;
+        
+        /// <summary>
+        /// When true, enables detailed diagnostic logging for debugging.
+        /// Set via --verbose command line argument.
+        /// </summary>
+        public static bool VerboseLogging { get; private set; } = false;
 
         static int Main(string[] args)
         {
@@ -78,12 +84,16 @@ namespace BluePLM.SolidWorksService
                     case "--help":
                         PrintUsage();
                         return 0;
+                    case "--verbose":
+                        VerboseLogging = true;
+                        break;
                 }
             }
 
             // Initialize Document Manager API (for FAST operations - no SW launch!)
             Console.Error.WriteLine("=== BluePLM SolidWorks Service Startup ===");
             Console.Error.WriteLine($"[Startup] DM License key from command line: {(dmLicenseKey == null ? "not provided" : "provided")}");
+            Console.Error.WriteLine($"[Startup] Verbose logging: {(VerboseLogging ? "enabled" : "disabled")}");
 
             // Initialize COM Stability Layer FIRST (before any COM operations)
             Console.Error.WriteLine("[Startup] Creating ComStabilityLayer instance...");
@@ -146,6 +156,16 @@ namespace BluePLM.SolidWorksService
                         Console.Error.WriteLine($"[Service] Received command: {line.Substring(0, Math.Min(50, line.Length))}...");
                     }
                     
+                    // Extract requestId BEFORE calling ProcessCommand so we can include it in error responses
+                    int? requestIdForErrorHandling = null;
+                    try
+                    {
+                        // Pre-parse requestId for error handling (best effort)
+                        var preParseCmd = JsonConvert.DeserializeObject<JObject>(line);
+                        requestIdForErrorHandling = preParseCmd?["requestId"]?.Value<int>();
+                    }
+                    catch { /* Ignore parse errors - ProcessCommand will handle them */ }
+                    
                     try
                     {
                         var result = ProcessCommand(line);
@@ -163,12 +183,18 @@ namespace BluePLM.SolidWorksService
                     }
                     catch (Exception ex)
                     {
+                        // #region agent log - Service exception
+                        Console.Error.WriteLine($"[Service] [DEBUG] UNHANDLED_EXCEPTION: requestId={requestIdForErrorHandling}, error={ex.Message}");
+                        Console.Error.WriteLine($"[Service] [DEBUG] Stack: {ex.StackTrace}");
+                        // #endregion
                         Console.Error.WriteLine($"[Service] Exception processing command: {ex.Message}");
                         var error = new CommandResult
                         {
                             Success = false,
                             Error = $"Unhandled error: {ex.Message}",
-                            ErrorDetails = ex.ToString()
+                            ErrorDetails = ex.ToString(),
+                            // CRITICAL: Include requestId so frontend can match this error to the correct request
+                            RequestId = requestIdForErrorHandling
                         };
                         Console.WriteLine(JsonConvert.SerializeObject(error));
                         Console.Out.Flush();
@@ -498,7 +524,82 @@ namespace BluePLM.SolidWorksService
             {
                 Console.Error.WriteLine($"[Service] DM API failed for getReferences: {result.Error}");
             }
-            return result;  // Return DM result - no fallback to SW API!
+            
+            // #region agent log - FIX: Fallback to full SW API for drawings when DM API returns 0 refs
+            // The DM API cannot parse drawing references in SolidWorks 2024 format (ISwDMDrawing not available)
+            // Only use fallback if:
+            // 1. DM API returned success but 0 references
+            // 2. File is a drawing (.SLDDRW)
+            // 3. SolidWorks is already RUNNING (we DON'T want to launch it just for this)
+            
+            // Hypothesis F/H/I: Comprehensive logging to trace fallback flow
+            Console.Error.WriteLine($"[Service-Fallback] Checking fallback conditions for: {Path.GetFileName(filePath ?? "null")}");
+            Console.Error.WriteLine($"[Service-Fallback] result.Success={result.Success}, filePath!=null={filePath != null}");
+            
+            bool isDrawing = filePath != null && filePath.EndsWith(".SLDDRW", StringComparison.OrdinalIgnoreCase);
+            Console.Error.WriteLine($"[Service-Fallback] isDrawing={isDrawing}");
+            
+            if (result.Success && filePath != null && isDrawing)
+            {
+                // Hypothesis H: Log data object details before casting
+                Console.Error.WriteLine($"[Service-Fallback] result.Data type: {result.Data?.GetType()?.FullName ?? "null"}");
+                
+                // Check if DM API returned 0 references
+                int refCount = 0;
+                try
+                {
+                    var data = result.Data as dynamic;
+                    refCount = data?.count ?? 0;
+                    Console.Error.WriteLine($"[Service-Fallback] Extracted refCount={refCount} from result.Data");
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[Service-Fallback] Failed to extract count: {ex.Message}");
+                }
+                
+                // For drawings with 0 refs from DM API, auto-start SW if needed
+                // SW will start hidden (Visible=false) and extract references via full API
+                bool swApiAvailable = _swApi != null;
+                bool swRunning = swApiAvailable && _swApi!.IsSolidWorksRunning();
+                Console.Error.WriteLine($"[Service-Fallback] refCount={refCount}, _swApi!=null={swApiAvailable}, swRunning={swRunning}");
+                
+                // Auto-start SW for drawings - removed swRunning check to enable auto-launch
+                if (refCount == 0 && swApiAvailable)
+                {
+                    if (!swRunning)
+                    {
+                        Console.Error.WriteLine($"[Service-Fallback] SolidWorks not running - will auto-start in background for drawing references");
+                    }
+                    Console.Error.WriteLine($"[Service-Fallback] ALL CONDITIONS MET - Attempting SW API fallback: {Path.GetFileName(filePath)}");
+                    var swResult = _swApi!.GetExternalReferences(filePath);
+                    if (swResult.Success)
+                    {
+                        int swRefCount = 0;
+                        try
+                        {
+                            var swData = swResult.Data as dynamic;
+                            swRefCount = swData?.count ?? 0;
+                        }
+                        catch { }
+                        Console.Error.WriteLine($"[Service-Fallback] SW API fallback returned {swRefCount} refs");
+                        if (swRefCount > 0)
+                        {
+                            return swResult;  // Use SW API result if it has refs
+                        }
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"[Service-Fallback] SW API fallback failed: {swResult.Error}");
+                    }
+                }
+                else if (refCount == 0 && !swApiAvailable)
+                {
+                    Console.Error.WriteLine($"[Service-Fallback] NOT using fallback: _swApi is null (SolidWorks not installed?)");
+                }
+            }
+            // #endregion
+            
+            return result;  // Return DM result
         }
 
         // Track if Document Manager previews work (they don't for newer SW file formats)

@@ -56,6 +56,7 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
   const hasHydrated = useHasHydrated()
   const autoStartSolidworksService = usePDMStore(state => state.autoStartSolidworksService)
   const solidworksIntegrationEnabled = usePDMStore(state => state.solidworksIntegrationEnabled)
+  const solidworksServiceVerboseLogging = usePDMStore(state => state.solidworksServiceVerboseLogging)
   
   // Track auto-start attempts per organization
   const attemptStateRef = useRef<AutoStartAttempt | null>(null)
@@ -252,7 +253,7 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
         if (!data.running) {
           log('info', '[SolidWorks] Service not running, starting...')
           
-          const startResult = await window.electronAPI!.solidworks!.startService(dmLicenseKey || undefined)
+          const startResult = await window.electronAPI!.solidworks!.startService(dmLicenseKey || undefined, false, solidworksServiceVerboseLogging)
           
           if (!startResult?.success) {
             const errorMsg = startResult?.error || 'Unknown error'
@@ -276,7 +277,7 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
         } else if (dmLicenseKey && !data.documentManagerAvailable) {
           log('info', '[SolidWorks] Service running but DM API not available, sending license key...')
           
-          const setKeyResult = await window.electronAPI!.solidworks!.startService(dmLicenseKey)
+          const setKeyResult = await window.electronAPI!.solidworks!.startService(dmLicenseKey, false, solidworksServiceVerboseLogging)
           
           if (!setKeyResult?.success) {
             const errorMsg = setKeyResult?.error || 'Unknown error'

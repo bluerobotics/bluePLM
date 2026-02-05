@@ -16,8 +16,8 @@ type ExportFormat = 'step' | 'iges' | 'stl' | 'pdf' | 'dxf'
 
 export function ExportActions({
   contextFiles,
-  multiSelect,
-  firstFile,
+  multiSelect: _multiSelect,
+  firstFile: _firstFile,
   onClose,
 }: ActionComponentProps) {
   const { status } = useSolidWorksStatus()
@@ -27,26 +27,27 @@ export function ExportActions({
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { addToast, addProgressToast, updateProgressToast, removeToast, organization } = usePDMStore()
 
-  const ext = firstFile.extension?.toLowerCase() || ''
-  const isPartOrAsm = ['.sldprt', '.sldasm'].includes(ext)
-  const isDrawing = ext === '.slddrw'
-  const isSolidWorksFile = isPartOrAsm || isDrawing
+  // Filter to only exportable SolidWorks files (exclude folders)
+  const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+  const exportableFiles = contextFiles.filter(f => {
+    if (f.isDirectory) return false
+    const ext = f.extension?.toLowerCase() || ''
+    return swExtensions.includes(ext)
+  })
 
-  // Only show for SolidWorks files when service is running
-  if (!isSolidWorksFile || !swServiceRunning) {
+  // Group by type for display
+  const drawingFiles = exportableFiles.filter(f => f.extension?.toLowerCase() === '.slddrw')
+  const partAsmFiles = exportableFiles.filter(f => 
+    ['.sldprt', '.sldasm'].includes(f.extension?.toLowerCase() || '')
+  )
+
+  // Only show when service is running and we have exportable files
+  if (exportableFiles.length === 0 || !swServiceRunning) {
     return null
   }
 
-  // For multi-select, only show if all files are the same type
-  if (multiSelect) {
-    const allSameType = contextFiles.every(f => {
-      const fExt = f.extension?.toLowerCase() || ''
-      return isPartOrAsm 
-        ? ['.sldprt', '.sldasm'].includes(fExt)
-        : fExt === '.slddrw'
-    })
-    if (!allSameType) return null
-  }
+  const hasDrawings = drawingFiles.length > 0
+  const hasPartsOrAsm = partAsmFiles.length > 0
 
   const handleMouseEnterExport = (format: ExportFormat) => {
     if (submenuTimeoutRef.current) {
@@ -65,13 +66,28 @@ export function ExportActions({
     setIsExporting(format)
     onClose()
 
-    const filesToExport = multiSelect ? contextFiles : [firstFile]
+    // Use appropriate filtered list based on format
+    const filesToExport = format === 'pdf' || format === 'dxf' 
+      ? drawingFiles 
+      : partAsmFiles
     const fileCount = filesToExport.length
     const formatUpper = format.toUpperCase()
+
+    if (fileCount === 0) {
+      addToast('error', `No files to export as ${formatUpper}`)
+      setIsExporting(null)
+      return
+    }
 
     // Create a unique toast ID for this export operation
     const toastId = `export-${format}-${Date.now()}`
     addProgressToast(toastId, `Exporting ${formatUpper}${fileCount > 1 ? ` (${fileCount} files)` : ''}...`, fileCount)
+
+    // Get file paths for file watcher suppression
+    const filePaths = filesToExport.map(f => f.path)
+    
+    // Suppress file watcher during export to prevent UI thrashing
+    usePDMStore.getState().addProcessingFolders(filePaths, 'export')
 
     try {
       let successCount = 0
@@ -86,7 +102,7 @@ export function ExportActions({
         // Build PDM metadata for export filename pattern
         const baseNumber = file.pdmData?.part_number || file.pendingMetadata?.part_number || ''
         const description = file.pdmData?.description || file.pendingMetadata?.description || ''
-        const revision = file.pdmData?.revision || ''
+        const revision = (file.pdmData?.revision || '').trim()
 
         // Get tab number from pending config tabs (default config)
         let tabNumber = ''
@@ -118,7 +134,9 @@ export function ExportActions({
         const pdmMetadata = {
           partNumber: fullItemNumber,
           tabNumber,
-          revision,
+          // For PDF exports (drawings): don't send PDM revision - let the drawing's own Revision property be authoritative
+          // The PDM revision may come from the parent part, which is incorrect for drawings
+          revision: format === 'pdf' ? '' : revision,
           description
         }
 
@@ -127,6 +145,13 @@ export function ExportActions({
         const filenamePattern = exportSettings.filename_pattern
 
         try {
+          log.info('[Export]', `Exporting ${file.name} as ${format.toUpperCase()}`, {
+            inputPath: file.path,
+            outputFolder,
+            filenamePattern,
+            pdmMetadata
+          })
+          
           let result
           switch (format) {
             case 'pdf':
@@ -170,28 +195,64 @@ export function ExportActions({
           if (result?.success) {
             successCount++
             // Copy metadata to exported files
-            const exportedFiles = result.data && 'exportedFiles' in result.data ? result.data.exportedFiles : []
+            // Handle both response formats:
+            // - STEP/IGES/STL: { exportedFiles: [...] }
+            // - PDF/DXF: { outputFile: "..." }
+            let exportedFiles: string[] = []
+            if (result.data) {
+              if ('exportedFiles' in result.data && Array.isArray(result.data.exportedFiles)) {
+                exportedFiles = result.data.exportedFiles
+              } else if ('outputFile' in result.data && typeof result.data.outputFile === 'string') {
+                exportedFiles = [result.data.outputFile]
+              }
+            }
+            log.info('[Export]', `SUCCESS: ${file.name} exported`, {
+              inputPath: file.path,
+              outputPaths: exportedFiles,
+              format: format.toUpperCase()
+            })
             if (exportedFiles && exportedFiles.length > 0) {
               for (const exportedPath of exportedFiles) {
                 usePDMStore.getState().updatePendingMetadata(exportedPath, {
                   part_number: fullItemNumber,
                   description,
-                  revision: revision || 'A'
+                  revision: revision || ''
                 })
               }
             }
           } else {
             failCount++
-            log.error('[Export]', `Failed to export ${file.name}`, { error: result?.error })
+            log.error('[Export]', `FAILED: ${file.name} export failed`, {
+              inputPath: file.path,
+              outputFolder,
+              format: format.toUpperCase(),
+              error: result?.error
+            })
           }
         } catch (err) {
           failCount++
-          log.error('[Export]', `Exception exporting ${file.name}`, { error: err })
+          log.error('[Export]', `EXCEPTION: ${file.name} export threw error`, {
+            inputPath: file.path,
+            outputFolder,
+            format: format.toUpperCase(),
+            error: err
+          })
         }
+        
+        // Yield control between exports so React can update the progress toast
+        await new Promise(resolve => setTimeout(resolve, 0))
       }
 
       // Remove progress toast and show result
       removeToast(toastId)
+      
+      log.info('[Export]', `Export batch complete`, {
+        format: formatUpper,
+        total: fileCount,
+        succeeded: successCount,
+        failed: failCount,
+        outputFolder
+      })
       
       if (successCount > 0 && failCount === 0) {
         addToast('success', `Exported ${successCount} ${formatUpper} file${successCount > 1 ? 's' : ''}`)
@@ -204,6 +265,8 @@ export function ExportActions({
       removeToast(toastId)
       addToast('error', `Export failed: ${err}`)
     } finally {
+      // Clear processing state to re-enable file watcher
+      usePDMStore.getState().removeProcessingFolders(filePaths)
       setIsExporting(null)
     }
   }
@@ -218,23 +281,21 @@ export function ExportActions({
     }
   }
 
-  const fileCount = multiSelect ? contextFiles.length : 1
-  const countLabel = fileCount > 1 ? ` (${fileCount})` : ''
-
-  // Format configurations for each export type
-  const partFormats: Array<{ format: ExportFormat; label: string; colorClass: string; Icon: typeof Package }> = [
-    { format: 'step', label: 'STEP', colorClass: 'text-emerald-400', Icon: Package },
-    { format: 'iges', label: 'IGES', colorClass: 'text-amber-400', Icon: Package },
-    { format: 'stl', label: 'STL', colorClass: 'text-violet-400', Icon: Package },
+  // Format configurations for each export type with their file counts
+  const partFormats: Array<{ format: ExportFormat; label: string; colorClass: string; Icon: typeof Package; count: number }> = [
+    { format: 'step', label: 'STEP', colorClass: 'text-emerald-400', Icon: Package, count: partAsmFiles.length },
+    { format: 'iges', label: 'IGES', colorClass: 'text-amber-400', Icon: Package, count: partAsmFiles.length },
+    { format: 'stl', label: 'STL', colorClass: 'text-violet-400', Icon: Package, count: partAsmFiles.length },
   ]
 
-  const drawingFormats: Array<{ format: ExportFormat; label: string; colorClass: string; Icon: typeof Package }> = [
-    { format: 'pdf', label: 'PDF', colorClass: 'text-red-400', Icon: FileOutput },
-    { format: 'dxf', label: 'DXF', colorClass: 'text-cyan-400', Icon: Download },
+  const drawingFormats: Array<{ format: ExportFormat; label: string; colorClass: string; Icon: typeof Package; count: number }> = [
+    { format: 'pdf', label: 'PDF', colorClass: 'text-red-400', Icon: FileOutput, count: drawingFiles.length },
+    { format: 'dxf', label: 'DXF', colorClass: 'text-cyan-400', Icon: Download, count: drawingFiles.length },
   ]
 
-  const renderExportSubmenu = (config: { format: ExportFormat; label: string; colorClass: string; Icon: typeof Package }) => {
-    const { format, label, colorClass, Icon } = config
+  const renderExportSubmenu = (config: { format: ExportFormat; label: string; colorClass: string; Icon: typeof Package; count: number }) => {
+    const { format, label, colorClass, Icon, count } = config
+    const countLabel = count > 1 ? ` (${count})` : ''
     
     return (
       <div 
@@ -295,9 +356,9 @@ export function ExportActions({
 
   return (
     <>
-      {isPartOrAsm && partFormats.map(renderExportSubmenu)}
+      {hasPartsOrAsm && partFormats.map(renderExportSubmenu)}
       
-      {isDrawing && drawingFormats.map(renderExportSubmenu)}
+      {hasDrawings && drawingFormats.map(renderExportSubmenu)}
       
       {/* Export Options link */}
       <div 

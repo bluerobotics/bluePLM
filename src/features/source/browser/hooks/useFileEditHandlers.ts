@@ -237,7 +237,7 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
         currentValue = file.pendingMetadata?.description ?? file.pdmData?.description ?? ''
         break
       case 'revision':
-        currentValue = file.pendingMetadata?.revision ?? file.pdmData?.revision ?? 'A'
+        currentValue = file.pendingMetadata?.revision ?? file.pdmData?.revision ?? ''
         break
       case 'tabNumber':
         currentValue = file.pendingMetadata?.tab_number ?? ''
@@ -287,7 +287,7 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
       case 'revision':
         currentValue = file.pendingMetadata?.revision !== undefined 
           ? file.pendingMetadata.revision 
-          : (file.pdmData?.revision || 'A')
+          : (file.pdmData?.revision || '')
         break
     }
     

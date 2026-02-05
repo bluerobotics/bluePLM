@@ -10,7 +10,6 @@ import {
   Link, 
   Loader2, 
   Network,
-  RefreshCw, 
   Send, 
   Users 
 } from 'lucide-react'
@@ -56,24 +55,9 @@ export function CollaborationActions({
   const { user, files, addToast } = usePDMStore()
   const isFolder = firstFile.isDirectory
 
-  // Check for SolidWorks files
-  const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+  // Check for SolidWorks assembly files
   const assemblyExtensions = ['.sldasm']
-  const isSWFile = !isFolder && state.isSynced && swExtensions.includes(firstFile.extension.toLowerCase())
   const isAssemblyFile = !isFolder && state.isSynced && assemblyExtensions.includes(firstFile.extension.toLowerCase())
-  
-  // For folders, check for SW files inside
-  const getSwFilesInFolder = () => {
-    if (!isFolder || multiSelect) return []
-    const folderPath = firstFile.relativePath
-    return files.filter(f => 
-      !f.isDirectory && 
-      f.relativePath.startsWith(folderPath + '/') &&
-      swExtensions.includes(f.extension.toLowerCase()) &&
-      f.pdmData?.id
-    )
-  }
-  const swFilesInFolder = getSwFilesInFolder()
   
   // Get assembly files in folder (for Extract References)
   const getAssemblyFilesInFolder = () => {
@@ -128,32 +112,6 @@ export function CollaborationActions({
         <Info size={14} />
         Properties
       </div>
-      
-      {/* Sync Metadata - for SW files checked out by current user (or folders containing them) */}
-      {isSWFile && firstFile.pdmData?.checked_out_by === user?.id && (
-        <div 
-          className="context-menu-item"
-          onClick={() => {
-            onClose()
-            executeCommand('sync-metadata', { files: multiSelect ? contextFiles : [firstFile] }, { onRefresh })
-          }}
-        >
-          <RefreshCw size={14} className="text-plm-accent" />
-          Sync Metadata
-        </div>
-      )}
-      {isFolder && !multiSelect && swFilesInFolder.filter(f => f.pdmData?.checked_out_by === user?.id).length > 0 && (
-        <div 
-          className="context-menu-item"
-          onClick={() => {
-            onClose()
-            executeCommand('sync-metadata', { files: swFilesInFolder }, { onRefresh })
-          }}
-        >
-          <RefreshCw size={14} className="text-plm-accent" />
-          Sync Metadata ({swFilesInFolder.filter(f => f.pdmData?.checked_out_by === user?.id).length} files)
-        </div>
-      )}
       
       {/* Extract References - for synced assembly files */}
       {isAssemblyFile && (

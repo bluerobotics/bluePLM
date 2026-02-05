@@ -11,6 +11,12 @@
 		},
 		{
 			"path": "../../../AppData/Roaming/blue-plm/logs"
+		},
+		{
+			"path": "../offline-solidworks-api-docs"
+		},
+		{
+			"path": "../codestack"
 		}
 	],
 	"settings": {}

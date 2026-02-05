@@ -232,13 +232,10 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
       return 'No files selected'
     }
     
-    // Block deletion of files checked out by others
-    const checkedOutByOthers = getFilesCheckedOutByOthers(ctx.files, files, ctx.user?.id)
-    if (checkedOutByOthers.length > 0) {
-      const names = checkedOutByOthers.slice(0, 3).map(f => f.name).join(', ')
-      const suffix = checkedOutByOthers.length > 3 ? ` and ${checkedOutByOthers.length - 3} more` : ''
-      return `Cannot delete files checked out by others: ${names}${suffix}`
-    }
+    // Note: We intentionally do NOT check checkout status here.
+    // Checkout status is about server-side locking for editing - it's irrelevant
+    // for deleting local copies. Users should be able to clean up their local disk
+    // regardless of who has files checked out on the server.
     
     // Get synced files that exist locally
     const syncedFiles = getSyncedFilesFromSelection(ctx.files, files)

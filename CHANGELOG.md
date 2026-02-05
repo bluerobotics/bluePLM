@@ -2,6 +2,21 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.13.0] - 2026-02-04
+
+### Added
+- **Immediate config property writes**: Editing description or tab number on a configuration row now writes directly to the SolidWorks file on blur/Enter. This ensures "Sync Metadata" on drawings always reads fresh data from the parent model, even if BR numbers haven't been generated yet
+
+### Fixed
+- **Drawing PDF export using wrong revision**: Fixed issue where exporting a drawing to PDF would incorrectly use the PDM revision (inherited from the parent part) instead of the drawing's own revision property. Drawing exports now only use the revision stored in the drawing file itself - if the drawing has no revision, it stays empty rather than inheriting an unrelated value
+- **PDF filename collisions overwriting files**: Fixed issue where exporting multiple drawings with identical part numbers would overwrite each other. The export now detects filename collisions and automatically appends `(1)`, `(2)`, etc. to ensure unique filenames
+- **Whitespace-only revision treated as valid**: Fixed edge case where a revision property containing only whitespace (e.g., `" "`) would pass validation checks but produce empty filenames. Whitespace-only values are now correctly treated as empty
+
+### Improved
+- **Export filename collision detection**: STEP and STL exports now also detect filename collisions when multiple configurations would generate the same filename. When a collision is detected, the configuration name is appended (e.g., `BR-100_RevA_(Tall).step`)
+
+---
+
 ## [3.12.2] - 2026-01-28
 
 ### Fixed

@@ -424,4 +424,30 @@ export const en: TranslationDict = {
     skipLarge: 'Skip Large Files',
     uploadAll: 'Upload All',
   },
+
+  // Context menu translations
+  contextMenu: {
+    assembly: {
+      title: 'Assembly',
+      resolving: 'Resolving references...',
+      resolveFailed: 'Failed to resolve assembly',
+      noComponents: 'No components found',
+      downloadAll: 'Download All',
+      checkOutAll: 'Check Out All',
+      checkInAll: 'Check In All',
+      removeLocalAll: 'Remove Local All',
+      packAndGo: 'Pack and Go',
+      // Confirmation dialog
+      confirmDownloadTitle: 'Download Assembly Files?',
+      confirmCheckOutTitle: 'Check Out Assembly Files?',
+      confirmCheckInTitle: 'Check In Assembly Files?',
+      confirmRemoveLocalTitle: 'Remove Local Copies?',
+      confirmPackAndGoTitle: 'Pack and Go',
+      confirmMessage: 'This will affect {{count}} file(s) associated with this assembly.',
+      // File type labels
+      assemblies: 'Assemblies',
+      parts: 'Parts',
+      drawings: 'Drawings',
+    },
+  },
 }

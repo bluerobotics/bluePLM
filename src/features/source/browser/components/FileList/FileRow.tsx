@@ -86,6 +86,7 @@ export const FileRow = memo(function FileRow({
     <tr
       className={`${isSelected ? 'selected' : ''} ${isProcessing ? 'processing' : ''} ${diffClass} ${isDragTarget ? 'drag-target' : ''} ${isCut ? 'opacity-50' : ''}`}
       style={{ height: rowHeight }}
+      data-path={file.path}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}

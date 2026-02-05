@@ -1,8 +1,8 @@
 /**
  * Checkout/checkin actions for context menu
  */
-import React from 'react'
-import { ArrowDown, ArrowUp, RefreshCw, Undo2, Unlock } from 'lucide-react'
+import React, { useState } from 'react'
+import { ArrowDown, ArrowUp, Loader2, RefreshCw, Undo2, Unlock } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
@@ -10,6 +10,7 @@ import { checkOperationPermission, getPermissionRequirement } from '@/lib/permis
 import { getCountLabel } from '@/lib/utils'
 import type { RefreshableActionProps, SelectionCounts, SelectionState } from './types'
 import { ContextSubmenu } from '../components'
+import { useSolidWorksStatus } from '@/hooks/useSolidWorksStatus'
 
 interface CheckoutActionsProps extends RefreshableActionProps {
   counts: SelectionCounts
@@ -42,7 +43,9 @@ export function CheckoutActions({
   stateSubmenuTimeoutRef,
   savingConfigsToSW,
 }: CheckoutActionsProps) {
-  const { user, getEffectiveRole, hasPermission, addToast } = usePDMStore()
+  const { user, getEffectiveRole, hasPermission, addToast, solidworksIntegrationEnabled } = usePDMStore()
+  const { status } = useSolidWorksStatus()
+  const [isSyncing, setIsSyncing] = useState(false)
   
   // Check if any files are currently saving metadata
   const isAnySaving = (files: LocalFile[]): boolean => {
@@ -306,6 +309,123 @@ export function CheckoutActions({
           )}
         </div>
       )}
+      
+      {/* Sync SolidWorks Metadata - for SW files that are local-only OR checked out */}
+      <SyncMetadataItem
+        contextFiles={contextFiles}
+        multiSelect={multiSelect}
+        firstFile={firstFile}
+        onClose={onClose}
+        onRefresh={onRefresh}
+        user={user}
+        solidworksIntegrationEnabled={solidworksIntegrationEnabled}
+        swServiceRunning={status.running && (status.dmApiAvailable ?? false)}
+        isSyncing={isSyncing}
+        setIsSyncing={setIsSyncing}
+      />
     </>
+  )
+}
+
+/**
+ * Sync Metadata menu item - shows for SW files that are:
+ * - Local only (not synced to cloud yet), OR
+ * - Checked out by current user
+ */
+function SyncMetadataItem({
+  contextFiles,
+  multiSelect,
+  firstFile,
+  onClose,
+  onRefresh,
+  user,
+  solidworksIntegrationEnabled,
+  swServiceRunning,
+  isSyncing,
+  setIsSyncing,
+}: {
+  contextFiles: LocalFile[]
+  multiSelect: boolean
+  firstFile: LocalFile
+  onClose: () => void
+  onRefresh: (silent?: boolean) => void
+  user: { id: string } | null
+  solidworksIntegrationEnabled: boolean
+  swServiceRunning: boolean
+  isSyncing: boolean
+  setIsSyncing: (v: boolean) => void
+}) {
+  const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+  const ext = firstFile.extension?.toLowerCase() || ''
+  const isSolidWorksFile = swExtensions.includes(ext)
+  
+  // Only show for SolidWorks files when integration is enabled
+  if (!solidworksIntegrationEnabled || !isSolidWorksFile) {
+    return null
+  }
+  
+  // For multi-select, only show if all files are SolidWorks files
+  if (multiSelect) {
+    const allSwFiles = contextFiles.every(f => {
+      const fExt = f.extension?.toLowerCase() || ''
+      return swExtensions.includes(fExt)
+    })
+    if (!allSwFiles) return null
+  }
+  
+  // Filter to only SolidWorks files
+  const swFiles = contextFiles.filter(f => {
+    const fExt = f.extension?.toLowerCase() || ''
+    return swExtensions.includes(fExt)
+  })
+  
+  // Show for files that are:
+  // 1. Local only (no pdmData - not synced to cloud yet), OR
+  // 2. Checked out by current user
+  const eligibleFiles = swFiles.filter(f => {
+    const isLocalOnly = !f.pdmData?.id
+    const isCheckedOutByMe = f.pdmData?.checked_out_by === user?.id
+    return isLocalOnly || isCheckedOutByMe
+  })
+  
+  if (eligibleFiles.length === 0) {
+    return null
+  }
+  
+  const handleSyncMetadata = async () => {
+    if (!swServiceRunning || isSyncing) return
+    
+    setIsSyncing(true)
+    onClose()
+    
+    try {
+      await executeCommand('sync-metadata', { files: eligibleFiles }, { onRefresh })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+  
+  const fileCount = eligibleFiles.length
+  const countLabel = fileCount > 1 ? ` (${fileCount})` : ''
+  
+  // Determine tooltip based on state
+  let tooltip = 'Sync metadata between BluePLM and SolidWorks file'
+  if (!swServiceRunning) {
+    tooltip = 'SolidWorks service not running'
+  }
+  
+  return (
+    <div 
+      className={`context-menu-item ${!swServiceRunning || isSyncing ? 'opacity-50' : ''}`}
+      onClick={handleSyncMetadata}
+      title={tooltip}
+    >
+      {isSyncing ? (
+        <Loader2 size={14} className="animate-spin text-plm-accent" />
+      ) : (
+        <RefreshCw size={14} className="text-plm-accent" />
+      )}
+      Sync Metadata{countLabel}
+    </div>
   )
 }

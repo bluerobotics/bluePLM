@@ -91,7 +91,7 @@ export type Language = 'en' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ja' | 'zh-CN' 
 export type DiffStatus = 'added' | 'modified' | 'deleted' | 'outdated' | 'cloud' | 'moved' | 'ignored' | 'deleted_remote'
 
 /** Operation type for tracking which operation is running on a file/folder (for inline button spinners) */
-export type OperationType = 'checkout' | 'checkin' | 'download' | 'upload' | 'delete' | 'sync'
+export type OperationType = 'checkout' | 'checkin' | 'download' | 'upload' | 'delete' | 'sync' | 'export'
 
 // ============================================================================
 // Interfaces
@@ -485,6 +485,8 @@ export interface SettingsSlice {
   lockDrawingRevision: boolean
   lockDrawingItemNumber: boolean
   lockDrawingDescription: boolean
+  // Service logging
+  solidworksServiceVerboseLogging: boolean  // Enable detailed diagnostic output from service
   
   // State - API Server
   apiServerUrl: string | null
@@ -568,6 +570,7 @@ export interface SettingsSlice {
   setLockDrawingRevision: (enabled: boolean) => void
   setLockDrawingItemNumber: (enabled: boolean) => void
   setLockDrawingDescription: (enabled: boolean) => void
+  setSolidworksServiceVerboseLogging: (enabled: boolean) => void
   
   // Actions - API Server
   setApiServerUrl: (url: string | null) => void
@@ -846,6 +849,8 @@ export interface FilesSlice {
   setLoadingConfigs: (paths: Set<string>) => void
   addLoadingConfig: (filePath: string) => void
   removeLoadingConfig: (filePath: string) => void
+  /** Clear all configuration caches (fileConfigurations, expandedConfigFiles, selectedConfigs, configBomData, expandedConfigBoms) */
+  clearAllConfigCaches: () => void
   
   // Actions - Configuration BOM expansion
   toggleConfigBomExpansion: (configKey: string) => void

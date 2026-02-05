@@ -279,6 +279,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hashFile: (path: string) => ipcRenderer.invoke('fs:hash-file', path),
   listWorkingFiles: () => ipcRenderer.invoke('fs:list-working-files'),
   listDirFiles: (dirPath: string) => ipcRenderer.invoke('fs:list-dir-files', dirPath),
+  // Fast folder listing - no hash computation (for folder-scoped refresh)
+  listFolderFast: (folderRelativePath: string) => ipcRenderer.invoke('fs:list-folder-fast', folderRelativePath),
   computeFileHashes: (files: Array<{ path: string; relativePath: string; size: number; mtime: number }>) => 
     ipcRenderer.invoke('fs:compute-file-hashes', files),
   onHashProgress: (callback: (progress: { processed: number; total: number; percent: number }) => void) => {
@@ -364,8 +366,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   solidworks: {
     // Service management
     isInstalled: () => ipcRenderer.invoke('solidworks:is-installed'),
-    startService: (dmLicenseKey?: string, cleanupOrphans?: boolean) => 
-      ipcRenderer.invoke('solidworks:start-service', dmLicenseKey, cleanupOrphans),
+    startService: (dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => 
+      ipcRenderer.invoke('solidworks:start-service', dmLicenseKey, cleanupOrphans, verboseLogging),
     stopService: () => ipcRenderer.invoke('solidworks:stop-service'),
     getServiceStatus: () => ipcRenderer.invoke('solidworks:service-status'),
     
@@ -402,8 +404,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:create-document-from-template', templatePath, outputPath),
     
     // Export operations
-    exportPdf: (filePath: string, outputPath?: string) => 
-      ipcRenderer.invoke('solidworks:export-pdf', filePath, outputPath),
+    exportPdf: (filePath: string, options?: { outputPath?: string; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
+      ipcRenderer.invoke('solidworks:export-pdf', filePath, options),
     exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
       ipcRenderer.invoke('solidworks:export-step', filePath, options),
     exportDxf: (filePath: string, outputPath?: string) => 
@@ -488,6 +490,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => ipcRenderer.invoke('rfq:create-zip', options),
     openFolder: (rfqId: string, rfqNumber?: string) => 
       ipcRenderer.invoke('rfq:open-folder', rfqId, rfqNumber),
+  },
+  
+  // Archive (ZIP) operations
+  archive: {
+    createZip: (files: Array<{ path: string; relativePath: string }>, outputPath: string) => 
+      ipcRenderer.invoke('archive:create-zip', files, outputPath),
+    onProgress: (callback: (progress: { phase: string; filesProcessed: number; filesTotal: number; currentFile?: string; bytesWritten?: number }) => void) => {
+      const handler = (_: unknown, progress: { phase: string; filesProcessed: number; filesTotal: number; currentFile?: string; bytesWritten?: number }) => callback(progress)
+      ipcRenderer.on('archive:progress', handler)
+      return () => ipcRenderer.removeListener('archive:progress', handler)
+    }
   },
   
   // Embedded eDrawings preview
@@ -807,6 +820,8 @@ declare global {
       hashFile: (path: string) => Promise<{ success: boolean; hash?: string; size?: number; error?: string }>
       listWorkingFiles: () => Promise<FilesListResult>
       listDirFiles: (dirPath: string) => Promise<FilesListResult>
+      // Fast folder listing - no hash computation (for folder-scoped refresh)
+      listFolderFast: (folderRelativePath: string) => Promise<FilesListResult & { folderPath?: string }>
       computeFileHashes: (files: Array<{ path: string; relativePath: string; size: number; mtime: number }>) => 
         Promise<{ success: boolean; results?: Array<{ relativePath: string; hash: string }>; error?: string }>
       onHashProgress: (callback: (progress: { processed: number; total: number; percent: number }) => void) => () => void
@@ -881,7 +896,7 @@ declare global {
       solidworks: {
         // Service management
         isInstalled: () => Promise<{ success: boolean; data?: { installed: boolean } }>
-        startService: (dmLicenseKey?: string, cleanupOrphans?: boolean) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
+        startService: (dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
         stopService: () => Promise<{ success: boolean }>
         getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; installed?: boolean; version?: string } }>
         
@@ -920,8 +935,8 @@ declare global {
           Promise<{ success: boolean; data?: { templatePath: string; outputPath: string; message: string }; error?: string }>
         
         // Export operations
-        exportPdf: (filePath: string, outputPath?: string) => 
-          Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
+        exportPdf: (filePath: string, options?: { outputPath?: string; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
+          Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; exportedFiles?: string[]; fileSize: number }; error?: string }>
         exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
           Promise<{ success: boolean; data?: { inputFile: string; exportedFiles: string[]; count: number }; error?: string }>
         exportDxf: (filePath: string, outputPath?: string) => 

@@ -13,6 +13,7 @@ import { registerCliHandlers, unregisterCliHandlers, startCliServer, cleanupCli,
 import { performMigrationCheck, getMigrationResult, wasMigrationPerformed } from './migration'
 import { registerExtensionHostHandlers, unregisterExtensionHostHandlers, cleanupExtensionHost, onExtensionStateChange, type ExtensionHostHandlerDependencies } from './extensionHost'
 import { registerDeepLinkHandlers, unregisterDeepLinkHandlers, handleDeepLink, parseDeepLink, storePendingDeepLink, processPendingDeepLink, hasPendingDeepLink, setDeepLinkDependencies, type DeepLinkHandlerDependencies } from './deepLink'
+import { registerArchiveHandlers, unregisterArchiveHandlers, type ArchiveHandlerDependencies } from './archive'
 
 // Logging utilities for main.ts
 export { writeLog, initializeLogging } from './logging'
@@ -134,6 +135,11 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
     logError
   }
 
+  const archiveHandlerDeps: ArchiveHandlerDependencies = {
+    log,
+    logError
+  }
+
   // Register all handlers
   registerFsHandlers(mainWindow, fsHandlerDeps)
   registerBackupHandlers(mainWindow, backupHandlerDeps)
@@ -146,6 +152,7 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   registerCliHandlers(mainWindow, cliHandlerDeps)
   registerExtensionHostHandlers(mainWindow, extensionHostHandlerDeps)
   registerDeepLinkHandlers(mainWindow, deepLinkHandlerDeps)
+  registerArchiveHandlers(mainWindow, archiveHandlerDeps)
 
   log('All IPC handlers registered')
 }
@@ -162,4 +169,5 @@ export function unregisterAllHandlers(): void {
   unregisterCliHandlers()
   unregisterExtensionHostHandlers()
   unregisterDeepLinkHandlers()
+  unregisterArchiveHandlers()
 }

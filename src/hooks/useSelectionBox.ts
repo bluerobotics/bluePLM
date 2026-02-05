@@ -69,7 +69,9 @@ export interface UseSelectionBoxReturn {
 export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBoxReturn {
   const {
     containerRef,
-    getVisibleItems,
+    // getVisibleItems is kept in the interface for backwards compatibility but no longer used
+    // Selection detection now uses data-path attributes directly from DOM elements
+    getVisibleItems: _getVisibleItems,
     rowSelector,
     setSelectedFiles,
     clearSelection,
@@ -129,11 +131,12 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
     const bottom = Math.max(selectionBox.startY, currentY)
     
     // Find rows that intersect with selection box
+    // Use data-path attributes to identify files instead of array indexing
+    // This handles virtualization spacer rows, config rows, and other non-file rows correctly
     const rows = container.querySelectorAll(rowSelector)
-    const visibleItems = getVisibleItems()
     const selectedPaths: string[] = []
     
-    rows.forEach((row, index) => {
+    rows.forEach((row) => {
       const rowRect = row.getBoundingClientRect()
       const containerRect = container.getBoundingClientRect()
       
@@ -142,15 +145,16 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
       
       // Check if row intersects with selection box
       if (rowBottom > top && rowTop < bottom) {
-        const item = visibleItems[index]
-        if (item) {
-          selectedPaths.push(item.path)
+        // Get file path from data attribute (rows without data-path are ignored)
+        const path = row.getAttribute('data-path')
+        if (path) {
+          selectedPaths.push(path)
         }
       }
     })
     
     setSelectedFiles(selectedPaths)
-  }, [selectionBox, containerRef, rowSelector, getVisibleItems, setSelectedFiles])
+  }, [selectionBox, containerRef, rowSelector, setSelectedFiles])
 
   const handleMouseUp = useCallback(() => {
     isSelectingRef.current = false

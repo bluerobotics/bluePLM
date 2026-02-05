@@ -261,7 +261,7 @@ export async function syncSolidWorksFileMetadata(
     const { error: versionError } = await client.from('file_versions').insert({
       file_id: fileId,
       version: newVersion,
-      revision: updateData.revision || file.revision || 'A',
+      revision: updateData.revision || file.revision || '',
       content_hash: file.content_hash || '',
       file_size: file.file_size,
       workflow_state_id: file.workflow_state_id,

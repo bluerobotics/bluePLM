@@ -20,6 +20,8 @@ export interface FileToolbarProps {
   canGoBack: boolean
   canGoForward: boolean
   onRefresh: () => void
+  /** Whether a refresh operation is in progress */
+  isRefreshing?: boolean
   
   // Search
   isSearching: boolean
@@ -65,6 +67,7 @@ export const FileToolbar = memo(function FileToolbar({
   canGoBack,
   canGoForward,
   onRefresh,
+  isRefreshing = false,
   isSearching,
   searchQuery,
   searchType,
@@ -106,6 +109,7 @@ export const FileToolbar = memo(function FileToolbar({
           canGoBack={canGoBack}
           canGoForward={canGoForward}
           onRefresh={onRefresh}
+          isRefreshing={isRefreshing}
           onCrumbDragOver={onCrumbDragOver}
           onCrumbDragLeave={onCrumbDragLeave}
           onCrumbDrop={onCrumbDrop}

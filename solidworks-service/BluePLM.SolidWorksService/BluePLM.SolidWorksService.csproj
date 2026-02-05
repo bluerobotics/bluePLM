@@ -9,8 +9,12 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     
-    <!-- Output to a predictable location for Electron to find -->
+    <!-- Force consistent output path regardless of build tool (dotnet vs msbuild) -->
+    <!-- Without this, PlatformTarget=x64 causes msbuild to output to bin\x64\Release\ -->
+    <!-- while dotnet build outputs to bin\Release\, causing stale binary issues -->
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>

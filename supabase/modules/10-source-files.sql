@@ -346,7 +346,7 @@ CREATE TABLE IF NOT EXISTS files (
   -- Engineering metadata
   part_number TEXT,
   description TEXT,
-  revision TEXT NOT NULL DEFAULT 'A',
+  revision TEXT NOT NULL DEFAULT '',
   version INTEGER NOT NULL DEFAULT 1,
   
   -- Content reference
@@ -419,8 +419,14 @@ END $$;
 
 -- Migration: Ensure files columns have NOT NULL (set defaults for any existing NULLs first)
 UPDATE files SET file_type = 'other' WHERE file_type IS NULL;
-UPDATE files SET revision = 'A' WHERE revision IS NULL;
+UPDATE files SET revision = '' WHERE revision IS NULL;
 UPDATE files SET version = 1 WHERE version IS NULL;
+
+-- Migration: Change default revision from 'A' to '' (empty string means "no revision set")
+DO $$ BEGIN
+  ALTER TABLE files ALTER COLUMN revision SET DEFAULT '';
+EXCEPTION WHEN others THEN NULL;
+END $$;
 DO $$ BEGIN
   ALTER TABLE files ALTER COLUMN file_type SET NOT NULL;
   ALTER TABLE files ALTER COLUMN revision SET NOT NULL;

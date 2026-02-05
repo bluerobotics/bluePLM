@@ -8,7 +8,7 @@
  * NOTE: Drawing files (.slddrw) can have their revision locked via settings because
  * it typically comes from the drawing's revision table, not from editable properties.
  */
-import { FileInput } from 'lucide-react'
+import { ArrowLeft, FileText } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
@@ -57,10 +57,11 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
   }
   
   // Prioritize pendingMetadata over pdmData - pending edits should always show
-  // Default to 'A' if no revision is set
-  const displayValue = file.pendingMetadata?.revision !== undefined 
+  // Display '-' if no revision is set (empty string in database)
+  const rawRevision = file.pendingMetadata?.revision !== undefined 
     ? file.pendingMetadata.revision 
-    : (file.pdmData?.revision || 'A')
+    : (file.pdmData?.revision || '')
+  const displayValue = rawRevision || '-'
   
   // Determine appropriate tooltip message
   const getTooltip = () => {
@@ -92,7 +93,12 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
       title={getTooltip()}
     >
       {displayValue}
-      {isDrawingLocked && <FileInput size={12} className="text-plm-fg-muted/50 flex-shrink-0" />}
+      {isDrawingLocked && (
+        <span className="inline-flex items-center gap-0.5 text-plm-fg-muted/50 flex-shrink-0" title="Driven by drawing revision table">
+          <ArrowLeft size={10} />
+          <FileText size={12} />
+        </span>
+      )}
     </span>
   )
 }

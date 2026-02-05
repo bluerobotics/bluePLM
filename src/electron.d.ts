@@ -139,6 +139,43 @@ interface SaveDialogResult {
   error?: string
 }
 
+// ============================================
+// Archive Types
+// ============================================
+
+/** Input file specification for ZIP creation */
+interface ZipFileInput {
+  /** Absolute path to the source file on disk */
+  path: string
+  /** Relative path within the ZIP archive (preserves folder structure) */
+  relativePath: string
+}
+
+/** Result of ZIP creation operation */
+interface ZipResult {
+  success: boolean
+  /** Total bytes written to the ZIP file */
+  totalSize?: number
+  /** Number of files included in the ZIP */
+  fileCount?: number
+  /** Error message if operation failed */
+  error?: string
+}
+
+/** Progress event sent during ZIP creation */
+interface ZipProgressEvent {
+  /** Current phase: 'reading' | 'compressing' | 'writing' */
+  phase: 'reading' | 'compressing' | 'writing'
+  /** Number of files processed so far */
+  filesProcessed: number
+  /** Total number of files to process */
+  filesTotal: number
+  /** Current file being processed */
+  currentFile?: string
+  /** Bytes written so far (only during 'writing' phase) */
+  bytesWritten?: number
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -224,6 +261,8 @@ declare global {
       hashFile: (path: string) => Promise<{ success: boolean; hash?: string; size?: number; error?: string }>
       listWorkingFiles: () => Promise<FilesListResult>
       listDirFiles: (dirPath: string) => Promise<FilesListResult>
+      // Fast folder listing - no hash computation (for folder-scoped refresh)
+      listFolderFast: (folderRelativePath: string) => Promise<FilesListResult & { folderPath?: string }>
       computeFileHashes: (files: Array<{ path: string; relativePath: string; size: number; mtime: number }>) => 
         Promise<{ success: boolean; results?: Array<{ relativePath: string; hash: string }>; error?: string }>
       onHashProgress: (callback: (progress: { processed: number; total: number; percent: number }) => void) => () => void
@@ -284,6 +323,24 @@ declare global {
       // PDF generation
       generatePdfFromHtml: (htmlContent: string, outputPath: string) => Promise<{ success: boolean; path?: string; size?: number; error?: string }>
       
+      // Archive (ZIP) operations
+      archive: {
+        /**
+         * Create a ZIP archive from a list of files
+         * @param files - Array of {path, relativePath} objects to include in the ZIP
+         * @param outputPath - Absolute path where the ZIP file will be written
+         * @returns Result with success status, file count, total size, or error
+         */
+        createZip: (files: ZipFileInput[], outputPath: string) => Promise<ZipResult>
+        
+        /**
+         * Listen for ZIP creation progress events
+         * @param callback - Called with progress updates during ZIP creation
+         * @returns Unsubscribe function
+         */
+        onProgress: (callback: (progress: ZipProgressEvent) => void) => () => void
+      }
+      
       // eDrawings preview
       checkEDrawingsInstalled: () => Promise<{ installed: boolean; path: string | null }>
       openInEDrawings: (filePath: string) => Promise<{ success: boolean; error?: string }>
@@ -302,7 +359,7 @@ declare global {
       solidworks: {
         // Service management
         isInstalled: () => Promise<{ success: boolean; data?: { installed: boolean } }>
-        startService: (dmLicenseKey?: string) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
+        startService: (dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
         stopService: () => Promise<{ success: boolean }>
         getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; installed?: boolean; version?: string; documentManagerAvailable?: boolean }; error?: string }>
         
@@ -338,7 +395,7 @@ declare global {
           outputPath?: string; 
           filenamePattern?: string; 
           pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } 
-        }) => Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
+        }) => Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; exportedFiles?: string[]; fileSize: number }; error?: string }>
         exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
           Promise<{ success: boolean; data?: { inputFile: string; exportedFiles: string[]; count: number }; error?: string }>
         exportDxf: (filePath: string, outputPath?: string) => 

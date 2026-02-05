@@ -75,6 +75,13 @@ import {
 } from './handlers/fileOps'
 import { syncMetadataCommand } from './handlers/syncMetadata'
 import { extractReferencesCommand } from './handlers/extractReferences'
+import {
+  bulkDownloadAssemblyCommand,
+  bulkCheckoutAssemblyCommand,
+  bulkCheckinAssemblyCommand,
+  bulkDeleteAssemblyCommand
+} from './handlers/bulkAssembly'
+import { packAndGoCommand } from './handlers/packAndGo'
 
 // Register all commands on module load
 function initializeCommands() {
@@ -107,6 +114,13 @@ function initializeCommands() {
   // SolidWorks specific
   registerCommand('sync-metadata', syncMetadataCommand)
   registerCommand('extract-references', extractReferencesCommand)
+  
+  // Bulk assembly operations
+  registerCommand('bulk-download-assembly', bulkDownloadAssemblyCommand)
+  registerCommand('bulk-checkout-assembly', bulkCheckoutAssemblyCommand)
+  registerCommand('bulk-checkin-assembly', bulkCheckinAssemblyCommand)
+  registerCommand('bulk-delete-assembly', bulkDeleteAssemblyCommand)
+  registerCommand('pack-and-go', packAndGoCommand)
 }
 
 // Initialize on import

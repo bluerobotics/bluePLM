@@ -80,6 +80,8 @@ export const createSettingsSlice: StateCreator<
   lockDrawingRevision: true,
   lockDrawingItemNumber: true,
   lockDrawingDescription: true,
+  // Service logging - OFF by default
+  solidworksServiceVerboseLogging: false,
   
   // Initial state - API Server
   apiServerUrl: null,
@@ -163,6 +165,7 @@ export const createSettingsSlice: StateCreator<
   setLockDrawingRevision: (lockDrawingRevision) => set({ lockDrawingRevision }),
   setLockDrawingItemNumber: (lockDrawingItemNumber) => set({ lockDrawingItemNumber }),
   setLockDrawingDescription: (lockDrawingDescription) => set({ lockDrawingDescription }),
+  setSolidworksServiceVerboseLogging: (solidworksServiceVerboseLogging) => set({ solidworksServiceVerboseLogging }),
   
   // Actions - API Server
   setApiServerUrl: (apiServerUrl) => set({ apiServerUrl }),

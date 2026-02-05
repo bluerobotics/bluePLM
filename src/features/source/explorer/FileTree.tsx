@@ -46,6 +46,8 @@ import { useTreeDragDrop } from './file-tree/hooks/useTreeDragDrop'
 import { useTreeKeyboardNav } from './file-tree/hooks/useTreeKeyboardNav'
 // Shared hooks
 import { useSelectionCategories, useClipboard, useSelectionBox, useSlowDoubleClick, useAutoScrollOnDrag } from '@/hooks'
+// Logging
+import { logExplorer } from '@/lib/userActionLogger'
 // Constants
 import { 
   TREE_BASE_PADDING_PX, 
@@ -268,6 +270,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   // Switch to a different vault
   const switchToVault = async (vault: ConnectedVault) => {
     if (vault.id === activeVaultId) {
+      logExplorer('switchToVault - already active, navigating to root', { vaultName: vault.name })
       setCurrentFolder('')
       // Sync tab title when navigating to vault root
       if (tabsEnabled && activeTabId) {
@@ -276,6 +279,12 @@ export function FileTree({ onRefresh }: FileTreeProps) {
       return
     }
     
+    logExplorer('switchToVault START', { 
+      fromVaultId: activeVaultId, 
+      toVaultId: vault.id, 
+      vaultName: vault.name 
+    })
+    
     setFiles([])
     setServerFiles([])
     setFilesLoaded(false)
@@ -283,6 +292,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     if (window.electronAPI) {
       const result = await window.electronAPI.setWorkingDir(vault.localPath)
       if (!result.success) {
+        logExplorer('switchToVault FAILED', { vaultName: vault.name, error: result.error })
         addToast('error', `Failed to switch vault: ${result.error}`)
         return
       }
@@ -294,6 +304,8 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     if (tabsEnabled && activeTabId) {
       updateTabFolder(activeTabId, '')
     }
+    
+    logExplorer('switchToVault END', { vaultName: vault.name })
   }
   
   // Get files that need attention before disconnect
@@ -521,6 +533,17 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   // Handles selection logic including shift-click range selection
   // ═══════════════════════════════════════════════════════════════════════════
   const handleTreeItemClick = useCallback((e: React.MouseEvent, file: LocalFile, flatIndex: number) => {
+    const modifiers = {
+      shift: e.shiftKey,
+      ctrl: e.ctrlKey || e.metaKey
+    }
+    logExplorer('handleTreeItemClick', { 
+      name: file.name, 
+      isDirectory: file.isDirectory,
+      flatIndex,
+      ...modifiers
+    })
+    
     if (e.shiftKey && lastClickedIndex !== null) {
       // Range selection
       const filesInRange = getFilesInRange(lastClickedIndex, flatIndex)
@@ -554,6 +577,12 @@ export function FileTree({ onRefresh }: FileTreeProps) {
 
   // Handle double-click on tree items
   const handleTreeItemDoubleClick = useCallback(async (file: LocalFile) => {
+    logExplorer('handleTreeItemDoubleClick', { 
+      name: file.name, 
+      isDirectory: file.isDirectory,
+      diffStatus: file.diffStatus 
+    })
+    
     if (file.isDirectory) {
       toggleFolder(file.relativePath)
     } else if (file.diffStatus === 'cloud') {

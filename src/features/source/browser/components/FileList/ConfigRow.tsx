@@ -1,7 +1,7 @@
-import React, { memo } from 'react'
+import React, { memo, useState, useEffect, useCallback } from 'react'
 import { Layers, FileInput, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
 import type { ConfigWithDepth } from '../../types'
-import { validateTabInput, getTabPlaceholder } from '@/lib/tabValidation'
+import { validateTabInput, getTabPlaceholder, type TabValidationOptions, DEFAULT_TAB_VALIDATION_OPTIONS } from '@/lib/tabValidation'
 
 export interface ConfigRowProps {
   config: ConfigWithDepth
@@ -18,8 +18,8 @@ export interface ConfigRowProps {
   isBomExpanded?: boolean
   /** Whether the BOM is currently loading */
   isBomLoading?: boolean
-  /** Maximum digits for tab number (from serialization settings) */
-  tabPaddingDigits?: number
+  /** Tab validation options (from serialization settings) */
+  tabValidationOptions?: TabValidationOptions
   onClick: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onDescriptionChange: (value: string) => void
@@ -52,7 +52,14 @@ function areConfigRowPropsEqual(
   if (prevProps.isExpandable !== nextProps.isExpandable) return false
   if (prevProps.isBomExpanded !== nextProps.isBomExpanded) return false
   if (prevProps.isBomLoading !== nextProps.isBomLoading) return false
-  if (prevProps.tabPaddingDigits !== nextProps.tabPaddingDigits) return false
+  // Compare tab validation options
+  const prevOpts = prevProps.tabValidationOptions
+  const nextOpts = nextProps.tabValidationOptions
+  if (prevOpts?.maxLength !== nextOpts?.maxLength) return false
+  if (prevOpts?.allowLetters !== nextOpts?.allowLetters) return false
+  if (prevOpts?.allowNumbers !== nextOpts?.allowNumbers) return false
+  if (prevOpts?.allowSpecial !== nextOpts?.allowSpecial) return false
+  if (prevOpts?.specialChars !== nextOpts?.specialChars) return false
   
   // Compare visibleColumns array (shallow check on length and ids)
   if (prevProps.visibleColumns.length !== nextProps.visibleColumns.length) return false
@@ -75,18 +82,79 @@ export const ConfigRow = memo(function ConfigRow({
   isExpandable,
   isBomExpanded,
   isBomLoading,
-  tabPaddingDigits = 3,
+  tabValidationOptions = DEFAULT_TAB_VALIDATION_OPTIONS,
   onClick,
   onContextMenu,
   onDescriptionChange,
   onTabChange,
   onToggleBom,
 }: ConfigRowProps) {
-  // Handler that validates tab input before passing to parent
-  const handleTabChange = (value: string) => {
-    const validated = validateTabInput(value, tabPaddingDigits)
-    onTabChange(validated)
-  }
+  // Local state for description input - prevents race conditions when clicking between inputs
+  const [localDescription, setLocalDescription] = useState(config.description || '')
+  
+  // Local state for tab number input
+  const [localTabNumber, setLocalTabNumber] = useState(config.tabNumber || '')
+  
+  // Sync local description state when props change (e.g., after save or external update)
+  useEffect(() => {
+    setLocalDescription(config.description || '')
+  }, [config.description])
+  
+  // Sync local tab number state when props change
+  useEffect(() => {
+    setLocalTabNumber(config.tabNumber || '')
+  }, [config.tabNumber])
+  
+  // Commit description changes on blur
+  const handleDescriptionBlur = useCallback(() => {
+    // Only save if value changed
+    if (localDescription !== (config.description || '')) {
+      onDescriptionChange(localDescription)
+    }
+  }, [localDescription, config.description, onDescriptionChange])
+  
+  // Handle description keydown for Enter (save) and Escape (revert)
+  const handleDescriptionKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      // Commit and blur
+      if (localDescription !== (config.description || '')) {
+        onDescriptionChange(localDescription)
+      }
+      e.currentTarget.blur()
+    } else if (e.key === 'Escape') {
+      // Revert to original value and blur
+      setLocalDescription(config.description || '')
+      e.currentTarget.blur()
+    }
+    e.stopPropagation()
+  }, [localDescription, config.description, onDescriptionChange])
+  
+  // Commit tab number changes on blur (with validation)
+  const handleTabBlur = useCallback(() => {
+    const validated = validateTabInput(localTabNumber, tabValidationOptions)
+    // Only save if value changed
+    if (validated !== (config.tabNumber || '')) {
+      onTabChange(validated)
+    }
+  }, [localTabNumber, config.tabNumber, onTabChange, tabValidationOptions])
+  
+  // Handle tab keydown for Enter (save) and Escape (revert)
+  const handleTabKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      // Validate, commit and blur
+      const validated = validateTabInput(localTabNumber, tabValidationOptions)
+      if (validated !== (config.tabNumber || '')) {
+        onTabChange(validated)
+      }
+      e.currentTarget.blur()
+    } else if (e.key === 'Escape') {
+      // Revert to original value and blur
+      setLocalTabNumber(config.tabNumber || '')
+      e.currentTarget.blur()
+    }
+    e.stopPropagation()
+  }, [localTabNumber, config.tabNumber, onTabChange, tabValidationOptions])
+  
   return (
     <tr
       className={`config-row cursor-pointer ${isSelected ? 'selected' : ''}`}
@@ -134,11 +202,12 @@ export const ConfigRow = memo(function ConfigRow({
           ) : column.id === 'description' ? (
             <input
               type="text"
-              value={config.description || ''}
-              onChange={(e) => onDescriptionChange(e.target.value)}
+              value={localDescription}
+              onChange={(e) => setLocalDescription(e.target.value)}
+              onBlur={handleDescriptionBlur}
+              onKeyDown={handleDescriptionKeyDown}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
               disabled={!isEditable}
               placeholder="Description"
               className={`w-full px-1.5 py-0.5 text-xs rounded border transition-colors bg-transparent
@@ -150,11 +219,11 @@ export const ConfigRow = memo(function ConfigRow({
             />
           ) : column.id === 'itemNumber' ? (() => {
             // Get base number from parent file
-            const tabNumber = config.tabNumber || ''
             const hasTabColumn = visibleColumns.some(c => c.id === 'tabNumber')
             
             // When not editable (checked in), show as single inline text
             if (!isEditable) {
+              const tabNumber = config.tabNumber || ''
               const fullNumber = basePartNumber && tabNumber 
                 ? `${basePartNumber}-${tabNumber}`
                 : basePartNumber || tabNumber || ''
@@ -187,21 +256,21 @@ export const ConfigRow = memo(function ConfigRow({
                 )}
                 <input
                   type="text"
-                  value={tabNumber}
-                  onChange={(e) => handleTabChange(e.target.value)}
+                  value={localTabNumber}
+                  onChange={(e) => setLocalTabNumber(e.target.value)}
+                  onBlur={handleTabBlur}
+                  onKeyDown={handleTabKeyDown}
                   onClick={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  placeholder={basePartNumber ? getTabPlaceholder(tabPaddingDigits) : 'Item #'}
+                  placeholder={basePartNumber ? getTabPlaceholder(tabValidationOptions) : 'Item #'}
                   className="w-14 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
                 />
               </div>
             )
           })() : column.id === 'tabNumber' ? (() => {
             // Separate tab number column for config rows
-            const tabNumber = config.tabNumber || ''
-            
             if (!isEditable) {
+              const tabNumber = config.tabNumber || ''
               return tabNumber ? (
                 <span className="text-xs text-plm-fg-muted">{tabNumber}</span>
               ) : (
@@ -213,12 +282,13 @@ export const ConfigRow = memo(function ConfigRow({
             return (
               <input
                 type="text"
-                value={tabNumber}
-                onChange={(e) => handleTabChange(e.target.value)}
+                value={localTabNumber}
+                onChange={(e) => setLocalTabNumber(e.target.value)}
+                onBlur={handleTabBlur}
+                onKeyDown={handleTabKeyDown}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-                placeholder={getTabPlaceholder(tabPaddingDigits)}
+                placeholder={getTabPlaceholder(tabValidationOptions)}
                 className="w-16 px-1 py-0.5 text-xs rounded border transition-colors text-center bg-transparent border-plm-border/30 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20 text-plm-fg hover:border-plm-border"
               />
             )

@@ -10,11 +10,11 @@
  */
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Sparkles, Loader2, FileInput, Check } from 'lucide-react'
+import { Sparkles, Loader2, Check, ArrowLeft, Box } from 'lucide-react'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getNextSerialNumber, previewNextSerialNumber } from '@/lib/serialization'
-import { validateTabInput, getTabPlaceholder } from '@/lib/tabValidation'
+import { validateTabInput, getTabPlaceholder, getTabValidationOptions } from '@/lib/tabValidation'
 import type { CellRendererBaseProps } from './types'
 
 export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode {
@@ -29,7 +29,9 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   const addToast = usePDMStore(s => s.addToast)
   const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
   const lockDrawingItemNumber = usePDMStore(s => s.lockDrawingItemNumber)
-  const tabPaddingDigits = organization?.serialization_settings?.padding_digits ?? 3
+  
+  // Get tab validation options from serialization settings
+  const tabValidationOptions = getTabValidationOptions(organization?.serialization_settings)
   
   // Calculate minimum width for item number box based on serialization settings
   // This ensures consistent sizing and alignment across all rows
@@ -144,7 +146,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   
   // Handle inline tab number change (when Tab column is hidden)
   const handleInlineTabChange = (value: string) => {
-    const validated = validateTabInput(value, tabPaddingDigits)
+    const validated = validateTabInput(value, tabValidationOptions)
     setLocalTabValue(validated)
     updatePendingMetadata(file.path, { tab_number: validated || null })
   }
@@ -306,7 +308,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
                 if (confirmingGenerate) return
                 handleSaveCellEdit()
               }}
-              placeholder={getTabPlaceholder(tabPaddingDigits)}
+              placeholder={getTabPlaceholder(tabValidationOptions)}
               className="w-12 shrink-0 bg-transparent border border-plm-border/20 rounded px-1 py-0 text-sm text-plm-fg text-center focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:ring-1 focus:ring-plm-accent"
             />
           </>
@@ -356,8 +358,14 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
           // Allow click through for text selection when not editable
         }}
       >
-        <span className={`text-sm ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''} ${!canEditItemNumber ? 'select-text' : ''}`}>
+        <span className={`text-sm flex items-center gap-1 ${!hasValue || !canEditItemNumber ? 'text-plm-fg-muted' : ''} ${!canEditItemNumber ? 'select-text' : ''}`}>
           {displayValue}
+          {isDrawingLocked && (
+            <span className="inline-flex items-center gap-0.5 text-plm-fg-muted/50 flex-shrink-0" title="Inherited from referenced model">
+              <ArrowLeft size={10} />
+              <Box size={12} />
+            </span>
+          )}
         </span>
         {canEditItemNumber && !confirmingGenerate && (
           <button
@@ -375,7 +383,6 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
           </button>
         )}
-        {isDrawingLocked && <FileInput size={12} className="ml-1 text-plm-fg-muted/50 flex-shrink-0" />}
       </div>
       
       {/* Confirmation popup - rendered via portal to escape table overflow */}
@@ -419,7 +426,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
-            placeholder={getTabPlaceholder(tabPaddingDigits)}
+            placeholder={getTabPlaceholder(tabValidationOptions)}
             className="w-12 shrink-0 bg-transparent border border-transparent rounded px-1 py-0 text-sm text-plm-fg text-center cursor-text group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:ring-1 focus:ring-plm-accent"
           />
         </>

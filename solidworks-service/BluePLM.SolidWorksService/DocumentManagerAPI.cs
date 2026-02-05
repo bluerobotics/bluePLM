@@ -150,6 +150,30 @@ namespace BluePLM.SolidWorksService
             return _dmAssembly?.GetType($"SolidWorks.Interop.swdocumentmgr.{typeName}");
         }
 
+        /// <summary>
+        /// Create a search option object using the proper API factory method.
+        /// This avoids direct COM class instantiation which requires registry registration.
+        /// </summary>
+        private object? CreateSearchOptionObject()
+        {
+            var iAppType = GetDmType("ISwDMApplication");
+            var method = iAppType?.GetMethod("GetSearchOptionObject");
+            if (method == null)
+            {
+                Console.Error.WriteLine("[DM-API] CreateSearchOptionObject: GetSearchOptionObject method not found on ISwDMApplication");
+                return null;
+            }
+            try
+            {
+                return method.Invoke(_dmApp, null);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DM-API] CreateSearchOptionObject failed: {ex.Message}");
+                return null;
+            }
+        }
+
         #endregion
 
         #region Initialization
@@ -1119,89 +1143,105 @@ namespace BluePLM.SolidWorksService
                 try
                 {
                     // Create search options to find parts and assemblies
-                    var searchOptType = GetDmType("SwDMSearchOption");
-                    if (searchOptType != null)
+                    var searchOpt = CreateSearchOptionObject();
+                    if (searchOpt != null)
                     {
-                        var searchOpt = Activator.CreateInstance(searchOptType);
-                        if (searchOpt != null)
+                        dynamic dynSearchOpt = searchOpt;
+                        dynSearchOpt.SearchFilters = 3; // swDmSearchForPart | swDmSearchForAssembly
+                        
+                        // Set search path to the directory containing the drawing
+                        // This is required for GetAllExternalReferences to find referenced files
+                        var drawingDir = Path.GetDirectoryName(drawingPath);
+                        if (!string.IsNullOrEmpty(drawingDir))
                         {
-                            dynamic dynSearchOpt = searchOpt;
-                            dynSearchOpt.SearchFilters = 3; // swDmSearchForPart | swDmSearchForAssembly
-                            
-                            var references = (string[]?)doc.GetAllExternalReferences(searchOpt);
-                            
-                            if (references != null && references.Length > 0)
+                            dynSearchOpt.AddSearchPath(drawingDir);
+                        }
+                        
+                        // Use reflection to invoke GetAllExternalReferences - dynamic binding fails
+                        // because the searchOpt object type doesn't match SwDMSearchOption at runtime
+                        string[]? references = null;
+                        var docType = ((object)doc).GetType();
+                        var getRefsMethod = docType.GetMethod("GetAllExternalReferences");
+                        if (getRefsMethod != null)
+                        {
+                            try
                             {
-                                Console.Error.WriteLine($"[DM] Drawing references {references.Length} models");
-                                
-                                // The first reference is typically the main model for the drawing
-                                var primaryModelPath = references[0];
-                                Console.Error.WriteLine($"[DM] Primary referenced model: {Path.GetFileName(primaryModelPath)}");
-                                
-                                // Check if the file exists and try to read its properties
-                                if (File.Exists(primaryModelPath))
+                                var result = getRefsMethod.Invoke(doc, new object[] { searchOpt });
+                                references = result as string[];
+                            }
+                            catch (Exception refEx)
+                            {
+                                Console.Error.WriteLine($"[DM] GetAllExternalReferences reflection failed: {refEx.Message}");
+                            }
+                        }
+                        
+                        if (references != null && references.Length > 0)
+                        {
+                            Console.Error.WriteLine($"[DM] Drawing references {references.Length} models");
+                            
+                            // The first reference is typically the main model for the drawing
+                            var primaryModelPath = references[0];
+                            Console.Error.WriteLine($"[DM] Primary referenced model: {Path.GetFileName(primaryModelPath)}");
+                            
+                            // Check if the file exists and try to read its properties
+                            if (File.Exists(primaryModelPath))
+                            {
+                                // Open the referenced model to read its properties
+                                var modelDoc = OpenDocument(primaryModelPath, out var modelOpenError);
+                                if (modelDoc != null)
                                 {
-                                    // Open the referenced model to read its properties
-                                    var modelDoc = OpenDocument(primaryModelPath, out var modelOpenError);
-                                    if (modelDoc != null)
+                                    try
                                     {
-                                        try
+                                        Console.Error.WriteLine($"[DM] Opened referenced model, reading properties...");
+                                        dynamic dynModelDoc = modelDoc;
+                                        
+                                        // Read file-level properties
+                                        props = ReadProperties(dynModelDoc, null);
+                                        Console.Error.WriteLine($"[DM] Read {props.Count} properties from referenced model");
+                                        
+                                        // If no file-level properties, try default configuration
+                                        if (props.Count == 0)
                                         {
-                                            Console.Error.WriteLine($"[DM] Opened referenced model, reading properties...");
-                                            dynamic dynModelDoc = modelDoc;
-                                            
-                                            // Read file-level properties
-                                            props = ReadProperties(dynModelDoc, null);
-                                            Console.Error.WriteLine($"[DM] Read {props.Count} properties from referenced model");
-                                            
-                                            // If no file-level properties, try default configuration
-                                            if (props.Count == 0)
+                                            try
                                             {
-                                                try
+                                                var configMgr = dynModelDoc.ConfigurationManager;
+                                                if (configMgr != null)
                                                 {
-                                                    var configMgr = dynModelDoc.ConfigurationManager;
-                                                    if (configMgr != null)
+                                                    var activeConfig = configMgr.GetActiveConfigurationName();
+                                                    if (!string.IsNullOrEmpty(activeConfig))
                                                     {
-                                                        var activeConfig = configMgr.GetActiveConfigurationName();
-                                                        if (!string.IsNullOrEmpty(activeConfig))
-                                                        {
-                                                            Console.Error.WriteLine($"[DM] Trying active config: {activeConfig}");
-                                                            props = ReadProperties(dynModelDoc, activeConfig);
-                                                            Console.Error.WriteLine($"[DM] Read {props.Count} config properties from referenced model");
-                                                        }
+                                                        Console.Error.WriteLine($"[DM] Trying active config: {activeConfig}");
+                                                        props = ReadProperties(dynModelDoc, activeConfig);
+                                                        Console.Error.WriteLine($"[DM] Read {props.Count} config properties from referenced model");
                                                     }
                                                 }
-                                                catch (Exception configEx)
-                                                {
-                                                    Console.Error.WriteLine($"[DM] Error reading config properties: {configEx.Message}");
-                                                }
+                                            }
+                                            catch (Exception configEx)
+                                            {
+                                                Console.Error.WriteLine($"[DM] Error reading config properties: {configEx.Message}");
                                             }
                                         }
-                                        finally
-                                        {
-                                            try { ((dynamic)modelDoc).CloseDoc(); } catch { }
-                                            LogDocClose(primaryModelPath);
-                                        }
                                     }
-                                    else
+                                    finally
                                     {
-                                        Console.Error.WriteLine($"[DM] Drawing PRP resolution: failed to open referenced model (error {modelOpenError})");
+                                        try { ((dynamic)modelDoc).CloseDoc(); } catch { }
+                                        LogDocClose(primaryModelPath);
                                     }
                                 }
                                 else
                                 {
-                                    Console.Error.WriteLine($"[DM] Drawing PRP resolution: referenced model missing: {primaryModelPath}");
+                                    Console.Error.WriteLine($"[DM] Drawing PRP resolution: failed to open referenced model (error {modelOpenError})");
                                 }
                             }
                             else
                             {
-                                Console.Error.WriteLine("[DM] Drawing PRP resolution: no referenced model found");
+                                Console.Error.WriteLine($"[DM] Drawing PRP resolution: referenced model missing: {primaryModelPath}");
                             }
                         }
-                    }
-                    else
-                    {
-                        Console.Error.WriteLine($"[DM] SwDMSearchOption type not found");
+                        else
+                        {
+                            Console.Error.WriteLine("[DM] Drawing PRP resolution: no referenced model found");
+                        }
                     }
                 }
                 catch (Exception refEx)
@@ -1265,7 +1305,11 @@ namespace BluePLM.SolidWorksService
 
                 dynamic dynDoc = doc;
                 int propsSet = 0;
-                const int swDmCustomInfoText = 2;
+                
+                // Get the SwDmCustomInfoType enum type for proper COM interop
+                // Using int directly fails with "invalid arguments" when adding new properties
+                var customInfoType = GetDmType("SwDmCustomInfoType");
+                var swDmCustomInfoTextEnum = customInfoType != null ? Enum.ToObject(customInfoType, 2) : (object)2;
 
                 if (string.IsNullOrEmpty(configuration))
                 {
@@ -1287,7 +1331,7 @@ namespace BluePLM.SolidWorksService
                             catch 
                             {
                                 // Property doesn't exist, try Add
-                                dynDoc.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
+                                dynDoc.AddCustomProperty(kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
                                 propsSet++;
                                 Console.Error.WriteLine($"[DM] Added file property '{kvp.Key}' via AddCustomProperty");
                             }
@@ -1326,7 +1370,7 @@ namespace BluePLM.SolidWorksService
                             catch 
                             {
                                 // Property doesn't exist, try Add
-                                config.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
+                                config.AddCustomProperty(kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
                                 propsSet++;
                                 Console.Error.WriteLine($"[DM] Added config property '{kvp.Key}' via AddCustomProperty");
                             }
@@ -1345,7 +1389,7 @@ namespace BluePLM.SolidWorksService
                         try
                         {
                             try { dynDoc.DeleteCustomProperty("Number"); } catch { }
-                            dynDoc.AddCustomProperty("Number", swDmCustomInfoText, numberValue);
+                            dynDoc.AddCustomProperty("Number", swDmCustomInfoTextEnum, numberValue);
                         }
                         catch
                         {
@@ -1438,7 +1482,11 @@ namespace BluePLM.SolidWorksService
 
                 dynamic dynDoc = doc;
                 var configMgr = dynDoc.ConfigurationManager;
-                const int swDmCustomInfoText = 2;
+                
+                // Get the SwDmCustomInfoType enum type for proper COM interop
+                // Using int directly fails with "invalid arguments" when adding new properties
+                var customInfoType = GetDmType("SwDmCustomInfoType");
+                var swDmCustomInfoTextEnum = customInfoType != null ? Enum.ToObject(customInfoType, 2) : (object)2;
                 
                 int totalPropsSet = 0;
                 int configsProcessed = 0;
@@ -1471,7 +1519,7 @@ namespace BluePLM.SolidWorksService
                             try
                             {
                                 try { config.DeleteCustomProperty(kvp.Key); } catch { }
-                                config.AddCustomProperty(kvp.Key, swDmCustomInfoText, kvp.Value);
+                                config.AddCustomProperty(kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
                                 propsSetForConfig++;
                                 
                                 // Track Number value for file-level backup
@@ -1514,7 +1562,7 @@ namespace BluePLM.SolidWorksService
                     try
                     {
                         try { dynDoc.DeleteCustomProperty("Number"); } catch { }
-                        dynDoc.AddCustomProperty("Number", swDmCustomInfoText, lastNumberValue);
+                        dynDoc.AddCustomProperty("Number", swDmCustomInfoTextEnum, lastNumberValue);
                     }
                     catch
                     {
@@ -1695,88 +1743,424 @@ namespace BluePLM.SolidWorksService
                 var quantities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
                 var configName = configuration ?? (string)dynDoc.ConfigurationManager.GetActiveConfigurationName();
+                Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Using configuration '{configName}'");
                 
-                // Get external references using reflection
-                var searchOptType = GetDmType("SwDMSearchOptionClass");
-                if (searchOptType != null)
+                // Use ISwDMConfiguration2.GetComponents() to get assembly components
+                // This is the correct API for BOM extraction (not GetAllExternalReferences)
+                var swGetComps = System.Diagnostics.Stopwatch.StartNew();
+                
+                try
                 {
-                    var searchOpt = Activator.CreateInstance(searchOptType);
-                    if (searchOpt != null)
+                    // Get the configuration object
+                    dynamic configMgr = dynDoc.ConfigurationManager;
+                    object? configObj = configMgr.GetConfigurationByName(configName);
+                    
+                    if (configObj == null)
                     {
-                        dynamic dynSearchOpt = searchOpt;
-                        dynSearchOpt.SearchFilters = 3; // SwDmSearchForPart | SwDmSearchForAssembly
-
-                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Calling GetAllExternalReferences...");
-                        var swGetRefs = System.Diagnostics.Stopwatch.StartNew();
-                        
-                        // Wrap in Task with timeout as safety net in case DM API hangs
-                        // (e.g., searching for missing references on slow/unavailable network paths)
-                        string[]? dependencies = null;
-                        var refTask = Task.Run(() => (string[]?)dynDoc.GetAllExternalReferences(searchOpt));
-                        if (!refTask.Wait(TimeSpan.FromSeconds(15)))
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Configuration '{configName}' not found");
+                        return new CommandResult { Success = false, Error = $"Configuration '{configName}' not found" };
+                    }
+                    
+                    // Get components via reflection (ISwDMConfiguration2.GetComponents)
+                    // First, log diagnostic info about what interfaces the config object implements
+                    var configType = configObj.GetType();
+                    var configInterfaces = configType.GetInterfaces();
+                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Config object type: {configType.FullName}");
+                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Config implements {configInterfaces.Length} interfaces");
+                    foreach (var iface in configInterfaces.Where(i => i.Name.Contains("Configuration")).Take(10))
+                    {
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials:   - {iface.Name}");
+                    }
+                    
+                    // Try to get GetComponents from ISwDMConfiguration interfaces in the assembly
+                    // Try versions 10 down to 2 (GetComponents was added in ISwDMConfiguration2)
+                    MethodInfo? getComponentsMethod = null;
+                    Type? foundInterfaceType = null;
+                    
+                    if (_dmAssembly != null)
+                    {
+                        for (int version = 10; version >= 2; version--)
                         {
-                            swGetRefs.Stop();
-                            Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetAllExternalReferences TIMED OUT after 15s");
-                            return new CommandResult { 
-                                Success = false, 
-                                Error = "Reference resolution timed out after 15 seconds - assembly may have issues with missing or network references"
-                            };
-                        }
-                        dependencies = refTask.Result;
-                        
-                        swGetRefs.Stop();
-                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetAllExternalReferences returned in {swGetRefs.ElapsedMilliseconds}ms, found {dependencies?.Length ?? 0} refs");
-
-                        if (dependencies != null)
-                        {
-                            // Count quantities from all references (including duplicates)
-                            foreach (var depPath in dependencies)
+                            var interfaceName = $"SolidWorks.Interop.swdocumentmgr.ISwDMConfiguration{(version > 1 ? version.ToString() : "")}";
+                            var interfaceType = _dmAssembly.GetType(interfaceName);
+                            if (interfaceType != null)
                             {
-                                if (string.IsNullOrEmpty(depPath)) continue;
-
-                                if (quantities.ContainsKey(depPath))
-                                    quantities[depPath]++;
-                                else
-                                    quantities[depPath] = 1;
-                            }
-
-                            // Build BOM - DO NOT open component files for properties (too slow!)
-                            // Frontend will look up properties from database instead
-                            var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                            foreach (var depPath in dependencies)
-                            {
-                                if (string.IsNullOrEmpty(depPath) || processed.Contains(depPath)) continue;
-                                processed.Add(depPath);
-
-                                var depExt = Path.GetExtension(depPath).ToLowerInvariant();
-                                var fileType = depExt == ".sldprt" ? "Part" : depExt == ".sldasm" ? "Assembly" : "Other";
-
-                                // Skip opening component files - this was causing 30+ second delays!
-                                // Just return path info, let frontend get properties from DB
-                                // Check if file exists to mark broken references
-                                var isBroken = !File.Exists(depPath);
-                                if (isBroken)
+                                var method = interfaceType.GetMethod("GetComponents");
+                                if (method != null)
                                 {
-                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Broken reference - file not found: {depPath}");
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Found GetComponents on {interfaceType.Name}");
+                                    getComponentsMethod = method;
+                                    foundInterfaceType = interfaceType;
+                                    break;
                                 }
-                                
-                                bom.Add(new BomItem
+                                else
                                 {
-                                    FileName = Path.GetFileName(depPath),
-                                    FilePath = depPath,
-                                    FileType = fileType,
-                                    Quantity = quantities[depPath],
-                                    Configuration = "",
-                                    PartNumber = "", // Will be filled from DB by frontend
-                                    Description = "", // Will be filled from DB by frontend
-                                    Material = "", // Will be filled from DB by frontend
-                                    Revision = "", // Will be filled from DB by frontend
-                                    Properties = new Dictionary<string, string>(),
-                                    IsBroken = isBroken
-                                });
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: {interfaceType.Name} exists but has no GetComponents");
+                                }
                             }
                         }
                     }
+                    
+                    if (getComponentsMethod == null)
+                    {
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetComponents method not found on any ISwDMConfiguration interface");
+                        Console.Error.WriteLine($"[DM-API] Available methods on config type: {string.Join(", ", configType.GetMethods().Select(m => m.Name).Distinct().Take(20))}");
+                        return new CommandResult { Success = false, Error = "GetComponents method not available on configuration object" };
+                    }
+                    
+                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Invoking {foundInterfaceType?.Name}.GetComponents()");
+                    
+                    // Call GetComponents() via the interface type
+                    var componentsResult = getComponentsMethod.Invoke(configObj, null);
+                    swGetComps.Stop();
+                    
+                    if (componentsResult == null)
+                    {
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetComponents returned null");
+                        // Empty BOM is valid (assembly with no components)
+                    }
+                    else
+                    {
+                        // Components can be returned as object[] or Array
+                        var components = componentsResult as object[];
+                        if (components == null && componentsResult is Array arr)
+                        {
+                            components = arr.Cast<object>().ToArray();
+                        }
+                        
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetComponents returned {components?.Length ?? 0} components in {swGetComps.ElapsedMilliseconds}ms");
+                        
+                        if (components != null && components.Length > 0)
+                        {
+                            // Find how to access component properties via reflection
+                            // Components are COM objects - try multiple approaches
+                            PropertyInfo? pathNameProp = null;
+                            PropertyInfo? configNameProp = null;
+                            PropertyInfo? name2Prop = null;
+                            MethodInfo? getPathNameMethod = null;
+                            MethodInfo? getConfigNameMethod = null;
+                            MethodInfo? getName2Method = null;
+                            Type? componentInterfaceType = null;
+                            
+                            // First, check the runtime type of the actual component object
+                            // This approach works for COM interop where methods might be named differently
+                            if (components.Length > 0 && components[0] != null)
+                            {
+                                var compObj = components[0];
+                                var compType = compObj.GetType();
+                                Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Component runtime type: {compType.FullName}");
+                                
+                                // Try to find methods on the runtime type
+                                // COM interop often exposes properties as get_PropertyName methods
+                                // or as InterfaceName_get_PropertyName for explicit implementations
+                                var allMethods = compType.GetMethods();
+                                var pathMethods = allMethods
+                                    .Where(m => m.Name.Contains("PathName") || m.Name.Contains("Path"))
+                                    .ToList();
+                                
+                                Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Found {pathMethods.Count} path-related methods:");
+                                foreach (var m in pathMethods.Take(10))
+                                {
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials:   {m.Name}({m.GetParameters().Length} params) -> {m.ReturnType.Name}");
+                                }
+                                
+                                // Try common method naming patterns
+                                getPathNameMethod = compType.GetMethod("get_PathName") ??
+                                                   compType.GetMethod("GetPathName") ??
+                                                   compType.GetMethod("ISwDMComponent_get_PathName") ??
+                                                   compType.GetMethod("ISwDMComponent2_get_PathName") ??
+                                                   allMethods.FirstOrDefault(m => m.Name.EndsWith("_get_PathName") && m.GetParameters().Length == 0);
+                                
+                                getConfigNameMethod = compType.GetMethod("get_ConfigurationName") ??
+                                                     compType.GetMethod("GetConfigurationName") ??
+                                                     compType.GetMethod("ISwDMComponent_get_ConfigurationName") ??
+                                                     compType.GetMethod("ISwDMComponent2_get_ConfigurationName") ??
+                                                     allMethods.FirstOrDefault(m => m.Name.EndsWith("_get_ConfigurationName") && m.GetParameters().Length == 0);
+                                
+                                getName2Method = compType.GetMethod("get_Name2") ??
+                                                compType.GetMethod("GetName2") ??
+                                                allMethods.FirstOrDefault(m => m.Name.EndsWith("_get_Name2") && m.GetParameters().Length == 0);
+                                
+                                if (getPathNameMethod != null && Program.VerboseLogging)
+                                {
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Using runtime method {getPathNameMethod.Name} for PathName");
+                                }
+                                
+                                // Also check for properties directly
+                                pathNameProp = compType.GetProperty("PathName");
+                                configNameProp = compType.GetProperty("ConfigurationName");
+                                name2Prop = compType.GetProperty("Name2");
+                                
+                                if (pathNameProp != null && Program.VerboseLogging)
+                                {
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Found PathName property on runtime type");
+                                }
+                                
+                                // Log interfaces the component implements
+                                var compInterfaces = compType.GetInterfaces();
+                                if (Program.VerboseLogging)
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Component implements {compInterfaces.Length} interfaces: {string.Join(", ", compInterfaces.Select(i => i.Name).Take(5))}");
+                            }
+                            
+                            // If runtime type approach didn't work, search assembly types
+                            if (pathNameProp == null && getPathNameMethod == null && _dmAssembly != null)
+                            {
+                                if (Program.VerboseLogging)
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Searching assembly for component types...");
+                                
+                                var candidateTypes = _dmAssembly.GetTypes()
+                                    .Where(t => t.Name.Contains("Component"))
+                                    .OrderByDescending(t => t.Name)
+                                    .ToList();
+                                
+                                if (Program.VerboseLogging)
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Found {candidateTypes.Count} component types in assembly");
+                                
+                                foreach (var ct in candidateTypes.Take(10))
+                                {
+                                    var props = ct.GetProperties();
+                                    var pathProp = ct.GetProperty("PathName");
+                                    if (Program.VerboseLogging)
+                                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials:   {ct.Name}: {props.Length} props, PathName={pathProp != null}");
+                                    if (props.Length > 0 && props.Length <= 20 && Program.VerboseLogging)
+                                    {
+                                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials:     Props: {string.Join(", ", props.Select(p => p.Name))}");
+                                    }
+                                    
+                                    if (pathProp != null && pathNameProp == null)
+                                    {
+                                        pathNameProp = pathProp;
+                                        configNameProp = ct.GetProperty("ConfigurationName");
+                                        name2Prop = ct.GetProperty("Name2");
+                                        componentInterfaceType = ct;
+                                        if (Program.VerboseLogging)
+                                            Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Will use {ct.FullName} for properties");
+                                    }
+                                }
+                            }
+                            
+                            // Helper functions to access COM object properties
+                            // The COM object is System.__ComObject which doesn't expose IDispatch for dynamic binding.
+                            // Use Type.InvokeMember on the INTERFACE type - CLR can QueryInterface for interfaces.
+                            
+                            // #region agent log - DEBUG: track invocation
+                            bool loggedInvokeInfo = false;
+                            Type? invokeType = null;
+                            
+                            // Find the interface type (ISwDMComponent*) - CLR can QueryInterface for this
+                            if (_dmAssembly != null)
+                            {
+                                // Try ISwDMComponent interfaces from newest to oldest
+                                for (int ver = 10; ver >= 2; ver--)
+                                {
+                                    var ifaceName = $"SolidWorks.Interop.swdocumentmgr.ISwDMComponent{(ver > 1 ? ver.ToString() : "")}";
+                                    var ifaceType = _dmAssembly.GetType(ifaceName);
+                                    if (ifaceType != null && ifaceType.IsInterface)
+                                    {
+                                        // Check if it has PathName property
+                                        var pathProp = ifaceType.GetProperty("PathName");
+                                        if (pathProp != null)
+                                        {
+                                            invokeType = ifaceType;
+                                            if (Program.VerboseLogging)
+                                                Console.Error.WriteLine($"[DM-API] DEBUG: Found interface {ifaceType.Name} with PathName");
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if (Program.VerboseLogging)
+                                Console.Error.WriteLine($"[DM-API] DEBUG: Using MethodInfo.Invoke on interface: {invokeType?.FullName ?? "null"}");
+                            
+                            // Cache MethodInfo getters outside the lambdas for performance
+                            System.Reflection.MethodInfo? pathNameGetter = null;
+                            System.Reflection.MethodInfo? configNameGetter = null;
+                            System.Reflection.MethodInfo? name2Getter = null;
+                            System.Reflection.MethodInfo? nameGetter = null;
+                            
+                            if (invokeType != null)
+                            {
+                                pathNameGetter = invokeType.GetProperty("PathName")?.GetGetMethod();
+                                configNameGetter = invokeType.GetProperty("ConfigurationName")?.GetGetMethod();
+                                name2Getter = invokeType.GetProperty("Name2")?.GetGetMethod();
+                                nameGetter = invokeType.GetProperty("Name")?.GetGetMethod();
+                                
+                                if (Program.VerboseLogging)
+                                    Console.Error.WriteLine($"[DM-API] DEBUG: Cached getters - PathName={pathNameGetter != null}, ConfigurationName={configNameGetter != null}, Name2={name2Getter != null}, Name={nameGetter != null}");
+                            }
+                            // #endregion
+                            
+                            Func<object, string> getPathName = (comp) => {
+                                try {
+                                    if (pathNameGetter != null)
+                                    {
+                                        var result = pathNameGetter.Invoke(comp, null);
+                                        
+                                        // #region agent log - DEBUG: log success
+                                        if (!loggedInvokeInfo && Program.VerboseLogging) {
+                                            Console.Error.WriteLine($"[DM-API] DEBUG: PathName via MethodInfo.Invoke SUCCESS: '{result}'");
+                                            loggedInvokeInfo = true;
+                                        }
+                                        // #endregion
+                                        return result as string ?? "";
+                                    }
+                                    return "";
+                                } catch (Exception ex) {
+                                    // #region agent log - DEBUG: log the actual exception
+                                    if (!loggedInvokeInfo && Program.VerboseLogging) {
+                                        Console.Error.WriteLine($"[DM-API] DEBUG: PathName MethodInfo.Invoke exception: {ex.GetType().Name}: {ex.Message}");
+                                        loggedInvokeInfo = true;
+                                    }
+                                    // #endregion
+                                    return "";
+                                }
+                            };
+                            
+                            Func<object, string> getConfigName = (comp) => {
+                                try {
+                                    if (configNameGetter != null)
+                                    {
+                                        var result = configNameGetter.Invoke(comp, null);
+                                        return result as string ?? "";
+                                    }
+                                    return "";
+                                } catch {
+                                    return "";
+                                }
+                            };
+                            
+                            Func<object, string> getName2 = (comp) => {
+                                try {
+                                    if (name2Getter != null)
+                                    {
+                                        var result = name2Getter.Invoke(comp, null);
+                                        return result as string ?? "";
+                                    }
+                                    return "";
+                                } catch {
+                                    // Name2 may not exist, try Name
+                                    try {
+                                        if (nameGetter != null)
+                                        {
+                                            var result = nameGetter.Invoke(comp, null);
+                                            return result as string ?? "";
+                                        }
+                                    } catch { }
+                                    return "";
+                                }
+                            };
+                            
+                            // With dynamic binding, we can always attempt to access PathName on COM objects
+                            // The dynamic accessor will return empty string on failure
+                            bool canGetPath = true;
+                            if (Program.VerboseLogging)
+                                Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Using dynamic COM binding for component properties");
+                            
+                            // Log sample component details for diagnostics
+                            if (Program.VerboseLogging)
+                            {
+                                Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Sample component details (first 3):");
+                                foreach (var sampleComp in components.Take(3))
+                                {
+                                    if (sampleComp == null) continue;
+                                    try
+                                    {
+                                        string samplePath = canGetPath ? getPathName(sampleComp) : "?";
+                                        string sampleConfig = getConfigName(sampleComp);
+                                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials:   - PathName={samplePath}, ConfigurationName={sampleConfig}");
+                                    }
+                                    catch (Exception sampleEx)
+                                    {
+                                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials:   - Error reading sample: {sampleEx.Message}");
+                                    }
+                                }
+                            }
+                            
+                            // First pass: count quantities by path
+                            foreach (var comp in components)
+                            {
+                                if (comp == null) continue;
+                                
+                                try
+                                {
+                                    string compPath = canGetPath ? getPathName(comp) : "";
+                                    
+                                    if (string.IsNullOrEmpty(compPath)) continue;
+                                    
+                                    if (quantities.ContainsKey(compPath))
+                                        quantities[compPath]++;
+                                    else
+                                        quantities[compPath] = 1;
+                                }
+                                catch (Exception compEx)
+                                {
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Error reading component path: {compEx.Message}");
+                                }
+                            }
+                            
+                            if (Program.VerboseLogging)
+                                Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Found {quantities.Count} unique components");
+                            
+                            // Second pass: build BOM items (unique paths only)
+                            var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var comp in components)
+                            {
+                                if (comp == null) continue;
+                                
+                                try
+                                {
+                                    string compPath = canGetPath ? getPathName(comp) : "";
+                                    
+                                    if (string.IsNullOrEmpty(compPath) || processed.Contains(compPath)) continue;
+                                    processed.Add(compPath);
+                                    
+                                    // Get component configuration name if available
+                                    string compConfig = getConfigName(comp);
+                                    
+                                    // Get component name
+                                    string compName = getName2(comp);
+                                    if (string.IsNullOrEmpty(compName))
+                                        compName = Path.GetFileNameWithoutExtension(compPath);
+                                    
+                                    var depExt = Path.GetExtension(compPath).ToLowerInvariant();
+                                    var fileType = depExt == ".sldprt" ? "Part" : depExt == ".sldasm" ? "Assembly" : "Other";
+                                    
+                                    // Check if file exists to mark broken references
+                                    var isBroken = !File.Exists(compPath);
+                                    if (isBroken)
+                                    {
+                                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Broken reference - file not found: {compPath}");
+                                    }
+                                    
+                                    bom.Add(new BomItem
+                                    {
+                                        FileName = Path.GetFileName(compPath),
+                                        FilePath = compPath,
+                                        FileType = fileType,
+                                        Quantity = quantities[compPath],
+                                        Configuration = compConfig,
+                                        PartNumber = "", // Will be filled from DB by frontend
+                                        Description = "", // Will be filled from DB by frontend
+                                        Material = "", // Will be filled from DB by frontend
+                                        Revision = "", // Will be filled from DB by frontend
+                                        Properties = new Dictionary<string, string>(),
+                                        IsBroken = isBroken
+                                    });
+                                }
+                                catch (Exception compEx)
+                                {
+                                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Error processing component: {compEx.Message}");
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception compEx)
+                {
+                    Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: GetComponents failed: {compEx.Message}");
+                    if (compEx.InnerException != null)
+                        Console.Error.WriteLine($"[DM-API] GetBillOfMaterials: Inner exception: {compEx.InnerException.Message}");
+                    return new CommandResult { Success = false, Error = $"Failed to get components: {compEx.Message}" };
                 }
 
                 swTotal.Stop();
@@ -1831,37 +2215,282 @@ namespace BluePLM.SolidWorksService
                 dynamic dynDoc = doc;
                 var references = new List<object>();
                 
-                var searchOptType = GetDmType("SwDMSearchOptionClass");
-                if (searchOptType != null)
+                // #region agent log - Hypothesis A/B: Check document type and drawing-specific info
+                try
                 {
-                    var searchOpt = Activator.CreateInstance(searchOptType);
-                    if (searchOpt != null)
+                    var docTypeName = doc.GetType().Name;
+                    Console.Error.WriteLine($"[DM-API-DEBUG] GetExternalReferences: docType={docTypeName}, file={Path.GetFileName(filePath)}");
+                    
+                    // Log assembly version info
+                    if (_dmAssembly != null)
                     {
-                        dynamic dynSearchOpt = searchOpt;
-                        dynSearchOpt.SearchFilters = 7; // Part | Assembly | Drawing
-
-                        var swGetRefs = System.Diagnostics.Stopwatch.StartNew();
-                        var dependencies = (string[]?)dynDoc.GetAllExternalReferences(searchOpt);
-                        swGetRefs.Stop();
-                        Console.Error.WriteLine($"[DM-API] GetAllExternalReferences took {swGetRefs.ElapsedMilliseconds}ms, found {dependencies?.Length ?? 0} refs");
-
-                        if (dependencies != null)
+                        var asmName = _dmAssembly.GetName();
+                        Console.Error.WriteLine($"[DM-API-DEBUG] DM Assembly: {asmName.Name} v{asmName.Version}");
+                        
+                        // Look for drawing-specific types in the assembly
+                        var drawingTypes = _dmAssembly.GetTypes()
+                            .Where(t => t.Name.Contains("Drawing") || t.Name.Contains("Sheet") || t.Name.Contains("View"))
+                            .Select(t => t.Name)
+                            .ToArray();
+                        Console.Error.WriteLine($"[DM-API-DEBUG] Drawing-related types in assembly ({drawingTypes.Length}): {string.Join(", ", drawingTypes.Take(15))}");
+                        
+                        // Look for ISwDMDocument10 and higher
+                        var docInterfaces = _dmAssembly.GetTypes()
+                            .Where(t => t.Name.StartsWith("ISwDMDocument") && t.IsInterface)
+                            .Select(t => t.Name)
+                            .OrderBy(n => n)
+                            .ToArray();
+                        Console.Error.WriteLine($"[DM-API-DEBUG] ISwDMDocument interfaces in assembly: {string.Join(", ", docInterfaces)}");
+                    }
+                    
+                    // List all available methods on the document for debugging
+                    var methods = doc.GetType().GetMethods().Select(m => m.Name).Distinct().OrderBy(n => n).ToArray();
+                    Console.Error.WriteLine($"[DM-API-DEBUG] Available methods ({methods.Length}): {string.Join(", ", methods.Take(30))}...");
+                    
+                    // For drawings, try to get sheet/view info to verify it has model references
+                    if (filePath!.EndsWith(".SLDDRW", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.Error.WriteLine($"[DM-API-DEBUG] This is a drawing file, checking for drawing-specific methods...");
+                        
+                        // Check what interfaces the doc implements
+                        var interfaces = doc.GetType().GetInterfaces();
+                        Console.Error.WriteLine($"[DM-API-DEBUG] Document implements {interfaces.Length} interfaces: {string.Join(", ", interfaces.Select(i => i.Name))}");
+                        
+                        try
                         {
-                            var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                            foreach (var depPath in dependencies)
+                            // Try to find and cast to ISwDMDrawing interface
+                            var iDrawingType = GetDmType("ISwDMDrawing");
+                            Console.Error.WriteLine($"[DM-API-DEBUG] ISwDMDrawing type found in assembly: {iDrawingType != null}");
+                            if (iDrawingType != null)
                             {
-                                if (string.IsNullOrEmpty(depPath) || processed.Contains(depPath)) continue;
-                                processed.Add(depPath);
-
-                                var depExt = Path.GetExtension(depPath).ToLowerInvariant();
-                                references.Add(new
-                                {
-                                    path = depPath,
-                                    fileName = Path.GetFileName(depPath),
-                                    exists = true, // Skip File.Exists() check for performance - frontend handles missing files
-                                    fileType = depExt == ".sldprt" ? "Part" : depExt == ".sldasm" ? "Assembly" : depExt == ".slddrw" ? "Drawing" : "Other"
-                                });
+                                var castSuccess = iDrawingType.IsInstanceOfType(doc);
+                                Console.Error.WriteLine($"[DM-API-DEBUG] Can cast doc to ISwDMDrawing: {castSuccess}");
+                                
+                                // List ISwDMDrawing methods
+                                var drawingMethods = iDrawingType.GetMethods().Select(m => m.Name).Distinct().ToArray();
+                                Console.Error.WriteLine($"[DM-API-DEBUG] ISwDMDrawing interface methods: {string.Join(", ", drawingMethods)}");
                             }
+                            
+                            // Try to find SwDMDrawing class
+                            var drawingClass = GetDmType("SwDMDrawing");
+                            Console.Error.WriteLine($"[DM-API-DEBUG] SwDMDrawing class found: {drawingClass != null}");
+                            
+                            // Try to get sheet names - this tells us if the drawing has sheets
+                            var getSheetNamesMethod = doc.GetType().GetMethod("GetSheetNames");
+                            Console.Error.WriteLine($"[DM-API-DEBUG] GetSheetNames method found: {getSheetNamesMethod != null}");
+                            if (getSheetNamesMethod != null)
+                            {
+                                var sheetNames = getSheetNamesMethod.Invoke(doc, null) as string[];
+                                Console.Error.WriteLine($"[DM-API-DEBUG] Drawing has {sheetNames?.Length ?? 0} sheets: {string.Join(", ", sheetNames ?? Array.Empty<string>())}");
+                            }
+                            
+                            // Try to get the drawing document interface for more details
+                            var getDrawingDocMethod = doc.GetType().GetMethod("GetDrawingDoc");
+                            Console.Error.WriteLine($"[DM-API-DEBUG] GetDrawingDoc method found: {getDrawingDocMethod != null}");
+                            if (getDrawingDocMethod != null)
+                            {
+                                var drawingDoc = getDrawingDocMethod.Invoke(doc, null);
+                                if (drawingDoc != null)
+                                {
+                                    Console.Error.WriteLine($"[DM-API-DEBUG] Got drawing doc interface: {drawingDoc.GetType().Name}");
+                                    // List drawing doc methods
+                                    var drawMethods = drawingDoc.GetType().GetMethods().Select(m => m.Name).Distinct().OrderBy(n => n).ToArray();
+                                    Console.Error.WriteLine($"[DM-API-DEBUG] Drawing doc methods: {string.Join(", ", drawMethods.Take(20))}...");
+                                }
+                                else
+                                {
+                                    Console.Error.WriteLine($"[DM-API-DEBUG] GetDrawingDoc returned null");
+                                }
+                            }
+                            
+                            // Try GetAllExternalReferences2/3/4/5 if available on doc type
+                            var allRefMethods = doc.GetType().GetMethods()
+                                .Where(m => m.Name.StartsWith("GetAllExternalReferences"))
+                                .Select(m => $"{m.Name}({string.Join(",", m.GetParameters().Select(p => p.ParameterType.Name))})")
+                                .ToArray();
+                            Console.Error.WriteLine($"[DM-API-DEBUG] All GetAllExternalReferences* methods: {string.Join(", ", allRefMethods)}");
+                            
+                            // Try alternative: GetAllExternalReferences2 or GetAllExternalReferences3
+                            var altRefMethods = doc.GetType().GetMethods()
+                                .Where(m => m.Name.Contains("Reference") || m.Name.Contains("Depend"))
+                                .Select(m => $"{m.Name}({string.Join(",", m.GetParameters().Select(p => p.ParameterType.Name))})")
+                                .ToArray();
+                            Console.Error.WriteLine($"[DM-API-DEBUG] Reference-related methods: {string.Join(", ", altRefMethods)}");
+                        }
+                        catch (Exception drawEx)
+                        {
+                            Console.Error.WriteLine($"[DM-API-DEBUG] Drawing-specific check failed: {drawEx.Message}");
+                        }
+                    }
+                }
+                catch (Exception typeEx)
+                {
+                    Console.Error.WriteLine($"[DM-API-DEBUG] Type check failed: {typeEx.Message}");
+                }
+                // #endregion
+                
+                var searchOpt = CreateSearchOptionObject();
+                if (searchOpt != null)
+                {
+                    dynamic dynSearchOpt = searchOpt;
+                    
+                    // #region agent log - FIX: Use correct search filter flags
+                    // Per codestack examples, the correct flags are:
+                    // SwDmSearchExternalReference (1) + SwDmSearchRootAssemblyFolder (2) + 
+                    // SwDmSearchSubfolders (4) + SwDmSearchInContextReference (8) = 15
+                    // The old value of 7 was for document TYPE filtering (Part|Assembly|Drawing), not search BEHAVIOR
+                    int searchFilterValue = 15; // SwDmSearchExternalReference | SwDmSearchRootAssemblyFolder | SwDmSearchSubfolders | SwDmSearchInContextReference
+                    Console.Error.WriteLine($"[DM-API-DEBUG] Setting SearchFilters to {searchFilterValue} (was 7)");
+                    dynSearchOpt.SearchFilters = searchFilterValue;
+                    // #endregion
+                    
+                    // Set search path to the directory containing the file
+                    // This is required for GetAllExternalReferences to find referenced files
+                    var fileDir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(fileDir))
+                    {
+                        dynSearchOpt.AddSearchPath(fileDir);
+                        // #region agent log - Hypothesis D/E: Log search path
+                        Console.Error.WriteLine($"[DM-API-DEBUG] Search path added: {fileDir}");
+                        // #endregion
+                    }
+
+                    var swGetRefs = System.Diagnostics.Stopwatch.StartNew();
+                    
+                    // Use reflection to invoke GetAllExternalReferences - dynamic binding fails
+                    // because the searchOpt object type doesn't match SwDMSearchOption at runtime
+                    string[]? dependencies = null;
+                    var docType = doc.GetType();
+                    
+                    // #region agent log - FIX: Try higher ISwDMDocument interfaces for GetAllExternalReferences4
+                    // The document implements base ISwDMDocument but we need ISwDMDocument19+ for GetAllExternalReferences4
+                    // Try to get the method from the interface types in the assembly
+                    System.Reflection.MethodInfo? getRefsMethod4 = null;
+                    System.Reflection.MethodInfo? getRefsMethod = docType.GetMethod("GetAllExternalReferences");
+                    
+                    // Try to find GetAllExternalReferences4 on ISwDMDocument19 or higher interfaces
+                    var interfaceVersionsToTry = new[] { "ISwDMDocument19", "ISwDMDocument20", "ISwDMDocument21", "ISwDMDocument22", "ISwDMDocument23", "ISwDMDocument24", "ISwDMDocument25" };
+                    Type? workingInterfaceType = null;
+                    foreach (var ifaceName in interfaceVersionsToTry)
+                    {
+                        var ifaceType = GetDmType(ifaceName);
+                        if (ifaceType != null)
+                        {
+                            var method = ifaceType.GetMethod("GetAllExternalReferences4");
+                            if (method != null)
+                            {
+                                getRefsMethod4 = method;
+                                workingInterfaceType = ifaceType;
+                                Console.Error.WriteLine($"[DM-API-DEBUG] Found GetAllExternalReferences4 on {ifaceName}");
+                                break;
+                            }
+                        }
+                    }
+                    
+                    Console.Error.WriteLine($"[DM-API-DEBUG] GetAllExternalReferences4 found via interface: {getRefsMethod4 != null}");
+                    Console.Error.WriteLine($"[DM-API-DEBUG] GetAllExternalReferences found on docType: {getRefsMethod != null}");
+                    // #endregion
+                    
+                    // Try GetAllExternalReferences4 first via the interface (more comprehensive, per codestack examples)
+                    if (getRefsMethod4 != null && workingInterfaceType != null)
+                    {
+                        try
+                        {
+                            // Check if doc implements the interface (COM objects can be cast to supported interfaces)
+                            var canCast = workingInterfaceType.IsInstanceOfType(doc);
+                            Console.Error.WriteLine($"[DM-API-DEBUG] Can cast doc to {workingInterfaceType.Name}: {canCast}");
+                            
+                            if (canCast)
+                            {
+                                // GetAllExternalReferences4(searchOpt, out brokenRefs, out virtComps, out timestamps) -> string[]
+                                var parameters = new object?[] { searchOpt, null, null, null };
+                                var result = getRefsMethod4.Invoke(doc, parameters);
+                                dependencies = result as string[];
+                                
+                                // #region agent log - Log GetAllExternalReferences4 results
+                                Console.Error.WriteLine($"[DM-API-DEBUG] GetAllExternalReferences4 result type: {result?.GetType().Name ?? "null"}");
+                                var brokenRefs = parameters[1];
+                                var virtComps = parameters[2];
+                                Console.Error.WriteLine($"[DM-API-DEBUG] BrokenRefs: {(brokenRefs is object[] br ? string.Join(", ", br) : brokenRefs?.ToString() ?? "null")}");
+                                Console.Error.WriteLine($"[DM-API-DEBUG] VirtualComps: {(virtComps is object[] vc ? string.Join(", ", vc) : virtComps?.ToString() ?? "null")}");
+                                
+                                if (result is string[] strArr4)
+                                {
+                                    Console.Error.WriteLine($"[DM-API-DEBUG] GetAllExternalReferences4 returned {strArr4.Length} refs");
+                                    if (strArr4.Length > 0)
+                                    {
+                                        Console.Error.WriteLine($"[DM-API-DEBUG] References found: {string.Join("; ", strArr4.Take(10))}");
+                                    }
+                                }
+                                // #endregion
+                            }
+                        }
+                        catch (Exception refEx4)
+                        {
+                            Console.Error.WriteLine($"[DM-API-DEBUG] GetAllExternalReferences4 failed: {refEx4.Message}, falling back to GetAllExternalReferences");
+                            dependencies = null; // Reset to try fallback
+                        }
+                    }
+                    
+                    // Fallback to GetAllExternalReferences if GetAllExternalReferences4 not available or failed
+                    if (dependencies == null && getRefsMethod != null)
+                    {
+                        try
+                        {
+                            var result = getRefsMethod.Invoke(doc, new object[] { searchOpt });
+                            dependencies = result as string[];
+                            // #region agent log - Hypothesis C: Log raw result type and value
+                            Console.Error.WriteLine($"[DM-API-DEBUG] GetAllExternalReferences raw result type: {result?.GetType().Name ?? "null"}, isStringArray: {result is string[]}");
+                            if (result is string[] strArr)
+                            {
+                                Console.Error.WriteLine($"[DM-API-DEBUG] String array length: {strArr.Length}");
+                                if (strArr.Length > 0)
+                                {
+                                    Console.Error.WriteLine($"[DM-API-DEBUG] References found: {string.Join("; ", strArr)}");
+                                }
+                                else
+                                {
+                                    Console.Error.WriteLine($"[DM-API-DEBUG] Array is EMPTY - no references returned by DM API");
+                                }
+                            }
+                            else if (result != null)
+                            {
+                                Console.Error.WriteLine($"[DM-API-DEBUG] Unexpected result type - trying to enumerate");
+                                if (result is System.Collections.IEnumerable enumerable)
+                                {
+                                    foreach (var item in enumerable)
+                                    {
+                                        Console.Error.WriteLine($"[DM-API-DEBUG] Item: {item}");
+                                    }
+                                }
+                            }
+                            // #endregion
+                        }
+                        catch (Exception refEx)
+                        {
+                            Console.Error.WriteLine($"[DM-API] GetExternalReferences: Reflection call failed: {refEx.Message}");
+                        }
+                    }
+                    
+                    swGetRefs.Stop();
+                    Console.Error.WriteLine($"[DM-API] GetAllExternalReferences took {swGetRefs.ElapsedMilliseconds}ms, found {dependencies?.Length ?? 0} refs");
+
+                    if (dependencies != null)
+                    {
+                        var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var depPath in dependencies)
+                        {
+                            if (string.IsNullOrEmpty(depPath) || processed.Contains(depPath)) continue;
+                            processed.Add(depPath);
+
+                            var depExt = Path.GetExtension(depPath).ToLowerInvariant();
+                            references.Add(new
+                            {
+                                path = depPath,
+                                fileName = Path.GetFileName(depPath),
+                                exists = true, // Skip File.Exists() check for performance - frontend handles missing files
+                                fileType = depExt == ".sldprt" ? "Part" : depExt == ".sldasm" ? "Assembly" : depExt == ".slddrw" ? "Drawing" : "Other"
+                            });
                         }
                     }
                 }
@@ -2426,7 +3055,7 @@ namespace BluePLM.SolidWorksService
             {
                 var value = GetDictValue(props, key);
                 if (value != null && value.Length > 0)
-                    return value;
+                    return value.Trim();
             }
 
             foreach (var kvp in props)
@@ -2437,7 +3066,7 @@ namespace BluePLM.SolidWorksService
                     lowerKey == "pn" || lowerKey == "p/n")
                 {
                     if (!string.IsNullOrEmpty(kvp.Value))
-                        return kvp.Value;
+                        return kvp.Value.Trim();
                 }
             }
 
@@ -2455,7 +3084,7 @@ namespace BluePLM.SolidWorksService
             {
                 var value = GetDictValue(props, key);
                 if (value != null && value.Length > 0)
-                    return value;
+                    return value.Trim();
             }
 
             foreach (var kvp in props)
@@ -2464,7 +3093,7 @@ namespace BluePLM.SolidWorksService
                 if (lowerKey.Contains("rev") || lowerKey.Contains("eco") || lowerKey.Contains("ecn"))
                 {
                     if (!string.IsNullOrEmpty(kvp.Value))
-                        return kvp.Value;
+                        return kvp.Value.Trim();
                 }
             }
 

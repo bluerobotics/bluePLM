@@ -1364,7 +1364,7 @@ export const checkinCommand: Command<CheckinParams> = {
               
               for (const drawing of drawingFiles) {
                 // Get the drawing's revision (from pending metadata if available, else from pdmData)
-                const drawingRevision = drawing.pendingMetadata?.revision || drawing.pdmData?.revision || 'A'
+                const drawingRevision = drawing.pendingMetadata?.revision || drawing.pdmData?.revision || ''
                 
                 try {
                   const propResult = await propagateDrawingRevisionToConfigurations(

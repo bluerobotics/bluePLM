@@ -53,7 +53,7 @@ export function MainContent({
   const settingsTab = usePDMStore(s => s.settingsTab)
   
   // Call hooks directly instead of receiving as props
-  const { loadFiles } = useLoadFiles()
+  const { loadFiles, refreshCurrentFolder } = useLoadFiles()
   const { handleOpenRecentVault } = useVaultManagement()
 
   return (
@@ -84,7 +84,7 @@ export function MainContent({
           {/* File Pane (lazy loaded) */}
           <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
             <Suspense fallback={<ContentLoading />}>
-              <FilePane onRefresh={loadFiles} />
+              <FilePane onRefresh={loadFiles} onRefreshFolder={refreshCurrentFolder} />
             </Suspense>
           </div>
 

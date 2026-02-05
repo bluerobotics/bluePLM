@@ -340,7 +340,7 @@ export function DetailsPanel() {
         currentValue = file.pendingMetadata?.description ?? file.pdmData?.description ?? ''
         break
       case 'revision':
-        currentValue = file.pendingMetadata?.revision ?? file.pdmData?.revision ?? 'A'
+        currentValue = file.pendingMetadata?.revision ?? file.pdmData?.revision ?? ''
         break
     }
     
@@ -487,19 +487,13 @@ export function DetailsPanel() {
       case 'revision':
         currentValue = file.pendingMetadata?.revision !== undefined 
           ? file.pendingMetadata.revision 
-          : (file.pdmData?.revision || 'A')
+          : (file.pdmData?.revision || '')
         break
     }
     
     if (trimmedValue === currentValue) {
       setEditingField(null)
       setEditValue('')
-      return
-    }
-    
-    // Validate revision
-    if (editingField === 'revision' && !trimmedValue) {
-      addToast('error', 'Revision cannot be empty')
       return
     }
     
@@ -805,7 +799,7 @@ export function DetailsPanel() {
                         <EditablePropertyItem 
                           icon={<Hash size={14} />}
                           label="Revision"
-                          value={file.pdmData?.revision || 'A'}
+                          value={file.pdmData?.revision || '-'}
                           isEditing={editingField === 'revision'}
                           editValue={editValue}
                           isSaving={isSavingEdit}
@@ -814,7 +808,7 @@ export function DetailsPanel() {
                           onSave={handleSaveEdit}
                           onCancel={handleCancelEdit}
                           onEditValueChange={setEditValue}
-                          placeholder="A"
+                          placeholder="-"
                         />
                         {/* State - display only, changes via workflow transitions */}
                         <div className="flex items-center gap-2">

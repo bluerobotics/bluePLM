@@ -14,6 +14,8 @@ export function ServiceTab() {
     hasError,
     autoStartSolidworksService,
     setAutoStartSolidworksService,
+    solidworksServiceVerboseLogging,
+    setSolidworksServiceVerboseLogging,
     overallStatus,
     overallStatusConfig,
     syncedSwFiles,
@@ -261,6 +263,28 @@ export function ServiceTab() {
               <div
                 className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
                   autoStartSolidworksService ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          
+          {/* Verbose logging toggle */}
+          <div className="flex items-center justify-between pt-2 border-t border-plm-border">
+            <div>
+              <div className="text-sm text-plm-fg">Verbose service logging</div>
+              <div className="text-xs text-plm-fg-muted">
+                Enable detailed diagnostic output (requires service restart)
+              </div>
+            </div>
+            <button
+              onClick={() => setSolidworksServiceVerboseLogging(!solidworksServiceVerboseLogging)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                solidworksServiceVerboseLogging ? 'bg-plm-accent' : 'bg-plm-bg-secondary'
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  solidworksServiceVerboseLogging ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>

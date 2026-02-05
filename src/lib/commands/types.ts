@@ -429,6 +429,28 @@ export interface ExtractReferencesParams extends BaseCommandParams {
   assembliesOnly?: boolean
 }
 
+/**
+ * Parameters for bulk assembly operations.
+ * Operates on a root assembly file and all its associated files
+ * (recursive children, sub-assemblies, drawings).
+ */
+export interface BulkAssemblyParams extends BaseCommandParams {
+  /**
+   * The root assembly file ID.
+   * The resolver will find all associated files from this root.
+   */
+  rootFileId: string
+}
+
+/**
+ * Parameters for pack-and-go command.
+ * Exports an assembly and all its associated files to a ZIP archive.
+ */
+export interface PackAndGoParams {
+  /** The root assembly file to package */
+  file: LocalFile
+}
+
 // ============================================
 // Command Definition
 // ============================================
@@ -456,6 +478,11 @@ export type CommandId =
   | 'show-in-explorer'
   | 'sync-metadata'
   | 'extract-references'
+  | 'bulk-download-assembly'
+  | 'bulk-checkout-assembly'
+  | 'bulk-checkin-assembly'
+  | 'bulk-delete-assembly'
+  | 'pack-and-go'
 
 export interface Command<TParams = unknown> {
   // Identifier
@@ -502,6 +529,11 @@ export type CommandMap = {
   'show-in-explorer': Command<ShowInExplorerParams>
   'sync-metadata': Command<SyncMetadataParams>
   'extract-references': Command<ExtractReferencesParams>
+  'bulk-download-assembly': Command<BulkAssemblyParams>
+  'bulk-checkout-assembly': Command<BulkAssemblyParams>
+  'bulk-checkin-assembly': Command<BulkAssemblyParams>
+  'bulk-delete-assembly': Command<BulkAssemblyParams>
+  'pack-and-go': Command<PackAndGoParams>
 }
 
 // ============================================

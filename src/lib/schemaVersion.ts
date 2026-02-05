@@ -26,7 +26,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 49
+export const EXPECTED_SCHEMA_VERSION = 50
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -83,6 +83,7 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   47: 'Added move_file RPC for atomic file move operations with checkout validation and activity logging',
   48: 'preview_next_serial_number now returns base number only (no sample tab)',
   49: 'folders table for persisting empty folder structures (immediate sync on creation)',
+  50: 'Default revision changed from A to empty string (single source of truth)',
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

@@ -8,6 +8,7 @@ import {
   filterBySearch, 
   getSearchScore 
 } from '../utils/filtering'
+import { logExplorer } from '@/lib/userActionLogger'
 
 export interface UseSortingOptions {
   files: LocalFile[]
@@ -44,8 +45,12 @@ export function useSorting({
 
   // Memoize sorted files to avoid expensive recomputation on every render
   const sortedFiles = useMemo(() => {
+    const t0 = performance.now()
+    logExplorer('useSorting RECALC START', { filesCount: files.length, currentPath, isSearching, sortColumn, sortDirection })
+    
     // First filter out invalid files and optionally hide SolidWorks temp files
     const validFiles = filterValidFiles(files, { hideSolidworksTempFiles })
+    const t1 = performance.now()
     
     let resultFiles: LocalFile[]
     
@@ -56,7 +61,18 @@ export function useSorting({
     } else {
       // Normal mode: filter to current folder and sort by column
       const folderFiles = getFilesInFolder(validFiles, currentPath)
+      const t2 = performance.now()
       resultFiles = sortFiles(folderFiles, sortColumn, sortDirection, true)
+      const t3 = performance.now()
+      logExplorer('useSorting RECALC END', {
+        filterValidMs: Math.round(t1 - t0),
+        getFilesInFolderMs: Math.round(t2 - t1),
+        sortFilesMs: Math.round(t3 - t2),
+        totalMs: Math.round(t3 - t0),
+        validFilesCount: validFiles.length,
+        folderFilesCount: folderFiles.length,
+        resultCount: resultFiles.length
+      })
     }
     
     return resultFiles

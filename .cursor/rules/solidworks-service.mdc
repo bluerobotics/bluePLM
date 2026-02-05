@@ -1,16 +1,18 @@
 ---
 description: SolidWorks service build requirements
 globs: solidworks-service/**
+alwaysApply: false
 ---
 
 # SolidWorks Service
 
-## ALWAYS Rebuild After Changes
+## ALWAYS After Changes
 
-After editing any file in `solidworks-service/`, rebuild the service:
+1. **Close BluePLM app** if running (the service exe is locked while in use)
+2. **Rebuild** the service:
 
 ```powershell
-dotnet build solidworks-service/BluePLM.SolidWorksService.sln -c Release
+cd solidworks-service/BluePLM.SolidWorksService && dotnet build -c Release
 ```
 
-Why: The Electron app bundles the compiled `.exe` from `bin/Release`. Without rebuilding, your code changes won't take effect.
+Why: The Electron app loads the compiled `.exe` from `bin/Release/`. Without rebuilding and restarting, your code changes won't take effect.

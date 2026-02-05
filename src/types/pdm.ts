@@ -578,6 +578,18 @@ export interface SerializationSettings {
   letter_prefix: string
   keepout_zones: Array<{ start: number; end_num: number; description: string }>
   auto_apply_extensions: string[]
+  // Tab number settings
+  tab_enabled: boolean
+  tab_separator: string
+  tab_padding_digits: number
+  tab_required: boolean  // If false, tab is optional (base numbers can exist without tab)
+  // Tab character settings
+  tab_allow_letters: boolean   // Allow A-Z in tab numbers
+  tab_allow_numbers: boolean   // Allow 0-9 in tab numbers
+  tab_allow_special: boolean   // Allow special characters in tab numbers
+  tab_special_chars: string    // Which special characters are allowed (e.g., "-_")
+  // Auto-format settings
+  auto_pad_numbers: boolean  // Auto-add leading zeros when editing
 }
 
 export interface OrgSettings {

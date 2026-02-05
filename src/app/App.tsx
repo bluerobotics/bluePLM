@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
+import { refreshMetadataForFiles } from '@/lib/commands/handlers/syncMetadata'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { SetupScreen } from '@/components/shared/Screens'
 import { OnboardingScreen } from '@/components/shared/Screens'
@@ -9,7 +10,7 @@ import { PerformanceWindow } from '@/features/dev-tools/performance'
 import { TabWindow, isTabWindowMode, parseTabWindowParams } from '@/components/layout'
 import { AppShell } from '@/components/layout'
 import { executeTerminalCommand } from '@/lib/commands/parser'
-import { logUserAction } from '@/lib/userActionLogger'
+import { logUserAction, logExplorer } from '@/lib/userActionLogger'
 import { checkSchemaCompatibility } from '@/lib/schemaVersion'
 import { getAccessibleVaults, syncFolder, deleteFolderByPath } from '@/lib/supabase'
 import {
@@ -93,7 +94,7 @@ function App() {
     isVaultConnected,
     connectedVaults,
     activeVaultId,
-    statusMessage,
+    statusMessage: _statusMessage,
     toggleSidebar,
     toggleDetailsPanel,
     setApiServerUrl,
@@ -314,6 +315,7 @@ function App() {
     let refreshTimeout: NodeJS.Timeout | null = null
     
     const cleanup = window.electronAPI.onFilesChanged((changedFiles) => {
+      logExplorer('FileWatcher onFilesChanged ENTRY', { changedFilesCount: changedFiles.length })
       const { 
         syncProgress, 
         processingOperations, 
@@ -467,9 +469,41 @@ function App() {
         
         await loadFiles(true)
         
-        // Note: Auto-refresh metadata on file save was removed.
-        // Metadata sync is now an explicit user action via "Sync Metadata" command
-        // on checked-out files only.
+        // Auto-refresh metadata for checked-out SolidWorks files that changed
+        // This ensures revision/part number updates in SW are immediately visible
+        const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+        const changedSwPaths = unexpectedChanges.filter(path => 
+          swExtensions.some(ext => path.toLowerCase().endsWith(ext))
+        )
+        
+        if (changedSwPaths.length > 0) {
+          const { files: currentFiles, user } = usePDMStore.getState()
+          const filesToRefresh = currentFiles.filter(f => 
+            changedSwPaths.some(p => 
+              f.relativePath.toLowerCase() === p.toLowerCase() ||
+              f.relativePath.replace(/\\/g, '/').toLowerCase() === p.toLowerCase()
+            ) &&
+            f.pdmData?.checked_out_by === user?.id
+          )
+          
+          if (filesToRefresh.length > 0 && vaultPath) {
+            window.electronAPI?.log('info', '[FileWatcher] Auto-refreshing metadata', {
+              fileCount: filesToRefresh.length,
+              files: filesToRefresh.map(f => f.name)
+            })
+            refreshMetadataForFiles(filesToRefresh, vaultPath, user?.id)
+              .then(result => {
+                if (result.refreshed > 0) {
+                  window.electronAPI?.log('info', '[FileWatcher] Metadata auto-refresh complete', result)
+                }
+              })
+              .catch(err => {
+                window.electronAPI?.log('warn', '[FileWatcher] Metadata auto-refresh failed', { 
+                  error: String(err) 
+                })
+              })
+          }
+        }
         
         refreshTimeout = null
       }, 1000)
@@ -582,8 +616,10 @@ function App() {
     
     if (lastLoadKey.current === loadKey) {
       log.debug('[LoadEffect]', 'Skipping - same loadKey')
-      setIsLoading(false)
-      if (statusMessage === 'Loading organization...' || statusMessage === 'Loading files...') {
+      // Note: Don't call setIsLoading(false) here - it interferes with folder refresh spinner
+      // The loading state is managed by the operation that set it (loadFiles, refreshCurrentFolder, etc.)
+      const currentStatus = usePDMStore.getState().statusMessage
+      if (currentStatus === 'Loading organization...' || currentStatus === 'Loading files...') {
         setStatusMessage('')
       }
       return
@@ -592,7 +628,8 @@ function App() {
     log.debug('[LoadEffect]', 'Triggering loadFiles for new loadKey')
     lastLoadKey.current = loadKey
     loadFiles()
-  }, [isVaultConnected, vaultPath, isOfflineMode, user, organization, currentVaultId, loadFiles, setIsLoading, setStatusMessage, statusMessage, lastLoadKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- statusMessage intentionally excluded to prevent interfering with refresh operations
+  }, [isVaultConnected, vaultPath, isOfflineMode, user, organization, currentVaultId, loadFiles, setIsLoading, setStatusMessage, lastLoadKey])
 
   // Determine if we should show the welcome screen
   // Only show welcome when not authenticated - allow full app access even without a vault connected

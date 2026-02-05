@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import type { TreeMap } from '../types'
+import { logExplorer } from '@/lib/userActionLogger'
 
 /**
  * Represents a flattened tree item with depth information for virtualization
@@ -48,6 +49,11 @@ export function useFlattenedTree({ tree, sortChildren }: UseFlattenedTreeOptions
    * Only includes items that should be visible (folders are expanded).
    */
   const flattenedItems = useMemo((): FlattenedTreeItem[] => {
+    const _flatStart = performance.now()
+    logExplorer('flattenedItems useMemo START', { 
+      treeKeyCount: Object.keys(tree).length, 
+      expandedFoldersCount: expandedFolders.size 
+    })
     const result: FlattenedTreeItem[] = []
     let currentIndex = 0
     
@@ -77,6 +83,10 @@ export function useFlattenedTree({ tree, sortChildren }: UseFlattenedTreeOptions
     // Start with root items (depth 0, but we use 1 since they're inside a vault)
     addItems(tree[''] || [], 1)
     
+    logExplorer('flattenedItems useMemo END', { 
+      durationMs: Math.round(performance.now() - _flatStart), 
+      resultCount: result.length 
+    })
     return result
   }, [tree, expandedFolders, sortChildren])
   

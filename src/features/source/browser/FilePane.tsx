@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
+import { logExplorer } from '@/lib/userActionLogger'
 // getEffectiveExportSettings is now used in useConfigHandlers hook
 // Note: FileIcon is now used inside file-pane/ListRowIcon.tsx
 import { 
@@ -96,13 +97,15 @@ const columnTranslationKeys = COLUMN_TRANSLATION_KEYS
 
 interface FilePaneProps {
   onRefresh: (silent?: boolean) => void
+  /** Optional folder-scoped refresh (faster than full refresh) */
+  onRefreshFolder?: (folderPath: string) => void
 }
 
 // NOTE: FileIconCard and ListRowIcon components have been extracted to file-pane/
 // They are now imported at the top of this file
 
 
-export function FilePane({ onRefresh }: FilePaneProps) {
+export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   const { t } = useTranslation()
   
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1370,7 +1373,20 @@ export function FilePane({ onRefresh }: FilePaneProps) {
         onNavigateForward={navigateForward}
         canGoBack={canGoBack}
         canGoForward={canGoForward}
-        onRefresh={() => onRefresh()}
+        onRefresh={() => {
+          logExplorer('FilePane onRefresh', { 
+            currentPath: currentPath || '(root)', 
+            useFolderRefresh: !!(currentPath && onRefreshFolder) 
+          })
+          // Use folder-scoped refresh when in a subfolder (faster)
+          // Fall back to full refresh at root or if folder refresh unavailable
+          if (currentPath && onRefreshFolder) {
+            onRefreshFolder(currentPath)
+          } else {
+            onRefresh()
+          }
+        }}
+        isRefreshing={isLoading}
         isSearching={!!isSearching}
         searchQuery={searchQuery}
         searchType={searchType}
@@ -1394,7 +1410,7 @@ export function FilePane({ onRefresh }: FilePaneProps) {
       {/* File View - List or Icons */}
       <div 
         ref={tableRef} 
-        className="flex-1 overflow-auto relative"
+        className={`flex-1 overflow-auto relative ${selectionBox ? 'selecting' : ''}`}
         onContextMenu={handleEmptyContextMenu}
         {...selectionHandlers}
       >

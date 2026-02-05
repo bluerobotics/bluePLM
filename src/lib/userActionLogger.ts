@@ -84,3 +84,9 @@ export const logForm = (formName: string, action: 'submitted' | 'changed' | 'val
 export const logSync = (action: string, details?: ActionDetails) => 
   logUserAction('sync', action, details)
 
+/**
+ * Log explorer/navigation actions with detailed timing for debugging hangs.
+ * All logs include timestamps and are written to the Electron log file.
+ */
+export const logExplorer = (action: string, details?: ActionDetails) => 
+  logUserAction('navigation', `[Explorer] ${action}`, details)

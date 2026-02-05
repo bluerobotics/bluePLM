@@ -1080,7 +1080,7 @@ export async function importDatabaseMetadata(
           id: version.id,
           file_id: version.file_id,
           version: version.version,
-          revision: version.revision || 'A',
+          revision: version.revision || '',
           content_hash: version.content_hash || '',
           file_size: version.file_size,
           state: version.state || 'work_in_progress',

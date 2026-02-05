@@ -408,7 +408,7 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
           content_hash: contentHash,
           file_size: fileSize,
           state: 'not_tracked',
-          revision: 'A',
+          revision: '',
           version: 1,
           created_by: request.user!.id,
           updated_by: request.user!.id
@@ -421,7 +421,7 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
       await request.supabase!.from('file_versions').insert({
         file_id: data.id,
         version: 1,
-        revision: 'A',
+        revision: '',
         content_hash: contentHash,
         file_size: fileSize,
         state: 'not_tracked',

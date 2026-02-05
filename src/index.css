@@ -1163,7 +1163,7 @@ input::placeholder {
 }
 
 .file-table.selecting tr.selected {
-  background: var(--plm-selection);
+  background: var(--plm-selection) !important;
 }
 
 /* Tree view selection box behavior */

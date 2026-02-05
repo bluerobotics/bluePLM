@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronUp, Home, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react'
 import { buildFullPath } from '@/lib/utils/path'
+import { logExplorer } from '@/lib/userActionLogger'
 
 // Parse a full path back to relative path
 function parsePathToRelative(fullPath: string, vaultPath: string): string {
@@ -40,6 +41,8 @@ interface CrumbBarProps {
   onForward?: () => void
   /** Called when refreshing */
   onRefresh?: () => void
+  /** Whether a refresh operation is in progress */
+  isRefreshing?: boolean
   /** Whether back navigation is available */
   canGoBack?: boolean
   /** Whether forward navigation is available */
@@ -66,6 +69,7 @@ export function CrumbBar({
   onBack,
   onForward,
   onRefresh,
+  isRefreshing = false,
   canGoBack = false,
   canGoForward = false,
   className = '',
@@ -190,11 +194,15 @@ export function CrumbBar({
         
         {/* Refresh */}
         <button
-          onClick={onRefresh}
-          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors"
-          title="Refresh"
+          onClick={() => {
+            logExplorer('Refresh button clicked')
+            onRefresh?.()
+          }}
+          disabled={isRefreshing}
+          className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title={isRefreshing ? "Refreshing..." : "Refresh"}
         >
-          <RefreshCw size={18} />
+          <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
         </button>
       </div>
 

@@ -40,6 +40,11 @@ interface SerializationSettingsData {
   tab_separator: string
   tab_padding_digits: number
   tab_required: boolean
+  // Tab character settings
+  tab_allow_letters: boolean
+  tab_allow_numbers: boolean
+  tab_allow_special: boolean
+  tab_special_chars: string
   // Auto-format settings
   auto_pad_numbers: boolean
 }
@@ -77,6 +82,11 @@ const DEFAULT_SERIALIZATION_SETTINGS: SerializationSettingsData = {
   tab_separator: '-',
   tab_padding_digits: 3,
   tab_required: false,
+  // Tab character settings
+  tab_allow_letters: false,
+  tab_allow_numbers: true,
+  tab_allow_special: false,
+  tab_special_chars: '-_',
   // Auto-format settings
   auto_pad_numbers: true
 }
@@ -810,6 +820,80 @@ export function SerializationSettings() {
                 {settings.tab_required ? 'Tab must be specified' : 'Tab is optional'}
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Tab Character Settings */}
+        {settings.tab_enabled && (
+          <div className="mt-4 pt-4 border-t border-plm-border">
+            <h4 className="text-sm font-medium text-plm-fg mb-3">Allowed Characters</h4>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Allow Numbers */}
+              <div>
+                <label className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                  <input
+                    type="checkbox"
+                    checked={settings.tab_allow_numbers}
+                    onChange={(e) => updateSetting('tab_allow_numbers', e.target.checked)}
+                    disabled={!isAdmin || !settings.enabled}
+                    className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
+                  />
+                  <span className="text-sm text-plm-fg">Allow numbers (0-9)</span>
+                </label>
+              </div>
+
+              {/* Allow Letters */}
+              <div>
+                <label className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                  <input
+                    type="checkbox"
+                    checked={settings.tab_allow_letters}
+                    onChange={(e) => updateSetting('tab_allow_letters', e.target.checked)}
+                    disabled={!isAdmin || !settings.enabled}
+                    className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
+                  />
+                  <span className="text-sm text-plm-fg">Allow letters (A-Z)</span>
+                </label>
+              </div>
+
+              {/* Allow Special Characters */}
+              <div>
+                <label className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                  <input
+                    type="checkbox"
+                    checked={settings.tab_allow_special}
+                    onChange={(e) => updateSetting('tab_allow_special', e.target.checked)}
+                    disabled={!isAdmin || !settings.enabled}
+                    className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
+                  />
+                  <span className="text-sm text-plm-fg">Allow special characters</span>
+                </label>
+              </div>
+
+              {/* Special Characters Input */}
+              {settings.tab_allow_special && (
+                <div>
+                  <label className="text-sm text-plm-fg-muted block mb-1">Allowed special characters</label>
+                  <input
+                    type="text"
+                    value={settings.tab_special_chars}
+                    onChange={(e) => updateSetting('tab_special_chars', e.target.value)}
+                    placeholder="-_"
+                    maxLength={10}
+                    disabled={!isAdmin || !settings.enabled}
+                    className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Warning if no characters allowed */}
+            {!settings.tab_allow_numbers && !settings.tab_allow_letters && !settings.tab_allow_special && (
+              <div className="mt-3 text-xs text-plm-warning flex items-center gap-1">
+                <AlertTriangle size={12} />
+                No characters allowed. Tab input will be disabled.
+              </div>
+            )}
           </div>
         )}
 

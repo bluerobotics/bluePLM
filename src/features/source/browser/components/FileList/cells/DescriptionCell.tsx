@@ -8,7 +8,7 @@
  * NOTE: Drawing files can have their description locked via settings because
  * it typically comes from the referenced model, not from editable properties.
  */
-import { FileInput } from 'lucide-react'
+import { ArrowLeft, Box } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
@@ -96,7 +96,12 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
       title={getTooltip()}
     >
       <span className="truncate">{displayValue}</span>
-      {isDrawingLocked && <FileInput size={12} className="text-plm-fg-muted/50 flex-shrink-0" />}
+      {isDrawingLocked && (
+        <span className="inline-flex items-center gap-0.5 text-plm-fg-muted/50 flex-shrink-0" title="Inherited from referenced model">
+          <ArrowLeft size={10} />
+          <Box size={12} />
+        </span>
+      )}
     </span>
   )
 }

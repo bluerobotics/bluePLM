@@ -64,6 +64,13 @@ let solidWorksInstalled: boolean | null = null
  */
 let lastKnownServicePid: number | null = null
 
+/**
+ * Cache the service version separately from the ping cache.
+ * This persists across ping timeouts so we don't show spurious
+ * "version unknown" warnings when the service is busy.
+ */
+let cachedServiceVersion: string | null = null
+
 // Thumbnail extraction tracking
 const thumbnailsInProgress = new Set<string>()
 
@@ -440,6 +447,7 @@ function clearServiceState(reason: string, force: boolean = false): void {
   swServiceProcess = null
   swServiceBuffer = ''
   lastKnownServicePid = null
+  cachedServiceVersion = null
   
   // Reject all pending requests with descriptive error
   for (const [id, req] of swPendingRequests) {
@@ -783,7 +791,9 @@ function getSWServicePath(): { path: string; isProduction: boolean } {
   const isPackaged = app.isPackaged
   
   const possiblePaths = [
+    // Production: bundled with packaged app
     { path: path.join(process.resourcesPath || '', 'bin', 'BluePLM.SolidWorksService.exe'), isProduction: true },
+    // Development: csproj OutputPath ensures consistent bin\{Configuration}\ output
     { path: path.join(app.getAppPath(), 'solidworks-service', 'BluePLM.SolidWorksService', 'bin', 'Release', 'BluePLM.SolidWorksService.exe'), isProduction: false },
     { path: path.join(app.getAppPath(), 'solidworks-service', 'BluePLM.SolidWorksService', 'bin', 'Debug', 'BluePLM.SolidWorksService.exe'), isProduction: false },
   ]
@@ -804,6 +814,17 @@ function handleSWServiceOutput(data: string): void {
   const lines = swServiceBuffer.split('\n')
   swServiceBuffer = lines.pop() || ''
   
+  // #region agent log - Buffer processing
+  const fs = require('fs')
+  const debugLogPath = 'c:\\Users\\emill\\Documents\\GitHub\\bluePLM\\.cursor\\debug.log'
+  const writeDebugLog = (entry: Record<string, unknown>) => {
+    try { fs.appendFileSync(debugLogPath, JSON.stringify(entry) + '\n') } catch {}
+  }
+  if (lines.length > 0) {
+    writeDebugLog({location:'solidworks.ts:BUFFER_RECV',message:'Buffer processing',data:{lineCount:lines.length,bufferRemaining:swServiceBuffer.length,pendingRequestIds:Array.from(swPendingRequests.keys())},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'BUFFER_PROCESSING'})
+  }
+  // #endregion
+  
   for (const line of lines) {
     if (!line.trim()) continue
     
@@ -815,18 +836,30 @@ function handleSWServiceOutput(data: string): void {
       if (requestId !== undefined && swPendingRequests.has(requestId)) {
         const handlers = swPendingRequests.get(requestId)!
         swPendingRequests.delete(requestId)
+        // #region agent log - Direct match
+        writeDebugLog({location:'solidworks.ts:DIRECT_MATCH',message:'Response matched by requestId',data:{requestId,success:result.success,hasData:!!result.data,dataKeys:result.data ? Object.keys(result.data) : []},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'DIRECT_MATCH'})
+        // #endregion
         handlers.resolve(result)
       } else {
+        // #region agent log - FIFO fallback WARNING
+        writeDebugLog({location:'solidworks.ts:FIFO_FALLBACK',message:'FIFO fallback triggered - no matching requestId',data:{responseRequestId:requestId,responseSuccess:result.success,responseError:result.error,pendingRequestIds:Array.from(swPendingRequests.keys()),responseDataKeys:result.data ? Object.keys(result.data) : []},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIFO_FALLBACK'})
+        // #endregion
         // Fallback to FIFO for backwards compatibility
         const entry = swPendingRequests.entries().next().value
         if (entry) {
           const [id, handlers] = entry
+          // #region agent log - FIFO match details
+          writeDebugLog({location:'solidworks.ts:FIFO_MATCH',message:'FIFO matched response to wrong request',data:{matchedToRequestId:id,responseRequestId:requestId,responseSuccess:result.success},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIFO_FALLBACK'})
+          // #endregion
           swPendingRequests.delete(id)
           handlers.resolve(result)
         }
       }
-    } catch {
+    } catch (parseError) {
       log('[SolidWorks Service] Failed to parse output: ' + line)
+      // #region agent log - Parse error
+      writeDebugLog({location:'solidworks.ts:PARSE_ERROR',message:'Failed to parse JSON response',data:{lineLength:line.length,linePreview:line.substring(0,200),error:String(parseError)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'BUFFER_CORRUPTION'})
+      // #endregion
     }
   }
 }
@@ -910,9 +943,10 @@ async function sendSWCommand(
  * Uses polling-based startup confirmation instead of fixed delay.
  * @param dmLicenseKey - Optional Document Manager license key
  * @param cleanupOrphans - If true, kill orphaned SLDWORKS.exe processes before starting
+ * @param verboseLogging - If true, enable verbose diagnostic logging in the service
  * @returns Promise resolving to service start result
  */
-async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): Promise<SWServiceResult> {
+async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean): Promise<SWServiceResult> {
   const startTime = Date.now()
   log('[SolidWorks] [START] START SERVICE REQUESTED')
   logServiceState('startSWService called')
@@ -999,6 +1033,9 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean): 
   const args: string[] = []
   if (dmLicenseKey) {
     args.push('--dm-license', dmLicenseKey)
+  }
+  if (verboseLogging) {
+    args.push('--verbose')
   }
   
   return new Promise((resolve) => {
@@ -1921,9 +1958,9 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   })
 
   // Service management
-  ipcMain.handle('solidworks:start-service', async (_, dmLicenseKey?: string, cleanupOrphans?: boolean) => {
-    log(`[SolidWorks] IPC: start-service received (cleanupOrphans: ${cleanupOrphans})`)
-    return startSWService(dmLicenseKey, cleanupOrphans)
+  ipcMain.handle('solidworks:start-service', async (_, dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => {
+    log(`[SolidWorks] IPC: start-service received (cleanupOrphans: ${cleanupOrphans}, verboseLogging: ${verboseLogging})`)
+    return startSWService(dmLicenseKey, cleanupOrphans, verboseLogging)
   })
 
   ipcMain.handle('solidworks:stop-service', async () => {
@@ -2021,7 +2058,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
           busy: !pingCache.result.success,
           installed: swInstalled,
           cached: true,
-          version: cachedData?.version,
+          version: cachedData?.version || cachedServiceVersion,
           swInstalled: cachedData?.swInstalled,
           swApiAvailable,
           documentManagerAvailable: cachedData?.documentManagerAvailable,
@@ -2044,6 +2081,11 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     
     const data = result.data as Record<string, unknown> | undefined
     
+    // Cache version from successful ping response
+    if (result.success && data?.version) {
+      cachedServiceVersion = data.version as string
+    }
+    
     // If ping failed but process is alive, it's busy - not offline
     const isBusy = !result.success && processAlive
     
@@ -2060,7 +2102,8 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
         running: result.success,
         busy: isBusy,
         installed: swInstalled, 
-        version: data?.version,
+        // Use cached version when ping times out (busy service)
+        version: data?.version || cachedServiceVersion,
         swInstalled: data?.swInstalled,
         swApiAvailable,
         documentManagerAvailable: data?.documentManagerAvailable,

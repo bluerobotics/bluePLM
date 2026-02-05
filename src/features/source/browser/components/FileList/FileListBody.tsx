@@ -9,6 +9,7 @@ import { ConfigRow } from './ConfigRow'
 import { ConfigBomRow } from './ConfigBomRow'
 import { useFilePaneContext } from '../../context'
 import { usePDMStore } from '@/stores/pdmStore'
+import { getTabValidationOptions } from '@/lib/tabValidation'
 
 // ============================================================================
 // Types
@@ -153,8 +154,9 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     tableRef,
   } = useFilePaneContext()
 
-  // Get tab padding digits from organization serialization settings
-  const tabPaddingDigits = usePDMStore(s => s.organization?.serialization_settings?.padding_digits) ?? 3
+  // Get tab validation options from organization serialization settings
+  const serializationSettings = usePDMStore(s => s.organization?.serialization_settings)
+  const tabValidationOptions = getTabValidationOptions(serializationSettings)
 
   // Local ref for the tbody element
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
@@ -398,7 +400,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         isExpandable={isExpandable}
         isBomExpanded={isBomExpanded}
         isBomLoading={isBomLoading}
-        tabPaddingDigits={tabPaddingDigits}
+        tabValidationOptions={tabValidationOptions}
         onClick={(e) => onConfigRowClick(e, file.path, config.name, configs)}
         onContextMenu={(e) => onConfigContextMenu(e, file.path, config.name)}
         onDescriptionChange={(value) => onConfigDescriptionChange(file.path, config.name, value)}
@@ -410,7 +412,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     configRowHeight,
     visibleColumns,
     fileConfigurations,
-    tabPaddingDigits,
+    tabValidationOptions,
     onConfigRowClick,
     onConfigContextMenu,
     onConfigDescriptionChange,

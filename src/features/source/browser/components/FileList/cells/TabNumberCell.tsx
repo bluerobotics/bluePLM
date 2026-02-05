@@ -8,7 +8,7 @@
  */
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import { usePDMStore } from '@/stores/pdmStore'
-import { validateTabInput, getTabPlaceholder } from '@/lib/tabValidation'
+import { validateTabInput, getTabPlaceholder, getTabValidationOptions } from '@/lib/tabValidation'
 import type { CellRendererBaseProps } from './types'
 
 export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode {
@@ -21,7 +21,8 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
   // Store selectors for updating pending metadata and getting settings
   const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
   const expandedConfigFiles = usePDMStore(s => s.expandedConfigFiles)
-  const tabPaddingDigits = usePDMStore(s => s.organization?.serialization_settings?.padding_digits) ?? 3
+  const serializationSettings = usePDMStore(s => s.organization?.serialization_settings)
+  const tabValidationOptions = getTabValidationOptions(serializationSettings)
   
   if (file.isDirectory) return ''
   
@@ -44,11 +45,11 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
           ref={inlineEditInputRef}
           type="text"
           value={editValue}
-          onChange={(e) => setEditValue(validateTabInput(e.target.value, tabPaddingDigits))}
+          onChange={(e) => setEditValue(validateTabInput(e.target.value, tabValidationOptions))}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               // Update pending metadata with validated value
-              const validated = validateTabInput(editValue, tabPaddingDigits)
+              const validated = validateTabInput(editValue, tabValidationOptions)
               updatePendingMetadata(file.path, { tab_number: validated || null })
               handleSaveCellEdit()
               // Auto-save to SW file
@@ -64,7 +65,7 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
           }}
           onBlur={() => {
             // Update pending metadata on blur with validated value
-            const validated = validateTabInput(editValue, tabPaddingDigits)
+            const validated = validateTabInput(editValue, tabValidationOptions)
             updatePendingMetadata(file.path, { tab_number: validated || null })
             handleSaveCellEdit()
             // Auto-save to SW file
@@ -78,7 +79,7 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
           onMouseDown={(e) => e.stopPropagation()}
           onDragStart={(e) => e.preventDefault()}
           draggable={false}
-          placeholder={getTabPlaceholder(tabPaddingDigits)}
+          placeholder={getTabPlaceholder(tabValidationOptions)}
           className="w-full bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
         />
       </div>

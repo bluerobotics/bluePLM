@@ -18,6 +18,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import {
   OpenActions,
   AssemblyActions,
+  BulkAssemblyActions,
   FileSystemActions,
   ClipboardActions,
   SyncActions,
@@ -208,10 +209,12 @@ export function FileContextMenu({
   // Check if we have items for the File Actions submenu
   const hasFileSystemActions = !allCloudOnly
   
-  // Check if we have export actions (SolidWorks files)
-  const ext = firstFile.extension?.toLowerCase() || ''
-  const isSolidWorksFile = ['.sldprt', '.sldasm', '.slddrw'].includes(ext)
-  const hasExportActions = isSolidWorksFile
+  // Check if we have export actions (any SolidWorks file in selection)
+  const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
+  const hasExportActions = contextFiles.some(f => {
+    const ext = f.extension?.toLowerCase() || ''
+    return swExtensions.includes(ext) && !f.isDirectory
+  })
 
   return (
     <>
@@ -247,6 +250,14 @@ export function FileContextMenu({
         
         {/* Assembly actions (insert into open SolidWorks assembly) */}
         <AssemblyActions
+          contextFiles={contextFiles}
+          multiSelect={multiSelect}
+          firstFile={firstFile}
+          onClose={onClose}
+        />
+        
+        {/* Bulk assembly actions (download/checkout/checkin all related files) */}
+        <BulkAssemblyActions
           contextFiles={contextFiles}
           multiSelect={multiSelect}
           firstFile={firstFile}

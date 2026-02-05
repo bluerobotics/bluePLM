@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { logFileAction } from '@/lib/userActionLogger'
+import { logExplorer } from '@/lib/userActionLogger'
 
 export interface UseNavigationHistoryOptions {
   initialPath?: string
@@ -46,7 +46,9 @@ export function useNavigationHistory({
   const isNavigatingRef = useRef(false)
 
   const navigateToFolder = useCallback((folderPath: string) => {
-    logFileAction('Navigate to folder', folderPath)
+    const startTime = performance.now()
+    logExplorer('navigateToFolder START', { folder: folderPath || '(root)', historyIndex })
+    
     setCurrentFolder(folderPath)
     
     // Add to navigation history (unless we're going back/forward)
@@ -64,29 +66,46 @@ export function useNavigationHistory({
       updateTabFolder(activeTabId, folderPath)
     }
     
-    if (folderPath === '') return // Root doesn't need expansion
+    if (folderPath === '') {
+      logExplorer('navigateToFolder END', { folder: '(root)', durationMs: Math.round(performance.now() - startTime) })
+      return // Root doesn't need expansion
+    }
     
     // Expand the folder and all its parents in the sidebar
     const parts = folderPath.split('/')
+    let expandCount = 0
     for (let i = 1; i <= parts.length; i++) {
       const ancestorPath = parts.slice(0, i).join('/')
       if (!expandedFolders.has(ancestorPath)) {
         toggleFolder(ancestorPath)
+        expandCount++
       }
     }
+    
+    logExplorer('navigateToFolder END', { 
+      folder: folderPath, 
+      durationMs: Math.round(performance.now() - startTime),
+      expandedAncestors: expandCount
+    })
   }, [setCurrentFolder, historyIndex, tabsEnabled, activeTabId, updateTabFolder, expandedFolders, toggleFolder])
 
   const navigateUp = useCallback(() => {
     // Get current path from history
     const currentPath = navigationHistory[historyIndex]
-    if (!currentPath || currentPath === '') return
+    if (!currentPath || currentPath === '') {
+      logExplorer('navigateUp SKIP', { reason: 'already at root' })
+      return
+    }
     
     const parts = currentPath.split('/')
     parts.pop()
-    navigateToFolder(parts.join('/'))
+    const parentPath = parts.join('/')
+    logExplorer('navigateUp', { from: currentPath, to: parentPath || '(root)' })
+    navigateToFolder(parentPath)
   }, [navigationHistory, historyIndex, navigateToFolder])
 
   const navigateToRoot = useCallback(() => {
+    logExplorer('navigateToRoot', { historyIndex })
     setCurrentFolder('')
     
     // Add to navigation history (unless we're going back/forward)
@@ -105,32 +124,52 @@ export function useNavigationHistory({
   }, [setCurrentFolder, historyIndex, tabsEnabled, activeTabId, updateTabFolder])
 
   const navigateBack = useCallback(() => {
-    if (historyIndex <= 0) return
+    if (historyIndex <= 0) {
+      logExplorer('navigateBack SKIP', { reason: 'at start of history' })
+      return
+    }
     
     isNavigatingRef.current = true
     const newIndex = historyIndex - 1
+    const targetFolder = navigationHistory[newIndex]
+    logExplorer('navigateBack', { 
+      fromIndex: historyIndex, 
+      toIndex: newIndex, 
+      targetFolder: targetFolder || '(root)',
+      historyLength: navigationHistory.length
+    })
     setHistoryIndex(newIndex)
-    setCurrentFolder(navigationHistory[newIndex])
+    setCurrentFolder(targetFolder)
     
     // Sync with active tab when tabs are enabled
     if (tabsEnabled && activeTabId && updateTabFolder) {
-      updateTabFolder(activeTabId, navigationHistory[newIndex])
+      updateTabFolder(activeTabId, targetFolder)
     }
     
     isNavigatingRef.current = false
   }, [historyIndex, navigationHistory, setCurrentFolder, tabsEnabled, activeTabId, updateTabFolder])
 
   const navigateForward = useCallback(() => {
-    if (historyIndex >= navigationHistory.length - 1) return
+    if (historyIndex >= navigationHistory.length - 1) {
+      logExplorer('navigateForward SKIP', { reason: 'at end of history' })
+      return
+    }
     
     isNavigatingRef.current = true
     const newIndex = historyIndex + 1
+    const targetFolder = navigationHistory[newIndex]
+    logExplorer('navigateForward', { 
+      fromIndex: historyIndex, 
+      toIndex: newIndex, 
+      targetFolder: targetFolder || '(root)',
+      historyLength: navigationHistory.length
+    })
     setHistoryIndex(newIndex)
-    setCurrentFolder(navigationHistory[newIndex])
+    setCurrentFolder(targetFolder)
     
     // Sync with active tab when tabs are enabled
     if (tabsEnabled && activeTabId && updateTabFolder) {
-      updateTabFolder(activeTabId, navigationHistory[newIndex])
+      updateTabFolder(activeTabId, targetFolder)
     }
     
     isNavigatingRef.current = false

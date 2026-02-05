@@ -4,6 +4,7 @@ import type { PDMFile } from '../../types/pdm'
 import { buildFullPath } from '@/lib/utils/path'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { log } from '@/lib/logger'
+import { logExplorer } from '@/lib/userActionLogger'
 import { thumbnailCache } from '@/lib/thumbnailCache'
 
 // ============================================================================
@@ -807,12 +808,27 @@ export const createFilesSlice: StateCreator<
     })
   },
   
-  setSelectedFiles: (selectedFiles) => set({ selectedFiles }),
+  setSelectedFiles: (selectedFiles) => {
+    const firstFew = selectedFiles.slice(0, 3).map(p => p.split('/').pop())
+    logExplorer('setSelectedFiles', { 
+      count: selectedFiles.length,
+      preview: firstFew.join(', ') + (selectedFiles.length > 3 ? '...' : '')
+    })
+    set({ selectedFiles })
+  },
   
   toggleFileSelection: (path, multiSelect = false) => {
     const { selectedFiles } = get()
+    const fileName = path.split('/').pop()
+    const wasSelected = selectedFiles.includes(path)
+    logExplorer('toggleFileSelection', { 
+      path: fileName, 
+      multiSelect, 
+      wasSelected,
+      prevCount: selectedFiles.length
+    })
     if (multiSelect) {
-      if (selectedFiles.includes(path)) {
+      if (wasSelected) {
         set({ selectedFiles: selectedFiles.filter(p => p !== path) })
       } else {
         set({ selectedFiles: [...selectedFiles, path] })
@@ -824,27 +840,39 @@ export const createFilesSlice: StateCreator<
   
   selectAllFiles: () => {
     const { files } = get()
-    set({ selectedFiles: files.filter(f => !f.isDirectory).map(f => f.path) })
+    const allFiles = files.filter(f => !f.isDirectory).map(f => f.path)
+    logExplorer('selectAllFiles', { count: allFiles.length })
+    set({ selectedFiles: allFiles })
   },
   
-  clearSelection: () => set({ selectedFiles: [] }),
+  clearSelection: () => {
+    logExplorer('clearSelection')
+    set({ selectedFiles: [] })
+  },
   
   toggleFolder: (path) => {
     const { expandedFolders } = get()
     const newExpanded = new Set(expandedFolders)
-    if (newExpanded.has(path)) {
-      newExpanded.delete(path)
-    } else {
+    const isExpanding = !newExpanded.has(path)
+    logExplorer('toggleFolder', { path, isExpanding })
+    if (isExpanding) {
       newExpanded.add(path)
+    } else {
+      newExpanded.delete(path)
     }
     set({ expandedFolders: newExpanded })
   },
   
   collapseAllFolders: () => {
+    const { expandedFolders } = get()
+    logExplorer('collapseAllFolders', { prevCount: expandedFolders.size })
     set({ expandedFolders: new Set<string>() })
   },
   
-  setCurrentFolder: (currentFolder) => set({ currentFolder }),
+  setCurrentFolder: (currentFolder) => {
+    logExplorer('setCurrentFolder', { folder: currentFolder || '(root)' })
+    set({ currentFolder })
+  },
   
   // Actions - Realtime Updates (incremental without full refresh)
   addCloudFile: (pdmFile) => {
@@ -1444,6 +1472,16 @@ export const createFilesSlice: StateCreator<
     const newSet = new Set(loadingConfigs)
     newSet.delete(filePath)
     set({ loadingConfigs: newSet })
+  },
+  
+  clearAllConfigCaches: () => {
+    set({
+      fileConfigurations: new Map(),
+      expandedConfigFiles: new Set(),
+      selectedConfigs: new Set(),
+      configBomData: new Map(),
+      expandedConfigBoms: new Set(),
+    })
   },
   
   // Actions - Configuration BOM expansion

@@ -20,6 +20,7 @@ import './collaboration'
 
 // PDM command handlers (used via executor, not self-registered)
 // These are imported when needed by the parser for PDM operations
+export * from './bulkAssembly'
 export * from './checkin'
 export * from './checkout'
 export * from './delete'
@@ -32,6 +33,7 @@ export * from './getLatest'
 export * from './misc'
 export * from './sync'
 export * from './syncMetadata'
+export * from './packAndGo'
 
 // Re-export registry for external use
 export * from '../registry'

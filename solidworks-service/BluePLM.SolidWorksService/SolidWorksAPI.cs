@@ -41,7 +41,7 @@ namespace BluePLM.SolidWorksService
         #region Connection Management
 
         /// <summary>
-        /// Check if SolidWorks is available on this machine
+        /// Check if SolidWorks is available on this machine (installed)
         /// </summary>
         public bool IsSolidWorksAvailable()
         {
@@ -55,6 +55,33 @@ namespace BluePLM.SolidWorksService
                 return false;
             }
         }
+
+        // #region agent log - Hypothesis G: Add method to check if SW is actually RUNNING
+        /// <summary>
+        /// Check if SolidWorks is currently running (has an active COM instance)
+        /// This does NOT launch SolidWorks - it only checks for existing instance
+        /// </summary>
+        public bool IsSolidWorksRunning()
+        {
+            try
+            {
+                // Try to get active COM object - this only succeeds if SW is running
+                var swApp = Marshal.GetActiveObject("SldWorks.Application");
+                Console.Error.WriteLine($"[SW-API] IsSolidWorksRunning: Found active instance");
+                return swApp != null;
+            }
+            catch (System.Runtime.InteropServices.COMException ex) when (ex.HResult == unchecked((int)0x800401E3)) // MK_E_UNAVAILABLE
+            {
+                Console.Error.WriteLine($"[SW-API] IsSolidWorksRunning: No active instance (MK_E_UNAVAILABLE)");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[SW-API] IsSolidWorksRunning: Check failed - {ex.Message}");
+                return false;
+            }
+        }
+        // #endregion
 
         private ISldWorks GetSolidWorks()
         {
@@ -547,26 +574,88 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult { Success = false, Error = $"Failed to open file: errors={errors}" };
 
                 var references = new List<object>();
-                var dependencies = (object[])doc.GetDependencies2(true, true, false);
-
-                if (dependencies != null)
+                
+                // #region agent log - FIX: For drawings, get referenced configuration from views
+                // Drawings have views that reference specific configurations of parts/assemblies
+                // We need to return which configuration each view references
+                var isDrawing = filePath!.EndsWith(".SLDDRW", StringComparison.OrdinalIgnoreCase);
+                
+                if (isDrawing)
                 {
-                    // Dependencies come in pairs: [path, bool, path, bool, ...]
-                    for (int i = 0; i < dependencies.Length; i += 2)
+                    // For drawings, traverse views to get model + configuration
+                    var drawDoc = doc as DrawingDoc;
+                    if (drawDoc != null)
                     {
-                        var refPath = dependencies[i] as string;
-                        if (string.IsNullOrEmpty(refPath)) continue;
-
-                        references.Add(new
+                        Console.Error.WriteLine($"[SW-API] GetExternalReferences: Drawing detected, traversing views");
+                        
+                        // First view is the sheet itself, skip it
+                        var view = drawDoc.GetFirstView() as View;
+                        if (view != null)
                         {
-                            path = refPath,
-                            fileName = Path.GetFileName(refPath),
-                            exists = File.Exists(refPath),
-                            fileType = GetFileType(refPath!)
-                        });
+                            view = view.GetNextView() as View; // Get first actual view
+                        }
+                        
+                        var processedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        
+                        while (view != null)
+                        {
+                            var modelName = view.GetReferencedModelName();
+                            var configName = view.ReferencedConfiguration;
+                            
+                            Console.Error.WriteLine($"[SW-API] View '{view.Name}': model='{Path.GetFileName(modelName ?? "null")}', config='{configName ?? "null"}'");
+                            
+                            // Only add unique models (we take the first view's config for each model)
+                            if (!string.IsNullOrEmpty(modelName) && !processedModels.Contains(modelName))
+                            {
+                                processedModels.Add(modelName);
+                                references.Add(new
+                                {
+                                    path = modelName,
+                                    fileName = Path.GetFileName(modelName),
+                                    exists = File.Exists(modelName),
+                                    fileType = GetFileType(modelName!),
+                                    configuration = configName // Include the referenced configuration!
+                                });
+                                Console.Error.WriteLine($"[SW-API] Added reference: {Path.GetFileName(modelName)} @ config '{configName}'");
+                            }
+                            
+                            view = view.GetNextView() as View;
+                        }
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"[SW-API] Warning: Could not cast drawing to DrawingDoc");
+                    }
+                }
+                // #endregion
+                
+                // Fallback for non-drawings OR if view traversal found nothing
+                if (!isDrawing || references.Count == 0)
+                {
+                    var dependencies = (object[])doc.GetDependencies2(true, true, false);
+
+                    if (dependencies != null)
+                    {
+                        // Dependencies come in pairs: [path, bool, path, bool, ...]
+                        for (int i = 0; i < dependencies.Length; i += 2)
+                        {
+                            var refPath = dependencies[i] as string;
+                            if (string.IsNullOrEmpty(refPath)) continue;
+
+                            references.Add(new
+                            {
+                                path = refPath,
+                                fileName = Path.GetFileName(refPath),
+                                exists = File.Exists(refPath),
+                                fileType = GetFileType(refPath!),
+                                configuration = (string?)null // No config info from GetDependencies2
+                            });
+                        }
                     }
                 }
 
+                Console.Error.WriteLine($"[SW-API] GetExternalReferences: Found {references.Count} references");
+                
                 return new CommandResult
                 {
                     Success = true,
@@ -721,17 +810,34 @@ namespace BluePLM.SolidWorksService
         private Dictionary<string, string> ReadCustomProperties(ModelDoc2 doc, string? configuration)
         {
             var props = new Dictionary<string, string>();
+            var configLabel = configuration ?? "(file-level)";
+
+            // #region agent log - Debug property reading
+            Console.Error.WriteLine($"[SW-API] ReadCustomProperties: config='{configLabel}'");
+            // #endregion
 
             try
             {
                 var ext = doc?.Extension;
-                if (ext == null) return props;
+                if (ext == null)
+                {
+                    Console.Error.WriteLine($"[SW-API] ReadCustomProperties: ext is NULL for config '{configLabel}'");
+                    return props;
+                }
                 
                 var manager = string.IsNullOrEmpty(configuration)
                     ? ext.CustomPropertyManager[""]
                     : ext.CustomPropertyManager[configuration];
 
-                if (manager == null) return props;
+                if (manager == null)
+                {
+                    Console.Error.WriteLine($"[SW-API] ReadCustomProperties: manager is NULL for config '{configLabel}'");
+                    return props;
+                }
+
+                // #region agent log - Debug GetAll3 call
+                Console.Error.WriteLine($"[SW-API] ReadCustomProperties: Got manager for config '{configLabel}', calling GetAll3...");
+                // #endregion
 
                 object names = null!;
                 object types = null!;
@@ -740,16 +846,65 @@ namespace BluePLM.SolidWorksService
                 object linkToProperty = null!;
                 manager.GetAll3(ref names, ref types, ref values, ref resolved, ref linkToProperty);
 
-                if (names is string[] nameArray && resolved is string[] resolvedArray)
+                // #region agent log - Debug GetAll3 results (all arrays)
+                Console.Error.WriteLine($"[SW-API] ReadCustomProperties: GetAll3 returned for config '{configLabel}'");
+                Console.Error.WriteLine($"[SW-API]   names type: {names?.GetType().Name ?? "null"}, values type: {values?.GetType().Name ?? "null"}, resolved type: {resolved?.GetType().Name ?? "null"}");
+                if (names is string[] namesArr)
+                    Console.Error.WriteLine($"[SW-API]   names ({namesArr.Length}): [{string.Join(", ", namesArr.Take(10))}]");
+                if (values is string[] valuesArr)
+                    Console.Error.WriteLine($"[SW-API]   values ({valuesArr.Length}): [{string.Join(", ", valuesArr.Take(5))}]");
+                if (resolved is string[] resolvedArr)
+                    Console.Error.WriteLine($"[SW-API]   resolved ({resolvedArr.Length}): [{string.Join(", ", resolvedArr.Take(5))}]");
+                // #endregion
+
+                // #region agent log - FIX: Use values array if resolved is not string[] (SW API quirk)
+                // The SolidWorks API GetAll3 sometimes returns Int32[] for resolved (type info)
+                // In that case, fall back to using the values array which contains the actual property values
+                string[]? valueArray = null;
+                
+                if (names is string[] nameArray)
                 {
-                    for (int i = 0; i < nameArray.Length; i++)
+                    if (resolved is string[] resolvedArray)
                     {
-                        props[nameArray[i]] = resolvedArray[i] ?? "";
+                        // Preferred: use resolved values (evaluated expressions)
+                        valueArray = resolvedArray;
+                        Console.Error.WriteLine($"[SW-API] ReadCustomProperties: Using 'resolved' array for config '{configLabel}'");
+                    }
+                    else if (values is string[] valArray)
+                    {
+                        // Fallback: use raw values if resolved is wrong type
+                        valueArray = valArray;
+                        Console.Error.WriteLine($"[SW-API] ReadCustomProperties: FALLBACK - Using 'values' array for config '{configLabel}' (resolved was {resolved?.GetType().Name ?? "null"})");
+                    }
+                    
+                    if (valueArray != null && nameArray.Length == valueArray.Length)
+                    {
+                        for (int i = 0; i < nameArray.Length; i++)
+                        {
+                            props[nameArray[i]] = valueArray[i] ?? "";
+                        }
+                        Console.Error.WriteLine($"[SW-API] ReadCustomProperties: Extracted {props.Count} properties for config '{configLabel}'");
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"[SW-API] ReadCustomProperties: Array length mismatch or no value array - names: {nameArray.Length}, values: {valueArray?.Length ?? -1}");
                     }
                 }
+                else
+                {
+                    Console.Error.WriteLine($"[SW-API] ReadCustomProperties: names is not string[] - actual: {names?.GetType().FullName ?? "null"}");
+                }
+                // #endregion
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // #region agent log - Debug exceptions
+                Console.Error.WriteLine($"[SW-API] ReadCustomProperties: EXCEPTION for config '{configLabel}': {ex.Message}");
+                Console.Error.WriteLine($"[SW-API] ReadCustomProperties: Stack: {ex.StackTrace}");
+                // #endregion
+            }
 
+            Console.Error.WriteLine($"[SW-API] ReadCustomProperties: Returning {props.Count} properties for config '{configLabel}'");
             return props;
         }
 
@@ -957,7 +1112,8 @@ namespace BluePLM.SolidWorksService
                 if (!string.IsNullOrEmpty(filenamePattern))
                 {
                     // Drawings don't have configurations, pass empty string for config name
-                    var fileName = FormatExportFilename(filenamePattern!, baseName, "", props, ".pdf", pdmMetadata);
+                    // isDrawingExport=true ensures revision comes only from drawing file, not PDM (which would be from parent part)
+                    var fileName = FormatExportFilename(filenamePattern!, baseName, "", props, ".pdf", pdmMetadata, isDrawingExport: true);
                     finalOutputPath = Path.Combine(outputDir, fileName);
                 }
                 else if (!string.IsNullOrEmpty(outputPath) && outputPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
@@ -970,6 +1126,9 @@ namespace BluePLM.SolidWorksService
                     // outputPath is a directory or not provided - use original filename
                     finalOutputPath = Path.Combine(outputDir, baseName + ".pdf");
                 }
+                
+                // Handle filename collisions by adding (1), (2), etc. suffix
+                finalOutputPath = GetUniqueFilePath(finalOutputPath);
                 
                 Directory.CreateDirectory(Path.GetDirectoryName(finalOutputPath)!);
 
@@ -1986,7 +2145,7 @@ namespace BluePLM.SolidWorksService
             {
                 var value = GetDictValue(props, key);
                 if (value != null && value.Length > 0)
-                    return value;
+                    return value.Trim();
             }
 
             // Try case-insensitive search as fallback
@@ -1999,7 +2158,7 @@ namespace BluePLM.SolidWorksService
                     lowerKey == "number" || lowerKey == "br number" || lowerKey == "brnumber")
                 {
                     if (!string.IsNullOrEmpty(kvp.Value))
-                        return kvp.Value;
+                        return kvp.Value.Trim();
                 }
             }
 
@@ -2020,8 +2179,9 @@ namespace BluePLM.SolidWorksService
             foreach (var key in revisionKeys)
             {
                 var value = GetDictValue(props, key);
-                if (value != null && value.Length > 0)
-                    return value;
+                // Use IsNullOrWhiteSpace to properly handle whitespace-only values like " "
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value.Trim();
             }
 
             // Try case-insensitive search as fallback
@@ -2030,8 +2190,9 @@ namespace BluePLM.SolidWorksService
                 var lowerKey = kvp.Key.ToLowerInvariant();
                 if (lowerKey.Contains("rev") || lowerKey.Contains("eco") || lowerKey.Contains("ecn"))
                 {
-                    if (!string.IsNullOrEmpty(kvp.Value))
-                        return kvp.Value;
+                    // Use IsNullOrWhiteSpace to properly handle whitespace-only values
+                    if (!string.IsNullOrWhiteSpace(kvp.Value))
+                        return kvp.Value.Trim();
                 }
             }
 
@@ -2055,7 +2216,7 @@ namespace BluePLM.SolidWorksService
             {
                 var value = GetDictValue(props, key);
                 if (value != null && value.Length > 0)
-                    return value;
+                    return value.Trim();
             }
 
             // Try to extract from the Number/Part Number property
@@ -2067,7 +2228,7 @@ namespace BluePLM.SolidWorksService
                 if (parts.Length >= 3)
                 {
                     // Get the last segment after the last dash
-                    var lastPart = parts[parts.Length - 1];
+                    var lastPart = parts[parts.Length - 1].Trim();
                     // Only use it if it looks like a tab number (numeric, 1-4 chars)
                     if (lastPart.Length >= 1 && lastPart.Length <= 4)
                     {
@@ -2092,74 +2253,22 @@ namespace BluePLM.SolidWorksService
         /// Get custom properties from a configuration for export filename formatting.
         /// Merges file-level properties with configuration-specific properties.
         /// Configuration properties override file-level properties when both exist.
+        /// Uses ReadCustomProperties which handles the SolidWorks API quirk where
+        /// GetAll3 sometimes returns Int32[] instead of String[] for resolved values.
         /// </summary>
         private Dictionary<string, string> GetConfigProperties(ModelDoc2 doc, string configName)
         {
-            var props = new Dictionary<string, string>();
+            // Read file-level properties first (base/default values)
+            // ReadCustomProperties handles the Int32[] fallback correctly
+            var props = ReadCustomProperties(doc, null);
             
-            // First, read file-level properties (these are the base/default values)
-            try
-            {
-                var fileManager = doc.Extension.CustomPropertyManager[""];
-                if (fileManager != null)
-                {
-                    object? names = null, values = null, resolved = null, types = null, linkedProps = null;
-                    fileManager.GetAll3(ref names, ref types, ref values, ref resolved, ref linkedProps);
-                    
-                    var propNames = names as string[];
-                    var propResolved = resolved as string[];
-                    
-                    if (propNames != null && propResolved != null)
-                    {
-                        for (int i = 0; i < propNames.Length && i < propResolved.Length; i++)
-                        {
-                            var name = propNames[i];
-                            var value = propResolved[i];
-                            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(value))
-                            {
-                                props[name] = value;
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Ignore file-level property read errors
-            }
-            
-            // Then, read configuration-specific properties (these override file-level)
+            // Then read config-specific properties (override file-level)
             if (!string.IsNullOrEmpty(configName))
             {
-                try
+                var configProps = ReadCustomProperties(doc, configName);
+                foreach (var kvp in configProps)
                 {
-                    var configManager = doc.Extension.CustomPropertyManager[configName];
-                    if (configManager != null)
-                    {
-                        object? names = null, values = null, resolved = null, types = null, linkedProps = null;
-                        configManager.GetAll3(ref names, ref types, ref values, ref resolved, ref linkedProps);
-                        
-                        var propNames = names as string[];
-                        var propResolved = resolved as string[];
-                        
-                        if (propNames != null && propResolved != null)
-                        {
-                            for (int i = 0; i < propNames.Length && i < propResolved.Length; i++)
-                            {
-                                var name = propNames[i];
-                                var value = propResolved[i];
-                                // Override file-level props with config-specific ones
-                                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(value))
-                                {
-                                    props[name] = value;
-                                }
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    // Ignore config-level property read errors
+                    props[kvp.Key] = kvp.Value;  // Config overrides file-level
                 }
             }
             
@@ -2179,7 +2288,8 @@ namespace BluePLM.SolidWorksService
         /// {time} - Current time (HH-MM-SS)
         /// {datetime} - Current date and time (YYYY-MM-DD_HH-MM-SS)
         /// </summary>
-        private string FormatExportFilename(string pattern, string baseName, string configName, Dictionary<string, string> props, string extension, PdmMetadata? pdmMetadata = null)
+        /// <param name="isDrawingExport">If true, revision is authoritative from the drawing file only - PDM revision fallback is skipped (it would come from the parent part)</param>
+        private string FormatExportFilename(string pattern, string baseName, string configName, Dictionary<string, string> props, string extension, PdmMetadata? pdmMetadata = null, bool isDrawingExport = false)
         {
             var now = DateTime.Now;
             
@@ -2214,10 +2324,18 @@ namespace BluePLM.SolidWorksService
                 tabNumber = pdmMetadata!.TabNumber;
                 Console.Error.WriteLine($"[Export] Using PDM tabNumber fallback: '{tabNumber}'");
             }
-            if (string.IsNullOrEmpty(revision) && !string.IsNullOrEmpty(pdmMetadata?.Revision))
+            // For drawings: revision is authoritative from the drawing file only
+            // Do NOT fall back to PDM revision (it comes from the parent part, not the drawing)
+            // For parts/assemblies: PDM revision fallback is acceptable
+            if (!isDrawingExport && string.IsNullOrWhiteSpace(revision) && !string.IsNullOrWhiteSpace(pdmMetadata?.Revision))
             {
-                revision = pdmMetadata!.Revision;
+                revision = pdmMetadata!.Revision!.Trim();
                 Console.Error.WriteLine($"[Export] Using PDM revision fallback: '{revision}'");
+            }
+            else if (isDrawingExport && string.IsNullOrWhiteSpace(revision))
+            {
+                Console.Error.WriteLine($"[Export] Drawing export: revision is empty/whitespace, NOT using PDM fallback (drawing revision is authoritative)");
+                revision = ""; // Ensure it's empty, not whitespace
             }
             if (string.IsNullOrEmpty(description) && !string.IsNullOrEmpty(pdmMetadata?.Description))
             {
@@ -2269,6 +2387,31 @@ namespace BluePLM.SolidWorksService
                 index = source.IndexOf(oldValue, index + newValue.Length, StringComparison.OrdinalIgnoreCase);
             }
             return source;
+        }
+
+        /// <summary>
+        /// Generate a unique file path by adding (1), (2), etc. suffix if file already exists.
+        /// This prevents filename collisions when exporting multiple files with the same name pattern.
+        /// </summary>
+        private static string GetUniqueFilePath(string basePath)
+        {
+            if (!File.Exists(basePath))
+                return basePath;
+
+            var dir = Path.GetDirectoryName(basePath)!;
+            var name = Path.GetFileNameWithoutExtension(basePath);
+            var ext = Path.GetExtension(basePath);
+
+            int counter = 1;
+            string newPath;
+            do
+            {
+                newPath = Path.Combine(dir, $"{name} ({counter}){ext}");
+                counter++;
+            } while (File.Exists(newPath));
+
+            Console.Error.WriteLine($"[Export] Filename collision detected, using: {newPath}");
+            return newPath;
         }
 
         /// <summary>

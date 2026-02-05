@@ -914,6 +914,93 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     return { success: true, files }
   })
 
+  // Fast folder listing - no hash computation, uses hash cache
+  // Used for folder-scoped refresh (faster than full vault scan)
+  // Uses ASYNC fs operations to prevent blocking the main process (allows UI to render)
+  ipcMain.handle('fs:list-folder-fast', async (_, folderRelativePath: string) => {
+    if (!workingDirectory) {
+      return { success: false, error: 'No working directory set' }
+    }
+    
+    // Build full path to the folder
+    const folderFullPath = folderRelativePath 
+      ? path.join(workingDirectory, folderRelativePath)
+      : workingDirectory
+    
+    // Use async stat to check folder existence
+    try {
+      const stat = await fs.promises.stat(folderFullPath)
+      if (!stat.isDirectory()) {
+        return { success: false, error: 'Path is not a directory' }
+      }
+    } catch {
+      return { success: false, error: 'Folder does not exist' }
+    }
+    
+    const files: LocalFileInfo[] = []
+    
+    // Async recursive directory walker - allows event loop to process UI updates
+    async function walkDir(dir: string): Promise<void> {
+      try {
+        const items = await fs.promises.readdir(dir, { withFileTypes: true })
+        
+        for (const item of items) {
+          if (item.name.startsWith('.')) continue
+          
+          const fullPath = path.join(dir, item.name)
+          // Relative path from vault root (not from folder)
+          const relativePath = path.relative(workingDirectory!, fullPath).replace(/\\/g, '/')
+          const stats = await fs.promises.stat(fullPath)
+          
+          if (item.isDirectory()) {
+            files.push({
+              name: item.name,
+              path: fullPath,
+              relativePath,
+              isDirectory: true,
+              extension: '',
+              size: 0,
+              modifiedTime: stats.mtime.toISOString()
+            })
+            await walkDir(fullPath)
+          } else {
+            // Use cached hash if available (same logic as listWorkingFiles)
+            let fileHash: string | undefined
+            const cached = hashCache.get(relativePath)
+            const mtimeMs = stats.mtime.getTime()
+            
+            if (cached && cached.size === stats.size && cached.mtime === mtimeMs) {
+              fileHash = cached.hash
+            }
+            
+            files.push({
+              name: item.name,
+              path: fullPath,
+              relativePath,
+              isDirectory: false,
+              extension: path.extname(item.name).toLowerCase(),
+              size: stats.size,
+              modifiedTime: stats.mtime.toISOString(),
+              hash: fileHash
+            })
+          }
+        }
+      } catch (err) {
+        log('Error reading folder: ' + String(err))
+      }
+    }
+    
+    await walkDir(folderFullPath)
+    
+    files.sort((a, b) => {
+      if (a.isDirectory && !b.isDirectory) return -1
+      if (!a.isDirectory && b.isDirectory) return 1
+      return a.relativePath.localeCompare(b.relativePath)
+    })
+    
+    return { success: true, files, folderPath: folderRelativePath }
+  })
+
   // Fast file listing - no hash computation
   ipcMain.handle('fs:list-working-files', async () => {
     if (!workingDirectory) {

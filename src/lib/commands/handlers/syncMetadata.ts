@@ -24,6 +24,7 @@ import { buildFullPath } from '../types'
 import { ProgressTracker } from '../executor'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
+import { normalizeTabNumber } from '@/lib/serialization'
 
 // SolidWorks file extensions
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -49,6 +50,8 @@ interface ExtractedMetadata {
   revision: string | null
   inheritedFromParent?: boolean
   parentModelPath?: string
+  /** True if drawing needs SW API for inheritance but SW isn't running */
+  drawingNeedsSwButNotRunning?: boolean
 }
 
 /**
@@ -105,11 +108,14 @@ function extractMetadataFromProperties(allProps: Record<string, string>): {
   }
   
   // Extract tab number
+  // Note: Some SW templates store tab with leading dash (e.g., "-500")
+  // Normalize to strip leading separators to prevent double-dash in combined numbers
   const tabNumberKeys = ['Tab Number', 'TabNumber', 'Tab No', 'Tab', 'TAB', 'Suffix']
   let tabNumber: string | null = null
   for (const key of tabNumberKeys) {
     if (allProps[key] && allProps[key].trim() && !allProps[key].startsWith('$')) {
-      tabNumber = allProps[key].trim()
+      // Normalize to strip leading dash (default separator)
+      tabNumber = normalizeTabNumber(allProps[key].trim())
       break
     }
   }
@@ -217,6 +223,14 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
   if (drawingRefs && drawingRefs.length > 0) {
     const parentRef = drawingRefs[0]
     
+    const refConfig = (parentRef as { configuration?: string }).configuration
+    logSync('info', 'Drawing reference with configuration', {
+      drawingPath: fullPath,
+      parentPath: parentRef.path,
+      parentFileName: parentRef.fileName,
+      configurationFromDrawingView: refConfig || '(not provided by backend)'
+    })
+    
     // Construct full path to parent model
     const drawingDir = fullPath.substring(0, fullPath.lastIndexOf('\\') + 1) || 
                       fullPath.substring(0, fullPath.lastIndexOf('/') + 1)
@@ -247,25 +261,142 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
         parentModelPath: parentFullPath 
       })
       
-      const parentResult = await window.electronAPI?.solidworks?.getProperties?.(parentFullPath)
+      // Read directly from SW file - it's the authoritative source of truth
+      // Base numbers are now propagated to all configs in saveConfigsToSWFile
       
-      if (parentResult?.success && parentResult.data) {
-        const parentData = parentResult.data as {
-          fileProperties?: Record<string, string>
-          configurationProperties?: Record<string, Record<string, string>>
+      // Retry logic for getProperties - handles race condition when SW auto-starts
+      // The first call may return empty data if SW was starting in background
+      let parentResult = await window.electronAPI?.solidworks?.getProperties?.(parentFullPath)
+      let parentData = parentResult?.data as {
+        fileProperties?: Record<string, string>
+        configurationProperties?: Record<string, Record<string, string>>
+      } | undefined
+      
+      logSync('debug', 'Initial getProperties result', {
+        parentFullPath,
+        success: parentResult?.success,
+        filePropsCount: Object.keys(parentData?.fileProperties || {}).length,
+        configCount: Object.keys(parentData?.configurationProperties || {}).length,
+        hasData: !!parentData
+      })
+      
+      // If we got success but empty data, retry once after a short delay
+      // This handles the race condition when SW auto-starts during getReferences
+      const hasEmptyData = parentResult?.success && 
+        (!parentData?.fileProperties || Object.keys(parentData.fileProperties).length === 0) &&
+        (!parentData?.configurationProperties || Object.keys(parentData.configurationProperties).length === 0)
+      
+      if (hasEmptyData) {
+        logSync('warn', 'Parent properties returned empty, retrying after delay', {
+          parentModelPath: parentFullPath
+        })
+        await new Promise(resolve => setTimeout(resolve, 500))
+        parentResult = await window.electronAPI?.solidworks?.getProperties?.(parentFullPath)
+        parentData = parentResult?.data as typeof parentData
+        logSync('debug', 'Retry getProperties result', {
+          parentFullPath,
+          retrySuccess: parentResult?.success,
+          retryFilePropsCount: Object.keys(parentData?.fileProperties || {}).length,
+          retryConfigCount: Object.keys(parentData?.configurationProperties || {}).length
+        })
+      }
+      
+      if (parentResult?.success && parentData) {
+        // #region agent log - Hypothesis J: Log parent properties in detail
+        const parentFileProps = parentData.fileProperties || {}
+        const parentConfigProps = parentData.configurationProperties || {}
+        logSync('info', 'Parent model raw properties', {
+          parentModelPath: parentFullPath,
+          filePropertyCount: Object.keys(parentFileProps).length,
+          filePropertyNames: Object.keys(parentFileProps),
+          filePropertyValues: Object.fromEntries(
+            Object.entries(parentFileProps).slice(0, 20) // First 20 for brevity
+          ),
+          configCount: Object.keys(parentConfigProps).length,
+          configNames: Object.keys(parentConfigProps)
+        })
+        
+        // Log each config's properties
+        for (const [configName, configValues] of Object.entries(parentConfigProps)) {
+          logSync('info', `Parent config "${configName}" properties`, {
+            parentModelPath: parentFullPath,
+            configName,
+            propertyCount: Object.keys(configValues).length,
+            propertyNames: Object.keys(configValues),
+            partNumberRelated: {
+              'Number': configValues['Number'],
+              'PartNumber': configValues['PartNumber'],
+              'Part Number': configValues['Part Number'],
+              'ItemNumber': configValues['ItemNumber']
+            }
+          })
         }
+        // #endregion
         
         const parentAllProps = { ...parentData.fileProperties }
-        const parentConfigProps = parentData.configurationProperties
         if (parentConfigProps) {
           const parentConfigNames = Object.keys(parentConfigProps)
-          const parentPreferredConfig = parentConfigNames.find(k => k.toLowerCase() === 'default')
-            || parentConfigNames.find(k => k.toLowerCase() === 'standard')
-            || parentConfigNames[0]
+          
+          // #region agent log - FIX: Use configuration from drawing view reference, not heuristic
+          // The parentRef.configuration tells us exactly which config the drawing view is showing
+          // This is the ROOT CAUSE fix - we were picking "default" or first config instead of
+          // the actual configuration referenced by the drawing view (e.g., "T500X")
+          const refConfig = (parentRef as { configuration?: string }).configuration
+          
+          let parentPreferredConfig: string | undefined
+          let selectionReason: string
+          
+          if (refConfig && parentConfigNames.includes(refConfig)) {
+            // Use the exact configuration from the drawing view reference
+            parentPreferredConfig = refConfig
+            selectionReason = `from drawing view reference: "${refConfig}"`
+          } else if (refConfig && parentConfigNames.some(k => k.toLowerCase() === refConfig.toLowerCase())) {
+            // Case-insensitive match
+            parentPreferredConfig = parentConfigNames.find(k => k.toLowerCase() === refConfig.toLowerCase())
+            selectionReason = `from drawing view reference (case-insensitive): "${refConfig}" -> "${parentPreferredConfig}"`
+          } else {
+            // Fallback to old heuristic only if no config from reference
+            parentPreferredConfig = parentConfigNames.find(k => k.toLowerCase() === 'default')
+              || parentConfigNames.find(k => k.toLowerCase() === 'standard')
+              || parentConfigNames[0]
+            selectionReason = refConfig 
+              ? `fallback - ref config "${refConfig}" not found in [${parentConfigNames.join(', ')}]`
+              : parentConfigNames.find(k => k.toLowerCase() === 'default') 
+                ? 'fallback to "default"' 
+                : parentConfigNames.find(k => k.toLowerCase() === 'standard')
+                  ? 'fallback to "standard"'
+                  : 'fallback to first config'
+          }
+          
+          logSync('info', 'Parent config selection', {
+            parentModelPath: parentFullPath,
+            availableConfigs: parentConfigNames,
+            refConfigFromDrawing: refConfig || '(not provided)',
+            selectedConfig: parentPreferredConfig,
+            selectionReason
+          })
+          // #endregion
+          
           if (parentPreferredConfig && parentConfigProps[parentPreferredConfig]) {
             Object.assign(parentAllProps, parentConfigProps[parentPreferredConfig])
           }
         }
+        
+        // #region agent log - Hypothesis L: Log merged properties before extraction
+        logSync('info', 'Merged parent properties (file + config)', {
+          parentModelPath: parentFullPath,
+          mergedPropertyCount: Object.keys(parentAllProps).length,
+          mergedPropertyNames: Object.keys(parentAllProps),
+          partNumberCandidates: {
+            'Number': parentAllProps['Number'],
+            'No': parentAllProps['No'],
+            'PartNumber': parentAllProps['PartNumber'],
+            'Part Number': parentAllProps['Part Number'],
+            'ItemNumber': parentAllProps['ItemNumber'],
+            'Item Number': parentAllProps['Item Number']
+          }
+        })
+        // #endregion
         
         const parentMetadata = extractMetadataFromProperties(parentAllProps)
         
@@ -291,7 +422,31 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
     }
   }
   
-  // If getReferences didn't find a valid parent, return drawing's own metadata
+  // If getReferences didn't find a valid parent, check if SW is running
+  // This helps the user understand why inheritance didn't work for drawings
+  if (needsParentInheritance) {
+    // Check if SolidWorks is running - if not, we couldn't traverse drawing views
+    try {
+      const swStatus = await window.electronAPI?.solidworks?.getServiceStatus?.()
+      const swRunning = swStatus?.data?.running === true
+      
+      if (!swRunning) {
+        logSync('warn', 'Drawing needs parent inheritance but SolidWorks is not running', {
+          fullPath,
+          partNumberNeedsInheritance,
+          descriptionNeedsInheritance
+        })
+        return {
+          ...drawingMetadata,
+          drawingNeedsSwButNotRunning: true
+        }
+      }
+    } catch {
+      // If we can't check SW status, just return metadata without flag
+    }
+  }
+  
+  // Return drawing's own metadata
   return drawingMetadata
 }
 
@@ -403,6 +558,161 @@ function getSwFilesFromSelection(allFiles: LocalFile[], selectedFiles: LocalFile
   return [...new Map(result.map(f => [f.path, f])).values()]
 }
 
+/**
+ * Lightweight metadata refresh for specific files.
+ * Used by file watcher for auto-refresh on save.
+ * Only PULLs metadata (reads from file), does not PUSH.
+ * 
+ * This is a silent operation - no toasts or progress indicators.
+ * Skips gracefully if SW service is unavailable.
+ * 
+ * @param files - Files to refresh (will filter to checked-out SW files)
+ * @param vaultPath - The vault root path for constructing full paths
+ * @param userId - Current user ID for filtering to checked-out files
+ * @returns Count of refreshed and skipped files
+ */
+export async function refreshMetadataForFiles(
+  files: LocalFile[],
+  vaultPath: string,
+  userId: string | undefined
+): Promise<{ refreshed: number; skipped: number }> {
+  // Filter to SolidWorks files checked out by the current user
+  const swFiles = files.filter(f => {
+    if (f.isDirectory) return false
+    const ext = f.extension?.toLowerCase() || ''
+    if (!SW_EXTENSIONS.includes(ext)) return false
+    // Must be checked out by current user (or local-only)
+    const isLocalOnly = !f.pdmData?.id
+    const isCheckedOutByMe = f.pdmData?.checked_out_by === userId
+    return isLocalOnly || isCheckedOutByMe
+  })
+  
+  if (swFiles.length === 0) {
+    return { refreshed: 0, skipped: files.length }
+  }
+  
+  // Check if SolidWorks service is running - skip silently if not
+  try {
+    const status = await window.electronAPI?.solidworks?.getServiceStatus?.()
+    if (!status?.data?.running || !status?.data?.documentManagerAvailable) {
+      logSync('debug', 'Auto-refresh skipped - SW service not available', {
+        running: status?.data?.running,
+        dmAvailable: status?.data?.documentManagerAvailable,
+        fileCount: swFiles.length
+      })
+      return { refreshed: 0, skipped: swFiles.length }
+    }
+  } catch {
+    // If we can't check status, skip silently
+    return { refreshed: 0, skipped: swFiles.length }
+  }
+  
+  logSync('info', 'Auto-refreshing metadata for changed files', {
+    fileCount: swFiles.length,
+    files: swFiles.map(f => f.name)
+  })
+  
+  const store = usePDMStore.getState()
+  let refreshed = 0
+  
+  for (const file of swFiles) {
+    try {
+      const fullPath = buildFullPath(vaultPath, file.relativePath)
+      const ext = file.extension.toLowerCase()
+      const isDrawing = DRAWING_EXTENSIONS.includes(ext)
+      
+      // For drawings: PULL metadata from file
+      if (isDrawing) {
+        const metadata = await pullDrawingMetadata(fullPath)
+        
+        if (metadata) {
+          const pendingUpdates: Record<string, string | null | undefined> = {}
+          
+          if (metadata.partNumber !== null) {
+            pendingUpdates.part_number = metadata.partNumber
+          }
+          if (metadata.tabNumber !== null) {
+            pendingUpdates.tab_number = metadata.tabNumber
+          }
+          if (metadata.description !== null) {
+            pendingUpdates.description = metadata.description
+          }
+          if (metadata.revision !== null) {
+            pendingUpdates.revision = metadata.revision
+          }
+          
+          if (Object.keys(pendingUpdates).length > 0) {
+            store.updatePendingMetadata(file.path, pendingUpdates)
+            refreshed++
+            logSync('info', 'Auto-refresh: updated metadata from file', {
+              filePath: file.relativePath,
+              revision: metadata.revision,
+              partNumber: metadata.partNumber
+            })
+          }
+        }
+      } else {
+        // For parts/assemblies: Also PULL metadata (read from file)
+        // We read the file properties to update pendingMetadata
+        // This shows the user what's actually in the file after they saved it
+        const result = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
+        const data = result?.data as {
+          fileProperties?: Record<string, string>
+          configurationProperties?: Record<string, Record<string, string>>
+        } | undefined
+        
+        if (result?.success && data) {
+          const allProps = { ...data.fileProperties }
+          const configProps = data.configurationProperties
+          if (configProps) {
+            const configNames = Object.keys(configProps)
+            const preferredConfig = configNames.find(k => k.toLowerCase() === 'default') 
+              || configNames.find(k => k.toLowerCase() === 'standard')
+              || configNames[0]
+            if (preferredConfig && configProps[preferredConfig]) {
+              Object.assign(allProps, configProps[preferredConfig])
+            }
+          }
+          
+          const metadata = extractMetadataFromProperties(allProps)
+          const pendingUpdates: Record<string, string | null | undefined> = {}
+          
+          if (metadata.partNumber !== null) {
+            pendingUpdates.part_number = metadata.partNumber
+          }
+          if (metadata.tabNumber !== null) {
+            pendingUpdates.tab_number = metadata.tabNumber
+          }
+          if (metadata.description !== null) {
+            pendingUpdates.description = metadata.description
+          }
+          if (metadata.revision !== null) {
+            pendingUpdates.revision = metadata.revision
+          }
+          
+          if (Object.keys(pendingUpdates).length > 0) {
+            store.updatePendingMetadata(file.path, pendingUpdates)
+            refreshed++
+            logSync('info', 'Auto-refresh: updated metadata from file', {
+              filePath: file.relativePath,
+              revision: metadata.revision,
+              partNumber: metadata.partNumber
+            })
+          }
+        }
+      }
+    } catch (err) {
+      // Silent failure - user can manually refresh if needed
+      logSync('warn', 'Auto-refresh failed for file', {
+        filePath: file.relativePath,
+        error: String(err)
+      })
+    }
+  }
+  
+  return { refreshed, skipped: swFiles.length - refreshed }
+}
+
 export const syncMetadataCommand: Command<SyncMetadataParams> = {
   id: 'sync-metadata',
   name: 'Sync Metadata',
@@ -422,14 +732,18 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
       return 'No SolidWorks files selected'
     }
     
-    // Check that at least some files are checked out by the current user
+    // Check that at least some files are eligible:
+    // - Local only (not synced yet), OR
+    // - Checked out by the current user
     const userId = ctx.user?.id
-    const checkedOutByUser = swFiles.filter(f => 
-      f.pdmData?.checked_out_by === userId
-    )
+    const eligibleFiles = swFiles.filter(f => {
+      const isLocalOnly = !f.pdmData?.id
+      const isCheckedOutByMe = f.pdmData?.checked_out_by === userId
+      return isLocalOnly || isCheckedOutByMe
+    })
     
-    if (checkedOutByUser.length === 0) {
-      return 'No files are checked out for editing. Check out files first to sync metadata.'
+    if (eligibleFiles.length === 0) {
+      return 'No eligible files. Files must be local-only or checked out for editing.'
     }
     
     return null
@@ -442,17 +756,22 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
     // Get SolidWorks files
     const allSwFiles = getSwFilesFromSelection(ctx.files, files)
     
-    // Filter to only files checked out by current user
-    const filesToProcess = allSwFiles.filter(f => 
-      f.pdmData?.checked_out_by === userId
-    )
+    // Filter to eligible files:
+    // - Local only (not synced yet), OR
+    // - Checked out by current user
+    const filesToProcess = allSwFiles.filter(f => {
+      const isLocalOnly = !f.pdmData?.id
+      const isCheckedOutByMe = f.pdmData?.checked_out_by === userId
+      return isLocalOnly || isCheckedOutByMe
+    })
     
     const skippedCount = allSwFiles.length - filesToProcess.length
     if (skippedCount > 0) {
-      logSync('info', 'Skipping files not checked out by current user', {
+      logSync('info', 'Skipping files not eligible for metadata sync', {
         operationId,
         skippedCount,
-        processingCount: filesToProcess.length
+        processingCount: filesToProcess.length,
+        reason: 'Files must be local-only or checked out by you'
       })
     }
     
@@ -522,6 +841,7 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
     let failed = 0
     let pulled = 0  // Drawings where we pulled metadata
     let pushed = 0  // Parts/assemblies where we pushed metadata
+    let drawingsNeedingSw = 0  // Drawings that need SW for parent inheritance
     const errors: string[] = []
     
     // Get vault path for full path construction
@@ -543,6 +863,11 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
           const metadata = await pullDrawingMetadata(fullPath)
           
           if (metadata) {
+            // Track if this drawing needed SW but it wasn't running
+            if (metadata.drawingNeedsSwButNotRunning) {
+              drawingsNeedingSw++
+            }
+            
             // Build pending updates from extracted metadata
             const pendingUpdates: Record<string, string | null | undefined> = {}
             
@@ -566,7 +891,8 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
                 filePath: file.path,
                 partNumber: metadata.partNumber,
                 description: metadata.description?.substring(0, 50),
-                inheritedFromParent: metadata.inheritedFromParent
+                inheritedFromParent: metadata.inheritedFromParent,
+                neededSwButNotRunning: metadata.drawingNeedsSwButNotRunning
               })
             }
           }
@@ -620,6 +946,9 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
     
     if (failed > 0) {
       ctx.addToast('warning', `Sync complete: ${parts.join(', ')}`)
+    } else if (drawingsNeedingSw > 0) {
+      // Some drawings couldn't inherit from parent because SW isn't running
+      ctx.addToast('warning', `Open SolidWorks to sync drawing metadata from parent parts`)
     } else if (pulled > 0 || pushed > 0) {
       ctx.addToast('success', `Sync complete: ${parts.join(', ')}`)
     } else {
