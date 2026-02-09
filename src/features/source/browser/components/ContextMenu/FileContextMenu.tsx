@@ -160,8 +160,6 @@ export function FileContextMenu({
   const contextFiles = getContextMenuFiles()
   const multiSelect = contextFiles.length > 1
   const firstFile = contextFiles[0]
-  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
-
   // Use the selection state hook to compute counts and state
   const { counts, state, syncedFilesInSelection, unsyncedFilesInSelection } = 
     useContextMenuSelectionState({
