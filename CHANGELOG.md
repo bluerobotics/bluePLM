@@ -2,6 +2,15 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.13.3] - 2026-02-09
+
+### Fixed
+- **Refresh button no longer crashes on large vaults**: The file browser refresh button at vault root was falling back to `loadFiles()` — a heavy full-vault reload that blocks the main process and can freeze or crash the app on large vaults (25k+ files). The button now always uses the lightweight folder-scoped refresh, which works correctly at root too
+- **Refresh button no longer crashes React**: The refresh handler used `flushSync` to force a synchronous render, which throws if called during an existing React render cycle (e.g., rapid clicks or concurrent transitions). Replaced with a safe async yield to the UI thread
+- **Rapid refresh clicks no longer corrupt file list**: Added a concurrency guard so overlapping refresh operations are skipped instead of running in parallel and corrupting state
+
+---
+
 ## [3.13.2] - 2026-02-05
 
 ### Improved

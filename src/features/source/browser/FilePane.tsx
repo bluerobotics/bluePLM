@@ -1376,12 +1376,12 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
         onRefresh={() => {
           logExplorer('FilePane onRefresh', { 
             currentPath: currentPath || '(root)', 
-            useFolderRefresh: !!(currentPath && onRefreshFolder) 
+            useFolderRefresh: !!onRefreshFolder 
           })
-          // Use folder-scoped refresh when in a subfolder (faster)
-          // Fall back to full refresh at root or if folder refresh unavailable
-          if (currentPath && onRefreshFolder) {
-            onRefreshFolder(currentPath)
+          // Always use folder-scoped refresh (works at root with empty string too)
+          // Never fall back to loadFiles() which is too heavy for a refresh button
+          if (onRefreshFolder) {
+            onRefreshFolder(currentPath || '')
           } else {
             onRefresh()
           }

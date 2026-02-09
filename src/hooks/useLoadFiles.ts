@@ -1,5 +1,5 @@
 import { useCallback, startTransition } from 'react'
-import { flushSync } from 'react-dom'
+// flushSync removed - causes React crashes when called during existing render cycles
 import { usePDMStore } from '@/stores/pdmStore'
 import { getFilesLightweight, getCheckedOutUsers, getVaultFolders } from '@/lib/supabase'
 import { executeCommand } from '@/lib/commands'
@@ -1301,14 +1301,17 @@ export function useLoadFiles() {
     window.electronAPI?.log('info', '[RefreshFolder] Called with', { folderPath, vaultPath })
     if (!window.electronAPI || !vaultPath) return
     
-    // Force React to render loading state immediately before heavy work
-    // flushSync ensures the spinner is visible before the IPC call is made
-    logExplorer('refreshCurrentFolder BEFORE flushSync')
-    flushSync(() => {
-      setIsLoading(true)
-      setStatusMessage(`Refreshing folder...`)
-    })
-    logExplorer('refreshCurrentFolder AFTER flushSync')
+    // Guard against concurrent refreshes
+    if (usePDMStore.getState().isLoading) {
+      window.electronAPI?.log('info', '[RefreshFolder] Skipping - already refreshing')
+      return
+    }
+    
+    // Set loading state and yield to UI thread so spinner renders before heavy work
+    // (replaces flushSync which can crash React if called during an existing render cycle)
+    setIsLoading(true)
+    setStatusMessage(`Refreshing folder...`)
+    await new Promise(resolve => setTimeout(resolve, 0))
     
     try {
       // 1. Get existing files from store
