@@ -268,11 +268,14 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     folderConflictDialog, setFolderConflictDialog
   } = useDialogState()
 
-  // Rename and inline editing state (file rename, new folder, cell editing)
+  // Rename and inline editing state (file rename, new folder, cell editing, name highlighting)
   const {
     renamingFile, setRenamingFile,
     renameValue, setRenameValue,
     renameInputRef,
+    highlightingFile, setHighlightingFile,
+    highlightInputRef,
+    startHighlight,
     isCreatingFolder, setIsCreatingFolder,
     newFolderName, setNewFolderName,
     newFolderInputRef,
@@ -837,8 +840,10 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   })
 
   // Slow double-click to rename (Windows Explorer-style)
+  // For non-renamable files (checked in), highlights name for copying instead
   const { handleSlowDoubleClick, resetSlowDoubleClick } = useSlowDoubleClick({
     onRename: startRenaming,
+    onHighlight: startHighlight,
     canRename: (file) => {
       // Can rename if: not synced OR checked out by current user
       const isSynced = !!file.pdmData
@@ -1328,6 +1333,9 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     renameValue,
     setRenameValue,
     renameInputRef,
+    highlightingFile,
+    setHighlightingFile,
+    highlightInputRef,
     isCreatingFolder,
     setIsCreatingFolder,
     newFolderName,

@@ -62,6 +62,10 @@ export interface FilePaneContextValue {
   renameValue: string
   setRenameValue: (value: string) => void
   
+  // Highlight state (read-only name selection for copying)
+  highlightingFile: LocalFile | null
+  setHighlightingFile: (file: LocalFile | null) => void
+  
   // Delete state
   deleteConfirm: LocalFile | null
   setDeleteConfirm: (file: LocalFile | null) => void
@@ -134,6 +138,7 @@ export interface FilePaneContextValue {
   tableRef: React.RefObject<HTMLDivElement | null>
   contextMenuRef: React.RefObject<HTMLDivElement | null>
   renameInputRef: React.RefObject<HTMLInputElement | null>
+  highlightInputRef: React.RefObject<HTMLInputElement | null>
   newFolderInputRef: React.RefObject<HTMLInputElement | null>
   inlineEditInputRef: React.RefObject<HTMLInputElement | null>
   
@@ -155,6 +160,9 @@ export interface FilePaneProviderProps {
     renameValue: string
     setRenameValue: (value: string) => void
     renameInputRef: React.RefObject<HTMLInputElement | null>
+    highlightingFile: LocalFile | null
+    setHighlightingFile: (file: LocalFile | null) => void
+    highlightInputRef: React.RefObject<HTMLInputElement | null>
     isCreatingFolder: boolean
     setIsCreatingFolder: (creating: boolean) => void
     newFolderName: string
@@ -230,11 +238,13 @@ export function FilePaneProvider({
   // This avoids duplicate state between useRenameState hook and context
   const [localRenamingFile, setLocalRenamingFile] = useState<LocalFile | null>(null)
   const [localRenameValue, setLocalRenameValue] = useState('')
+  const [localHighlightingFile, setLocalHighlightingFile] = useState<LocalFile | null>(null)
   const [localIsCreatingFolder, setLocalIsCreatingFolder] = useState(false)
   const [localNewFolderName, setLocalNewFolderName] = useState('')
   const [localEditingCell, setLocalEditingCell] = useState<{ path: string; column: string } | null>(null)
   const [localEditValue, setLocalEditValue] = useState('')
   const localRenameInputRef = useRef<HTMLInputElement>(null)
+  const localHighlightInputRef = useRef<HTMLInputElement>(null)
   const localNewFolderInputRef = useRef<HTMLInputElement>(null)
   const localInlineEditInputRef = useRef<HTMLInputElement>(null)
   
@@ -243,6 +253,8 @@ export function FilePaneProvider({
   const setRenamingFile = renameState?.setRenamingFile ?? setLocalRenamingFile
   const renameValue = renameState?.renameValue ?? localRenameValue
   const setRenameValue = renameState?.setRenameValue ?? setLocalRenameValue
+  const highlightingFile = renameState?.highlightingFile ?? localHighlightingFile
+  const setHighlightingFile = renameState?.setHighlightingFile ?? setLocalHighlightingFile
   const isCreatingFolder = renameState?.isCreatingFolder ?? localIsCreatingFolder
   const setIsCreatingFolder = renameState?.setIsCreatingFolder ?? setLocalIsCreatingFolder
   const newFolderName = renameState?.newFolderName ?? localNewFolderName
@@ -252,6 +264,7 @@ export function FilePaneProvider({
   const editValue = renameState?.editValue ?? localEditValue
   const setEditValue = renameState?.setEditValue ?? setLocalEditValue
   const renameInputRef = renameState?.renameInputRef ?? localRenameInputRef
+  const highlightInputRef = renameState?.highlightInputRef ?? localHighlightInputRef
   const newFolderInputRef = renameState?.newFolderInputRef ?? localNewFolderInputRef
   const inlineEditInputRef = renameState?.inlineEditInputRef ?? localInlineEditInputRef
   
@@ -341,6 +354,9 @@ export function FilePaneProvider({
     renamingFile, setRenamingFile,
     renameValue, setRenameValue,
     
+    // Highlight (read-only name selection)
+    highlightingFile, setHighlightingFile,
+    
     // Delete
     deleteConfirm, setDeleteConfirm,
     deleteEverywhere, setDeleteEverywhere,
@@ -394,6 +410,7 @@ export function FilePaneProvider({
     tableRef,
     contextMenuRef,
     renameInputRef,
+    highlightInputRef,
     newFolderInputRef,
     inlineEditInputRef,
     
@@ -405,7 +422,7 @@ export function FilePaneProvider({
     contextMenu, emptyContextMenu, columnContextMenu, configContextMenu,
     isDraggingOver, isExternalDrag, dragOverFolder, draggedFiles,
     selectionBox, lastClickedIndex,
-    renamingFile, renameValue,
+    renamingFile, renameValue, highlightingFile,
     deleteConfirm, deleteEverywhere,
     customConfirm, deleteLocalCheckoutConfirm, conflictDialog,
     resizingColumn, draggingColumn, dragOverColumn,

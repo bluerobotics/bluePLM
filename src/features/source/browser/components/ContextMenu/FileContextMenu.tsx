@@ -206,8 +206,8 @@ export function FileContextMenu({
     }
   }
 
-  // Check if we have items for the File Actions submenu
-  const hasFileSystemActions = !allCloudOnly
+  // Check if we have items for the File Actions submenu (always true - Copy Name works for all files)
+  const hasFileSystemActions = true
   
   // Check if we have export actions (any SolidWorks file in selection)
   const swExtensions = ['.sldprt', '.sldasm', '.slddrw']

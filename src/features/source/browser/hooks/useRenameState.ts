@@ -9,6 +9,11 @@ export interface UseRenameStateReturn {
   setRenameValue: (value: string) => void
   renameInputRef: React.RefObject<HTMLInputElement | null>
   
+  // Highlighting file name (read-only selection for copying)
+  highlightingFile: LocalFile | null
+  setHighlightingFile: (file: LocalFile | null) => void
+  highlightInputRef: React.RefObject<HTMLInputElement | null>
+  
   // New folder creation
   isCreatingFolder: boolean
   setIsCreatingFolder: (creating: boolean) => void
@@ -26,6 +31,8 @@ export interface UseRenameStateReturn {
   // Helper functions
   startRename: (file: LocalFile) => void
   cancelRename: () => void
+  startHighlight: (file: LocalFile) => void
+  cancelHighlight: () => void
   startNewFolder: () => void
   cancelNewFolder: () => void
   startCellEdit: (path: string, column: string, currentValue: string) => void
@@ -40,6 +47,10 @@ export function useRenameState(): UseRenameStateReturn {
   const [renamingFile, setRenamingFile] = useState<LocalFile | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement | null>(null)
+  
+  // Highlighting file name (read-only selection for copying)
+  const [highlightingFile, setHighlightingFile] = useState<LocalFile | null>(null)
+  const highlightInputRef = useRef<HTMLInputElement | null>(null)
   
   // New folder creation
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
@@ -63,6 +74,14 @@ export function useRenameState(): UseRenameStateReturn {
   const cancelRename = useCallback(() => {
     setRenamingFile(null)
     setRenameValue('')
+  }, [])
+  
+  const startHighlight = useCallback((file: LocalFile) => {
+    setHighlightingFile(file)
+  }, [])
+  
+  const cancelHighlight = useCallback(() => {
+    setHighlightingFile(null)
   }, [])
   
   const startNewFolder = useCallback(() => {
@@ -91,6 +110,9 @@ export function useRenameState(): UseRenameStateReturn {
     renameValue,
     setRenameValue,
     renameInputRef,
+    highlightingFile,
+    setHighlightingFile,
+    highlightInputRef,
     isCreatingFolder,
     setIsCreatingFolder,
     newFolderName,
@@ -103,6 +125,8 @@ export function useRenameState(): UseRenameStateReturn {
     inlineEditInputRef,
     startRename,
     cancelRename,
+    startHighlight,
+    cancelHighlight,
     startNewFolder,
     cancelNewFolder,
     startCellEdit,

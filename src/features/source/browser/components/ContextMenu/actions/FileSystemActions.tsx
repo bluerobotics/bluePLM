@@ -35,9 +35,27 @@ export function FileSystemActions({
   const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
   const isFolder = firstFile.isDirectory
 
-  // Don't show for cloud-only files
+  // Copy Name is always available regardless of file status
+  const copyNameItem = (
+    <div 
+      className="context-menu-item"
+      onClick={async () => {
+        const names = contextFiles.map(f => f.name).join('\n')
+        const result = await copyToClipboard(names)
+        if (result.success) {
+          addToast('success', `Copied ${contextFiles.length > 1 ? contextFiles.length + ' names' : 'name'} to clipboard`)
+        }
+        onClose()
+      }}
+    >
+      <Copy size={14} />
+      Copy Name{multiSelect ? 's' : ''}
+    </div>
+  )
+
+  // For cloud-only files, only show Copy Name
   if (allCloudOnly) {
-    return null
+    return copyNameItem
   }
 
   // Check rename eligibility
@@ -73,6 +91,9 @@ export function FileSystemActions({
         <FolderOpen size={14} />
         {platform === 'darwin' ? 'Reveal in Finder' : 'Show in Explorer'}
       </div>
+      
+      {/* Copy Name(s) - always available */}
+      {copyNameItem}
       
       {/* Copy Path(s) */}
       <div 

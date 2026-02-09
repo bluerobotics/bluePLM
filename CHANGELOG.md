@@ -2,6 +2,14 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.13.5] - 2026-02-09
+
+### Added
+- **Copy file name from context menu**: Right-click any file and choose "Copy Name" to copy just the filename to clipboard. Works for all file states including cloud-only files, and supports multi-select
+- **Slow double-click highlights name for copying**: On checked-in files that can't be renamed, a slow double-click now shows the filename as selectable text so you can highlight and Ctrl+C to copy. Useful for toolbox parts with long names where the new part is very similar
+
+---
+
 ## [3.13.4] - 2026-02-09
 
 ### Fixed

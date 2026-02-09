@@ -32,6 +32,8 @@ export const SLOW_DOUBLE_CLICK_MAX_MS = 1500 // Maximum time between clicks
 export interface UseSlowDoubleClickOptions {
   /** Callback when slow double-click triggers rename */
   onRename: (file: LocalFile) => void
+  /** Callback when slow double-click detected but file can't be renamed (e.g., highlight name for copying) */
+  onHighlight?: (file: LocalFile) => void
   /** Check if file can be renamed (e.g., not locked by another user) */
   canRename?: (file: LocalFile) => boolean
   /** Minimum time between clicks in ms (default: 400) */
@@ -56,6 +58,7 @@ export interface UseSlowDoubleClickReturn {
  */
 export function useSlowDoubleClick({
   onRename,
+  onHighlight,
   canRename,
   minDelay = SLOW_DOUBLE_CLICK_MIN_MS,
   maxDelay = SLOW_DOUBLE_CLICK_MAX_MS,
@@ -91,16 +94,21 @@ export function useSlowDoubleClick({
     // Check if file can be renamed
     const fileCanRename = canRename ? canRename(file) : true
     
-    // Detect slow double-click: same file, within timing window, and can be renamed
-    if (isSameFile && timeDiff >= minDelay && timeDiff <= maxDelay && fileCanRename) {
+    // Detect slow double-click: same file, within timing window
+    if (isSameFile && timeDiff >= minDelay && timeDiff <= maxDelay) {
       // Clear any pending timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
         timeoutRef.current = null
       }
       
-      // Trigger rename
-      onRename(file)
+      if (fileCanRename) {
+        // Trigger rename
+        onRename(file)
+      } else if (onHighlight) {
+        // Can't rename - highlight name for copying instead
+        onHighlight(file)
+      }
       
       // Reset state
       setLastClickTime(0)
@@ -120,7 +128,7 @@ export function useSlowDoubleClick({
         timeoutRef.current = null
       }, maxDelay + 100) // Small buffer
     }
-  }, [lastClickTime, lastClickPath, onRename, canRename, minDelay, maxDelay, allowDirectories])
+  }, [lastClickTime, lastClickPath, onRename, onHighlight, canRename, minDelay, maxDelay, allowDirectories])
 
   const resetSlowDoubleClick = useCallback(() => {
     // Clear any pending timeout

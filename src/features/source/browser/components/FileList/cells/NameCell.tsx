@@ -5,6 +5,7 @@
  * - useFilePaneContext() for UI state
  * - useFilePaneHandlers() for action handlers
  */
+import { useEffect } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -40,6 +41,9 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
     renameInputRef,
     setRenameValue,
     setRenamingFile,
+    highlightingFile,
+    setHighlightingFile,
+    highlightInputRef,
     expandedConfigFiles,
     loadingConfigs,
     folderMetrics,
@@ -79,9 +83,18 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
 
   const isSynced = !!file.pdmData
   const isBeingRenamed = renamingFile?.path === file.path
+  const isBeingHighlighted = highlightingFile?.path === file.path
   
   // Icon size scales with row size, but has a minimum of 16
   const iconSize = Math.max(16, listRowSize - 8)
+  
+  // Auto-select text when entering highlight mode
+  useEffect(() => {
+    if (isBeingHighlighted && highlightInputRef?.current) {
+      highlightInputRef.current.focus()
+      highlightInputRef.current.select()
+    }
+  }, [isBeingHighlighted, highlightInputRef])
   
   // Rename mode
   if (isBeingRenamed) {
@@ -114,6 +127,39 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
           onDragStart={(e) => e.preventDefault()}
           draggable={false}
           className="flex-1 bg-plm-bg border border-plm-accent rounded px-2 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
+        />
+      </div>
+    )
+  }
+  
+  // Highlight mode - read-only name selection for copying (shown on slow double-click of non-renamable files)
+  if (isBeingHighlighted) {
+    const highlightIconSize = Math.max(16, listRowSize - 8)
+    return (
+      <div className="flex items-center gap-2" style={{ minHeight: listRowSize }}>
+        <ListRowIcon 
+          file={file} 
+          size={highlightIconSize} 
+          folderCheckoutStatus={file.isDirectory ? getFolderCheckoutStatus(file.relativePath) : undefined}
+          isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
+        />
+        <input
+          ref={highlightInputRef}
+          type="text"
+          readOnly
+          value={file.name}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setHighlightingFile(null)
+            }
+            e.stopPropagation()
+          }}
+          onBlur={() => setHighlightingFile(null)}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDragStart={(e) => e.preventDefault()}
+          draggable={false}
+          className="flex-1 bg-plm-bg border border-plm-border rounded px-2 py-0.5 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-border select-text cursor-text"
         />
       </div>
     )
