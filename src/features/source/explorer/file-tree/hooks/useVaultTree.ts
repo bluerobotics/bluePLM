@@ -220,6 +220,7 @@ export function useVaultTree() {
     // Get all non-directory files (optionally excluding SolidWorks temp files)
     // Uses deferredFiles to allow React to batch updates and yield to user input
     const allNonDirFiles = deferredFiles.filter(f => {
+      if (!f || !f.relativePath || !f.name) return false
       if (f.isDirectory) return false
       if (hideSolidworksTempFiles && f.name.startsWith('~$')) return false
       return true

@@ -2,6 +2,13 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.13.4] - 2026-02-09
+
+### Fixed
+- **File tree crash on malformed file entries**: Fixed crash in the vault tree where `folderMetrics` computation would throw `Cannot read properties of undefined (reading 'startsWith')` if a file entry had an undefined `name` or `relativePath`. Added the same null guard that already existed in the tree builder
+
+---
+
 ## [3.13.3] - 2026-02-09
 
 ### Fixed
