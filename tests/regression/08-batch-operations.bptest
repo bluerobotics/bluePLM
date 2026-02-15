@@ -1,0 +1,51 @@
+@name Batch Operations
+@requires vault
+@timeout 90
+
+// ==========================================================
+// Tests batch operations:
+//   - Create multiple files, sync them individually
+//   - checkout-all on the folder, assert all checked out
+//   - checkin-all, assert all synced + readonly
+//   - Verify version increments on each file
+//
+// Covers checklist: Section 3 (Bulk Assembly) — partial
+// ==========================================================
+
+# Create test folder with multiple files
+mkdir _data/batch-test
+touch _data/batch-test/part-a.txt
+touch _data/batch-test/part-b.txt
+touch _data/batch-test/part-c.txt
+wait 1000
+
+# Sync each file individually
+sync _data/batch-test/part-a.txt
+wait 3000
+sync _data/batch-test/part-b.txt
+wait 3000
+sync _data/batch-test/part-c.txt
+wait 3000
+
+# Verify all synced at v1
+assert _data/batch-test/part-a.txt --status=synced --version=1
+assert _data/batch-test/part-b.txt --status=synced --version=1
+assert _data/batch-test/part-c.txt --status=synced --version=1
+
+# Checkout-all: every file in the folder should be checked out
+checkout-all _data/batch-test
+wait 3000
+assert _data/batch-test/part-a.txt --status=checked-out --checked-out-by=me --writable
+assert _data/batch-test/part-b.txt --status=checked-out --checked-out-by=me --writable
+assert _data/batch-test/part-c.txt --status=checked-out --checked-out-by=me --writable
+
+# Checkin-all: all files should return to synced + readonly + v2
+checkin-all
+wait 5000
+assert _data/batch-test/part-a.txt --status=synced --version=2 --readonly
+assert _data/batch-test/part-b.txt --status=synced --version=2 --readonly
+assert _data/batch-test/part-c.txt --status=synced --version=2 --readonly
+
+# Teardown
+delete _data/batch-test
+wait 2000

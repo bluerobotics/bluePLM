@@ -45,7 +45,9 @@ export {
   getActiveOperations,
   hasActiveOperations,
   cancelAllOperations,
-  cancelOperation
+  cancelOperation,
+  // Command confirmation dialog
+  resolveCommandConfirm
 } from './executor'
 
 // Import handlers

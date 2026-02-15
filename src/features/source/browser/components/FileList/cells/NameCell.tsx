@@ -46,6 +46,8 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
     highlightInputRef,
     expandedConfigFiles,
     loadingConfigs,
+    expandedDrawingRefs,
+    loadingDrawingRefs,
     folderMetrics,
     isDownloadHovered,
     setIsDownloadHovered,
@@ -67,6 +69,8 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
     isFolderSynced,
     canHaveConfigs,
     toggleFileConfigExpansion,
+    canHaveDrawingRefs,
+    toggleDrawingRefExpansion,
     selectedDownloadableFiles,
     selectedUploadableFiles,
     selectedCheckoutableFiles,
@@ -219,22 +223,46 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
   )
   
   const hasConfigs = canHaveConfigs(file)
-  const isExpanded = expandedConfigFiles.has(file.path)
-  const isLoadingConfigs = loadingConfigs.has(file.path)
+  const hasDrawingRefs = canHaveDrawingRefs(file)
+  const isExpandable = hasConfigs || hasDrawingRefs
+  
+  // For configs: use config expansion state; for drawings: use drawing ref expansion state
+  const isExpanded = hasConfigs 
+    ? expandedConfigFiles.has(file.path) 
+    : hasDrawingRefs 
+      ? expandedDrawingRefs.has(file.path) 
+      : false
+  const isLoadingExpand = hasConfigs 
+    ? loadingConfigs.has(file.path) 
+    : hasDrawingRefs 
+      ? loadingDrawingRefs.has(file.path) 
+      : false
+  
+  // Toggle handler: configs for parts/assemblies, drawing refs for drawings
+  const handleToggleExpand = hasConfigs 
+    ? () => toggleFileConfigExpansion(file) 
+    : hasDrawingRefs 
+      ? () => toggleDrawingRefExpansion(file) 
+      : undefined
+  
+  // Title text varies by file type
+  const expandTitle = hasConfigs
+    ? (isExpanded ? 'Collapse configurations' : 'Expand configurations')
+    : (isExpanded ? 'Collapse references' : 'Expand references')
   
   return (
     <div className="flex items-center gap-1 group/name" style={{ minHeight: listRowSize }}>
-      {/* Expand button for SW files with configurations */}
-      {hasConfigs ? (
+      {/* Expand button for SW files with configurations or drawing references */}
+      {isExpandable ? (
         <button
           onClick={(e) => {
             e.stopPropagation()
-            toggleFileConfigExpansion(file)
+            handleToggleExpand?.()
           }}
           className="p-0.5 -ml-1 hover:bg-plm-bg-light/50 rounded transition-colors flex-shrink-0 group/expander"
-          title={isExpanded ? 'Collapse configurations' : 'Expand configurations'}
+          title={expandTitle}
         >
-          {isLoadingConfigs ? (
+          {isLoadingExpand ? (
             <Loader2 size={12} className="animate-spin text-plm-fg-muted" />
           ) : isExpanded ? (
             <ChevronDown size={12} className="text-cyan-400" />
@@ -326,7 +354,7 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
         if (file.diffStatus === 'ignored') {
           return <span title="Local only (ignored from sync)"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
         }
-        if (!file.pdmData && file.diffStatus !== 'added') {
+        if (!file.pdmData && file.diffStatus !== 'added' && file.diffStatus !== 'deleted_remote') {
           return <span title="Local only - not synced"><HardDrive size={12} className="text-plm-fg-muted flex-shrink-0" /></span>
         }
         return null

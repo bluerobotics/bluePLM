@@ -1,11 +1,13 @@
 /**
  * Info Command Handlers
  * 
- * Commands: info, props, properties, status, whoami, metadata, set-metadata, set-state, env, logs
+ * Commands: info, props, properties, status, whoami, metadata, set-metadata,
+ *           set-state, env, logs, hash, checksum, is-readonly, readonly,
+ *           history, versions
  */
 
 import { usePDMStore, LocalFile } from '../../../stores/pdmStore'
-import { updateFileMetadata } from '../../supabase'
+import { updateFileMetadata, getFileVersions } from '../../supabase'
 import { formatBytes } from '../../utils'
 import { registerTerminalCommand } from '../registry'
 import type { ParsedCommand, TerminalOutput } from '../parser'
@@ -508,4 +510,192 @@ registerTerminalCommand({
   category: 'info'
 }, (_parsed, files, addOutput) => {
   handlePending(files, addOutput)
+})
+
+// ============================================
+// Hash Command
+// ============================================
+
+/**
+ * Handle hash/checksum command - compute and display the SHA-256 hash of a local file.
+ * Uses the Electron IPC bridge for native crypto operations.
+ */
+export async function handleHash(
+  parsed: ParsedCommand,
+  files: LocalFile[],
+  addOutput: OutputFn
+): Promise<void> {
+  const filePath = parsed.args[0]
+  if (!filePath) {
+    addOutput('error', 'Usage: hash <file-path>')
+    return
+  }
+
+  const matches = resolvePathPattern(filePath, files)
+  if (matches.length === 0) {
+    addOutput('error', `File not found: ${filePath}`)
+    return
+  }
+
+  const file = matches[0]
+  if (file.isDirectory) {
+    addOutput('error', 'Cannot hash a directory')
+    return
+  }
+
+  if (!window.electronAPI?.getFileHashEx) {
+    addOutput('error', 'Hash computation requires the desktop app')
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.getFileHashEx(file.path)
+    if (result.success) {
+      addOutput('info', `SHA256: ${result.hash}  ${file.name}`)
+    } else {
+      addOutput('error', result.error || 'Failed to compute hash')
+    }
+  } catch (err) {
+    addOutput('error', `Failed to compute hash: ${err}`)
+  }
+}
+
+registerTerminalCommand({
+  aliases: ['hash', 'checksum'],
+  description: 'Compute SHA-256 hash of a file',
+  usage: 'hash <file-path>',
+  examples: ['hash part.sldprt'],
+  category: 'info'
+}, async (parsed, files, addOutput) => {
+  await handleHash(parsed, files, addOutput)
+})
+
+// ============================================
+// Is-Readonly Command
+// ============================================
+
+/**
+ * Handle is-readonly command - check if a file is read-only on disk.
+ * Uses the Electron IPC bridge for native file attribute inspection.
+ */
+export async function handleIsReadonly(
+  parsed: ParsedCommand,
+  files: LocalFile[],
+  addOutput: OutputFn
+): Promise<void> {
+  const filePath = parsed.args[0]
+  if (!filePath) {
+    addOutput('error', 'Usage: is-readonly <file-path>')
+    return
+  }
+
+  const matches = resolvePathPattern(filePath, files)
+  if (matches.length === 0) {
+    addOutput('error', `File not found: ${filePath}`)
+    return
+  }
+
+  const file = matches[0]
+  if (file.isDirectory) {
+    addOutput('error', 'Cannot check read-only status of a directory')
+    return
+  }
+
+  if (!window.electronAPI?.isReadonly) {
+    addOutput('error', 'Read-only check requires the desktop app')
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.isReadonly(file.path)
+    if (result.success) {
+      addOutput('info', `Read-only: ${result.readonly ? 'yes' : 'no'}`)
+    } else {
+      addOutput('error', result.error || 'Failed to check read-only status')
+    }
+  } catch (err) {
+    addOutput('error', `Failed to check read-only status: ${err}`)
+  }
+}
+
+registerTerminalCommand({
+  aliases: ['is-readonly', 'readonly'],
+  description: 'Check if a file is read-only',
+  usage: 'is-readonly <file-path>',
+  examples: ['is-readonly part.sldprt'],
+  category: 'info'
+}, async (parsed, files, addOutput) => {
+  await handleIsReadonly(parsed, files, addOutput)
+})
+
+// ============================================
+// Version History Command
+// ============================================
+
+/**
+ * Handle history/versions command - show version history for a synced file.
+ * Queries the supabase file_versions table for all versions of the file,
+ * displaying version number, timestamp, user, and comment.
+ */
+export async function handleVersionHistory(
+  parsed: ParsedCommand,
+  files: LocalFile[],
+  addOutput: OutputFn
+): Promise<void> {
+  const filePath = parsed.args[0]
+  if (!filePath) {
+    addOutput('error', 'Usage: history <file-path>')
+    return
+  }
+
+  const matches = resolvePathPattern(filePath, files)
+  if (matches.length === 0) {
+    addOutput('error', `File not found: ${filePath}`)
+    return
+  }
+
+  const file = matches[0]
+  if (!file.pdmData?.id) {
+    addOutput('error', `File is not synced to server: ${file.name}`)
+    return
+  }
+
+  try {
+    const { versions, error } = await getFileVersions(file.pdmData.id)
+
+    if (error) {
+      addOutput('error', `Failed to fetch version history: ${error.message || error}`)
+      return
+    }
+
+    if (!versions || versions.length === 0) {
+      addOutput('info', `No version history for ${file.name}`)
+      return
+    }
+
+    const lines = [`📜 Version History for ${file.name} (${versions.length} version${versions.length !== 1 ? 's' : ''}):`]
+
+    for (const v of versions) {
+      const date = v.created_at ? new Date(v.created_at).toLocaleString() : 'Unknown date'
+      const userName = v.created_by_user?.full_name || v.created_by_user?.email || 'Unknown'
+      const comment = v.comment ? ` — "${v.comment}"` : ''
+      const revision = v.revision ? ` (rev ${v.revision})` : ''
+
+      lines.push(`  v${v.version}${revision}: ${date} by ${userName}${comment}`)
+    }
+
+    addOutput('info', lines.join('\n'))
+  } catch (err) {
+    addOutput('error', `Failed to fetch version history: ${err}`)
+  }
+}
+
+registerTerminalCommand({
+  aliases: ['history', 'versions'],
+  description: 'Show version history for a file',
+  usage: 'history <file-path>',
+  examples: ['history part.sldprt'],
+  category: 'info'
+}, async (parsed, files, addOutput) => {
+  await handleVersionHistory(parsed, files, addOutput)
 })

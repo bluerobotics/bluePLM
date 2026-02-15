@@ -1,0 +1,53 @@
+@name Checkout & Checkin Lifecycle
+@requires vault
+@timeout 60
+
+// ==========================================================
+// Tests the full checkout/checkin lifecycle:
+//   - Sync a file, check it out, verify writable + owned
+//   - Check it back in, verify synced + readonly + version bump
+//   - Discard checkout — verify no version change
+//   - Check in with metadata changes via set-metadata
+//
+// Covers checklist: Section 3 — Check Out / Check In
+// ==========================================================
+
+# Create and sync test file
+mkdir _data/co-ci-test
+touch _data/co-ci-test/bracket.txt
+wait 1000
+sync _data/co-ci-test/bracket.txt
+wait 3000
+assert _data/co-ci-test/bracket.txt --status=synced --version=1 --readonly
+
+# Checkout — file should be writable and owned by me
+checkout _data/co-ci-test/bracket.txt
+wait 2000
+assert _data/co-ci-test/bracket.txt --status=checked-out --writable --checked-out-by=me
+
+# Checkin — version should increment, file returns to readonly
+checkin _data/co-ci-test/bracket.txt
+wait 3000
+assert _data/co-ci-test/bracket.txt --status=synced --version=2 --readonly
+
+# Discard checkout — version stays at 2, file is readonly
+checkout _data/co-ci-test/bracket.txt
+wait 2000
+assert _data/co-ci-test/bracket.txt --status=checked-out --checked-out-by=me
+discard _data/co-ci-test/bracket.txt
+wait 2000
+assert _data/co-ci-test/bracket.txt --status=synced --version=2 --readonly
+
+# Checkin with pending metadata changes
+checkout _data/co-ci-test/bracket.txt
+wait 2000
+set-metadata _data/co-ci-test/bracket.txt --part="BRK-001" --desc="Test bracket"
+assert _data/co-ci-test/bracket.txt --has-pending
+checkin _data/co-ci-test/bracket.txt
+wait 3000
+assert _data/co-ci-test/bracket.txt --status=synced --version=3
+assert _data/co-ci-test/bracket.txt --part="BRK-001" --desc="Test bracket"
+
+# Teardown
+delete _data/co-ci-test
+wait 2000

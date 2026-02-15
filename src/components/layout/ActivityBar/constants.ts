@@ -7,6 +7,7 @@ export const moduleTranslationKeys: Record<ModuleId, string> = {
   'pending': 'sidebar.pending',
   'history': 'sidebar.history',
   'workflows': 'sidebar.workflows',
+  'reviews': 'sidebar.reviews',
   'trash': 'sidebar.trash',
   // Products
   'products': 'sidebar.products',

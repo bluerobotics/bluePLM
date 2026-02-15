@@ -241,6 +241,7 @@ export const en: TranslationDict = {
     pending: 'Pending',
     history: 'History',
     workflows: 'File Workflows',
+    reviews: 'Reviews',
     trash: 'Trash',
     // Products
     products: 'Product Explorer',

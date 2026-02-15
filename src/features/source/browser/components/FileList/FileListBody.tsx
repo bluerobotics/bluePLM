@@ -1,15 +1,18 @@
-import React, { useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from 'react'
+import React, { useMemo, useCallback, useEffect, forwardRef, useImperativeHandle, useRef } from 'react'
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { FolderOpen } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { ConfigWithDepth } from '../../types'
-import type { ConfigBomItem } from '@/stores/types'
+import type { ConfigBomItem, DrawingRefItem } from '@/stores/types'
 import { FileRow } from './FileRow'
 import { ConfigRow } from './ConfigRow'
 import { ConfigBomRow } from './ConfigBomRow'
+import { DrawingRefRow } from './DrawingRefRow'
+import { ConfigDrawingRow } from './ConfigDrawingRow'
 import { useFilePaneContext } from '../../context'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getTabValidationOptions } from '@/lib/tabValidation'
+import { combineBaseAndTab } from '@/lib/serialization'
 
 // ============================================================================
 // Types
@@ -39,12 +42,16 @@ interface ConfigVirtualRow {
   basePartNumber: string
   /** Configuration-specific revision (from drawing propagation) */
   configRevision?: string
-  /** Whether this config can be expanded to show BOM (only for assemblies) */
+  /** Whether this config can be expanded (true for both parts and assemblies) */
   isExpandable: boolean
   /** Whether the BOM section is currently expanded */
   isBomExpanded: boolean
   /** Whether the BOM is currently loading */
   isBomLoading: boolean
+  /** Whether the drawings section is currently expanded */
+  isDrawingsExpanded: boolean
+  /** Whether the drawings section is currently loading */
+  isDrawingsLoading: boolean
 }
 
 /** Config BOM row data (part/assembly under a configuration) */
@@ -56,12 +63,36 @@ interface ConfigBomVirtualRow {
   item: ConfigBomItem
 }
 
+/** Drawing reference row data (referenced model under a .slddrw file) */
+interface DrawingRefVirtualRow {
+  type: 'drawing-ref'
+  file: LocalFile
+  item: DrawingRefItem
+}
+
+/** Config drawing row data (drawing that references a part/assembly config) */
+interface ConfigDrawingVirtualRow {
+  type: 'config-drawing'
+  file: LocalFile
+  configName: string
+  configDepth: number
+  item: DrawingRefItem
+}
+
+/** Drawing ref config row data (configuration child under a DrawingRefRow) */
+interface DrawingRefConfigVirtualRow {
+  type: 'drawing-ref-config'
+  file: LocalFile
+  configName: string
+  parentItem: DrawingRefItem
+}
+
 /** New folder input row */
 interface NewFolderVirtualRow {
   type: 'new-folder'
 }
 
-type VirtualRow = FileVirtualRow | ConfigVirtualRow | ConfigBomVirtualRow | NewFolderVirtualRow
+type VirtualRow = FileVirtualRow | ConfigVirtualRow | ConfigBomVirtualRow | DrawingRefVirtualRow | ConfigDrawingVirtualRow | DrawingRefConfigVirtualRow | NewFolderVirtualRow
 
 // ============================================================================
 // Props Interface
@@ -104,6 +135,14 @@ export interface FileListBodyProps {
   // Config BOM row event handlers
   onConfigBomRowClick: (e: React.MouseEvent, file: LocalFile, item: ConfigBomItem) => void
   
+  // Drawing reference row event handlers
+  onDrawingRefRowClick: (e: React.MouseEvent, file: LocalFile, item: DrawingRefItem) => void
+  onDrawingRefRowContextMenu: (e: React.MouseEvent, file: LocalFile, item: DrawingRefItem) => void
+  onDrawingRefFileToggle: (e: React.MouseEvent, file: LocalFile, item: DrawingRefItem) => void
+  onConfigDrawingToggle: (e: React.MouseEvent, file: LocalFile, configName: string) => void
+  onConfigDrawingRowClick: (e: React.MouseEvent, file: LocalFile, item: DrawingRefItem) => void
+  onConfigDrawingRowContextMenu: (e: React.MouseEvent, file: LocalFile, item: DrawingRefItem) => void
+  
   // Cell rendering
   renderCellContent: (file: LocalFile, columnId: string) => React.ReactNode
 }
@@ -132,6 +171,12 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
   onConfigTabChange,
   onConfigBomToggle,
   onConfigBomRowClick,
+  onDrawingRefRowClick,
+  onDrawingRefRowContextMenu,
+  onDrawingRefFileToggle,
+  onConfigDrawingToggle,
+  onConfigDrawingRowClick,
+  onConfigDrawingRowContextMenu,
   renderCellContent,
 }, ref) {
   // Get state from context
@@ -146,17 +191,29 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     expandedConfigBoms,
     configBomData,
     loadingConfigBoms,
+    expandedDrawingRefs,
+    drawingRefData,
+    loadingDrawingRefs,
+    expandedDrawingRefFiles,
+    expandedConfigDrawings,
+    configDrawingData,
+    loadingConfigDrawings,
     isCreatingFolder,
     newFolderName,
     newFolderInputRef,
     setNewFolderName,
     setIsCreatingFolder,
     tableRef,
+    pendingScrollToFile,
   } = useFilePaneContext()
 
-  // Get tab validation options from organization serialization settings
+  // Get tab settings from organization serialization settings
   const serializationSettings = usePDMStore(s => s.organization?.serialization_settings)
   const tabValidationOptions = getTabValidationOptions(serializationSettings)
+  const tabEnabled = !!serializationSettings?.tab_enabled
+  
+  // Action to clear the pending scroll target after scrolling
+  const setPendingScrollToFile = usePDMStore(s => s.setPendingScrollToFile)
 
   // Local ref for the tbody element
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
@@ -213,19 +270,48 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         basePartNumber,
       })
       
+      // Add drawing reference rows if .slddrw file is expanded
+      if (expandedDrawingRefs.has(file.path)) {
+        const refItems = drawingRefData.get(file.path) || []
+        refItems.forEach((item) => {
+          rows.push({
+            type: 'drawing-ref',
+            file,
+            item,
+          })
+          
+          // Add config children if this ref file is expanded and has configs
+          const refFileKey = `${file.path}::${item.file_path}`
+          if (item.configurations && item.configurations.length > 0 && expandedDrawingRefFiles.has(refFileKey)) {
+            item.configurations.forEach((configName) => {
+              rows.push({
+                type: 'drawing-ref-config',
+                file,
+                configName,
+                parentItem: item,
+              })
+            })
+          }
+        })
+      }
+      
       // Add config rows if expanded
       if (expandedConfigFiles.has(file.path)) {
         const configs = fileConfigurations.get(file.path) || []
         // Get configuration revisions from file's pdmData (propagated from drawings)
         const configRevisions = (file.pdmData?.configuration_revisions || {}) as Record<string, string>
         
-        // Check if file is an assembly (can show BOM)
+        // Check file type - assemblies can show BOM, both parts and assemblies can show drawings
         const isAssemblyFile = file.extension?.toLowerCase() === '.sldasm'
+        const isPartFile = file.extension?.toLowerCase() === '.sldprt'
+        const isConfigExpandable = isAssemblyFile || isPartFile
         
         configs.forEach((config) => {
           const configKey = `${file.path}::${config.name}`
           const isBomExpanded = expandedConfigBoms.has(configKey)
           const isBomLoading = loadingConfigBoms.has(configKey)
+          const isDrawingsExpanded = expandedConfigDrawings.has(configKey)
+          const isDrawingsLoading = loadingConfigDrawings.has(configKey)
           
           rows.push({
             type: 'config',
@@ -235,12 +321,28 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
             isEditable,
             basePartNumber,
             configRevision: configRevisions[config.name],
-            isExpandable: isAssemblyFile,
+            isExpandable: isConfigExpandable,
             isBomExpanded,
             isBomLoading,
+            isDrawingsExpanded,
+            isDrawingsLoading,
           })
           
-          // Add BOM rows if config BOM is expanded
+          // Add config drawing rows FIRST (drawings appear before BOM items under a config)
+          if (isDrawingsExpanded) {
+            const drawingItems = configDrawingData.get(configKey) || []
+            drawingItems.forEach((item) => {
+              rows.push({
+                type: 'config-drawing',
+                file,
+                configName: config.name,
+                configDepth: config.depth,
+                item,
+              })
+            })
+          }
+          
+          // Add BOM rows if config BOM is expanded (assemblies only)
           if (isBomExpanded) {
             const bomItems = configBomData.get(configKey) || []
             bomItems.forEach((item) => {
@@ -271,6 +373,13 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     expandedConfigBoms,
     configBomData,
     loadingConfigBoms,
+    expandedDrawingRefs,
+    drawingRefData,
+    loadingDrawingRefs,
+    expandedDrawingRefFiles,
+    expandedConfigDrawings,
+    configDrawingData,
+    loadingConfigDrawings,
     isBeingProcessed,
   ])
 
@@ -289,6 +398,12 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         return configRowHeight
       case 'config-bom':
         return configBomRowHeight
+      case 'drawing-ref':
+        return configBomRowHeight
+      case 'config-drawing':
+        return configBomRowHeight
+      case 'drawing-ref-config':
+        return configBomRowHeight
       case 'file':
       default:
         return fileRowHeight
@@ -303,6 +418,21 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
   })
 
   const virtualItems = virtualizer.getVirtualItems()
+
+  // Scroll to a pending file target after navigation (e.g., clicking a drawing ref row)
+  useEffect(() => {
+    if (!pendingScrollToFile) return
+    const idx = virtualRows.findIndex(
+      r => r.type === 'file' && r.file.path === pendingScrollToFile
+    )
+    if (idx >= 0) {
+      // Use requestAnimationFrame to ensure the virtualizer has measured the new rows
+      requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(idx, { align: 'center' })
+      })
+    }
+    setPendingScrollToFile(null)
+  }, [pendingScrollToFile, virtualRows, virtualizer, setPendingScrollToFile])
 
   // Calculate padding for spacer rows to maintain scroll position
   // This technique renders only visible rows with spacer rows above/below
@@ -384,7 +514,7 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
   ])
 
   const renderConfigRow = useCallback((row: ConfigVirtualRow) => {
-    const { file, config, isSelected, isEditable, basePartNumber, configRevision, isExpandable, isBomExpanded, isBomLoading } = row
+    const { file, config, isSelected, isEditable, basePartNumber, configRevision, isExpandable, isBomExpanded, isBomLoading, isDrawingsExpanded, isDrawingsLoading } = row
     const configs = fileConfigurations.get(file.path) || []
     
     return (
@@ -400,24 +530,30 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
         isExpandable={isExpandable}
         isBomExpanded={isBomExpanded}
         isBomLoading={isBomLoading}
+        isDrawingsExpanded={isDrawingsExpanded}
+        isDrawingsLoading={isDrawingsLoading}
+        tabEnabled={tabEnabled}
         tabValidationOptions={tabValidationOptions}
         onClick={(e) => onConfigRowClick(e, file.path, config.name, configs)}
         onContextMenu={(e) => onConfigContextMenu(e, file.path, config.name)}
         onDescriptionChange={(value) => onConfigDescriptionChange(file.path, config.name, value)}
         onTabChange={(value) => onConfigTabChange(file.path, config.name, value)}
-        onToggleBom={(e) => onConfigBomToggle(e, file, config.name)}
+        onToggleBom={file.extension?.toLowerCase() === '.sldasm' ? (e) => onConfigBomToggle(e, file, config.name) : undefined}
+        onToggleDrawings={(e) => onConfigDrawingToggle(e, file, config.name)}
       />
     )
   }, [
     configRowHeight,
     visibleColumns,
     fileConfigurations,
+    tabEnabled,
     tabValidationOptions,
     onConfigRowClick,
     onConfigContextMenu,
     onConfigDescriptionChange,
     onConfigTabChange,
     onConfigBomToggle,
+    onConfigDrawingToggle,
   ])
 
   const renderConfigBomRow = useCallback((row: ConfigBomVirtualRow) => {
@@ -439,6 +575,124 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
     visibleColumns,
     onConfigBomRowClick,
   ])
+
+  const renderDrawingRefRow = useCallback((row: DrawingRefVirtualRow) => {
+    const { file, item } = row
+    const refFileKey = `${file.path}::${item.file_path}`
+    const isRefExpanded = expandedDrawingRefFiles.has(refFileKey)
+    
+    return (
+      <DrawingRefRow
+        key={`${file.path}::drawing-ref::${item.id}`}
+        item={item}
+        depth={0}
+        rowHeight={configBomRowHeight}
+        visibleColumns={visibleColumns}
+        isExpanded={isRefExpanded}
+        onClick={(e) => onDrawingRefRowClick(e, file, item)}
+        onContextMenu={(e) => onDrawingRefRowContextMenu(e, file, item)}
+        onToggleExpand={(e) => onDrawingRefFileToggle(e, file, item)}
+      />
+    )
+  }, [
+    configBomRowHeight,
+    visibleColumns,
+    expandedDrawingRefFiles,
+    onDrawingRefRowClick,
+    onDrawingRefRowContextMenu,
+    onDrawingRefFileToggle,
+  ])
+
+  const renderConfigDrawingRow = useCallback((row: ConfigDrawingVirtualRow) => {
+    const { file, configDepth, item } = row
+    
+    return (
+      <ConfigDrawingRow
+        key={`${file.path}::config-drawing::${row.configName}::${item.id}`}
+        item={item}
+        depth={0}
+        configDepth={configDepth}
+        rowHeight={configBomRowHeight}
+        visibleColumns={visibleColumns}
+        onClick={(e) => onConfigDrawingRowClick(e, file, item)}
+        onContextMenu={(e) => onConfigDrawingRowContextMenu(e, file, item)}
+      />
+    )
+  }, [
+    configBomRowHeight,
+    visibleColumns,
+    onConfigDrawingRowClick,
+    onConfigDrawingRowContextMenu,
+  ])
+
+  const renderDrawingRefConfigRow = useCallback((row: DrawingRefConfigVirtualRow) => {
+    const { file, configName, parentItem } = row
+    // Indent: base (24) + depth 0 (0) + under-file offset (16) + under-ref offset (24)
+    const indentPx = 24 + 16 + 24
+
+    // Per-config metadata from the referenced file
+    const tabNumber = parentItem.config_tabs?.[configName]
+    const configDescription = parentItem.config_descriptions?.[configName] || null
+    const configRevision = parentItem.configuration_revisions?.[configName] || null
+
+    // Build full item number: base part number + tab number (if tabs enabled)
+    const basePN = parentItem.part_number || ''
+    const fullItemNumber = basePN
+      ? (tabNumber && serializationSettings ? combineBaseAndTab(basePN, tabNumber, serializationSettings) : basePN)
+      : null
+    
+    return (
+      <tr
+        key={`${file.path}::drawing-ref-config::${parentItem.file_path}::${configName}`}
+        className="drawing-ref-config-row hover:bg-plm-bg-light/50"
+        style={{ height: configBomRowHeight }}
+      >
+        {visibleColumns.map(column => (
+          <td key={column.id} style={{ width: column.width }}>
+            {column.id === 'name' ? (
+              <div
+                className="flex items-center gap-1.5"
+                style={{
+                  minHeight: configBomRowHeight - 8,
+                  paddingLeft: `${indentPx}px`
+                }}
+              >
+                <span className="text-plm-fg-dim text-[10px]">├</span>
+                <span className="text-amber-400/70 text-[10px]">◆</span>
+                <span className="truncate text-[10px] text-plm-fg-muted">{configName}</span>
+              </div>
+            ) : column.id === 'itemNumber' ? (
+              fullItemNumber ? (
+                <span className="text-[10px] text-plm-fg-dim font-mono">{fullItemNumber}</span>
+              ) : (
+                <span className="text-plm-fg-dim/50 text-[10px]">—</span>
+              )
+            ) : column.id === 'description' ? (
+              configDescription ? (
+                <span className="text-[10px] text-plm-fg-dim truncate">{configDescription}</span>
+              ) : (
+                <span className="text-plm-fg-dim/50 text-[10px]">—</span>
+              )
+            ) : column.id === 'revision' ? (
+              configRevision ? (
+                <span className="text-[10px] text-plm-fg-dim">{configRevision}</span>
+              ) : (
+                <span className="text-plm-fg-dim/50 text-[10px]">—</span>
+              )
+            ) : column.id === 'state' ? (
+              parentItem.state ? (
+                <span className="text-[10px] text-plm-fg-dim">{parentItem.state}</span>
+              ) : (
+                <span className="text-plm-fg-dim/50 text-[10px]">—</span>
+              )
+            ) : (
+              <span className="text-plm-fg-dim/50 text-[10px]">—</span>
+            )}
+          </td>
+        ))}
+      </tr>
+    )
+  }, [configBomRowHeight, visibleColumns, serializationSettings])
 
   // ============================================================================
   // Render
@@ -486,6 +740,24 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
             return (
               <React.Fragment key={`config-bom::${row.file.path}::${row.configName}::${row.item.id}`}>
                 {renderConfigBomRow(row)}
+              </React.Fragment>
+            )
+          case 'drawing-ref':
+            return (
+              <React.Fragment key={`drawing-ref::${row.file.path}::${row.item.id}`}>
+                {renderDrawingRefRow(row)}
+              </React.Fragment>
+            )
+          case 'config-drawing':
+            return (
+              <React.Fragment key={`config-drawing::${row.file.path}::${row.configName}::${row.item.id}`}>
+                {renderConfigDrawingRow(row)}
+              </React.Fragment>
+            )
+          case 'drawing-ref-config':
+            return (
+              <React.Fragment key={`drawing-ref-config::${row.file.path}::${row.parentItem.file_path}::${row.configName}`}>
+                {renderDrawingRefConfigRow(row)}
               </React.Fragment>
             )
           default:

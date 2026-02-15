@@ -1,0 +1,83 @@
+@name Edge Cases & Stress
+@requires vault
+@timeout 60
+
+// ==========================================================
+// Tests edge cases and error handling:
+//   - Folder names with spaces and special characters
+//   - Empty folder operations
+//   - Rapid checkout/checkin cycles
+//   - Operating on non-existent files (graceful failure)
+//   - Workflow state transitions
+//
+// Covers checklist: Section 13 — Edge Cases & Stress
+// ==========================================================
+
+# Special characters in folder name
+mkdir "_data/edge (test) folder"
+touch "_data/edge (test) folder/special file.txt"
+wait 1000
+sync "_data/edge (test) folder/special file.txt"
+wait 3000
+assert "_data/edge (test) folder/special file.txt" --status=synced --version=1
+
+# Empty folder operations
+mkdir _data/edge-empty
+wait 1000
+// Empty folder should exist but have no files
+// (No assertion needed — mkdir succeeding is the test)
+
+# Rapid checkout/checkin cycle
+// Tests that rapid state transitions don't corrupt data
+mkdir _data/edge-rapid
+touch _data/edge-rapid/rapid.txt
+wait 1000
+sync _data/edge-rapid/rapid.txt
+wait 3000
+assert _data/edge-rapid/rapid.txt --status=synced --version=1
+
+checkout _data/edge-rapid/rapid.txt
+wait 2000
+checkin _data/edge-rapid/rapid.txt
+wait 3000
+assert _data/edge-rapid/rapid.txt --status=synced --version=2
+
+checkout _data/edge-rapid/rapid.txt
+wait 2000
+checkin _data/edge-rapid/rapid.txt
+wait 3000
+assert _data/edge-rapid/rapid.txt --status=synced --version=3
+
+# Workflow state transitions
+checkout _data/edge-rapid/rapid.txt
+wait 2000
+checkin _data/edge-rapid/rapid.txt
+wait 3000
+set-state _data/edge-rapid/rapid.txt in_review
+wait 2000
+assert _data/edge-rapid/rapid.txt --state=in_review
+
+set-state _data/edge-rapid/rapid.txt released
+wait 2000
+assert _data/edge-rapid/rapid.txt --state=released
+
+# Graceful failure on non-existent file
+// These commands should fail without crashing
+// The test runner treats non-assert errors as non-fatal
+checkout _data/does-not-exist/phantom.txt
+wait 1000
+checkin _data/does-not-exist/phantom.txt
+wait 1000
+download _data/does-not-exist/phantom.txt
+wait 1000
+
+# Assert on non-existent file — should pass with --not-exists
+assert _data/does-not-exist/phantom.txt --not-exists
+
+# Teardown
+delete "_data/edge (test) folder"
+wait 2000
+delete _data/edge-empty
+wait 1000
+delete _data/edge-rapid
+wait 2000

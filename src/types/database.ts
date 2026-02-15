@@ -170,6 +170,44 @@ export type EcoChecklistAction =
   | 'link_removed'
 
 // ===========================================
+// Annotation Types (PDF commenting / spatial annotations)
+// ===========================================
+
+/** The type of annotation placed on a file or PDF page */
+export type AnnotationType = 'area' | 'text' | 'highlight' | 'file'
+
+/** Spatial position data for area/highlight annotations on a PDF page */
+export interface AnnotationPosition {
+  x: number
+  y: number
+  width: number
+  height: number
+  pageWidth: number
+  pageHeight: number
+}
+
+/** A file annotation (comment) with optional spatial positioning and threading */
+export interface FileAnnotation {
+  id: string
+  file_id: string
+  user_id: string
+  comment: string
+  page_number: number | null
+  position: AnnotationPosition | null
+  annotation_type: AnnotationType
+  parent_id: string | null
+  resolved: boolean
+  resolved_by: string | null
+  resolved_at: string | null
+  file_version: number | null
+  edited_at: string | null
+  created_at: string
+  // Joined fields
+  user?: { email: string; full_name: string | null; avatar_url: string | null }
+  replies?: FileAnnotation[]
+}
+
+// ===========================================
 // Extended Interfaces (with joined fields)
 // These are for queries that join multiple tables
 // ===========================================
@@ -201,6 +239,9 @@ export interface ReviewWithDetails extends Review {
     file_name: string
     file_path: string
     extension: string
+    part_number?: string | null
+    description?: string | null
+    revision?: string | null
   }
   requester?: {
     email: string
@@ -209,6 +250,7 @@ export interface ReviewWithDetails extends Review {
   }
   responses?: Array<ReviewResponse & {
   reviewer?: {
+    id?: string
     email: string
     full_name: string | null
     avatar_url: string | null

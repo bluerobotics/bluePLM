@@ -11,7 +11,8 @@ import {
   Loader2, 
   Network,
   Send, 
-  Users 
+  Users,
+  ListChecks
 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -52,7 +53,7 @@ export function CollaborationActions({
   isCreatingShareLink,
   handleQuickShareLink,
 }: CollaborationActionsProps) {
-  const { user, files, addToast } = usePDMStore()
+  const { user, files, addToast, setActiveView } = usePDMStore()
   const isFolder = firstFile.isDirectory
 
   // Check for SolidWorks assembly files
@@ -164,6 +165,20 @@ export function CollaborationActions({
         >
           <Send size={14} className="text-plm-accent" />
           Request Review
+        </div>
+      )}
+      
+      {/* View Reviews - navigate to Reviews Dashboard */}
+      {!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id && (
+        <div 
+          className="context-menu-item"
+          onClick={() => {
+            onClose()
+            setActiveView('reviews')
+          }}
+        >
+          <ListChecks size={14} className="text-plm-fg-dim" />
+          View Reviews
         </div>
       )}
       

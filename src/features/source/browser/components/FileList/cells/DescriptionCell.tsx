@@ -49,8 +49,6 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
         onBlur={handleSaveCellEdit}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
-        onDragStart={(e) => e.preventDefault()}
-        draggable={false}
         className="w-full bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
       />
     )
@@ -72,6 +70,7 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
   return (
     <span
       className={`flex items-center gap-1 w-full h-full px-1 rounded truncate ${canEditDescription ? 'cursor-text hover:bg-plm-bg-light' : 'select-text cursor-text'} ${!hasValue || !canEditDescription ? 'text-plm-fg-muted' : ''}`}
+      data-no-drag
       onClick={(e) => {
         if (canEditDescription) {
           e.stopPropagation()
@@ -87,12 +86,6 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
           e.stopPropagation()
         }
       }}
-      onDragStart={(e) => {
-        // Prevent row drag when user is trying to select text
-        e.preventDefault()
-        e.stopPropagation()
-      }}
-      draggable={false}
       title={getTooltip()}
     >
       <span className="truncate">{displayValue}</span>

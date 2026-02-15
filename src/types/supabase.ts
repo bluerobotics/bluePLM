@@ -5925,6 +5925,7 @@ export type Database = {
           shape: Database["public"]["Enums"]["state_shape"] | null
           sort_order: number | null
           state_type: Database["public"]["Enums"]["state_type"] | null
+          triggers_review: boolean | null
           workflow_id: string
         }
         Insert: {
@@ -5950,6 +5951,7 @@ export type Database = {
           shape?: Database["public"]["Enums"]["state_shape"] | null
           sort_order?: number | null
           state_type?: Database["public"]["Enums"]["state_type"] | null
+          triggers_review?: boolean | null
           workflow_id: string
         }
         Update: {
@@ -5975,6 +5977,7 @@ export type Database = {
           shape?: Database["public"]["Enums"]["state_shape"] | null
           sort_order?: number | null
           state_type?: Database["public"]["Enums"]["state_type"] | null
+          triggers_review?: boolean | null
           workflow_id?: string
         }
         Relationships: [

@@ -131,6 +131,31 @@ export function recordSolidWorksFileOpen(): void {
   // No-op for now - we only kill __wgldummywindowfodder which is always safe
 }
 
+/**
+ * Find processes locking a file using the Windows Restart Manager API
+ * (via the SolidWorks .NET service). Does NOT require SolidWorks to be running.
+ * 
+ * Returns the first process name found, or null if no lock or service unavailable.
+ * Exported for use by fs.ts lock detection as a replacement for handle.exe.
+ */
+export async function findLockingProcessViaService(filePath: string): Promise<string | null> {
+  try {
+    // sendSWCommand is defined later in this module but is hoisted as a function declaration
+    const result = await sendSWCommand(
+      { action: 'findLockingProcesses', filePath },
+      { timeoutMs: 5000 }
+    )
+    if (result?.success && result.data?.count > 0 && result.data?.processes?.length > 0) {
+      // Return the first process name (e.g., "SLDWORKS" or "excel")
+      return result.data.processes[0].processName || result.data.processes[0].appName || 'Unknown'
+    }
+    return null
+  } catch {
+    // Service not running or error - return null (caller will fall through)
+    return null
+  }
+}
+
 // SWServiceResult is imported from solidworksErrors.ts
 
 // ============================================
@@ -2260,6 +2285,11 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       componentPath,
       coordinates: coordinates ? [coordinates.x, coordinates.y, coordinates.z] : null
     })
+  })
+
+  // File lock detection (uses Windows Restart Manager API, does NOT require SolidWorks)
+  ipcMain.handle('solidworks:find-locking-processes', async (_, filePath: string) => {
+    return sendSWCommand({ action: 'findLockingProcesses', filePath }, { timeoutMs: 5000 })
   })
 
   // Open document management

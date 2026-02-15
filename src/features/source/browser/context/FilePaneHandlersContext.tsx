@@ -41,6 +41,10 @@ export interface FilePaneHandlersContextValue {
   savingConfigsToSW: Set<string>
   saveConfigsToSWFile: (file: LocalFile) => void
   
+  // Drawing reference handlers
+  canHaveDrawingRefs: (file: LocalFile) => boolean
+  toggleDrawingRefExpansion: (file: LocalFile) => void
+  
   // Edit handlers
   handleRename: () => void
   handleSaveCellEdit: () => void

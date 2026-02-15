@@ -14,6 +14,7 @@ const PendingView = lazy(() => import('@/features/source/pending').then(m => ({ 
 const WorkflowsView = lazy(() => import('@/features/source/workflows/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
 const HistoryView = lazy(() => import('@/features/source/history').then(m => ({ default: m.HistoryView })))
 const TrashView = lazy(() => import('@/features/source/trash').then(m => ({ default: m.TrashView })))
+const ReviewsDashboard = lazy(() => import('@/features/source/reviews').then(m => ({ default: m.ReviewsDashboard })))
 const TerminalView = lazy(() => import('@/features/dev-tools/terminal').then(m => ({ default: m.TerminalView })))
 const ECOView = lazy(() => import('@/features/change-control/eco').then(m => ({ default: m.ECOView })))
 const ECRView = lazy(() => import('@/features/change-control/ecr').then(m => ({ default: m.ECRView })))
@@ -132,6 +133,13 @@ export function Sidebar() {
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <TrashView />
+          </Suspense>
+        ) : <ModuleDisabled moduleName={moduleName} />
+        
+      case 'reviews':
+        return isEnabled ? (
+          <Suspense fallback={<ViewLoading />}>
+            <ReviewsDashboard />
           </Suspense>
         ) : <ModuleDisabled moduleName={moduleName} />
 

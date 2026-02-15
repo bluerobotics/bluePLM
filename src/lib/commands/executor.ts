@@ -19,6 +19,50 @@ import { log } from '../logger'
 // Registry of all commands
 const commandRegistry = new Map<CommandId, Command<any>>()
 
+// ============================================
+// Command Confirmation Dialog (promise-based)
+// ============================================
+
+// Module-level resolver for the confirm dialog promise.
+// The store holds the dialog state (title, message, items), 
+// and this variable holds the resolve function to avoid storing functions in Zustand.
+let confirmResolver: ((confirmed: boolean) => void) | null = null
+
+/**
+ * Resolve the pending command confirmation dialog.
+ * Called by the CommandConfirmContainer component when user clicks confirm/cancel.
+ */
+export function resolveCommandConfirm(confirmed: boolean): void {
+  const store = usePDMStore.getState()
+  store.setPendingCommandConfirm(null)
+  if (confirmResolver) {
+    confirmResolver(confirmed)
+    confirmResolver = null
+  }
+}
+
+/**
+ * Show a confirmation dialog and wait for user response.
+ * Used by command handlers via ctx.confirm().
+ */
+function showCommandConfirm(opts: {
+  title: string
+  message: string
+  items?: string[]
+  confirmText?: string
+}): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    confirmResolver = resolve
+    const store = usePDMStore.getState()
+    store.setPendingCommandConfirm({
+      title: opts.title,
+      message: opts.message,
+      items: opts.items,
+      confirmText: opts.confirmText,
+    })
+  })
+}
+
 // Command history for audit trail
 interface CommandHistoryEntry {
   id: string
@@ -156,6 +200,9 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void, exis
     vaultPath: store.vaultPath,
     activeVaultId: store.activeVaultId,
     files: store.files,
+    
+    // Confirmation dialog
+    confirm: showCommandConfirm,
     
     // Toast functions
     addToast: store.addToast,

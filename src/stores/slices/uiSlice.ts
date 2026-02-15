@@ -46,6 +46,12 @@ export const createUISlice: StateCreator<
   // Initial state - Clipboard (unified across FilePane and FileTree)
   clipboard: null,
   
+  // Initial state - Command confirmation dialog
+  pendingCommandConfirm: null,
+  
+  // Initial state - Review preview
+  reviewPreviewFile: null,
+  
   // Actions - Clipboard
   setClipboard: (clipboard: Clipboard | null) => set({ clipboard }),
   clearClipboard: () => set({ clipboard: null }),
@@ -69,7 +75,15 @@ export const createUISlice: StateCreator<
   
   setActivityBarMode: (mode) => set({ activityBarMode: mode }),
   
-  setActiveView: (activeView: SidebarView) => set({ activeView, sidebarVisible: true }),
+  setActiveView: (activeView: SidebarView) => {
+    const prev = get().activeView
+    const patch: Partial<PDMStoreState> = { activeView, sidebarVisible: true }
+    // Auto-clear review preview when leaving reviews view
+    if (prev === 'reviews' && activeView !== 'reviews') {
+      patch.reviewPreviewFile = null
+    }
+    set(patch)
+  },
   
   // Actions - Google Drive
   setGdriveNavigation: (folderId, folderName, isSharedDrive, driveId) => set({
@@ -196,4 +210,11 @@ export const createUISlice: StateCreator<
   // Actions - Deep Link
   setPendingDeepLinkInstall: (data) => set({ pendingDeepLinkInstall: data }),
   clearPendingDeepLinkInstall: () => set({ pendingDeepLinkInstall: null }),
+  
+  // Actions - Command confirmation dialog
+  setPendingCommandConfirm: (confirm) => set({ pendingCommandConfirm: confirm }),
+  
+  // Actions - Review preview
+  setReviewPreviewFile: (file) => set({ reviewPreviewFile: file }),
+  clearReviewPreviewFile: () => set({ reviewPreviewFile: null }),
 })

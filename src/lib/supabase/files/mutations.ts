@@ -118,7 +118,8 @@ export async function syncFile(
     description?: string | null
     revision?: string | null
     customProperties?: Record<string, string | number | null>
-  }
+  },
+  copiedFromFileId?: string
 ) {
   const client = getSupabaseClient()
   
@@ -130,6 +131,14 @@ export async function syncFile(
   logFn('debug', '[syncFile] Starting sync', { orgId, vaultId, filePath, fileName })
   
   try {
+    const syncStart = performance.now()
+    let storageCheckMs = 0
+    let storageUploadMs: number | null = null
+    let uploadSpeedKBps: number | null = null
+    let dbCheckMs = 0
+    let dbWriteMs = 0
+    let versionHistoryMs: number | null = null
+    
     // 1. Upload file content to storage (using content hash as filename for deduplication)
     // Use subdirectory based on first 2 chars of hash to prevent too many files in one folder
     const storagePath = `${orgId}/${contentHash.substring(0, 2)}/${contentHash}`
@@ -139,6 +148,7 @@ export async function syncFile(
     let existingFile: { name: string }[] | null = null
     let listError: Error | null = null
     
+    const storageCheckStart = performance.now()
     try {
       const listResult = await client.storage
         .from('vault')
@@ -152,9 +162,10 @@ export async function syncFile(
         error: err instanceof Error ? err.message : String(err) 
       })
     }
+    storageCheckMs = Math.round(performance.now() - storageCheckStart)
     
     if (listError) {
-      logFn('error', '[syncFile] Storage list error', { filePath, error: listError.message })
+      logFn('error', '[syncFile] Storage list error', { filePath, error: listError.message, durationMs: storageCheckMs })
     }
     
     if (!existingFile || existingFile.length === 0) {
@@ -168,6 +179,7 @@ export async function syncFile(
       const blob = new Blob([bytes])
       
       // Upload to storage
+      const uploadStart = performance.now()
       try {
         const uploadResult = await client.storage
           .from('vault')
@@ -176,18 +188,33 @@ export async function syncFile(
             upsert: false
           })
         
+        storageUploadMs = Math.round(performance.now() - uploadStart)
+        
         if (uploadResult.error && !uploadResult.error.message.includes('already exists')) {
-          logFn('error', '[syncFile] Storage upload failed', { filePath, error: uploadResult.error.message })
+          logFn('error', '[syncFile] Storage upload failed', { filePath, error: uploadResult.error.message, durationMs: storageUploadMs })
           throw uploadResult.error
         }
-        logFn('debug', '[syncFile] Storage upload complete', { filePath })
+        
+        // Compute upload speed from actual binary size
+        const sizeBytes = binaryString.length
+        uploadSpeedKBps = storageUploadMs > 0 
+          ? Math.round((sizeBytes / 1024) / (storageUploadMs / 1000)) 
+          : null
+        
+        logFn('debug', '[syncFile] Storage upload complete', { 
+          filePath, 
+          durationMs: storageUploadMs, 
+          sizeBytes, 
+          uploadSpeedKBps 
+        })
       } catch (err) {
+        storageUploadMs = Math.round(performance.now() - uploadStart)
         const errMessage = err instanceof Error ? err.message : String(err)
-        logFn('error', '[syncFile] Storage upload error', { filePath, error: errMessage })
+        logFn('error', '[syncFile] Storage upload error', { filePath, error: errMessage, durationMs: storageUploadMs })
         throw err
       }
     } else {
-      logFn('debug', '[syncFile] Content already exists in storage', { filePath })
+      logFn('debug', '[syncFile] Content already exists in storage', { filePath, durationMs: storageCheckMs })
     }
     
     // 2. Determine file type from extension
@@ -198,6 +225,7 @@ export async function syncFile(
     logFn('debug', '[syncFile] Checking DB for existing file', { filePath, vaultId, orgId })
     
     // Check for an active (non-deleted) file with matching org
+    const dbCheckStart = performance.now()
     const { data: activeFile, error: activeError } = await client
       .from('files')
       .select('id, version, deleted_at, org_id')
@@ -206,9 +234,12 @@ export async function syncFile(
       .eq('org_id', orgId)
       .is('deleted_at', null)
       .single()
+    dbCheckMs = Math.round(performance.now() - dbCheckStart)
     
     if (activeError && activeError.code !== 'PGRST116') {
-      logFn('error', '[syncFile] Active file check error', { filePath, error: activeError.message, code: activeError.code })
+      logFn('error', '[syncFile] Active file check error', { filePath, error: activeError.message, code: activeError.code, durationMs: dbCheckMs })
+    } else {
+      logFn('debug', '[syncFile] DB check complete', { filePath, found: !!activeFile, durationMs: dbCheckMs })
     }
     
     // If active file exists with same org, update it
@@ -235,6 +266,7 @@ export async function syncFile(
         updatePayload.custom_properties = metadata.customProperties
       }
       
+      const dbWriteStart = performance.now()
       const { data: updatedFile, error } = await dbWithRetry(
         () => client
           .from('files')
@@ -247,7 +279,8 @@ export async function syncFile(
       )
       
       if (error || !updatedFile) {
-        logFn('error', '[syncFile] Update failed', { filePath, error: error?.message || 'No data returned' })
+        dbWriteMs = Math.round(performance.now() - dbWriteStart)
+        logFn('error', '[syncFile] Update failed', { filePath, error: error?.message || 'No data returned', durationMs: dbWriteMs })
         throw error || new Error('Update returned no data')
       }
       
@@ -269,14 +302,29 @@ export async function syncFile(
         'Version insert',
         logFn
       )
+      dbWriteMs = Math.round(performance.now() - dbWriteStart)
       
-      logFn('info', '[syncFile] Update SUCCESS', { filePath, fileId: activeFile.id })
+      const totalDurationMs = Math.round(performance.now() - syncStart)
+      logFn('info', '[syncFile] Update SUCCESS', { filePath, fileId: activeFile.id, durationMs: dbWriteMs })
+      logFn('info', '[syncFile] Sync complete', {
+        filePath,
+        operation: 'update',
+        totalDurationMs,
+        storageCheckMs,
+        storageUploadMs,
+        uploadSpeedKBps,
+        dbCheckMs,
+        dbWriteMs,
+        versionHistoryMs,
+        sizeBytes: fileSize
+      })
       return { file: updatedFile, error: null, isNew: false }
     }
     
     // No active file exists - create new file record
     // With partial unique index, soft-deleted files don't block insertion
-    logFn('debug', '[syncFile] Inserting new file', { filePath, vaultId, orgId, metadata })
+    logFn('debug', '[syncFile] Inserting new file', { filePath, vaultId, orgId, metadata, copiedFromFileId })
+    const dbWriteStart = performance.now()
     const { data, error } = await dbWithRetry(
       () => client
         .from('files')
@@ -291,7 +339,7 @@ export async function syncFile(
           file_size: fileSize,
           state: 'not_tracked',
           revision: metadata?.revision || '',
-          version: 1,
+          version: 1, // Start at 1, will be updated if copying version history
           part_number: metadata?.partNumber || null,
           description: metadata?.description || null,
           custom_properties: metadata?.customProperties || {},
@@ -303,9 +351,10 @@ export async function syncFile(
       'File insert',
       logFn
     )
+    dbWriteMs = Math.round(performance.now() - dbWriteStart)
     
     if (error || !data) {
-      logFn('error', '[syncFile] Insert failed', { filePath, error: error?.message || 'No data returned', code: (error as any)?.code })
+      logFn('error', '[syncFile] Insert failed', { filePath, error: error?.message || 'No data returned', code: (error as any)?.code, durationMs: dbWriteMs })
       throw error || new Error('Insert returned no data')
     }
     
@@ -313,22 +362,158 @@ export async function syncFile(
     const insertedFile = data as { id: string }
     
     // Debug: Log successful insert
-    logFn('info', '[syncFile] Insert SUCCESS', { filePath, fileId: insertedFile.id, vaultId })
+    logFn('info', '[syncFile] Insert SUCCESS', { filePath, fileId: insertedFile.id, vaultId, durationMs: dbWriteMs })
     
-    // Create initial version record
-    await dbWithRetry(
-      () => client.from('file_versions').insert({
-        file_id: insertedFile.id,
-        version: 1,
-        revision: metadata?.revision || '',
-        content_hash: contentHash,
-        file_size: fileSize,
-        state: 'not_tracked',
-        created_by: userId
-      }),
-      'Version insert',
-      logFn
-    )
+    // Copy version history from source file if this was a copy-paste operation
+    if (copiedFromFileId) {
+      logFn('debug', '[syncFile] Copying version history from source', { filePath, copiedFromFileId })
+      const versionHistoryStart = performance.now()
+      
+      try {
+        // Fetch source file's version history
+        const versionFetchStart = performance.now()
+        const { data: sourceVersions, error: versionsError } = await client
+          .from('file_versions')
+          .select('version, revision, content_hash, file_size, workflow_state_id, state, comment, part_number, description, created_by')
+          .eq('file_id', copiedFromFileId)
+          .order('version', { ascending: true })
+        const versionFetchMs = Math.round(performance.now() - versionFetchStart)
+        
+        if (versionsError) {
+          logFn('warn', '[syncFile] Failed to fetch source versions, falling back to version 1', { 
+            filePath, copiedFromFileId, error: versionsError.message, durationMs: versionFetchMs 
+          })
+        }
+        
+        if (sourceVersions && sourceVersions.length > 0) {
+          const maxSourceVersion = sourceVersions[sourceVersions.length - 1].version
+          logFn('debug', '[syncFile] Found source versions', { 
+            filePath, copiedFromFileId, versionCount: sourceVersions.length, maxVersion: maxSourceVersion, durationMs: versionFetchMs 
+          })
+          
+          // Insert historical versions (1 through N-1) from source
+          const historicalVersions = sourceVersions.slice(0, -1).map(v => ({
+            file_id: insertedFile.id,
+            version: v.version,
+            revision: v.revision,
+            content_hash: v.content_hash,
+            file_size: v.file_size,
+            workflow_state_id: v.workflow_state_id,
+            state: v.state,
+            comment: v.comment,
+            part_number: v.part_number,
+            description: v.description,
+            created_by: v.created_by
+          }))
+          
+          if (historicalVersions.length > 0) {
+            await dbWithRetry(
+              () => client.from('file_versions').insert(historicalVersions),
+              'Historical versions insert',
+              logFn
+            )
+          }
+          
+          // Create version N with the actual uploaded content (may differ from source if modified)
+          await dbWithRetry(
+            () => client.from('file_versions').insert({
+              file_id: insertedFile.id,
+              version: maxSourceVersion,
+              revision: metadata?.revision || '',
+              content_hash: contentHash,
+              file_size: fileSize,
+              state: 'not_tracked',
+              created_by: userId
+            }),
+            'Latest version insert',
+            logFn
+          )
+          
+          // Update the file record version to match the source
+          await dbWithRetry(
+            () => client
+              .from('files')
+              .update({ version: maxSourceVersion })
+              .eq('id', insertedFile.id),
+            'File version update',
+            logFn
+          )
+          
+          // Update the returned data to reflect the correct version
+          ;(data as any).version = maxSourceVersion
+          
+          versionHistoryMs = Math.round(performance.now() - versionHistoryStart)
+          logFn('info', '[syncFile] Version history copied successfully', { 
+            filePath, copiedFromFileId, historicalVersions: historicalVersions.length, finalVersion: maxSourceVersion, durationMs: versionHistoryMs 
+          })
+        } else {
+          // No source versions found (source may have been deleted) - fall back to version 1
+          logFn('warn', '[syncFile] No source versions found, creating version 1', { filePath, copiedFromFileId })
+          await dbWithRetry(
+            () => client.from('file_versions').insert({
+              file_id: insertedFile.id,
+              version: 1,
+              revision: metadata?.revision || '',
+              content_hash: contentHash,
+              file_size: fileSize,
+              state: 'not_tracked',
+              created_by: userId
+            }),
+            'Version insert (fallback)',
+            logFn
+          )
+          versionHistoryMs = Math.round(performance.now() - versionHistoryStart)
+        }
+      } catch (copyError) {
+        // If version history copying fails, fall back to version 1
+        logFn('error', '[syncFile] Version history copy failed, falling back to version 1', { 
+          filePath, copiedFromFileId, error: String(copyError) 
+        })
+        versionHistoryMs = Math.round(performance.now() - versionHistoryStart)
+        await dbWithRetry(
+          () => client.from('file_versions').insert({
+            file_id: insertedFile.id,
+            version: 1,
+            revision: metadata?.revision || '',
+            content_hash: contentHash,
+            file_size: fileSize,
+            state: 'not_tracked',
+            created_by: userId
+          }),
+          'Version insert (error fallback)',
+          logFn
+        )
+      }
+    } else {
+      // No copy source - create initial version record (version 1)
+      await dbWithRetry(
+        () => client.from('file_versions').insert({
+          file_id: insertedFile.id,
+          version: 1,
+          revision: metadata?.revision || '',
+          content_hash: contentHash,
+          file_size: fileSize,
+          state: 'not_tracked',
+          created_by: userId
+        }),
+        'Version insert',
+        logFn
+      )
+    }
+    
+    const totalDurationMs = Math.round(performance.now() - syncStart)
+    logFn('info', '[syncFile] Sync complete', {
+      filePath,
+      operation: 'insert',
+      totalDurationMs,
+      storageCheckMs,
+      storageUploadMs,
+      uploadSpeedKBps,
+      dbCheckMs,
+      dbWriteMs,
+      versionHistoryMs,
+      sizeBytes: fileSize
+    })
     
     return { file: data, error: null, isNew: true }
   } catch (error) {

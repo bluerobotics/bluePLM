@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 50, 'Default revision changed from A to empty string (single source of truth)', NOW(), 'migration')
+VALUES (1, 53, 'Added allow_file_level_revision_for_models org setting (default false)', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,
@@ -144,7 +144,8 @@ CREATE TABLE IF NOT EXISTS organizations (
     "require_approval_for_release": true,
     "max_file_size_mb": 500,
     "column_defaults": [],
-    "enforce_email_domain": false
+    "enforce_email_domain": false,
+    "allow_file_level_revision_for_models": false
   }'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   

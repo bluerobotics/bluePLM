@@ -997,7 +997,10 @@ export const copyCommand: Command<CopyParams> = {
             isSynced: false,
             diffStatus: 'added',
             // Copy metadata from source file (from pendingMetadata or pdmData)
-            pendingMetadata: extractMetadataForCopy(file)
+            pendingMetadata: extractMetadataForCopy(file),
+            // Preserve version history source for copying at first sync
+            copiedFromFileId: file.pdmData?.id,
+            copiedVersion: file.pdmData?.version
           }
           newFiles.push(newFile)
           
@@ -1051,7 +1054,10 @@ export const copyCommand: Command<CopyParams> = {
                   isSynced: false,
                   diffStatus: 'added',
                   // Copy metadata from source file (from pendingMetadata or pdmData)
-                  pendingMetadata: extractMetadataForCopy(source)
+                  pendingMetadata: extractMetadataForCopy(source),
+                  // Preserve version history source for copying at first sync
+                  copiedFromFileId: source.pdmData?.id,
+                  copiedVersion: source.pdmData?.version
                 })
               }
             }
@@ -1082,6 +1088,13 @@ export const copyCommand: Command<CopyParams> = {
           newFile.pendingMetadata![k as keyof PendingMetadata] != null
         )) {
           store.updatePendingMetadata(newFile.path, newFile.pendingMetadata)
+        }
+        // Persist copy source info for version history preservation
+        if (newFile.copiedFromFileId && newFile.copiedVersion) {
+          store.setCopySource(newFile.path, {
+            sourceFileId: newFile.copiedFromFileId,
+            version: newFile.copiedVersion
+          })
         }
       }
       

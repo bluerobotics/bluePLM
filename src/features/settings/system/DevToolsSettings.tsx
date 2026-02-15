@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Monitor, RotateCcw, ChevronDown, Layers, ChevronRight, Timer, Activity } from 'lucide-react'
+import { useState, useEffect, lazy, Suspense } from 'react'
+import { Monitor, RotateCcw, ChevronDown, Layers, ChevronRight, Timer, Activity, FlaskConical, Loader2 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { ReferenceDiagnostics } from '@/features/dev-tools/reference-diagnostics'
 import { FileOperationTiming } from '@/features/dev-tools/performance'
 import { FileOperationLog } from '@/features/dev-tools/operation-log'
+
+const TestRunnerView = lazy(() => import('@/features/dev-tools/test-runner').then(m => ({ default: m.TestRunnerView })))
 
 interface DevicePreset {
   id: string
@@ -28,6 +30,7 @@ export function DevToolsSettings() {
   const [showRefDiagnostics, setShowRefDiagnostics] = useState(false)
   const [showTimingDashboard, setShowTimingDashboard] = useState(true)
   const [showOperationLog, setShowOperationLog] = useState(true)
+  const [showTestRunner, setShowTestRunner] = useState(false)
 
   useEffect(() => {
     const fetchSize = async () => {
@@ -103,6 +106,44 @@ export function DevToolsSettings() {
               Reset
             </button>
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+          Test Runner
+        </h2>
+        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
+          <button
+            onClick={() => setShowTestRunner(!showTestRunner)}
+            className="w-full flex items-center gap-3 p-4 hover:bg-plm-highlight transition-colors"
+          >
+            <div className="p-2 rounded-lg bg-plm-accent/10">
+              <FlaskConical size={16} className="text-plm-accent" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="text-sm font-medium text-plm-fg">Regression Test Runner</div>
+              <div className="text-xs text-plm-fg-muted">
+                Run .bptest regression scripts and view structured results
+              </div>
+            </div>
+            <ChevronRight 
+              size={16} 
+              className={`text-plm-fg-muted transition-transform ${showTestRunner ? 'rotate-90' : ''}`} 
+            />
+          </button>
+          
+          {showTestRunner && (
+            <div className="h-[600px] border-t border-plm-border">
+              <Suspense fallback={
+                <div className="flex items-center justify-center h-full text-plm-fg-muted">
+                  <Loader2 size={20} className="animate-spin" />
+                </div>
+              }>
+                <TestRunnerView />
+              </Suspense>
+            </div>
+          )}
         </div>
       </section>
 

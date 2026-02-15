@@ -1,7 +1,8 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
+import { log } from '@/lib/logger'
 
 // SolidWorks file extensions that support custom properties
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -253,81 +254,123 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     }, 0)
   }, [user?.id, addToast, setEditingCell, setEditValue, inlineEditInputRef])
   
+  // Guard against double invocation (Enter keydown fires handleSaveCellEdit, then
+  // setEditingCell(null) unmounts the input which fires onBlur → second call)
+  const isSavingCellEdit = useRef(false)
+  
   const handleSaveCellEdit = useCallback(async () => {
+    // Prevent concurrent calls (Enter + blur double-fire)
+    if (isSavingCellEdit.current) {
+      log.info('[FileEdit]', 'handleSaveCellEdit: skipping duplicate call (already saving)')
+      return
+    }
+    
     if (!editingCell || !user) {
+      log.warn('[FileEdit]', 'handleSaveCellEdit: no editingCell or user', { editingCell: !!editingCell, user: !!user })
       setEditingCell(null)
       setEditValue('')
       return
     }
     
-    const file = files.find(f => f.path === editingCell.path)
-    if (!file) {
-      setEditingCell(null)
-      setEditValue('')
-      return
-    }
-    // Allow saving for both synced and unsynced files
-    // Unsynced files store metadata in pendingMetadata which gets synced on first upload
+    isSavingCellEdit.current = true
     
-    const trimmedValue = editValue.trim()
-    
-    // Check if value actually changed (consider pending metadata too)
-    let currentValue = ''
-    switch (editingCell.column) {
-      case 'itemNumber':
-        currentValue = file.pendingMetadata?.part_number !== undefined 
-          ? (file.pendingMetadata.part_number || '') 
-          : (file.pdmData?.part_number || '')
-        break
-      case 'description':
-        currentValue = file.pendingMetadata?.description !== undefined 
-          ? (file.pendingMetadata.description || '') 
-          : (file.pdmData?.description || '')
-        break
-      case 'revision':
-        currentValue = file.pendingMetadata?.revision !== undefined 
-          ? file.pendingMetadata.revision 
-          : (file.pdmData?.revision || '')
-        break
-    }
-    
-    if (trimmedValue === currentValue) {
-      setEditingCell(null)
-      setEditValue('')
-      return
-    }
-    
-    // For item number, description, revision - save locally only (syncs on check-in)
-    const pendingUpdates: { part_number?: string | null; description?: string | null; revision?: string } = {}
-    switch (editingCell.column) {
+    try {
+      const file = files.find(f => f.path === editingCell.path)
+      if (!file) {
+        log.warn('[FileEdit]', 'handleSaveCellEdit: file not found in files array', { path: editingCell.path, filesCount: files.length })
+        setEditingCell(null)
+        setEditValue('')
+        return
+      }
+      // Allow saving for both synced and unsynced files
+      // Unsynced files store metadata in pendingMetadata which gets synced on first upload
+      
+      const trimmedValue = editValue.trim()
+      
+      // Check if value actually changed (consider pending metadata too)
+      let currentValue = ''
+      switch (editingCell.column) {
         case 'itemNumber':
-          pendingUpdates.part_number = trimmedValue || null
+          currentValue = file.pendingMetadata?.part_number !== undefined 
+            ? (file.pendingMetadata.part_number || '') 
+            : (file.pdmData?.part_number || '')
           break
         case 'description':
-          pendingUpdates.description = trimmedValue || null
+          currentValue = file.pendingMetadata?.description !== undefined 
+            ? (file.pendingMetadata.description || '') 
+            : (file.pdmData?.description || '')
           break
         case 'revision':
-          if (!trimmedValue) {
-            addToast('error', 'Revision cannot be empty')
+          currentValue = file.pendingMetadata?.revision !== undefined 
+            ? file.pendingMetadata.revision 
+            : (file.pdmData?.revision || '')
+          break
+      }
+      
+      if (trimmedValue === currentValue) {
+        log.info('[FileEdit]', 'handleSaveCellEdit: value unchanged, skipping SW write', { column: editingCell.column, value: trimmedValue })
+        setEditingCell(null)
+        setEditValue('')
+        return
+      }
+      
+      // Guard: block revision edits on parts/assemblies when org policy disables file-level revision
+      if (editingCell.column === 'revision') {
+        const ext = file.extension?.toLowerCase()
+        const isModel = ext === '.sldprt' || ext === '.sldasm'
+        if (isModel) {
+          const orgSettings = usePDMStore.getState().organization?.settings
+          if (!orgSettings?.allow_file_level_revision_for_models) {
+            addToast('error', 'File-level revision is disabled for parts/assemblies (org policy)')
+            setEditingCell(null)
+            setEditValue('')
             return
           }
-          pendingUpdates.revision = trimmedValue.toUpperCase()
-          break
-    }
-    
-    // Update pending metadata in store
-    updatePendingMetadata(file.path, pendingUpdates)
-    
-    // Clear edit state first so UI is responsive
-    setEditingCell(null)
-    setEditValue('')
-    
-    // Auto-save to SolidWorks file if applicable
-    const ext = file.extension?.toLowerCase() || ''
-    if (SW_EXTENSIONS.includes(ext)) {
-      // Need to get updated file with new pending metadata
-      const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, ...pendingUpdates } }
-      await saveConfigsToSWFile(updatedFile)
+        }
+      }
+      
+      // For item number, description, revision - save locally only (syncs on check-in)
+      const pendingUpdates: { part_number?: string | null; description?: string | null; revision?: string } = {}
+      switch (editingCell.column) {
+          case 'itemNumber':
+            pendingUpdates.part_number = trimmedValue || null
+            break
+          case 'description':
+            pendingUpdates.description = trimmedValue || null
+            break
+          case 'revision':
+            if (!trimmedValue) {
+              addToast('error', 'Revision cannot be empty')
+              return
+            }
+            pendingUpdates.revision = trimmedValue.toUpperCase()
+            break
+      }
+      
+      // Update pending metadata in store
+      updatePendingMetadata(file.path, pendingUpdates)
+      
+      // Clear edit state first so UI is responsive
+      setEditingCell(null)
+      setEditValue('')
+      
+      // Auto-save to SolidWorks file if applicable
+      const ext = file.extension?.toLowerCase() || ''
+      if (SW_EXTENSIONS.includes(ext)) {
+        try {
+          log.info('[FileEdit]', 'Saving inline edit to SW file', { path: file.path, ext, column: editingCell.column, updates: Object.keys(pendingUpdates) })
+          // Need to get updated file with new pending metadata
+          const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, ...pendingUpdates } }
+          await saveConfigsToSWFile(updatedFile)
+        } catch (err) {
+          log.error('[FileEdit]', 'Failed to save inline edit to SW file', { error: err, path: file.path })
+          addToast('error', 'Failed to save changes to file')
+        }
+      } else {
+        log.info('[FileEdit]', 'Skipping SW save - not a SolidWorks file', { ext, path: file.path })
+      }
+    } finally {
+      isSavingCellEdit.current = false
     }
   }, [editingCell, user, files, editValue, setEditingCell, setEditValue, addToast, updatePendingMetadata, saveConfigsToSWFile])
   

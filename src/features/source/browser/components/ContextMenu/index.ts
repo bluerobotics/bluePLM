@@ -4,6 +4,9 @@ export type { ColumnContextMenuProps, ColumnConfig } from './ColumnContextMenu'
 export { ConfigContextMenu } from './ConfigContextMenu'
 export type { ConfigContextMenuProps } from './ConfigContextMenu'
 
+export { RefRowContextMenu } from './RefRowContextMenu'
+export type { RefRowContextMenuProps } from './RefRowContextMenu'
+
 export { EmptyContextMenu } from './EmptyContextMenu'
 export type { EmptyContextMenuProps } from './EmptyContextMenu'
 

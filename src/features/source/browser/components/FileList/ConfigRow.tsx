@@ -12,12 +12,18 @@ export interface ConfigRowProps {
   basePartNumber: string
   /** Configuration-specific revision (from drawing propagation) */
   configRevision?: string
-  /** Whether this config can be expanded to show BOM (only for assemblies) */
+  /** Whether this config can be expanded (true for both parts and assemblies) */
   isExpandable?: boolean
   /** Whether the BOM section is currently expanded */
   isBomExpanded?: boolean
   /** Whether the BOM is currently loading */
   isBomLoading?: boolean
+  /** Whether the drawings section is currently expanded */
+  isDrawingsExpanded?: boolean
+  /** Whether the drawings section is currently loading */
+  isDrawingsLoading?: boolean
+  /** Whether tab numbers are enabled org-wide (from serialization_settings.tab_enabled) */
+  tabEnabled?: boolean
   /** Tab validation options (from serialization settings) */
   tabValidationOptions?: TabValidationOptions
   onClick: (e: React.MouseEvent) => void
@@ -26,6 +32,8 @@ export interface ConfigRowProps {
   onTabChange: (value: string) => void
   /** Handler for toggling BOM expansion */
   onToggleBom?: (e: React.MouseEvent) => void
+  /** Handler for toggling drawings expansion */
+  onToggleDrawings?: (e: React.MouseEvent) => void
 }
 
 /**
@@ -52,6 +60,9 @@ function areConfigRowPropsEqual(
   if (prevProps.isExpandable !== nextProps.isExpandable) return false
   if (prevProps.isBomExpanded !== nextProps.isBomExpanded) return false
   if (prevProps.isBomLoading !== nextProps.isBomLoading) return false
+  if (prevProps.isDrawingsExpanded !== nextProps.isDrawingsExpanded) return false
+  if (prevProps.isDrawingsLoading !== nextProps.isDrawingsLoading) return false
+  if (prevProps.tabEnabled !== nextProps.tabEnabled) return false
   // Compare tab validation options
   const prevOpts = prevProps.tabValidationOptions
   const nextOpts = nextProps.tabValidationOptions
@@ -82,12 +93,16 @@ export const ConfigRow = memo(function ConfigRow({
   isExpandable,
   isBomExpanded,
   isBomLoading,
+  isDrawingsExpanded,
+  isDrawingsLoading,
+  tabEnabled = false,
   tabValidationOptions = DEFAULT_TAB_VALIDATION_OPTIONS,
   onClick,
   onContextMenu,
   onDescriptionChange,
   onTabChange,
   onToggleBom,
+  onToggleDrawings,
 }: ConfigRowProps) {
   // Local state for description input - prevents race conditions when clicking between inputs
   const [localDescription, setLocalDescription] = useState(config.description || '')
@@ -172,25 +187,37 @@ export const ConfigRow = memo(function ConfigRow({
                 paddingLeft: `${24 + (config.depth * 16)}px`
               }}
             >
-              {/* BOM expansion toggle for assemblies */}
-              {isExpandable ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggleBom?.(e)
-                  }}
-                  className="p-0.5 -ml-1 hover:bg-plm-bg-light rounded transition-colors"
-                  title={isBomExpanded ? 'Collapse BOM' : 'Expand BOM'}
-                >
-                  {isBomLoading ? (
-                    <Loader2 size={10} className="text-plm-fg-muted animate-spin" />
-                  ) : isBomExpanded ? (
-                    <ChevronDown size={10} className="text-plm-fg-muted" />
-                  ) : (
-                    <ChevronRight size={10} className="text-plm-fg-muted" />
-                  )}
-                </button>
-              ) : (
+              {/* Expand toggle for drawings and/or BOM under this config */}
+              {isExpandable ? (() => {
+                // Determine combined expanded/loading state across drawings + BOM
+                const isAnyExpanded = !!(isDrawingsExpanded || isBomExpanded)
+                const isAnyLoading = !!(isDrawingsLoading || isBomLoading)
+                
+                // Single click handler toggles both sections
+                const handleToggle = (e: React.MouseEvent) => {
+                  e.stopPropagation()
+                  // Toggle drawings if handler exists
+                  onToggleDrawings?.(e)
+                  // Toggle BOM if handler exists (assemblies only)
+                  onToggleBom?.(e)
+                }
+                
+                return (
+                  <button
+                    onClick={handleToggle}
+                    className="p-0.5 -ml-1 hover:bg-plm-bg-light rounded transition-colors"
+                    title={isAnyExpanded ? 'Collapse' : 'Expand'}
+                  >
+                    {isAnyLoading ? (
+                      <Loader2 size={10} className="text-plm-fg-muted animate-spin" />
+                    ) : isAnyExpanded ? (
+                      <ChevronDown size={10} className="text-plm-fg-muted" />
+                    ) : (
+                      <ChevronRight size={10} className="text-plm-fg-muted" />
+                    )}
+                  </button>
+                )
+              })() : (
                 <span className="text-plm-fg-dim text-[10px]">{config.depth > 0 ? '└' : '○'}</span>
               )}
               <Layers size={12} className={`flex-shrink-0 ${isSelected ? 'text-cyan-400' : config.depth > 0 ? 'text-amber-400/40' : 'text-amber-400/60'}`} />
@@ -219,11 +246,11 @@ export const ConfigRow = memo(function ConfigRow({
             />
           ) : column.id === 'itemNumber' ? (() => {
             // Get base number from parent file
-            const hasTabColumn = visibleColumns.some(c => c.id === 'tabNumber')
+            const hasTabColumn = tabEnabled && visibleColumns.some(c => c.id === 'tabNumber')
             
             // When not editable (checked in), show as single inline text
             if (!isEditable) {
-              const tabNumber = config.tabNumber || ''
+              const tabNumber = tabEnabled ? (config.tabNumber || '') : ''
               const fullNumber = basePartNumber && tabNumber 
                 ? `${basePartNumber}-${tabNumber}`
                 : basePartNumber || tabNumber || ''
@@ -235,9 +262,8 @@ export const ConfigRow = memo(function ConfigRow({
             }
             
             // When editable (checked out):
-            // If Tab column is visible, just show base number (tab is in separate column)
-            // If Tab column is NOT visible, show base number + inline tab input
-            if (hasTabColumn) {
+            // If tabs disabled or Tab column is visible, just show base number
+            if (!tabEnabled || hasTabColumn) {
               return basePartNumber ? (
                 <span className="text-xs text-plm-fg">{basePartNumber}</span>
               ) : (
@@ -245,7 +271,7 @@ export const ConfigRow = memo(function ConfigRow({
               )
             }
             
-            // Tab column not visible - show inline tab input next to base number
+            // Tab enabled but Tab column not visible - show inline tab input next to base number
             return (
               <div className="flex items-center gap-0.5">
                 {basePartNumber && (
@@ -268,9 +294,9 @@ export const ConfigRow = memo(function ConfigRow({
               </div>
             )
           })() : column.id === 'tabNumber' ? (() => {
-            // Separate tab number column for config rows
-            if (!isEditable) {
-              const tabNumber = config.tabNumber || ''
+            // Separate tab number column for config rows - only active when tabs enabled
+            if (!tabEnabled || !isEditable) {
+              const tabNumber = tabEnabled ? (config.tabNumber || '') : ''
               return tabNumber ? (
                 <span className="text-xs text-plm-fg-muted">{tabNumber}</span>
               ) : (
@@ -278,7 +304,7 @@ export const ConfigRow = memo(function ConfigRow({
               )
             }
             
-            // Editable tab number input
+            // Editable tab number input (only when tabEnabled)
             return (
               <input
                 type="text"

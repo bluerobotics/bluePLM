@@ -1,0 +1,50 @@
+@name Delete & Restore
+@requires vault
+@timeout 60
+
+// ==========================================================
+// Tests delete and trash recovery:
+//   - Create + sync file, delete from server
+//   - Verify file no longer exists
+//   - Restore from trash, verify file reappears
+//   - Delete local only, verify cloud status
+//   - Re-download after local delete
+//
+// Covers checklist: Section 6 — Delete & Restore
+// ==========================================================
+
+# Create and sync test files
+mkdir _data/delete-test
+touch _data/delete-test/deleteme.txt
+touch _data/delete-test/localonly.txt
+wait 1000
+sync _data/delete-test/deleteme.txt
+wait 3000
+sync _data/delete-test/localonly.txt
+wait 3000
+assert _data/delete-test/deleteme.txt --status=synced --version=1
+assert _data/delete-test/localonly.txt --status=synced --version=1
+
+# Delete from server — file should disappear
+delete _data/delete-test/deleteme.txt
+wait 3000
+assert _data/delete-test/deleteme.txt --not-exists
+
+# Restore from trash — file should reappear
+restore deleteme.txt
+wait 3000
+assert _data/delete-test/deleteme.txt --exists
+
+# Delete local copy only — file goes to cloud status
+remove _data/delete-test/localonly.txt
+wait 2000
+assert _data/delete-test/localonly.txt --status=cloud
+
+# Re-download after local delete
+download _data/delete-test/localonly.txt
+wait 3000
+assert _data/delete-test/localonly.txt --status=synced --readonly
+
+# Teardown
+delete _data/delete-test
+wait 2000

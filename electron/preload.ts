@@ -19,6 +19,7 @@ interface FileReadResult extends OperationResult {
   data?: string      // Base64 encoded
   size?: number
   hash?: string      // SHA-256 hash
+  locked?: boolean   // true if file is locked by another process
 }
 
 interface FileWriteResult extends OperationResult {
@@ -271,6 +272,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // File system operations
   readFile: (path: string) => ipcRenderer.invoke('fs:read-file', path),
+  checkFileLock: (path: string) => ipcRenderer.invoke('fs:check-file-lock', path),
   writeFile: (path: string, base64Data: string) => ipcRenderer.invoke('fs:write-file', path, base64Data),
   downloadUrl: (url: string, destPath: string) => ipcRenderer.invoke('fs:download-url', url, destPath),
   fileExists: (path: string) => ipcRenderer.invoke('fs:file-exists', path),
@@ -308,6 +310,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fs:set-readonly-batch', files),
   startDrag: (filePaths: string[]) => ipcRenderer.send('fs:start-drag', filePaths),
   isReadonly: (path: string) => ipcRenderer.invoke('fs:is-readonly', path),
+  
+  // Test framework support
+  getFileHashEx: (filePath: string, algorithm?: string) => 
+    ipcRenderer.invoke('fs:get-file-hash', filePath, algorithm),
+  listTestScripts: (folderPath: string) => ipcRenderer.invoke('fs:list-test-scripts', folderPath),
+  readTextFile: (filePath: string) => ipcRenderer.invoke('fs:read-text-file', filePath),
   
   // Download progress listener (for fs:download-url)
   onDownloadProgress: (callback: (progress: { loaded: number; total: number; speed: number }) => void) => {
@@ -364,6 +372,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // SolidWorks Service API (requires SolidWorks installed)
   solidworks: {
+    // File lock detection (uses Windows Restart Manager API, does NOT require SolidWorks)
+    findLockingProcesses: (filePath: string) => ipcRenderer.invoke('solidworks:find-locking-processes', filePath),
+    
     // Service management
     isInstalled: () => ipcRenderer.invoke('solidworks:is-installed'),
     startService: (dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => 

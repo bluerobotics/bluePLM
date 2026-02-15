@@ -464,6 +464,49 @@ export function useSolidWorksSettings() {
   }, [vaultPath, templateDocuments, templateSheetFormats, templateBom, templateCustomProperty, promptForTemplate, addToast])
 
   // ============================================
+  // Model Revision Policy (org-wide)
+  // ============================================
+  
+  const allowModelRevision = organization?.settings?.allow_file_level_revision_for_models ?? false
+  const [isSavingRevisionPolicy, setIsSavingRevisionPolicy] = useState(false)
+  
+  const handleToggleModelRevision = useCallback(async (enabled: boolean) => {
+    if (!organization) return
+    setIsSavingRevisionPolicy(true)
+    try {
+      // Fetch current settings to avoid overwriting other fields
+      const { data: currentOrg } = await db
+        .from('organizations')
+        .select('settings')
+        .eq('id', organization.id)
+        .single()
+      
+      const currentSettings = currentOrg?.settings || organization.settings || {}
+      const newSettings = { ...currentSettings, allow_file_level_revision_for_models: enabled }
+      
+      const { data: updateResult, error } = await db
+        .from('organizations')
+        .update({ settings: newSettings })
+        .eq('id', organization.id)
+        .select('settings')
+        .single()
+      
+      if (error) throw error
+      if (!updateResult) throw new Error('Update failed - you may not have permission')
+      
+      setOrganization({ ...organization, settings: newSettings })
+      addToast('success', enabled 
+        ? 'File-level revisions enabled for parts & assemblies' 
+        : 'File-level revisions disabled for parts & assemblies (controlled from drawings)')
+    } catch (err) {
+      log.error('[SWSettings]', 'Toggle model revision failed', { error: err })
+      addToast('error', err instanceof Error ? err.message : 'Failed to update revision policy')
+    } finally {
+      setIsSavingRevisionPolicy(false)
+    }
+  }, [organization, setOrganization, addToast])
+
+  // ============================================
   // Overall Status Helpers
   // ============================================
 
@@ -581,6 +624,11 @@ export function useSolidWorksSettings() {
     handleSaveTemplates,
     handlePushTemplates,
     handleApplyTemplates,
+    
+    // Model revision policy (org-wide)
+    allowModelRevision,
+    isSavingRevisionPolicy,
+    handleToggleModelRevision,
     
     // Overall status
     overallStatus,

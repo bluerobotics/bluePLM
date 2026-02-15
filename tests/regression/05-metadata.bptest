@@ -1,0 +1,62 @@
+@name Metadata Operations
+@requires vault
+@timeout 60
+
+// ==========================================================
+// Tests metadata read/write operations (non-SolidWorks):
+//   - Sync a file, checkout, set-metadata with part/desc/rev
+//   - Verify pending metadata before checkin
+//   - Checkin and verify metadata persisted
+//   - Checkout, change metadata, discard — verify original restored
+//
+// Covers checklist: Section 4 (generic metadata) — SolidWorks Metadata
+// ==========================================================
+
+# Create and sync test file
+mkdir _data/meta-test
+touch _data/meta-test/component.txt
+wait 1000
+sync _data/meta-test/component.txt
+wait 3000
+assert _data/meta-test/component.txt --status=synced --version=1
+
+# Checkout and set metadata
+checkout _data/meta-test/component.txt
+wait 2000
+
+set-metadata _data/meta-test/component.txt --part="CMP-100" --desc="Main component" --rev="A"
+wait 500
+
+// Verify pending metadata is staged
+assert _data/meta-test/component.txt --has-pending
+assert _data/meta-test/component.txt --part="CMP-100"
+assert _data/meta-test/component.txt --desc="Main component"
+assert _data/meta-test/component.txt --rev="A"
+
+# Checkin — metadata should persist to server
+checkin _data/meta-test/component.txt
+wait 3000
+assert _data/meta-test/component.txt --status=synced --version=2
+assert _data/meta-test/component.txt --no-pending
+assert _data/meta-test/component.txt --part="CMP-100"
+assert _data/meta-test/component.txt --desc="Main component"
+assert _data/meta-test/component.txt --rev="A"
+
+# Checkout, change metadata, then discard — original metadata should be restored
+checkout _data/meta-test/component.txt
+wait 2000
+set-metadata _data/meta-test/component.txt --part="CHANGED-999" --desc="This should be discarded"
+wait 500
+assert _data/meta-test/component.txt --part="CHANGED-999"
+
+discard _data/meta-test/component.txt
+wait 2000
+
+// After discard, original server values should be restored
+assert _data/meta-test/component.txt --status=synced --version=2
+assert _data/meta-test/component.txt --part="CMP-100"
+assert _data/meta-test/component.txt --desc="Main component"
+
+# Teardown
+delete _data/meta-test
+wait 2000

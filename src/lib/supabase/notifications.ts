@@ -106,10 +106,11 @@ export async function getMyReviews(
     .from('reviews')
     .select(`
       *,
-      file:files(id, file_name, file_path, version),
+      file:files(id, file_name, file_path, extension, version, part_number, description, revision),
       requester:users!requested_by(email, full_name, avatar_url),
       responses:review_responses(
         id,
+        reviewer_id,
         status,
         comment,
         responded_at,
@@ -159,8 +160,18 @@ export async function getPendingReviewsForUser(
         due_date,
         file_version,
         created_at,
-        file:files(id, file_name, file_path),
-        requester:users!requested_by(email, full_name, avatar_url)
+        requested_by,
+        status,
+        file:files(id, file_name, file_path, extension, part_number, description, revision),
+        requester:users!requested_by(email, full_name, avatar_url),
+        responses:review_responses(
+          id,
+          reviewer_id,
+          status,
+          comment,
+          responded_at,
+          reviewer:users!reviewer_id(id, email, full_name, avatar_url)
+        )
       )
     `)
     .eq('reviewer_id', userId)

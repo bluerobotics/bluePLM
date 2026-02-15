@@ -271,6 +271,13 @@ namespace BluePLM.SolidWorksService
                         command["size"]?.Value<int>() ?? 256),
                     
                     // ========================================
+                    // File Lock Detection (Windows Restart Manager API)
+                    // Does NOT require SolidWorks - pure Windows API
+                    // ========================================
+                    
+                    "findLockingProcesses" => SolidWorksAPI.FindLockingProcesses(filePath),
+                    
+                    // ========================================
                     // Open Document Management
                     // Control documents open in running SolidWorks
                     // Requires full SolidWorks installation
@@ -557,19 +564,17 @@ namespace BluePLM.SolidWorksService
                     Console.Error.WriteLine($"[Service-Fallback] Failed to extract count: {ex.Message}");
                 }
                 
-                // For drawings with 0 refs from DM API, auto-start SW if needed
-                // SW will start hidden (Visible=false) and extract references via full API
+                // For drawings with 0 refs from DM API, try full SW API if SW is running
+                // SW must already be running - don't auto-launch (creates zombie processes and long hangs)
                 bool swApiAvailable = _swApi != null;
-                bool swRunning = swApiAvailable && _swApi!.IsSolidWorksRunning();
-                Console.Error.WriteLine($"[Service-Fallback] refCount={refCount}, _swApi!=null={swApiAvailable}, swRunning={swRunning}");
+                string swStatus = swApiAvailable ? _swApi!.GetSolidWorksRunStatus() : "not_running";
+                Console.Error.WriteLine($"[Service-Fallback] refCount={refCount}, _swApi!=null={swApiAvailable}, swStatus={swStatus}");
                 
-                // Only use SW API fallback if SolidWorks is already running
-                // Don't auto-launch - it creates zombie processes and long hangs
                 if (refCount == 0 && swApiAvailable)
                 {
-                    if (!swRunning)
+                    if (swStatus == "not_running")
                     {
-                        // Don't auto-launch - return message asking user to open SW
+                        // SolidWorks is not running at all - ask user to start it
                         Console.Error.WriteLine($"[Service-Fallback] SolidWorks not running - skipping fallback (user must open SW manually)");
                         return new CommandResult 
                         { 
@@ -578,6 +583,21 @@ namespace BluePLM.SolidWorksService
                             Data = new { message = "SolidWorks must be running to read drawing references from parent model" }
                         };
                     }
+                    
+                    if (swStatus == "process_only")
+                    {
+                        // SolidWorks process is running but COM is inaccessible
+                        // (likely integrity level mismatch - e.g. SW running as admin, BluePLM not)
+                        Console.Error.WriteLine($"[Service-Fallback] SolidWorks process running but COM inaccessible - possible permissions mismatch");
+                        return new CommandResult 
+                        { 
+                            Success = false, 
+                            Error = "SOLIDWORKS_COM_INACCESSIBLE",
+                            Data = new { message = "SolidWorks is running but not accessible via COM. Try running both applications with the same permissions." }
+                        };
+                    }
+                    
+                    // swStatus == "running" - SW is running and COM accessible
                     Console.Error.WriteLine($"[Service-Fallback] SW is running - Attempting SW API fallback: {Path.GetFileName(filePath)}");
                     var swResult = _swApi!.GetExternalReferences(filePath);
                     if (swResult.Success)

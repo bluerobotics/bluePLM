@@ -211,11 +211,14 @@ export function ActivityBar() {
                       isModuleVisible(child.id, moduleConfig)
                     )
                     
+                    // Navigate to the first visible child module when the group is clicked
+                    const firstChildView = (childModules[0]?.id ?? 'explorer') as SidebarView
+                    
                     return (
                       <ActivityItem
                         key={group.id}
                         icon={getModuleIcon(group.icon, 22, group.iconColor)}
-                        view={group.id as SidebarView}  // Group IDs already prefixed with "group-"
+                        view={firstChildView}
                         title={group.name || group.id.replace('group-', '').replace(/-/g, ' ')}
                         hasChildren={true}
                         children={childModules}

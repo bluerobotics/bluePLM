@@ -99,9 +99,11 @@ export const createFilesSlice: StateCreator<
   serverFiles: [],
   serverFolderPaths: new Set<string>(),
   selectedFiles: [],
+  pendingScrollToFile: null,
   expandedFolders: new Set<string>(),
   currentFolder: '',
   persistedPendingMetadata: {},
+  persistedCopySource: {},
   sortColumn: 'name',
   sortDirection: 'asc',
   
@@ -132,6 +134,19 @@ export const createFilesSlice: StateCreator<
   expandedConfigBoms: new Set<string>(),
   configBomData: new Map<string, import('../types').ConfigBomItem[]>(),
   loadingConfigBoms: new Set<string>(),
+  
+  // Initial state - Drawing file expand (for .slddrw files showing referenced models)
+  expandedDrawingRefs: new Set<string>(),
+  drawingRefData: new Map<string, import('../types').DrawingRefItem[]>(),
+  loadingDrawingRefs: new Set<string>(),
+  // Tracks which referenced files under a drawing are expanded to show configs
+  // Keyed by "drawingPath::refFilePath"
+  expandedDrawingRefFiles: new Set<string>(),
+  
+  // Initial state - Config -> drawings (for part/assembly configs showing which drawings reference them)
+  expandedConfigDrawings: new Set<string>(),
+  configDrawingData: new Map<string, import('../types').DrawingRefItem[]>(),
+  loadingConfigDrawings: new Set<string>(),
   
   // Initial state - Realtime update debouncing
   recentlyModifiedFiles: new Map<string, number>(),
@@ -182,20 +197,31 @@ export const createFilesSlice: StateCreator<
       })
     }
     
+    const { persistedCopySource } = get()
     const filesWithRestoredMetadata = deduped.map(f => {
+      let restored = f
       const persisted = persistedPendingMetadata[f.path]
       if (persisted) {
         console.log('[filesSlice] setFiles: restoring metadata for', f.path, persisted)
         // Restore pending metadata and mark as modified if it's a synced file
-        return { 
-          ...f, 
+        restored = { 
+          ...restored, 
           pendingMetadata: persisted,
-          diffStatus: f.pdmData && !['outdated', 'deleted', 'deleted_remote'].includes(f.diffStatus || '') 
+          diffStatus: restored.pdmData && !['outdated', 'deleted', 'deleted_remote'].includes(restored.diffStatus || '') 
             ? 'modified' as const
-            : f.diffStatus
+            : restored.diffStatus
         }
       }
-      return f
+      // Restore copy source info for version history preservation
+      const copySource = persistedCopySource[f.path]
+      if (copySource) {
+        restored = {
+          ...restored,
+          copiedFromFileId: copySource.sourceFileId,
+          copiedVersion: copySource.version
+        }
+      }
+      return restored
     })
     set({ files: filesWithRestoredMetadata })
   },
@@ -232,6 +258,7 @@ export const createFilesSlice: StateCreator<
       // Note: persistedPendingMetadata uses original paths (not lowercase), so we need to
       // find matching keys case-insensitively
       let newPersistedPendingMetadata = state.persistedPendingMetadata
+      let newPersistedCopySource = state.persistedCopySource
       for (const [lowerPath, fileUpdates] of updateMap) {
         if (fileUpdates.pendingMetadata === undefined) {
           // Find the actual key that matches case-insensitively
@@ -246,11 +273,24 @@ export const createFilesSlice: StateCreator<
             delete newPersistedPendingMetadata[matchingKey]
           }
         }
+        // Clear persistedCopySource when copiedFromFileId is being cleared (after sync)
+        if (fileUpdates.copiedFromFileId === undefined && fileUpdates.copiedVersion === undefined) {
+          const matchingKey = Object.keys(newPersistedCopySource).find(
+            k => k.toLowerCase() === lowerPath
+          )
+          if (matchingKey) {
+            if (newPersistedCopySource === state.persistedCopySource) {
+              newPersistedCopySource = { ...state.persistedCopySource }
+            }
+            delete newPersistedCopySource[matchingKey]
+          }
+        }
       }
       
       return {
         files: newFiles,
-        persistedPendingMetadata: newPersistedPendingMetadata
+        persistedPendingMetadata: newPersistedPendingMetadata,
+        persistedCopySource: newPersistedCopySource
       }
     })
   },
@@ -625,6 +665,30 @@ export const createFilesSlice: StateCreator<
     })
   },
   
+  // Set or clear copy source info for version history preservation on paste
+  setCopySource: (path, source) => {
+    set(state => {
+      const newCopySource = { ...state.persistedCopySource }
+      if (source) {
+        newCopySource[path] = source
+      } else {
+        delete newCopySource[path]
+      }
+      // Also update the file in the store if it exists
+      const files = state.files.map(f => {
+        if (f.path === path) {
+          return {
+            ...f,
+            copiedFromFileId: source?.sourceFileId,
+            copiedVersion: source?.version
+          }
+        }
+        return f
+      })
+      return { persistedCopySource: newCopySource, files }
+    })
+  },
+  
   // Update a pending version note for a specific version (syncs on check-in)
   updatePendingVersionNote: (path, versionId, note) => {
     set(state => {
@@ -815,6 +879,10 @@ export const createFilesSlice: StateCreator<
       preview: firstFew.join(', ') + (selectedFiles.length > 3 ? '...' : '')
     })
     set({ selectedFiles })
+  },
+
+  setPendingScrollToFile: (path) => {
+    set({ pendingScrollToFile: path })
   },
   
   toggleFileSelection: (path, multiSelect = false) => {
@@ -1481,6 +1549,11 @@ export const createFilesSlice: StateCreator<
       selectedConfigs: new Set(),
       configBomData: new Map(),
       expandedConfigBoms: new Set(),
+      drawingRefData: new Map(),
+      expandedDrawingRefs: new Set(),
+      expandedDrawingRefFiles: new Set(),
+      configDrawingData: new Map(),
+      expandedConfigDrawings: new Set(),
     })
   },
   
@@ -1522,6 +1595,94 @@ export const createFilesSlice: StateCreator<
     const newSet = new Set(loadingConfigBoms)
     newSet.delete(configKey)
     set({ loadingConfigBoms: newSet })
+  },
+  
+  // Actions - Drawing file expand (for .slddrw files showing referenced models)
+  toggleDrawingRefExpansion: (filePath: string) => {
+    const { expandedDrawingRefs } = get()
+    const newExpanded = new Set(expandedDrawingRefs)
+    if (newExpanded.has(filePath)) {
+      newExpanded.delete(filePath)
+    } else {
+      newExpanded.add(filePath)
+    }
+    set({ expandedDrawingRefs: newExpanded })
+  },
+  
+  setDrawingRefData: (filePath: string, items: import('../types').DrawingRefItem[]) => {
+    const { drawingRefData } = get()
+    const newMap = new Map(drawingRefData)
+    newMap.set(filePath, items)
+    set({ drawingRefData: newMap })
+  },
+  
+  clearDrawingRefData: (filePath: string) => {
+    const { drawingRefData } = get()
+    const newMap = new Map(drawingRefData)
+    newMap.delete(filePath)
+    set({ drawingRefData: newMap })
+  },
+  
+  addLoadingDrawingRef: (filePath: string) => {
+    const { loadingDrawingRefs } = get()
+    set({ loadingDrawingRefs: new Set(loadingDrawingRefs).add(filePath) })
+  },
+  
+  removeLoadingDrawingRef: (filePath: string) => {
+    const { loadingDrawingRefs } = get()
+    const newSet = new Set(loadingDrawingRefs)
+    newSet.delete(filePath)
+    set({ loadingDrawingRefs: newSet })
+  },
+  
+  // Toggle expansion of a referenced file under a drawing to show its configs
+  toggleDrawingRefFileExpansion: (key: string) => {
+    const { expandedDrawingRefFiles } = get()
+    const newExpanded = new Set(expandedDrawingRefFiles)
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key)
+    } else {
+      newExpanded.add(key)
+    }
+    set({ expandedDrawingRefFiles: newExpanded })
+  },
+  
+  // Actions - Config -> drawings (for part/assembly configs showing which drawings reference them)
+  toggleConfigDrawingExpansion: (configKey: string) => {
+    const { expandedConfigDrawings } = get()
+    const newExpanded = new Set(expandedConfigDrawings)
+    if (newExpanded.has(configKey)) {
+      newExpanded.delete(configKey)
+    } else {
+      newExpanded.add(configKey)
+    }
+    set({ expandedConfigDrawings: newExpanded })
+  },
+  
+  setConfigDrawingData: (configKey: string, items: import('../types').DrawingRefItem[]) => {
+    const { configDrawingData } = get()
+    const newMap = new Map(configDrawingData)
+    newMap.set(configKey, items)
+    set({ configDrawingData: newMap })
+  },
+  
+  clearConfigDrawingData: (configKey: string) => {
+    const { configDrawingData } = get()
+    const newMap = new Map(configDrawingData)
+    newMap.delete(configKey)
+    set({ configDrawingData: newMap })
+  },
+  
+  addLoadingConfigDrawing: (configKey: string) => {
+    const { loadingConfigDrawings } = get()
+    set({ loadingConfigDrawings: new Set(loadingConfigDrawings).add(configKey) })
+  },
+  
+  removeLoadingConfigDrawing: (configKey: string) => {
+    const { loadingConfigDrawings } = get()
+    const newSet = new Set(loadingConfigDrawings)
+    newSet.delete(configKey)
+    set({ loadingConfigDrawings: newSet })
   },
   
   // Actions - Realtime update debouncing

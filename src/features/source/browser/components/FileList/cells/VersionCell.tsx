@@ -12,7 +12,10 @@ export function VersionCell({ file }: CellRendererBaseProps): React.ReactNode {
   
   const cloudVersion = file.pdmData?.version || null
   if (!cloudVersion) {
-    // Not synced yet - show simple text, no dropdown
+    // Not synced yet - show version from copy source if available, otherwise -/-
+    if (file.copiedVersion) {
+      return <span className="text-plm-fg-muted" title={`Copied from version ${file.copiedVersion} (not yet synced)`}>{file.copiedVersion}/-</span>
+    }
     return <span className="text-plm-fg-muted">-/-</span>
   }
   

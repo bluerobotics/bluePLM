@@ -1,0 +1,55 @@
+@name File Sync & Download
+@requires vault
+@timeout 60
+
+// ==========================================================
+// Tests the core file sync/download lifecycle:
+//   - Create a local file, sync it to the server
+//   - Remove local copy, verify cloud-only status
+//   - Re-download, verify local copy restored
+//   - Test get-latest after a version change
+//
+// Covers checklist: Section 2 — File Sync & Download
+// ==========================================================
+
+# Create test data
+mkdir _data/sync-test
+touch _data/sync-test/widget.txt
+wait 1000
+
+# Sync file and verify
+sync _data/sync-test/widget.txt
+wait 3000
+assert _data/sync-test/widget.txt --status=synced --version=1
+assert _data/sync-test/widget.txt --readonly
+
+# Remove local copy — file should become cloud-only
+remove _data/sync-test/widget.txt
+wait 2000
+assert _data/sync-test/widget.txt --status=cloud
+
+# Re-download and verify
+download _data/sync-test/widget.txt
+wait 3000
+assert _data/sync-test/widget.txt --status=synced
+assert _data/sync-test/widget.txt --readonly
+
+# Test get-latest flow
+// Check out, check in to create v2, then test get-latest
+checkout _data/sync-test/widget.txt
+wait 2000
+checkin _data/sync-test/widget.txt
+wait 3000
+assert _data/sync-test/widget.txt --status=synced --version=2
+
+// Remove local to simulate outdated copy, then get-latest
+remove _data/sync-test/widget.txt
+wait 2000
+get-latest _data/sync-test/widget.txt
+wait 3000
+assert _data/sync-test/widget.txt --status=synced --version=2
+assert _data/sync-test/widget.txt --readonly
+
+# Teardown
+delete _data/sync-test
+wait 2000

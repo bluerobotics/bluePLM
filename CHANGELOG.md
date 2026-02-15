@@ -2,6 +2,21 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.14.0] - Unreleased
+
+### Added
+- **Copy-paste preserves version history**: Pasting files that have multiple versions now carries the full version history to the copy. Pasted files show their inherited version count (e.g., "4/-") before first check-in. On first check-in, all historical version records are copied from the source file so the new file starts with the same version history rather than resetting to version 1
+
+### Improved
+- **Sync performance logging for RCA**: Each step of `syncFile` now logs its individual duration -- storage check, storage upload (with computed upload speed in KB/s), DB check, DB insert/update, and version history copy. A single end-to-end `[syncFile] Sync complete` summary line is emitted at INFO level with all step timings, upload speed, and file size, enabling root cause analysis of slow syncs directly from logs without manual timestamp diffing
+
+### Fixed
+- **Cannot select text in BR number or description cells**: Clicking and dragging to select text in the item number or description columns was initiating a file drag instead. The row-level `draggable` attribute on `<tr>` was intercepting all drag gestures before the cell could handle them. The drag handler now detects when the cursor is over a text-selectable cell and cancels the drag, allowing normal text selection
+- **Inline edit of BR number or description not writing to SolidWorks file**: Manually typing a part number or description in the inline editor did not write the value to SolidWorks custom properties, even though the Generate button worked correctly. The `handleSaveCellEdit` function had four silent exit paths with no logging or user feedback, and `saveConfigsToSWFile` had a stale closure for the organization setting. Added comprehensive logging to every exit path, fixed the stale closure, added a fresh-metadata fallback from the store, and added a guard against Enter+blur double invocation
+- **Custom properties not written on STEP-imported parts**: Parts created from STEP file imports have forced/system properties that the Document Manager API cannot modify. The DM API silently swallowed per-property write failures and reported success, preventing the SolidWorks API fallback from ever being triggered. The DM API now tracks failed property writes and returns failure when all writes fail, which triggers the full SW API fallback. Additionally, inline cell edits now check if the file is open in SolidWorks and use the live COM API (bypassing DM entirely) when it is -- matching the behavior the Details Panel already had. The SW API property writer is also hardened with per-property try-catch so a single failed property no longer aborts the entire write
+
+---
+
 ## [3.13.5] - 2026-02-09
 
 ### Added

@@ -208,9 +208,9 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
     setLoadingUsers(true)
     
     const { users } = await getOrgUsers(organization.id)
-    setOrgUsers(users.filter((u: { id: string }) => u.id !== user?.id))
+    setOrgUsers(users)
     setLoadingUsers(false)
-  }, [organization?.id, user?.id, setReviewModalFile, setShowReviewModal, setContextMenu, setLoadingUsers, setOrgUsers, addToast])
+  }, [organization?.id, setReviewModalFile, setShowReviewModal, setContextMenu, setLoadingUsers, setOrgUsers, addToast])
 
   const handleToggleReviewer = useCallback((userId: string) => {
     setSelectedReviewers(

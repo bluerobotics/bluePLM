@@ -316,6 +316,17 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
 
   // Handle drag start - HTML5 drag initiates, Electron adds native file data
   const handleDragStart = useCallback((e: React.DragEvent, file: LocalFile) => {
+    // Cancel drag if the user is interacting with a text-selectable cell (e.g. item number, description)
+    const elementUnderCursor = document.elementFromPoint(e.clientX, e.clientY)
+    if (
+      elementUnderCursor?.closest('[data-no-drag]') ||
+      elementUnderCursor?.tagName === 'INPUT' ||
+      elementUnderCursor?.tagName === 'TEXTAREA'
+    ) {
+      e.preventDefault()
+      return
+    }
+
     logDragDrop('Started dragging files', { fileName: file.name, isDirectory: file.isDirectory })
     // Get files to drag - now supports both files and folders
     let filesToDrag: LocalFile[]

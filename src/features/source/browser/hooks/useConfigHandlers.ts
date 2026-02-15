@@ -33,7 +33,8 @@ import { getEffectiveExportSettings } from '@/features/settings/system'
 import { buildConfigTreeFlat } from '../utils/configTree'
 import { getSerializationSettings, combineBaseAndTab, normalizeTabNumber } from '@/lib/serialization'
 import { sanitizeTabNumber, getTabValidationOptions } from '@/lib/tabValidation'
-import { getContainsByConfiguration, type ConfigBomItem } from '@/lib/supabase/files/queries'
+import { getContainsByConfiguration, type ConfigBomItem, getDrawingsForFileConfig, getReferencesForDrawing } from '@/lib/supabase/files/queries'
+import type { DrawingRefItem } from '@/stores/types'
 import { log } from '@/lib/logger'
 
 // SolidWorks BOM item shape from the SW service (camelCase - from preload.ts getBom return type)
@@ -142,6 +143,91 @@ function transformSwBomToConfigBomItems(
   })
 }
 
+// SW reference shape from the SW service (from getReferences return type in electron.d.ts)
+interface SWReference {
+  path: string
+  fileName: string
+  exists: boolean
+  fileType: string // 'Part', 'Assembly', 'Drawing', etc.
+  configuration?: string // Referenced configuration (drawings only, from view.ReferencedConfiguration)
+  configurations?: string[] // All referenced configurations when C# service groups by model
+}
+
+/**
+ * Transform SolidWorks getReferences() response to DrawingRefItem[] format.
+ * Used when expanding a .slddrw file to show which parts/assemblies it references.
+ * Enriches items with metadata from local vault files when available.
+ */
+function transformSwRefsToDrawingRefItems(
+  swRefs: SWReference[],
+  localFiles: LocalFile[]
+): DrawingRefItem[] {
+  return swRefs.map((ref, index) => {
+    // Determine file type from SW fileType or extension
+    let fileType: DrawingRefItem['file_type'] = 'other'
+    const swType = ref.fileType?.toLowerCase()
+    if (swType === 'part') fileType = 'part'
+    else if (swType === 'assembly') fileType = 'assembly'
+    else if (swType === 'drawing') fileType = 'drawing'
+    else {
+      // Fallback to extension check
+      const ext = ref.fileName?.toLowerCase().split('.').pop()
+      if (ext === 'sldprt') fileType = 'part'
+      else if (ext === 'sldasm') fileType = 'assembly'
+      else if (ext === 'slddrw') fileType = 'drawing'
+    }
+
+    // Try to find matching local file to get metadata
+    const localFile = findLocalFileByPath(ref.path, localFiles)
+    
+    // Get metadata from local file (pendingMetadata takes priority over pdmData)
+    const partNumber = localFile?.pendingMetadata?.part_number ||
+      localFile?.pdmData?.part_number ||
+      null
+    const description = localFile?.pendingMetadata?.description ||
+      localFile?.pdmData?.description ||
+      null
+    const revision = localFile?.pdmData?.revision || null
+    const state = localFile?.pdmData?.workflow_state?.name || null
+    const inDatabase = !!localFile?.pdmData?.id
+
+    // Per-config metadata (for drawing-ref-config rows)
+    // Fall back to pdmData.custom_properties (same pattern used in toggleFileExpansion for direct config loading)
+    const configTabs = localFile?.pendingMetadata?.config_tabs ||
+      (localFile?.pdmData?.custom_properties as Record<string, unknown> | undefined)?._config_tabs as Record<string, string> | undefined ||
+      undefined
+    const configDescriptions = localFile?.pendingMetadata?.config_descriptions ||
+      (localFile?.pdmData?.custom_properties as Record<string, unknown> | undefined)?._config_descriptions as Record<string, string> | undefined ||
+      undefined
+    const configurationRevisions = (localFile?.pdmData?.configuration_revisions || undefined) as Record<string, string> | undefined
+
+    // Build configurations array from SW API response
+    // Prefer the grouped `configurations` array; fall back to single `configuration`
+    const configs = ref.configurations && ref.configurations.length > 0
+      ? ref.configurations
+      : ref.configuration ? [ref.configuration] : undefined
+
+    return {
+      id: localFile?.pdmData?.id || `local-ref-${index}-${ref.path}`,
+      file_id: localFile?.pdmData?.id || '',
+      file_name: ref.fileName,
+      // Use vault-relative path from local file for navigation; fall back to SW absolute path
+      file_path: localFile?.relativePath || ref.path,
+      file_type: fileType,
+      part_number: partNumber,
+      description: description,
+      revision: revision,
+      state: state,
+      configuration: configs?.[0] ?? null,
+      configurations: configs,
+      config_tabs: configTabs,
+      config_descriptions: configDescriptions,
+      configuration_revisions: configurationRevisions,
+      in_database: inDatabase,
+    }
+  })
+}
+
 export interface ConfigHandlersDeps {
   // Files state (still passed - could also read from store but kept for consistency)
   files: LocalFile[]
@@ -188,6 +274,12 @@ export interface UseConfigHandlersReturn {
   toggleFileConfigExpansion: (file: LocalFile) => Promise<void>
   /** Toggle BOM expansion for a specific configuration */
   toggleConfigBomExpansion: (file: LocalFile, configName: string) => Promise<void>
+  /** Check if file is a drawing (can show drawing references dropdown) */
+  canHaveDrawingRefs: (file: LocalFile) => boolean
+  /** Toggle drawing reference expansion for a .slddrw file */
+  toggleDrawingRefExpansion: (file: LocalFile) => Promise<void>
+  /** Toggle config-level drawing expansion (which drawings reference this config) */
+  toggleConfigDrawingExpansion: (file: LocalFile, configName: string) => Promise<void>
 }
 
 /**
@@ -229,6 +321,22 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
   const clearConfigBomData = usePDMStore(s => s.clearConfigBomData)
   const addLoadingConfigBom = usePDMStore(s => s.addLoadingConfigBom)
   const removeLoadingConfigBom = usePDMStore(s => s.removeLoadingConfigBom)
+  
+  // Drawing ref state from Zustand store (for .slddrw file-level expand)
+  const expandedDrawingRefs = usePDMStore(s => s.expandedDrawingRefs)
+  const drawingRefData = usePDMStore(s => s.drawingRefData)
+  const toggleDrawingRefExpansionStore = usePDMStore(s => s.toggleDrawingRefExpansion)
+  const setDrawingRefData = usePDMStore(s => s.setDrawingRefData)
+  const addLoadingDrawingRef = usePDMStore(s => s.addLoadingDrawingRef)
+  const removeLoadingDrawingRef = usePDMStore(s => s.removeLoadingDrawingRef)
+  
+  // Config -> drawings state from Zustand store (for config-level drawing expand)
+  const expandedConfigDrawings = usePDMStore(s => s.expandedConfigDrawings)
+  const configDrawingData = usePDMStore(s => s.configDrawingData)
+  const toggleConfigDrawingExpansionStore = usePDMStore(s => s.toggleConfigDrawingExpansion)
+  const setConfigDrawingData = usePDMStore(s => s.setConfigDrawingData)
+  const addLoadingConfigDrawing = usePDMStore(s => s.addLoadingConfigDrawing)
+  const removeLoadingConfigDrawing = usePDMStore(s => s.removeLoadingConfigDrawing)
 
   // Update file-level tab number (for single-config or no-config files)
   const handleFileTabChange = useCallback((filePath: string, value: string) => {
@@ -429,8 +537,11 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     
     try {
       // Check what pending changes we have
-      const pm = file.pendingMetadata
+      // Read fresh pendingMetadata from store as fallback in case the file parameter has stale data
+      const storeFile = usePDMStore.getState().files.find(f => f.path === file.path)
+      const pm = file.pendingMetadata || storeFile?.pendingMetadata
       if (!pm) {
+        log.warn('[ConfigHandlers]', 'saveConfigsToSWFile: no pending metadata found', { path: file.path, hasFileParam: !!file.pendingMetadata, hasStore: !!storeFile?.pendingMetadata })
         addToast('info', 'No metadata changes to save')
         return
       }
@@ -452,8 +563,30 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
       let successCount = 0
       let failedCount = 0
       
+      // Check if the file is open in SolidWorks - if so, use the live SW API (setDocumentProperties)
+      // which writes directly via COM and bypasses Document Manager. This is more reliable for
+      // STEP-imported parts that have forced/system properties the DM API can't write to.
+      let isOpenInSW = false
+      try {
+        const isOpenResult = await window.electronAPI?.solidworks?.isDocumentOpen?.(file.path)
+        isOpenInSW = !!(isOpenResult?.success && isOpenResult.data?.isOpen)
+      } catch {
+        // If check fails, fall through to DM-first path
+      }
+      
+      // Helper: write properties using the appropriate API based on whether file is open in SW
+      const writeProps = async (filePath: string, props: Record<string, string>, configuration?: string) => {
+        if (isOpenInSW) {
+          return await window.electronAPI?.solidworks?.setDocumentProperties?.(filePath, props, configuration)
+        }
+        return await window.electronAPI?.solidworks?.setProperties(filePath, props, configuration)
+      }
+      
       // Fetch serialization settings for proper tab number formatting and validation
-      const serSettings = organization?.id ? await getSerializationSettings(organization.id) : null
+      // Read organization from store at call time to avoid stale closure
+      // (organization is not in the useCallback dependency array for this function)
+      const org = usePDMStore.getState().organization
+      const serSettings = org?.id ? await getSerializationSettings(org.id) : null
       const tabValidationOptions = getTabValidationOptions(serSettings)
       
       // Get current values (pending or existing)
@@ -509,7 +642,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           if (Object.keys(props).length === 0) continue
           
           try {
-            const result = await window.electronAPI?.solidworks?.setProperties(file.path, props, config.name)
+            const result = await writeProps(file.path, props, config.name)
             if (result?.success) {
               successCount++
             } else {
@@ -544,7 +677,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
         
         if (Object.keys(props).length > 0) {
           try {
-            const result = await window.electronAPI?.solidworks?.setProperties(file.path, props)
+            const result = await writeProps(file.path, props)
             if (result?.success) {
               successCount++
               
@@ -588,7 +721,7 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
                           newNumber: configProps['Number'] 
                         })
                         
-                        await window.electronAPI?.solidworks?.setProperties(file.path, configProps, configName)
+                        await writeProps(file.path, configProps, configName)
                       } catch (configErr) {
                         log.warn('[ConfigHandlers]', `Failed to update config ${config.name}`, { error: configErr })
                       }
@@ -996,9 +1129,10 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
           } else {
             const errorMsg = result?.error || 'Failed to load BOM from SolidWorks'
             log.error('[ConfigHandlers]', 'Failed to load BOM from SolidWorks', { error: errorMsg, configKey })
-            // Check if it's a service not running error
-            if (errorMsg.includes('not running') || errorMsg.includes('service')) {
-              addToast('info', 'Start SolidWorks service to load BOM')
+            // Check if it's a service not running error (case-insensitive to match e.g. SOLIDWORKS_NOT_RUNNING)
+            const bomErrorLower = errorMsg.toLowerCase()
+            if (bomErrorLower.includes('not running') || bomErrorLower.includes('not_running') || bomErrorLower.includes('service')) {
+              addToast('info', 'Start SolidWorks to load BOM')
             } else {
               addToast('error', 'Failed to load BOM data')
             }
@@ -1036,6 +1170,143 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     }
   }, [expandedConfigBoms, configBomData, toggleConfigBomExpansionStore, setConfigBomData, addLoadingConfigBom, removeLoadingConfigBom, addToast, files])
 
+  // Check if file is a drawing (can show drawing references dropdown)
+  const canHaveDrawingRefs = useCallback((file: LocalFile): boolean => {
+    if (file.isDirectory) return false
+    if (!file.extension) return false
+    const ext = file.extension.toLowerCase()
+    return ext === '.slddrw'
+  }, [])
+
+  // Toggle drawing reference expansion for a .slddrw file (shows referenced models)
+  // Follows the exact pattern of toggleConfigBomExpansion
+  const toggleDrawingRefExpansion = useCallback(async (file: LocalFile) => {
+    // If already expanded, just collapse
+    if (expandedDrawingRefs.has(file.path)) {
+      toggleDrawingRefExpansionStore(file.path)
+      return
+    }
+    
+    // Expand and load drawing ref data if not cached
+    toggleDrawingRefExpansionStore(file.path)
+    
+    if (!drawingRefData.has(file.path)) {
+      addLoadingDrawingRef(file.path)
+      try {
+        log.debug('[ConfigHandlers]', 'Loading drawing references from SolidWorks', { path: file.path })
+        
+        const result = await window.electronAPI?.solidworks?.getReferences(file.path)
+        
+        if (result?.success && result.data?.references) {
+          let items = transformSwRefsToDrawingRefItems(result.data.references, files)
+          
+          // Enrich with configuration data from the database (if drawing is synced)
+          // Only enriches items that don't already have configs from the SW API
+          const drawingFileId = file.pdmData?.id
+          if (drawingFileId) {
+            try {
+              const { configsByPath } = await getReferencesForDrawing(drawingFileId)
+              if (configsByPath.size > 0) {
+                items = items.map(item => {
+                  // Skip items that already have configs from the SW API
+                  if (item.configurations && item.configurations.length > 0) return item
+                  
+                  // Match by file_path (relative vault path) or by file_name as fallback
+                  const configs = configsByPath.get(item.file_path) ||
+                    Array.from(configsByPath.entries()).find(([dbPath]) => {
+                      const dbName = dbPath.split(/[\\/]/).pop()?.toLowerCase()
+                      return dbName === item.file_name.toLowerCase()
+                    })?.[1]
+                  
+                  if (configs && configs.length > 0) {
+                    return {
+                      ...item,
+                      configuration: configs[0],
+                      configurations: configs,
+                    }
+                  }
+                  return item
+                })
+                log.debug('[ConfigHandlers]', 'Enriched drawing refs with DB config data', {
+                  filePath: file.path,
+                  enrichedCount: items.filter(i => i.configurations && i.configurations.length > 0).length
+                })
+              }
+            } catch (dbErr) {
+              // Non-fatal: config data is a nice-to-have enrichment
+              log.debug('[ConfigHandlers]', 'Could not enrich drawing refs with DB config data', { error: dbErr })
+            }
+          }
+          
+          setDrawingRefData(file.path, items)
+          log.debug('[ConfigHandlers]', 'Loaded drawing references', {
+            filePath: file.path,
+            itemCount: items.length,
+            enrichedCount: items.filter(i => i.in_database || i.part_number).length
+          })
+        } else {
+          const errorMsg = result?.error || 'Failed to load references from SolidWorks'
+          log.error('[ConfigHandlers]', 'Failed to load drawing references', { error: errorMsg, filePath: file.path })
+          const errorLower = errorMsg.toLowerCase()
+          if (errorLower.includes('com_inaccessible')) {
+            addToast('warning', 'SolidWorks is running but not accessible. Try restarting SolidWorks or running both apps with the same permissions.')
+          } else if (errorLower.includes('not running') || errorLower.includes('not_running') || errorLower.includes('service')) {
+            addToast('info', 'Start SolidWorks to load drawing references')
+          } else {
+            addToast('error', 'Failed to load drawing references')
+          }
+        }
+      } catch (err) {
+        log.error('[ConfigHandlers]', 'Exception loading drawing references', { error: err, filePath: file.path })
+        addToast('error', 'Failed to load drawing references')
+      } finally {
+        removeLoadingDrawingRef(file.path)
+      }
+    }
+  }, [expandedDrawingRefs, drawingRefData, toggleDrawingRefExpansionStore, setDrawingRefData, addLoadingDrawingRef, removeLoadingDrawingRef, addToast, files])
+
+  // Toggle config-level drawing expansion (which drawings reference this part/assembly config)
+  // Follows the exact pattern of toggleConfigBomExpansion
+  const toggleConfigDrawingExpansion = useCallback(async (file: LocalFile, configName: string) => {
+    const configKey = `${file.path}::${configName}`
+    
+    // If already expanded, just collapse
+    if (expandedConfigDrawings.has(configKey)) {
+      toggleConfigDrawingExpansionStore(configKey)
+      return
+    }
+    
+    // Expand and load drawing data if not cached
+    toggleConfigDrawingExpansionStore(configKey)
+    
+    if (!configDrawingData.has(configKey)) {
+      const fileId = file.pdmData?.id
+      
+      if (!fileId) {
+        log.debug('[ConfigHandlers]', 'Skipping config drawing load - file not synced', { configKey })
+        return
+      }
+      
+      addLoadingConfigDrawing(configKey)
+      try {
+        const { items, error } = await getDrawingsForFileConfig(fileId, configName)
+        
+        if (error) {
+          log.error('[ConfigHandlers]', 'Failed to load config drawings from database', { error, configKey })
+          addToast('error', 'Failed to load drawings for configuration')
+        } else {
+          setConfigDrawingData(configKey, items)
+          log.debug('[ConfigHandlers]', 'Loaded config drawings from database', { configKey, itemCount: items.length })
+        }
+      } catch (err) {
+        log.error('[ConfigHandlers]', 'Exception loading config drawings', { error: err, configKey })
+        addToast('error', 'Failed to load drawings for configuration')
+      } finally {
+        removeLoadingConfigDrawing(configKey)
+      }
+    }
+  }, [expandedConfigDrawings, configDrawingData, toggleConfigDrawingExpansionStore, setConfigDrawingData, addLoadingConfigDrawing, removeLoadingConfigDrawing, addToast])
+
   return {
     handleFileTabChange,
     handleConfigTabChange,
@@ -1050,5 +1321,8 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     getSelectedConfigsForFile,
     toggleFileConfigExpansion,
     toggleConfigBomExpansion,
+    canHaveDrawingRefs,
+    toggleDrawingRefExpansion,
+    toggleConfigDrawingExpansion,
   }
 }

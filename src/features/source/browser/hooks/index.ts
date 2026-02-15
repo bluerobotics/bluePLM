@@ -66,7 +66,8 @@ export type {
   ContextMenuState,
   EmptyContextMenuState,
   ColumnContextMenuState,
-  ConfigContextMenuState 
+  ConfigContextMenuState,
+  RefRowContextMenuState 
 } from './useContextMenuState'
 
 // Dialog state management

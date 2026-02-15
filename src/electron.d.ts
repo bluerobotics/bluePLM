@@ -75,6 +75,7 @@ interface FileReadResult {
   hash?: string
   size?: number
   error?: string
+  locked?: boolean  // true if file is locked by another process (EBUSY/EACCES/EPERM)
 }
 
 interface FileWriteResult {
@@ -253,6 +254,7 @@ declare global {
       
       // File system operations
       readFile: (path: string) => Promise<FileReadResult>
+      checkFileLock: (path: string) => Promise<{ success: boolean; locked?: boolean; processName?: string; error?: string }>
       writeFile: (path: string, base64Data: string) => Promise<FileWriteResult>
       downloadUrl: (url: string, destPath: string) => Promise<FileWriteResult>
       fileExists: (path: string) => Promise<boolean>
@@ -295,6 +297,14 @@ declare global {
         results?: Array<{ path: string; success: boolean; error?: string }>
       }>
       isReadonly: (path: string) => Promise<{ success: boolean; readonly?: boolean; error?: string }>
+      
+      // Test framework support
+      /** Compute a cryptographic hash of a file (default: SHA-256) */
+      getFileHashEx: (filePath: string, algorithm?: string) => Promise<{ success: boolean; hash: string; algorithm: string; error?: string }>
+      /** List all .bptest files in a folder (recursive) */
+      listTestScripts: (folderPath: string) => Promise<{ success: boolean; files: string[]; error?: string }>
+      /** Read a file as UTF-8 text (no base64 encoding) */
+      readTextFile: (filePath: string) => Promise<{ success: boolean; content: string; error?: string }>
       
       // Check ALL files in a folder for locks before move operations
       checkFolderLocks: (folderPath: string) => Promise<{
@@ -357,6 +367,12 @@ declare global {
       
       // SolidWorks Service API (requires SolidWorks installed)
       solidworks: {
+        // File lock detection (uses Windows Restart Manager API, does NOT require SolidWorks)
+        findLockingProcesses: (filePath: string) => Promise<{ success: boolean; data?: {
+          processes: Array<{ processName: string; processId: number; appName: string }>
+          count: number
+        }; error?: string }>
+        
         // Service management
         isInstalled: () => Promise<{ success: boolean; data?: { installed: boolean } }>
         startService: (dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>

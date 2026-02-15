@@ -29,6 +29,10 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
   // Only show for SolidWorks files that can have configs
   if (!canHaveConfigs(file)) return ''
   
+  // SW parts/assemblies: tab numbers are config-only, never file-level
+  const isSWPartOrAsm = ['.sldprt', '.sldasm'].includes(file.extension?.toLowerCase() || '')
+  if (isSWPartOrAsm) return ''
+  
   // If configs are expanded, don't show file-level tab (per-config tabs are shown instead)
   if (expandedConfigFiles.has(file.path)) return ''
   

@@ -217,6 +217,7 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
           fileName: string
           exists: boolean
           fileType: string
+          configuration?: string
         }> | undefined
         
         if (!swRefs || swRefs.length === 0) {
@@ -238,7 +239,7 @@ export const extractReferencesCommand: Command<ExtractReferencesParams> = {
             ? 'reference'  // Drawings reference models they document
             : (ref.fileType === 'assembly' ? 'component' : 
                ref.fileType === 'part' ? 'component' : 'reference'),
-          configuration: undefined
+          configuration: ref.configuration || undefined
         }))
         
         // Store references in database (pass vault root for better path matching)

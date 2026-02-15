@@ -10,14 +10,15 @@ export {
   getWhereUsed,
   getContains,
   getContainsRecursive,
+  getDrawingsForFileConfig,
   getMyCheckedOutFiles,
   getAllCheckedOutFiles,
   getFileReferenceDiagnostics,
   getVaultFilesForDiagnostics
 } from './queries'
 
-// Export types for recursive BOM queries and diagnostics
-export type { BomTreeNode, FileReferenceDiagnostic, VaultFileSummary } from './queries'
+// Export types for recursive BOM queries, drawing refs, and diagnostics
+export type { BomTreeNode, DrawingRefItem, FileReferenceDiagnostic, VaultFileSummary } from './queries'
 
 // Checkout functions - check out/in operations
 export {

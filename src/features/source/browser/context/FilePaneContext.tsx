@@ -100,8 +100,22 @@ export interface FilePaneContextValue {
   configBomData: Map<string, import('@/stores/types').ConfigBomItem[]>
   loadingConfigBoms: Set<string>
   
+  // Drawing reference state (for .slddrw files showing referenced models) - read from Zustand store
+  expandedDrawingRefs: Set<string>
+  drawingRefData: Map<string, import('@/stores/types').DrawingRefItem[]>
+  loadingDrawingRefs: Set<string>
+  expandedDrawingRefFiles: Set<string>
+  
+  // Config -> drawings state (for part/assembly configs showing which drawings reference them) - read from Zustand store
+  expandedConfigDrawings: Set<string>
+  configDrawingData: Map<string, import('@/stores/types').DrawingRefItem[]>
+  loadingConfigDrawings: Set<string>
+  
   // Clipboard (read from Zustand store - single source of truth)
   clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
+  
+  // Pending scroll target (transient - set when navigating to a file from a reference row)
+  pendingScrollToFile: string | null
   
   // Editing
   editingCell: { path: string; column: string } | null
@@ -218,6 +232,17 @@ export function FilePaneProvider({
   const configBomData = usePDMStore(s => s.configBomData)
   const loadingConfigBoms = usePDMStore(s => s.loadingConfigBoms)
   
+  // Drawing reference state from store (for .slddrw files showing referenced models)
+  const expandedDrawingRefs = usePDMStore(s => s.expandedDrawingRefs)
+  const drawingRefData = usePDMStore(s => s.drawingRefData)
+  const loadingDrawingRefs = usePDMStore(s => s.loadingDrawingRefs)
+  const expandedDrawingRefFiles = usePDMStore(s => s.expandedDrawingRefFiles)
+  
+  // Config -> drawings state from store (for part/assembly configs showing referencing drawings)
+  const expandedConfigDrawings = usePDMStore(s => s.expandedConfigDrawings)
+  const configDrawingData = usePDMStore(s => s.configDrawingData)
+  const loadingConfigDrawings = usePDMStore(s => s.loadingConfigDrawings)
+  
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [emptyContextMenu, setEmptyContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -287,6 +312,9 @@ export function FilePaneProvider({
   
   // Clipboard - read from Zustand store (single source of truth)
   const clipboard = usePDMStore(s => s.clipboard)
+  
+  // Pending scroll target - read from Zustand store (set by click handlers, consumed by FileListBody)
+  const pendingScrollToFile = usePDMStore(s => s.pendingScrollToFile)
   
   // Machine ID (loaded once)
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
@@ -382,8 +410,22 @@ export function FilePaneProvider({
     configBomData,
     loadingConfigBoms,
     
+    // Drawing references (from Zustand store)
+    expandedDrawingRefs,
+    drawingRefData,
+    loadingDrawingRefs,
+    expandedDrawingRefFiles,
+    
+    // Config -> drawings (from Zustand store)
+    expandedConfigDrawings,
+    configDrawingData,
+    loadingConfigDrawings,
+    
     // Clipboard (from Zustand store)
     clipboard,
+    
+    // Pending scroll target (from Zustand store)
+    pendingScrollToFile,
     
     // Editing
     editingCell, setEditingCell,
@@ -428,7 +470,9 @@ export function FilePaneProvider({
     resizingColumn, draggingColumn, dragOverColumn,
     expandedConfigFiles, fileConfigurations, loadingConfigs, selectedConfigs,
     expandedConfigBoms, configBomData, loadingConfigBoms,
-    clipboard, editingCell, editValue,
+    expandedDrawingRefs, drawingRefData, loadingDrawingRefs, expandedDrawingRefFiles,
+    expandedConfigDrawings, configDrawingData, loadingConfigDrawings,
+    clipboard, pendingScrollToFile, editingCell, editValue,
     isCreatingFolder, newFolderName,
     currentMachineId, folderMetrics,
     isDownloadHovered, isUploadHovered, isCheckoutHovered, isCheckinHovered, isUpdateHovered,

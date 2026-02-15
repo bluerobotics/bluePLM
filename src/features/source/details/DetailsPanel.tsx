@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile, DetailsPanelTab } from '@/stores/pdmStore'
 import { thumbnailCache } from '@/lib/thumbnailCache'
@@ -10,6 +10,9 @@ import { getNextSerialNumber } from '@/lib/serialization'
 import { ContainsTab, WhereUsedTab, SWPropertiesTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
 import { VendorsTab } from './VendorsTab'
+import { PdfAnnotationViewer } from './components/PdfAnnotationViewer'
+import type { AnnotationOverlay } from './components/PdfAnnotationViewer'
+import { CommentSidebar } from './components/CommentSidebar'
 import { 
   FileBox, 
   Layers, 
@@ -156,10 +159,6 @@ export function DetailsPanel() {
     path: string | null
   }>({ checked: false, installed: false, path: null })
   
-  // PDF preview state
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
-  const [pdfLoading, setPdfLoading] = useState(false)
-  
   // CAD thumbnail preview state
   const [cadThumbnail, setCadThumbnail] = useState<string | null>(null)
   const [cadThumbnailLoading, setCadThumbnailLoading] = useState(false)
@@ -207,32 +206,8 @@ export function DetailsPanel() {
     checkEDrawings()
   }, [])
   
-  // Load PDF when file changes and preview tab is active
-  useEffect(() => {
-    const loadPdf = async () => {
-      if (!file?.path || file.extension?.toLowerCase() !== '.pdf' || detailsPanelTab !== 'preview') {
-        setPdfDataUrl(null)
-        return
-      }
-      
-      setPdfLoading(true)
-      try {
-        const result = await window.electronAPI?.readFile(file.path)
-        if (result?.success && result.data) {
-          setPdfDataUrl(`data:application/pdf;base64,${result.data}`)
-        } else {
-          setPdfDataUrl(null)
-        }
-      } catch (err) {
-        log.error('[DetailsPanel]', 'Failed to load PDF', { error: err })
-        setPdfDataUrl(null)
-      } finally {
-        setPdfLoading(false)
-      }
-    }
-    
-    loadPdf()
-  }, [file?.path, file?.extension, detailsPanelTab])
+  // NOTE: PDF loading is now handled internally by PdfAnnotationViewer.
+  // The old useEffect that created a data URL for the iframe has been removed.
 
   // Load CAD preview when file changes (only if in thumbnail mode)
   // Priority: 1) OLE preview extraction, 2) DM API preview, 3) OS thumbnail
@@ -318,6 +293,12 @@ export function DetailsPanel() {
   // - Unsynced files (no pdmData.id): always editable (local-only files)
   // - Synced files (has pdmData.id): must be checked out by current user
   const isFileEditable = file && (!file.pdmData?.id || file.pdmData?.checked_out_by === user?.id)
+
+  // Org-wide: parts/assemblies file-level revision lockout
+  const fileExt = file?.extension?.toLowerCase()
+  const isModelFile = fileExt === '.sldprt' || fileExt === '.sldasm'
+  const allowModelRevision = organization?.settings?.allow_file_level_revision_for_models
+  const isRevisionEditable = !!isFileEditable && !(isModelFile && !allowModelRevision)
 
   // Handle starting edit of a property field
   const handleStartEdit = (field: 'itemNumber' | 'description' | 'revision' | 'state') => {
@@ -803,12 +784,13 @@ export function DetailsPanel() {
                           isEditing={editingField === 'revision'}
                           editValue={editValue}
                           isSaving={isSavingEdit}
-                          editable={!!isFileEditable}
+                          editable={isRevisionEditable}
                           onStartEdit={() => handleStartEdit('revision')}
                           onSave={handleSaveEdit}
                           onCancel={handleCancelEdit}
                           onEditValueChange={setEditValue}
                           placeholder="-"
+                          tooltip={isModelFile && !allowModelRevision ? 'Revision is controlled from drawings (org policy)' : undefined}
                         />
                         {/* State - display only, changes via workflow transitions */}
                         <div className="flex items-center gap-2">
@@ -884,33 +866,8 @@ export function DetailsPanel() {
                 {!file ? (
                   <div className="text-sm text-plm-fg-muted">Select a file to preview</div>
                 ) : isPDFFile ? (
-                  // PDF preview using Chromium's built-in viewer
-                  <div className="w-full h-full flex items-center justify-center">
-                    {pdfLoading ? (
-                      <div className="flex items-center gap-2 text-plm-fg-muted">
-                        <Loader2 className="animate-spin" size={20} />
-                        <span>Loading PDF...</span>
-                      </div>
-                    ) : pdfDataUrl ? (
-                      <iframe
-                        src={pdfDataUrl}
-                        className="w-full h-full border-0 rounded bg-white"
-                        title={file.name}
-                      />
-                    ) : (
-                      <div className="text-sm text-plm-fg-muted text-center">
-                        <Eye size={48} className="mx-auto mb-4 opacity-30" />
-                        <div>Failed to load PDF</div>
-                        <button
-                          onClick={() => window.electronAPI?.openFile(file.path)}
-                          className="btn btn-secondary gap-2 mt-4"
-                        >
-                          <ExternalLink size={14} />
-                          Open Externally
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  // PDF preview with annotation support + comment sidebar
+                  <PdfWithComments file={file} />
                 ) : isImageFile ? (
                   // Image preview
                   <div className="w-full h-full flex items-center justify-center overflow-hidden">
@@ -1116,6 +1073,107 @@ export function DetailsPanel() {
   )
 }
 
+// ============================================================================
+// PdfWithComments - PDF viewer + comment sidebar layout
+// ============================================================================
+
+/**
+ * Renders PdfAnnotationViewer (~70%) alongside CommentSidebar (~30%).
+ * Wires annotation creation events to the store so CommentSidebar can
+ * display the input and persist the comment.
+ */
+function PdfWithComments({ file }: { file: LocalFile }) {
+  const annotations = usePDMStore((s) => s.annotations)
+  const setActiveAnnotationId = usePDMStore((s) => s.setActiveAnnotationId)
+  const setShowCommentInput = usePDMStore((s) => s.setShowCommentInput)
+  const setPendingAnnotation = usePDMStore((s) => s.setPendingAnnotation)
+  const clearAnnotations = usePDMStore((s) => s.clearAnnotations)
+
+  const fileId = file.pdmData?.id
+
+  // Clear annotations when the file changes
+  useEffect(() => {
+    return () => {
+      clearAnnotations()
+    }
+  }, [file.path, clearAnnotations])
+
+  // Map store annotations to AnnotationOverlay[] for the PDF viewer
+  const overlays = useMemo<AnnotationOverlay[]>(() => {
+    const result: AnnotationOverlay[] = []
+    for (const ann of annotations) {
+      if (ann.position && ann.page_number != null) {
+        result.push({
+          id: ann.id,
+          pageNumber: ann.page_number,
+          position: ann.position,
+          resolved: ann.resolved,
+        })
+      }
+      // Also include reply-level annotations that have positions (unlikely but safe)
+      for (const reply of ann.replies ?? []) {
+        if (reply.position && reply.page_number != null) {
+          result.push({
+            id: reply.id,
+            pageNumber: reply.page_number,
+            position: reply.position,
+            resolved: reply.resolved,
+          })
+        }
+      }
+    }
+    return result
+  }, [annotations])
+
+  // When user selects an area on the PDF, open the comment input
+  const handleAnnotationCreate = useCallback(
+    (data: import('./components/PdfAnnotationViewer').NewAnnotationData) => {
+      setPendingAnnotation(data)
+      setShowCommentInput(true)
+    },
+    [setPendingAnnotation, setShowCommentInput],
+  )
+
+  // When user clicks an existing annotation overlay, highlight it in the sidebar
+  const handleAnnotationClick = useCallback(
+    (annotationId: string) => {
+      setActiveAnnotationId(annotationId)
+    },
+    [setActiveAnnotationId],
+  )
+
+  return (
+    <div className="w-full h-full flex">
+      {/* PDF Viewer - takes ~70% width (or 100% if no file ID for commenting) */}
+      <div className={fileId ? 'flex-[7] min-w-0' : 'w-full'}>
+        <PdfAnnotationViewer
+          filePath={file.path}
+          fileName={file.name}
+          fileVersion={file.pdmData?.version}
+          annotations={overlays}
+          onAnnotationCreate={fileId ? handleAnnotationCreate : undefined}
+          onAnnotationClick={fileId ? handleAnnotationClick : undefined}
+        />
+      </div>
+
+      {/* Comment Sidebar - ~30% width, only shown when file has a database ID */}
+      {fileId && (
+        <div className="flex-[3] min-w-[220px] max-w-[400px]">
+          <CommentSidebar
+            fileId={fileId}
+            fileName={file.name}
+            fileVersion={file.pdmData?.version}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// Property display components
+// ============================================================================
+
 interface PropertyItemProps {
   icon: React.ReactNode
   label: string
@@ -1147,6 +1205,8 @@ interface EditablePropertyItemProps {
   placeholder?: string
   onGenerate?: () => void
   isGenerating?: boolean
+  /** Override tooltip when not editable (e.g. org policy lockout) */
+  tooltip?: string
 }
 
 function EditablePropertyItem({ 
@@ -1163,7 +1223,8 @@ function EditablePropertyItem({
   onEditValueChange,
   placeholder = '-',
   onGenerate,
-  isGenerating
+  isGenerating,
+  tooltip
 }: EditablePropertyItemProps) {
   if (isEditing && editable) {
     return (
@@ -1215,7 +1276,7 @@ function EditablePropertyItem({
       <span 
         className={`px-1 rounded ${editable ? 'cursor-text hover:bg-plm-bg-light' : ''} ${!value || value === '-' || !editable ? 'text-plm-fg-muted' : 'text-plm-fg'}`}
         onClick={editable ? onStartEdit : undefined}
-        title={editable ? 'Click to edit' : 'Check out file to edit'}
+        title={editable ? 'Click to edit' : (tooltip || 'Check out file to edit')}
       >
         {value || placeholder}
       </span>

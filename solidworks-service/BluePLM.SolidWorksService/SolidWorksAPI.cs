@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -56,32 +57,138 @@ namespace BluePLM.SolidWorksService
             }
         }
 
-        // #region agent log - Hypothesis G: Add method to check if SW is actually RUNNING
         /// <summary>
-        /// Check if SolidWorks is currently running (has an active COM instance)
-        /// This does NOT launch SolidWorks - it only checks for existing instance
+        /// Check if the SLDWORKS.exe process is running (independent of COM/ROT).
+        /// This is a fast, reliable check that works regardless of COM apartment state
+        /// or integrity level mismatches.
         /// </summary>
-        public bool IsSolidWorksRunning()
+        public static bool IsSolidWorksProcessRunning()
         {
             try
             {
-                // Try to get active COM object - this only succeeds if SW is running
-                var swApp = Marshal.GetActiveObject("SldWorks.Application");
-                Console.Error.WriteLine($"[SW-API] IsSolidWorksRunning: Found active instance");
-                return swApp != null;
-            }
-            catch (System.Runtime.InteropServices.COMException ex) when (ex.HResult == unchecked((int)0x800401E3)) // MK_E_UNAVAILABLE
-            {
-                Console.Error.WriteLine($"[SW-API] IsSolidWorksRunning: No active instance (MK_E_UNAVAILABLE)");
-                return false;
+                var processes = Process.GetProcessesByName("SLDWORKS");
+                bool running = processes.Length > 0;
+                Console.Error.WriteLine($"[SW-API] IsSolidWorksProcessRunning: {running} ({processes.Length} process(es))");
+                return running;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[SW-API] IsSolidWorksRunning: Check failed - {ex.Message}");
+                Console.Error.WriteLine($"[SW-API] IsSolidWorksProcessRunning: Check failed - {ex.Message}");
                 return false;
             }
         }
-        // #endregion
+
+        /// <summary>
+        /// Try to get the active SolidWorks COM object, using an STA thread as fallback.
+        /// The service runs on an MTA thread, and Marshal.GetActiveObject can fail from MTA
+        /// due to COM apartment or integrity-level mismatches. Running on an STA thread
+        /// resolves this in many cases.
+        /// </summary>
+        /// <param name="timeoutMs">Timeout in milliseconds for the STA thread attempt.</param>
+        /// <returns>The active COM object, or null if not found.</returns>
+        private static object? GetActiveObjectOnSTA(int timeoutMs = 5000)
+        {
+            // First try directly on current thread (works if MTA can access ROT)
+            try
+            {
+                var obj = Marshal.GetActiveObject("SldWorks.Application");
+                if (obj != null)
+                {
+                    Console.Error.WriteLine("[SW-API] GetActiveObjectOnSTA: Found via direct call (MTA)");
+                    return obj;
+                }
+            }
+            catch (COMException ex) when (ex.HResult == unchecked((int)0x800401E3))
+            {
+                Console.Error.WriteLine("[SW-API] GetActiveObjectOnSTA: Direct call failed (MK_E_UNAVAILABLE), trying STA thread...");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[SW-API] GetActiveObjectOnSTA: Direct call failed ({ex.Message}), trying STA thread...");
+            }
+
+            // Fallback: try on a dedicated STA thread
+            object? result = null;
+            Exception? staException = null;
+
+            var staThread = new Thread(() =>
+            {
+                try
+                {
+                    result = Marshal.GetActiveObject("SldWorks.Application");
+                }
+                catch (Exception ex)
+                {
+                    staException = ex;
+                }
+            });
+            staThread.SetApartmentState(ApartmentState.STA);
+            staThread.Start();
+
+            bool completed = staThread.Join(timeoutMs);
+            if (!completed)
+            {
+                Console.Error.WriteLine("[SW-API] GetActiveObjectOnSTA: STA thread timed out");
+                return null;
+            }
+
+            if (result != null)
+            {
+                Console.Error.WriteLine("[SW-API] GetActiveObjectOnSTA: Found via STA thread");
+                return result;
+            }
+
+            if (staException != null)
+            {
+                Console.Error.WriteLine($"[SW-API] GetActiveObjectOnSTA: STA thread failed - {staException.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Check if SolidWorks is currently running and accessible via COM.
+        /// Uses process detection + STA-thread COM fallback for reliability.
+        /// </summary>
+        /// <returns>
+        /// "running" if SW is running and COM-accessible,
+        /// "process_only" if SLDWORKS.exe is running but COM is inaccessible,
+        /// "not_running" if SW is not running at all.
+        /// </returns>
+        public string GetSolidWorksRunStatus()
+        {
+            // Step 1: Check process list (fast, always reliable)
+            bool processRunning = IsSolidWorksProcessRunning();
+            if (!processRunning)
+            {
+                Console.Error.WriteLine("[SW-API] GetSolidWorksRunStatus: not_running (no process)");
+                return "not_running";
+            }
+
+            // Step 2: Process is running, try to get COM object (with STA fallback)
+            var swObj = GetActiveObjectOnSTA();
+            if (swObj != null)
+            {
+                Console.Error.WriteLine("[SW-API] GetSolidWorksRunStatus: running (COM accessible)");
+                return "running";
+            }
+
+            Console.Error.WriteLine("[SW-API] GetSolidWorksRunStatus: process_only (COM inaccessible)");
+            return "process_only";
+        }
+
+        /// <summary>
+        /// Check if SolidWorks is currently running (has an active COM instance).
+        /// This does NOT launch SolidWorks - it only checks for existing instance.
+        /// Uses STA-thread fallback when running from MTA context.
+        /// </summary>
+        public bool IsSolidWorksRunning()
+        {
+            var status = GetSolidWorksRunStatus();
+            bool running = status == "running";
+            Console.Error.WriteLine($"[SW-API] IsSolidWorksRunning: {running} (status={status})");
+            return running;
+        }
 
         private ISldWorks GetSolidWorks()
         {
@@ -100,17 +207,17 @@ namespace BluePLM.SolidWorksService
                 }
             }
 
-            // Try to connect to running instance
-            try
+            // Try to connect to running instance (with STA-thread fallback for MTA contexts)
+            var activeObj = GetActiveObjectOnSTA();
+            if (activeObj != null)
             {
-                _swApp = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
+                _swApp = (ISldWorks)activeObj;
                 _weStartedSW = false;
                 Console.Error.WriteLine("[SW-API] Connected to existing SolidWorks instance");
                 return _swApp;
             }
-            catch
+            else
             {
-                // No running instance, start one
                 Console.Error.WriteLine("[SW-API] No running SolidWorks instance found");
             }
 
@@ -239,25 +346,16 @@ namespace BluePLM.SolidWorksService
             Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: Checking {Path.GetFileName(filePath)}");
             try
             {
-                // Try to get running SolidWorks instance (don't start a new one)
-                ISldWorks? swApp = null;
-                try
+                // Use STA-thread-aware helper to get running SolidWorks instance
+                var swObj = GetActiveObjectOnSTA();
+                if (swObj == null)
                 {
-                    swApp = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: Got SolidWorks instance");
-                }
-                catch (Exception ex)
-                {
-                    // SolidWorks not running or not accessible
-                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: SolidWorks not accessible - {ex.Message}");
+                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: SolidWorks not accessible");
                     return false;
                 }
-                
-                if (swApp == null)
-                {
-                    Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: swApp is null");
-                    return false;
-                }
+
+                ISldWorks swApp = (ISldWorks)swObj;
+                Console.Error.WriteLine($"[SW-API] IsFileOpenInSolidWorks: Got SolidWorks instance");
                 
                 // Check if this file is open
                 var docs = (object[])swApp.GetDocuments();
@@ -595,7 +693,8 @@ namespace BluePLM.SolidWorksService
                             view = view.GetNextView() as View; // Get first actual view
                         }
                         
-                        var processedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        // Collect all unique (model, config) pairs grouped by model path
+                        var modelConfigs = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
                         
                         while (view != null)
                         {
@@ -604,22 +703,37 @@ namespace BluePLM.SolidWorksService
                             
                             Console.Error.WriteLine($"[SW-API] View '{view.Name}': model='{Path.GetFileName(modelName ?? "null")}', config='{configName ?? "null"}'");
                             
-                            // Only add unique models (we take the first view's config for each model)
-                            if (!string.IsNullOrEmpty(modelName) && !processedModels.Contains(modelName))
+                            if (!string.IsNullOrEmpty(modelName))
                             {
-                                processedModels.Add(modelName);
-                                references.Add(new
+                                if (!modelConfigs.ContainsKey(modelName))
                                 {
-                                    path = modelName,
-                                    fileName = Path.GetFileName(modelName),
-                                    exists = File.Exists(modelName),
-                                    fileType = GetFileType(modelName!),
-                                    configuration = configName // Include the referenced configuration!
-                                });
-                                Console.Error.WriteLine($"[SW-API] Added reference: {Path.GetFileName(modelName)} @ config '{configName}'");
+                                    modelConfigs[modelName] = new List<string>();
+                                }
+                                // Add unique configurations per model
+                                if (!string.IsNullOrEmpty(configName) && !modelConfigs[modelName].Contains(configName))
+                                {
+                                    modelConfigs[modelName].Add(configName);
+                                }
                             }
                             
                             view = view.GetNextView() as View;
+                        }
+                        
+                        // Build reference entries with all configurations per model
+                        foreach (var kvp in modelConfigs)
+                        {
+                            var modelPath = kvp.Key;
+                            var configs = kvp.Value;
+                            references.Add(new
+                            {
+                                path = modelPath,
+                                fileName = Path.GetFileName(modelPath),
+                                exists = File.Exists(modelPath),
+                                fileType = GetFileType(modelPath!),
+                                configuration = configs.Count > 0 ? configs[0] : (string?)null,
+                                configurations = configs.ToArray()
+                            });
+                            Console.Error.WriteLine($"[SW-API] Added reference: {Path.GetFileName(modelPath)} @ configs [{string.Join(", ", configs)}]");
                         }
                     }
                     else
@@ -911,18 +1025,29 @@ namespace BluePLM.SolidWorksService
         private void WriteCustomProperties(ModelDoc2 doc, Dictionary<string, string> properties, string? configuration)
         {
             var ext = doc.Extension;
+            var configLabel = string.IsNullOrEmpty(configuration) ? "file-level" : configuration;
             var manager = string.IsNullOrEmpty(configuration)
                 ? ext.CustomPropertyManager[""]
                 : ext.CustomPropertyManager[configuration];
 
             foreach (var prop in properties)
             {
-                // Try to set existing property first, then add if it doesn't exist
-                var result = manager.Set2(prop.Key, prop.Value);
-                if (result != (int)swCustomInfoSetResult_e.swCustomInfoSetResult_OK)
+                try
                 {
-                    manager.Add3(prop.Key, (int)swCustomInfoType_e.swCustomInfoText, prop.Value, 
-                        (int)swCustomPropertyAddOption_e.swCustomPropertyDeleteAndAdd);
+                    // Try to set existing property first, then add if it doesn't exist
+                    var result = manager.Set2(prop.Key, prop.Value);
+                    if (result != (int)swCustomInfoSetResult_e.swCustomInfoSetResult_OK)
+                    {
+                        Console.Error.WriteLine($"[SW-API] Set2 failed for '{prop.Key}' on {configLabel} with code {result}, trying Add3...");
+                        manager.Add3(prop.Key, (int)swCustomInfoType_e.swCustomInfoText, prop.Value, 
+                            (int)swCustomPropertyAddOption_e.swCustomPropertyDeleteAndAdd);
+                        Console.Error.WriteLine($"[SW-API] Add3 succeeded for '{prop.Key}' on {configLabel}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log but don't abort - continue writing remaining properties
+                    Console.Error.WriteLine($"[SW-API] Failed to write property '{prop.Key}' on {configLabel}: {ex.Message}");
                 }
             }
         }
@@ -3491,6 +3616,157 @@ namespace BluePLM.SolidWorksService
             catch (Exception ex)
             {
                 return new CommandResult { Success = false, Error = $"Preview extraction failed: {ex.Message}" };
+            }
+        }
+
+        #endregion
+
+        #region Lock Detection (Restart Manager API)
+
+        // Win32 Restart Manager API - used to find which processes have a file locked
+        // This is the same technique Sysinternals handle.exe uses internally.
+        // Available on Windows Vista+ (rstrtmgr.dll is a standard system DLL).
+
+        [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+        private static extern int RmStartSession(out uint pSessionHandle, int dwSessionFlags, string strSessionKey);
+
+        [DllImport("rstrtmgr.dll")]
+        private static extern int RmEndSession(uint pSessionHandle);
+
+        [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+        private static extern int RmRegisterResources(uint pSessionHandle,
+            uint nFiles, string[] rgsFileNames,
+            uint nApplications, [In] RM_UNIQUE_PROCESS[] rgApplications,
+            uint nServices, string[] rgsServiceNames);
+
+        [DllImport("rstrtmgr.dll")]
+        private static extern int RmGetList(uint dwSessionHandle,
+            out uint pnProcInfoNeeded, ref uint pnProcInfo,
+            [In, Out] RM_PROCESS_INFO[] rgAffectedApps, ref uint lpdwRebootReasons);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RM_UNIQUE_PROCESS
+        {
+            public int dwProcessId;
+            public System.Runtime.InteropServices.ComTypes.FILETIME ProcessStartTime;
+        }
+
+        private const int RmRebootReasonNone = 0;
+        private const int CCH_RM_MAX_APP_NAME = 255;
+        private const int CCH_RM_MAX_SVC_NAME = 63;
+
+        private enum RM_APP_TYPE
+        {
+            RmUnknownApp = 0,
+            RmMainWindow = 1,
+            RmOtherWindow = 2,
+            RmService = 3,
+            RmExplorer = 4,
+            RmConsole = 5,
+            RmCritical = 1000
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct RM_PROCESS_INFO
+        {
+            public RM_UNIQUE_PROCESS Process;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCH_RM_MAX_APP_NAME + 1)]
+            public string strAppName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCH_RM_MAX_SVC_NAME + 1)]
+            public string strServiceShortName;
+            public RM_APP_TYPE ApplicationType;
+            public uint AppStatus;
+            public uint TSSessionId;
+            [MarshalAs(UnmanagedType.Bool)]
+            public bool bRestartable;
+        }
+
+        /// <summary>
+        /// Find processes that have a file locked using the Windows Restart Manager API.
+        /// Does NOT require SolidWorks to be running - this is a pure Windows API call.
+        /// </summary>
+        public static CommandResult FindLockingProcesses(string? filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                return new CommandResult { Success = false, Error = "Missing 'filePath'" };
+
+            if (!File.Exists(filePath))
+                return new CommandResult { Success = false, Error = $"File not found: {filePath}" };
+
+            uint sessionHandle;
+            string sessionKey = Guid.NewGuid().ToString();
+            int result = RmStartSession(out sessionHandle, 0, sessionKey);
+            if (result != 0)
+                return new CommandResult { Success = false, Error = $"RmStartSession failed with error {result}" };
+
+            try
+            {
+                string[] resources = { filePath };
+                result = RmRegisterResources(sessionHandle, (uint)resources.Length, resources, 0, Array.Empty<RM_UNIQUE_PROCESS>(), 0, Array.Empty<string>());
+                if (result != 0)
+                    return new CommandResult { Success = false, Error = $"RmRegisterResources failed with error {result}" };
+
+                uint pnProcInfoNeeded = 0;
+                uint pnProcInfo = 0;
+                uint lpdwRebootReasons = RmRebootReasonNone;
+
+                // First call to get the count
+                result = RmGetList(sessionHandle, out pnProcInfoNeeded, ref pnProcInfo, null!, ref lpdwRebootReasons);
+                if (result == 0 && pnProcInfoNeeded == 0)
+                {
+                    // No processes have the file locked
+                    return new CommandResult
+                    {
+                        Success = true,
+                        Data = new { processes = Array.Empty<object>(), count = 0 }
+                    };
+                }
+
+                // ERROR_MORE_DATA (234) is expected when there are results
+                if (result != 234 && result != 0)
+                    return new CommandResult { Success = false, Error = $"RmGetList failed with error {result}" };
+
+                var processInfo = new RM_PROCESS_INFO[pnProcInfoNeeded];
+                pnProcInfo = pnProcInfoNeeded;
+
+                result = RmGetList(sessionHandle, out pnProcInfoNeeded, ref pnProcInfo, processInfo, ref lpdwRebootReasons);
+                if (result != 0)
+                    return new CommandResult { Success = false, Error = $"RmGetList (second call) failed with error {result}" };
+
+                var processes = new List<object>();
+                for (int i = 0; i < pnProcInfo; i++)
+                {
+                    try
+                    {
+                        var proc = System.Diagnostics.Process.GetProcessById(processInfo[i].Process.dwProcessId);
+                        processes.Add(new
+                        {
+                            processName = proc.ProcessName,
+                            processId = processInfo[i].Process.dwProcessId,
+                            appName = processInfo[i].strAppName
+                        });
+                    }
+                    catch
+                    {
+                        // Process may have exited between query and lookup
+                        processes.Add(new
+                        {
+                            processName = processInfo[i].strAppName,
+                            processId = processInfo[i].Process.dwProcessId,
+                            appName = processInfo[i].strAppName
+                        });
+                    }
+                }
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Data = new { processes, count = processes.Count }
+                };
+            }
+            finally
+            {
+                RmEndSession(sessionHandle);
             }
         }
 

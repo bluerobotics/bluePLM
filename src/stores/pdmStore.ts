@@ -51,6 +51,7 @@ import {
   createExtensionsSlice,
   createNotificationPrefsSlice,
   createOperationLogSlice,
+  createAnnotationsSlice,
 } from './slices'
 
 // Create the combined store
@@ -76,6 +77,7 @@ export const usePDMStore = create<PDMStoreState>()(
       ...createExtensionsSlice(...a),
       ...createNotificationPrefsSlice(...a),
       ...createOperationLogSlice(...a),
+      ...createAnnotationsSlice(...a),
     }),
     {
       name: 'blue-plm-storage',
@@ -179,6 +181,7 @@ export const usePDMStore = create<PDMStoreState>()(
         ignorePatterns: state.ignorePatterns,
         stagedCheckins: state.stagedCheckins,
         persistedPendingMetadata: state.persistedPendingMetadata,
+        persistedCopySource: state.persistedCopySource,
         
         // ═══════════════════════════════════════════════════════════════
         // User Preferences
@@ -217,6 +220,11 @@ export const usePDMStore = create<PDMStoreState>()(
         notificationCategories: state.notificationCategories,
         quietHours: state.quietHours,
         soundSettings: state.soundSettings,
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Test Runner
+        // ═══════════════════════════════════════════════════════════════
+        testFolderName: state.testFolderName,
       }),
       /**
        * Called when hydration starts and finishes.
@@ -354,6 +362,8 @@ export const usePDMStore = create<PDMStoreState>()(
           ignorePatterns: (persisted.ignorePatterns as Record<string, string[]>) || {},
           // Restore persisted pending metadata
           persistedPendingMetadata: (persisted.persistedPendingMetadata as Record<string, PendingMetadata>) || {},
+          // Restore persisted copy source info (for version history preservation on paste)
+          persistedCopySource: (persisted.persistedCopySource as Record<string, { sourceFileId: string; version: number }>) || {},
           // Staged check-ins (offline mode)
           stagedCheckins: (persisted.stagedCheckins as StagedCheckin[]) || [],
           // Terminal settings

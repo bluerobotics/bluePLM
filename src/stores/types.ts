@@ -13,6 +13,8 @@ import type {
   SoundSettings,
 } from '../types/notifications'
 import type { OperationLogSlice } from './slices/operationLogSlice'
+import type { NewAnnotationData } from '../features/source/details/components/PdfAnnotationViewer'
+import type { FileAnnotation } from '../types/database'
 
 // ============================================================================
 // Type Aliases
@@ -24,6 +26,7 @@ export type SidebarView =
   | 'pending' 
   | 'history' 
   | 'workflows'
+  | 'reviews'
   | 'trash' 
   // Items
   | 'items'
@@ -194,6 +197,9 @@ export interface LocalFile {
   pendingVersionNotes?: Record<string, string>
   // Note for the upcoming local version (saved as comment when checked in)
   pendingCheckinNote?: string
+  // Source file info for version history copying (set on paste, consumed on first sync)
+  copiedFromFileId?: string
+  copiedVersion?: number
 }
 
 // Server file info (for tracking deleted files)
@@ -266,6 +272,32 @@ export interface ConfigBomItem {
   in_database: boolean
   /** True if the referenced file doesn't exist on disk (broken reference) */
   is_broken?: boolean
+}
+
+// Drawing reference item for drawing-related expand/collapse dropdowns in file browser.
+// Used for two scenarios:
+//   1. Expanding a .slddrw file to show which models it references
+//   2. Expanding a config row to show which drawings reference that part/assembly config
+export interface DrawingRefItem {
+  id: string
+  file_id: string
+  file_name: string
+  file_path: string
+  file_type: 'part' | 'assembly' | 'drawing' | 'other'
+  part_number: string | null
+  description: string | null
+  revision: string | null
+  state: string | null
+  configuration: string | null
+  /** All configurations of this file that the parent drawing references (from DB enrichment) */
+  configurations?: string[]
+  /** Per-config tab numbers (from pendingMetadata.config_tabs or pdmData) */
+  config_tabs?: Record<string, string>
+  /** Per-config descriptions (from pendingMetadata.config_descriptions) */
+  config_descriptions?: Record<string, string>
+  /** Per-config revisions (from pdmData.configuration_revisions) */
+  configuration_revisions?: Record<string, string>
+  in_database: boolean
 }
 
 // Orphaned checkout - file was force-checked-in from another machine
@@ -426,6 +458,23 @@ export interface UISlice {
   // Clipboard (unified across FilePane and FileTree)
   clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
   
+  // Command confirmation dialog (shown from command handlers via ctx.confirm())
+  pendingCommandConfirm: {
+    title: string
+    message: string
+    items?: string[]
+    confirmText?: string
+  } | null
+  
+  // Review preview (full-screen PDF in reviews view)
+  reviewPreviewFile: {
+    filePath: string      // local filesystem path for PDF rendering
+    fileId: string | null // database ID for comments
+    fileName: string
+    fileVersion?: number | null
+    reviewId: string
+  } | null
+  
   // Actions
   toggleSidebar: () => void
   setSidebarWidth: (width: number) => void
@@ -457,6 +506,13 @@ export interface UISlice {
   // Clipboard
   setClipboard: (clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null) => void
   clearClipboard: () => void
+  
+  // Command confirmation dialog
+  setPendingCommandConfirm: (confirm: UISlice['pendingCommandConfirm']) => void
+  
+  // Review preview
+  setReviewPreviewFile: (file: UISlice['reviewPreviewFile']) => void
+  clearReviewPreviewFile: () => void
 }
 
 export interface SettingsSlice {
@@ -556,6 +612,9 @@ export interface SettingsSlice {
   // State - Windows Defender warning
   avExclusionWarningDismissed: boolean
   
+  // State - Test Runner
+  testFolderName: string  // Name of the temporary test folder inside vault root (default "0 - Tests")
+  
   // Actions - Preview & Topbar
   setCadPreviewMode: (mode: 'thumbnail' | 'edrawings') => void
   setTopbarConfig: (config: Partial<SettingsSlice['topbarConfig']>) => void
@@ -654,6 +713,9 @@ export interface SettingsSlice {
   
   // Actions - Windows Defender warning
   setAvExclusionWarningDismissed: (dismissed: boolean) => void
+  
+  // Actions - Test Runner
+  setTestFolderName: (name: string) => void
 }
 
 export interface UserSlice {
@@ -730,9 +792,12 @@ export interface FilesSlice {
   serverFiles: ServerFile[]
   serverFolderPaths: Set<string>
   selectedFiles: string[]
+  /** File path to scroll into view after navigation (transient, cleared after scroll) */
+  pendingScrollToFile: string | null
   expandedFolders: Set<string>
   currentFolder: string
   persistedPendingMetadata: Record<string, PendingMetadata>
+  persistedCopySource: Record<string, { sourceFileId: string; version: number }>
   sortColumn: string
   sortDirection: 'asc' | 'desc'
   
@@ -765,6 +830,17 @@ export interface FilesSlice {
   configBomData: Map<string, ConfigBomItem[]>   // Cached BOM data per config (format: "filePath::configName")
   loadingConfigBoms: Set<string>                // Configs currently loading BOM data
   
+  // State - Drawing file expand (for .slddrw files showing referenced models)
+  expandedDrawingRefs: Set<string>              // Expanded drawing refs (keyed by drawing file path)
+  drawingRefData: Map<string, DrawingRefItem[]> // Cached drawing ref data per drawing file
+  loadingDrawingRefs: Set<string>               // Drawing files currently loading ref data
+  expandedDrawingRefFiles: Set<string>          // Expanded ref files under a drawing (format: "drawingPath::refFilePath")
+  
+  // State - Config -> drawings (for part/assembly configs showing which drawings reference them)
+  expandedConfigDrawings: Set<string>           // Expanded config drawings (format: "filePath::configName")
+  configDrawingData: Map<string, DrawingRefItem[]> // Cached drawing data per config key
+  loadingConfigDrawings: Set<string>            // Configs currently loading drawing data
+  
   // State - Realtime update debouncing (prevents state drift from stale realtime events)
   recentlyModifiedFiles: Map<string, number>    // fileId -> timestamp of local modification
   
@@ -783,11 +859,13 @@ export interface FilesSlice {
   clearPendingMetadata: (path: string) => void
   clearPendingConfigMetadata: (path: string) => void
   clearPersistedPendingMetadataForPaths: (paths: string[]) => void
+  setCopySource: (path: string, source: { sourceFileId: string; version: number } | null) => void
   updatePendingVersionNote: (path: string, versionId: string, note: string) => void
   clearPendingVersionNotes: (path: string) => void
   updatePendingCheckinNote: (path: string, note: string) => void
   renameFileInStore: (oldPath: string, newPath: string, newNameOrRelPath: string, isMove?: boolean) => void
   setSelectedFiles: (paths: string[]) => void
+  setPendingScrollToFile: (path: string | null) => void
   toggleFileSelection: (path: string, multiSelect?: boolean) => void
   selectAllFiles: () => void
   clearSelection: () => void
@@ -859,6 +937,21 @@ export interface FilesSlice {
   clearConfigBomData: (configKey: string) => void
   addLoadingConfigBom: (configKey: string) => void
   removeLoadingConfigBom: (configKey: string) => void
+  
+  // Actions - Drawing file expand (for .slddrw files showing referenced models)
+  toggleDrawingRefExpansion: (filePath: string) => void
+  setDrawingRefData: (filePath: string, items: DrawingRefItem[]) => void
+  clearDrawingRefData: (filePath: string) => void
+  addLoadingDrawingRef: (filePath: string) => void
+  removeLoadingDrawingRef: (filePath: string) => void
+  toggleDrawingRefFileExpansion: (key: string) => void
+  
+  // Actions - Config -> drawings (for part/assembly configs showing which drawings reference them)
+  toggleConfigDrawingExpansion: (configKey: string) => void
+  setConfigDrawingData: (configKey: string, items: DrawingRefItem[]) => void
+  clearConfigDrawingData: (configKey: string) => void
+  addLoadingConfigDrawing: (configKey: string) => void
+  removeLoadingConfigDrawing: (configKey: string) => void
   
   // Actions - Realtime update debouncing
   /** Mark a file as recently modified locally. Realtime updates will be skipped for this file. */
@@ -1813,6 +1906,37 @@ export interface NotificationPrefsSlice {
 }
 
 // ============================================================================
+// Annotations Slice (PDF commenting / spatial annotations)
+// ============================================================================
+
+export interface AnnotationsSlice {
+  // State
+  /** Threaded annotations for the currently viewed file */
+  annotations: FileAnnotation[]
+  /** Whether annotations are being fetched from the server */
+  annotationsLoading: boolean
+  /** The annotation (thread root) currently highlighted / scrolled to */
+  activeAnnotationId: string | null
+  /** Which file's annotations are currently loaded (avoids stale data) */
+  annotationFileId: string | null
+  /** Whether the new-comment input panel is visible */
+  showCommentInput: boolean
+  /** Pending annotation data created by area/text selection before the user types a comment */
+  pendingAnnotation: NewAnnotationData | null
+
+  // Actions
+  setAnnotations: (annotations: FileAnnotation[]) => void
+  addAnnotation: (annotation: FileAnnotation) => void
+  updateAnnotationInStore: (id: string, updates: Partial<FileAnnotation>) => void
+  removeAnnotation: (id: string) => void
+  setActiveAnnotationId: (id: string | null) => void
+  setAnnotationFileId: (fileId: string | null) => void
+  setShowCommentInput: (show: boolean) => void
+  setPendingAnnotation: (data: NewAnnotationData | null) => void
+  clearAnnotations: () => void
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
 
@@ -1835,7 +1959,8 @@ export type PDMStoreState =
   IntegrationsSlice &
   ExtensionsSlice &
   NotificationPrefsSlice &
-  OperationLogSlice
+  OperationLogSlice &
+  AnnotationsSlice
 
 // ============================================================================
 // Store Versioning

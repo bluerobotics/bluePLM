@@ -1,0 +1,67 @@
+@name File Operations
+@requires vault
+@timeout 60
+
+// ==========================================================
+// Tests file management operations:
+//   - Create folders and files, sync them
+//   - Rename a synced file (requires checkout first)
+//   - Move a file to a different folder
+//   - Copy a file, verify copy exists
+//   - Create nested folder structures
+//
+// Covers checklist: Section 5 — File Operations
+// ==========================================================
+
+# Create folder structure and files
+mkdir _data/fileops
+mkdir _data/fileops/parts
+mkdir _data/fileops/dest
+touch _data/fileops/parts/plate.txt
+touch _data/fileops/parts/bolt.txt
+wait 1000
+sync _data/fileops/parts/plate.txt
+wait 3000
+sync _data/fileops/parts/bolt.txt
+wait 3000
+
+# Verify initial state
+assert _data/fileops/parts/plate.txt --status=synced --version=1
+assert _data/fileops/parts/bolt.txt --status=synced --version=1
+
+# Rename — must checkout first since file is synced
+checkout _data/fileops/parts/plate.txt
+wait 2000
+rename _data/fileops/parts/plate.txt base-plate.txt
+wait 2000
+assert _data/fileops/parts/base-plate.txt --exists
+checkin _data/fileops/parts/base-plate.txt
+wait 3000
+assert _data/fileops/parts/base-plate.txt --status=synced
+
+# Move file to another folder
+checkout _data/fileops/parts/bolt.txt
+wait 2000
+move _data/fileops/parts/bolt.txt _data/fileops/dest
+wait 2000
+assert _data/fileops/dest/bolt.txt --exists
+checkin _data/fileops/dest/bolt.txt
+wait 3000
+assert _data/fileops/dest/bolt.txt --status=synced
+
+# Copy a file — copy should be local-only (added)
+copy _data/fileops/parts/base-plate.txt _data/fileops/dest
+wait 2000
+assert _data/fileops/dest/base-plate.txt --exists
+
+# Create nested folders and verify structure
+mkdir _data/fileops/nested
+mkdir _data/fileops/nested/sub1
+mkdir _data/fileops/nested/sub1/sub2
+touch _data/fileops/nested/sub1/sub2/deep-file.txt
+wait 1000
+assert _data/fileops/nested/sub1/sub2/deep-file.txt --exists
+
+# Teardown
+delete _data/fileops
+wait 2000

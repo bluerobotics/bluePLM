@@ -1,4 +1,4 @@
-import { Image, ExternalLink, FolderOpen, Info, EyeOff, FileX, FileInput, Hash, FileText } from 'lucide-react'
+import { Image, ExternalLink, FolderOpen, Info, EyeOff, FileX, FileInput, Hash, FileText, Globe, Loader2 } from 'lucide-react'
 import { useSolidWorksSettings } from '../hooks'
 
 export function SettingsTab() {
@@ -17,6 +17,11 @@ export function SettingsTab() {
     setLockDrawingItemNumber,
     lockDrawingDescription,
     setLockDrawingDescription,
+    // Model revision policy (org-wide)
+    allowModelRevision,
+    isSavingRevisionPolicy,
+    handleToggleModelRevision,
+    isAdmin,
   } = useSolidWorksSettings()
 
   return (
@@ -126,6 +131,66 @@ export function SettingsTab() {
               />
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Part & Assembly Revision Policy (org-wide) */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
+            Part & Assembly Revisions
+          </label>
+          <span className="px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider rounded bg-plm-accent/20 text-plm-accent">
+            Org-wide
+          </span>
+        </div>
+        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
+          <div className="flex items-start gap-2 text-sm text-plm-fg-muted">
+            <Info size={16} className="mt-0.5 flex-shrink-0" />
+            <span>
+              Part (.sldprt) and assembly (.sldasm) revisions are typically controlled at the configuration level,
+              driven by drawings. When disabled, file-level revision editing and workflow auto-increment are blocked
+              for these file types.
+            </span>
+          </div>
+          
+          {/* Allow file-level revision toggle */}
+          <div className="flex items-center justify-between pt-2 border-t border-plm-border">
+            <div className="flex items-center gap-3">
+              <FileInput size={18} className="text-plm-fg-muted" />
+              <div>
+                <div className="text-sm text-plm-fg">Allow file-level revisions on parts & assemblies</div>
+                <div className="text-xs text-plm-fg-muted">
+                  When off, revisions are controlled from drawings only
+                </div>
+              </div>
+            </div>
+            {isSavingRevisionPolicy ? (
+              <Loader2 size={18} className="animate-spin text-plm-accent" />
+            ) : (
+              <button
+                onClick={() => handleToggleModelRevision(!allowModelRevision)}
+                disabled={!isAdmin || isSavingRevisionPolicy}
+                title={!isAdmin ? 'Only admins can change org-wide settings' : undefined}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  allowModelRevision ? 'bg-plm-accent' : 'bg-plm-bg-secondary'
+                } ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    allowModelRevision ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            )}
+          </div>
+          
+          {!isAdmin && (
+            <div className="flex items-start gap-2 text-xs text-plm-fg-muted/70 pt-1">
+              <Globe size={12} className="mt-0.5 flex-shrink-0" />
+              <span>This is an organization-wide setting. Only admins can change it.</span>
+            </div>
+          )}
         </div>
       </div>
 

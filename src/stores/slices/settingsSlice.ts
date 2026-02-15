@@ -9,7 +9,7 @@ const defaultColumns: ColumnConfig[] = [
   { id: 'checkedOutBy', label: 'Checked Out By', width: 150, visible: false, sortable: true },
   { id: 'version', label: 'Ver', width: 60, visible: true, sortable: true },
   { id: 'itemNumber', label: 'Item Number', width: 120, visible: true, sortable: true },
-  { id: 'tabNumber', label: 'Tab', width: 80, visible: true, sortable: true },
+  { id: 'tabNumber', label: 'Tab', width: 80, visible: false, sortable: true },
   { id: 'description', label: 'Description', width: 200, visible: true, sortable: true },
   { id: 'revision', label: 'Rev', width: 50, visible: true, sortable: true },
   { id: 'state', label: 'State', width: 130, visible: true, sortable: true },
@@ -150,6 +150,9 @@ export const createSettingsSlice: StateCreator<
   
   // Initial state - Windows Defender warning
   avExclusionWarningDismissed: false,
+  
+  // Initial state - Test Runner
+  testFolderName: '0 - Tests',
   
   // Actions - Preview & Topbar
   setCadPreviewMode: (cadPreviewMode) => set({ cadPreviewMode }),
@@ -570,6 +573,9 @@ export const createSettingsSlice: StateCreator<
   
   // Actions - Windows Defender warning
   setAvExclusionWarningDismissed: (avExclusionWarningDismissed) => set({ avExclusionWarningDismissed }),
+  
+  // Actions - Test Runner
+  setTestFolderName: (testFolderName) => set({ testFolderName }),
 })
 
 // Export for use in main store

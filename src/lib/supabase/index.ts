@@ -176,6 +176,16 @@ export {
 export type { ShareLinkOptions } from './notifications'
 
 // ============================================
+// Review trigger / team review helpers
+// ============================================
+export {
+  checkReviewTrigger,
+  getOrgTeamsWithMembers
+} from './reviews'
+
+export type { TeamMember, TeamWithMembers } from './reviews'
+
+// ============================================
 // Session exports
 // ============================================
 export {
@@ -221,3 +231,18 @@ export {
   removePartSupplier,
   deletePartSupplier
 } from './partSuppliers'
+
+// ============================================
+// Annotation exports
+// ============================================
+export {
+  getFileAnnotations,
+  getAnnotationCount,
+  createAnnotation,
+  updateAnnotation,
+  deleteAnnotation,
+  resolveAnnotation,
+  unresolveAnnotation
+} from './annotations'
+
+export type { CreateAnnotationParams } from './annotations'

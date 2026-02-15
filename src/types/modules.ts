@@ -7,6 +7,7 @@ export type ModuleId =
   | 'pending'
   | 'history'
   | 'workflows'
+  | 'reviews'
   | 'trash'
   // Items
   | 'items'
@@ -311,6 +312,15 @@ export const MODULES: ModuleDefinition[] = [
     name: 'File Workflows',
     group: 'source-files',
     icon: 'GitBranch',
+    defaultEnabled: true,
+    dependencies: ['explorer'],
+    implemented: true,
+  },
+  {
+    id: 'reviews',
+    name: 'Reviews',
+    group: 'source-files',
+    icon: 'MessageSquareCheck',
     defaultEnabled: true,
     dependencies: ['explorer'],
     implemented: true,
@@ -726,6 +736,7 @@ export const DEFAULT_MODULE_ORDER: ModuleId[] = [
   'pending',
   'history',
   'workflows',
+  'reviews',
   'trash',
   // Products
   'products',
@@ -823,6 +834,7 @@ export const DEFAULT_MODULE_PARENT_MAP: Record<ModuleId, ParentId> = {
   'pending': 'group-source-files',
   'history': 'group-source-files',
   'workflows': 'group-source-files',
+  'reviews': 'group-source-files',
   'trash': 'group-source-files',
   // Products group (after Source Files)
   'products': 'group-products',

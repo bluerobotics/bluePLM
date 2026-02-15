@@ -322,9 +322,13 @@ CREATE TABLE IF NOT EXISTS workflow_states (
   auto_increment_revision BOOLEAN DEFAULT false,
   gate_config JSONB DEFAULT '{}'::jsonb,
   required_workflow_roles UUID[] DEFAULT '{}',
+  triggers_review BOOLEAN DEFAULT FALSE,
   sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration: Add triggers_review column for existing tables
+DO $$ BEGIN ALTER TABLE workflow_states ADD COLUMN triggers_review BOOLEAN DEFAULT FALSE; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_id ON workflow_states(workflow_id);
 
@@ -1088,11 +1092,22 @@ CREATE TABLE IF NOT EXISTS file_comments (
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   comment TEXT NOT NULL,
+  page_number INTEGER,                    -- PDF page (1-indexed), NULL for file-level comments
+  position JSONB,                         -- {x, y, width, height, pageWidth, pageHeight} for area highlights
+  annotation_type TEXT DEFAULT 'text',    -- 'area', 'text', 'highlight', or 'file' (file-level)
+  parent_id UUID REFERENCES file_comments(id) ON DELETE CASCADE,  -- for threaded replies
+  resolved BOOLEAN DEFAULT FALSE,
+  resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  resolved_at TIMESTAMPTZ,
+  file_version INTEGER,                   -- version the comment was made on
+  edited_at TIMESTAMPTZ,                  -- tracks if comment was edited
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_file_comments_file_id ON file_comments(file_id);
 CREATE INDEX IF NOT EXISTS idx_file_comments_user_id ON file_comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_file_comments_parent_id ON file_comments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_file_comments_resolved ON file_comments(resolved);
 
 -- ===========================================
 -- FILE METADATA COLUMNS (Custom fields)

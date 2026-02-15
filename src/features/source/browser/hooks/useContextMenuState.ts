@@ -24,6 +24,12 @@ export interface ConfigContextMenuState {
   configName: string
 }
 
+export interface RefRowContextMenuState {
+  x: number
+  y: number
+  item: import('@/stores/types').DrawingRefItem
+}
+
 export interface UseContextMenuStateReturn {
   // File context menu
   contextMenu: ContextMenuState | null
@@ -46,6 +52,10 @@ export interface UseContextMenuStateReturn {
   // Config context menu
   configContextMenu: ConfigContextMenuState | null
   setConfigContextMenu: (state: ConfigContextMenuState | null) => void
+  
+  // Ref row context menu (for DrawingRefRow / ConfigDrawingRow)
+  refRowContextMenu: RefRowContextMenuState | null
+  setRefRowContextMenu: (state: RefRowContextMenuState | null) => void
   
   // Submenus
   showIgnoreSubmenu: boolean
@@ -76,6 +86,9 @@ export function useContextMenuState(): UseContextMenuStateReturn {
   // Configuration context menu
   const [configContextMenu, setConfigContextMenu] = useState<ConfigContextMenuState | null>(null)
   
+  // Ref row context menu (DrawingRefRow / ConfigDrawingRow)
+  const [refRowContextMenu, setRefRowContextMenu] = useState<RefRowContextMenuState | null>(null)
+  
   // Submenus
   const [showIgnoreSubmenu, setShowIgnoreSubmenu] = useState(false)
   const [showStateSubmenu, setShowStateSubmenu] = useState(false)
@@ -89,6 +102,7 @@ export function useContextMenuState(): UseContextMenuStateReturn {
     setEmptyContextMenuAdjustedPos(null)
     setColumnContextMenu(null)
     setConfigContextMenu(null)
+    setRefRowContextMenu(null)
     setShowIgnoreSubmenu(false)
     setShowStateSubmenu(false)
     if (ignoreSubmenuTimeoutRef.current) {
@@ -114,6 +128,8 @@ export function useContextMenuState(): UseContextMenuStateReturn {
     setColumnContextMenu,
     configContextMenu,
     setConfigContextMenu,
+    refRowContextMenu,
+    setRefRowContextMenu,
     showIgnoreSubmenu,
     setShowIgnoreSubmenu,
     showStateSubmenu,

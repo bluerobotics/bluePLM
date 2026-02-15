@@ -14,24 +14,20 @@ import { Sparkles, Loader2, Check, ArrowLeft, Box } from 'lucide-react'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getNextSerialNumber, previewNextSerialNumber } from '@/lib/serialization'
-import { validateTabInput, getTabPlaceholder, getTabValidationOptions } from '@/lib/tabValidation'
 import type { CellRendererBaseProps } from './types'
 
 export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode {
   // UI state from FilePaneContext
-  const { editingCell, editValue, setEditValue, inlineEditInputRef, columns } = useFilePaneContext()
+  const { editingCell, editValue, setEditValue, inlineEditInputRef } = useFilePaneContext()
   
   // Handlers from FilePaneHandlersContext
   const { isFileEditable, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit, saveConfigsToSWFile } = useFilePaneHandlers()
   
-  // Store selectors for organization, toast, pending metadata update, and drawing lockout
+  // Store selectors for organization, toast, pending metadata, and drawing lockout
   const organization = usePDMStore(s => s.organization)
   const addToast = usePDMStore(s => s.addToast)
   const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
   const lockDrawingItemNumber = usePDMStore(s => s.lockDrawingItemNumber)
-  
-  // Get tab validation options from serialization settings
-  const tabValidationOptions = getTabValidationOptions(organization?.serialization_settings)
   
   // Calculate minimum width for item number box based on serialization settings
   // This ensures consistent sizing and alignment across all rows
@@ -43,21 +39,8 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   const expectedSerialLength = prefixLength + paddingDigits + suffixLength
   const minItemNumberWidth = Math.max(60, expectedSerialLength * 7 + 32)
   
-  // Check if Tab column is visible
-  const isTabColumnVisible = columns.some(c => c.id === 'tabNumber' && c.visible)
-  const isSWFile = ['.sldprt', '.sldasm'].includes(file.extension?.toLowerCase() || '')
-  // Show inline tab when: SW file, Tab column NOT visible, file is editable
-  // Keep showing even when configs are expanded (file-level tab is separate from config tabs)
-  const showInlineTab = isSWFile && !isTabColumnVisible && isFileEditable(file)
-  
-  // Local state for generation and inline tab editing
+  // Local state for generation
   const [isGenerating, setIsGenerating] = useState(false)
-  const [localTabValue, setLocalTabValue] = useState(file.pendingMetadata?.tab_number ?? '')
-  
-  // Sync localTabValue with file.pendingMetadata when it changes externally
-  useEffect(() => {
-    setLocalTabValue(file.pendingMetadata?.tab_number ?? '')
-  }, [file.pendingMetadata?.tab_number])
   
   // Confirmation state for inline BR number generation
   const [confirmingGenerate, setConfirmingGenerate] = useState(false)
@@ -144,13 +127,6 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
     await handleGenerateSerial(true)
   }
   
-  // Handle inline tab number change (when Tab column is hidden)
-  const handleInlineTabChange = (value: string) => {
-    const validated = validateTabInput(value, tabValidationOptions)
-    setLocalTabValue(validated)
-    updatePendingMetadata(file.path, { tab_number: validated || null })
-  }
-  
   // Handle generating a serial number for item number - auto-saves immediately
   // Works for both synced files (checked out) and unsynced local files
   const handleGenerateSerial = async (fromHover?: boolean) => {
@@ -225,16 +201,14 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
               e.stopPropagation()
             }}
             onBlur={(e) => {
-              // Don't save on blur if clicking the generate button, tab input, or confirmation popup
+              // Don't save on blur if clicking the generate button or confirmation popup
               const relatedTarget = e.relatedTarget as HTMLElement | null
-              if (relatedTarget?.dataset?.generateBtn || relatedTarget?.dataset?.tabInput) return
+              if (relatedTarget?.dataset?.generateBtn) return
               if (confirmingGenerate) return
               handleSaveCellEdit()
             }}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            onDragStart={(e) => e.preventDefault()}
-            draggable={false}
             disabled={isGenerating}
             size={Math.max(editValue.length || 6, 6)}
             className="bg-plm-bg border border-plm-accent rounded pl-1 pr-8 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent disabled:opacity-50"
@@ -284,35 +258,6 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
           </div>,
           document.body
         )}
-        {/* Tab number input (when Tab column is hidden) */}
-        {showInlineTab && (
-          <>
-            <span className="text-plm-fg text-sm shrink-0">-</span>
-            <input
-              data-tab-input="true"
-              type="text"
-              value={localTabValue}
-              onChange={(e) => handleInlineTabChange(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveCellEdit()
-                else if (e.key === 'Escape') handleCancelCellEdit()
-                e.stopPropagation()
-              }}
-              onBlur={(e) => {
-                // Don't save if clicking back to base input or generate button
-                const relatedTarget = e.relatedTarget as HTMLElement | null
-                if (relatedTarget?.dataset?.generateBtn) return
-                if (relatedTarget === inlineEditInputRef.current) return
-                if (confirmingGenerate) return
-                handleSaveCellEdit()
-              }}
-              placeholder={getTabPlaceholder(tabValidationOptions)}
-              className="w-12 shrink-0 bg-transparent border border-plm-border/20 rounded px-1 py-0 text-sm text-plm-fg text-center focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:ring-1 focus:ring-plm-accent"
-            />
-          </>
-        )}
       </div>
     )
   }
@@ -328,6 +273,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
   return (
     <div 
       className="group/cell flex items-center h-full gap-1"
+      data-no-drag
       onMouseDown={(e) => {
         // Only stop propagation for editable cells to prevent row selection during edit
         // For non-editable cells, allow native text selection
@@ -335,12 +281,6 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
           e.stopPropagation()
         }
       }}
-      onDragStart={(e) => {
-        // Prevent row drag when user is trying to select text
-        e.preventDefault()
-        e.stopPropagation()
-      }}
-      draggable={false}
       title={getTooltip()}
     >
       {/* Main item number box - sized based on serialization settings */}
@@ -413,23 +353,6 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
           </button>
         </div>,
         document.body
-      )}
-      {/* Tab number input (when Tab column is hidden) - styled to match item number */}
-      {showInlineTab && (
-        <>
-          <span className="text-plm-fg text-sm shrink-0 -ml-0.5">-</span>
-          <input
-            data-tab-input="true"
-            type="text"
-            value={localTabValue}
-            onChange={(e) => handleInlineTabChange(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-            placeholder={getTabPlaceholder(tabValidationOptions)}
-            className="w-12 shrink-0 bg-transparent border border-transparent rounded px-1 py-0 text-sm text-plm-fg text-center cursor-text group-hover/cell:border-plm-border/50 group-hover/cell:bg-plm-bg focus:outline-none focus:bg-plm-bg focus:border-plm-accent focus:ring-1 focus:ring-plm-accent"
-          />
-        </>
       )}
     </div>
   )

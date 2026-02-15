@@ -134,7 +134,7 @@ export async function transitionFileState(
     incrementRevision?: boolean
     comment?: string
   } = {}
-): Promise<{ success: boolean; file?: PDMFile; error?: string }> {
+): Promise<{ success: boolean; file?: PDMFile; error?: string; triggersReview?: boolean }> {
   const client = getSupabaseClient()
   
   // Get current file
@@ -159,8 +159,26 @@ export async function transitionFileState(
     return { success: false, error: 'Target state not found' }
   }
   
+  // Check if file-level revision is allowed for this file type
+  // Parts/assemblies (.sldprt/.sldasm) may have file-level revision disabled org-wide
+  const isModelFile = /\.(sldprt|sldasm)$/i.test(file.file_name || '')
+  let revisionAllowed = true
+  
+  if (isModelFile) {
+    // Fetch org settings to check allow_file_level_revision_for_models
+    const { data: org } = await client
+      .from('organizations')
+      .select('settings')
+      .eq('id', file.org_id)
+      .single()
+    
+    const orgSettings = org?.settings as Record<string, unknown> | null
+    revisionAllowed = orgSettings?.allow_file_level_revision_for_models === true
+  }
+  
   // Calculate new revision if auto-increment is enabled on target state
-  const shouldIncrementRevision = options.incrementRevision || targetState.auto_increment_revision
+  // Skip for model files when file-level revision is disabled by org policy
+  const shouldIncrementRevision = (options.incrementRevision || targetState.auto_increment_revision) && revisionAllowed
   const newRevision = shouldIncrementRevision 
     ? getNextRevision(file.revision, 'letter')
     : file.revision
@@ -198,6 +216,9 @@ export async function transitionFileState(
     // Cast configuration_revisions from Json to expected type
     configuration_revisions: updated.configuration_revisions as Record<string, string> | null
   }
+
+  // Check if the target workflow state triggers a review request
+  const triggersReview: boolean = targetState.triggers_review === true
   
-  return { success: true, file: mappedFile }
+  return { success: true, file: mappedFile, triggersReview }
 }

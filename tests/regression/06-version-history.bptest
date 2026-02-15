@@ -1,0 +1,48 @@
+@name Version History
+@requires vault
+@timeout 60
+
+// ==========================================================
+// Tests version tracking across multiple checkins:
+//   - Sync file (v1)
+//   - Checkout + checkin (v2)
+//   - Checkout + checkin (v3)
+//   - Verify final version = 3
+//   - Verify get-latest still returns v3
+//
+// Covers checklist: Section 12 — Version History & Rollback
+// ==========================================================
+
+# Create and sync — version 1
+mkdir _data/version-test
+touch _data/version-test/versioned.txt
+wait 1000
+sync _data/version-test/versioned.txt
+wait 3000
+assert _data/version-test/versioned.txt --status=synced --version=1
+
+# Checkout + checkin — version 2
+checkout _data/version-test/versioned.txt
+wait 2000
+checkin _data/version-test/versioned.txt
+wait 3000
+assert _data/version-test/versioned.txt --status=synced --version=2
+
+# Checkout + checkin — version 3
+checkout _data/version-test/versioned.txt
+wait 2000
+checkin _data/version-test/versioned.txt
+wait 3000
+assert _data/version-test/versioned.txt --status=synced --version=3
+assert _data/version-test/versioned.txt --readonly
+
+# Get-latest should still report version 3
+remove _data/version-test/versioned.txt
+wait 2000
+get-latest _data/version-test/versioned.txt
+wait 3000
+assert _data/version-test/versioned.txt --status=synced --version=3
+
+# Teardown
+delete _data/version-test
+wait 2000

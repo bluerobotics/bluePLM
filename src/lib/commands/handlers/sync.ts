@@ -130,6 +130,109 @@ export const syncCommand: Command<SyncParams> = {
       }
     }
     
+    // ========================================
+    // PRE-CHECK: Detect unsaved/locked SolidWorks files BEFORE uploading
+    // Same logic as check-in -- prevents uploading stale/corrupt content.
+    // ========================================
+    const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+    const swFilesToSync = filesToSync.filter(f => SW_EXTENSIONS.includes(f.extension.toLowerCase()))
+    
+    if (swFilesToSync.length > 0) {
+      try {
+        const swStatus = await window.electronAPI?.solidworks?.getServiceStatus?.()
+        
+        if (swStatus?.data?.running) {
+          const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.({ includeComponents: true })
+          
+          if (openDocsResult?.success && openDocsResult.data?.solidWorksRunning && openDocsResult.data?.documents) {
+            const openDocMap = new Map<string, { isDirty: boolean; filePath: string }>()
+            for (const doc of openDocsResult.data.documents) {
+              if (doc.filePath) {
+                openDocMap.set(doc.filePath.toLowerCase(), {
+                  isDirty: !!doc.isDirty,
+                  filePath: doc.filePath
+                })
+              }
+            }
+            
+            const dirtyFiles: Array<{ file: typeof swFilesToSync[0]; docPath: string }> = []
+            for (const file of swFilesToSync) {
+              const openDoc = openDocMap.get(file.path.toLowerCase())
+              if (openDoc?.isDirty) {
+                dirtyFiles.push({ file, docPath: openDoc.filePath })
+              }
+            }
+            
+            if (dirtyFiles.length > 0 && ctx.confirm) {
+              const confirmed = await ctx.confirm({
+                title: 'Unsaved SolidWorks Files',
+                message: 'The following file(s) are open in SolidWorks with unsaved changes. They will be saved before uploading.',
+                items: dirtyFiles.map(d => d.file.name),
+                confirmText: 'Save & Upload',
+              })
+              
+              if (!confirmed) {
+                logSync('info', 'User cancelled sync due to unsaved SW files', {})
+                tracker.endOperation('completed')
+                return {
+                  success: false,
+                  message: 'Upload cancelled',
+                  total: 0,
+                  succeeded: 0,
+                  failed: 0
+                }
+              }
+              
+              for (const { file, docPath } of dirtyFiles) {
+                logSync('info', 'Saving unsaved SW file before sync', { fileName: file.name })
+                const saveResult = await window.electronAPI?.solidworks?.saveDocument?.(docPath)
+                if (!saveResult?.success) {
+                  const errorMsg = saveResult?.error || 'Unknown save error'
+                  logSync('error', 'Failed to save SW file before sync', { fileName: file.name, error: errorMsg })
+                  ctx.addToast('error', `Cannot upload \u2014 failed to save ${file.name} in SolidWorks: ${errorMsg}`)
+                  tracker.endOperation('completed')
+                  return {
+                    success: false,
+                    message: `Failed to save ${file.name} in SolidWorks`,
+                    total: 0,
+                    succeeded: 0,
+                    failed: 1,
+                    errors: [`${file.name}: ${errorMsg}`]
+                  }
+                }
+              }
+            }
+            
+            // Check for actively locked files
+            for (const file of swFilesToSync) {
+              try {
+                const lockCheck = await window.electronAPI?.checkFileLock?.(file.path)
+                if (lockCheck?.locked) {
+                  const processName = lockCheck.processName || 'another process'
+                  logSync('error', 'File is actively locked, aborting sync', { fileName: file.name, lockedBy: processName })
+                  ctx.addToast('error', `Cannot upload \u2014 ${file.name} is locked by ${processName}. Please wait and try again.`)
+                  tracker.endOperation('completed')
+                  return {
+                    success: false,
+                    message: `${file.name} is locked by ${processName}`,
+                    total: 0,
+                    succeeded: 0,
+                    failed: 1,
+                    errors: [`${file.name}: File is locked by ${processName}`]
+                  }
+                }
+              } catch {
+                // Lock check not available - continue
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // SW pre-check failed - continue without it (non-blocking)
+        logSync('warn', 'SW pre-check failed, continuing', { error: err instanceof Error ? err.message : String(err) })
+      }
+    }
+    
     // Track folders and files being processed (for spinner display)
     const foldersBeingProcessed = files
       .filter(f => f.isDirectory)
@@ -178,8 +281,11 @@ export const syncCommand: Command<SyncParams> = {
         
         // Allow empty files (data can be empty string, but hash should always exist)
         if (!readResult?.success || readResult.data === undefined || !readResult.hash) {
+          const errorDetail = readResult?.locked
+            ? `${file.name}: File is locked by another process \u2014 save your work and try again`
+            : `Failed to read ${file.name}`
           progress.update()
-          return { success: false, error: `Failed to read ${file.name}` }
+          return { success: false, error: errorDetail }
         }
         
         // Use pending metadata from the UI (user pre-assigned values before sync)
@@ -197,7 +303,8 @@ export const syncCommand: Command<SyncParams> = {
           organization.id, activeVaultId, user.id,
           file.relativePath, file.name, file.extension, file.size,
           readResult.hash, readResult.data,
-          metadata
+          metadata,
+          file.copiedFromFileId
         )
         
         if (error || !syncedFile) {
@@ -207,7 +314,7 @@ export const syncCommand: Command<SyncParams> = {
         }
         
         await window.electronAPI?.setReadonly(file.path, true)
-        // Queue update for batch processing (also clear pendingMetadata since it's now synced)
+        // Queue update for batch processing (also clear pendingMetadata and copy source since it's now synced)
         const typedSyncedFileVersion = syncedFile as { version?: number }
         pendingUpdates.push({
           path: file.path,
@@ -216,7 +323,9 @@ export const syncCommand: Command<SyncParams> = {
             localHash: readResult.hash, 
             localVersion: typedSyncedFileVersion.version, // Track the new version after sync
             diffStatus: undefined, 
-            pendingMetadata: undefined 
+            pendingMetadata: undefined,
+            copiedFromFileId: undefined,
+            copiedVersion: undefined
           }
         })
         progress.update()
@@ -421,6 +530,7 @@ async function extractFileReferencesWithProgress(
         fileName: string
         exists: boolean
         fileType: string
+        configuration?: string
       }>
       
       if (swRefs.length === 0) {
@@ -441,7 +551,7 @@ async function extractFileReferencesWithProgress(
           ? 'reference'  // Drawings reference models they document
           : (ref.fileType === 'assembly' ? 'component' : 
              ref.fileType === 'part' ? 'component' : 'reference'),
-        configuration: undefined
+        configuration: ref.configuration || undefined
       }))
       
       logSync('debug', 'Extracted references', {

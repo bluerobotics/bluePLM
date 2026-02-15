@@ -9,6 +9,9 @@
  * 
  * NOTE: Drawing files (.slddrw) have their revision locked because
  * it comes from the drawing's revision table, not from editable properties.
+ * 
+ * NOTE: Part/assembly files (.sldprt/.sldasm) can have file-level revision locked
+ * via the org-wide allow_file_level_revision_for_models setting.
  */
 import { memo, useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
@@ -119,7 +122,8 @@ function EditableField({
   label,
   fontSize,
   isEditable,
-  isDrawing
+  isDrawing,
+  isModel
 }: {
   file: LocalFile
   fieldId: string
@@ -128,18 +132,27 @@ function EditableField({
   fontSize: number
   isEditable: boolean
   isDrawing: boolean
+  isModel: boolean
 }) {
-  // Get drawing lockout settings
+  // Get drawing lockout settings (per-user)
   const lockDrawingRevision = usePDMStore(s => s.lockDrawingRevision)
   const lockDrawingItemNumber = usePDMStore(s => s.lockDrawingItemNumber)
   const lockDrawingDescription = usePDMStore(s => s.lockDrawingDescription)
   
+  // Org-wide: parts/assemblies file-level revision lockout
+  const allowModelRevision = usePDMStore(s => s.organization?.settings?.allow_file_level_revision_for_models)
+  
   // Check if this field is locked for drawings
-  const isFieldLocked = isDrawing && (
+  const isDrawingFieldLocked = isDrawing && (
     (fieldId === 'revision' && lockDrawingRevision) ||
     (fieldId === 'itemNumber' && lockDrawingItemNumber) ||
     (fieldId === 'description' && lockDrawingDescription)
   )
+  
+  // Check if revision is locked for models (parts/assemblies) via org setting
+  const isModelRevisionLocked = isModel && fieldId === 'revision' && !allowModelRevision
+  
+  const isFieldLocked = isDrawingFieldLocked || isModelRevisionLocked
   const canEdit = isFieldLocked ? false : isEditable
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value || '')
@@ -239,12 +252,13 @@ function EditableField({
     )
   }
   
-  // Show icon for locked drawing fields indicating they're driven by the file/model
-  const showDrawingIndicator = isFieldLocked
+  // Show icon for locked fields indicating they're driven by the file/model
+  const showLockedIndicator = isFieldLocked
   
   // Determine appropriate tooltip
   const getTooltip = () => {
-    if (isFieldLocked) {
+    if (isModelRevisionLocked) return 'Revision is controlled from drawings (org policy)'
+    if (isDrawingFieldLocked) {
       if (fieldId === 'revision') return 'Drawing revision is driven by the drawing file'
       if (fieldId === 'itemNumber') return 'Drawing item number is inherited from the model'
       if (fieldId === 'description') return 'Drawing description is inherited from the model'
@@ -276,7 +290,7 @@ function EditableField({
       <span className={`truncate ${value ? 'text-plm-fg/80' : 'text-plm-fg-muted'}`}>
         {value || '-'}
       </span>
-      {showDrawingIndicator && <FileInput size={10} className="text-plm-fg-muted/50 flex-shrink-0" />}
+      {showLockedIndicator && <FileInput size={10} className="text-plm-fg-muted/50 flex-shrink-0" />}
     </div>
   )
 }
@@ -393,8 +407,10 @@ export const FileCardMetadata = memo(function FileCardMetadata({
   const isLocalFile = !file.pdmData && file.diffStatus !== 'cloud'
   const isEditable = isCheckedOutByMe || isLocalFile
   
-  // Check if this is a drawing file (revision is locked for drawings)
-  const isDrawing = file.extension?.toLowerCase() === '.slddrw'
+  // Check file type for lockout rules
+  const ext = file.extension?.toLowerCase()
+  const isDrawing = ext === '.slddrw'
+  const isModel = ext === '.sldprt' || ext === '.sldasm'
   
   // Calculate font size based on icon size
   const fontSize = Math.max(8, Math.min(10, iconSize / 10))
@@ -429,6 +445,7 @@ export const FileCardMetadata = memo(function FileCardMetadata({
               fontSize={fontSize}
               isEditable={isEditable}
               isDrawing={isDrawing}
+              isModel={isModel}
             />
           )
         }

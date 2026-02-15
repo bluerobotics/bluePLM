@@ -16,6 +16,7 @@ import type { FileMetadataColumn } from '@/types/database'
 import { executeCommand } from '@/lib/commands'
 // CrumbBar is now used inside FileToolbar
 import { useTranslation } from '@/lib/i18n'
+import { buildFullPath } from '@/lib/utils/path'
 // Modal for locked files during folder move
 import { LockedFilesModal, type LockedFileInfo } from '@/components/core/Dialog'
 
@@ -44,6 +45,7 @@ import {
   ConfigContextMenu,
   EmptyContextMenu,
   FileContextMenu,
+  RefRowContextMenu,
   ReviewRequestModal,
   CheckoutRequestModal,
   NotifyModal,
@@ -153,11 +155,12 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   
   // ─── Action Selectors (grouped by domain, useShallow wrapper) ──────────────
   // Selection actions
-  const { setSelectedFiles, toggleFileSelection, clearSelection } = usePDMStore(
+  const { setSelectedFiles, toggleFileSelection, clearSelection, setPendingScrollToFile } = usePDMStore(
     useShallow(s => ({
       setSelectedFiles: s.setSelectedFiles,
       toggleFileSelection: s.toggleFileSelection,
-      clearSelection: s.clearSelection
+      clearSelection: s.clearSelection,
+      setPendingScrollToFile: s.setPendingScrollToFile,
     }))
   )
   
@@ -251,6 +254,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     emptyContextMenu, setEmptyContextMenu,
     columnContextMenu, setColumnContextMenu,
     configContextMenu, setConfigContextMenu,
+    refRowContextMenu, setRefRowContextMenu,
     contextMenuAdjustedPos, setContextMenuAdjustedPos,
     contextMenuRef,
     emptyContextMenuAdjustedPos, setEmptyContextMenuAdjustedPos,
@@ -535,6 +539,9 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     getSelectedConfigsForFile,
     toggleFileConfigExpansion,
     toggleConfigBomExpansion,
+    canHaveDrawingRefs,
+    toggleDrawingRefExpansion,
+    toggleConfigDrawingExpansion,
   } = useConfigHandlers({
     files,
     lastClickedConfigRef,
@@ -1005,6 +1012,8 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   }
 
   // Handle bulk state change for multiple files
+  // When the new state is "in_review", auto-open the review modal for the first file
+  // so the user can immediately assign reviewers (workflow-triggered review).
   const handleBulkStateChange = async (filesToChange: LocalFile[], newState: string) => {
     if (!user) return
     
@@ -1048,6 +1057,16 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
       addToast('warning', `Updated state for ${succeeded}/${syncedFiles.length} files`)
     } else {
       addToast('success', `Changed ${succeeded} file${succeeded > 1 ? 's' : ''} to ${newState}`)
+    }
+
+    // Workflow-triggered review: when transitioning to "in_review" and at least
+    // one file was updated successfully, auto-open the review modal for the first
+    // successfully-transitioned file so the user can assign reviewers.
+    if (newState === 'in_review' && succeeded > 0) {
+      const firstSuccessfulFile = syncedFiles[0]
+      if (firstSuccessfulFile?.pdmData?.id) {
+        handleOpenReviewModal(firstSuccessfulFile)
+      }
     }
   }
 
@@ -1242,13 +1261,82 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   const handleConfigBomRowClick = useCallback((e: React.MouseEvent, _file: LocalFile, item: import('@/stores/types').ConfigBomItem) => {
     e.stopPropagation()
     if (item.file_path && vaultPath) {
-      // Navigate to the folder containing the file
-      const folderPath = item.file_path.split('/').slice(0, -1).join('/')
+      // Navigate to the folder containing the file (split on both / and \)
+      const folderPath = item.file_path.split(/[\\/]/).slice(0, -1).join('/')
       if (folderPath) {
         navigateToFolder(folderPath)
       }
     }
   }, [vaultPath, navigateToFolder])
+
+  // Handler for clicking on a drawing reference row - navigate to the referenced file, select it, and scroll into view
+  const handleDrawingRefRowClick = useCallback((e: React.MouseEvent, _file: LocalFile, item: import('@/stores/types').DrawingRefItem) => {
+    e.stopPropagation()
+    if (item.file_path && vaultPath) {
+      // Split on both / and \ to handle Windows paths and vault-relative paths
+      const folderPath = item.file_path.split(/[\\/]/).slice(0, -1).join('/')
+      if (folderPath) {
+        navigateToFolder(folderPath)
+      }
+      // Convert vault-relative path to absolute path for selection/scroll matching
+      const fullPath = buildFullPath(vaultPath, item.file_path)
+      setSelectedFiles([fullPath])
+      setPendingScrollToFile(fullPath)
+    }
+  }, [vaultPath, navigateToFolder, setSelectedFiles, setPendingScrollToFile])
+
+  // Handler for toggling drawing expansion under a configuration row
+  const handleConfigDrawingToggle = useCallback((e: React.MouseEvent, file: LocalFile, configName: string) => {
+    e.stopPropagation()
+    toggleConfigDrawingExpansion(file, configName)
+  }, [toggleConfigDrawingExpansion])
+
+  // Handler for toggling config children under a drawing ref row
+  const toggleDrawingRefFileExpansion = usePDMStore(s => s.toggleDrawingRefFileExpansion)
+  const handleDrawingRefFileToggle = useCallback((e: React.MouseEvent, file: LocalFile, item: import('@/stores/types').DrawingRefItem) => {
+    e.stopPropagation()
+    const key = `${file.path}::${item.file_path}`
+    toggleDrawingRefFileExpansion(key)
+  }, [toggleDrawingRefFileExpansion])
+
+  // Handler for clicking on a config drawing row - navigate to the drawing file, select it, and scroll into view
+  const handleConfigDrawingRowClick = useCallback((e: React.MouseEvent, _file: LocalFile, item: import('@/stores/types').DrawingRefItem) => {
+    e.stopPropagation()
+    if (item.file_path && vaultPath) {
+      // Split on both / and \ to handle Windows paths and vault-relative paths
+      const folderPath = item.file_path.split(/[\\/]/).slice(0, -1).join('/')
+      if (folderPath) {
+        navigateToFolder(folderPath)
+      }
+      // Convert vault-relative path to absolute path for selection/scroll matching
+      const fullPath = buildFullPath(vaultPath, item.file_path)
+      setSelectedFiles([fullPath])
+      setPendingScrollToFile(fullPath)
+    }
+  }, [vaultPath, navigateToFolder, setSelectedFiles, setPendingScrollToFile])
+
+  // Handler for right-clicking on a drawing reference row or config drawing row
+  const handleRefRowContextMenu = useCallback((e: React.MouseEvent, _file: LocalFile, item: import('@/stores/types').DrawingRefItem) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setRefRowContextMenu({ x: e.clientX, y: e.clientY, item })
+  }, [setRefRowContextMenu])
+
+  // Handler for navigating to a file from the ref row context menu
+  const handleRefRowNavigateToFile = useCallback(() => {
+    if (!refRowContextMenu || !vaultPath) return
+    const item = refRowContextMenu.item
+    if (item.file_path) {
+      const folderPath = item.file_path.split(/[\\/]/).slice(0, -1).join('/')
+      if (folderPath) {
+        navigateToFolder(folderPath)
+      }
+      // Convert vault-relative path to absolute path for selection/scroll matching
+      const fullPath = buildFullPath(vaultPath, item.file_path)
+      setSelectedFiles([fullPath])
+      setPendingScrollToFile(fullPath)
+    }
+  }, [refRowContextMenu, vaultPath, navigateToFolder, setSelectedFiles, setPendingScrollToFile])
 
   // Listen for menu events (File > Add Files / Add Folder)
   useEffect(() => {
@@ -1290,6 +1378,9 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     hasPendingMetadataChanges,
     savingConfigsToSW,
     saveConfigsToSWFile,
+    // Drawing reference handlers
+    canHaveDrawingRefs,
+    toggleDrawingRefExpansion,
     // Edit handlers
     handleRename,
     handleSaveCellEdit,
@@ -1302,6 +1393,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     isBeingProcessed, getProcessingOperation, getFolderCheckoutStatus, isFolderSynced, isFileEditable,
     canHaveConfigs, toggleFileConfigExpansion, hasPendingMetadataChanges,
     savingConfigsToSW, saveConfigsToSWFile,
+    canHaveDrawingRefs, toggleDrawingRefExpansion,
     handleRename, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit,
   ])
 
@@ -1490,6 +1582,12 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
             onConfigTabChange={handleConfigTabChange}
             onConfigBomToggle={handleConfigBomToggle}
             onConfigBomRowClick={handleConfigBomRowClick}
+            onDrawingRefRowClick={handleDrawingRefRowClick}
+            onDrawingRefRowContextMenu={handleRefRowContextMenu}
+            onDrawingRefFileToggle={handleDrawingRefFileToggle}
+            onConfigDrawingToggle={handleConfigDrawingToggle}
+            onConfigDrawingRowClick={handleConfigDrawingRowClick}
+            onConfigDrawingRowContextMenu={handleRefRowContextMenu}
             renderCellContent={renderCellContent}
           />
         </table>
@@ -1574,6 +1672,15 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
           />
         )
       })()}
+
+      {/* Drawing ref / config drawing context menu */}
+      {refRowContextMenu && (
+        <RefRowContextMenu
+          refRowContextMenu={refRowContextMenu}
+          onNavigateToFile={handleRefRowNavigateToFile}
+          onClose={() => setRefRowContextMenu(null)}
+        />
+      )}
 
       {/* Column context menu */}
       {columnContextMenu && (
@@ -1663,7 +1770,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
         />
       )}
 
-      {/* Review Request Modal */}
+      {/* Review Request Modal (enhanced with team selection) */}
       {showReviewModal && reviewModalFile && (
         <ReviewRequestModal
           file={reviewModalFile}
@@ -1674,6 +1781,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
           reviewPriority={reviewPriority}
           reviewMessage={reviewMessage}
           isSubmitting={isSubmittingReview}
+          organizationId={organization?.id}
           onToggleReviewer={handleToggleReviewer}
           onDueDateChange={setReviewDueDate}
           onPriorityChange={(priority) => setReviewPriority(priority as 'low' | 'normal' | 'high' | 'urgent')}

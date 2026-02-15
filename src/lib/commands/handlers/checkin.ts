@@ -421,6 +421,153 @@ export const checkinCommand: Command<CheckinParams> = {
       documentManagerAvailable: swServiceStatus.documentManagerAvailable 
     })
     
+    // ========================================
+    // PRE-CHECK: Detect unsaved/locked SolidWorks files BEFORE processing
+    // 
+    // If any files are open in SolidWorks with unsaved changes, prompt the user.
+    // If any files are actively locked (mid-write), hard-error and abort.
+    // This prevents uploading stale or corrupt file content.
+    // ========================================
+    const swFilesToCheckin = filesToCheckin.filter(f => SW_EXTENSIONS.includes(f.extension.toLowerCase()))
+    
+    if (swFilesToCheckin.length > 0 && swServiceStatus.running) {
+      const preCheckStepId = tracker.startStep('Pre-check SW file state')
+      
+      try {
+        const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.({ includeComponents: true })
+        
+        if (openDocsResult?.success && openDocsResult.data?.solidWorksRunning && openDocsResult.data?.documents) {
+          // Build a map of open documents by normalized path
+          const openDocMap = new Map<string, { isDirty: boolean; isReadOnly: boolean; filePath: string }>()
+          for (const doc of openDocsResult.data.documents) {
+            if (doc.filePath) {
+              openDocMap.set(doc.filePath.toLowerCase(), {
+                isDirty: !!doc.isDirty,
+                isReadOnly: !!doc.isReadOnly,
+                filePath: doc.filePath
+              })
+            }
+          }
+          
+          // Cross-reference with files being checked in
+          const dirtyFiles: Array<{ file: LocalFile; docPath: string }> = []
+          
+          for (const file of swFilesToCheckin) {
+            const normalizedPath = file.path.toLowerCase()
+            const openDoc = openDocMap.get(normalizedPath)
+            if (openDoc?.isDirty) {
+              dirtyFiles.push({ file, docPath: openDoc.filePath })
+            }
+          }
+          
+          logCheckin('debug', 'Pre-check: SW file state', {
+            operationId,
+            openDocCount: openDocMap.size,
+            dirtyCount: dirtyFiles.length,
+            dirtyFiles: dirtyFiles.map(d => d.file.name)
+          })
+          
+          // If there are unsaved files, prompt the user
+          if (dirtyFiles.length > 0 && ctx.confirm) {
+            const confirmed = await ctx.confirm({
+              title: 'Unsaved SolidWorks Files',
+              message: 'The following file(s) are open in SolidWorks with unsaved changes. They will be saved before check-in.',
+              items: dirtyFiles.map(d => d.file.name),
+              confirmText: 'Save & Check In',
+            })
+            
+            if (!confirmed) {
+              logCheckin('info', 'User cancelled check-in due to unsaved SW files', { operationId })
+              tracker.endStep(preCheckStepId, 'completed', { cancelled: true })
+              tracker.endOperation('completed')
+              return {
+                success: false,
+                message: 'Check-in cancelled',
+                total: 0,
+                succeeded: 0,
+                failed: 0
+              }
+            }
+            
+            // User confirmed -- save each dirty file via SolidWorks API
+            for (const { file, docPath } of dirtyFiles) {
+              logCheckin('info', 'Saving unsaved SW file before check-in', {
+                operationId,
+                fileName: file.name,
+                docPath
+              })
+              
+              const saveResult = await window.electronAPI?.solidworks?.saveDocument?.(docPath)
+              
+              if (!saveResult?.success) {
+                const errorMsg = saveResult?.error || 'Unknown save error'
+                logCheckin('error', 'Failed to save SW file before check-in', {
+                  operationId,
+                  fileName: file.name,
+                  error: errorMsg
+                })
+                ctx.addToast('error', `Cannot check in \u2014 failed to save ${file.name} in SolidWorks: ${errorMsg}`)
+                tracker.endStep(preCheckStepId, 'completed', { saveFailed: file.name })
+                tracker.endOperation('completed')
+                return {
+                  success: false,
+                  message: `Failed to save ${file.name} in SolidWorks`,
+                  total: 0,
+                  succeeded: 0,
+                  failed: 1,
+                  errors: [`${file.name}: ${errorMsg}`]
+                }
+              }
+              
+              logCheckin('info', 'SW file saved successfully', {
+                operationId,
+                fileName: file.name,
+                saved: saveResult.data?.saved,
+                reason: saveResult.data?.reason
+              })
+            }
+          }
+          
+          // After saving, check if any files are still actively locked (mid-write)
+          // This catches the case where SolidWorks auto-save is in progress
+          for (const file of swFilesToCheckin) {
+            try {
+              const lockCheck = await window.electronAPI?.checkFileLock?.(file.path)
+              if (lockCheck?.locked) {
+                const processName = lockCheck.processName || 'another process'
+                logCheckin('error', 'File is actively locked, aborting check-in', {
+                  operationId,
+                  fileName: file.name,
+                  lockedBy: processName
+                })
+                ctx.addToast('error', `Cannot check in \u2014 ${file.name} is locked by ${processName}. Please wait and try again.`)
+                tracker.endStep(preCheckStepId, 'completed', { locked: file.name, lockedBy: processName })
+                tracker.endOperation('completed')
+                return {
+                  success: false,
+                  message: `${file.name} is locked by ${processName}`,
+                  total: 0,
+                  succeeded: 0,
+                  failed: 1,
+                  errors: [`${file.name}: File is locked by ${processName}`]
+                }
+              }
+            } catch {
+              // Lock check not available - continue without it
+            }
+          }
+        }
+      } catch (err) {
+        // SW pre-check failed - continue without it (non-blocking)
+        logCheckin('warn', 'SW pre-check failed, continuing', {
+          operationId,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+      
+      tracker.endStep(preCheckStepId, 'completed')
+    }
+    
     // Track folders and files being processed (for spinner display)
     // Use synchronous update to ensure spinners render before async work begins
     const foldersBeingProcessed = files
@@ -771,13 +918,18 @@ export const checkinCommand: Command<CheckinParams> = {
             const readResult = await window.electronAPI?.readFile(file.path)
             recordSubstepTiming('readFile', performance.now() - readFileStart)
             if (!readResult?.success || readResult.data === undefined) {
+              // Provide a specific error message if the file is locked
+              const errorDetail = readResult?.locked
+                ? `${file.name}: File is locked by another process \u2014 save your work and try again`
+                : `${file.name}: Failed to read file for upload`
               logCheckin('error', 'Failed to read file for upload', {
                 operationId,
                 fileName: file.name,
-                error: readResult?.error
+                error: readResult?.error,
+                locked: readResult?.locked
               })
               progress.update()
-              return { success: false, error: `${file.name}: Failed to read file for upload` }
+              return { success: false, error: errorDetail }
             }
             
             // Upload to storage

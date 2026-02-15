@@ -1,0 +1,50 @@
+@name Collaboration
+@requires vault
+@timeout 60
+
+// ==========================================================
+// Tests collaboration features:
+//   - Watch / unwatch a file (single-user verification)
+//   - Notify and request-review require a second user
+//     and are documented but skipped unless @requires multi-user
+//
+// Covers checklist: Section 9 — Collaboration
+// ==========================================================
+
+# Create and sync test file
+mkdir _data/collab-test
+touch _data/collab-test/shared.txt
+wait 1000
+sync _data/collab-test/shared.txt
+wait 3000
+assert _data/collab-test/shared.txt --status=synced
+
+# Watch file — should succeed without error
+watch _data/collab-test/shared.txt
+wait 2000
+
+# Unwatch file — should succeed without error
+unwatch _data/collab-test/shared.txt
+wait 2000
+
+// -------------------------------------------------------
+// Multi-user tests (skipped in single-user mode):
+//
+// The following commands require a second user account
+// (@requires multi-user). They are documented here as
+// comments so the test structure is clear for future
+// expansion. To run them, create a separate .bptest file
+// with @requires multi-user.
+//
+// notify _data/collab-test/shared.txt second-user@example.com --message="Please check this"
+// request-review _data/collab-test/shared.txt second-user@example.com --message="Ready for review"
+//
+// Assertions would verify:
+//   - Notification sent successfully (check terminal output)
+//   - Review request created (check terminal output)
+//   - Second user sees checkout blocked (requires @requires multi-user)
+// -------------------------------------------------------
+
+# Teardown
+delete _data/collab-test
+wait 2000

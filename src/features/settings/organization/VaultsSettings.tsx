@@ -26,6 +26,7 @@ import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
 import { supabase, getAccessibleVaults } from '@/lib/supabase'
 import { subscribeToVaults } from '@/lib/realtime'
 import { log } from '@/lib/logger'
+import { executeCommand } from '@/lib/commands'
 import { VaultSetupDialog, type VaultSyncStats } from '@/components/shared/Dialogs'
 import { calculateVaultSyncStats } from '@/lib/vaultHealthCheck'
 
@@ -1018,7 +1019,27 @@ export function VaultsSettings() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setAutoDiscardOrphanedFiles(!autoDiscardOrphanedFiles)}
+                  onClick={async () => {
+                    const enablingNow = !autoDiscardOrphanedFiles
+                    setAutoDiscardOrphanedFiles(enablingNow)
+
+                    // When toggling ON, immediately discard any already-orphaned files
+                    if (enablingNow) {
+                      const orphanedFiles = usePDMStore.getState().files.filter(
+                        f => !f.isDirectory && f.diffStatus === 'deleted_remote'
+                      )
+                      if (orphanedFiles.length > 0) {
+                        try {
+                          const result = await executeCommand('discard-orphaned', { files: orphanedFiles })
+                          if (result.succeeded > 0) {
+                            addToast('info', `Auto-discarded ${result.succeeded} orphaned file${result.succeeded > 1 ? 's' : ''}`)
+                          }
+                        } catch (err) {
+                          log.error('[AutoDiscard]', 'Failed to discard existing orphaned files', { error: err })
+                        }
+                      }
+                    }
+                  }}
                   className="text-plm-accent"
                 >
                   {autoDiscardOrphanedFiles ? (

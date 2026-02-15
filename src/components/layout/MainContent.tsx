@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, FileSearch } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useLoadFiles, useVaultManagement } from '@/hooks'
 import { SettingsContent } from '@/features/settings'
@@ -12,6 +12,7 @@ const FilePane = lazy(() => import('@/features/source/browser').then(m => ({ def
 const DetailsPanel = lazy(() => import('@/features/source/details').then(m => ({ default: m.DetailsPanel })))
 const GoogleDrivePanel = lazy(() => import('@/features/integrations/google-drive').then(m => ({ default: m.GoogleDrivePanel })))
 const WorkflowsView = lazy(() => import('@/features/source/workflows/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
+const ReviewPreviewPane = lazy(() => import('@/features/source/reviews').then(m => ({ default: m.ReviewPreviewPane })))
 
 // Loading fallback for lazy-loaded components
 function ContentLoading() {
@@ -51,6 +52,7 @@ export function MainContent({
 }: MainContentProps) {
   // Get settingsTab from store
   const settingsTab = usePDMStore(s => s.settingsTab)
+  const reviewPreviewFile = usePDMStore(s => s.reviewPreviewFile)
   
   // Call hooks directly instead of receiving as props
   const { loadFiles, refreshCurrentFolder } = useLoadFiles()
@@ -58,8 +60,8 @@ export function MainContent({
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden min-w-0 ${isResizingSidebar || isResizingRightPanel ? 'pointer-events-none' : ''}`}>
-      {/* Tab bar (browser-like tabs) - shown when FilePane is visible (not settings, google-drive, or workflows) */}
-      {!showWelcome && !['settings', 'google-drive', 'workflows'].includes(activeView) && <TabBar />}
+      {/* Tab bar (browser-like tabs) - shown when FilePane is visible (not settings, google-drive, workflows, or reviews) */}
+      {!showWelcome && !['settings', 'google-drive', 'workflows', 'reviews'].includes(activeView) && <TabBar />}
       
       {showWelcome ? (
         <WelcomeScreen 
@@ -79,6 +81,15 @@ export function MainContent({
         <Suspense fallback={<ContentLoading />}>
           <WorkflowsView />
         </Suspense>
+      ) : activeView === 'reviews' ? (
+        /* Reviews View - full-screen PDF preview or empty state */
+        reviewPreviewFile ? (
+          <Suspense fallback={<ContentLoading />}>
+            <ReviewPreviewPane />
+          </Suspense>
+        ) : (
+          <ReviewEmptyState />
+        )
       ) : (
         <>
           {/* File Pane (lazy loaded) */}
@@ -102,6 +113,21 @@ export function MainContent({
           )}
         </>
       )}
+    </div>
+  )
+}
+
+/** Placeholder shown in the main content area when no review item is selected */
+function ReviewEmptyState() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center bg-plm-bg text-center px-6">
+      <div className="w-16 h-16 rounded-full bg-plm-accent/10 flex items-center justify-center mb-4">
+        <FileSearch size={28} className="text-plm-accent" />
+      </div>
+      <p className="text-sm font-medium text-plm-fg">Select a review item to view</p>
+      <p className="text-xs text-plm-fg-muted mt-1.5 max-w-[260px]">
+        Double-click a file in the reviews panel to preview it here with annotations and comments
+      </p>
     </div>
   )
 }

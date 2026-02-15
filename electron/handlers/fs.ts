@@ -7,7 +7,7 @@ import { pipeline } from 'stream/promises'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { recordSolidWorksFileOpen } from './solidworks'
+import { recordSolidWorksFileOpen, findLockingProcessViaService } from './solidworks'
 
 const execAsync = promisify(exec)
 
@@ -25,29 +25,8 @@ const hashCache = new Map<string, { size: number; mtime: number; hash: string }>
 // Track delete operations for debugging
 let deleteOperationCounter = 0
 
-// Cache for handle.exe availability (checked once at startup to avoid slow timeouts)
-let handleExeAvailable: boolean | null = null
-let handleExePath: string | null = null
-
-// Check handle.exe availability once at startup
-async function checkHandleExeAvailability(): Promise<void> {
-  if (handleExeAvailable !== null) return // Already checked
-  
-  for (const exe of ['handle64.exe', 'handle.exe']) {
-    try {
-      // Quick check with very short timeout - just see if command exists
-      await execAsync(`where ${exe}`, { timeout: 1000 })
-      handleExeAvailable = true
-      handleExePath = exe
-      log(`[LockDetect] Found Sysinternals ${exe} - will use for process detection`)
-      return
-    } catch {
-      // Not found in PATH, try next
-    }
-  }
-  handleExeAvailable = false
-  log(`[LockDetect] Sysinternals handle.exe not found - process detection will be limited`)
-}
+// Lock detection now uses the Restart Manager API via the SolidWorks .NET service
+// instead of requiring Sysinternals handle.exe to be installed separately.
 
 // External log function reference (will be set during registration)
 let log: (message: string, data?: unknown) => void = console.log
@@ -186,9 +165,9 @@ function getAllFilesInDir(dirPath: string, _baseFolder: string): Array<{ name: s
   return files
 }
 
-// Try to find what process has a file locked using Windows commands
+// Try to find what process has a file locked
 // Returns the process name if known, or "Unknown" if the file is locked but process can't be determined
-// OPTIMIZED: Fast checks first, slow handle.exe check only if available (cached at startup)
+// Priority: 1) SolidWorks temp files (instant), 2) O_RDWR test (instant), 3) Restart Manager API via .NET service
 async function findLockingProcess(filePath: string): Promise<string | null> {
   try {
     // FAST CHECK 1: SolidWorks temp files (~$filename) - instant, reliable indicator
@@ -212,21 +191,15 @@ async function findLockingProcess(filePath: string): Promise<string | null> {
       // File is locked, continue to try to identify process
     }
     
-    // SLOW CHECK: Only try handle.exe if we know it's available (checked at startup)
-    if (handleExeAvailable && handleExePath) {
-      const fileName = path.basename(filePath)
-      try {
-        const { stdout } = await execAsync(`${handleExePath} -accepteula "${fileName}" 2>nul`, { timeout: 500 })
-        if (stdout && stdout.trim() && !stdout.includes('No matching handles found')) {
-          // Parse handle.exe output to extract process name
-          const processMatch = stdout.match(/^(\w+\.exe)\s+pid:/im)
-          if (processMatch) {
-            return processMatch[1]
-          }
-        }
-      } catch {
-        // Timeout or error - just return Unknown
+    // PROCESS IDENTIFICATION: Use Restart Manager API via the .NET service
+    // This replaces the previous handle.exe dependency (which required separate installation)
+    try {
+      const processName = await findLockingProcessViaService(filePath)
+      if (processName) {
+        return processName
       }
+    } catch {
+      // Service not available - fall through to Unknown
     }
     
     return 'Unknown'  // File is locked but we can't determine the process
@@ -399,10 +372,6 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   thumbnailsInProgress = deps.thumbnailsInProgress
   restoreMainWindowFocus = deps.restoreMainWindowFocus
   
-  // Check handle.exe availability once at startup (async, non-blocking)
-  checkHandleExeAvailability().catch(() => {
-    // Ignore errors, handleExeAvailable will remain false
-  })
 
   // Working directory handlers
   ipcMain.handle('working-dir:select', async () => {
@@ -470,6 +439,20 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   // use 'fs:hash-file' which uses streaming and is more memory-efficient.
   ipcMain.handle('fs:read-file', async (_, filePath: string) => {
     try {
+      // Safety net: check if file is locked before reading
+      // This prevents reading a partial/corrupt file while SolidWorks (or another process) is writing
+      try {
+        const fd = fs.openSync(filePath, fs.constants.O_RDWR)
+        fs.closeSync(fd)
+      } catch (lockErr: unknown) {
+        const lockNodeErr = lockErr as NodeJS.ErrnoException
+        if (lockNodeErr.code === 'EBUSY' || lockNodeErr.code === 'EACCES' || lockNodeErr.code === 'EPERM') {
+          log(`[ReadFile] File is locked, refusing to read: ${filePath} (${lockNodeErr.code})`)
+          return { success: false, error: `File is locked by another process (${lockNodeErr.code})`, locked: true }
+        }
+        // Other errors (e.g., ENOENT) fall through to the normal read which will report them
+      }
+      
       const data = fs.readFileSync(filePath)
       const hash = crypto.createHash('sha256').update(data).digest('hex')
       return { 
@@ -478,6 +461,20 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
         size: data.length,
         hash 
       }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  })
+
+  // Check if a file is locked by another process
+  // Used before check-in to detect if SolidWorks (or another process) is actively writing
+  ipcMain.handle('fs:check-file-lock', async (_, filePath: string) => {
+    try {
+      const lockingProcess = await findLockingProcess(filePath)
+      if (lockingProcess) {
+        return { success: true, locked: true, processName: lockingProcess }
+      }
+      return { success: true, locked: false }
     } catch (err) {
       return { success: false, error: String(err) }
     }
@@ -2277,6 +2274,156 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   })
 }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // TEST FRAMEWORK SUPPORT HANDLERS
+  // These handlers support the self-test regression framework by providing
+  // file inspection, hashing, and test script discovery capabilities.
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Compute a cryptographic hash of a file.
+   * Uses streaming to handle large files without loading them entirely into memory.
+   * 
+   * @param filePath - Absolute path to the file
+   * @param algorithm - Hash algorithm to use (default: 'sha256')
+   * @returns Object with success status, hex hash string, algorithm used, or error
+   */
+  ipcMain.handle('fs:get-file-hash', async (_, filePath: string, algorithm?: string) => {
+    const algo = algorithm || 'sha256'
+    try {
+      if (!filePath) {
+        return { success: false, hash: '', algorithm: algo, error: 'Missing file path' }
+      }
+      
+      if (!fs.existsSync(filePath)) {
+        return { success: false, hash: '', algorithm: algo, error: 'File not found' }
+      }
+      
+      const stats = fs.statSync(filePath)
+      if (stats.isDirectory()) {
+        return { success: false, hash: '', algorithm: algo, error: 'Path is a directory, not a file' }
+      }
+      
+      const { hash } = await hashFileAsync(filePath)
+      // hashFileAsync always uses sha256; for other algorithms, recompute
+      if (algo !== 'sha256') {
+        const fileHash = crypto.createHash(algo)
+        const stream = fs.createReadStream(filePath, { highWaterMark: 64 * 1024 })
+        
+        return new Promise<{ success: boolean; hash: string; algorithm: string; error?: string }>((resolve) => {
+          stream.on('data', (chunk: Buffer) => {
+            fileHash.update(chunk)
+          })
+          stream.on('end', () => {
+            resolve({ success: true, hash: fileHash.digest('hex'), algorithm: algo })
+          })
+          stream.on('error', (err) => {
+            resolve({ success: false, hash: '', algorithm: algo, error: `Hash computation failed: ${err.message}` })
+          })
+        })
+      }
+      
+      return { success: true, hash, algorithm: algo }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      logError('Failed to compute file hash', { filePath, algorithm: algo, error: errMsg })
+      return { success: false, hash: '', algorithm: algo, error: errMsg }
+    }
+  })
+
+  /**
+   * List all .bptest files in a folder (recursively).
+   * Used by the self-test framework to discover test scripts.
+   * 
+   * @param folderPath - Absolute path to the folder to scan
+   * @returns Object with success status, array of absolute file paths, or error
+   */
+  ipcMain.handle('fs:list-test-scripts', async (_, folderPath: string) => {
+    try {
+      if (!folderPath) {
+        return { success: false, files: [], error: 'Missing folder path' }
+      }
+      
+      if (!fs.existsSync(folderPath)) {
+        return { success: false, files: [], error: 'Folder not found' }
+      }
+      
+      const stats = fs.statSync(folderPath)
+      if (!stats.isDirectory()) {
+        return { success: false, files: [], error: 'Path is not a directory' }
+      }
+      
+      const testFiles: string[] = []
+      
+      function scanDir(dir: string): void {
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true })
+          for (const entry of entries) {
+            // Skip hidden files/folders and common non-test directories
+            if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+            
+            const fullPath = path.join(dir, entry.name)
+            if (entry.isDirectory()) {
+              scanDir(fullPath)
+            } else if (entry.name.endsWith('.bptest')) {
+              testFiles.push(fullPath)
+            }
+          }
+        } catch (err) {
+          logWarn('Error scanning directory for test scripts', { dir, error: String(err) })
+        }
+      }
+      
+      scanDir(folderPath)
+      
+      // Sort alphabetically for deterministic output
+      testFiles.sort((a, b) => a.localeCompare(b))
+      
+      return { success: true, files: testFiles }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      logError('Failed to list test scripts', { folderPath, error: errMsg })
+      return { success: false, files: [], error: errMsg }
+    }
+  })
+
+  /**
+   * Read a file as UTF-8 text (no base64 encoding).
+   * Used for reading test scripts and other text-based configuration files.
+   * 
+   * @param filePath - Absolute path to the file
+   * @returns Object with success status, UTF-8 text content, or error
+   */
+  ipcMain.handle('fs:read-text-file', async (_, filePath: string) => {
+    try {
+      if (!filePath) {
+        return { success: false, content: '', error: 'Missing file path' }
+      }
+      
+      if (!fs.existsSync(filePath)) {
+        return { success: false, content: '', error: 'File not found' }
+      }
+      
+      const stats = fs.statSync(filePath)
+      if (stats.isDirectory()) {
+        return { success: false, content: '', error: 'Path is a directory, not a file' }
+      }
+      
+      // Guard against excessively large text files (50 MB limit)
+      const MAX_TEXT_SIZE = 50 * 1024 * 1024
+      if (stats.size > MAX_TEXT_SIZE) {
+        return { success: false, content: '', error: `File too large for text reading (${Math.round(stats.size / 1024 / 1024)}MB, limit is 50MB)` }
+      }
+      
+      const content = fs.readFileSync(filePath, 'utf-8')
+      return { success: true, content }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      logError('Failed to read text file', { filePath, error: errMsg })
+      return { success: false, content: '', error: errMsg }
+    }
+  })
+
 export function unregisterFsHandlers(): void {
   const handlers = [
     'working-dir:select', 'working-dir:get', 'working-dir:clear', 'working-dir:set', 'working-dir:create',
@@ -2284,7 +2431,8 @@ export function unregisterFsHandlers(): void {
     'fs:list-dir-files', 'fs:list-working-files', 'fs:compute-file-hashes',
     'fs:create-folder', 'fs:is-dir-empty', 'fs:is-directory', 'fs:delete', 'fs:delete-batch', 'fs:trash-batch',
     'fs:rename', 'fs:copy-file', 'fs:move-file',
-    'fs:open-in-explorer', 'fs:open-file', 'fs:set-readonly', 'fs:is-readonly', 'fs:set-readonly-batch'
+    'fs:open-in-explorer', 'fs:open-file', 'fs:set-readonly', 'fs:is-readonly', 'fs:set-readonly-batch',
+    'fs:get-file-hash', 'fs:list-test-scripts', 'fs:read-text-file'
   ]
   
   for (const handler of handlers) {

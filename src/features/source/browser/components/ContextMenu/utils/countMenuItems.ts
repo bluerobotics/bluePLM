@@ -257,6 +257,9 @@ export function countCollaborationActions(props: MenuItemCountProps): number {
   // Request Review - for synced files
   if (!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id) count++
   
+  // View Reviews - for synced files (same condition as Request Review)
+  if (!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id) count++
+  
   // Request Checkout - for files checked out by others
   if (!multiSelect && !isFolder && state.isSynced && 
       firstFile.pdmData?.checked_out_by && firstFile.pdmData.checked_out_by !== userId) count++

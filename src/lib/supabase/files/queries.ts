@@ -432,6 +432,155 @@ export async function getContainsByConfiguration(
   return { items, error: null }
 }
 
+/**
+ * Drawing reference item for drawing-related expand/collapse dropdowns.
+ * Represents a drawing file that references a given part/assembly configuration.
+ */
+export interface DrawingRefItem {
+  id: string
+  file_id: string
+  file_name: string
+  file_path: string
+  file_type: 'part' | 'assembly' | 'drawing' | 'other'
+  part_number: string | null
+  description: string | null
+  revision: string | null
+  state: string | null
+  configuration: string | null
+  in_database: boolean
+}
+
+/**
+ * Get drawings (.slddrw) that reference a specific file, optionally filtered by configuration.
+ * 
+ * This queries `file_references` where `child_file_id = fileId` and the parent file
+ * is a drawing (.slddrw). This is the inverse of `getContainsByConfiguration` — instead
+ * of finding what an assembly contains, it finds which drawings reference a given
+ * part or assembly.
+ * 
+ * @param fileId - The file ID of the part/assembly to find referencing drawings for
+ * @param configName - Configuration name to filter by, or null for all configurations
+ * @returns Array of DrawingRefItem objects representing the referencing drawings
+ */
+export async function getDrawingsForFileConfig(
+  fileId: string,
+  configName: string | null
+): Promise<{ items: DrawingRefItem[]; error: string | null }> {
+  const client = getSupabaseClient()
+  
+  let query = client
+    .from('file_references')
+    .select(`
+      id,
+      parent_file_id,
+      configuration,
+      parent:files!parent_file_id(
+        id, file_name, file_path, file_type, part_number, revision, state, description
+      )
+    `)
+    .eq('child_file_id', fileId)
+  
+  // Filter by configuration if specified
+  if (configName !== null) {
+    query = query.eq('configuration', configName)
+  }
+  
+  const { data, error } = await query.order('parent(file_name)', { ascending: true })
+  
+  if (error) {
+    log.error('[Files]', 'Failed to fetch drawings for file config', {
+      error: error.message,
+      fileId,
+      configName
+    })
+    return { items: [], error: error.message }
+  }
+  
+  // Transform to DrawingRefItem format, filtering to only drawing parents
+  const items: DrawingRefItem[] = []
+  
+  for (const ref of data || []) {
+    const parent = ref.parent as {
+      id: string
+      file_name: string
+      file_path: string
+      file_type: string | null
+      part_number: string | null
+      revision: string | null
+      state: string | null
+      description: string | null
+    } | null
+    
+    // Only include drawing files (.slddrw)
+    if (!parent?.file_name?.toLowerCase().endsWith('.slddrw')) {
+      continue
+    }
+    
+    items.push({
+      id: ref.id,
+      file_id: parent.id,
+      file_name: parent.file_name,
+      file_path: parent.file_path,
+      file_type: 'drawing',
+      part_number: parent.part_number,
+      description: parent.description,
+      revision: parent.revision,
+      state: parent.state,
+      configuration: ref.configuration,
+      in_database: true
+    })
+  }
+  
+  return { items, error: null }
+}
+
+/**
+ * Get all child references for a drawing file, with configuration info.
+ * Used to enrich DrawingRefRow data with which configurations of each
+ * referenced part/assembly the drawing uses.
+ * 
+ * Returns a map of child file_path -> array of configuration names.
+ */
+export async function getReferencesForDrawing(
+  drawingFileId: string
+): Promise<{ configsByPath: Map<string, string[]>; error: string | null }> {
+  const client = getSupabaseClient()
+  
+  const { data, error } = await client
+    .from('file_references')
+    .select(`
+      configuration,
+      child:files!child_file_id(
+        file_path
+      )
+    `)
+    .eq('parent_file_id', drawingFileId)
+  
+  if (error) {
+    log.error('[Files]', 'Failed to fetch references for drawing', {
+      error: error.message,
+      drawingFileId
+    })
+    return { configsByPath: new Map(), error: error.message }
+  }
+  
+  // Group configurations by child file path
+  const configsByPath = new Map<string, string[]>()
+  
+  for (const ref of data || []) {
+    const child = ref.child as { file_path: string } | null
+    if (!child?.file_path || !ref.configuration) continue
+    
+    const existing = configsByPath.get(child.file_path) || []
+    if (!existing.includes(ref.configuration)) {
+      existing.push(ref.configuration)
+    }
+    configsByPath.set(child.file_path, existing)
+  }
+  
+  return { configsByPath, error: null }
+}
+
 // ============================================
 // Recursive BOM Tree Types and Functions
 // ============================================

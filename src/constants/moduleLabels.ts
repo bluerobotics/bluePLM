@@ -12,6 +12,7 @@ export const MODULE_LABELS: Record<SidebarView, string> = {
   'pending': 'Pending Changes',
   'history': 'History',
   'workflows': 'File Workflows',
+  'reviews': 'Reviews',
   'trash': 'Trash',
   // Items
   'items': 'Item Browser',

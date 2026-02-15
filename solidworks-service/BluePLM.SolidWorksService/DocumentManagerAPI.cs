@@ -1305,6 +1305,8 @@ namespace BluePLM.SolidWorksService
 
                 dynamic dynDoc = doc;
                 int propsSet = 0;
+                int propsFailed = 0;
+                var failedProps = new List<string>();
                 
                 // Get the SwDmCustomInfoType enum type for proper COM interop
                 // Using int directly fails with "invalid arguments" when adding new properties
@@ -1338,6 +1340,8 @@ namespace BluePLM.SolidWorksService
                         }
                         catch (Exception ex)
                         {
+                            propsFailed++;
+                            failedProps.Add(kvp.Key);
                             Console.Error.WriteLine($"[DM] Failed to set file property '{kvp.Key}': {ex.Message}");
                         }
                     }
@@ -1377,6 +1381,8 @@ namespace BluePLM.SolidWorksService
                         }
                         catch (Exception ex)
                         {
+                            propsFailed++;
+                            failedProps.Add(kvp.Key);
                             Console.Error.WriteLine($"[DM] Failed to set config property '{kvp.Key}': {ex.Message}");
                         }
                     }
@@ -1398,6 +1404,17 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
+                // If ALL property writes failed, report failure so the SW API fallback is triggered
+                if (propsSet == 0 && propsFailed > 0)
+                {
+                    Console.Error.WriteLine($"[DM-API] All {propsFailed} property writes failed for {filePath}: {string.Join(", ", failedProps)}");
+                    return new CommandResult 
+                    { 
+                        Success = false, 
+                        Error = $"Failed to write all {propsFailed} properties via Document Manager: {string.Join(", ", failedProps)}" 
+                    };
+                }
+
                 // Save the document
                 dynDoc.Save();
 
@@ -1408,6 +1425,8 @@ namespace BluePLM.SolidWorksService
                     {
                         filePath,
                         propertiesSet = propsSet,
+                        propertiesFailed = propsFailed,
+                        failedProperties = failedProps.Count > 0 ? failedProps : null,
                         configuration = configuration ?? "file-level"
                     }
                 };
@@ -1489,8 +1508,11 @@ namespace BluePLM.SolidWorksService
                 var swDmCustomInfoTextEnum = customInfoType != null ? Enum.ToObject(customInfoType, 2) : (object)2;
                 
                 int totalPropsSet = 0;
+                int totalPropsFailed = 0;
+                int totalPropsAttempted = 0;
                 int configsProcessed = 0;
                 var errors = new List<string>();
+                var failedProps = new List<string>();
                 
                 // Track the last Number value written (for file-level backup)
                 string? lastNumberValue = null;
@@ -1516,6 +1538,7 @@ namespace BluePLM.SolidWorksService
                         int propsSetForConfig = 0;
                         foreach (var kvp in properties)
                         {
+                            totalPropsAttempted++;
                             try
                             {
                                 try { config.DeleteCustomProperty(kvp.Key); } catch { }
@@ -1540,7 +1563,12 @@ namespace BluePLM.SolidWorksService
                                         lastNumberValue = kvp.Value;
                                     }
                                 } 
-                                catch { }
+                                catch (Exception ex)
+                                {
+                                    totalPropsFailed++;
+                                    failedProps.Add($"{configName}:{kvp.Key}");
+                                    Console.Error.WriteLine($"[DM] Failed to set property '{kvp.Key}' on config '{configName}': {ex.Message}");
+                                }
                             }
                         }
                         
@@ -1570,6 +1598,17 @@ namespace BluePLM.SolidWorksService
                     }
                 }
 
+                // If ALL property writes failed, report failure so the SW API fallback is triggered
+                if (totalPropsSet == 0 && totalPropsFailed > 0)
+                {
+                    Console.Error.WriteLine($"[DM-API] All {totalPropsFailed} property writes failed in batch for {filePath}: {string.Join(", ", failedProps)}");
+                    return new CommandResult 
+                    { 
+                        Success = false, 
+                        Error = $"Failed to write all {totalPropsFailed} properties via Document Manager: {string.Join(", ", failedProps)}" 
+                    };
+                }
+
                 // Save the document ONCE after all writes
                 Console.Error.WriteLine($"[DM] Saving document...");
                 dynDoc.Save();
@@ -1583,6 +1622,8 @@ namespace BluePLM.SolidWorksService
                         filePath,
                         configurationsProcessed = configsProcessed,
                         propertiesSet = totalPropsSet,
+                        propertiesFailed = totalPropsFailed,
+                        failedProperties = failedProps.Count > 0 ? failedProps : null,
                         errors = errors.Count > 0 ? errors : null
                     }
                 };

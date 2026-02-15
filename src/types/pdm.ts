@@ -610,6 +610,9 @@ export interface OrgSettings {
   api_url?: string  // External API server URL for ERP integrations
   // Export settings (org-wide)
   export_settings?: ExportSettings
+  // Revision policy (org-wide)
+  /** When false, .sldprt/.sldasm files cannot have file-level revisions (config revisions from drawings still apply). Default: false */
+  allow_file_level_revision_for_models?: boolean
 }
 
 /**

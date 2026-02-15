@@ -1,0 +1,73 @@
+@name SolidWorks Metadata
+@requires vault sw
+@timeout 60
+
+// ==========================================================
+// SolidWorks-specific metadata tests.
+//
+// These tests require:
+//   1. SolidWorks installed and service running (@requires sw)
+//   2. Actual .SLDPRT / .SLDASM / .SLDDRW test files
+//
+// PLACEHOLDER — the actual test files must be provided
+// by copying SW files into the test folder. This script
+// documents the expected flows for manual reference and
+// future automation once test fixture files are available.
+//
+// Covers checklist: Section 4 — SolidWorks Metadata
+// ==========================================================
+
+// ---------------------------------------------------------
+// Required test fixture files (not auto-created):
+//   _data/sw-test/sample-part.SLDPRT
+//   _data/sw-test/sample-asm.SLDASM
+//   _data/sw-test/sample-drw.SLDDRW
+//
+// To use this script:
+//   1. Place the SW files in the test folder before running
+//   2. Or modify these paths to point to existing vault files
+// ---------------------------------------------------------
+
+# Setup
+mkdir _data/sw-test
+wait 1000
+
+// ---------------------------------------------------------
+// Test: sync-metadata reads custom properties from SW file
+//
+// Expected flow:
+//   sync _data/sw-test/sample-part.SLDPRT
+//   wait 3000
+//   sync-metadata _data/sw-test/sample-part.SLDPRT
+//   wait 3000
+//   assert _data/sw-test/sample-part.SLDPRT --status=synced
+//   // Part number, description, revision should be populated
+//   // from the SW file's custom properties
+// ---------------------------------------------------------
+
+// ---------------------------------------------------------
+// Test: extract-references on an assembly
+//
+// Expected flow:
+//   sync _data/sw-test/sample-asm.SLDASM
+//   wait 3000
+//   // extract-references would read the assembly's
+//   // component references via Document Manager API
+// ---------------------------------------------------------
+
+// ---------------------------------------------------------
+// Test: set-metadata writes back to SW file
+//
+// Expected flow:
+//   checkout _data/sw-test/sample-part.SLDPRT
+//   wait 2000
+//   set-metadata _data/sw-test/sample-part.SLDPRT --part="SW-001" --desc="SW Test Part"
+//   checkin _data/sw-test/sample-part.SLDPRT
+//   wait 3000
+//   // Open in SW to verify properties match
+// ---------------------------------------------------------
+
+# Teardown
+// Only delete if the folder was created
+delete _data/sw-test
+wait 2000

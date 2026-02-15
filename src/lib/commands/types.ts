@@ -38,6 +38,14 @@ export interface CommandContext {
   // All files in the vault (for folder operations)
   files: LocalFile[]
   
+  // Confirmation dialog (async - resolves when user clicks confirm/cancel)
+  confirm?: (opts: {
+    title: string
+    message: string
+    items?: string[]       // file names to list in a scrollable container
+    confirmText?: string   // default "Continue"
+  }) => Promise<boolean>
+  
   // Toast notifications
   addToast: (type: ToastType, message: string, duration?: number) => void
   addProgressToast: (id: string, message: string, total: number) => void

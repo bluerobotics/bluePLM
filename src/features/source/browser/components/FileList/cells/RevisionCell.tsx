@@ -7,6 +7,10 @@
  * 
  * NOTE: Drawing files (.slddrw) can have their revision locked via settings because
  * it typically comes from the drawing's revision table, not from editable properties.
+ * 
+ * NOTE: Part/assembly files (.sldprt/.sldasm) can have file-level revision locked
+ * via the org-wide allow_file_level_revision_for_models setting. When disabled,
+ * revisions are only controlled from drawings via configuration_revisions.
  */
 import { ArrowLeft, FileText } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -20,15 +24,24 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
   // Handlers from FilePaneHandlersContext
   const { isFileEditable, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit } = useFilePaneHandlers()
   
-  // Drawing lockout setting
+  // Drawing lockout setting (per-user)
   const lockDrawingRevision = usePDMStore(s => s.lockDrawingRevision)
+  
+  // Org-wide: parts/assemblies file-level revision lockout
+  const allowModelRevision = usePDMStore(s => s.organization?.settings?.allow_file_level_revision_for_models)
   
   if (file.isDirectory) return ''
   
   // Drawing files can have their revision locked via settings
-  const isDrawing = file.extension?.toLowerCase() === '.slddrw'
+  const ext = file.extension?.toLowerCase()
+  const isDrawing = ext === '.slddrw'
   const isDrawingLocked = isDrawing && lockDrawingRevision
-  const canEditRevision = isFileEditable(file) && !isDrawingLocked
+  
+  // Part/assembly files: file-level revision locked unless org allows it
+  const isModel = ext === '.sldprt' || ext === '.sldasm'
+  const isModelLocked = isModel && !allowModelRevision
+  
+  const canEditRevision = isFileEditable(file) && !isDrawingLocked && !isModelLocked
   const isEditingRevision = editingCell?.path === file.path && editingCell?.column === 'revision'
   
   if (isEditingRevision && canEditRevision) {
@@ -56,16 +69,20 @@ export function RevisionCell({ file }: CellRendererBaseProps): React.ReactNode {
     )
   }
   
-  // Prioritize pendingMetadata over pdmData - pending edits should always show
-  // Display '-' if no revision is set (empty string in database)
-  const rawRevision = file.pendingMetadata?.revision !== undefined 
-    ? file.pendingMetadata.revision 
-    : (file.pdmData?.revision || '')
+  // When model revision is controlled at config level, hide file-level display entirely.
+  // Config-level rows (ConfigRow) read from configuration_revisions independently.
+  // For all other files, prioritize pendingMetadata over pdmData.
+  const rawRevision = isModelLocked
+    ? ''
+    : (file.pendingMetadata?.revision !== undefined 
+        ? file.pendingMetadata.revision 
+        : (file.pdmData?.revision || ''))
   const displayValue = rawRevision || '-'
   
   // Determine appropriate tooltip message
   const getTooltip = () => {
     if (isDrawingLocked) return 'Drawing revision is driven by the drawing file'
+    if (isModelLocked) return 'Revision is controlled from drawings (org policy)'
     if (canEditRevision) return 'Click to edit'
     return 'Check out file to edit'
   }
