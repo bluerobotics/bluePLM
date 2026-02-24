@@ -15,7 +15,6 @@ const DeviationsView = lazy(() => import('@/features/change-control/deviations')
 const ProductsView = lazy(() => import('@/features/items/products').then(m => ({ default: m.ProductsView })))
 const ProcessView = lazy(() => import('@/features/change-control/process').then(m => ({ default: m.ProcessView })))
 const ScheduleView = lazy(() => import('@/features/change-control/schedule').then(m => ({ default: m.ScheduleView })))
-const NotificationsView = lazy(() => import('@/features/notifications').then(m => ({ default: m.NotificationsView })))
 const SuppliersView = lazy(() => import('@/features/supply-chain/suppliers').then(m => ({ default: m.SuppliersView })))
 const SupplierPortalView = lazy(() => import('@/features/supply-chain/portal').then(m => ({ default: m.SupplierPortalView })))
 const SettingsContent = lazy(() => import('@/features/settings').then(m => ({ default: m.SettingsContent })))
@@ -158,12 +157,6 @@ export function TabWindow({ view, title }: TabWindowProps) {
         return (
           <Suspense fallback={<ViewLoading />}>
             <ScheduleView />
-          </Suspense>
-        )
-      case 'notifications':
-        return (
-          <Suspense fallback={<ViewLoading />}>
-            <NotificationsView />
           </Suspense>
         )
       case 'supplier-database':

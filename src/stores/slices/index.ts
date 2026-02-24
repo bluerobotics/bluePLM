@@ -16,7 +16,7 @@ export { createECOsSlice } from './ecosSlice'
 export { createOrganizationMetadataSlice } from './organizationMetadataSlice'
 export { createIntegrationsSlice } from './integrationsSlice'
 export { createExtensionsSlice } from './extensionsSlice'
-export { createNotificationPrefsSlice } from './notificationPrefsSlice'
+
 export { createOperationLogSlice } from './operationLogSlice'
 export type { OperationLogSlice, FileOperation, OperationStep, FileOperationType, OperationStatus } from './operationLogSlice'
 export { createAnnotationsSlice } from './annotationsSlice'

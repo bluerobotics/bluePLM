@@ -16,7 +16,6 @@ export const moduleTranslationKeys: Record<ModuleId, string> = {
   // Change Control
   'ecr': 'sidebar.ecr',
   'eco': 'sidebar.eco',
-  'notifications': 'sidebar.notifications',
   'deviations': 'sidebar.deviations',
   'release-schedule': 'sidebar.releaseSchedule',
   'process': 'sidebar.process',

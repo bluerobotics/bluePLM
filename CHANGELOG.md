@@ -7,6 +7,9 @@ All notable changes to BluePLM will be documented in this file.
 ### Added
 - **Copy-paste preserves version history**: Pasting files that have multiple versions now carries the full version history to the copy. Pasted files show their inherited version count (e.g., "4/-") before first check-in. On first check-in, all historical version records are copied from the source file so the new file starts with the same version history rather than resetting to version 1
 
+### Removed
+- **Notifications system**: Removed the entire notifications module (UI, state, preferences, realtime subscriptions, urgent notification modal). The system was unused bloat. The Bell icon and red badge are now repurposed for Reviews, which shows the pending review count. Functions previously co-located in `notifications.ts` (file watchers, share links, ECO helpers, review CRUD) were relocated to dedicated files
+
 ### Improved
 - **Sync performance logging for RCA**: Each step of `syncFile` now logs its individual duration -- storage check, storage upload (with computed upload speed in KB/s), DB check, DB insert/update, and version history copy. A single end-to-end `[syncFile] Sync complete` summary line is emitted at INFO level with all step timings, upload speed, and file size, enabling root cause analysis of slow syncs directly from logs without manual timestamp diffing
 

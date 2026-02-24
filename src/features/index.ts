@@ -8,7 +8,6 @@
  */
 
 // These modules have unique exports, safe to re-export
-export * from './notifications'
 export * from './dev-tools'
 
 // Note: Other features have overlapping exports and should be imported directly:

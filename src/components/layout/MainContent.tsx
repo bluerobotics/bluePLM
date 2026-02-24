@@ -126,7 +126,7 @@ function ReviewEmptyState() {
       </div>
       <p className="text-sm font-medium text-plm-fg">Select a review item to view</p>
       <p className="text-xs text-plm-fg-muted mt-1.5 max-w-[260px]">
-        Double-click a file in the reviews panel to preview it here with annotations and comments
+        Click a file in the reviews panel to preview it here with annotations and comments
       </p>
     </div>
   )

@@ -19,7 +19,6 @@ const settingsSections: SettingsSection[] = [
     items: [
       { id: 'profile', label: 'Profile' },
       { id: 'preferences', label: 'Preferences' },
-      { id: 'notifications', label: 'Notifications' },
       { id: 'keybindings', label: 'Keybindings' },
       { id: 'modules', label: 'Sidebar' },
       { id: 'delete-account', label: 'Delete Account' },

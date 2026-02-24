@@ -136,54 +136,52 @@ export {
 } from './activity'
 
 // ============================================
-// Notification exports
+// Review exports
 // ============================================
 export {
-  // Reviews
   createReviewRequest,
   getMyReviews,
   getPendingReviewsForUser,
   respondToReview,
   cancelReview,
-  // Notifications
-  getNotifications,
-  getUnreadNotificationCount,
-  markNotificationsRead,
-  markAllNotificationsRead,
-  deleteNotification,
-  clearAllNotifications,
-  requestCheckout,
-  createCustomNotification,
-  sendFileNotification,
-  getCheckedOutByUser,
-  // File Watchers
-  watchFile,
-  unwatchFile,
-  isWatchingFile,
-  getWatchedFiles,
-  // Share Links
-  createShareLink,
-  getFileShareLinks,
-  revokeShareLink,
-  validateShareLink,
-  // ECOs
-  getActiveECOs,
-  addFileToECO,
-  removeFileFromECO,
-  getFileECOs
-} from './notifications'
-
-export type { ShareLinkOptions } from './notifications'
-
-// ============================================
-// Review trigger / team review helpers
-// ============================================
-export {
   checkReviewTrigger,
   getOrgTeamsWithMembers
 } from './reviews'
 
 export type { TeamMember, TeamWithMembers } from './reviews'
+
+// ============================================
+// File Watcher exports
+// ============================================
+export {
+  getCheckedOutByUser,
+  watchFile,
+  unwatchFile,
+  isWatchingFile,
+  getWatchedFiles
+} from './fileWatchers'
+
+// ============================================
+// Share Link exports
+// ============================================
+export {
+  createShareLink,
+  getFileShareLinks,
+  revokeShareLink,
+  validateShareLink
+} from './shareLinks'
+
+export type { ShareLinkOptions } from './shareLinks'
+
+// ============================================
+// ECO Helper exports
+// ============================================
+export {
+  getActiveECOs,
+  addFileToECO,
+  removeFileFromECO,
+  getFileECOs
+} from './ecoHelpers'
 
 // ============================================
 // Session exports

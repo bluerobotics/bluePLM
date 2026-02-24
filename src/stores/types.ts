@@ -4,14 +4,6 @@ import type { ModuleId, ModuleConfig } from '../types/modules'
 import type { KeybindingsConfig, KeybindingAction, Keybinding, SettingsTab } from '../types/settings'
 import type { WorkflowTemplate, WorkflowState, WorkflowTransition, WorkflowGate } from '../types/workflow'
 import type { OrgUser, TeamWithDetails, PendingMember } from '../features/settings/organization/team-members/types'
-import type { NotificationWithDetails } from '../types/database'
-import type { 
-  NotificationCategory, 
-  CategoryPreference,
-  CategoryPreferences,
-  QuietHoursConfig,
-  SoundSettings,
-} from '../types/notifications'
 import type { OperationLogSlice } from './slices/operationLogSlice'
 import type { NewAnnotationData } from '../features/source/details/components/PdfAnnotationViewer'
 import type { FileAnnotation } from '../types/database'
@@ -35,7 +27,6 @@ export type SidebarView =
   // Change Control
   | 'ecr'
   | 'eco'
-  | 'notifications'
   | 'deviations'
   | 'release-schedule'
   | 'process'
@@ -137,8 +128,6 @@ export interface ToastMessage {
   type: ToastType
   message: string
   duration?: number
-  /** Notification category for filtering (optional for backwards compatibility) */
-  category?: import('../types/notifications').NotificationCategory
   // Progress toast fields
   progress?: {
     current: number
@@ -386,13 +375,12 @@ export interface ToastsSlice {
   
   // Actions
   /**
-   * Add a toast notification.
+   * Add a toast.
    * @param type - Toast type (error, success, info, warning, progress, update)
    * @param message - Message to display
    * @param duration - Duration in ms (default 5000, 0 for no auto-dismiss)
-   * @param category - Optional notification category for filtering (if provided, toast respects user preferences)
    */
-  addToast: (type: ToastType, message: string, duration?: number, category?: import('../types/notifications').NotificationCategory) => void
+  addToast: (type: ToastType, message: string, duration?: number) => void
   addProgressToast: (id: string, message: string, total: number, queued?: boolean) => void
   setProgressToastActive: (id: string) => void
   updateProgressToast: (id: string, current: number, percent: number, speed?: string, label?: string) => void
@@ -1231,12 +1219,8 @@ export interface OperationsSlice {
   /** Currently running operation details (for deduplication) */
   currentOperation: { type: QueuedOperation['type']; paths: string[] } | null
   
-  // State - Notifications & Reviews
-  unreadNotificationCount: number
+  // State - Reviews
   pendingReviewCount: number
-  notifications: NotificationWithDetails[]
-  notificationsLoading: boolean
-  notificationsLoaded: boolean
   
   // State - Orphaned checkouts
   orphanedCheckouts: OrphanedCheckout[]
@@ -1289,19 +1273,8 @@ export interface OperationsSlice {
   setOperationRunning: (running: boolean) => void
   processQueue: () => void
   
-  // Actions - Notifications & Reviews
-  setUnreadNotificationCount: (count: number) => void
+  // Actions - Reviews
   setPendingReviewCount: (count: number) => void
-  incrementNotificationCount: () => void
-  decrementNotificationCount: (amount?: number) => void
-  setNotifications: (notifications: NotificationWithDetails[]) => void
-  setNotificationsLoading: (loading: boolean) => void
-  addNotification: (notification: NotificationWithDetails) => void
-  updateNotification: (id: string, updates: Partial<NotificationWithDetails>) => void
-  removeNotification: (id: string) => void
-  markNotificationRead: (id: string) => void
-  markAllRead: () => void
-  clearNotifications: () => void
   
   // Actions - Orphaned checkouts
   addOrphanedCheckout: (checkout: OrphanedCheckout) => void
@@ -1813,99 +1786,6 @@ export interface ExtensionsSlice {
 }
 
 // ============================================================================
-// Notification Preferences Slice
-// ============================================================================
-
-export interface NotificationPrefsSlice {
-  // ═══════════════════════════════════════════════════════════════
-  // State
-  // ═══════════════════════════════════════════════════════════════
-  
-  /** Per-category notification settings */
-  notificationCategories: CategoryPreferences
-  
-  /** Quiet hours configuration */
-  quietHours: QuietHoursConfig
-  
-  /** Global sound settings */
-  soundSettings: SoundSettings
-  
-  /** Current urgent notification to display (if any) */
-  urgentNotification: NotificationWithDetails | null
-  
-  /** Whether the urgent notification modal is visible */
-  showUrgentNotificationModal: boolean
-  
-  // ═══════════════════════════════════════════════════════════════
-  // Category Actions
-  // ═══════════════════════════════════════════════════════════════
-  
-  /** Set preference for a specific category */
-  setCategoryPreference: (category: NotificationCategory, preference: Partial<CategoryPreference>) => void
-  
-  /** Toggle toast notifications for a category */
-  toggleCategoryToast: (category: NotificationCategory) => void
-  
-  /** Toggle sound for a category */
-  toggleCategorySound: (category: NotificationCategory) => void
-  
-  /** Enable/disable toast notifications for all categories at once */
-  setAllCategoriesToastEnabled: (enabled: boolean) => void
-  
-  /** Enable/disable sound for all categories at once */
-  setAllCategoriesSoundEnabled: (enabled: boolean) => void
-  
-  // ═══════════════════════════════════════════════════════════════
-  // Quiet Hours Actions
-  // ═══════════════════════════════════════════════════════════════
-  
-  /** Update quiet hours configuration */
-  setQuietHours: (config: Partial<QuietHoursConfig>) => void
-  
-  /** Toggle quiet hours on/off */
-  toggleQuietHours: () => void
-  
-  /** Set quiet hours start time (24-hour format, e.g., "22:00") */
-  setQuietHoursStart: (time: string) => void
-  
-  /** Set quiet hours end time (24-hour format, e.g., "07:00") */
-  setQuietHoursEnd: (time: string) => void
-  
-  // ═══════════════════════════════════════════════════════════════
-  // Sound Actions
-  // ═══════════════════════════════════════════════════════════════
-  
-  /** Update sound settings */
-  setSoundSettings: (settings: Partial<SoundSettings>) => void
-  
-  /** Toggle sound on/off */
-  toggleSound: () => void
-  
-  /** Set sound volume (0-100) */
-  setSoundVolume: (volume: number) => void
-  
-  // ═══════════════════════════════════════════════════════════════
-  // Urgent Notification Actions
-  // ═══════════════════════════════════════════════════════════════
-  
-  /** Set the urgent notification to display */
-  setUrgentNotification: (notification: NotificationWithDetails | null) => void
-  
-  /** Show/hide the urgent notification modal */
-  setShowUrgentNotificationModal: (show: boolean) => void
-  
-  /** Dismiss the current urgent notification */
-  dismissUrgentNotification: () => void
-  
-  // ═══════════════════════════════════════════════════════════════
-  // Reset Action
-  // ═══════════════════════════════════════════════════════════════
-  
-  /** Reset all notification preferences to defaults */
-  resetNotificationPreferences: () => void
-}
-
-// ============================================================================
 // Annotations Slice (PDF commenting / spatial annotations)
 // ============================================================================
 
@@ -1958,7 +1838,6 @@ export type PDMStoreState =
   OrganizationMetadataSlice &
   IntegrationsSlice &
   ExtensionsSlice &
-  NotificationPrefsSlice &
   OperationLogSlice &
   AnnotationsSlice
 

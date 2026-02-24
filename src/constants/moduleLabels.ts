@@ -21,7 +21,6 @@ export const MODULE_LABELS: Record<SidebarView, string> = {
   // Change Control
   'ecr': 'ECRs / Issues',
   'eco': 'ECOs',
-  'notifications': 'Notifications',
   'deviations': 'Deviations',
   'release-schedule': 'Release Schedule',
   'process': 'Process Editor',

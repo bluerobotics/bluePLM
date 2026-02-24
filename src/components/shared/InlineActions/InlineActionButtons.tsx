@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { Cloud, ArrowDown, ArrowUp, HardDrive, RefreshCw, Loader2, Lock, Clock, Check, X, Bell } from 'lucide-react'
 import { getInitials, getAvatarColor } from '@/lib/utils'
-import { requestCheckout } from '@/lib/supabase/notifications'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
 
@@ -490,31 +489,13 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
     setSendingToUser(targetUser.id)
     
     try {
-      const fileId = targetUser.fileIds?.[0] || folderId
-      const fileCount = targetUser.count || targetUser.fileIds?.length || 1
-      const message = `Please check in ${fileCount} file${fileCount > 1 ? 's' : ''} in ${folderName}`
-      
-      const { success, error } = await requestCheckout(
-        organization.id,
-        fileId,
-        folderName,
-        currentUser.id,
-        targetUser.id,
-        message
-      )
-      
-      if (success) {
-        addToast('success', `Notification sent to ${targetUser.name}`)
-        log.info('[NotificationInlineButton]', 'Notification sent', { 
-          toUser: targetUser.id, 
-          folder: folderName
-        })
-      } else {
-        addToast('error', error || 'Failed to send notification')
-      }
+      addToast('info', `Check-in request noted for ${targetUser.name}`)
+      log.info('[NotificationInlineButton]', 'Check-in request (notifications disabled)', { 
+        toUser: targetUser.id, 
+        folder: folderName
+      })
     } catch (err) {
-      addToast('error', 'Failed to send notification')
-      log.error('[NotificationInlineButton]', 'Error sending notification', { error: err })
+      log.error('[NotificationInlineButton]', 'Error in notification handler', { error: err })
     } finally {
       setSendingToUser(null)
     }
@@ -533,41 +514,13 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
     setIsSending(true)
     
     try {
-      // Send to each user
-      const results = await Promise.all(
-        allUsers.map(async (targetUser) => {
-          const fileId = targetUser.fileIds?.[0] || folderId
-          const fileCount = targetUser.count || targetUser.fileIds?.length || 1
-          const message = `Please check in ${fileCount} file${fileCount > 1 ? 's' : ''} in ${folderName}`
-          
-          return requestCheckout(
-            organization.id,
-            fileId,
-            folderName,
-            currentUser.id,
-            targetUser.id,
-            message
-          )
-        })
-      )
-      
-      const successCount = results.filter(r => r.success).length
-      if (successCount === allUsers.length) {
-        addToast('success', `Notification sent to ${allUsers.length} user${allUsers.length > 1 ? 's' : ''}`)
-      } else if (successCount > 0) {
-        addToast('warning', `Notification sent to ${successCount} of ${allUsers.length} users`)
-      } else {
-        addToast('error', 'Failed to send notifications')
-      }
-      
-      log.info('[NotificationInlineButton]', 'Notifications sent', { 
-        successCount, 
+      addToast('info', `Check-in request noted for ${allUsers.length} user${allUsers.length > 1 ? 's' : ''}`)
+      log.info('[NotificationInlineButton]', 'Bulk check-in request (notifications disabled)', { 
         totalUsers: allUsers.length,
         folder: folderName
       })
     } catch (err) {
-      addToast('error', 'Failed to send notifications')
-      log.error('[NotificationInlineButton]', 'Error sending notifications', { error: err })
+      log.error('[NotificationInlineButton]', 'Error in bulk notification handler', { error: err })
     } finally {
       setIsSending(false)
     }

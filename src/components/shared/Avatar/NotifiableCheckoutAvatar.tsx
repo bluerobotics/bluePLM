@@ -9,7 +9,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Bell, Lock, Loader2 } from 'lucide-react'
 import { getInitials, getAvatarColor } from '@/lib/utils'
-import { requestCheckout } from '@/lib/supabase/notifications'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
 
@@ -112,44 +111,16 @@ export function NotifiableCheckoutAvatar({
     setIsSending(true)
     
     try {
-      // For folders, we send one notification about the folder
-      // For files, we send about the specific file
-      const targetFileId = isFolder ? folderFileIds![0] : fileId
-      const notificationMessage = isFolder 
-        ? `Urgent: Please check in ${fileCount} files in ${fileName}`
-        : (urgent ? 'Urgent: Please check in this file' : undefined)
-      
-      if (!targetFileId) {
-        addToast('error', 'No file ID available for notification')
-        setIsSending(false)
-        return
-      }
-      
-      const { success, error } = await requestCheckout(
-        organization.id,
-        targetFileId,
-        isFolder ? `${fileName} (${fileCount} files)` : fileName,
-        currentUser.id,
-        user.id,
-        notificationMessage
-      )
-      
-      if (success) {
-        addToast('success', `Notification sent to ${displayName}`)
-        log.info('[NotifiableCheckoutAvatar]', 'Check-in request sent', { 
-          toUser: user.id, 
-          file: fileName,
-          isFolder,
-          fileCount,
-          urgent 
-        })
-      } else {
-        addToast('error', error || 'Failed to send notification')
-        log.error('[NotifiableCheckoutAvatar]', 'Failed to send check-in request', { error })
-      }
+      addToast('info', `Check-in request noted for ${displayName}`)
+      log.info('[NotifiableCheckoutAvatar]', 'Check-in request (notifications disabled)', { 
+        toUser: user.id, 
+        file: fileName,
+        isFolder,
+        fileCount,
+        urgent 
+      })
     } catch (err) {
-      addToast('error', 'Failed to send notification')
-      log.error('[NotifiableCheckoutAvatar]', 'Error sending check-in request', { error: err })
+      log.error('[NotifiableCheckoutAvatar]', 'Error in check-in request handler', { error: err })
     } finally {
       setIsSending(false)
     }

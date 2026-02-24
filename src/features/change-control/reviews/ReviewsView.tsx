@@ -12,7 +12,6 @@ import {
   Check,
   X,
   Trash2,
-  MailOpen,
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
@@ -20,19 +19,15 @@ import {
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { 
-  getNotifications, 
   getMyReviews,
   getPendingReviewsForUser,
   respondToReview,
-  markNotificationsRead,
-  markAllNotificationsRead,
-  deleteNotification,
   cancelReview
 } from '@/lib/supabase'
-import type { ReviewWithDetails, NotificationWithDetails, ReviewStatus } from '@/types/database'
+import type { ReviewWithDetails, ReviewStatus } from '@/types/database'
 import { buildFullPath } from '@/lib/utils/path'
 
-type ViewTab = 'notifications' | 'pending' | 'my-reviews'
+type ViewTab = 'pending' | 'my-reviews'
 
 // Avatar component for user display
 function UserAvatar({ user, size = 24 }: { user?: { email: string; full_name: string | null; avatar_url: string | null } | null; size?: number }) {
@@ -77,8 +72,6 @@ export function ReviewsView() {
     user, 
     organization, 
     addToast, 
-    unreadNotificationCount, 
-    setUnreadNotificationCount,
     pendingReviewCount,
     setPendingReviewCount,
     vaultPath,
@@ -124,30 +117,6 @@ export function ReviewsView() {
     }
   }, [getFullFilePath, addToast])
   
-  // Get full file path for a notification (similar to review but uses notification.file)
-  const getNotificationFilePath = useCallback((notification: NotificationWithDetails): string | null => {
-    if (!notification.file?.file_path) return null
-    // Use active vault or legacy vaultPath
-    let notifVaultPath: string | null = null
-    if (activeVaultId && connectedVaults.length > 0) {
-      const activeVault = connectedVaults.find(v => v.id === activeVaultId)
-      if (activeVault?.localPath) notifVaultPath = activeVault.localPath
-    }
-    if (!notifVaultPath) notifVaultPath = vaultPath
-    if (!notifVaultPath) return null
-    return buildFullPath(notifVaultPath, notification.file.file_path)
-  }, [connectedVaults, activeVaultId, vaultPath])
-  
-  // Open notification file handler
-  const handleOpenNotificationFile = useCallback((notification: NotificationWithDetails) => {
-    const fullPath = getNotificationFilePath(notification)
-    if (fullPath) {
-      window.electronAPI?.openFile(fullPath)
-    } else {
-      addToast('error', 'Cannot open file: vault not connected')
-    }
-  }, [getNotificationFilePath, addToast])
-  
   // Navigate to file in file browser (single click)
   const handleNavigateToFile = useCallback((filePath: string | undefined) => {
     if (!filePath) {
@@ -192,8 +161,7 @@ export function ReviewsView() {
     }
   }, [handleOpenFile, handleNavigateToFile])
   
-  const [activeTab, setActiveTab] = useState<ViewTab>('notifications')
-  const [notifications, setNotifications] = useState<NotificationWithDetails[]>([])
+  const [activeTab, setActiveTab] = useState<ViewTab>('pending')
   const [pendingReviews, setPendingReviews] = useState<ReviewWithDetails[]>([])
   const [myReviews, setMyReviews] = useState<ReviewWithDetails[]>([])
   const [loading, setLoading] = useState(true)
@@ -208,14 +176,7 @@ export function ReviewsView() {
     setLoading(true)
     
     try {
-      if (activeTab === 'notifications') {
-        const { notifications: data } = await getNotifications(user.id, { limit: 50 })
-        setNotifications(data)
-        
-        // Update unread count
-        const unreadCount = data.filter(n => !n.read).length
-        setUnreadNotificationCount(unreadCount)
-      } else if (activeTab === 'pending') {
+      if (activeTab === 'pending') {
         const { reviews } = await getPendingReviewsForUser(user.id, organization.id)
         setPendingReviews(reviews)
         setPendingReviewCount(reviews.length)
@@ -228,7 +189,7 @@ export function ReviewsView() {
     } finally {
       setLoading(false)
     }
-  }, [user?.id, organization?.id, activeTab, setUnreadNotificationCount, setPendingReviewCount])
+  }, [user?.id, organization?.id, activeTab, setPendingReviewCount])
   
   useEffect(() => {
     loadData()
@@ -257,43 +218,6 @@ export function ReviewsView() {
     }
     
     setRespondingTo(null)
-  }
-  
-  // Handle marking notification as read
-  const handleMarkRead = async (notificationId: string) => {
-    const { success } = await markNotificationsRead([notificationId])
-    if (success) {
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, read: true, read_at: new Date().toISOString() } : n)
-      )
-      setUnreadNotificationCount(Math.max(0, unreadNotificationCount - 1))
-    }
-  }
-  
-  // Handle marking all as read
-  const handleMarkAllRead = async () => {
-    if (!user?.id) return
-    
-    const { success, updated } = await markAllNotificationsRead(user.id)
-    if (success) {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true, read_at: new Date().toISOString() })))
-      setUnreadNotificationCount(0)
-      if (updated > 0) {
-        addToast('success', `Marked ${updated} notifications as read`)
-      }
-    }
-  }
-  
-  // Handle deleting a notification
-  const handleDeleteNotification = async (notificationId: string) => {
-    const notification = notifications.find(n => n.id === notificationId)
-    const { success } = await deleteNotification(notificationId)
-    if (success) {
-      setNotifications(prev => prev.filter(n => n.id !== notificationId))
-      if (notification && !notification.read) {
-        setUnreadNotificationCount(Math.max(0, unreadNotificationCount - 1))
-      }
-    }
   }
   
   // Handle cancelling a review
@@ -362,22 +286,6 @@ export function ReviewsView() {
       {/* Tabs */}
       <div className="flex border-b border-plm-border">
         <button
-          onClick={() => setActiveTab('notifications')}
-          className={`flex-1 px-3 py-2 text-xs font-medium transition-colors relative ${
-            activeTab === 'notifications'
-              ? 'text-plm-accent border-b-2 border-plm-accent -mb-px'
-              : 'text-plm-fg-muted hover:text-plm-fg'
-          }`}
-        >
-          <Bell size={12} className="inline mr-1" />
-          Notifications
-          {unreadNotificationCount > 0 && (
-            <span className="absolute top-1 right-2 w-4 h-4 bg-plm-accent text-white text-[10px] rounded-full flex items-center justify-center">
-              {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
-            </span>
-          )}
-        </button>
-        <button
           onClick={() => setActiveTab('pending')}
           className={`flex-1 px-3 py-2 text-xs font-medium transition-colors relative ${
             activeTab === 'pending'
@@ -417,15 +325,6 @@ export function ReviewsView() {
           Refresh
         </button>
         
-        {activeTab === 'notifications' && unreadNotificationCount > 0 && (
-          <button
-            onClick={handleMarkAllRead}
-            className="text-xs text-plm-accent hover:text-plm-accent/80 flex items-center gap-1"
-          >
-            <MailOpen size={12} />
-            Mark all read
-          </button>
-        )}
       </div>
       
       {/* Content */}
@@ -434,231 +333,6 @@ export function ReviewsView() {
           <div className="flex items-center justify-center p-8">
             <Loader2 size={24} className="animate-spin text-plm-accent" />
           </div>
-        ) : activeTab === 'notifications' ? (
-          // Notifications list - with special handling for review requests
-          notifications.length === 0 ? (
-            <div className="p-6 text-center text-plm-fg-muted">
-              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-plm-accent/10 flex items-center justify-center">
-                <Bell size={32} className="text-plm-accent" />
-              </div>
-              <p className="text-sm font-medium text-plm-fg">No notifications</p>
-              <p className="text-xs mt-1 text-plm-fg-muted">You're all caught up!</p>
-            </div>
-          ) : (
-            <div className="space-y-2 p-2">
-              {notifications.map(notification => {
-                const isReviewRequest = notification.type === 'review_request'
-                const hasFile = !!notification.file
-                
-                // For review requests, show card-style with approve/reject
-                if (isReviewRequest && notification.review_id) {
-                  return (
-                    <div
-                      key={notification.id}
-                      className={`bg-plm-bg-light border rounded-lg overflow-hidden transition-colors ${
-                        !notification.read ? 'border-plm-accent/50' : 'border-plm-border hover:border-plm-accent/30'
-                      }`}
-                    >
-                      {/* Clickable card area */}
-                      <div 
-                        className="p-3 cursor-pointer"
-                        onClick={() => {
-                          if (notification.file?.file_path) {
-                            handleNavigateToFile(notification.file.file_path)
-                          }
-                        }}
-                        onDoubleClick={() => handleOpenNotificationFile(notification)}
-                        title="Click to view in browser, double-click to open file"
-                      >
-                        {/* Header with avatar */}
-                        <div className="flex items-start gap-3">
-                          <UserAvatar user={notification.from_user} size={36} />
-                          <div className="flex-1 min-w-0">
-                            {/* From user */}
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-plm-fg">
-                                {notification.from_user?.full_name || notification.from_user?.email?.split('@')[0] || 'Someone'}
-                              </span>
-                              {!notification.read && (
-                                <span className="w-2 h-2 bg-plm-accent rounded-full flex-shrink-0" />
-                              )}
-                            </div>
-                            <p className="text-xs text-plm-fg-muted">requested your review</p>
-                            
-                            {/* File info */}
-                            {hasFile && (
-                              <div className="flex items-center gap-2 mt-2 p-2 bg-plm-bg rounded">
-                                <FileText size={16} className="text-plm-accent flex-shrink-0" />
-                                <span className="text-sm font-medium text-plm-fg truncate">
-                                  {notification.file?.file_name}
-                                </span>
-                              </div>
-                            )}
-                            
-                            {/* Message */}
-                            {notification.message && (
-                              <p className="text-xs text-plm-fg-dim mt-2 line-clamp-2">
-                                "{notification.message}"
-                              </p>
-                            )}
-                            
-                            {/* Time */}
-                            <p className="text-[10px] text-plm-fg-muted mt-2">
-                              {formatRelativeTime(notification.created_at)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Action buttons */}
-                      <div className="flex items-center border-t border-plm-border bg-plm-bg/50">
-                        <button
-                          onClick={async () => {
-                            if (notification.review_id) {
-                              await respondToReview(notification.review_id, user!.id, 'approved')
-                              handleMarkRead(notification.id)
-                              addToast('success', 'Review approved')
-                              loadData()
-                            }
-                          }}
-                          className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-success hover:bg-plm-success/10 flex items-center justify-center gap-1.5 transition-colors border-r border-plm-border"
-                        >
-                          <ThumbsUp size={14} />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => {
-                            setExpandedReview(expandedReview === notification.id ? null : notification.id)
-                          }}
-                          className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-warning hover:bg-plm-warning/10 flex items-center justify-center gap-1.5 transition-colors border-r border-plm-border"
-                        >
-                          <RotateCcw size={14} />
-                          Request Changes
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (notification.review_id) {
-                              await respondToReview(notification.review_id, user!.id, 'rejected')
-                              handleMarkRead(notification.id)
-                              addToast('info', 'Review rejected')
-                              loadData()
-                            }
-                          }}
-                          className="flex-1 px-3 py-2.5 text-xs font-medium text-plm-error hover:bg-plm-error/10 flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <ThumbsDown size={14} />
-                          Reject
-                        </button>
-                      </div>
-                      
-                      {/* Expanded comment form */}
-                      {expandedReview === notification.id && (
-                        <div className="p-3 border-t border-plm-border bg-plm-bg">
-                          <textarea
-                            placeholder="Add feedback or reason for changes..."
-                            value={responseComment}
-                            onChange={(e) => setResponseComment(e.target.value)}
-                            className="w-full px-3 py-2 text-xs bg-plm-bg-light border border-plm-border rounded-lg resize-none focus:outline-none focus:border-plm-accent"
-                            rows={3}
-                            autoFocus
-                          />
-                          <div className="flex justify-end gap-2 mt-2">
-                            <button
-                              onClick={() => {
-                                setExpandedReview(null)
-                                setResponseComment('')
-                              }}
-                              className="px-3 py-1.5 text-xs text-plm-fg-muted hover:text-plm-fg"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (notification.review_id) {
-                                  await respondToReview(notification.review_id, user!.id, 'rejected', responseComment)
-                                  handleMarkRead(notification.id)
-                                  addToast('info', 'Feedback sent')
-                                  setExpandedReview(null)
-                                  setResponseComment('')
-                                  loadData()
-                                }
-                              }}
-                              disabled={!responseComment.trim()}
-                              className="px-4 py-1.5 text-xs font-medium bg-plm-warning text-white rounded hover:bg-plm-warning/90 disabled:opacity-50"
-                            >
-                              Send Feedback
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                }
-                
-                // Regular notifications (non-review)
-                return (
-                  <div
-                    key={notification.id}
-                    className={`p-3 rounded-lg transition-colors group ${
-                      !notification.read ? 'bg-plm-accent/5 border border-plm-accent/20' : 'bg-plm-bg-light border border-plm-border hover:border-plm-accent/30'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <UserAvatar user={notification.from_user} size={32} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-medium truncate ${!notification.read ? 'text-plm-fg' : 'text-plm-fg-dim'}`}>
-                            {notification.title}
-                          </span>
-                          {!notification.read && (
-                            <span className="w-2 h-2 bg-plm-accent rounded-full flex-shrink-0" />
-                          )}
-                        </div>
-                        {notification.message && (
-                          <p className="text-xs text-plm-fg-muted mt-0.5 line-clamp-2">
-                            {notification.message}
-                          </p>
-                        )}
-                        {hasFile && (
-                          <div 
-                            className="flex items-center gap-1 mt-1.5 p-1.5 bg-plm-bg rounded cursor-pointer hover:bg-plm-highlight"
-                            onClick={() => handleNavigateToFile(notification.file?.file_path)}
-                            onDoubleClick={() => handleOpenNotificationFile(notification)}
-                          >
-                            <FileText size={12} className="text-plm-accent" />
-                            <span className="text-[11px] text-plm-fg truncate">
-                              {notification.file?.file_name}
-                            </span>
-                          </div>
-                        )}
-                        <p className="text-[10px] text-plm-fg-muted mt-1.5">
-                          {formatRelativeTime(notification.created_at)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {!notification.read && (
-                          <button
-                            onClick={() => handleMarkRead(notification.id)}
-                            className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded"
-                            title="Mark as read"
-                          >
-                            <Check size={14} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteNotification(notification.id)}
-                          className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-highlight rounded"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )
         ) : activeTab === 'pending' ? (
           // Pending reviews (need response)
           pendingReviews.length === 0 ? (

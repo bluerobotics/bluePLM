@@ -7,5 +7,5 @@ export { UpdateModal } from './UpdateModal'
 export { VaultSetupDialog, type VaultSyncStats } from './VaultSetupDialog'
 export { UploadSizeWarningDialog, type LargeFile } from './UploadSizeWarningDialog'
 export { UploadSizeWarningContainer } from './UploadSizeWarningContainer'
-export { UrgentNotificationModal } from './UrgentNotificationModal'
+
 export { CommandConfirmContainer } from './CommandConfirmContainer'

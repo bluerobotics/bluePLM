@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { Users, File, Loader2, Check, Send } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { OrgUser } from '../types'
-import { getOrgUsers, sendFileNotification } from '@/lib/supabase'
+import { getOrgUsers } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 
 interface MentionDialogProps {
@@ -67,27 +67,9 @@ export function MentionDialog({
     
     setIsSubmitting(true)
     
-    let successCount = 0
-    for (const toUserId of selectedUsers) {
-      const { success } = await sendFileNotification(
-        organizationId,
-        file.pdmData.id,
-        file.name,
-        toUserId,
-        userId,
-        'mention',
-        message || `Check out this file: ${file.name}`
-      )
-      if (success) successCount++
-    }
-    
-    if (successCount > 0) {
-      addToast('success', `Notification sent to ${successCount} user${successCount > 1 ? 's' : ''}`)
-      handleClose()
-      onSuccess()
-    } else {
-      addToast('error', 'Failed to send notifications')
-    }
+    addToast('info', `Mention noted for ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}`)
+    handleClose()
+    onSuccess()
     
     setIsSubmitting(false)
   }

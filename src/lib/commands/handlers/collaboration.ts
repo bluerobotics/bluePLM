@@ -11,8 +11,6 @@ import {
   isWatchingFile,
   createShareLink,
   createReviewRequest,
-  requestCheckout,
-  sendFileNotification,
   getActiveECOs,
   addFileToECO,
   supabase
@@ -250,23 +248,8 @@ export async function handleNotify(
     return
   }
   
-  const message = parsed.flags['message'] as string || parsed.flags['m'] as string || undefined
-  
-  const { success, error } = await sendFileNotification(
-    organization.id,
-    file.pdmData.id,
-    file.name,
-    targetUser.id,
-    user.id,
-    'mention',
-    message
-  )
-  
-  if (success) {
-    addOutput('success', `Notified ${targetUser.full_name || targetUser.email} about ${file.name}`)
-  } else {
-    addOutput('error', `Failed to send notification: ${error}`)
-  }
+  addOutput('info', 'Notification system has been removed. Mention not sent.')
+  addOutput('info', `Would have notified ${targetUser.full_name || targetUser.email} about ${file.name}`)
 }
 
 /**
@@ -376,23 +359,9 @@ export async function handleRequestCheckout(
     return
   }
   
-  const message = parsed.flags['message'] as string || parsed.flags['m'] as string || undefined
-  
-  const { success, error } = await requestCheckout(
-    organization.id,
-    file.pdmData.id,
-    file.name,
-    user.id,
-    file.pdmData.checked_out_by,
-    message
-  )
-  
-  if (success) {
-    const ownerName = file.pdmData.checked_out_user?.full_name || file.pdmData.checked_out_user?.email || 'the owner'
-    addOutput('success', `Checkout request sent to ${ownerName}`)
-  } else {
-    addOutput('error', `Failed to send checkout request: ${error}`)
-  }
+  const ownerName = file.pdmData.checked_out_user?.full_name || file.pdmData.checked_out_user?.email || 'the owner'
+  addOutput('info', 'Notification system has been removed. Checkout request not sent.')
+  addOutput('info', `Would have sent checkout request to ${ownerName}`)
 }
 
 /**

@@ -7,7 +7,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Bell, Loader2, Users, Lock } from 'lucide-react'
 import { getInitials, getAvatarColor } from '@/lib/utils'
-import { requestCheckout } from '@/lib/supabase/notifications'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
 
@@ -84,33 +83,15 @@ export function CheckoutUsersDropdown({
     setSendingTo(targetUser.id)
     
     try {
-      const message = isFolder 
-        ? `Please check in ${targetUser.count || 'your'} file${(targetUser.count || 1) > 1 ? 's' : ''} in ${entityName}`
-        : `Please check in ${entityName}`
-      
-      const { success, error } = await requestCheckout(
-        organization.id,
-        notificationTargetId,
-        entityName || 'files',
-        currentUser.id,
-        targetUser.id,
-        message
-      )
-      
-      if (success) {
-        addToast('success', `Notification sent to ${targetUser.name}`)
-        log.info('[CheckoutUsersDropdown]', 'Check-in request sent', { 
-          toUser: targetUser.id, 
-          entity: entityName,
-          isFolder,
-          fileId: notificationTargetId
-        })
-      } else {
-        addToast('error', error || 'Failed to send notification')
-      }
+      addToast('info', `Check-in request noted for ${targetUser.name}`)
+      log.info('[CheckoutUsersDropdown]', 'Check-in request (notifications disabled)', { 
+        toUser: targetUser.id, 
+        entity: entityName,
+        isFolder,
+        fileId: notificationTargetId
+      })
     } catch (err) {
-      addToast('error', 'Failed to send notification')
-      log.error('[CheckoutUsersDropdown]', 'Error sending notification', { error: err })
+      log.error('[CheckoutUsersDropdown]', 'Error in notification handler', { error: err })
     } finally {
       setSendingTo(null)
     }

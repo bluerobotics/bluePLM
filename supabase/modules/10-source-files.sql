@@ -1104,6 +1104,17 @@ CREATE TABLE IF NOT EXISTS file_comments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Migration: Add v51 columns for existing file_comments tables
+ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS page_number INTEGER;
+ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS position JSONB;
+ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS annotation_type TEXT DEFAULT 'text';
+DO $$ BEGIN ALTER TABLE file_comments ADD COLUMN parent_id UUID REFERENCES file_comments(id) ON DELETE CASCADE; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS resolved BOOLEAN DEFAULT FALSE;
+DO $$ BEGIN ALTER TABLE file_comments ADD COLUMN resolved_by UUID REFERENCES users(id) ON DELETE SET NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS file_version INTEGER;
+ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_file_comments_file_id ON file_comments(file_id);
 CREATE INDEX IF NOT EXISTS idx_file_comments_user_id ON file_comments(user_id);
 CREATE INDEX IF NOT EXISTS idx_file_comments_parent_id ON file_comments(parent_id);

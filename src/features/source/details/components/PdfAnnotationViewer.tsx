@@ -25,6 +25,7 @@ import type {
   PdfSelection,
   ScaledPosition,
   PdfScaleValue,
+  PdfHighlighterUtils,
   Scaled,
 } from 'react-pdf-highlighter-plus'
 import 'react-pdf-highlighter-plus/style/style.css'
@@ -415,10 +416,13 @@ export function PdfAnnotationViewer({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [scale, setScale] = useState<PdfScaleValue>('auto')
-  const [areaSelectActive, setAreaSelectActive] = useState(false)
+  const [areaSelectActive, setAreaSelectActive] = useState(!!onAnnotationCreate)
 
   // Ref to track the current file path for stale-response prevention
   const currentPathRef = useRef(filePath)
+
+  // Ref to the library's utils for imperative viewer control
+  const highlighterUtilsRef = useRef<PdfHighlighterUtils | null>(null)
 
   // ── PDF Loading ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -490,6 +494,16 @@ export function PdfAnnotationViewer({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // ── Imperative zoom ───────────────────────────────────────────────────
+  // The library only applies pdfScaleValue on init/resize, not on prop change.
+  // Work around this by setting currentScaleValue on the viewer directly.
+  useEffect(() => {
+    const viewer = highlighterUtilsRef.current?.getViewer()
+    if (viewer) {
+      viewer.currentScaleValue = scale.toString()
+    }
+  }, [scale])
 
   // ── Convert annotation overlays to Highlight objects ────────────────────
   const highlights = useMemo(
@@ -605,9 +619,7 @@ export function PdfAnnotationViewer({
               enableAreaSelection={enableAreaSelection}
               onSelection={handleSelection}
               areaSelectionMode={areaSelectActive}
-              utilsRef={() => {
-                // No-op: utils ref stored for future use (e.g., scrollToHighlight)
-              }}
+              utilsRef={(utils) => { highlighterUtilsRef.current = utils }}
             >
               <HighlightContainer onAnnotationClick={onAnnotationClick} />
             </PdfHighlighter>

@@ -22,7 +22,6 @@ const DeviationsView = lazy(() => import('@/features/change-control/deviations')
 const ProductsView = lazy(() => import('@/features/items/products').then(m => ({ default: m.ProductsView })))
 const ProcessView = lazy(() => import('@/features/change-control/process').then(m => ({ default: m.ProcessView })))
 const ScheduleView = lazy(() => import('@/features/change-control/schedule').then(m => ({ default: m.ScheduleView })))
-const NotificationsView = lazy(() => import('@/features/notifications').then(m => ({ default: m.NotificationsView })))
 const SuppliersView = lazy(() => import('@/features/supply-chain/suppliers').then(m => ({ default: m.SuppliersView })))
 const SupplierPortalView = lazy(() => import('@/features/supply-chain/portal').then(m => ({ default: m.SupplierPortalView })))
 const GoogleDriveView = lazy(() => import('@/features/integrations/google-drive').then(m => ({ default: m.GoogleDriveView })))
@@ -171,13 +170,6 @@ export function Sidebar() {
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <ECOView />
-          </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
-      case 'notifications':
-        return isEnabled ? (
-          <Suspense fallback={<ViewLoading />}>
-            <NotificationsView />
           </Suspense>
         ) : <ModuleDisabled moduleName={moduleName} />
         

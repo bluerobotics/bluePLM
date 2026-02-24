@@ -230,8 +230,7 @@ export function ActivityBar() {
                     const translationKey = moduleTranslationKeys[moduleId]
                     const title = translationKey ? t(translationKey) : module.name
                     
-                    // Special handling for notifications badge
-                    const badge = moduleId === 'notifications' ? totalBadge : undefined
+                    const badge = moduleId === 'reviews' ? totalBadge : undefined
                     
                     // Get visible child modules (using config's moduleParents)
                     const childModules = getChildModules(moduleId, moduleConfig).filter(child => 

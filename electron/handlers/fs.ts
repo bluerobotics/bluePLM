@@ -446,9 +446,12 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
         fs.closeSync(fd)
       } catch (lockErr: unknown) {
         const lockNodeErr = lockErr as NodeJS.ErrnoException
-        if (lockNodeErr.code === 'EBUSY' || lockNodeErr.code === 'EACCES' || lockNodeErr.code === 'EPERM') {
-          log(`[ReadFile] File is locked, refusing to read: ${filePath} (${lockNodeErr.code})`)
+        if (lockNodeErr.code === 'EBUSY') {
+          log(`[ReadFile] File is busy, refusing to read: ${filePath} (${lockNodeErr.code})`)
           return { success: false, error: `File is locked by another process (${lockNodeErr.code})`, locked: true }
+        }
+        if (lockNodeErr.code === 'EACCES' || lockNodeErr.code === 'EPERM') {
+          log(`[ReadFile] File has write lock, will attempt read-only: ${filePath} (${lockNodeErr.code})`)
         }
         // Other errors (e.g., ENOENT) fall through to the normal read which will report them
       }

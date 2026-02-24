@@ -1088,6 +1088,7 @@ function PdfWithComments({ file }: { file: LocalFile }) {
   const setShowCommentInput = usePDMStore((s) => s.setShowCommentInput)
   const setPendingAnnotation = usePDMStore((s) => s.setPendingAnnotation)
   const clearAnnotations = usePDMStore((s) => s.clearAnnotations)
+  const rightPanelVisible = usePDMStore((s) => s.rightPanelVisible)
 
   const fileId = file.pdmData?.id
 
@@ -1156,8 +1157,8 @@ function PdfWithComments({ file }: { file: LocalFile }) {
         />
       </div>
 
-      {/* Comment Sidebar - ~30% width, only shown when file has a database ID */}
-      {fileId && (
+      {/* Comment Sidebar - ~30% width, only shown when file has a database ID and right panel is visible */}
+      {fileId && rightPanelVisible && (
         <div className="flex-[3] min-w-[220px] max-w-[400px]">
           <CommentSidebar
             fileId={fileId}

@@ -33,7 +33,6 @@ import {
   resolveAnnotation,
   unresolveAnnotation,
 } from '@/lib/supabase/annotations'
-import { createCustomNotification } from '@/lib/supabase/notifications'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { CommentThread } from './CommentThread'
 import { CommentInput } from './CommentInput'
@@ -67,28 +66,13 @@ function sortAnnotations(annotations: FileAnnotation[]): FileAnnotation[] {
   })
 }
 
-/**
- * Collect distinct user IDs who have previously commented on a file.
- * Used for notification targeting on new comments.
- */
-function getParticipantUserIds(annotations: FileAnnotation[], excludeUserId: string): string[] {
-  const ids = new Set<string>()
-  for (const ann of annotations) {
-    if (ann.user_id !== excludeUserId) ids.add(ann.user_id)
-    for (const reply of ann.replies ?? []) {
-      if (reply.user_id !== excludeUserId) ids.add(reply.user_id)
-    }
-  }
-  return Array.from(ids)
-}
-
 // ============================================================================
 // Component
 // ============================================================================
 
 export function CommentSidebar({
   fileId,
-  fileName,
+  fileName: _fileName,
   fileVersion,
 }: CommentSidebarProps) {
   // ── Store ────────────────────────────────────────────────────────────────
@@ -99,7 +83,6 @@ export function CommentSidebar({
   const showCommentInput = usePDMStore((s) => s.showCommentInput)
   const pendingAnnotation = usePDMStore((s) => s.pendingAnnotation)
   const user = usePDMStore((s) => s.user)
-  const organization = usePDMStore((s) => s.organization)
   const addToast = usePDMStore((s) => s.addToast)
 
   const setAnnotations = usePDMStore((s) => s.setAnnotations)
@@ -229,55 +212,6 @@ export function CommentSidebar({
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [activeAnnotationId])
 
-  // ── Notification helper ─────────────────────────────────────────────────
-  const sendCommentNotifications = useCallback(
-    async (newAnnotation: FileAnnotation, parentId?: string | null) => {
-      if (!user?.id || !organization?.id) return
-
-      const commenterName = user.full_name || user.email || 'Someone'
-      const toNotify = new Set<string>()
-
-      // 1. Notify thread participants (everyone who commented on this file)
-      const participantIds = getParticipantUserIds(annotations, user.id)
-      for (const uid of participantIds) toNotify.add(uid)
-
-      // 2. If reply, also notify the parent comment author
-      if (parentId) {
-        const findAnnotation = (list: FileAnnotation[], id: string): FileAnnotation | undefined => {
-          for (const ann of list) {
-            if (ann.id === id) return ann
-            const found = findAnnotation(ann.replies ?? [], id)
-            if (found) return found
-          }
-          return undefined
-        }
-        const parent = findAnnotation(annotations, parentId)
-        if (parent && parent.user_id !== user.id) {
-          toNotify.add(parent.user_id)
-        }
-      }
-
-      // Remove the commenter themselves
-      toNotify.delete(user.id)
-
-      if (toNotify.size === 0) return
-
-      try {
-        await createCustomNotification(organization.id, user.id, Array.from(toNotify), {
-          type: 'comment_added',
-          category: 'review',
-          title: `New comment on ${fileName}`,
-          message: `${commenterName} commented: "${newAnnotation.comment.slice(0, 100)}${newAnnotation.comment.length > 100 ? '...' : ''}"`,
-          priority: 'normal',
-          fileId,
-        })
-      } catch (err) {
-        log.warn('[CommentSidebar]', 'Failed to send comment notifications', { error: err })
-      }
-    },
-    [user, organization, annotations, fileId, fileName],
-  )
-
   // ── CRUD handlers ───────────────────────────────────────────────────────
 
   /** Create a new top-level comment from the pending annotation area selection */
@@ -348,8 +282,7 @@ export function CommentSidebar({
         addAnnotation(result.annotation)
         setActiveAnnotationId(result.annotation.id)
 
-        // Fire notifications (non-blocking)
-        sendCommentNotifications(result.annotation)
+        // Notification system removed
       } catch (err) {
         removeAnnotation(tempId)
         addToast('error', 'Failed to save comment')
@@ -362,7 +295,6 @@ export function CommentSidebar({
       user, pendingAnnotation, fileId, fileVersion,
       addAnnotation, removeAnnotation, setShowCommentInput,
       setPendingAnnotation, setActiveAnnotationId, addToast,
-      sendCommentNotifications,
     ],
   )
 
@@ -391,10 +323,9 @@ export function CommentSidebar({
         setAnnotations(refreshed.annotations)
       }
 
-      // Fire notifications
-      sendCommentNotifications(result.annotation, parentId)
+      // Notification system removed
     },
-    [user, fileId, fileVersion, addToast, setAnnotations, sendCommentNotifications],
+    [user, fileId, fileVersion, addToast, setAnnotations],
   )
 
   /** Edit a comment's text */
@@ -527,7 +458,7 @@ export function CommentSidebar({
             <MessageCircle size={32} className="text-plm-fg-muted/30 mb-3" />
             <div className="text-xs text-plm-fg-muted mb-1">No comments yet</div>
             <div className="text-[10px] text-plm-fg-muted/60">
-              Select an area on the PDF to add a comment
+              Click and drag on the PDF to add a comment
             </div>
           </div>
         )}

@@ -8,7 +8,6 @@ import { ExtensionStoreView } from '@/features/extensions'
 const ProfileSettings = lazy(() => import('../account/ProfileSettings').then(m => ({ default: m.ProfileSettings })))
 const PreferencesSettings = lazy(() => import('../account/PreferencesSettings').then(m => ({ default: m.PreferencesSettings })))
 const KeybindingsSettings = lazy(() => import('../account/KeybindingsSettings').then(m => ({ default: m.KeybindingsSettings })))
-const NotificationsSettings = lazy(() => import('../account/NotificationsSettings').then(m => ({ default: m.NotificationsSettings })))
 const ModulesSettings = lazy(() => import('../organization/ModulesSettings').then(m => ({ default: m.ModulesSettings })))
 const VaultsSettings = lazy(() => import('../organization/VaultsSettings').then(m => ({ default: m.VaultsSettings })))
 const TeamMembersSettings = lazy(() => import('../organization/TeamMembersSettings').then(m => ({ default: m.TeamMembersSettings })))
@@ -56,8 +55,6 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <PreferencesSettings />
       case 'keybindings':
         return <KeybindingsSettings />
-      case 'notifications':
-        return <NotificationsSettings />
       case 'modules':
         return <ModulesSettings />
       case 'vaults':

@@ -1,7 +1,7 @@
 /**
  * ReviewPreviewPane - Full-screen PDF viewer for the Reviews view.
  *
- * When a user double-clicks a review row, this component fills the entire
+ * When a user clicks a review row, this component fills the entire
  * main content area with the PdfAnnotationViewer + CommentSidebar, reusing
  * the same annotation pipeline from the DetailsPanel.
  *
@@ -28,6 +28,7 @@ export function ReviewPreviewPane() {
   const setShowCommentInput = usePDMStore(s => s.setShowCommentInput)
   const setPendingAnnotation = usePDMStore(s => s.setPendingAnnotation)
   const clearAnnotations = usePDMStore(s => s.clearAnnotations)
+  const rightPanelVisible = usePDMStore(s => s.rightPanelVisible)
 
   // Clear annotations when the preview file changes or unmounts
   useEffect(() => {
@@ -121,8 +122,8 @@ export function ReviewPreviewPane() {
           />
         </div>
 
-        {/* Comment Sidebar - only when file has a database ID */}
-        {fileId && (
+        {/* Comment Sidebar - only when file has a database ID and right panel is visible */}
+        {fileId && rightPanelVisible && (
           <div className="flex-[3] min-w-[220px] max-w-[400px] border-l border-plm-border">
             <CommentSidebar
               fileId={fileId}

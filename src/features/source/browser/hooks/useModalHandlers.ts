@@ -32,8 +32,6 @@ import type { OrgUser } from './useReviewModal'
 import { 
   getOrgUsers,
   createReviewRequest,
-  requestCheckout,
-  sendFileNotification,
   watchFile,
   unwatchFile,
   createShareLink,
@@ -276,22 +274,9 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
     
     setIsSubmittingCheckoutRequest(true)
     
-    const { error } = await requestCheckout(
-      organization.id,
-      checkoutRequestFile.pdmData.id,
-      checkoutRequestFile.name,
-      user.id,
-      checkoutRequestFile.pdmData.checked_out_by,
-      checkoutRequestMessage || undefined
-    )
-    
-    if (error) {
-      addToast('error', `Failed to send request: ${error}`)
-    } else {
-      addToast('success', 'Checkout request sent')
-      setShowCheckoutRequestModal(false)
-      setCheckoutRequestMessage('')
-    }
+    addToast('info', 'Checkout request noted')
+    setShowCheckoutRequestModal(false)
+    setCheckoutRequestMessage('')
     
     setIsSubmittingCheckoutRequest(false)
   }, [user?.id, organization?.id, checkoutRequestFile, checkoutRequestMessage, setIsSubmittingCheckoutRequest, setShowCheckoutRequestModal, setCheckoutRequestMessage, addToast])
@@ -335,28 +320,10 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
     
     setIsSubmittingMention(true)
     
-    let successCount = 0
-    for (const toUserId of selectedMentionUsers) {
-      const { success } = await sendFileNotification(
-        organization.id,
-        mentionFile.pdmData.id,
-        mentionFile.name,
-        toUserId,
-        user.id,
-        'mention',
-        mentionMessage || `Check out this file: ${mentionFile.name}`
-      )
-      if (success) successCount++
-    }
-    
-    if (successCount > 0) {
-      addToast('success', `Notification sent to ${successCount} user${successCount > 1 ? 's' : ''}`)
-      setShowMentionModal(false)
-      setSelectedMentionUsers([])
-      setMentionMessage('')
-    } else {
-      addToast('error', 'Failed to send notifications')
-    }
+    addToast('info', `Mention noted for ${selectedMentionUsers.length} user${selectedMentionUsers.length > 1 ? 's' : ''}`)
+    setShowMentionModal(false)
+    setSelectedMentionUsers([])
+    setMentionMessage('')
     
     setIsSubmittingMention(false)
   }, [user?.id, organization?.id, mentionFile, selectedMentionUsers, mentionMessage, setIsSubmittingMention, setShowMentionModal, setSelectedMentionUsers, setMentionMessage, addToast])

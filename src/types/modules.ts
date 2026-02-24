@@ -16,7 +16,6 @@ export type ModuleId =
   // Change Control
   | 'ecr'
   | 'eco'
-  | 'notifications'
   | 'deviations'
   | 'release-schedule'
   | 'process'
@@ -319,10 +318,10 @@ export const MODULES: ModuleDefinition[] = [
   {
     id: 'reviews',
     name: 'Reviews',
-    group: 'source-files',
-    icon: 'MessageSquareCheck',
+    group: 'system',
+    icon: 'Bell',
     defaultEnabled: true,
-    dependencies: ['explorer'],
+    required: true,
     implemented: true,
   },
   {
@@ -376,15 +375,6 @@ export const MODULES: ModuleDefinition[] = [
     group: 'change-control',
     icon: 'ClipboardList',
     defaultEnabled: true,
-  },
-  {
-    id: 'notifications',
-    name: 'Notifications',
-    group: 'system',
-    icon: 'Bell',
-    defaultEnabled: true,
-    required: true,  // Cannot be disabled
-    implemented: true,
   },
   {
     id: 'deviations',
@@ -736,7 +726,6 @@ export const DEFAULT_MODULE_ORDER: ModuleId[] = [
   'pending',
   'history',
   'workflows',
-  'reviews',
   'trash',
   // Products
   'products',
@@ -792,9 +781,9 @@ export const DEFAULT_MODULE_ORDER: ModuleId[] = [
   'budgets',
   // Integrations
   'google-drive',
-  // System (notifications and settings at bottom)
+  // System (reviews and settings at bottom)
   'terminal',
-  'notifications',
+  'reviews',
   'settings',
 ]
 
@@ -834,7 +823,6 @@ export const DEFAULT_MODULE_PARENT_MAP: Record<ModuleId, ParentId> = {
   'pending': 'group-source-files',
   'history': 'group-source-files',
   'workflows': 'group-source-files',
-  'reviews': 'group-source-files',
   'trash': 'group-source-files',
   // Products group (after Source Files)
   'products': 'group-products',
@@ -843,7 +831,6 @@ export const DEFAULT_MODULE_PARENT_MAP: Record<ModuleId, ParentId> = {
   // Change Control group
   'ecr': 'group-change-control',
   'eco': 'group-change-control',
-  'notifications': null,  // Top-level, shown near settings
   'deviations': 'group-change-control',
   'release-schedule': 'group-change-control',
   'process': 'group-change-control',
@@ -890,6 +877,7 @@ export const DEFAULT_MODULE_PARENT_MAP: Record<ModuleId, ParentId> = {
   // Top-level (no parent)
   'google-drive': null,
   'terminal': null,
+  'reviews': null,
   'settings': null,
 }
 

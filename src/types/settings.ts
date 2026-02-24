@@ -23,7 +23,6 @@ export type SettingsTab =
   | 'api' 
   | 'supabase' 
   | 'recovery-codes'
-  | 'notifications'
   | 'performance'
   | 'logs' 
   | 'dev-tools'

@@ -49,7 +49,6 @@ import {
   createOrganizationMetadataSlice,
   createIntegrationsSlice,
   createExtensionsSlice,
-  createNotificationPrefsSlice,
   createOperationLogSlice,
   createAnnotationsSlice,
 } from './slices'
@@ -75,7 +74,6 @@ export const usePDMStore = create<PDMStoreState>()(
       ...createOrganizationMetadataSlice(...a),
       ...createIntegrationsSlice(...a),
       ...createExtensionsSlice(...a),
-      ...createNotificationPrefsSlice(...a),
       ...createOperationLogSlice(...a),
       ...createAnnotationsSlice(...a),
     }),
@@ -213,13 +211,6 @@ export const usePDMStore = create<PDMStoreState>()(
         // Search
         // ═══════════════════════════════════════════════════════════════
         recentSearches: state.recentSearches.slice(0, 20),
-        
-        // ═══════════════════════════════════════════════════════════════
-        // Notification Preferences
-        // ═══════════════════════════════════════════════════════════════
-        notificationCategories: state.notificationCategories,
-        quietHours: state.quietHours,
-        soundSettings: state.soundSettings,
         
         // ═══════════════════════════════════════════════════════════════
         // Test Runner
@@ -513,18 +504,6 @@ export const usePDMStore = create<PDMStoreState>()(
             }
             return persistedTabs[0]?.id || 'default-tab'
           })(),
-          // Notification preferences - merge with defaults to handle new categories
-          notificationCategories: (() => {
-            const persistedCategories = persisted.notificationCategories as typeof currentState.notificationCategories | undefined
-            if (!persistedCategories) return currentState.notificationCategories
-            // Merge persisted with defaults (in case new categories are added)
-            return {
-              ...currentState.notificationCategories,
-              ...persistedCategories,
-            }
-          })(),
-          quietHours: (persisted.quietHours as typeof currentState.quietHours) || currentState.quietHours,
-          soundSettings: (persisted.soundSettings as typeof currentState.soundSettings) || currentState.soundSettings,
         }
       }
     }

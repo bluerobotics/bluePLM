@@ -1,6 +1,5 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, OperationsSlice, QueuedOperation, OrphanedCheckout, StagedCheckin, MissingStorageFile } from '../types'
-import type { NotificationWithDetails } from '../../types/database'
 import { logExplorer } from '@/lib/userActionLogger'
 
 /**
@@ -40,12 +39,8 @@ export const createOperationsSlice: StateCreator<
   isOperationRunning: false,
   currentOperation: null,
   
-  // Initial state - Notifications & Reviews
-  unreadNotificationCount: 0,
+  // Initial state - Reviews
   pendingReviewCount: 0,
-  notifications: [],
-  notificationsLoading: false,
-  notificationsLoaded: false,
   
   // Initial state - Orphaned checkouts
   orphanedCheckouts: [],
@@ -167,79 +162,8 @@ export const createOperationsSlice: StateCreator<
     setTimeout(() => get().processQueue(), 0)
   },
   
-  // Actions - Notifications & Reviews
-  setUnreadNotificationCount: (count) => set({ unreadNotificationCount: count }),
+  // Actions - Reviews
   setPendingReviewCount: (count) => set({ pendingReviewCount: count }),
-  incrementNotificationCount: () => set(state => ({ unreadNotificationCount: state.unreadNotificationCount + 1 })),
-  decrementNotificationCount: (amount = 1) => set(state => ({ 
-    unreadNotificationCount: Math.max(0, state.unreadNotificationCount - amount) 
-  })),
-  
-  // Actions - Notifications List
-  setNotifications: (notifications: NotificationWithDetails[]) => set({ 
-    notifications, 
-    notificationsLoaded: true,
-    unreadNotificationCount: notifications.filter(n => !n.read).length 
-  }),
-  
-  setNotificationsLoading: (loading: boolean) => set({ notificationsLoading: loading }),
-  
-  addNotification: (notification: NotificationWithDetails) => set((state) => {
-    const notifications = [notification, ...state.notifications]
-    return { 
-      notifications,
-      unreadNotificationCount: notifications.filter(n => !n.read).length
-    }
-  }),
-  
-  updateNotification: (id: string, updates: Partial<NotificationWithDetails>) => set((state) => {
-    const notifications = state.notifications.map(n => 
-      n.id === id ? { ...n, ...updates } : n
-    )
-    return {
-      notifications,
-      unreadNotificationCount: notifications.filter(n => !n.read).length
-    }
-  }),
-  
-  removeNotification: (id: string) => set((state) => {
-    const notification = state.notifications.find(n => n.id === id)
-    const notifications = state.notifications.filter(n => n.id !== id)
-    return {
-      notifications,
-      unreadNotificationCount: notification && !notification.read 
-        ? state.unreadNotificationCount - 1 
-        : state.unreadNotificationCount
-    }
-  }),
-  
-  markNotificationRead: (id: string) => set((state) => {
-    const notification = state.notifications.find(n => n.id === id)
-    if (!notification || notification.read) return state
-    
-    return {
-      notifications: state.notifications.map(n => 
-        n.id === id ? { ...n, read: true, read_at: new Date().toISOString() } : n
-      ),
-      unreadNotificationCount: Math.max(0, state.unreadNotificationCount - 1)
-    }
-  }),
-  
-  // Named markAllRead to avoid confusion with supabase helper markAllNotificationsRead
-  markAllRead: () => set((state) => ({
-    notifications: state.notifications.map(n => ({ 
-      ...n, 
-      read: true, 
-      read_at: n.read_at || new Date().toISOString() 
-    })),
-    unreadNotificationCount: 0
-  })),
-  
-  clearNotifications: () => set({ 
-    notifications: [], 
-    notificationsLoaded: false,
-    unreadNotificationCount: 0 
-  }),
   
   // Actions - Orphaned checkouts
   addOrphanedCheckout: (checkout: OrphanedCheckout) => set(state => ({

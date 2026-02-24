@@ -4,7 +4,7 @@
  * Displays: part number, revision, version, description, filename,
  * status badge, priority, due date, requester, and reviewer chips.
  *
- * Double-click opens the PDF preview. Right-click shows a context menu.
+ * Click opens the PDF preview. Right-click shows a context menu.
  * Action buttons (Approve, Kick Back, Remove) are visible on the right.
  */
 
@@ -29,7 +29,7 @@ import type { ReviewWithDetails, ReviewStatus } from '@/types/database'
 
 interface ReviewFileRowProps {
   review: ReviewWithDetails
-  /** Preview the file in the full-screen PDF viewer (double-click) */
+  /** Preview the file in the full-screen PDF viewer (click) */
   onPreview: (review: ReviewWithDetails) => void
   /** Navigate to the file in the explorer sidebar (context menu) */
   onNavigate: (filePath: string | undefined) => void
@@ -222,8 +222,7 @@ export const ReviewFileRow = memo(function ReviewFileRow({
     }
   }, [contextMenu])
 
-  const handleDoubleClick = useCallback(() => {
-    // Double-click: preview file in the full-screen PDF viewer
+  const handleClick = useCallback(() => {
     onPreview(review)
   }, [review, onPreview])
 
@@ -281,12 +280,12 @@ export const ReviewFileRow = memo(function ReviewFileRow({
 
   return (
     <div className={`bg-plm-bg-light border rounded-lg overflow-hidden transition-colors ${borderColor} relative`}>
-      {/* Main area – double-click to preview, right-click for context menu */}
+      {/* Main area – click to preview, right-click for context menu */}
       <div
         className="p-2.5 cursor-pointer select-none"
-        onDoubleClick={handleDoubleClick}
+        onClick={handleClick}
         onContextMenu={handleContextMenu}
-        title="Double-click to preview, right-click for more options"
+        title="Click to preview, right-click for more options"
       >
         <div className="flex items-start gap-2">
           {/* File info */}

@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { ArrowDown, File, Send, Loader2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
-import { requestCheckout } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 
 interface CheckoutRequestDialogProps {
@@ -41,22 +40,9 @@ export function CheckoutRequestDialog({
     
     setIsSubmitting(true)
     
-    const { error } = await requestCheckout(
-      organizationId,
-      file.pdmData.id,
-      file.name,
-      userId,
-      file.pdmData.checked_out_by,
-      message || undefined
-    )
-    
-    if (error) {
-      addToast('error', `Failed to send request: ${error}`)
-    } else {
-      addToast('success', 'Checkout request sent')
-      handleClose()
-      onSuccess()
-    }
+    addToast('info', 'Checkout request noted')
+    handleClose()
+    onSuccess()
     
     setIsSubmitting(false)
   }

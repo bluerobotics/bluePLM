@@ -1,12 +1,9 @@
 import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscribeToColorSwatches, subscribeToPermissions, subscribeToVaults, subscribeToNotifications, unsubscribeAll } from '@/lib/realtime'
-import { getNotificationById } from '@/lib/supabase/notifications'
+import { subscribeToFiles, subscribeToActivity, subscribeToOrganization, subscribeToColorSwatches, subscribeToPermissions, subscribeToVaults, unsubscribeAll } from '@/lib/realtime'
 import { buildFullPath } from '@/lib/commands/types'
 import { log } from '@/lib/logger'
 import type { Organization } from '@/types/pdm'
-import type { NotificationCategory } from '@/types/notifications'
-import { shouldShowToast, playNotificationSound } from './useNotificationFilter'
 
 /**
  * Subscribe to realtime updates from Supabase
@@ -36,16 +33,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       fileNames: string[]
       version?: number
       state?: string
-    }
-    
-    // Map notification types to notification categories
-    const notificationTypeToCategory: Record<NotificationType, NotificationCategory> = {
-      checkout: 'fileOperations',
-      checkin: 'fileOperations',
-      version: 'fileOperations',
-      state: 'workflow',
-      add: 'fileOperations',
-      move: 'fileOperations',
     }
     
     const pendingNotifications: Map<string, PendingNotification> = new Map()
@@ -93,12 +80,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       flushTimeout = null
       
       for (const notification of pendingNotifications.values()) {
-        // Check if this notification type should be shown based on user preferences
-        const category = notificationTypeToCategory[notification.type]
-        if (!shouldShowToast(category)) {
-          continue
-        }
-        
         const count = notification.fileNames.length
         const userName = notification.userName || 'Another user'
         
@@ -150,11 +131,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           }
         }
         
-        // Add toast with category for consistent filtering and metadata
-        addToast('info', message, 5000, category)
-        
-        // Play notification sound if enabled for this category
-        playNotificationSound(category)
+        addToast('info', message, 5000)
       }
       
       pendingNotifications.clear()
@@ -518,10 +495,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
         // Admin pushed new module config - apply it immediately
         const { loadOrgModuleDefaults } = usePDMStore.getState()
         loadOrgModuleDefaults().then(() => {
-          if (shouldShowToast('system')) {
-            addToast('info', 'Sidebar configuration updated by admin', 5000, 'system')
-            playNotificationSound('system')
-          }
+          addToast('info', 'Sidebar configuration updated by admin', 5000)
         })
         // Don't show generic "settings updated" toast for forced module config
         return
@@ -577,10 +551,7 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           window.electronAPI.solidworks.setFileLocations(settings).then((result) => {
             if (result.success && result.updatedVersions?.length) {
               log.info('[Realtime]', 'Applied SOLIDWORKS templates to registry', { versions: result.updatedVersions.join(', ') })
-              if (shouldShowToast('system')) {
-                addToast('success', `SOLIDWORKS templates updated by admin (${result.updatedVersions.length} version${result.updatedVersions.length > 1 ? 's' : ''})`, 5000, 'system')
-                playNotificationSound('system')
-              }
+              addToast('success', `SOLIDWORKS templates updated by admin (${result.updatedVersions.length} version${result.updatedVersions.length > 1 ? 's' : ''})`, 5000)
             } else if (result.error) {
               log.warn('[Realtime]', 'Failed to apply SOLIDWORKS templates', { error: result.error })
             }
@@ -592,10 +563,8 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
         return
       }
       
-      // Show toast if any admin settings changed (respects notification preferences)
-      if (allChangedFields.length > 0 && shouldShowToast('system')) {
-        addToast('info', 'Organization settings updated by an admin', 5000, 'system')
-        playNotificationSound('system')
+      if (allChangedFields.length > 0) {
+        addToast('info', 'Organization settings updated by an admin', 5000)
       }
     })
     
@@ -644,20 +613,16 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
           await loadUserWorkflowRoles()
         }
         
-        // Show toast to inform user their access changed (respects notification preferences)
-        if (shouldShowToast('system')) {
-          const messages: Record<string, string> = {
-            'vault_access': 'Your vault access has been updated',
-            'team_vault_access': 'Team vault access has been updated',
-            'team_members': 'Your team membership has been updated',
-            'user_permissions': 'Your permissions have been updated',
-            'teams': 'Team structure has been updated',
-            'workflow_roles': 'Your workflow roles have been updated',
-            'job_titles': 'Your job title has been updated'
-          }
-          addToast('info', messages[changeType] || 'Your access has been updated', 5000, 'system')
-          playNotificationSound('system')
+        const messages: Record<string, string> = {
+          'vault_access': 'Your vault access has been updated',
+          'team_vault_access': 'Team vault access has been updated',
+          'team_members': 'Your team membership has been updated',
+          'user_permissions': 'Your permissions have been updated',
+          'teams': 'Team structure has been updated',
+          'workflow_roles': 'Your workflow roles have been updated',
+          'job_titles': 'Your job title has been updated'
         }
+        addToast('info', messages[changeType] || 'Your access has been updated', 5000)
         
         // Trigger a refresh of the vault list in WelcomeScreen by updating a timestamp
         // Components watching this will know to reload
@@ -674,56 +639,14 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       const { triggerVaultsRefresh } = usePDMStore.getState()
       triggerVaultsRefresh()
       
-      // Show toast for vault changes (respects notification preferences)
-      if (shouldShowToast('system')) {
-        const vaultName = vault?.name || 'A vault'
-        const messages: Record<string, string> = {
-          'INSERT': `${vaultName} was created`,
-          'UPDATE': `${vaultName} was updated`,
-          'DELETE': `A vault was deleted`
-        }
-        addToast('info', messages[eventType] || 'Vault configuration changed', 5000, 'system')
-        playNotificationSound('system')
+      const vaultName = vault?.name || 'A vault'
+      const messages: Record<string, string> = {
+        'INSERT': `${vaultName} was created`,
+        'UPDATE': `${vaultName} was updated`,
+        'DELETE': `A vault was deleted`
       }
+      addToast('info', messages[eventType] || 'Vault configuration changed', 5000)
     })
-    
-    // Subscribe to notifications for this user
-    // Triggers urgent notification modal for urgent priority notifications
-    const unsubscribeNotifications = currentUserId ? subscribeToNotifications(
-      currentUserId,
-      async (eventType, notification) => {
-        if (eventType !== 'INSERT') return
-        
-        log.info('[Realtime]', 'New notification received', { 
-          type: notification.type, 
-          priority: notification.priority,
-          title: notification.title
-        })
-        
-        // For urgent notifications, show the modal
-        if (notification.priority === 'urgent') {
-          // Fetch full notification with joined data (from_user, file)
-          const { notification: fullNotification, error } = await getNotificationById(notification.id)
-          
-          if (!error && fullNotification) {
-            const { setUrgentNotification } = usePDMStore.getState()
-            setUrgentNotification(fullNotification)
-            
-            // Also play notification sound for urgent
-            playNotificationSound('collaboration')
-          }
-        } else {
-          // For non-urgent notifications, just show toast and increment count
-          const { incrementNotificationCount } = usePDMStore.getState()
-          incrementNotificationCount()
-          
-          if (shouldShowToast('collaboration')) {
-            addToast('info', notification.title, 5000, 'collaboration')
-            playNotificationSound('collaboration')
-          }
-        }
-      }
-    ) : () => {}
     
     return () => {
       // Clear any pending notification timeout
@@ -741,7 +664,6 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
       unsubscribeColorSwatches()
       unsubscribePermissions()
       unsubscribeVaults()
-      unsubscribeNotifications()
       unsubscribeAll()
     }
   }, [organization, isOfflineMode, setOrganization, addToast])

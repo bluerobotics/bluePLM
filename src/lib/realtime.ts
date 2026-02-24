@@ -52,7 +52,6 @@ let colorSwatchesChannel: RealtimeChannel | null = null
 let permissionsChannel: RealtimeChannel | null = null
 let vaultsChannel: RealtimeChannel | null = null
 let memberChangesChannel: RealtimeChannel | null = null
-let notificationsChannel: RealtimeChannel | null = null
 
 // Callback type for permission/access changes
 type PermissionChangeCallback = (
@@ -400,85 +399,6 @@ export function isMemberChangesRealtimeConnected(): boolean {
   return memberChangesChannel !== null
 }
 
-// Callback type for notification changes
-type NotificationChangeCallback = (
-  eventType: 'INSERT' | 'UPDATE',
-  notification: {
-    id: string
-    type: string
-    priority: string | null
-    title: string
-    message: string | null
-    from_user_id: string | null
-    to_user_id: string
-    file_id: string | null
-    is_read: boolean | null
-    created_at: string | null
-  }
-) => void
-
-/**
- * Subscribe to notification changes for a user
- * 
- * Updates are instant for:
- * - New notifications
- * - Notification read status changes
- * 
- * This enables urgent notification modal display.
- */
-export function subscribeToNotifications(
-  userId: string,
-  onNotificationChange: NotificationChangeCallback
-): () => void {
-  // Unsubscribe from previous channel if exists
-  if (notificationsChannel) {
-    notificationsChannel.unsubscribe()
-  }
-
-  notificationsChannel = supabase
-    .channel(`notifications:${userId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `to_user_id=eq.${userId}`
-      },
-      (payload) => {
-        onNotificationChange('INSERT', payload.new as any)
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'notifications',
-        filter: `to_user_id=eq.${userId}`
-      },
-      (payload) => {
-        onNotificationChange('UPDATE', payload.new as any)
-      }
-    )
-    .subscribe()
-
-  // Return unsubscribe function
-  return () => {
-    if (notificationsChannel) {
-      notificationsChannel.unsubscribe()
-      notificationsChannel = null
-    }
-  }
-}
-
-/**
- * Check if notifications realtime is connected
- */
-export function isNotificationsRealtimeConnected(): boolean {
-  return notificationsChannel !== null
-}
-
 /**
  * Subscribe to permission-related changes for a user
  * 
@@ -671,10 +591,6 @@ export function unsubscribeAll() {
   if (memberChangesChannel) {
     memberChangesChannel.unsubscribe()
     memberChangesChannel = null
-  }
-  if (notificationsChannel) {
-    notificationsChannel.unsubscribe()
-    notificationsChannel = null
   }
 }
 
