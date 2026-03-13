@@ -361,6 +361,12 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     const file = files.find(f => f.path === filePath)
     if (!file) return
     
+    const swStatus = usePDMStore.getState().integrations.solidworks.status
+    if (swStatus !== 'online' && swStatus !== 'partial') {
+      addToast('error', 'Start the SolidWorks service to edit configuration metadata')
+      return
+    }
+    
     const upperValue = value.toUpperCase()
     
     // Update config in store (for immediate UI feedback)
@@ -428,6 +434,12 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
     
     const file = files.find(f => f.path === filePath)
     if (!file) return
+    
+    const swStatus = usePDMStore.getState().integrations.solidworks.status
+    if (swStatus !== 'online' && swStatus !== 'partial') {
+      addToast('error', 'Start the SolidWorks service to edit configuration metadata')
+      return
+    }
     
     // Update config in store (for immediate UI feedback)
     const configs = fileConfigurations.get(filePath)
@@ -528,6 +540,12 @@ export function useConfigHandlers(deps: ConfigHandlersDeps): UseConfigHandlersRe
 
   // Save ALL pending metadata to SolidWorks file (base + config metadata)
   const saveConfigsToSWFile = useCallback(async (file: LocalFile) => {
+    const swStatus = usePDMStore.getState().integrations.solidworks.status
+    if (swStatus !== 'online' && swStatus !== 'partial') {
+      addToast('error', 'Start the SolidWorks service to save metadata to SolidWorks files')
+      return
+    }
+    
     const configs = fileConfigurations.get(file.path) || []
     
     setSavingConfigsToSW(prev => new Set(prev).add(file.path))

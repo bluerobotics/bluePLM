@@ -228,6 +228,15 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     }
     // Unsynced files (no pdmData.id) are always editable - allows setting metadata before first sync
     
+    const ext = file.extension?.toLowerCase() || ''
+    if (SW_EXTENSIONS.includes(ext)) {
+      const swStatus = usePDMStore.getState().integrations.solidworks.status
+      if (swStatus !== 'online' && swStatus !== 'partial') {
+        addToast('error', 'Start the SolidWorks service to edit metadata on SolidWorks files')
+        return
+      }
+    }
+    
     // Get the current value based on column (check pendingMetadata first, then pdmData)
     let currentValue = ''
     switch (column) {

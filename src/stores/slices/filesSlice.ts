@@ -820,7 +820,7 @@ export const createFilesSlice: StateCreator<
           path: newPath,
           name: newName,
           relativePath: newRelativePath,
-          extension: newName.includes('.') ? newName.split('.').pop()?.toLowerCase() || '' : ''
+          extension: newName.includes('.') ? '.' + (newName.split('.').pop()?.toLowerCase() || '') : ''
         }
       }
       
@@ -1162,7 +1162,7 @@ export const createFilesSlice: StateCreator<
           path: newFullPath,
           relativePath: newRelativePath,
           name: newFileName,
-          extension: newFileName.includes('.') ? newFileName.split('.').pop()?.toLowerCase() || '' : '',
+          extension: newFileName.includes('.') ? '.' + (newFileName.split('.').pop()?.toLowerCase() || '') : '',
           pdmData: { ...f.pdmData, ...pdmData } as PDMFile
         }
       })
@@ -1271,7 +1271,7 @@ export const createFilesSlice: StateCreator<
           path: newFullPath,
           relativePath: update.newRelativePath,
           name: update.newFileName,
-          extension: update.newFileName.includes('.') ? update.newFileName.split('.').pop()?.toLowerCase() || '' : '',
+          extension: update.newFileName.includes('.') ? '.' + (update.newFileName.split('.').pop()?.toLowerCase() || '') : '',
           pdmData: { ...f.pdmData, ...update.pdmData } as PDMFile
         }
       })

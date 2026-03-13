@@ -342,6 +342,63 @@ export function useLoadFiles() {
             }
           }
           
+          // --- Rename detection: compute hashes for unmatched local files ---
+          // When a file is renamed externally (e.g. SolidWorks tree rename), the new path
+          // has no hash in cache. Without a hash, the existing move detection (below) can't
+          // match the file to its server record by content_hash. We fix this by computing
+          // hashes for unmatched local files when there are also missing checked-out-by-me
+          // server files — a strong signal that an external rename occurred.
+          if (checkedOutByMeByHash.size > 0 && window.electronAPI?.computeFileHashes) {
+            const unmatchedLocalFiles = localFiles.filter(f =>
+              !f.isDirectory && !f.localHash && !pdmMap.has(f.relativePath.toLowerCase())
+            )
+            
+            const missingServerPaths = new Set<string>()
+            for (const [, pdmFile] of checkedOutByMeByHash) {
+              if (!localPathSet.has(pdmFile.file_path.toLowerCase())) {
+                missingServerPaths.add(pdmFile.file_path.toLowerCase())
+              }
+            }
+            
+            if (unmatchedLocalFiles.length > 0 && missingServerPaths.size > 0) {
+              window.electronAPI?.log('info', '[LoadFiles] Rename detection: computing hashes for unmatched local files', {
+                unmatchedLocal: unmatchedLocalFiles.length,
+                missingServer: missingServerPaths.size,
+                unmatchedSamples: unmatchedLocalFiles.slice(0, 3).map(f => f.relativePath),
+                missingSamples: Array.from(missingServerPaths).slice(0, 3)
+              })
+              
+              const hashRequests = unmatchedLocalFiles.map(f => ({
+                path: f.path,
+                relativePath: f.relativePath,
+                size: f.size,
+                mtime: new Date(f.modifiedTime).getTime()
+              }))
+              
+              try {
+                const { results } = await window.electronAPI.computeFileHashes(hashRequests)
+                if (results && results.length > 0) {
+                  const hashMap = new Map(results.map(r => [r.relativePath, r.hash]))
+                  let renameMatchCount = 0
+                  localFiles = localFiles.map(f => {
+                    const computed = hashMap.get(f.relativePath)
+                    if (computed) {
+                      if (checkedOutByMeByHash.has(computed)) renameMatchCount++
+                      return { ...f, localHash: computed }
+                    }
+                    return f
+                  })
+                  window.electronAPI?.log('info', '[LoadFiles] Rename detection: hashes computed', {
+                    hashesComputed: results.length,
+                    renameMatchesFound: renameMatchCount
+                  })
+                }
+              } catch (err) {
+                window.electronAPI?.log('warn', '[LoadFiles] Rename detection: hash computation failed', { error: String(err) })
+              }
+            }
+          }
+          
           // Merge PDM data into local files and compute diff status
           let matchedCount = 0
           let unmatchedCount = 0

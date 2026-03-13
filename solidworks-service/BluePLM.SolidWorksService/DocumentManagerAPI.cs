@@ -151,6 +151,19 @@ namespace BluePLM.SolidWorksService
         }
 
         /// <summary>
+        /// Invoke AddCustomProperty via reflection to avoid dynamic dispatch enum marshaling issues.
+        /// Dynamic dispatch with Enum.ToObject() produces a boxed object that COM interop cannot
+        /// resolve for overload matching; reflection passes the argument correctly.
+        /// </summary>
+        private void InvokeAddCustomProperty(object comObj, string name, object typeEnum, string value)
+        {
+            var method = comObj.GetType().GetMethod("AddCustomProperty");
+            if (method == null)
+                throw new InvalidOperationException($"AddCustomProperty not found on {comObj.GetType().Name}");
+            method.Invoke(comObj, new object[] { name, typeEnum, value });
+        }
+
+        /// <summary>
         /// Create a search option object using the proper API factory method.
         /// This avoids direct COM class instantiation which requires registry registration.
         /// </summary>
@@ -1308,9 +1321,9 @@ namespace BluePLM.SolidWorksService
                 int propsFailed = 0;
                 var failedProps = new List<string>();
                 
-                // Get the SwDmCustomInfoType enum type for proper COM interop
-                // Using int directly fails with "invalid arguments" when adding new properties
                 var customInfoType = GetDmType("SwDmCustomInfoType");
+                if (customInfoType == null)
+                    Console.Error.WriteLine("[DM-API] WARNING: SwDmCustomInfoType not found in assembly, falling back to raw int 2");
                 var swDmCustomInfoTextEnum = customInfoType != null ? Enum.ToObject(customInfoType, 2) : (object)2;
 
                 if (string.IsNullOrEmpty(configuration))
@@ -1332,8 +1345,7 @@ namespace BluePLM.SolidWorksService
                             } 
                             catch 
                             {
-                                // Property doesn't exist, try Add
-                                dynDoc.AddCustomProperty(kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
+                                InvokeAddCustomProperty(doc, kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
                                 propsSet++;
                                 Console.Error.WriteLine($"[DM] Added file property '{kvp.Key}' via AddCustomProperty");
                             }
@@ -1373,8 +1385,7 @@ namespace BluePLM.SolidWorksService
                             } 
                             catch 
                             {
-                                // Property doesn't exist, try Add
-                                config.AddCustomProperty(kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
+                                InvokeAddCustomProperty((object)config, kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
                                 propsSet++;
                                 Console.Error.WriteLine($"[DM] Added config property '{kvp.Key}' via AddCustomProperty");
                             }
@@ -1395,7 +1406,7 @@ namespace BluePLM.SolidWorksService
                         try
                         {
                             try { dynDoc.DeleteCustomProperty("Number"); } catch { }
-                            dynDoc.AddCustomProperty("Number", swDmCustomInfoTextEnum, numberValue);
+                            InvokeAddCustomProperty(doc, "Number", swDmCustomInfoTextEnum, numberValue);
                         }
                         catch
                         {
@@ -1502,9 +1513,9 @@ namespace BluePLM.SolidWorksService
                 dynamic dynDoc = doc;
                 var configMgr = dynDoc.ConfigurationManager;
                 
-                // Get the SwDmCustomInfoType enum type for proper COM interop
-                // Using int directly fails with "invalid arguments" when adding new properties
                 var customInfoType = GetDmType("SwDmCustomInfoType");
+                if (customInfoType == null)
+                    Console.Error.WriteLine("[DM-API] WARNING: SwDmCustomInfoType not found in assembly, falling back to raw int 2");
                 var swDmCustomInfoTextEnum = customInfoType != null ? Enum.ToObject(customInfoType, 2) : (object)2;
                 
                 int totalPropsSet = 0;
@@ -1541,34 +1552,31 @@ namespace BluePLM.SolidWorksService
                             totalPropsAttempted++;
                             try
                             {
-                                try { config.DeleteCustomProperty(kvp.Key); } catch { }
-                                config.AddCustomProperty(kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
-                                propsSetForConfig++;
+                                // Try SetCustomProperty first (works if property exists)
+                                // This is safer than Delete+Add which can lose data if Add fails
+                                try 
+                                { 
+                                    config.SetCustomProperty(kvp.Key, kvp.Value);
+                                    propsSetForConfig++;
+                                    Console.Error.WriteLine($"[DM] Set config property '{kvp.Key}' via SetCustomProperty");
+                                } 
+                                catch 
+                                {
+                                    InvokeAddCustomProperty((object)config, kvp.Key, swDmCustomInfoTextEnum, kvp.Value);
+                                    propsSetForConfig++;
+                                    Console.Error.WriteLine($"[DM] Added config property '{kvp.Key}' via AddCustomProperty");
+                                }
                                 
-                                // Track Number value for file-level backup
                                 if (kvp.Key == "Number" && !string.IsNullOrEmpty(kvp.Value))
                                 {
                                     lastNumberValue = kvp.Value;
                                 }
                             }
-                            catch
+                            catch (Exception ex)
                             {
-                                try 
-                                { 
-                                    config.SetCustomProperty(kvp.Key, kvp.Value);
-                                    propsSetForConfig++; 
-                                    
-                                    if (kvp.Key == "Number" && !string.IsNullOrEmpty(kvp.Value))
-                                    {
-                                        lastNumberValue = kvp.Value;
-                                    }
-                                } 
-                                catch (Exception ex)
-                                {
-                                    totalPropsFailed++;
-                                    failedProps.Add($"{configName}:{kvp.Key}");
-                                    Console.Error.WriteLine($"[DM] Failed to set property '{kvp.Key}' on config '{configName}': {ex.Message}");
-                                }
+                                totalPropsFailed++;
+                                failedProps.Add($"{configName}:{kvp.Key}");
+                                Console.Error.WriteLine($"[DM] Failed to set property '{kvp.Key}' on config '{configName}': {ex.Message}");
                             }
                         }
                         
@@ -1590,7 +1598,7 @@ namespace BluePLM.SolidWorksService
                     try
                     {
                         try { dynDoc.DeleteCustomProperty("Number"); } catch { }
-                        dynDoc.AddCustomProperty("Number", swDmCustomInfoTextEnum, lastNumberValue);
+                        InvokeAddCustomProperty(doc, "Number", swDmCustomInfoTextEnum, lastNumberValue);
                     }
                     catch
                     {

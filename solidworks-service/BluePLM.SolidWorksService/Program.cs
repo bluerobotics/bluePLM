@@ -33,7 +33,7 @@ namespace BluePLM.SolidWorksService
         /// Service version - bump this when making changes that affect functionality.
         /// The app checks this version and warns if there's a mismatch.
         /// </summary>
-        private const string SERVICE_VERSION = "1.1.0";
+        private const string SERVICE_VERSION = "1.2.0";
         
         private static DocumentManagerAPI? _dmApi;
         private static SolidWorksAPI? _swApi;
@@ -674,37 +674,17 @@ namespace BluePLM.SolidWorksService
 
         static CommandResult SetPropertiesFast(string? filePath, System.Collections.Generic.Dictionary<string, string>? properties, string? configuration)
         {
-            // Try Document Manager first (NO SW launch!)
-            // Note: We only check for null here. The DM methods internally call Initialize()
-            // which handles reinitialization after ReleaseHandles() was called.
-            if (_dmApi != null)
-            {
-                var result = _dmApi.SetCustomProperties(filePath, properties, configuration);
-                if (result.Success) return result;
-                // Log why DM-API failed before falling back
-                Console.Error.WriteLine($"[Service] DM-API SetCustomProperties failed: {result.Error}");
-                Console.Error.WriteLine($"[Service] Falling back to SW-API for setProperties...");
-            }
-            
-            // Fall back to full SW API (will launch SW - slower)
+            // Always use the full SolidWorks COM API for property writes.
+            // The DM API's AddCustomProperty silently fails for config-level properties
+            // on newer file formats, so we bypass it entirely.
             return _swApi!.SetCustomProperties(filePath, properties, configuration);
         }
 
         static CommandResult SetPropertiesBatchFast(string? filePath, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>>? configProperties)
         {
-            // Try Document Manager first (NO SW launch!)
-            // Note: We only check for null here. The DM methods internally call Initialize()
-            // which handles reinitialization after ReleaseHandles() was called.
-            if (_dmApi != null)
-            {
-                var result = _dmApi.SetCustomPropertiesBatch(filePath, configProperties);
-                if (result.Success) return result;
-                // Log why DM-API failed before falling back
-                Console.Error.WriteLine($"[Service] DM-API SetCustomPropertiesBatch failed: {result.Error}");
-                Console.Error.WriteLine($"[Service] Falling back to SW-API for setPropertiesBatch...");
-            }
-            
-            // Fall back to doing it one at a time with SW API (slower)
+            // Always use the full SolidWorks COM API for property writes.
+            // The DM API's AddCustomProperty silently fails for config-level properties
+            // on newer file formats, so we bypass it entirely.
             if (configProperties == null)
                 return new CommandResult { Success = false, Error = "Missing configProperties" };
                 

@@ -686,7 +686,7 @@ export async function getContainsRecursive(
         reference_type: ref.reference_type || 'component',
         child: ref.child ? {
           ...ref.child,
-          extension: ref.child.file_name?.split('.').pop()?.toLowerCase()
+          extension: ref.child.file_name?.includes('.') ? '.' + (ref.child.file_name.split('.').pop()?.toLowerCase() || '') : ''
         } : null,
         children: [],
         depth

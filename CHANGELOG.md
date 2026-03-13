@@ -17,13 +17,17 @@ All notable changes to BluePLM will be documented in this file.
 - **Sync performance logging**: Each `syncFile` step now logs individual duration with a single summary line at INFO level (timings, upload speed, file size) for RCA
 
 ### Fixed
+- **Drawing sync metadata says "no changes" when DM API can't resolve references**: Added filename-based parent model inference as fallback. When the Document Manager API returns 0 references (common with certain SW file formats), BluePLM now looks for a matching `.SLDPRT`/`.SLDASM` in the same directory. Also surfaces a clear message when SolidWorks COM is inaccessible due to permissions mismatch
 - **Cannot select text in BR number/description cells**: Row-level drag handler now detects text-selectable cells and cancels the drag
 - **Inline edit not writing to SolidWorks file**: Fixed silent exit paths and stale closure in `handleSaveCellEdit`/`saveConfigsToSWFile`
 - **Custom properties not written on STEP-imported parts**: DM API now reports per-property failures, triggering SW API fallback. Inline edits use live COM API when file is open in SolidWorks
+- **Sync Metadata not writing configuration properties**: DM API's `AddCustomProperty` silently failed for config-level properties on newer file formats. Property writes now bypass the DM API entirely and use the full SolidWorks COM API (`Set2`/`Add3`) which reliably creates and updates properties on all configurations
 - **PDF area selection required extra toggle**: Area selection now enabled by default when commenting is available
 - **Review rows required double-click**: Single-click now opens PDF preview
 - **Right sidebar toggle ignored comments column**: Comment sidebar now respects panel visibility toggle
 - **PDF viewer refused write-locked files**: EACCES/EPERM now falls through to read-only open
+- **Extension-dependent features broke after rename/move/copy**: File extension lost its leading dot in the store (e.g., `.slddrw` became `slddrw`), silently disabling drawing "driven by" icons, Sync Metadata context menu, config expansion, and export until a window refresh
+- **False "locked by Unknown" on copy-pasted files**: Lock detection treated Windows read-only files as process-locked because `O_RDWR` fails with `EACCES` on read-only attributes. Now disambiguates with an `O_RDONLY` check — if the file is readable, it's not locked
 
 ---
 

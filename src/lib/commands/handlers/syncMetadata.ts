@@ -24,7 +24,7 @@ import { buildFullPath } from '../types'
 import { ProgressTracker } from '../executor'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
-import { normalizeTabNumber } from '@/lib/serialization'
+import { normalizeTabNumber, getSerializationSettings, combineBaseAndTab } from '@/lib/serialization'
 
 // SolidWorks file extensions
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
@@ -52,6 +52,8 @@ interface ExtractedMetadata {
   parentModelPath?: string
   /** True if drawing needs SW API for inheritance but SW isn't running */
   drawingNeedsSwButNotRunning?: boolean
+  /** True if SW is running but COM inaccessible (permissions mismatch) */
+  drawingNeedsSwComFix?: boolean
 }
 
 /**
@@ -66,6 +68,8 @@ interface DrawingReferencesResult {
   }> | null
   /** True if the error was specifically that SLDWORKS.EXE is not running */
   solidworksNotRunning?: boolean
+  /** True if SolidWorks is running but COM is inaccessible (permissions mismatch) */
+  solidworksComInaccessible?: boolean
 }
 
 /**
@@ -78,6 +82,10 @@ async function getDrawingReferences(fullPath: string): Promise<DrawingReferences
     // Check for specific SOLIDWORKS_NOT_RUNNING error from the service
     if (!result?.success && result?.error === 'SOLIDWORKS_NOT_RUNNING') {
       return { references: null, solidworksNotRunning: true }
+    }
+    
+    if (!result?.success && result?.error === 'SOLIDWORKS_COM_INACCESSIBLE') {
+      return { references: null, solidworksComInaccessible: true }
     }
     
     if (!result?.success || !result.data?.references) {
@@ -94,6 +102,41 @@ async function getDrawingReferences(fullPath: string): Promise<DrawingReferences
   } catch {
     return { references: null }
   }
+}
+
+/**
+ * Infer the parent model path from a drawing's filename.
+ * Drawings almost always share the same base filename as their parent part/assembly
+ * (e.g., t3000-magnet.SLDDRW -> t3000-magnet.SLDPRT).
+ * This is used as a fallback when the DM API can't resolve drawing references.
+ */
+async function inferParentModelFromFilename(drawingFullPath: string): Promise<string | null> {
+  const lastBackslash = drawingFullPath.lastIndexOf('\\')
+  const lastForwardSlash = drawingFullPath.lastIndexOf('/')
+  const separatorIdx = Math.max(lastBackslash, lastForwardSlash)
+  const dir = separatorIdx >= 0 ? drawingFullPath.substring(0, separatorIdx + 1) : ''
+  const fileName = separatorIdx >= 0 ? drawingFullPath.substring(separatorIdx + 1) : drawingFullPath
+  const baseName = fileName.replace(/\.[^.]+$/, '')
+
+  for (const ext of ['.SLDPRT', '.SLDASM']) {
+    const candidate = dir + baseName + ext
+    try {
+      const result = await window.electronAPI?.solidworks?.getProperties?.(candidate)
+      if (result?.success) {
+        logSync('info', 'Filename inference found parent model', { drawingFullPath, candidate })
+        return candidate
+      }
+    } catch {
+      // candidate doesn't exist, try next
+    }
+  }
+
+  logSync('debug', 'Filename inference found no matching parent model', {
+    drawingFullPath,
+    triedPart: dir + baseName + '.SLDPRT',
+    triedAssembly: dir + baseName + '.SLDASM'
+  })
+  return null
 }
 
 /**
@@ -208,20 +251,7 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
     drawingDescription: drawingMetadata.description?.substring(0, 30)
   })
   
-  const { references: drawingRefs, solidworksNotRunning } = await getDrawingReferences(fullPath)
-  
-  // If SLDWORKS.EXE is not running, we can't get drawing references from parent model
-  // Return early with the flag so the UI can show a helpful message
-  if (solidworksNotRunning) {
-    logSync('warn', 'SolidWorks not running - cannot read drawing references from parent model', {
-      fullPath,
-      fallbackPartNumber: drawingMetadata.partNumber
-    })
-    return {
-      ...drawingMetadata,
-      drawingNeedsSwButNotRunning: true
-    }
-  }
+  const { references: drawingRefs, solidworksNotRunning, solidworksComInaccessible } = await getDrawingReferences(fullPath)
   
   if (drawingRefs && drawingRefs.length > 0) {
     const parentRef = drawingRefs[0]
@@ -425,8 +455,75 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
     }
   }
   
-  // Fallback to drawing's own metadata if parent lookup failed
-  // (Note: SOLIDWORKS_NOT_RUNNING case is handled earlier via getDrawingReferences)
+  // Filename-based fallback: when DM API can't resolve drawing references
+  // (common limitation with certain SW file format versions), try matching
+  // the drawing filename to a part/assembly in the same directory
+  logSync('info', 'No drawing references resolved, trying filename-based parent inference', { fullPath })
+  const inferredParentPath = await inferParentModelFromFilename(fullPath)
+  if (inferredParentPath) {
+    const parentResult = await window.electronAPI?.solidworks?.getProperties?.(inferredParentPath)
+    const parentData = parentResult?.data as {
+      fileProperties?: Record<string, string>
+      configurationProperties?: Record<string, Record<string, string>>
+    } | undefined
+    
+    if (parentResult?.success && parentData) {
+      const parentAllProps = { ...parentData.fileProperties }
+      const parentConfigProps = parentData.configurationProperties
+      if (parentConfigProps) {
+        const parentConfigNames = Object.keys(parentConfigProps)
+        const preferredConfig = parentConfigNames.find(k => k.toLowerCase() === 'default')
+          || parentConfigNames.find(k => k.toLowerCase() === 'standard')
+          || parentConfigNames[0]
+        if (preferredConfig && parentConfigProps[preferredConfig]) {
+          Object.assign(parentAllProps, parentConfigProps[preferredConfig])
+        }
+      }
+      
+      const parentMetadata = extractMetadataFromProperties(parentAllProps)
+      
+      logSync('info', 'Inherited metadata from parent model (filename inference)', {
+        drawingPath: fullPath,
+        parentModelPath: inferredParentPath,
+        inheritedPartNumber: parentMetadata.partNumber,
+        inheritedDescription: parentMetadata.description?.substring(0, 50),
+        drawingRevision: drawingMetadata.revision
+      })
+      
+      return {
+        partNumber: parentMetadata.partNumber,
+        tabNumber: parentMetadata.tabNumber,
+        description: parentMetadata.description,
+        revision: drawingMetadata.revision,
+        inheritedFromParent: true,
+        parentModelPath: inferredParentPath
+      }
+    }
+  }
+  
+  // All parent lookup methods failed
+  if (solidworksNotRunning) {
+    logSync('warn', 'SolidWorks not running and filename inference failed', {
+      fullPath,
+      fallbackPartNumber: drawingMetadata.partNumber
+    })
+    return {
+      ...drawingMetadata,
+      drawingNeedsSwButNotRunning: true
+    }
+  }
+  
+  if (solidworksComInaccessible) {
+    logSync('warn', 'SolidWorks COM inaccessible and filename inference failed', {
+      fullPath,
+      fallbackPartNumber: drawingMetadata.partNumber
+    })
+    return {
+      ...drawingMetadata,
+      drawingNeedsSwComFix: true
+    }
+  }
+  
   logSync('warn', 'Parent model lookup failed, using drawing properties as fallback', {
     fullPath,
     partNumber: drawingMetadata.partNumber,
@@ -438,6 +535,13 @@ async function pullDrawingMetadata(fullPath: string): Promise<ExtractedMetadata 
 /**
  * PUSH: Write metadata from BluePLM into a part/assembly file
  * Uses values from pendingMetadata (user edits) falling back to pdmData (database)
+ * 
+ * For multi-config files, writes config-specific properties to EACH configuration:
+ *   - Number = combineBaseAndTab(base, configTab)
+ *   - Base Item Number = base part number
+ *   - Tab Number = config-specific tab
+ *   - Description = config-specific description (falls back to file-level)
+ *   - Revision, Date, DrawnBy
  */
 async function pushPartAssemblyMetadata(
   file: LocalFile,
@@ -445,74 +549,146 @@ async function pushPartAssemblyMetadata(
 ): Promise<{ success: boolean; error?: string }> {
   logSync('debug', 'PUSH: Writing metadata to part/assembly', { fullPath })
   
-  // Get values to write - pendingMetadata takes precedence over pdmData
   const pending = file.pendingMetadata
   const pdm = file.pdmData
   
-  const partNumber = pending?.part_number ?? pdm?.part_number
-  const description = pending?.description ?? pdm?.description
+  const baseNumber = pending?.part_number ?? pdm?.part_number ?? ''
+  const fileDescription = pending?.description ?? pdm?.description ?? ''
+  const revision = pending?.revision ?? pdm?.revision ?? ''
+  const configTabs = pending?.config_tabs || {}
+  const configDescs = pending?.config_descriptions || {}
   
-  // Build properties object for setProperties
-  // We use "Number" and "Description" as the standard property names
-  const props: Record<string, string> = {}
-  
-  if (partNumber !== undefined && partNumber !== null) {
-    props['Number'] = partNumber
-  }
-  if (description !== undefined && description !== null) {
-    props['Description'] = description
-  }
-  
-  if (Object.keys(props).length === 0) {
+  if (!baseNumber && !fileDescription && !revision) {
     logSync('debug', 'No metadata to write', { fullPath })
     return { success: true }
   }
   
-  logSync('info', 'Writing properties to SW file', {
-    fullPath,
-    partNumber,
-    description: description?.substring(0, 50)
-  })
-  
-  // Write to file
-  const result = await window.electronAPI?.solidworks?.setProperties(fullPath, props)
-  
-  if (!result?.success) {
-    return { success: false, error: result?.error || 'Failed to write properties' }
+  // Fetch serialization settings for proper tab number formatting
+  const store = usePDMStore.getState()
+  const orgId = store.organization?.id
+  let serSettings: Awaited<ReturnType<typeof getSerializationSettings>> | null = null
+  if (orgId) {
+    try {
+      serSettings = await getSerializationSettings(orgId)
+    } catch {
+      logSync('warn', 'Failed to get serialization settings, using defaults', { fullPath })
+    }
   }
   
-  // Also write to default configuration for PRP resolution in drawings
-  const ext = file.extension.toLowerCase()
-  if (ext !== '.slddrw') {
-    const propsResult = await window.electronAPI?.solidworks?.getProperties?.(fullPath)
-    if (propsResult?.success && propsResult.data) {
-      const data = propsResult.data as {
-        configurationProperties?: Record<string, Record<string, string>>
-        configurations?: string[]
+  // Get current user for DrawnBy
+  const currentUser = store.user
+  const drawnBy = currentUser?.full_name || currentUser?.email || ''
+  const dateStr = new Date().toISOString().split('T')[0]
+  
+  // Write file-level properties first (base number, no tab)
+  const fileProps: Record<string, string> = {}
+  if (baseNumber) {
+    fileProps['Number'] = baseNumber
+    fileProps['Base Item Number'] = baseNumber
+  }
+  if (fileDescription) fileProps['Description'] = fileDescription
+  if (revision) fileProps['Revision'] = revision
+  fileProps['Date'] = dateStr
+  if (drawnBy) fileProps['DrawnBy'] = drawnBy
+  
+  logSync('info', 'Writing file-level properties to SW file', {
+    fullPath,
+    baseNumber,
+    description: fileDescription?.substring(0, 50),
+    revision
+  })
+  
+  const fileLevelResult = await window.electronAPI?.solidworks?.setProperties(fullPath, fileProps)
+  if (!fileLevelResult?.success) {
+    return { success: false, error: fileLevelResult?.error || 'Failed to write file-level properties' }
+  }
+  
+  // Fetch all configurations and write config-specific properties to each
+  try {
+    const configResult = await window.electronAPI?.solidworks?.getConfigurations(fullPath)
+    const configs = configResult?.data?.configurations
+    
+    if (!configs || configs.length === 0) {
+      logSync('debug', 'No configurations found, file-level write is sufficient', { fullPath })
+      return { success: true }
+    }
+    
+    logSync('info', 'Writing properties to all configurations', {
+      fullPath,
+      configCount: configs.length,
+      configNames: configs.map(c => c.name),
+      pendingTabConfigs: Object.keys(configTabs),
+      pendingDescConfigs: Object.keys(configDescs)
+    })
+    
+    // Build per-config property maps for batch write
+    const batchProps: Record<string, Record<string, string>> = {}
+    
+    for (const config of configs) {
+      const props: Record<string, string> = {}
+      
+      // Tab number: BluePLM pending value or empty (never read back from file)
+      const rawTab = configTabs[config.name] ?? ''
+      const configTab = normalizeTabNumber(rawTab, serSettings?.tab_separator || '-')
+      
+      // Number = base + tab
+      if (baseNumber) {
+        props['Number'] = configTab
+          ? (serSettings?.tab_enabled ? combineBaseAndTab(baseNumber, configTab, serSettings) : `${baseNumber}-${configTab}`)
+          : baseNumber
+        props['Base Item Number'] = baseNumber
+        if (configTab) props['Tab Number'] = configTab
       }
-      const configProps = data.configurationProperties
-      if (configProps) {
-        const configNames = Object.keys(configProps)
-        const activeConfig = configNames.find(k => k.toLowerCase() === 'default')
-          || configNames.find(k => k.toLowerCase() === 'standard')
-          || configNames[0]
-        
-        if (activeConfig) {
-          // Check which properties are missing in the configuration
-          const configData = configProps[activeConfig] || {}
-          const missingProps: Record<string, string> = {}
-          if (props['Number'] && !configData['Number']) {
-            missingProps['Number'] = props['Number']
+      
+      // Description: BluePLM config-specific or BluePLM file-level (never read back from file)
+      const configDesc = configDescs[config.name] ?? fileDescription
+      if (configDesc) props['Description'] = configDesc
+      
+      if (revision) props['Revision'] = revision
+      props['Date'] = dateStr
+      if (drawnBy) props['DrawnBy'] = drawnBy
+      
+      batchProps[config.name] = props
+    }
+    
+    // Use batch API for single open/save cycle
+    const batchResult = await window.electronAPI?.solidworks?.setPropertiesBatch(fullPath, batchProps)
+    
+    if (!batchResult?.success) {
+      logSync('warn', 'Batch write failed, falling back to individual writes', {
+        fullPath,
+        error: batchResult?.error
+      })
+      
+      // Fallback: write to each config individually
+      let failCount = 0
+      for (const [configName, props] of Object.entries(batchProps)) {
+        try {
+          const r = await window.electronAPI?.solidworks?.setProperties(fullPath, props, configName)
+          if (!r?.success) {
+            failCount++
+            logSync('error', 'Failed to write config properties', { fullPath, configName, error: r?.error })
           }
-          if (props['Description'] && !configData['Description']) {
-            missingProps['Description'] = props['Description']
-          }
-          if (Object.keys(missingProps).length > 0) {
-            await window.electronAPI?.solidworks?.setProperties(fullPath, missingProps, activeConfig)
-          }
+        } catch (err) {
+          failCount++
+          logSync('error', 'Exception writing config properties', { fullPath, configName, error: String(err) })
         }
       }
+      
+      if (failCount === configs.length) {
+        return { success: false, error: 'Failed to write properties to any configuration' }
+      }
     }
+    
+    logSync('info', 'PUSH complete - wrote to all configurations', {
+      fullPath,
+      configCount: configs.length
+    })
+  } catch (err) {
+    logSync('warn', 'Failed to fetch/write configurations (file-level write succeeded)', {
+      fullPath,
+      error: String(err)
+    })
   }
   
   return { success: true }
@@ -820,6 +996,7 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
     let pulled = 0  // Drawings where we pulled metadata
     let pushed = 0  // Parts/assemblies where we pushed metadata
     let drawingsNeedingSw = 0  // Drawings that need SW for parent inheritance
+    let drawingsNeedingSwComFix = 0  // Drawings where SW COM is inaccessible
     const errors: string[] = []
     
     // Get vault path for full path construction
@@ -841,9 +1018,12 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
           const metadata = await pullDrawingMetadata(fullPath)
           
           if (metadata) {
-            // Track if this drawing needed SW but it wasn't running
+            // Track if this drawing needed SW but it wasn't running or COM was inaccessible
             if (metadata.drawingNeedsSwButNotRunning) {
               drawingsNeedingSw++
+            }
+            if (metadata.drawingNeedsSwComFix) {
+              drawingsNeedingSwComFix++
             }
             
             // Build pending updates from extracted metadata
@@ -925,8 +1105,9 @@ export const syncMetadataCommand: Command<SyncMetadataParams> = {
     if (failed > 0) {
       ctx.addToast('warning', `Sync complete: ${parts.join(', ')}`)
     } else if (drawingsNeedingSw > 0) {
-      // Some drawings couldn't inherit from parent because SW isn't running
       ctx.addToast('warning', `Open SolidWorks to sync drawing metadata from parent parts`)
+    } else if (drawingsNeedingSwComFix > 0) {
+      ctx.addToast('warning', `SolidWorks COM not accessible. Run BluePLM and SolidWorks with the same permissions.`)
     } else if (pulled > 0 || pushed > 0) {
       ctx.addToast('success', `Sync complete: ${parts.join(', ')}`)
     } else {

@@ -8,6 +8,7 @@
  * VERSION HISTORY:
  * - Version 1.0.0: Initial service with DM API, thumbnails, exports
  * - Version 1.1.0: Added releaseHandles for folder move operations
+ * - Version 1.2.0: Bypass DM API for property writes, use full SolidWorks COM API
  * 
  * When making service changes:
  * 1. Increment SERVICE_VERSION in Program.cs
@@ -17,16 +18,17 @@
 
 // The SolidWorks service version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_SW_SERVICE_VERSION = '1.1.0'
+export const EXPECTED_SW_SERVICE_VERSION = '1.2.0'
 
 // Minimum service version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
-export const MINIMUM_COMPATIBLE_SW_SERVICE_VERSION = '1.1.0'
+export const MINIMUM_COMPATIBLE_SW_SERVICE_VERSION = '1.2.0'
 
 // Human-readable descriptions for each version
 export const SW_SERVICE_VERSION_DESCRIPTIONS: Record<string, string> = {
   '1.0.0': 'Initial service with DM API, thumbnails, exports',
   '1.1.0': 'Added releaseHandles for folder move operations',
+  '1.2.0': 'Bypass DM API for property writes, use full SolidWorks COM API',
 }
 
 export interface SwServiceVersionCheckResult {

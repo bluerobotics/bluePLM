@@ -188,7 +188,17 @@ async function findLockingProcess(filePath: string): Promise<string | null> {
       if (nodeErr.code !== 'EBUSY' && nodeErr.code !== 'EACCES' && nodeErr.code !== 'EPERM') {
         return null  // Some other error, not a lock
       }
-      // File is locked, continue to try to identify process
+      // EACCES/EPERM on Windows can mean read-only file, not a process lock.
+      // Try O_RDONLY to distinguish: if readable, the file isn't locked.
+      if (nodeErr.code === 'EACCES' || nodeErr.code === 'EPERM') {
+        try {
+          const fd = fs.openSync(filePath, fs.constants.O_RDONLY)
+          fs.closeSync(fd)
+          return null  // Read-only file, not locked
+        } catch {
+          // Can't even read -- might be truly locked, continue detection
+        }
+      }
     }
     
     // PROCESS IDENTIFICATION: Use Restart Manager API via the .NET service
@@ -199,10 +209,19 @@ async function findLockingProcess(filePath: string): Promise<string | null> {
         return processName
       }
     } catch {
-      // Service not available - fall through to Unknown
+      // Service not available - fall through
     }
     
-    return 'Unknown'  // File is locked but we can't determine the process
+    // Transient lock retry: OS processes (Explorer, Search Indexer, antivirus) often hold
+    // brief locks on recently created/copied files. Wait and re-test before reporting "Unknown".
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    try {
+      const fd = fs.openSync(filePath, fs.constants.O_RDWR)
+      fs.closeSync(fd)
+      return null  // Transient lock cleared
+    } catch {
+      return 'Unknown'
+    }
   } catch (err) {
     log(`[LockDetect] Detection failed: ${err}`)
     return null

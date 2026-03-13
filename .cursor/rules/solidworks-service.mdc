@@ -6,13 +6,25 @@ alwaysApply: false
 
 # SolidWorks Service
 
+## Version Bumping (MANDATORY for every change)
+
+Every change to the SolidWorks service MUST bump the version in BOTH files:
+
+1. `solidworks-service/BluePLM.SolidWorksService/Program.cs` → bump `SERVICE_VERSION`
+2. `src/lib/swServiceVersion.ts` → bump `EXPECTED_SW_SERVICE_VERSION` (and `MINIMUM_COMPATIBLE_SW_SERVICE_VERSION` for breaking changes)
+3. `src/lib/swServiceVersion.ts` → add entry to `SW_SERVICE_VERSION_DESCRIPTIONS` with a short changelog
+4. `src/lib/swServiceVersion.ts` → update the VERSION HISTORY comment block
+
+Uses semver: bump PATCH for fixes, MINOR for features, MAJOR for breaking changes.
+
 ## ALWAYS After Changes
 
-1. **Close BluePLM app** if running (the service exe is locked while in use)
-2. **Rebuild** the service:
+1. **Bump the version** (see above)
+2. **Close BluePLM app** if running (the service exe is locked while in use)
+3. **Rebuild** the service:
 
 ```powershell
 cd solidworks-service/BluePLM.SolidWorksService && dotnet build -c Release
 ```
 
-Why: The Electron app loads the compiled `.exe` from `bin/Release/`. Without rebuilding and restarting, your code changes won't take effect.
+Why: The Electron app loads the compiled `.exe` from `bin/Release/`. Without rebuilding and restarting, your code changes won't take effect. Always build with `-c Release` (not Debug).

@@ -152,6 +152,8 @@ export const createOperationsSlice: StateCreator<
     } catch (err) {
       addToast('error', `Operation failed: ${operation.label}`)
     } finally {
+      // Always clean up the progress toast (idempotent if already removed by ProgressTracker.finish())
+      get().removeToast(operation.toastId)
       // Operation completed - mark as not running and clear current operation
       // endSync() will call processQueue() to start the next operation
       set({ isOperationRunning: false, currentOperation: null })
