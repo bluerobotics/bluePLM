@@ -24,7 +24,10 @@ export function ReviewPreviewPane() {
 
   // Annotation store selectors
   const annotations = usePDMStore(s => s.annotations)
+  const activeAnnotationId = usePDMStore(s => s.activeAnnotationId)
   const setActiveAnnotationId = usePDMStore(s => s.setActiveAnnotationId)
+  const hoveredAnnotationId = usePDMStore(s => s.hoveredAnnotationId)
+  const setHoveredAnnotationId = usePDMStore(s => s.setHoveredAnnotationId)
   const setShowCommentInput = usePDMStore(s => s.setShowCommentInput)
   const setPendingAnnotation = usePDMStore(s => s.setPendingAnnotation)
   const clearAnnotations = usePDMStore(s => s.clearAnnotations)
@@ -80,6 +83,13 @@ export function ReviewPreviewPane() {
     [setActiveAnnotationId],
   )
 
+  const handleAnnotationHover = useCallback(
+    (annotationId: string | null) => {
+      setHoveredAnnotationId(annotationId)
+    },
+    [setHoveredAnnotationId],
+  )
+
   const handleBack = useCallback(() => {
     clearReviewPreviewFile()
   }, [clearReviewPreviewFile])
@@ -111,14 +121,18 @@ export function ReviewPreviewPane() {
       {/* PDF Viewer + Comment Sidebar */}
       <div className="flex-1 flex min-h-0">
         {/* PDF Viewer */}
-        <div className={fileId ? 'flex-[7] min-w-0' : 'w-full'}>
+        <div className={fileId ? 'flex-[7] min-w-0 h-full' : 'w-full h-full'}>
           <PdfAnnotationViewer
             filePath={filePath}
             fileName={fileName}
             fileVersion={fileVersion ?? undefined}
+            initialScale="page-fit"
             annotations={overlays}
+            hoveredAnnotationId={hoveredAnnotationId}
+            activeAnnotationId={activeAnnotationId}
             onAnnotationCreate={fileId ? handleAnnotationCreate : undefined}
             onAnnotationClick={fileId ? handleAnnotationClick : undefined}
+            onAnnotationHover={fileId ? handleAnnotationHover : undefined}
           />
         </div>
 

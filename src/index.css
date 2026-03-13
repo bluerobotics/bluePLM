@@ -2077,3 +2077,39 @@ tr.selected.diff-cloud {
 [data-theme="deep-blue"] .crumb-bar-container .bg-plm-bg {
   background: rgba(0, 180, 216, 0.1) !important;
 }
+
+/* ── pdf.js TextLayer — enables crisp, selectable text over canvas ── */
+
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+}
+
+.pdf-text-layer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.pdf-text-layer span.markedContent {
+  top: 0;
+  height: 0;
+}
+
+.pdf-text-layer ::selection {
+  background: rgba(0, 120, 215, 0.3);
+}
+
+/* Page container shadow on hover */
+.pdf-page {
+  transition: box-shadow 0.15s;
+}

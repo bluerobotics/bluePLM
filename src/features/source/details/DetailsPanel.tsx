@@ -1084,8 +1084,12 @@ export function DetailsPanel() {
  */
 function PdfWithComments({ file }: { file: LocalFile }) {
   const annotations = usePDMStore((s) => s.annotations)
+  const activeAnnotationId = usePDMStore((s) => s.activeAnnotationId)
   const setActiveAnnotationId = usePDMStore((s) => s.setActiveAnnotationId)
+  const hoveredAnnotationId = usePDMStore((s) => s.hoveredAnnotationId)
+  const setHoveredAnnotationId = usePDMStore((s) => s.setHoveredAnnotationId)
   const setShowCommentInput = usePDMStore((s) => s.setShowCommentInput)
+  const pendingAnnotation = usePDMStore((s) => s.pendingAnnotation)
   const setPendingAnnotation = usePDMStore((s) => s.setPendingAnnotation)
   const clearAnnotations = usePDMStore((s) => s.clearAnnotations)
   const rightPanelVisible = usePDMStore((s) => s.rightPanelVisible)
@@ -1111,7 +1115,6 @@ function PdfWithComments({ file }: { file: LocalFile }) {
           resolved: ann.resolved,
         })
       }
-      // Also include reply-level annotations that have positions (unlikely but safe)
       for (const reply of ann.replies ?? []) {
         if (reply.position && reply.page_number != null) {
           result.push({
@@ -1143,6 +1146,13 @@ function PdfWithComments({ file }: { file: LocalFile }) {
     [setActiveAnnotationId],
   )
 
+  const handleAnnotationHover = useCallback(
+    (annotationId: string | null) => {
+      setHoveredAnnotationId(annotationId)
+    },
+    [setHoveredAnnotationId],
+  )
+
   return (
     <div className="w-full h-full flex">
       {/* PDF Viewer - takes ~70% width (or 100% if no file ID for commenting) */}
@@ -1151,9 +1161,14 @@ function PdfWithComments({ file }: { file: LocalFile }) {
           filePath={file.path}
           fileName={file.name}
           fileVersion={file.pdmData?.version}
+          initialScale="page-fit"
           annotations={overlays}
+          pendingAnnotation={pendingAnnotation}
+          hoveredAnnotationId={hoveredAnnotationId}
+          activeAnnotationId={activeAnnotationId}
           onAnnotationCreate={fileId ? handleAnnotationCreate : undefined}
           onAnnotationClick={fileId ? handleAnnotationClick : undefined}
+          onAnnotationHover={fileId ? handleAnnotationHover : undefined}
         />
       </div>
 

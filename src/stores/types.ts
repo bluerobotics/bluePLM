@@ -1797,6 +1797,8 @@ export interface AnnotationsSlice {
   annotationsLoading: boolean
   /** The annotation (thread root) currently highlighted / scrolled to */
   activeAnnotationId: string | null
+  /** The annotation currently being hovered (on either PDF box or sidebar comment) */
+  hoveredAnnotationId: string | null
   /** Which file's annotations are currently loaded (avoids stale data) */
   annotationFileId: string | null
   /** Whether the new-comment input panel is visible */
@@ -1810,6 +1812,7 @@ export interface AnnotationsSlice {
   updateAnnotationInStore: (id: string, updates: Partial<FileAnnotation>) => void
   removeAnnotation: (id: string) => void
   setActiveAnnotationId: (id: string | null) => void
+  setHoveredAnnotationId: (id: string | null) => void
   setAnnotationFileId: (fileId: string | null) => void
   setShowCommentInput: (show: boolean) => void
   setPendingAnnotation: (data: NewAnnotationData | null) => void

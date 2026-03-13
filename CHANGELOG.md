@@ -5,23 +5,25 @@ All notable changes to BluePLM will be documented in this file.
 ## [3.14.0] - Unreleased
 
 ### Added
-- **Copy-paste preserves version history**: Pasting files that have multiple versions now carries the full version history to the copy. Pasted files show their inherited version count (e.g., "4/-") before first check-in. On first check-in, all historical version records are copied from the source file so the new file starts with the same version history rather than resetting to version 1
+- **Copy-paste preserves version history**: Pasted files carry full version history from the source. On first check-in, all historical version records are copied so the new file doesn't reset to version 1
 
 ### Removed
-- **Notifications system**: Removed the entire notifications module (UI, state, preferences, realtime subscriptions, urgent notification modal). The system was unused bloat. The Bell icon and red badge are now repurposed for Reviews, which shows the pending review count. Functions previously co-located in `notifications.ts` (file watchers, share links, ECO helpers, review CRUD) were relocated to dedicated files
+- **Notifications system**: Removed the entire unused notifications module. Bell icon repurposed for Reviews with pending review count
+
+### Changed
+- **PDF viewer rewritten from scratch** (preliminary): Replaced `react-pdf-highlighter-plus` with direct `pdfjs-dist` canvas rendering. HiDPI-aware pages, working zoom (fit-to-width/page, Ctrl+/-, Ctrl+wheel), percentage-based annotation overlays, IntersectionObserver page virtualization, pdf.js TextLayer for text selection. Eliminated patched node_modules, setter interception hack, retry-based fit loops, and dual overlay system. Review commenting functional but still being hardened
 
 ### Improved
-- **Sync performance logging for RCA**: Each step of `syncFile` now logs its individual duration -- storage check, storage upload (with computed upload speed in KB/s), DB check, DB insert/update, and version history copy. A single end-to-end `[syncFile] Sync complete` summary line is emitted at INFO level with all step timings, upload speed, and file size, enabling root cause analysis of slow syncs directly from logs without manual timestamp diffing
+- **Sync performance logging**: Each `syncFile` step now logs individual duration with a single summary line at INFO level (timings, upload speed, file size) for RCA
 
 ### Fixed
-- **Cannot select text in BR number or description cells**: Clicking and dragging to select text in the item number or description columns was initiating a file drag instead. The row-level `draggable` attribute on `<tr>` was intercepting all drag gestures before the cell could handle them. The drag handler now detects when the cursor is over a text-selectable cell and cancels the drag, allowing normal text selection
-- **Inline edit of BR number or description not writing to SolidWorks file**: Manually typing a part number or description in the inline editor did not write the value to SolidWorks custom properties, even though the Generate button worked correctly. The `handleSaveCellEdit` function had four silent exit paths with no logging or user feedback, and `saveConfigsToSWFile` had a stale closure for the organization setting. Added comprehensive logging to every exit path, fixed the stale closure, added a fresh-metadata fallback from the store, and added a guard against Enter+blur double invocation
-- **Custom properties not written on STEP-imported parts**: Parts created from STEP file imports have forced/system properties that the Document Manager API cannot modify. The DM API silently swallowed per-property write failures and reported success, preventing the SolidWorks API fallback from ever being triggered. The DM API now tracks failed property writes and returns failure when all writes fail, which triggers the full SW API fallback. Additionally, inline cell edits now check if the file is open in SolidWorks and use the live COM API (bypassing DM entirely) when it is -- matching the behavior the Details Panel already had. The SW API property writer is also hardened with per-property try-catch so a single failed property no longer aborts the entire write
-- **PDF zoom controls not working**: Zoom in/out, fit-to-width, fit-to-page, and keyboard shortcuts (Ctrl +/-) had no effect. The `react-pdf-highlighter-plus` library only applies its `pdfScaleValue` prop during initialization and container resize, not on prop changes. Zoom now works by imperatively setting `currentScaleValue` on the underlying pdf.js viewer whenever the scale changes
-- **PDF area selection for comments required extra toggle**: Users had to first click the area-select button or hold Alt before dragging on the PDF to place a comment. Area selection mode is now enabled by default when commenting is available, so users can immediately drag on the PDF to annotate
-- **Review rows required double-click to open preview**: Single-click now opens the PDF preview for a review item instead of requiring a double-click
-- **Right sidebar toggle did not hide/show comments column**: Toggling the right panel had no effect on the comment sidebar embedded next to the PDF viewer. The comment sidebar now respects the right panel visibility toggle in both the review preview and the details panel
-- **PDF viewer refused to open write-locked files**: Files locked by another process with EACCES or EPERM errors were treated the same as EBUSY (actively busy), refusing to read them entirely. EACCES/EPERM now falls through to attempt a read-only open, so PDFs locked in SolidWorks or other apps can still be previewed
+- **Cannot select text in BR number/description cells**: Row-level drag handler now detects text-selectable cells and cancels the drag
+- **Inline edit not writing to SolidWorks file**: Fixed silent exit paths and stale closure in `handleSaveCellEdit`/`saveConfigsToSWFile`
+- **Custom properties not written on STEP-imported parts**: DM API now reports per-property failures, triggering SW API fallback. Inline edits use live COM API when file is open in SolidWorks
+- **PDF area selection required extra toggle**: Area selection now enabled by default when commenting is available
+- **Review rows required double-click**: Single-click now opens PDF preview
+- **Right sidebar toggle ignored comments column**: Comment sidebar now respects panel visibility toggle
+- **PDF viewer refused write-locked files**: EACCES/EPERM now falls through to read-only open
 
 ---
 

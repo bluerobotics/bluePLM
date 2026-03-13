@@ -90,6 +90,8 @@ export function CommentSidebar({
   const updateAnnotationInStore = usePDMStore((s) => s.updateAnnotationInStore)
   const removeAnnotation = usePDMStore((s) => s.removeAnnotation)
   const setActiveAnnotationId = usePDMStore((s) => s.setActiveAnnotationId)
+  const hoveredAnnotationId = usePDMStore((s) => s.hoveredAnnotationId)
+  const setHoveredAnnotationId = usePDMStore((s) => s.setHoveredAnnotationId)
   const setAnnotationFileId = usePDMStore((s) => s.setAnnotationFileId)
   const setShowCommentInput = usePDMStore((s) => s.setShowCommentInput)
   const setPendingAnnotation = usePDMStore((s) => s.setPendingAnnotation)
@@ -472,12 +474,14 @@ export function CommentSidebar({
                   annotation={ann}
                   currentUserId={user?.id ?? null}
                   isActive={activeAnnotationId === ann.id}
+                  isHovered={hoveredAnnotationId === ann.id}
                   onClick={() => setActiveAnnotationId(ann.id)}
                   onReply={handleReply}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onResolve={handleResolve}
                   onUnresolve={handleUnresolve}
+                  onHoverChange={(hovered) => setHoveredAnnotationId(hovered ? ann.id : null)}
                 />
               </div>
             ))}
@@ -507,12 +511,14 @@ export function CommentSidebar({
                       annotation={ann}
                       currentUserId={user?.id ?? null}
                       isActive={activeAnnotationId === ann.id}
+                      isHovered={hoveredAnnotationId === ann.id}
                       onClick={() => setActiveAnnotationId(ann.id)}
                       onReply={handleReply}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onResolve={handleResolve}
                       onUnresolve={handleUnresolve}
+                      onHoverChange={(hovered) => setHoveredAnnotationId(hovered ? ann.id : null)}
                     />
                   </div>
                 ))}

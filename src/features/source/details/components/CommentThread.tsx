@@ -40,6 +40,8 @@ export interface CommentThreadProps {
   currentUserId: string | null
   /** Whether this thread is the "active" / highlighted one */
   isActive?: boolean
+  /** Whether the PDF box or this comment is being hovered (bidirectional) */
+  isHovered?: boolean
   /** Called when the user clicks the thread (to scroll PDF to its position) */
   onClick?: () => void
   /** Called when user submits a reply */
@@ -52,6 +54,8 @@ export interface CommentThreadProps {
   onResolve: (annotationId: string) => Promise<void>
   /** Called when user unresolves a thread */
   onUnresolve: (annotationId: string) => Promise<void>
+  /** Called when mouse enters/leaves this thread (for bidirectional hover) */
+  onHoverChange?: (isHovered: boolean) => void
 }
 
 // ============================================================================
@@ -385,12 +389,14 @@ export function CommentThread({
   annotation,
   currentUserId,
   isActive = false,
+  isHovered = false,
   onClick,
   onReply,
   onEdit,
   onDelete,
   onResolve,
   onUnresolve,
+  onHoverChange,
 }: CommentThreadProps) {
   const [showReplyInput, setShowReplyInput] = useState(false)
   const [isReplying, setIsReplying] = useState(false)
@@ -413,14 +419,18 @@ export function CommentThread({
     [annotation.id, onReply],
   )
 
+  const borderClass = isActive
+    ? 'bg-plm-accent/10 border border-plm-accent/30'
+    : isHovered
+      ? 'bg-plm-accent/5 border border-plm-accent/20'
+      : 'hover:bg-plm-bg-light border border-transparent'
+
   return (
     <div
-      className={`px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
-        isActive
-          ? 'bg-plm-accent/10 border border-plm-accent/30'
-          : 'hover:bg-plm-bg-light border border-transparent'
-      }`}
+      className={`px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${borderClass}`}
       onClick={onClick}
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {

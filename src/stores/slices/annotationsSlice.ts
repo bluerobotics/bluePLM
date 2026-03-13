@@ -33,6 +33,9 @@ export const createAnnotationsSlice: StateCreator<
   /** The annotation (thread root) currently highlighted / scrolled to */
   activeAnnotationId: null,
 
+  /** The annotation currently being hovered (on either PDF box or sidebar comment) */
+  hoveredAnnotationId: null,
+
   /** Which file's annotations are currently loaded (avoids stale data) */
   annotationFileId: null,
 
@@ -65,6 +68,8 @@ export const createAnnotationsSlice: StateCreator<
 
   setActiveAnnotationId: (id) => set({ activeAnnotationId: id }),
 
+  setHoveredAnnotationId: (id) => set({ hoveredAnnotationId: id }),
+
   setAnnotationFileId: (fileId) => set({ annotationFileId: fileId }),
 
   setShowCommentInput: (show) => set({ showCommentInput: show }),
@@ -76,6 +81,7 @@ export const createAnnotationsSlice: StateCreator<
       annotations: [],
       annotationsLoading: false,
       activeAnnotationId: null,
+      hoveredAnnotationId: null,
       annotationFileId: null,
       showCommentInput: false,
       pendingAnnotation: null,
