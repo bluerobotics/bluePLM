@@ -51,6 +51,7 @@ interface LocalFileInfo {
   size: number
   modifiedTime: string
   hash?: string
+  ino?: number
 }
 
 // Calculate SHA-256 hash of a file (synchronous - use only for small files or when sync is required)
@@ -85,6 +86,35 @@ async function hashFileAsync(filePath: string): Promise<{ hash: string; size: nu
       reject(err)
     })
   })
+}
+
+/**
+ * Remove orphaned .download temp files left behind by interrupted downloads.
+ * Called on vault directory initialization to prevent stale temp files from accumulating.
+ */
+function cleanupOrphanedDownloads(dirPath: string): void {
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name)
+      if (entry.isDirectory()) {
+        cleanupOrphanedDownloads(fullPath)
+      } else if (entry.name.endsWith('.download')) {
+        try {
+          fs.unlinkSync(fullPath)
+          log(`Cleaned up orphaned download temp file: ${fullPath}`)
+        } catch (unlinkErr) {
+          logError('Failed to clean up orphaned download temp file', {
+            path: fullPath,
+            error: String(unlinkErr)
+          })
+        }
+      }
+    }
+  } catch (err) {
+    // Directory may not be readable; not fatal
+    logDebug('Could not scan for orphaned downloads', { dirPath, error: String(err) })
+  }
 }
 
 // Helper to recursively count files in a directory (not including subdirectories themselves)
@@ -276,7 +306,8 @@ async function startFileWatcher(dirPath: string): Promise<void> {
       /System Volume Information/i,
       /~\$/,
       /\.tmp$/i,
-      /\.swp$/i
+      /\.swp$/i,
+      /\.download$/
     ]
   })
   
@@ -425,6 +456,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     if (fs.existsSync(newPath)) {
       workingDirectory = newPath
       hashCache.clear()
+      cleanupOrphanedDownloads(newPath)
       await startFileWatcher(newPath)
       return { success: true, path: workingDirectory }
     }
@@ -445,6 +477,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       }
       workingDirectory = expandedPath
       hashCache.clear()
+      cleanupOrphanedDownloads(expandedPath)
       await startFileWatcher(expandedPath)
       return { success: true, path: workingDirectory }
     } catch (err) {
@@ -553,9 +586,17 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
         return { success: false, error: `No write permission to directory: ${dir}` }
       }
       
-      fs.writeFileSync(filePath, buffer)
-      
       const hash = crypto.createHash('sha256').update(buffer).digest('hex')
+      
+      // Atomic write: write to temp file, then rename to final path
+      const tmpPath = filePath + '.tmp'
+      fs.writeFileSync(tmpPath, buffer)
+      try {
+        fs.renameSync(tmpPath, filePath)
+      } catch (renameErr) {
+        try { fs.unlinkSync(tmpPath) } catch {}
+        throw renameErr
+      }
       
       logDebug('File written successfully', {
         filePath,
@@ -591,7 +632,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   })
 
   // Download file directly in main process
-  ipcMain.handle('fs:download-url', async (event, url: string, destPath: string) => {
+  ipcMain.handle('fs:download-url', async (event, url: string, destPath: string, expectedHash?: string) => {
     const operationId = `dl-${Date.now()}`
     const startTime = Date.now()
     
@@ -743,18 +784,23 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
           }
           
           const contentLength = parseInt(response.headers['content-length'] || '0', 10)
+          const tmpPath = destPath + '.download'
+          const STALL_TIMEOUT_MS = 30000
+          
           logDebug(`[${operationId}] Starting file write`, {
             destPath,
+            tmpPath,
             contentLength,
-            contentType: response.headers['content-type']
+            contentType: response.headers['content-type'],
+            expectedHash: expectedHash ? expectedHash.substring(0, 12) + '...' : undefined
           })
           
           let writeStream: fs.WriteStream
           try {
-            writeStream = fs.createWriteStream(destPath)
+            writeStream = fs.createWriteStream(tmpPath)
           } catch (createErr) {
             logError(`[${operationId}] Failed to create write stream`, {
-              destPath,
+              tmpPath,
               error: String(createErr),
               code: (createErr as NodeJS.ErrnoException).code
             })
@@ -767,10 +813,36 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
           let downloaded = 0
           let lastProgressTime = Date.now()
           let lastDownloaded = 0
+          let resolved = false
+          
+          let stallTimer = setTimeout(() => {
+            if (resolved) return
+            resolved = true
+            logError(`[${operationId}] Download stalled - no data received for ${STALL_TIMEOUT_MS}ms`, {
+              downloaded, contentLength
+            })
+            response.destroy()
+            writeStream.destroy()
+            try { fs.unlinkSync(tmpPath) } catch {}
+            resolve({ success: false, error: `Download stalled: no data received for ${STALL_TIMEOUT_MS / 1000}s` })
+          }, STALL_TIMEOUT_MS)
           
           response.on('data', (chunk: Buffer) => {
             downloaded += chunk.length
             hashStream.update(chunk)
+            
+            clearTimeout(stallTimer)
+            stallTimer = setTimeout(() => {
+              if (resolved) return
+              resolved = true
+              logError(`[${operationId}] Download stalled - no data received for ${STALL_TIMEOUT_MS}ms`, {
+                downloaded, contentLength
+              })
+              response.destroy()
+              writeStream.destroy()
+              try { fs.unlinkSync(tmpPath) } catch {}
+              resolve({ success: false, error: `Download stalled: no data received for ${STALL_TIMEOUT_MS / 1000}s` })
+            }, STALL_TIMEOUT_MS)
             
             const now = Date.now()
             if (now - lastProgressTime >= 100) {
@@ -790,21 +862,65 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
           })
           
           response.on('error', (err: Error) => {
+            if (resolved) return
+            resolved = true
+            clearTimeout(stallTimer)
             logError(`[${operationId}] Response stream error`, {
               error: String(err),
               downloaded,
               contentLength
             })
             writeStream.destroy()
-            try { fs.unlinkSync(destPath) } catch {}
+            try { fs.unlinkSync(tmpPath) } catch {}
             resolve({ success: false, error: `Download stream error: ${err}` })
           })
           
           response.pipe(writeStream)
           
           writeStream.on('finish', () => {
+            if (resolved) return
+            resolved = true
+            clearTimeout(stallTimer)
+            
             const hash = hashStream.digest('hex')
             const duration = Date.now() - startTime
+            
+            // Verify content-length if the server provided one
+            if (contentLength > 0 && downloaded !== contentLength) {
+              logError(`[${operationId}] Download truncated`, {
+                destPath, downloaded, contentLength,
+                shortBy: contentLength - downloaded
+              })
+              try { fs.unlinkSync(tmpPath) } catch {}
+              resolve({ success: false, error: `Download incomplete: received ${downloaded} of ${contentLength} bytes` })
+              return
+            }
+            
+            // Verify hash if expected hash was provided
+            if (expectedHash && hash !== expectedHash) {
+              logError(`[${operationId}] Hash mismatch - file corrupted during download`, {
+                destPath, downloaded, contentLength,
+                expectedHash: expectedHash.substring(0, 12) + '...',
+                actualHash: hash.substring(0, 12) + '...'
+              })
+              try { fs.unlinkSync(tmpPath) } catch {}
+              resolve({ success: false, error: `Download corrupted: hash mismatch (expected ${expectedHash.substring(0, 8)}, got ${hash.substring(0, 8)})` })
+              return
+            }
+            
+            // Integrity checks passed - atomically move temp file to final path
+            try {
+              fs.renameSync(tmpPath, destPath)
+            } catch (renameErr) {
+              logError(`[${operationId}] Failed to move temp file to final path`, {
+                tmpPath, destPath,
+                error: String(renameErr),
+                code: (renameErr as NodeJS.ErrnoException).code
+              })
+              try { fs.unlinkSync(tmpPath) } catch {}
+              resolve({ success: false, error: `Failed to finalize download: ${renameErr}` })
+              return
+            }
             
             log(`[${operationId}] Download complete`, {
               destPath,
@@ -818,9 +934,13 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
           })
           
           writeStream.on('error', (err) => {
+            if (resolved) return
+            resolved = true
+            clearTimeout(stallTimer)
+            
             const nodeErr = err as NodeJS.ErrnoException
             logError(`[${operationId}] Write stream error`, {
-              destPath,
+              tmpPath,
               error: String(err),
               code: nodeErr.code,
               downloaded,
@@ -836,7 +956,7 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
               errorMsg = `Read-only file system: Cannot write files.`
             }
             
-            try { fs.unlinkSync(destPath) } catch {}
+            try { fs.unlinkSync(tmpPath) } catch {}
             resolve({ success: false, error: errorMsg })
           })
         }
@@ -913,7 +1033,8 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
               extension: path.extname(item.name).toLowerCase(),
               size: stats.size,
               modifiedTime: stats.mtime.toISOString(),
-              hash: fileHash
+              hash: fileHash,
+              ino: stats.ino
             })
           }
         }
@@ -1000,7 +1121,8 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
               extension: path.extname(item.name).toLowerCase(),
               size: stats.size,
               modifiedTime: stats.mtime.toISOString(),
-              hash: fileHash
+              hash: fileHash,
+              ino: stats.ino
             })
           }
         }
@@ -1070,7 +1192,8 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
               extension: path.extname(item.name).toLowerCase(),
               size: stats.size,
               modifiedTime: stats.mtime.toISOString(),
-              hash: fileHash
+              hash: fileHash,
+              ino: stats.ino
             })
           }
         }

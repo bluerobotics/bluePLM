@@ -154,6 +154,12 @@ export const createOperationsSlice: StateCreator<
     } finally {
       // Always clean up the progress toast (idempotent if already removed by ProgressTracker.finish())
       get().removeToast(operation.toastId)
+      // Safety net: always clear processing state (spinners) for this operation's paths.
+      // Command handlers normally clear their own processing state, but early returns
+      // (e.g., file locked, user cancelled) may skip cleanup. This is idempotent.
+      if (operation.paths.length > 0) {
+        get().removeProcessingFoldersSync(operation.paths)
+      }
       // Operation completed - mark as not running and clear current operation
       // endSync() will call processQueue() to start the next operation
       set({ isOperationRunning: false, currentOperation: null })

@@ -59,18 +59,23 @@ export function FileSystemActions({
   }
 
   // Check rename eligibility
-  const isSyncedFile = !!firstFile.pdmData
-  const isCheckedOutByMe = firstFile.pdmData?.checked_out_by === userId
-  
-  // Empty folders don't require checkout to rename - there are no files to protect
-  const isEmptyFolder = isFolder && !files.some(f => {
-    if (f.isDirectory) return false
-    const filePath = f.relativePath.replace(/\\/g, '/')
-    const folderPath = firstFile.relativePath.replace(/\\/g, '/')
-    return filePath.startsWith(folderPath + '/')
-  })
-  
-  const canRename = !isSyncedFile || isCheckedOutByMe || isEmptyFolder
+  const canRename = (() => {
+    if (isFolder) {
+      // Folders: block only if another user has files checked out inside
+      const folderPath = firstFile.relativePath.replace(/\\/g, '/')
+      const nestedFiles = files.filter(f => {
+        if (f.isDirectory) return false
+        return f.relativePath.replace(/\\/g, '/').startsWith(folderPath + '/')
+      })
+      return !nestedFiles.some(f =>
+        f.pdmData?.checked_out_by &&
+        f.pdmData.checked_out_by !== userId
+      )
+    }
+    const isSyncedFile = !!firstFile.pdmData
+    const isCheckedOutByMe = firstFile.pdmData?.checked_out_by === userId
+    return !isSyncedFile || isCheckedOutByMe
+  })()
 
   // Check pin status
   const isPinned = activeVaultId ? pinnedFolders.some(
@@ -163,11 +168,11 @@ export function FileSystemActions({
               startRenaming(firstFile)
             }
           }}
-          title={!canRename ? 'Check out file first to rename' : ''}
+          title={!canRename ? (isFolder ? 'Another user has files checked out in this folder' : 'Check out file first to rename') : ''}
         >
           <Pencil size={14} />
           Rename
-          {!canRename && <span className="text-xs text-plm-fg-muted ml-auto">(checkout required)</span>}
+          {!canRename && <span className="text-xs text-plm-fg-muted ml-auto">{isFolder ? '(has checkouts)' : '(checkout required)'}</span>}
         </div>
       )}
     </>

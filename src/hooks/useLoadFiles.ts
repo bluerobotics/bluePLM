@@ -6,7 +6,7 @@ import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/commands/types'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { getFilesWithCache, updateCachedUserInfo } from '@/lib/cache/vaultFileCache'
-import { getSyncIndex, updateSyncIndexFromServer } from '@/lib/cache/localSyncIndex'
+import { getSyncIndex, updateSyncIndexFromServer, getInodeMap, updateInodes } from '@/lib/cache/localSyncIndex'
 import { logExplorer } from '@/lib/userActionLogger'
 import type { LightweightFile } from '@/lib/supabase/files/queries'
 
@@ -107,6 +107,11 @@ export function useLoadFiles() {
         ? getSyncIndex(currentVaultId)
         : Promise.resolve(new Set<string>())
       
+      // Load inode map for rename detection (ino -> old relativePath)
+      const inodeMapPromise = currentVaultId
+        ? getInodeMap(currentVaultId)
+        : Promise.resolve(new Map<number, string>())
+      
       // Fetch server folders (for empty folder sync feature)
       // These are explicit folder records, separate from implicit folders derived from file paths
       const serverFoldersPromise = shouldFetchServer && currentVaultId
@@ -114,7 +119,7 @@ export function useLoadFiles() {
         : Promise.resolve({ folders: [], error: undefined })
       
       // Wait for all to complete
-      const [localResult, serverResultWithCache, localSyncIndex, serverFoldersResult] = await Promise.all([localPromise, serverPromise, syncIndexPromise, serverFoldersPromise])
+      const [localResult, serverResultWithCache, localSyncIndex, savedInodeMap, serverFoldersResult] = await Promise.all([localPromise, serverPromise, syncIndexPromise, inodeMapPromise, serverFoldersPromise])
       
       // Extract files from cache result
       const serverResult = {
@@ -399,6 +404,58 @@ export function useLoadFiles() {
             }
           }
           
+          // --- Inode-based rename detection ---
+          // The NTFS file index (stats.ino) persists across renames on the same volume.
+          // We use previously persisted inodes from the sync index to match "new" local
+          // files to "missing" server files. This handles all rename scenarios including
+          // modified-then-renamed files where hash matching fails.
+          const inodeRenameMap = new Map<string, any>()       // localPath(lower) -> pdmFile
+          const inodeMatchedServerPaths = new Set<string>()   // old server paths matched by inode
+          
+          if (savedInodeMap.size > 0) {
+            // Build ino -> pdmFile map for server files checked out by me that are missing locally
+            const inodeToServerFile = new Map<number, any>()
+            for (const [ino, oldRelativePath] of savedInodeMap) {
+              const pdmFile = pdmMap.get(oldRelativePath)
+              if (pdmFile && !localPathSet.has(oldRelativePath)) {
+                const isRelevantCheckout = user?.id
+                  ? (pdmFile as any).checked_out_by === user.id
+                  : !!(pdmFile as any).checked_out_by
+                if (isRelevantCheckout) {
+                  inodeToServerFile.set(ino, pdmFile)
+                }
+              }
+            }
+            
+            if (inodeToServerFile.size > 0) {
+              // Check each unmatched local file for an inode match
+              for (const localFile of localFiles) {
+                if (localFile.isDirectory || !localFile.ino || localFile.ino === 0) continue
+                if (pdmMap.has(localFile.relativePath.toLowerCase())) continue
+                
+                const serverFile = inodeToServerFile.get(localFile.ino)
+                if (serverFile) {
+                  inodeRenameMap.set(localFile.relativePath.toLowerCase(), serverFile)
+                  inodeMatchedServerPaths.add(serverFile.file_path.toLowerCase())
+                  inodeToServerFile.delete(localFile.ino)
+                  window.electronAPI?.log('info', '[LoadFiles] Inode rename detected', {
+                    oldPath: serverFile.file_path,
+                    newPath: localFile.relativePath,
+                    ino: localFile.ino,
+                    method: 'inode'
+                  })
+                }
+              }
+              
+              if (inodeRenameMap.size > 0) {
+                window.electronAPI?.log('info', '[LoadFiles] Inode rename summary', {
+                  matches: inodeRenameMap.size,
+                  remainingUnresolved: inodeToServerFile.size
+                })
+              }
+            }
+          }
+          
           // Merge PDM data into local files and compute diff status
           let matchedCount = 0
           let unmatchedCount = 0
@@ -457,24 +514,28 @@ export function useLoadFiles() {
             const existingLocalHash = existingLocalHashes.get(localFile.path)
             const effectiveLocalHash = localFile.localHash || existingLocalHash
             
-            // If no path match but file has same hash as a file CHECKED OUT BY ME,
-            // this MIGHT be a moved file - but only if the original path no longer exists locally.
-            // If the original path still has a file, then this is a COPY, not a move.
-            // IMPORTANT: Only detect moves for files checked out by me - otherwise a new file
-            // with the same content as some random server file would be incorrectly detected as moved.
+            // PRIMARY: Inode-based rename detection
+            // The NTFS file index (ino) persists across renames. If we previously recorded
+            // this file's inode at a different path, it was renamed/moved.
+            if (!pdmData && inodeRenameMap.size > 0) {
+              const inodeMatch = inodeRenameMap.get(localFile.relativePath.toLowerCase())
+              if (inodeMatch) {
+                pdmData = inodeMatch
+                isMovedFile = true
+              }
+            }
+            
+            // FALLBACK: Hash-based move detection for cases where inode is unavailable
+            // (e.g., first load after upgrade, network drives, ino=0)
             if (!pdmData && effectiveLocalHash) {
               const movedFromFile = checkedOutByMeByHash.get(effectiveLocalHash)
               if (movedFromFile) {
-                // Check if the original file path still exists locally (case-insensitive)
-                // If it does, this is a copy/duplicate, not a move
                 const originalPathStillExists = localPathSet.has(movedFromFile.file_path.toLowerCase())
                 
                 if (!originalPathStillExists) {
-                  // Original location is empty - this IS a move
                   pdmData = movedFromFile
                   isMovedFile = true
                 }
-                // If originalPathStillExists, leave pdmData as undefined - this is a new file (copy)
               }
             }
             
@@ -625,10 +686,14 @@ export function useLoadFiles() {
             
             // Determine localVersion:
             // - If file is synced (hashes match or no diff), use server version
-            // - If preserved from previous state, use that
+            // - If preserved from previous state and >= server version, keep it (prevents stale cache overwrite)
             // - Otherwise undefined (will be set when downloaded or checked in)
             const isSyncedWithServer = pdmData && !finalDiffStatus && pdmData.content_hash && effectiveLocalHash && pdmData.content_hash === effectiveLocalHash
-            const computedLocalVersion = isSyncedWithServer ? pdmData.version : existingLocalVersion
+            const computedLocalVersion = isSyncedWithServer
+              ? (existingLocalVersion !== undefined && existingLocalVersion >= pdmData.version
+                  ? existingLocalVersion
+                  : pdmData.version)
+              : existingLocalVersion
             
             return {
               ...localFile,
@@ -668,11 +733,13 @@ export function useLoadFiles() {
           for (const pdmFile of pdmFiles as any[]) {
             if (!localPathSet.has(pdmFile.file_path.toLowerCase())) {
               // Check if this file was MOVED (same content exists at a different location locally)
+              // or matched by inode-based rename detection
               const isCheckedOutByMe = pdmFile.checked_out_by === user?.id
               const wasMoved = pdmFile.content_hash && localContentHashes.has(pdmFile.content_hash)
+              const wasInodeRenamed = inodeMatchedServerPaths.has(pdmFile.file_path.toLowerCase())
               
-              // If moved, don't show the ghost at the old location - the file is handled at the new location
-              if (wasMoved) {
+              // If moved/renamed, don't show the ghost at the old location - the file is handled at the new location
+              if (wasMoved || wasInodeRenamed) {
                 continue
               }
               
@@ -797,9 +864,32 @@ export function useLoadFiles() {
           // This ensures we track which files have been synced for orphan detection
           if (currentVaultId) {
             const serverPaths = pdmFiles.map((f: any) => f.file_path as string)
-            updateSyncIndexFromServer(currentVaultId, serverPaths).catch(err => {
-              window.electronAPI?.log('warn', '[LoadFiles] Failed to update sync index', { error: String(err) })
-            })
+            
+            // Persist inodes for all matched local files (path-matched + inode-matched)
+            // so the next load can use them for rename detection
+            const inodeEntries: Array<{ path: string; ino: number }> = []
+            for (const f of localFiles) {
+              if (!f.isDirectory && f.ino && f.ino > 0 && f.pdmData) {
+                inodeEntries.push({ path: f.relativePath, ino: f.ino })
+                if (f.diffStatus === 'moved' && f.pdmData.file_path
+                  && f.pdmData.file_path.toLowerCase() !== f.relativePath.toLowerCase()) {
+                  inodeEntries.push({ path: f.pdmData.file_path, ino: f.ino })
+                }
+              }
+            }
+            
+            // Chain: create sync index entries first, THEN stamp inodes onto them.
+            // updateInodes does get+put (only updates existing entries), so it must
+            // run after updateSyncIndexFromServer has created the entries.
+            updateSyncIndexFromServer(currentVaultId, serverPaths)
+              .then((): Promise<void> | void => {
+                if (inodeEntries.length > 0) {
+                  return updateInodes(currentVaultId, inodeEntries)
+                }
+              })
+              .catch(err => {
+                window.electronAPI?.log('warn', '[LoadFiles] Failed to update sync index or inodes', { error: String(err) })
+              })
           }
         }
       } else {
@@ -1410,9 +1500,17 @@ export function useLoadFiles() {
       // 4. Build COMPLETE pdmData map from existing files (not stripped serverFiles)
       // This preserves version, part_number, checkout info, workflow_state, etc.
       const existingPdmMap = new Map<string, NonNullable<typeof existingFiles[0]['pdmData']>>()
+      const existingVersionMap = new Map<string, { localVersion?: number; localActiveVersion?: number }>()
       for (const f of existingFiles) {
+        const key = f.relativePath.toLowerCase()
         if (f.pdmData) {
-          existingPdmMap.set(f.relativePath.toLowerCase(), f.pdmData)
+          existingPdmMap.set(key, f.pdmData)
+        }
+        if (f.localVersion !== undefined || f.localActiveVersion !== undefined) {
+          existingVersionMap.set(key, {
+            localVersion: f.localVersion,
+            localActiveVersion: f.localActiveVersion
+          })
         }
       }
       
@@ -1461,12 +1559,15 @@ export function useLoadFiles() {
           }
         }
         
+        const versionInfo = existingVersionMap.get(lookupKey)
         return {
           ...localFile,
           localHash: localFile.hash,
           pdmData: pdmData || undefined,
           isSynced: !!pdmData,
-          diffStatus
+          diffStatus,
+          localVersion: versionInfo?.localVersion,
+          localActiveVersion: versionInfo?.localActiveVersion,
         }
       })
       

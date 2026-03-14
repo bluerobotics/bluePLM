@@ -309,7 +309,7 @@ export const downloadCommand: Command<DownloadParams> = {
           attempt
         })
         
-        const downloadResult = await window.electronAPI?.downloadUrl(url, fullPath)
+        const downloadResult = await window.electronAPI?.downloadUrl(url, fullPath, file.pdmData.content_hash)
         if (!downloadResult?.success) {
           const errorMsg = downloadResult?.error || 'Unknown error writing to disk'
           
@@ -361,10 +361,10 @@ export const downloadCommand: Command<DownloadParams> = {
         pendingUpdates.push({
           path: file.path,
           updates: {
-            localHash: file.pdmData.content_hash, // Downloaded content matches server hash
-            localVersion: file.pdmData.version,   // Track the version we downloaded
-            diffStatus: undefined,                 // No longer cloud-only, now synced
-            isSynced: true                        // File exists in cloud
+            localHash: downloadResult.hash || file.pdmData.content_hash,
+            localVersion: file.pdmData.version,
+            diffStatus: undefined,
+            isSynced: true
           }
         })
         

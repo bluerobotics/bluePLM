@@ -852,12 +852,23 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     onRename: startRenaming,
     onHighlight: startHighlight,
     canRename: (file) => {
-      // Can rename if: not synced OR checked out by current user
+      if (file.isDirectory) {
+        // Folders: block only if another user has files checked out inside
+        const folderPath = file.relativePath.replace(/\\/g, '/')
+        const nestedFiles = files.filter(f => {
+          if (f.isDirectory) return false
+          return f.relativePath.replace(/\\/g, '/').startsWith(folderPath + '/')
+        })
+        return !nestedFiles.some(f =>
+          f.pdmData?.checked_out_by &&
+          f.pdmData.checked_out_by !== user?.id
+        )
+      }
       const isSynced = !!file.pdmData
       const isCheckedOutByMe = file.pdmData?.checked_out_by === user?.id
       return !isSynced || isCheckedOutByMe
     },
-    allowDirectories: true  // Allow renaming folders too
+    allowDirectories: true
   })
 
   // Combined row click handler: selection + slow double-click detection
@@ -1229,6 +1240,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     handleUndo,
     clearSelection,
     toggleDetailsPanel,
+    startRenaming,
     onRefresh
   })
 

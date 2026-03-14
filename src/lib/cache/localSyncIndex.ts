@@ -19,7 +19,7 @@
  */
 
 const DB_NAME = 'blueplm-sync-index'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NAME = 'sync-index'
 
 interface SyncIndexEntry {
@@ -27,6 +27,7 @@ interface SyncIndexEntry {
   vaultId: string
   relativePath: string // lowercase for case-insensitive matching
   lastSyncedAt: number // timestamp
+  ino?: number         // NTFS file index number (survives renames)
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null
@@ -276,39 +277,64 @@ export async function updateSyncIndexFromServer(vaultId: string, serverPaths: st
     const db = await openDB()
     const now = Date.now()
     
-    // For efficiency, we use a single transaction to:
-    // 1. Get existing entries (to preserve lastSyncedAt for unchanged files)
-    // 2. Add/update all server paths
-    
     return new Promise((resolve) => {
       const transaction = db.transaction(STORE_NAME, 'readwrite')
       const store = transaction.objectStore(STORE_NAME)
+      const vaultIndex = store.index('vaultId')
       
-      // Create entries for all server paths
-      let completed = 0
-      
-      for (const path of serverPaths) {
-        const normalizedPath = path.toLowerCase()
-        const entry: SyncIndexEntry = {
-          key: makeKey(vaultId, path),
-          vaultId,
-          relativePath: normalizedPath,
-          lastSyncedAt: now
+      // Pre-read existing entries to preserve ino values.
+      // store.put() replaces the entire record, so without this the ino
+      // field would be wiped on every load.
+      const existingRequest = vaultIndex.getAll(IDBKeyRange.only(vaultId))
+      existingRequest.onsuccess = () => {
+        const existingEntries = existingRequest.result as SyncIndexEntry[]
+        const existingInoMap = new Map<string, number>()
+        for (const e of existingEntries) {
+          if (e.ino) existingInoMap.set(e.key, e.ino)
         }
         
-        const request = store.put(entry)
-        request.onsuccess = () => {
-          completed++
-          if (completed === serverPaths.length) {
-            console.log(`[SyncIndex] Updated sync index with ${serverPaths.length} server paths`)
-            resolve()
+        let completed = 0
+        
+        for (const path of serverPaths) {
+          const key = makeKey(vaultId, path)
+          const entry: SyncIndexEntry = {
+            key,
+            vaultId,
+            relativePath: path.toLowerCase(),
+            lastSyncedAt: now,
+            ino: existingInoMap.get(key)
+          }
+          
+          const request = store.put(entry)
+          request.onsuccess = () => {
+            completed++
+            if (completed === serverPaths.length) {
+              console.log(`[SyncIndex] Updated sync index with ${serverPaths.length} server paths`)
+              resolve()
+            }
+          }
+          request.onerror = () => {
+            completed++
+            if (completed === serverPaths.length) {
+              resolve()
+            }
           }
         }
-        request.onerror = () => {
-          completed++
-          if (completed === serverPaths.length) {
-            resolve()
+      }
+      
+      existingRequest.onerror = () => {
+        console.error('[SyncIndex] Failed to pre-read existing entries, falling back to no-ino update')
+        let completed = 0
+        for (const path of serverPaths) {
+          const entry: SyncIndexEntry = {
+            key: makeKey(vaultId, path),
+            vaultId,
+            relativePath: path.toLowerCase(),
+            lastSyncedAt: now
           }
+          const request = store.put(entry)
+          request.onsuccess = () => { completed++; if (completed === serverPaths.length) resolve() }
+          request.onerror = () => { completed++; if (completed === serverPaths.length) resolve() }
         }
       }
     })
@@ -346,6 +372,90 @@ export async function isInSyncIndex(vaultId: string, relativePath: string): Prom
   } catch (error) {
     console.error('[SyncIndex] Error checking sync index:', error)
     return false
+  }
+}
+
+/**
+ * Get a map of inode -> relativePath for all entries that have an inode recorded.
+ * Used during file loading for rename detection: if a local file's inode matches
+ * a previously-synced path's inode, it was renamed (not a new file).
+ */
+export async function getInodeMap(vaultId: string): Promise<Map<number, string>> {
+  try {
+    const db = await openDB()
+    
+    return new Promise((resolve) => {
+      const transaction = db.transaction(STORE_NAME, 'readonly')
+      const store = transaction.objectStore(STORE_NAME)
+      const index = store.index('vaultId')
+      const request = index.getAll(IDBKeyRange.only(vaultId))
+      
+      request.onsuccess = () => {
+        const entries = request.result as SyncIndexEntry[]
+        const map = new Map<number, string>()
+        for (const entry of entries) {
+          if (entry.ino && entry.ino > 0) {
+            map.set(entry.ino, entry.relativePath)
+          }
+        }
+        console.log(`[SyncIndex] Loaded inode map: ${map.size} entries with inodes for vault ${vaultId}`)
+        resolve(map)
+      }
+      
+      request.onerror = () => {
+        console.error('[SyncIndex] Failed to read inode map:', request.error)
+        resolve(new Map())
+      }
+    })
+  } catch (error) {
+    console.error('[SyncIndex] Error reading inode map:', error)
+    return new Map()
+  }
+}
+
+/**
+ * Batch-update inodes for existing sync index entries.
+ * Called after file loading to persist the current inode for each matched file,
+ * so the next load can use inodes for rename detection.
+ */
+export async function updateInodes(vaultId: string, entries: Array<{ path: string; ino: number }>): Promise<void> {
+  if (entries.length === 0) return
+  
+  try {
+    const db = await openDB()
+    
+    return new Promise((resolve) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite')
+      const store = transaction.objectStore(STORE_NAME)
+      
+      let completed = 0
+      
+      for (const { path, ino } of entries) {
+        const key = makeKey(vaultId, path)
+        const getRequest = store.get(key)
+        
+        getRequest.onsuccess = () => {
+          completed++
+          const existing = getRequest.result as SyncIndexEntry | undefined
+          if (existing) {
+            existing.ino = ino
+            store.put(existing)
+          }
+          if (completed === entries.length) {
+            resolve()
+          }
+        }
+        
+        getRequest.onerror = () => {
+          completed++
+          if (completed === entries.length) {
+            resolve()
+          }
+        }
+      }
+    })
+  } catch (error) {
+    console.error('[SyncIndex] Error updating inodes:', error)
   }
 }
 

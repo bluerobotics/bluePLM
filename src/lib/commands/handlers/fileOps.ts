@@ -123,11 +123,24 @@ export const renameCommand: Command<RenameParams> = {
       return 'Name contains invalid characters'
     }
     
-    // Block renaming synced files checked out by others
+    // Block renaming if checked out by others
     if (file.pdmData?.id) {
-      if (file.pdmData.checked_out_by && file.pdmData.checked_out_by !== ctx.user?.id) {
-        const userName = (file.pdmData as any).checked_out_user?.full_name || 'another user'
-        return `Cannot rename: file is checked out by ${userName}`
+      if (file.isDirectory) {
+        // For folders: block if any nested file is checked out by another user
+        const nestedFiles = getFilesInFolder(ctx.files, file.relativePath)
+        const blockedBy = nestedFiles.find(f =>
+          f.pdmData?.checked_out_by &&
+          f.pdmData.checked_out_by !== ctx.user?.id
+        )
+        if (blockedBy) {
+          const userName = (blockedBy.pdmData as any).checked_out_user?.full_name || 'another user'
+          return `Cannot rename folder: ${blockedBy.name} is checked out by ${userName}`
+        }
+      } else {
+        if (file.pdmData.checked_out_by && file.pdmData.checked_out_by !== ctx.user?.id) {
+          const userName = (file.pdmData as any).checked_out_user?.full_name || 'another user'
+          return `Cannot rename: file is checked out by ${userName}`
+        }
       }
     }
     
@@ -260,12 +273,21 @@ export const renameCommand: Command<RenameParams> = {
         }
       }
       
-      // For synced files, update server path
+      // Optimistic UI update: rename in store BEFORE server updates
+      // Must run before updateFolderPath because server updates trigger realtime events
+      // that trickle in one-by-one. If the store isn't updated first, the folder entry
+      // gets modified by realtime before renameFileInStore can find it.
+      ctx.renameFileInStore(oldPath, newPath, finalName, false)
+      
+      // Mark operation complete to help suppress file watcher
+      ctx.setLastOperationCompletedAt(Date.now())
+      
+      ctx.addToast('success', `Renamed to ${finalName}`)
+      
+      // For synced files, update server paths (runs after store update)
       if (file.pdmData?.id) {
         if (file.isDirectory) {
-          // Update file paths within the folder
           await updateFolderPath(oldRelPath, newRelPath)
-          // Also update the folder record itself if it has one
           try {
             await updateFolderServerPath(file.pdmData.id, newRelPath)
             log.info('[Rename]', 'Updated folder path on server', { oldRelPath, newRelPath })
@@ -278,15 +300,6 @@ export const renameCommand: Command<RenameParams> = {
           await updateFilePath(file.pdmData.id, newRelPath)
         }
       }
-      
-      // Optimistic UI update: rename in store immediately
-      ctx.renameFileInStore(oldPath, newPath, finalName, false)
-      
-      // Mark operation complete to help suppress file watcher
-      ctx.setLastOperationCompletedAt(Date.now())
-      
-      ctx.addToast('success', `Renamed to ${finalName}`)
-      // No onRefresh needed - UI updates instantly via renameFileInStore
       
       return {
         success: true,

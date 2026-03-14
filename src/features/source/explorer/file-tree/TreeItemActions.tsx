@@ -13,7 +13,8 @@ import {
   InlineStageCheckinButton,
   FolderDownloadButton,
   FolderUploadButton,
-  FolderCheckinButton
+  FolderCheckinButton,
+  InlineDiscardButton
 } from '@/components/shared/InlineActions'
 import { NotifiableCheckoutAvatar } from '@/components/shared/Avatar'
 import { executeCommand } from '@/lib/commands'
@@ -165,6 +166,12 @@ export function FileActionButtons({
     }
   }
   
+  // Inline action: Discard changes on a deleted file (releases checkout)
+  const handleInlineDiscard = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    executeCommand('discard', { files: [file] }, { onRefresh })
+  }
+  
   // Show delete spinner when deleting
   if (operationType === 'delete') {
     return <Loader2 size={16} className="text-red-400 animate-spin" />
@@ -306,6 +313,14 @@ export function FileActionButtons({
           </span>
         )
       })()}
+      
+      {/* Discard button for deleted files (checked out by me but missing locally) */}
+      {!isOfflineMode && file.diffStatus === 'deleted' && file.pdmData?.checked_out_by === user?.id && (
+        <InlineDiscardButton
+          onClick={handleInlineDiscard}
+          isProcessing={operationType === 'checkout'}
+        />
+      )}
     </>
   )
 }

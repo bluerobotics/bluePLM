@@ -40,6 +40,7 @@ interface LocalFileInfo {
   size: number
   modifiedTime: string
   hash?: string
+  ino?: number
 }
 
 interface FilesListResult extends OperationResult {
@@ -274,7 +275,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFile: (path: string) => ipcRenderer.invoke('fs:read-file', path),
   checkFileLock: (path: string) => ipcRenderer.invoke('fs:check-file-lock', path),
   writeFile: (path: string, base64Data: string) => ipcRenderer.invoke('fs:write-file', path, base64Data),
-  downloadUrl: (url: string, destPath: string) => ipcRenderer.invoke('fs:download-url', url, destPath),
+  downloadUrl: (url: string, destPath: string, expectedHash?: string) => ipcRenderer.invoke('fs:download-url', url, destPath, expectedHash),
   fileExists: (path: string) => ipcRenderer.invoke('fs:file-exists', path),
   getFileHash: (path: string) => ipcRenderer.invoke('fs:get-hash', path),
   // Streaming hash - more efficient for large files, use this for checkin operations
@@ -824,7 +825,7 @@ declare global {
       // File system operations
       readFile: (path: string) => Promise<FileReadResult>
       writeFile: (path: string, base64Data: string) => Promise<FileWriteResult>
-      downloadUrl: (url: string, destPath: string) => Promise<FileWriteResult>
+      downloadUrl: (url: string, destPath: string, expectedHash?: string) => Promise<FileWriteResult>
       fileExists: (path: string) => Promise<boolean>
       getFileHash: (path: string) => Promise<HashResult>
       // Streaming hash - more efficient for large files

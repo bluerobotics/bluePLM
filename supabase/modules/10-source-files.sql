@@ -393,8 +393,10 @@ CREATE TABLE IF NOT EXISTS files (
 );
 
 -- Indexes
-CREATE UNIQUE INDEX IF NOT EXISTS idx_files_vault_path_unique_active 
-  ON files(vault_id, file_path) WHERE deleted_at IS NULL;
+-- DROP+CREATE to ensure the index uses LOWER(file_path) for case-insensitive uniqueness on Windows
+DROP INDEX IF EXISTS idx_files_vault_path_unique_active;
+CREATE UNIQUE INDEX idx_files_vault_path_unique_active 
+  ON files(vault_id, LOWER(file_path)) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_files_org_id ON files(org_id);
 CREATE INDEX IF NOT EXISTS idx_files_vault_id ON files(vault_id);
 CREATE INDEX IF NOT EXISTS idx_files_file_path ON files(file_path);
@@ -2145,6 +2147,20 @@ BEGIN
   
   IF v_file.checked_out_by IS NULL OR v_file.checked_out_by != p_user_id THEN
     RETURN jsonb_build_object('success', false, 'error', 'You do not have this file checked out');
+  END IF;
+  
+  -- Check for path conflict when file is being renamed/moved
+  IF p_new_file_path IS NOT NULL AND LOWER(p_new_file_path) != LOWER(v_file.file_path) THEN
+    IF EXISTS (
+      SELECT 1 FROM files 
+      WHERE vault_id = v_file.vault_id 
+        AND LOWER(file_path) = LOWER(p_new_file_path)
+        AND id != p_file_id 
+        AND deleted_at IS NULL
+    ) THEN
+      RETURN jsonb_build_object('success', false, 'error', 
+        'Cannot rename: another file already exists at "' || p_new_file_path || '". Delete or rename the existing file first.');
+    END IF;
   END IF;
   
   -- Determine what changed

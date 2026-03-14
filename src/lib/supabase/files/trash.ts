@@ -26,9 +26,9 @@ export async function softDeleteFile(
     return { success: false, error: fetchError.message }
   }
   
-  // Don't allow deleting checked-out files
-  if (file.checked_out_by) {
-    return { success: false, error: 'Cannot delete a checked-out file. Please check it in first.' }
+  // Don't allow deleting files checked out by other users
+  if (file.checked_out_by && file.checked_out_by !== userId) {
+    return { success: false, error: 'Cannot delete a file checked out by another user. Ask them to check it in first.' }
   }
   
   // Soft delete - set deleted_at and deleted_by
@@ -119,12 +119,13 @@ export async function restoreFile(
     return { success: false, error: 'File has no vault assigned' }
   }
   
-  // Check if a file with the same path already exists (not deleted)
+  // Check if a file with the same path already exists (case-insensitive: Windows paths are case-insensitive)
+  const escapedPath = file.file_path.replace(/%/g, '\\%').replace(/_/g, '\\_')
   const { data: existingFile } = await client
     .from('files')
     .select('id')
     .eq('vault_id', file.vault_id)
-    .eq('file_path', file.file_path)
+    .ilike('file_path', escapedPath)
     .is('deleted_at', null)
     .single()
   

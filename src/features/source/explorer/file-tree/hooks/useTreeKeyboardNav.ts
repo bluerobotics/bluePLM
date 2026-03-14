@@ -7,6 +7,7 @@ import type { TreeMap } from '../types'
 interface UseTreeKeyboardNavOptions {
   containerRef: RefObject<HTMLDivElement>
   tree: TreeMap
+  onRename?: (file: LocalFile) => void
   onRefresh?: (silent?: boolean) => void
 }
 
@@ -14,7 +15,7 @@ interface UseTreeKeyboardNavOptions {
  * Hook for keyboard navigation in the explorer tree
  * Handles arrow keys for navigation, Enter for opening files, etc.
  */
-export function useTreeKeyboardNav({ containerRef, tree, onRefresh }: UseTreeKeyboardNavOptions) {
+export function useTreeKeyboardNav({ containerRef, tree, onRename, onRefresh }: UseTreeKeyboardNavOptions) {
   // Selective state selectors - each subscription only triggers on its own changes
   const expandedFolders = usePDMStore(s => s.expandedFolders)
   const selectedFiles = usePDMStore(s => s.selectedFiles)
@@ -61,6 +62,20 @@ export function useTreeKeyboardNav({ containerRef, tree, onRefresh }: UseTreeKey
       // Only handle if the explorer view contains the active element
       if (!containerRef.current?.contains(document.activeElement) && 
           !containerRef.current?.contains(e.target as Node)) {
+        return
+      }
+      
+      // F2 - rename selected file/folder
+      if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (selectedFiles.length !== 1 || !onRename) return
+        
+        const visibleFiles = getVisibleFiles()
+        const selectedFile = visibleFiles.find(f => f.path === selectedFiles[0])
+        if (!selectedFile) return
+        
+        e.preventDefault()
+        e.stopPropagation()
+        onRename(selectedFile)
         return
       }
       
@@ -206,7 +221,7 @@ export function useTreeKeyboardNav({ containerRef, tree, onRefresh }: UseTreeKey
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [getVisibleFiles, selectedFiles, setSelectedFiles, expandedFolders, toggleFolder, containerRef, onRefresh])
+  }, [getVisibleFiles, selectedFiles, setSelectedFiles, expandedFolders, toggleFolder, containerRef, onRename, onRefresh])
   
   return { getVisibleFiles }
 }

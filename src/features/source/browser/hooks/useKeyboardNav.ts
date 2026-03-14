@@ -48,6 +48,7 @@ export interface UseKeyboardNavOptions {
   handleUndo: () => void
   clearSelection: () => void
   toggleDetailsPanel: () => void
+  startRenaming?: (file: LocalFile) => void
   onRefresh?: (silent?: boolean) => void
 }
 
@@ -73,6 +74,7 @@ export function useKeyboardNav({
   handleUndo,
   clearSelection,
   toggleDetailsPanel,
+  startRenaming,
   onRefresh
 }: UseKeyboardNavOptions): void {
   
@@ -98,6 +100,19 @@ export function useKeyboardNav({
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
       e.preventDefault()
       handleUndo()
+      return
+    }
+    
+    // F2 - rename selected file
+    if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey && startRenaming) {
+      if (selectedFiles.length !== 1) return
+      
+      const selectedFile = sortedFiles.find(f => f.path === selectedFiles[0])
+      if (!selectedFile) return
+      
+      e.preventDefault()
+      e.stopPropagation()
+      startRenaming(selectedFile)
       return
     }
     
@@ -292,6 +307,7 @@ export function useKeyboardNav({
     handleUndo,
     clearSelection,
     toggleDetailsPanel,
+    startRenaming,
     onRefresh
   ])
 

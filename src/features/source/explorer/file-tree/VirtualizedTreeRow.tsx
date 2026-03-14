@@ -301,14 +301,23 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
   // Use pre-computed isSynced from folderMetrics for text styling (italic/muted when not synced)
   const folderIsSynced = file.isDirectory ? (folderMetrics?.isSynced ?? false) : false
   
+  // Callback ref for rename input - explicitly focus and select on mount
+  // (autoFocus alone is unreliable in virtualized lists where rows are recycled)
+  const renameInputRef = useCallback((node: HTMLInputElement | null) => {
+    if (node) {
+      node.focus()
+      node.select()
+    }
+  }, [])
+  
   // Click handler
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (isRenaming) return
     if (e.shiftKey) e.preventDefault()
     onClick(e, file, item.flatIndex)
     
-    // Trigger slow double-click detection for files (not on shift/ctrl click)
-    if (!file.isDirectory && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    // Trigger slow double-click detection (not on shift/ctrl click)
+    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
       onSlowDoubleClick(file)
     }
   }, [isRenaming, onClick, file, item.flatIndex, onSlowDoubleClick])
@@ -399,16 +408,21 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
       {/* Name */}
       {isRenaming ? (
         <input
+          ref={renameInputRef}
           type="text"
           className="flex-1 text-sm bg-plm-bg border border-plm-accent rounded px-1 py-0.5 outline-none"
           value={renameValue}
           onChange={(e) => onRenameChange(e.target.value)}
           onBlur={onRenameSubmit}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') onRenameSubmit()
-            if (e.key === 'Escape') onRenameCancel()
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              onRenameSubmit()
+            } else if (e.key === 'Escape') {
+              onRenameCancel()
+            }
+            e.stopPropagation()
           }}
-          autoFocus
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onDragStart={(e) => e.preventDefault()}

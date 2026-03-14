@@ -21,6 +21,7 @@ import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS
 import type { LocalFile } from '../../../stores/pdmStore'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
+import { isRetryableError, getBackoffDelay, sleep } from '../../network'
 import { FileOperationTracker } from '../../fileOperationTracker'
 
 // SolidWorks file extensions that support metadata extraction
@@ -61,26 +62,29 @@ interface SwServiceStatus {
  * Used during check-in when file content has changed
  * Handles deduplication - skips upload if content already exists
  */
+const UPLOAD_MAX_RETRIES = 3
+const UPLOAD_RETRY_BASE_DELAY_MS = 1000
+
 async function uploadFileContentToStorage(
   orgId: string,
   hash: string,
   base64Content: string
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  const storagePath = `${orgId}/${hash.substring(0, 2)}/${hash}`
+  const dirPath = `${orgId}/${hash.substring(0, 2)}`
+  const storagePath = `${dirPath}/${hash}`
   
   try {
     // Check if already exists (deduplication)
     const { data: existing, error: listError } = await client.storage
       .from('vault')
-      .list(`${orgId}/${hash.substring(0, 2)}`, { search: hash, limit: 1 })
+      .list(dirPath, { search: hash, limit: 1 })
     
     if (listError) {
       log.warn('[Checkin]', 'Storage list check failed, will attempt upload', { error: listError.message })
     }
     
     if (existing && existing.length > 0) {
-      // Already exists - deduplication
       log.debug('[Checkin]', 'Content already exists in storage (deduplication)', { hash: hash.substring(0, 12) })
       return { success: true }
     }
@@ -92,17 +96,57 @@ async function uploadFileContentToStorage(
       bytes[i] = binaryString.charCodeAt(i)
     }
     const blob = new Blob([bytes])
+    const expectedSize = bytes.length
     
-    // Upload to storage
-    const { error: uploadError } = await client.storage
+    // Upload with retry
+    let lastError: string | undefined
+    for (let attempt = 1; attempt <= UPLOAD_MAX_RETRIES; attempt++) {
+      const { error: uploadError } = await client.storage
+        .from('vault')
+        .upload(storagePath, blob, {
+          contentType: 'application/octet-stream',
+          upsert: false
+        })
+      
+      if (uploadError) {
+        if (uploadError.message.includes('already exists')) {
+          break // Content-addressable dedup -- this is fine
+        }
+        lastError = uploadError.message
+        if (isRetryableError(lastError) && attempt < UPLOAD_MAX_RETRIES) {
+          const delayMs = getBackoffDelay(attempt, UPLOAD_RETRY_BASE_DELAY_MS)
+          log.warn('[Checkin]', `Upload failed (attempt ${attempt}/${UPLOAD_MAX_RETRIES}), retrying...`, {
+            hash: hash.substring(0, 12), error: lastError, retryDelayMs: Math.round(delayMs)
+          })
+          await sleep(delayMs)
+          continue
+        }
+        return { success: false, error: lastError }
+      }
+      
+      // Upload reported success -- break out of retry loop
+      lastError = undefined
+      break
+    }
+    
+    // Post-upload verification: confirm the object exists with the expected size
+    const { data: verified, error: verifyError } = await client.storage
       .from('vault')
-      .upload(storagePath, blob, {
-        contentType: 'application/octet-stream',
-        upsert: false
-      })
+      .list(dirPath, { search: hash, limit: 1 })
     
-    if (uploadError && !uploadError.message.includes('already exists')) {
-      return { success: false, error: uploadError.message }
+    if (verifyError) {
+      log.warn('[Checkin]', 'Post-upload verification list failed', { hash: hash.substring(0, 12), error: verifyError.message })
+      // Non-fatal: upload likely succeeded, verification just couldn't confirm
+    } else if (!verified || verified.length === 0) {
+      return { success: false, error: 'Upload verification failed: object not found in storage after upload' }
+    } else {
+      const storedSize = (verified[0] as { metadata?: { size?: number } }).metadata?.size
+      if (storedSize !== undefined && storedSize !== expectedSize) {
+        log.error('[Checkin]', 'Post-upload size mismatch — stored object is corrupted', {
+          hash: hash.substring(0, 12), expectedSize, storedSize
+        })
+        return { success: false, error: `Upload corrupted: expected ${expectedSize} bytes, stored ${storedSize} bytes` }
+      }
     }
     
     return { success: true }
@@ -280,6 +324,14 @@ async function extractAndStoreReferences(
       error: err instanceof Error ? err.message : String(err)
     })
   }
+}
+
+function translateCheckinError(error: string | null | undefined, fileName: string): string {
+  if (!error) return `${fileName}: Check in failed`
+  if (error.includes('idx_files_vault_path_unique_active') || error.includes('duplicate key')) {
+    return `${fileName}: A file already exists at this path on the server. The local rename conflicts with an existing file. Delete or rename the conflicting file first.`
+  }
+  return `${fileName}: ${error}`
 }
 
 function getFileContext(file: LocalFile): Record<string, unknown> {
@@ -720,9 +772,33 @@ export const checkinCommand: Command<CheckinParams> = {
       
       try {
         const wasFileMoved = file.pdmData?.file_path && 
-          file.relativePath !== file.pdmData.file_path
+          file.relativePath.toLowerCase() !== file.pdmData.file_path.toLowerCase()
         const wasFileRenamed = file.pdmData?.file_name && 
-          file.name !== file.pdmData.file_name
+          file.name.toLowerCase() !== file.pdmData.file_name.toLowerCase()
+        
+        // Block rename/move if destination path already occupied by another server file
+        if (wasFileMoved || wasFileRenamed) {
+          const destPathLower = file.relativePath.toLowerCase()
+          const conflictingFile = ctx.files.find(f =>
+            f.relativePath.toLowerCase() === destPathLower &&
+            f.pdmData?.id &&
+            f.pdmData.id !== file.pdmData?.id
+          )
+          if (conflictingFile) {
+            logCheckin('error', 'Rename/move blocked: destination path occupied by another file', {
+              operationId,
+              ...fileCtx,
+              destPath: file.relativePath,
+              conflictingFileId: conflictingFile.pdmData?.id,
+              conflictingFileName: conflictingFile.pdmData?.file_name
+            })
+            progress.update()
+            return {
+              success: false,
+              error: `${file.name}: Cannot rename — another file already exists at "${file.relativePath}". Delete or rename the existing file first, or undo this rename.`
+            }
+          }
+        }
         
         // ========================================
         // FAST PATH OPTIMIZATION: Skip file upload for truly unchanged files
@@ -884,8 +960,8 @@ export const checkinCommand: Command<CheckinParams> = {
         // Note: Metadata writing to SW file is handled by "Save to File" button during editing.
         // Check-in no longer writes to SW files - it only updates server and sets read-only.
         // ========================================
-        const fileHash = freshHash
-        const fileSize = freshSize
+        let fileHash = freshHash
+        let fileSize = freshSize
         
         logCheckin('debug', 'Using fresh hash for upload path', {
           operationId,
@@ -918,7 +994,6 @@ export const checkinCommand: Command<CheckinParams> = {
             const readResult = await window.electronAPI?.readFile(file.path)
             recordSubstepTiming('readFile', performance.now() - readFileStart)
             if (!readResult?.success || readResult.data === undefined) {
-              // Provide a specific error message if the file is locked
               const errorDetail = readResult?.locked
                 ? `${file.name}: File is locked by another process \u2014 save your work and try again`
                 : `${file.name}: Failed to read file for upload`
@@ -930,6 +1005,20 @@ export const checkinCommand: Command<CheckinParams> = {
               })
               progress.update()
               return { success: false, error: errorDetail }
+            }
+            
+            // TOCTOU guard: file may have changed between hashFile and readFile.
+            // Use the hash from readFile (which matches the actual content) as the
+            // authoritative hash for the storage path and DB record.
+            if (readResult.hash && readResult.hash !== fileHash) {
+              logCheckin('warn', 'File changed between hash and read (TOCTOU) — using read hash', {
+                operationId,
+                fileName: file.name,
+                hashFileHash: fileHash.substring(0, 12),
+                readFileHash: readResult.hash.substring(0, 12)
+              })
+              fileHash = readResult.hash
+              fileSize = readResult.size ?? fileSize
             }
             
             // Upload to storage
@@ -1087,13 +1176,14 @@ export const checkinCommand: Command<CheckinParams> = {
             // Return file info for post-checkin processing (reference extraction)
             return { success: true, file }
           } else {
+            const errorMsg = translateCheckinError(result.error, file.name)
             logCheckin('error', 'Checkin API call failed', {
               operationId,
               ...fileCtx,
               error: result.error
             })
             progress.update()
-            return { success: false, error: `${file.name}: ${result.error || 'Check in failed'}` }
+            return { success: false, error: errorMsg }
           }
         } else {
           // Metadata-only checkin (no content change)
@@ -1219,13 +1309,14 @@ export const checkinCommand: Command<CheckinParams> = {
             // Return file info for post-checkin processing (reference extraction)
             return { success: true, file }
           } else {
+            const errorMsg = translateCheckinError(result.error, file.name)
             logCheckin('error', 'Metadata checkin failed', {
               operationId,
               ...fileCtx,
               error: result.error
             })
             progress.update()
-            return { success: false, error: `${file.name}: ${result.error || 'Check in failed'}` }
+            return { success: false, error: errorMsg }
           }
         }
       } catch (err) {

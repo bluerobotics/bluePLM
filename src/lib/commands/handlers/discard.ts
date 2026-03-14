@@ -11,9 +11,14 @@ import { getDiscardableFilesFromSelection, getFilesInFolder } from '../types'
 import { ProgressTracker } from '../executor'
 import { undoCheckout } from '../../supabase'
 import { getDownloadUrl } from '../../storage'
+import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from '../../network'
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
 import { FileOperationTracker } from '../../fileOperationTracker'
+
+const MAX_RETRY_ATTEMPTS = 3
+const RETRY_BASE_DELAY_MS = 1000
+const UNDO_CHECKOUT_MAX_RETRIES = 2
 
 function logDiscard(level: 'info' | 'warn' | 'error' | 'debug', message: string, context: Record<string, unknown>) {
   log[level]('[Discard]', message, context)
@@ -276,47 +281,84 @@ export const discardCommand: Command<DiscardParams> = {
           logDiscard('debug', 'Released checkout for deleted file', { operationId, ...fileCtx })
         } else {
           // For files that exist locally, download server version to replace local changes
-          const { url, error: urlError } = await getDownloadUrl(organization.id, contentHash)
-          if (urlError || !url) {
-            logDiscard('error', 'Failed to get download URL', {
-              operationId,
-              ...fileCtx,
-              urlError
-            })
-            progress.update()
-            return { success: false, error: `${file.name}: ${urlError || 'Failed to get download URL'}` }
-          }
-          
           await window.electronAPI?.setReadonly(file.path, false)
-          const writeResult = await window.electronAPI?.downloadUrl(url, file.path)
+          
+          // Download with retry logic (URL refreshed each attempt in case of expiry)
+          let writeResult: { success: boolean; error?: string; size?: number; hash?: string } | undefined
+          let lastDownloadError: string | undefined
+          
+          for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            const { url, error: urlError } = await getDownloadUrl(organization.id, contentHash)
+            if (urlError || !url) {
+              lastDownloadError = urlError || 'Failed to get download URL'
+              logDiscard('error', 'Failed to get download URL', {
+                operationId, ...fileCtx, urlError, attempt
+              })
+              if (isRetryableError(lastDownloadError) && attempt < MAX_RETRY_ATTEMPTS) {
+                await sleep(getBackoffDelay(attempt, RETRY_BASE_DELAY_MS))
+                continue
+              }
+              break
+            }
+            
+            writeResult = await window.electronAPI?.downloadUrl(url, file.path, contentHash)
+            if (writeResult?.success) break
+            
+            lastDownloadError = writeResult?.error || 'Download failed'
+            if (isRetryableError(lastDownloadError) && attempt < MAX_RETRY_ATTEMPTS) {
+              logDiscard('warn', 'Download failed, retrying...', {
+                operationId, fileName: file.name, attempt,
+                error: lastDownloadError,
+                retryDelayMs: Math.round(getBackoffDelay(attempt, RETRY_BASE_DELAY_MS))
+              })
+              await sleep(getBackoffDelay(attempt, RETRY_BASE_DELAY_MS))
+            } else {
+              break
+            }
+          }
+          
           if (!writeResult?.success) {
-            logDiscard('error', 'Download failed', { operationId, ...fileCtx })
+            const userMessage = getNetworkErrorMessage(lastDownloadError || 'Download failed')
+            logDiscard('error', 'Download failed after retries', { operationId, ...fileCtx, error: lastDownloadError })
+            // Restore read-only so the file isn't left writable without checkout
+            await window.electronAPI?.setReadonly(file.path, true)
             progress.update()
-            return { success: false, error: `${file.name}: Download failed` }
+            return { success: false, error: `${file.name}: ${userMessage}` }
           }
           
-          // Release checkout using undoCheckout (properly discards without saving changes)
-          const result = await undoCheckout(file.pdmData!.id, user.id)
-          if (!result.success) {
-            logDiscard('error', 'Failed to release checkout', { 
-              operationId, 
-              ...fileCtx,
-              error: result.error
+          // Release checkout with retry (file already has server content, so undo must succeed)
+          let undoResult: { success: boolean; error?: string | null } = { success: false }
+          for (let attempt = 0; attempt <= UNDO_CHECKOUT_MAX_RETRIES; attempt++) {
+            undoResult = await undoCheckout(file.pdmData!.id, user.id)
+            if (undoResult.success) break
+            if (attempt < UNDO_CHECKOUT_MAX_RETRIES) {
+              logDiscard('warn', 'undoCheckout failed, retrying...', {
+                operationId, ...fileCtx, error: undoResult.error, attempt
+              })
+              await sleep(1000)
+            }
+          }
+          
+          if (!undoResult.success) {
+            logDiscard('error', 'Failed to release checkout after download succeeded', { 
+              operationId, ...fileCtx, error: undoResult.error
             })
+            // File has server content but checkout is still held -- report as failure
+            // so the user knows to retry or force-release
+            await window.electronAPI?.setReadonly(file.path, true)
             progress.update()
-            return { success: false, error: `${file.name}: ${result.error || 'Failed to release checkout'}` }
+            return { success: false, error: `${file.name}: File reverted but checkout release failed — use Force Release` }
           }
           
-          // Set to read-only and update store
           await window.electronAPI?.setReadonly(file.path, true)
           pendingUpdates.push({
             path: file.path,
             updates: {
               pdmData: { ...file.pdmData!, checked_out_by: null, checked_out_user: null },
-              localHash: contentHash,
+              localHash: writeResult.hash || contentHash,
               diffStatus: undefined,
               localActiveVersion: undefined,
-              pendingMetadata: undefined  // Clear any pending metadata changes
+              pendingMetadata: undefined
             }
           })
           logDiscard('debug', 'Discarded file successfully', { operationId, ...fileCtx })

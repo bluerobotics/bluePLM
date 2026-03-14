@@ -100,6 +100,7 @@ interface LocalFileInfo {
   size: number
   modifiedTime: string
   hash?: string
+  ino?: number
 }
 
 interface FilesListResult {
@@ -256,7 +257,7 @@ declare global {
       readFile: (path: string) => Promise<FileReadResult>
       checkFileLock: (path: string) => Promise<{ success: boolean; locked?: boolean; processName?: string; error?: string }>
       writeFile: (path: string, base64Data: string) => Promise<FileWriteResult>
-      downloadUrl: (url: string, destPath: string) => Promise<FileWriteResult>
+      downloadUrl: (url: string, destPath: string, expectedHash?: string) => Promise<FileWriteResult>
       fileExists: (path: string) => Promise<boolean>
       getFileHash: (path: string) => Promise<HashResult>
       // Streaming hash - more efficient for large files, use for checkin operations

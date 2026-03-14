@@ -40,18 +40,23 @@ export function FileOperationItems({
   }
 
   // Check rename permissions
-  const isSynced = !!firstFile.pdmData
-  const isCheckedOutByMe = firstFile.pdmData?.checked_out_by === userId
-  
-  // Empty folders don't require checkout to rename - there are no files to protect
-  const isEmptyFolder = isFolder && !files.some(f => {
-    if (f.isDirectory) return false
-    const filePath = f.relativePath.replace(/\\/g, '/')
-    const folderPath = firstFile.relativePath.replace(/\\/g, '/')
-    return filePath.startsWith(folderPath + '/')
-  })
-  
-  const canRename = !isSynced || isCheckedOutByMe || isEmptyFolder
+  const canRename = (() => {
+    if (isFolder) {
+      // Folders: block only if another user has files checked out inside
+      const folderPath = firstFile.relativePath.replace(/\\/g, '/')
+      const nestedFiles = files.filter(f => {
+        if (f.isDirectory) return false
+        return f.relativePath.replace(/\\/g, '/').startsWith(folderPath + '/')
+      })
+      return !nestedFiles.some(f =>
+        f.pdmData?.checked_out_by &&
+        f.pdmData.checked_out_by !== userId
+      )
+    }
+    const isSynced = !!firstFile.pdmData
+    const isCheckedOutByMe = firstFile.pdmData?.checked_out_by === userId
+    return !isSynced || isCheckedOutByMe
+  })()
   
   // Check if the specific file/folder exists locally (not cloud-only)
   // This is different from allCloudOnly which derives folder status from children,
@@ -77,7 +82,7 @@ export function FileOperationItems({
       )}
       
       {/* Rename - right after pin */}
-      {onRename && !multiSelect && isLocalItem && (
+      {onRename && !multiSelect && (isLocalItem || isFolder) && (
         <div 
           className={`context-menu-item ${!canRename ? 'disabled' : ''}`}
           onClick={() => { 
@@ -86,12 +91,12 @@ export function FileOperationItems({
               onClose()
             }
           }}
-          title={!canRename ? 'Check out file first to rename' : ''}
+          title={!canRename ? (isFolder ? 'Another user has files checked out in this folder' : 'Check out file first to rename') : ''}
         >
           <Edit size={14} />
           Rename
           <span className="text-xs text-plm-fg-muted ml-auto">
-            {!canRename ? '(checkout required)' : 'F2'}
+            {!canRename ? (isFolder ? '(has checkouts)' : '(checkout required)') : 'F2'}
           </span>
         </div>
       )}

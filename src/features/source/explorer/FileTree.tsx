@@ -229,6 +229,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   const [renameValue, setRenameValue] = useState('')
   const [isDownloadingAll, setIsDownloadingAll] = useState(false)
   const [isCheckingInAll, setIsCheckingInAll] = useState(false)
+  const isRenamingRef = useRef(false)
   
   // New folder dialog state
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
@@ -240,9 +241,6 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   const fileTreeContainerRef = useRef<HTMLDivElement>(null!)
   // Ref for the scrollable vault list (where virtualization happens)
   const scrollableContainerRef = useRef<HTMLDivElement>(null!)
-  
-  // Use keyboard navigation hook
-  useTreeKeyboardNav({ containerRef: fileTreeContainerRef, tree, onRefresh })
   
   // Auto-scroll when dragging near edges of the scrollable container
   useAutoScrollOnDrag(scrollableContainerRef, { edgeThreshold: 50, maxScrollSpeed: 15 })
@@ -359,17 +357,31 @@ export function FileTree({ onRefresh }: FileTreeProps) {
       setRenameValue(file.name)
     },
     canRename: (file) => {
-      // Can rename if: not synced OR checked out by current user
+      if (file.isDirectory) {
+        // Folders: block only if another user has files checked out inside
+        const folderPath = file.relativePath.replace(/\\/g, '/')
+        const nestedFiles = files.filter(f => {
+          if (f.isDirectory) return false
+          return f.relativePath.replace(/\\/g, '/').startsWith(folderPath + '/')
+        })
+        return !nestedFiles.some(f =>
+          f.pdmData?.checked_out_by &&
+          f.pdmData.checked_out_by !== user?.id
+        )
+      }
       const isSynced = !!file.pdmData
       const isCheckedOutByMe = file.pdmData?.checked_out_by === user?.id
       return !isSynced || isCheckedOutByMe
     },
-    allowDirectories: true  // Allow renaming folders too
+    allowDirectories: true
   })
   
   const handleRenameSubmit = async () => {
+    if (isRenamingRef.current) return
+    
     if (!renamingFile || !renameValue.trim()) {
       setRenamingFile(null)
+      setRenameValue('')
       return
     }
     
@@ -377,11 +389,18 @@ export function FileTree({ onRefresh }: FileTreeProps) {
     
     if (newName === renamingFile.name) {
       setRenamingFile(null)
+      setRenameValue('')
       return
     }
     
-    await executeCommand('rename', { file: renamingFile, newName }, { onRefresh })
-    setRenamingFile(null)
+    isRenamingRef.current = true
+    try {
+      await executeCommand('rename', { file: renamingFile, newName }, { onRefresh })
+    } finally {
+      setRenamingFile(null)
+      setRenameValue('')
+      isRenamingRef.current = false
+    }
   }
   
   // Clipboard paste handler that determines target folder from context menu
@@ -396,10 +415,12 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   }
   
   const handleRename = (file: LocalFile) => {
-    // Use inline rename mode
     setRenamingFile(file)
     setRenameValue(file.name)
   }
+  
+  // Keyboard navigation (placed after handleRename so F2 can use it)
+  useTreeKeyboardNav({ containerRef: fileTreeContainerRef, tree, onRename: handleRename, onRefresh })
   
   const handleNewFolder = async () => {
     if (!contextMenu?.file || !vaultPath) return
@@ -868,7 +889,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
                       renameValue={renameValue}
                       onRenameChange={setRenameValue}
                       onRenameSubmit={handleRenameSubmit}
-                      onRenameCancel={() => setRenamingFile(null)}
+                      onRenameCancel={() => { setRenamingFile(null); setRenameValue('') }}
                       onClick={handleTreeItemClick}
                       onDoubleClick={handleTreeItemDoubleClick}
                       onContextMenu={handleTreeItemContextMenu}

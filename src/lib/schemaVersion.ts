@@ -26,7 +26,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 53
+export const EXPECTED_SCHEMA_VERSION = 54
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -87,6 +87,7 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   51: 'Extended file_comments with spatial annotations, threading, and resolve tracking',
   52: 'Added triggers_review flag to workflow_states for review-on-state-change',
   53: 'Added allow_file_level_revision_for_models org setting (default false)',
+  54: 'Case-insensitive unique index on files(vault_id, file_path) to prevent ghost duplicates on Windows',
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

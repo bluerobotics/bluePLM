@@ -9,6 +9,7 @@ export {
   FolderUploadButton,
   InlineCheckinButton,
   FolderCheckinButton,
+  InlineDiscardButton,
 } from './InlineActionButtons'
 
 // Checkout users dropdown for folder/vault notifications

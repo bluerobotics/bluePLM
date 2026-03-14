@@ -259,20 +259,7 @@ export const getLatestCommand: Command<GetLatestParams> = {
           fullPath
         })
         
-        // Get download URL for the server version
-        const { url, error: urlError } = await getDownloadUrl(organization.id, file.pdmData.content_hash)
-        if (urlError || !url) {
-          logGetLatest('error', 'Failed to get download URL', {
-            operationId,
-            ...fileCtx,
-            urlError,
-            orgId: organization.id
-          })
-          progress.update()
-          return { success: false, error: `${file.name}: ${urlError || 'Failed to get URL'}` }
-        }
-        
-        logGetLatest('debug', 'Got download URL, removing read-only', {
+        logGetLatest('debug', 'Removing read-only before download', {
           operationId,
           fileName: file.name
         })
@@ -289,10 +276,30 @@ export const getLatestCommand: Command<GetLatestParams> = {
         }
         
         // Download and overwrite the local file with retry logic
+        // URL is obtained inside the loop so expired URLs are refreshed on retry
         let downloadResult: { success: boolean; error?: string; size?: number; hash?: string } | undefined
         let lastDownloadError: string | undefined
         
         for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+          // Get a fresh signed URL each attempt (URLs can expire between retries)
+          const { url, error: urlError } = await getDownloadUrl(organization.id, file.pdmData.content_hash)
+          if (urlError || !url) {
+            logGetLatest('error', 'Failed to get download URL', {
+              operationId,
+              ...fileCtx,
+              urlError,
+              orgId: organization.id,
+              attempt
+            })
+            lastDownloadError = urlError || 'Failed to get URL'
+            if (isRetryableError(lastDownloadError) && attempt < MAX_RETRY_ATTEMPTS) {
+              const delayMs = getBackoffDelay(attempt, RETRY_BASE_DELAY_MS)
+              await sleep(delayMs)
+              continue
+            }
+            break
+          }
+          
           logGetLatest('debug', 'Downloading file', {
             operationId,
             fileName: file.name,
@@ -300,7 +307,7 @@ export const getLatestCommand: Command<GetLatestParams> = {
             attempt
           })
           
-          downloadResult = await window.electronAPI?.downloadUrl(url, fullPath)
+          downloadResult = await window.electronAPI?.downloadUrl(url, fullPath, file.pdmData.content_hash)
           
           if (downloadResult?.success) {
             break // Success, exit retry loop
@@ -335,6 +342,8 @@ export const getLatestCommand: Command<GetLatestParams> = {
             downloadError: lastDownloadError,
             userMessage
           })
+          // Restore read-only flag so the file isn't left writable without checkout
+          await window.electronAPI?.setReadonly(fullPath, true)
           progress.update()
           return { success: false, error: `${file.name}: ${userMessage}` }
         }
@@ -350,13 +359,12 @@ export const getLatestCommand: Command<GetLatestParams> = {
         // This reduces N IPC calls to 1, improving performance
         pathsToMakeReadonly.push(fullPath)
         
-        // Queue update for batch processing
         pendingUpdates.push({
           path: file.path,
           updates: {
-            localHash: file.pdmData.content_hash,
-            localVersion: file.pdmData.version, // Track the version we downloaded
-            diffStatus: undefined // No longer outdated
+            localHash: downloadResult.hash || file.pdmData.content_hash,
+            localVersion: file.pdmData.version,
+            diffStatus: undefined
           }
         })
         
@@ -378,6 +386,9 @@ export const getLatestCommand: Command<GetLatestParams> = {
           error: errorMsg,
           stack: err instanceof Error ? err.stack : undefined
         })
+        // Restore read-only flag so the file isn't left writable without checkout
+        const fullPath = buildFullPath(vaultPath, file.relativePath)
+        await window.electronAPI?.setReadonly(fullPath, true).catch(() => {})
         progress.update()
         return { success: false, error: `${file.name}: ${errorMsg}` }
       }

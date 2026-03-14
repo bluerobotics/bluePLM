@@ -189,6 +189,8 @@ export interface LocalFile {
   // Source file info for version history copying (set on paste, consumed on first sync)
   copiedFromFileId?: string
   copiedVersion?: number
+  // NTFS file index number - persistent across renames on the same volume
+  ino?: number
 }
 
 // Server file info (for tracking deleted files)

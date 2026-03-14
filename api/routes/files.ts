@@ -199,7 +199,8 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
       const binaryContent = Buffer.from(content, 'base64')
       newHash = computeHash(binaryContent)
       newSize = binaryContent.length
-      const storagePath = `${request.user!.org_id}/${newHash.substring(0, 2)}/${newHash}`
+      const dirPath = `${request.user!.org_id}/${newHash.substring(0, 2)}`
+      const storagePath = `${dirPath}/${newHash}`
       
       const { error: uploadError } = await request.supabase!.storage
         .from('vault')
@@ -211,6 +212,20 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
       // Ignore "already exists" - content-addressable storage deduplicates
       if (uploadError && !uploadError.message.includes('already exists')) {
         throw uploadError
+      }
+      
+      // Post-upload verification: confirm the object exists with expected size
+      const { data: verified, error: verifyError } = await request.supabase!.storage
+        .from('vault')
+        .list(dirPath, { search: newHash, limit: 1 })
+      
+      if (!verifyError && verified && verified.length > 0) {
+        const storedSize = (verified[0] as { metadata?: { size?: number } }).metadata?.size
+        if (storedSize !== undefined && storedSize !== newSize) {
+          throw new Error(`Upload corrupted: expected ${newSize} bytes, stored ${storedSize} bytes`)
+        }
+      } else if (!verifyError && (!verified || verified.length === 0)) {
+        throw new Error('Upload verification failed: object not found in storage after upload')
       }
     }
     
@@ -360,20 +375,40 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
     const fileType = getFileTypeFromExtension(extension || '')
     
     // Upload to storage
-    const storagePath = `${request.user!.org_id}/${contentHash.substring(0, 2)}/${contentHash}`
-    await request.supabase!.storage
+    const dirPath = `${request.user!.org_id}/${contentHash.substring(0, 2)}`
+    const storagePath = `${dirPath}/${contentHash}`
+    const { error: storageUploadError } = await request.supabase!.storage
       .from('vault')
       .upload(storagePath, binaryContent, {
         contentType: 'application/octet-stream',
         upsert: false
-      }).catch(() => {})
+      })
     
-    // Check existing
+    if (storageUploadError && !storageUploadError.message.includes('already exists')) {
+      throw storageUploadError
+    }
+    
+    // Post-upload verification: confirm the object exists with expected size
+    const { data: verified, error: verifyError } = await request.supabase!.storage
+      .from('vault')
+      .list(dirPath, { search: contentHash, limit: 1 })
+    
+    if (!verifyError && verified && verified.length > 0) {
+      const storedSize = (verified[0] as { metadata?: { size?: number } }).metadata?.size
+      if (storedSize !== undefined && storedSize !== fileSize) {
+        throw new Error(`Upload corrupted: expected ${fileSize} bytes, stored ${storedSize} bytes`)
+      }
+    } else if (!verifyError && (!verified || verified.length === 0)) {
+      throw new Error('Upload verification failed: object not found in storage after upload')
+    }
+    
+    // Check existing (case-insensitive: Windows paths are case-insensitive)
+    const escapedPath = file_path.replace(/%/g, '\\%').replace(/_/g, '\\_')
     const { data: existing } = await request.supabase!
       .from('files')
       .select('id, version')
       .eq('vault_id', vault_id)
-      .eq('file_path', file_path)
+      .ilike('file_path', escapedPath)
       .is('deleted_at', null)
       .single()
     

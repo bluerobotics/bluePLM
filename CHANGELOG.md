@@ -5,29 +5,32 @@ All notable changes to BluePLM will be documented in this file.
 ## [3.14.0] - Unreleased
 
 ### Added
-- **Copy-paste preserves version history**: Pasted files carry full version history from the source. On first check-in, all historical version records are copied so the new file doesn't reset to version 1
+- **Copy-paste preserves version history** — pasted files inherit full history instead of resetting to v1
 
 ### Removed
-- **Notifications system**: Removed the entire unused notifications module. Bell icon repurposed for Reviews with pending review count
+- **Notifications system** — removed unused module; bell icon now shows pending review count
 
 ### Changed
-- **PDF viewer rewritten from scratch** (preliminary): Replaced `react-pdf-highlighter-plus` with direct `pdfjs-dist` canvas rendering. HiDPI-aware pages, working zoom (fit-to-width/page, Ctrl+/-, Ctrl+wheel), percentage-based annotation overlays, IntersectionObserver page virtualization, pdf.js TextLayer for text selection. Eliminated patched node_modules, setter interception hack, retry-based fit loops, and dual overlay system. Review commenting functional but still being hardened
+- **PDF viewer rewritten** (preliminary) — new canvas-based renderer with working zoom, text selection, HiDPI support, and page virtualization
 
 ### Improved
-- **Sync performance logging**: Each `syncFile` step now logs individual duration with a single summary line at INFO level (timings, upload speed, file size) for RCA
+- **Sync performance logging** — each step logs duration with a summary line for diagnostics
 
 ### Fixed
-- **Drawing sync metadata says "no changes" when DM API can't resolve references**: Added filename-based parent model inference as fallback. When the Document Manager API returns 0 references (common with certain SW file formats), BluePLM now looks for a matching `.SLDPRT`/`.SLDASM` in the same directory. Also surfaces a clear message when SolidWorks COM is inaccessible due to permissions mismatch
-- **Cannot select text in BR number/description cells**: Row-level drag handler now detects text-selectable cells and cancels the drag
-- **Inline edit not writing to SolidWorks file**: Fixed silent exit paths and stale closure in `handleSaveCellEdit`/`saveConfigsToSWFile`
-- **Custom properties not written on STEP-imported parts**: DM API now reports per-property failures, triggering SW API fallback. Inline edits use live COM API when file is open in SolidWorks
-- **Sync Metadata not writing configuration properties**: DM API's `AddCustomProperty` silently failed for config-level properties on newer file formats. Property writes now bypass the DM API entirely and use the full SolidWorks COM API (`Set2`/`Add3`) which reliably creates and updates properties on all configurations
-- **PDF area selection required extra toggle**: Area selection now enabled by default when commenting is available
-- **Review rows required double-click**: Single-click now opens PDF preview
-- **Right sidebar toggle ignored comments column**: Comment sidebar now respects panel visibility toggle
-- **PDF viewer refused write-locked files**: EACCES/EPERM now falls through to read-only open
-- **Extension-dependent features broke after rename/move/copy**: File extension lost its leading dot in the store (e.g., `.slddrw` became `slddrw`), silently disabling drawing "driven by" icons, Sync Metadata context menu, config expansion, and export until a window refresh
-- **False "locked by Unknown" on copy-pasted files**: Lock detection treated Windows read-only files as process-locked because `O_RDWR` fails with `EACCES` on read-only attributes. Now disambiguates with an `O_RDONLY` check — if the file is readable, it's not locked
+- **Drawing sync fallback** — infers parent model from filename when DM API returns no references
+- **Text selection in BR cells** — cells with text content are now selectable instead of starting a drag
+- **Inline edit not writing to SW file** — fixed silent exit paths and stale closure
+- **Properties not written on STEP-imported parts** — falls back to SW COM API when DM API fails
+- **Config properties not written** — bypasses DM API; uses SW COM API for reliable config-level writes
+- **PDF area selection required extra toggle** — now enabled by default when commenting
+- **Review rows required double-click** — single-click now opens preview
+- **Comment sidebar ignored panel toggle** — now respects visibility state
+- **PDF viewer refused locked files** — falls through to read-only open
+- **SW tree rename not detected** — renamed files now correctly show as "moved" instead of "added"
+- **Features broke after rename/move/copy** — fixed file extension losing its leading dot in the store
+- **False "locked by Unknown" on pasted files** — read-only files no longer misidentified as process-locked
+- **Silent corruption on flaky downloads** — downloads now verify hash, use atomic writes, and timeout on stalls
+- **Silent corruption on flaky uploads** — check-in now verifies hash consistency, retries with backoff, and confirms upload size
 
 ---
 

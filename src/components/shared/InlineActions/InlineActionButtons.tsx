@@ -961,3 +961,33 @@ export const FolderCheckinButton: React.FC<FolderCheckinButtonProps> = (props) =
   return <CheckinButtonCore {...props} />
 }
 
+// ============================================================================
+// DISCARD BUTTON - Red X icon for discarding changes on deleted files
+// Shown when a file is checked out by me but missing locally (diffStatus: 'deleted')
+// ============================================================================
+interface DiscardButtonProps extends BaseButtonProps {
+  title?: string
+}
+
+export const InlineDiscardButton: React.FC<DiscardButtonProps> = ({
+  onClick,
+  title,
+  disabled,
+  isProcessing
+}) => {
+  if (isProcessing) {
+    return <Loader2 size={16} className="text-red-400 animate-spin" />
+  }
+
+  return (
+    <button
+      className="group/discard flex items-center px-1.5 py-0.5 rounded-md transition-all duration-200 bg-white/10 text-red-400 hover:bg-red-400/30"
+      onClick={onClick}
+      title={title || 'Discard Changes (undo checkout)'}
+      disabled={disabled}
+    >
+      <X size={12} />
+    </button>
+  )
+}
+
