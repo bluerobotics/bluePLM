@@ -347,6 +347,7 @@ export async function undoCheckout(fileId: string, userId: string) {
   }
   
   // Release the checkout without saving changes
+  // Must bump updated_at so delta sync picks up the change (cache uses updated_at as watermark)
   const { data, error } = await client
     .from('files')
     .update({
@@ -354,7 +355,8 @@ export async function undoCheckout(fileId: string, userId: string) {
       checked_out_at: null,
       lock_message: null,
       checked_out_by_machine_id: null,
-      checked_out_by_machine_name: null
+      checked_out_by_machine_name: null,
+      updated_at: new Date().toISOString()
     })
     .eq('id', fileId)
     .select()
@@ -423,6 +425,7 @@ export async function adminForceDiscardCheckout(
   }
   
   // Release the checkout without saving changes
+  // Must bump updated_at so delta sync picks up the change (cache uses updated_at as watermark)
   const { data, error } = await client
     .from('files')
     .update({
@@ -430,7 +433,8 @@ export async function adminForceDiscardCheckout(
       checked_out_at: null,
       lock_message: null,
       checked_out_by_machine_id: null,
-      checked_out_by_machine_name: null
+      checked_out_by_machine_name: null,
+      updated_at: new Date().toISOString()
     })
     .eq('id', fileId)
     .select()

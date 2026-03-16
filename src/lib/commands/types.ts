@@ -459,6 +459,19 @@ export interface PackAndGoParams {
   file: LocalFile
 }
 
+/**
+ * Parameters for the match-ghost-file command.
+ * Matches a ghost file (server record with stale path) to its renamed local counterpart
+ * by updating the server path via moveFileOnServer.
+ */
+export interface MatchGhostFileParams {
+  /** The ghost file (diffStatus === 'deleted', checked out by current user). */
+  ghostFile: LocalFile
+  
+  /** The local candidate file to match it to (diffStatus === 'added', same extension). */
+  targetFile: LocalFile
+}
+
 // ============================================
 // Command Definition
 // ============================================
@@ -491,6 +504,7 @@ export type CommandId =
   | 'bulk-checkin-assembly'
   | 'bulk-delete-assembly'
   | 'pack-and-go'
+  | 'match-ghost-file'
 
 export interface Command<TParams = unknown> {
   // Identifier
@@ -542,6 +556,7 @@ export type CommandMap = {
   'bulk-checkin-assembly': Command<BulkAssemblyParams>
   'bulk-delete-assembly': Command<BulkAssemblyParams>
   'pack-and-go': Command<PackAndGoParams>
+  'match-ghost-file': Command<MatchGhostFileParams>
 }
 
 // ============================================
@@ -694,6 +709,39 @@ export function getFilesCheckedOutByOthers(
     f.pdmData?.checked_out_by && 
     f.pdmData.checked_out_by !== userId
   )
+}
+
+/**
+ * Get ghost files from selection: server records checked out by the current user
+ * that don't exist locally (diffStatus === 'deleted'). These are candidates for
+ * the "Match to Local File" resolution flow.
+ */
+export function getGhostFilesFromSelection(files: LocalFile[], selection: LocalFile[], userId?: string): LocalFile[] {
+  const result: LocalFile[] = []
+  
+  for (const item of selection) {
+    if (item.isDirectory) {
+      const filesInFolder = getFilesInFolder(files, item.relativePath)
+      const ghosts = filesInFolder.filter(f =>
+        !f.isDirectory &&
+        f.diffStatus === 'deleted' &&
+        f.pdmData?.checked_out_by === userId
+      )
+      result.push(...ghosts)
+    } else if (
+      !item.isDirectory &&
+      item.pdmData?.id
+    ) {
+      const freshFile = files.find(f => f.path === item.path)
+      if (freshFile &&
+          freshFile.diffStatus === 'deleted' &&
+          freshFile.pdmData?.checked_out_by === userId) {
+        result.push(freshFile)
+      }
+    }
+  }
+  
+  return [...new Map(result.map(f => [f.path, f])).values()]
 }
 
 // Format bytes to human readable

@@ -293,6 +293,15 @@ export async function updateSyncIndexFromServer(vaultId: string, serverPaths: st
           if (e.ino) existingInoMap.set(e.key, e.ino)
         }
         
+        // Prune stale entries whose paths are no longer on the server.
+        // These accumulate from renames and prevent correct inode detection.
+        const serverKeySet = new Set(serverPaths.map(p => makeKey(vaultId, p)))
+        for (const existing of existingEntries) {
+          if (!serverKeySet.has(existing.key)) {
+            store.delete(existing.key)
+          }
+        }
+        
         let completed = 0
         
         for (const path of serverPaths) {
@@ -380,7 +389,7 @@ export async function isInSyncIndex(vaultId: string, relativePath: string): Prom
  * Used during file loading for rename detection: if a local file's inode matches
  * a previously-synced path's inode, it was renamed (not a new file).
  */
-export async function getInodeMap(vaultId: string): Promise<Map<number, string>> {
+export async function getInodeMap(vaultId: string): Promise<Map<number, string[]>> {
   try {
     const db = await openDB()
     
@@ -392,10 +401,15 @@ export async function getInodeMap(vaultId: string): Promise<Map<number, string>>
       
       request.onsuccess = () => {
         const entries = request.result as SyncIndexEntry[]
-        const map = new Map<number, string>()
+        const map = new Map<number, string[]>()
         for (const entry of entries) {
           if (entry.ino && entry.ino > 0) {
-            map.set(entry.ino, entry.relativePath)
+            const existing = map.get(entry.ino)
+            if (existing) {
+              existing.push(entry.relativePath)
+            } else {
+              map.set(entry.ino, [entry.relativePath])
+            }
           }
         }
         console.log(`[SyncIndex] Loaded inode map: ${map.size} entries with inodes for vault ${vaultId}`)

@@ -110,7 +110,7 @@ export function useLoadFiles() {
       // Load inode map for rename detection (ino -> old relativePath)
       const inodeMapPromise = currentVaultId
         ? getInodeMap(currentVaultId)
-        : Promise.resolve(new Map<number, string>())
+        : Promise.resolve(new Map<number, string[]>())
       
       // Fetch server folders (for empty folder sync feature)
       // These are explicit folder records, separate from implicit folders derived from file paths
@@ -413,16 +413,21 @@ export function useLoadFiles() {
           const inodeMatchedServerPaths = new Set<string>()   // old server paths matched by inode
           
           if (savedInodeMap.size > 0) {
-            // Build ino -> pdmFile map for server files checked out by me that are missing locally
+            // Build ino -> pdmFile map for server files checked out by me that are missing locally.
+            // savedInodeMap is Map<ino, paths[]> — try each candidate path against pdmMap
+            // to handle stale duplicate entries from the old updateInodes upsert bug.
             const inodeToServerFile = new Map<number, any>()
-            for (const [ino, oldRelativePath] of savedInodeMap) {
-              const pdmFile = pdmMap.get(oldRelativePath)
-              if (pdmFile && !localPathSet.has(oldRelativePath)) {
-                const isRelevantCheckout = user?.id
-                  ? (pdmFile as any).checked_out_by === user.id
-                  : !!(pdmFile as any).checked_out_by
-                if (isRelevantCheckout) {
-                  inodeToServerFile.set(ino, pdmFile)
+            for (const [ino, oldRelativePaths] of savedInodeMap) {
+              for (const oldRelativePath of oldRelativePaths) {
+                const pdmFile = pdmMap.get(oldRelativePath)
+                if (pdmFile && !localPathSet.has(oldRelativePath)) {
+                  const isRelevantCheckout = user?.id
+                    ? (pdmFile as any).checked_out_by === user.id
+                    : !!(pdmFile as any).checked_out_by
+                  if (isRelevantCheckout) {
+                    inodeToServerFile.set(ino, pdmFile)
+                    break
+                  }
                 }
               }
             }
@@ -851,6 +856,7 @@ export function useLoadFiles() {
           const addedCount = localFiles.filter(f => !f.isDirectory && f.diffStatus === 'added').length
           const cloudCount = localFiles.filter(f => !f.isDirectory && f.diffStatus === 'cloud').length
           const orphanedCount = localFiles.filter(f => !f.isDirectory && f.diffStatus === 'deleted_remote').length
+          const deletedCount = localFiles.filter(f => !f.isDirectory && f.diffStatus === 'deleted').length
           window.electronAPI?.log('info', '[LoadFiles] Merge summary', {
             serverFiles: pdmFiles.length,
             localFilesAfterMerge: localFiles.filter(f => !f.isDirectory).length,
@@ -858,6 +864,7 @@ export function useLoadFiles() {
             added: addedCount,
             cloudOnly: cloudCount,
             orphaned: orphanedCount,
+            ghostFiles: deletedCount,
           })
           
           // Update the local sync index with all server file paths

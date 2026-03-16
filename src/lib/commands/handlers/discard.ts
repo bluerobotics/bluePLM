@@ -15,6 +15,7 @@ import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from
 import { processWithConcurrency, CONCURRENT_OPERATIONS } from '../../concurrency'
 import { log } from '@/lib/logger'
 import { FileOperationTracker } from '../../fileOperationTracker'
+import { clearVaultCache } from '@/lib/cache/vaultFileCache'
 
 const MAX_RETRY_ATTEMPTS = 3
 const RETRY_BASE_DELAY_MS = 1000
@@ -436,6 +437,14 @@ export const discardCommand: Command<DiscardParams> = {
     if (pathsToRemove.length > 0) {
       ctx.removeFilesFromStore(pathsToRemove)
       logDiscard('debug', 'Removed deleted files from store', { count: pathsToRemove.length })
+    }
+    
+    // Invalidate vault cache so delta sync picks up checkout changes on next load.
+    // undoCheckout now bumps updated_at, but clearing the cache is a safety net.
+    if (succeeded > 0 && ctx.activeVaultId) {
+      clearVaultCache(ctx.activeVaultId).catch(err => {
+        logDiscard('warn', 'Failed to clear vault cache after discard', { error: String(err) })
+      })
     }
     
     const { duration } = progress.finish()

@@ -1,10 +1,11 @@
 // src/features/source/context-menu/items/PDMItems.tsx
-import { ArrowDown, ArrowUp, Undo2, RefreshCw, Network } from 'lucide-react'
+import { ArrowDown, ArrowUp, Undo2, RefreshCw, Network, FileSearch } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
-import { executeCommand, getSyncedFilesFromSelection } from '@/lib/commands'
+import { executeCommand, getSyncedFilesFromSelection, getGhostFilesFromSelection } from '@/lib/commands'
 import { checkOperationPermission, getPermissionRequirement } from '@/lib/permissions'
 import { SW_EXTENSIONS, ASSEMBLY_EXTENSIONS } from '../constants'
+import type { DialogName } from '../types'
 
 interface PDMItemsProps {
   files: LocalFile[]
@@ -26,6 +27,9 @@ interface PDMItemsProps {
   cloudOnlyCount: number
   userId: string | undefined
   checkForDifferentMachineCheckout: (files: LocalFile[]) => Promise<boolean>
+  openDialog: (name: DialogName) => void
+  setMatchGhostFile: (file: LocalFile | null) => void
+  setMatchGhostCandidates: (files: LocalFile[]) => void
   onClose: () => void
   onRefresh: (silent?: boolean) => void
 }
@@ -50,6 +54,9 @@ export function PDMItems({
   cloudOnlyCount,
   userId,
   checkForDifferentMachineCheckout,
+  openDialog,
+  setMatchGhostFile,
+  setMatchGhostCandidates,
   onClose,
   onRefresh
 }: PDMItemsProps) {
@@ -171,6 +178,24 @@ export function PDMItems({
   const discardDisabled = !canDiscard.allowed
   const discardReason = !canDiscard.allowed ? `Requires ${getPermissionRequirement('discard')}` : ''
 
+  // Ghost files: server records checked out by current user but missing locally
+  const ghostFilesInSelection = getGhostFilesFromSelection(files, contextFiles, userId)
+  const singleGhostFile = ghostFilesInSelection.length === 1 ? ghostFilesInSelection[0] : null
+
+  const handleMatchGhostFile = () => {
+    if (!singleGhostFile) return
+    const ghostDir = singleGhostFile.relativePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/')
+    const ghostExt = singleGhostFile.extension?.toLowerCase()
+    const candidates = files.filter(f => {
+      if (f.isDirectory || f.diffStatus !== 'added') return false
+      const fileDir = f.relativePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/')
+      return fileDir === ghostDir && f.extension?.toLowerCase() === ghostExt
+    })
+    setMatchGhostFile(singleGhostFile)
+    setMatchGhostCandidates(candidates)
+    openDialog('matchGhostFile')
+  }
+
   return (
     <>
       {/* Download - for cloud-only files - show at TOP for cloud folders */}
@@ -244,6 +269,18 @@ export function PDMItems({
           <Undo2 size={14} />
           Discard Checkout {discardableCount > 1 ? `(${discardableCount})` : ''}
           {!canDiscard.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+        </div>
+      )}
+
+      {/* Match Ghost File - for single ghost file (deleted, checked out by me) */}
+      {singleGhostFile && (
+        <div
+          className="context-menu-item text-plm-info"
+          onClick={handleMatchGhostFile}
+          title="Match this missing server file to a renamed local file"
+        >
+          <FileSearch size={14} />
+          Match to Local File...
         </div>
       )}
 

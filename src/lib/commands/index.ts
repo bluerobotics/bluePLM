@@ -84,6 +84,7 @@ import {
   bulkDeleteAssemblyCommand
 } from './handlers/bulkAssembly'
 import { packAndGoCommand } from './handlers/packAndGo'
+import { matchGhostFileCommand } from './handlers/matchGhostFile'
 
 // Register all commands on module load
 function initializeCommands() {
@@ -123,6 +124,9 @@ function initializeCommands() {
   registerCommand('bulk-checkin-assembly', bulkCheckinAssemblyCommand)
   registerCommand('bulk-delete-assembly', bulkDeleteAssemblyCommand)
   registerCommand('pack-and-go', packAndGoCommand)
+  
+  // Ghost file resolution
+  registerCommand('match-ghost-file', matchGhostFileCommand)
 }
 
 // Initialize on import

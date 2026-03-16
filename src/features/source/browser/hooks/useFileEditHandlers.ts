@@ -72,7 +72,8 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     setRenamingFile,
     renameValue,
     setRenameValue,
-    renameInputRef,
+    // renameInputRef is intentionally not destructured here -- focus is
+    // handled by a useEffect in NameCell.tsx, not by this hook.
     setIsCreatingFolder,
     newFolderName,
     setNewFolderName,
@@ -145,14 +146,19 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     setContextMenu(null)
     setRenamingFile(file)
     setRenameValue(file.name)
-    // Focus input after render
-    setTimeout(() => {
-      renameInputRef.current?.focus()
-      renameInputRef.current?.select()
-    }, 10)
-  }, [setContextMenu, setRenamingFile, setRenameValue, renameInputRef])
+    // Focus is handled by useEffect in NameCell -- no setTimeout needed
+  }, [setContextMenu, setRenamingFile, setRenameValue])
+
+  // Guard against double invocation (Enter keydown fires handleRename, then
+  // setRenamingFile(null) unmounts the input which fires onBlur -> second call)
+  const isRenamingRef = useRef(false)
 
   const handleRename = useCallback(async () => {
+    if (isRenamingRef.current) {
+      log.info('[FileEdit]', 'handleRename: skipping duplicate call (already renaming)')
+      return
+    }
+
     if (!renamingFile || !renameValue.trim() || !vaultPath) {
       setRenamingFile(null)
       setRenameValue('')
@@ -166,8 +172,12 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
       return
     }
 
-    // Use command system for rename (handles both local and server)
-    await executeCommand('rename', { file: renamingFile, newName }, { onRefresh })
+    isRenamingRef.current = true
+    try {
+      await executeCommand('rename', { file: renamingFile, newName }, { onRefresh })
+    } finally {
+      isRenamingRef.current = false
+    }
     
     setRenamingFile(null)
     setRenameValue('')

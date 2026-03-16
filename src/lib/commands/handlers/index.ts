@@ -37,6 +37,7 @@ export * from './misc'
 export * from './sync'
 export * from './syncMetadata'
 export * from './packAndGo'
+export * from './matchGhostFile'
 
 // Re-export registry for external use
 export * from '../registry'

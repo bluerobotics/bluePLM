@@ -92,6 +92,17 @@ export function NameCell({ file }: CellRendererBaseProps): React.ReactNode {
   // Icon size scales with row size, but has a minimum of 16
   const iconSize = Math.max(16, listRowSize - 8)
   
+  // Auto-focus and select text when entering rename mode.
+  // This replaces the fragile setTimeout in startRenaming -- if re-renders
+  // unmount/remount the input during a refresh storm, this effect re-fires
+  // and restores focus so onKeyDown (Enter) and onBlur actually work.
+  useEffect(() => {
+    if (isBeingRenamed && renameInputRef?.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [isBeingRenamed, renameInputRef])
+
   // Auto-select text when entering highlight mode
   useEffect(() => {
     if (isBeingHighlighted && highlightInputRef?.current) {

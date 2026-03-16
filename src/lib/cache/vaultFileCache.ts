@@ -466,3 +466,9 @@ export async function clearAllVaultCaches(): Promise<void> {
     console.error('[VaultCache] Error clearing all caches:', error)
   }
 }
+
+// Expose cache utilities on window for DevTools console access
+if (typeof window !== 'undefined') {
+  ;(window as any).__clearVaultCache = clearVaultCache
+  ;(window as any).__clearAllVaultCaches = clearAllVaultCaches
+}

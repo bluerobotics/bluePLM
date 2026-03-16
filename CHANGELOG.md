@@ -31,6 +31,8 @@ All notable changes to BluePLM will be documented in this file.
 - **False "locked by Unknown" on pasted files** — read-only files no longer misidentified as process-locked
 - **Silent corruption on flaky downloads** — downloads now verify hash, use atomic writes, and timeout on stalls
 - **Silent corruption on flaky uploads** — check-in now verifies hash consistency, retries with backoff, and confirms upload size
+- **Ghost files persisted across restarts** — `undoCheckout` now bumps `updated_at` so delta sync picks up the change; discard handler also invalidates the vault cache
+- **"Match to Local File" for ghost files** — right-click a ghost file to match it to its renamed local counterpart, updating the server path via `moveFileOnServer`
 
 ---
 

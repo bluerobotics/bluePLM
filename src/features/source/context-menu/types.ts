@@ -37,6 +37,7 @@ export interface DialogState {
   mention: boolean
   shareLink: boolean
   addToECO: boolean
+  matchGhostFile: boolean
 }
 
 export type DialogName = keyof DialogState

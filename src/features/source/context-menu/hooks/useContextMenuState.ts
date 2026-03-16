@@ -70,6 +70,12 @@ interface UseContextMenuStateResult {
   handleIgnoreSubmenuEnter: () => void
   handleIgnoreSubmenuLeave: () => void
   
+  // Match ghost file state
+  matchGhostFile: LocalFile | null
+  setMatchGhostFile: (file: LocalFile | null) => void
+  matchGhostCandidates: LocalFile[]
+  setMatchGhostCandidates: (files: LocalFile[]) => void
+  
   // Platform
   platform: string
 }
@@ -83,7 +89,8 @@ const initialDialogState: DialogState = {
   checkoutRequest: false,
   mention: false,
   shareLink: false,
-  addToECO: false
+  addToECO: false,
+  matchGhostFile: false
 }
 
 export function useContextMenuState({
@@ -123,6 +130,10 @@ export function useContextMenuState({
   const [isWatching, setIsWatching] = useState(false)
   const [isTogglingWatch, setIsTogglingWatch] = useState(false)
   
+  // Match ghost file state
+  const [matchGhostFile, setMatchGhostFile] = useState<LocalFile | null>(null)
+  const [matchGhostCandidates, setMatchGhostCandidates] = useState<LocalFile[]>([])
+
   // Share link state
   const [generatedShareLink, setGeneratedShareLink] = useState<string | null>(null)
   const [isCreatingShareLink, setIsCreatingShareLink] = useState(false)
@@ -289,6 +300,10 @@ export function useContextMenuState({
     setShowIgnoreSubmenu,
     handleIgnoreSubmenuEnter,
     handleIgnoreSubmenuLeave,
+    matchGhostFile,
+    setMatchGhostFile,
+    matchGhostCandidates,
+    setMatchGhostCandidates,
     platform
   }
 }

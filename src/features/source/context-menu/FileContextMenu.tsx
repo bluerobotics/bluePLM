@@ -38,6 +38,7 @@ import { CheckoutRequestDialog } from './dialogs'
 import { MentionDialog } from './dialogs'
 import { ShareLinkDialog } from './dialogs'
 import { AddToECODialog } from './dialogs'
+import { MatchGhostFileDialog } from './dialogs'
 
 import type { FileContextMenuProps } from './types'
 import type { LocalFile } from '@/stores/pdmStore'
@@ -265,6 +266,16 @@ export function FileContextMenu({
     executeCommand('checkin', { files: contextFiles }, { onRefresh })
   }
 
+  const handleMatchGhostConfirm = (selectedCandidate: LocalFile) => {
+    const ghostFile = state.matchGhostFile
+    if (!ghostFile) return
+    state.closeDialog('matchGhostFile')
+    state.setMatchGhostFile(null)
+    state.setMatchGhostCandidates([])
+    onClose()
+    executeCommand('match-ghost-file', { ghostFile, targetFile: selectedCandidate }, { onRefresh })
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -304,6 +315,9 @@ export function FileContextMenu({
           cloudOnlyCount={cloudOnlyCount}
           userId={user?.id}
           checkForDifferentMachineCheckout={state.checkForDifferentMachineCheckout}
+          openDialog={state.openDialog}
+          setMatchGhostFile={state.setMatchGhostFile}
+          setMatchGhostCandidates={state.setMatchGhostCandidates}
           onClose={onClose}
           onRefresh={onRefresh}
         />
@@ -495,6 +509,14 @@ export function FileContextMenu({
         organizationId={organization?.id}
         userId={user?.id}
         onSuccess={onClose}
+      />
+
+      <MatchGhostFileDialog
+        isOpen={state.dialogs.matchGhostFile}
+        onClose={() => { state.closeDialog('matchGhostFile'); state.setMatchGhostFile(null); state.setMatchGhostCandidates([]); onClose(); }}
+        ghostFile={state.matchGhostFile}
+        candidates={state.matchGhostCandidates}
+        onConfirm={handleMatchGhostConfirm}
       />
     </>
   )
