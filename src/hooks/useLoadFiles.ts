@@ -6,7 +6,7 @@ import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/commands/types'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { getFilesWithCache, updateCachedUserInfo } from '@/lib/cache/vaultFileCache'
-import { getSyncIndex, updateSyncIndexFromServer, getInodeMap, updateInodes } from '@/lib/cache/localSyncIndex'
+import { getSyncIndex, updateSyncIndexFromServer, getInodeMap, getVersionMap, updateInodes } from '@/lib/cache/localSyncIndex'
 import { logExplorer } from '@/lib/userActionLogger'
 import type { LightweightFile } from '@/lib/supabase/files/queries'
 
@@ -112,6 +112,11 @@ export function useLoadFiles() {
         ? getInodeMap(currentVaultId)
         : Promise.resolve(new Map<number, string[]>())
       
+      // Load persisted version/hash data for accurate outdated detection on app restart
+      const versionMapPromise = currentVaultId
+        ? getVersionMap(currentVaultId)
+        : Promise.resolve(new Map<string, { localVersion?: number; localHash?: string }>())
+      
       // Fetch server folders (for empty folder sync feature)
       // These are explicit folder records, separate from implicit folders derived from file paths
       const serverFoldersPromise = shouldFetchServer && currentVaultId
@@ -119,7 +124,7 @@ export function useLoadFiles() {
         : Promise.resolve({ folders: [], error: undefined })
       
       // Wait for all to complete
-      const [localResult, serverResultWithCache, localSyncIndex, savedInodeMap, serverFoldersResult] = await Promise.all([localPromise, serverPromise, syncIndexPromise, inodeMapPromise, serverFoldersPromise])
+      const [localResult, serverResultWithCache, localSyncIndex, savedInodeMap, savedVersionMap, serverFoldersResult] = await Promise.all([localPromise, serverPromise, syncIndexPromise, inodeMapPromise, versionMapPromise, serverFoldersPromise])
       
       // Extract files from cache result
       const serverResult = {
@@ -280,7 +285,13 @@ export function useLoadFiles() {
           
           // Create a map of existing files' localVersion to preserve tracked version numbers
           // localVersion tracks which version's content is actually on disk (set during download/checkin)
+          // Seed from IndexedDB first (survives app restart), then overlay in-memory values
           const existingLocalVersions = new Map<string, number>()
+          for (const [relPath, data] of savedVersionMap) {
+            if (data.localVersion !== undefined) {
+              existingLocalVersions.set(relPath, data.localVersion)
+            }
+          }
           for (const f of currentFiles) {
             if (f.localVersion !== undefined) {
               existingLocalVersions.set(f.path, f.localVersion)
@@ -291,7 +302,13 @@ export function useLoadFiles() {
           // Create a map of existing files' localHash to preserve computed hashes
           // This prevents re-computing hashes or falling back to timestamp-based diff detection
           // when the file watcher triggers a refresh after operations like checkin
+          // Seed from IndexedDB first (survives app restart), then overlay in-memory values
           const existingLocalHashes = new Map<string, string>()
+          for (const [relPath, data] of savedVersionMap) {
+            if (data.localHash) {
+              existingLocalHashes.set(relPath, data.localHash)
+            }
+          }
           for (const f of currentFiles) {
             if (f.localHash) {
               existingLocalHashes.set(f.path, f.localHash)
@@ -304,6 +321,16 @@ export function useLoadFiles() {
           for (const f of currentFiles) {
             if (f.pendingMetadata && Object.keys(f.pendingMetadata).length > 0) {
               existingPendingMetadata.set(f.path, f.pendingMetadata)
+            }
+          }
+          
+          // Secondary map keyed by server-relative path for moved file lookups
+          // When a file is renamed, pendingMetadata is stored under the OLD path, but we look up by NEW path.
+          // This map allows us to find pending metadata using pdmData.file_path (the old server path).
+          const existingPendingByServerPath = new Map<string, typeof currentFiles[0]['pendingMetadata']>()
+          for (const f of currentFiles) {
+            if (f.pendingMetadata && Object.keys(f.pendingMetadata).length > 0 && f.pdmData?.file_path) {
+              existingPendingByServerPath.set(f.pdmData.file_path.toLowerCase(), f.pendingMetadata)
             }
           }
           
@@ -413,21 +440,21 @@ export function useLoadFiles() {
           const inodeMatchedServerPaths = new Set<string>()   // old server paths matched by inode
           
           if (savedInodeMap.size > 0) {
-            // Build ino -> pdmFile map for server files checked out by me that are missing locally.
+            // Build ino -> pdmFile map for server files that are missing locally.
             // savedInodeMap is Map<ino, paths[]> — try each candidate path against pdmMap
             // to handle stale duplicate entries from the old updateInodes upsert bug.
+            //
+            // Inode matches are NOT restricted to checked-out-by-me files. NTFS MFT indices
+            // are per-machine and file-unique, making false positives extremely unlikely.
+            // Restricting to checked-out files caused ghost/orphan pairs after a checkin
+            // that updated the server path and released the checkout.
             const inodeToServerFile = new Map<number, any>()
             for (const [ino, oldRelativePaths] of savedInodeMap) {
               for (const oldRelativePath of oldRelativePaths) {
                 const pdmFile = pdmMap.get(oldRelativePath)
                 if (pdmFile && !localPathSet.has(oldRelativePath)) {
-                  const isRelevantCheckout = user?.id
-                    ? (pdmFile as any).checked_out_by === user.id
-                    : !!(pdmFile as any).checked_out_by
-                  if (isRelevantCheckout) {
-                    inodeToServerFile.set(ino, pdmFile)
-                    break
-                  }
+                  inodeToServerFile.set(ino, pdmFile)
+                  break
                 }
               }
             }
@@ -443,11 +470,15 @@ export function useLoadFiles() {
                   inodeRenameMap.set(localFile.relativePath.toLowerCase(), serverFile)
                   inodeMatchedServerPaths.add(serverFile.file_path.toLowerCase())
                   inodeToServerFile.delete(localFile.ino)
+                  const isCheckedOutByMe = user?.id
+                    ? (serverFile as any).checked_out_by === user.id
+                    : !!(serverFile as any).checked_out_by
                   window.electronAPI?.log('info', '[LoadFiles] Inode rename detected', {
                     oldPath: serverFile.file_path,
                     newPath: localFile.relativePath,
                     ino: localFile.ino,
-                    method: 'inode'
+                    method: 'inode',
+                    checkedOutByMe: isCheckedOutByMe
                   })
                 }
               }
@@ -608,33 +639,30 @@ export function useLoadFiles() {
                 // If existingLocalVersion > pdmData.version: local has uncommitted changes (modified)
                 // This shouldn't normally happen, but leave status as-is
               } else {
-                // PRIORITY 2: Timestamp-based fallback when no localVersion available
-                // Be VERY conservative - false "outdated" is worse than missing it
-                // Background hash computation will eventually determine accurate status
-                
-                // Tolerance for "modified" detection (my file, local newer)
+                // No localVersion available — do NOT use timestamp fallback for "outdated"
+                // since it produces mass false positives (e.g., files downloaded weeks ago
+                // whose server updated_at was bumped by unrelated checkout/checkin activity).
+                // Instead, trust that background hash computation will resolve the real status.
                 const MODIFIED_TOLERANCE_MS = 5000
                 
-                // VERY CONSERVATIVE tolerance for "outdated" detection
-                // Only mark as outdated if absolutely certain to avoid false positives
-                const OUTDATED_TOLERANCE_MS = 1800000 // 30 minutes (increased from 10)
-                
                 if (isCheckedOutByMe && localModTime > cloudUpdateTime + MODIFIED_TOLERANCE_MS) {
-                  // I have it checked out and local file is newer → I modified it
                   diffStatus = 'modified'
-                } else if (!isCheckedOutByMe && cloudUpdateTime > localModTime + OUTDATED_TOLERANCE_MS) {
-                  // Someone else updated it and server is MUCH newer → likely outdated
-                  // Note: Without localVersion, we can't be certain, so use large tolerance
-                  // Background hash computation will confirm/correct this
-                  diffStatus = 'outdated'
                 }
-                // Otherwise: timestamps are close enough → assume synced until hash computation confirms
+                // For non-checked-out files: leave as synced (undefined) and let
+                // background hash computation determine the accurate status.
               }
             }
             // The background hash computation will set the proper status once hashes are computed
             
             // Preserve pendingMetadata from existing file OR from persistedPendingMetadata (for app restart)
-            const preservedPending = existingPendingMetadata.get(localFile.path) || persistedPendingMetadata[localFile.path]
+            // For moved files, also try looking up by the OLD path (stored in pdmData.file_path)
+            // since pendingMetadata was stored under the old path before the rename
+            const preservedPending = existingPendingMetadata.get(localFile.path) 
+              || persistedPendingMetadata[localFile.path]
+              || (isMovedFile && pdmData?.file_path
+                  ? (existingPendingByServerPath.get(pdmData.file_path.toLowerCase())
+                     || persistedPendingMetadata[buildFullPath(loadingForVaultPath, pdmData.file_path)])
+                  : undefined)
             
             // Check if this file was recently modified locally (e.g., just saved to SW file + DB)
             // If so, preserve the existing pdmData to prevent server data from overwriting local changes
@@ -689,6 +717,28 @@ export function useLoadFiles() {
               ? 'modified' as const
               : diffStatus
             
+            // When a file is detected as moved via inode/hash, mirror the BR number
+            // (part_number) into pendingMetadata so it's preserved if a subsequent
+            // reload fails to re-detect the move (e.g., inode data is lost).
+            let finalPending = preservedPending
+            if (isMovedFile && pdmData?.part_number && !preservedPending?.part_number) {
+              finalPending = {
+                ...preservedPending,
+                part_number: pdmData.part_number
+              }
+            }
+            
+            // Diagnostic logging for moved files to help debug BR number preservation issues
+            if (isMovedFile) {
+              window.electronAPI?.log('info', '[LoadFiles] Moved file metadata', {
+                oldPath: pdmData?.file_path,
+                newPath: localFile.relativePath,
+                pdmPartNumber: pdmData?.part_number ?? null,
+                preservedPartNumber: preservedPending?.part_number ?? null,
+                finalPartNumber: finalPending?.part_number ?? null
+              })
+            }
+            
             // Determine localVersion:
             // - If file is synced (hashes match or no diff), use server version
             // - If preserved from previous state and >= server version, keep it (prevents stale cache overwrite)
@@ -698,7 +748,9 @@ export function useLoadFiles() {
               ? (existingLocalVersion !== undefined && existingLocalVersion >= pdmData.version
                   ? existingLocalVersion
                   : pdmData.version)
-              : existingLocalVersion
+              : (existingLocalVersion !== undefined
+                  ? existingLocalVersion
+                  : (!finalDiffStatus && pdmData ? pdmData.version : undefined))
             
             return {
               ...localFile,
@@ -712,7 +764,7 @@ export function useLoadFiles() {
               // Preserve localHash from existing file if not computed fresh
               localHash: effectiveLocalHash,
               // Preserve pendingMetadata so user's unsaved edits survive file refresh
-              pendingMetadata: preservedPending
+              pendingMetadata: finalPending
             }
           })
           
@@ -781,6 +833,46 @@ export function useLoadFiles() {
                 diffStatus: isDeletedByMe ? 'deleted' : 'cloud' // Deleted if I moved/removed it, otherwise cloud
               })
             }
+          }
+          
+          // --- Ghost-orphan cross-referencing (safety net) ---
+          // If inode detection missed a rename, we may have a ghost (server file, no local)
+          // AND an orphan (local file, no server match) in the same folder with the same extension.
+          // Auto-match them to prevent the ghost/orphan pair from persisting.
+          const ghostFiles = localFiles.filter(f => f.diffStatus === 'deleted' && f.pdmData && !f.isDirectory)
+          const orphanFiles = localFiles.filter(f => f.diffStatus === 'deleted_remote' && !f.isDirectory)
+          
+          if (ghostFiles.length > 0 && orphanFiles.length > 0) {
+            const orphansByFolderExt = new Map<string, typeof localFiles[number][]>()
+            for (const orphan of orphanFiles) {
+              const folder = orphan.relativePath.substring(0, orphan.relativePath.lastIndexOf('/')).toLowerCase()
+              const ext = (orphan.extension || '').toLowerCase()
+              const key = `${folder}|${ext}`
+              const list = orphansByFolderExt.get(key) || []
+              list.push(orphan)
+              orphansByFolderExt.set(key, list)
+            }
+            
+            for (const ghost of ghostFiles) {
+              const folder = ghost.relativePath.substring(0, ghost.relativePath.lastIndexOf('/')).toLowerCase()
+              const ext = (ghost.extension || '').toLowerCase()
+              const candidates = orphansByFolderExt.get(`${folder}|${ext}`)
+              if (candidates && candidates.length === 1) {
+                const orphan = candidates[0]
+                window.electronAPI?.log('info', '[LoadFiles] Ghost-orphan cross-reference match', {
+                  ghostPath: ghost.relativePath,
+                  orphanPath: orphan.relativePath
+                })
+                orphan.pdmData = ghost.pdmData
+                orphan.diffStatus = 'moved'
+                orphan.isSynced = true
+                ghost.diffStatus = 'cloud'
+                ghost.pdmData = { ...ghost.pdmData, _suppressedByOrphanMatch: true } as any
+                candidates.length = 0
+              }
+            }
+            
+            localFiles = localFiles.filter(f => !(f.pdmData as any)?._suppressedByOrphanMatch)
           }
           
           // Auto-create server folders locally (folders that exist on server but not locally)
@@ -872,12 +964,18 @@ export function useLoadFiles() {
           if (currentVaultId) {
             const serverPaths = pdmFiles.map((f: any) => f.file_path as string)
             
-            // Persist inodes for all matched local files (path-matched + inode-matched)
-            // so the next load can use them for rename detection
-            const inodeEntries: Array<{ path: string; ino: number }> = []
+            // Persist inodes (and localVersion/localHash) for all matched local files
+            // so the next load can use inodes for rename detection and version/hash
+            // for accurate outdated status on app restart
+            const inodeEntries: Array<{ path: string; ino: number; localVersion?: number; localHash?: string }> = []
             for (const f of localFiles) {
               if (!f.isDirectory && f.ino && f.ino > 0 && f.pdmData) {
-                inodeEntries.push({ path: f.relativePath, ino: f.ino })
+                inodeEntries.push({
+                  path: f.relativePath,
+                  ino: f.ino,
+                  localVersion: f.localVersion,
+                  localHash: f.localHash
+                })
                 if (f.diffStatus === 'moved' && f.pdmData.file_path
                   && f.pdmData.file_path.toLowerCase() !== f.relativePath.toLowerCase()) {
                   inodeEntries.push({ path: f.pdmData.file_path, ino: f.ino })
@@ -885,9 +983,9 @@ export function useLoadFiles() {
               }
             }
             
-            // Chain: create sync index entries first, THEN stamp inodes onto them.
-            // updateInodes does get+put (only updates existing entries), so it must
-            // run after updateSyncIndexFromServer has created the entries.
+            // Chain: create sync index entries first, THEN stamp inodes/versions onto them.
+            // updateInodes now upserts (creates entries if missing), but running after
+            // updateSyncIndexFromServer ensures we don't create entries that should be pruned.
             updateSyncIndexFromServer(currentVaultId, serverPaths)
               .then((): Promise<void> | void => {
                 if (inodeEntries.length > 0) {
@@ -1554,15 +1652,27 @@ export function useLoadFiles() {
             diffStatus = localModTime > cloudUpdateTime ? 'modified' : 'outdated'
           }
         } else if (pdmData.content_hash) {
-          // No local hash - use timestamp fallback
+          // No local hash - use version-based detection first, then timestamp fallback
+          // (mirrors the loadFiles merge logic to avoid false "outdated" from timestamps)
           const localModTime = new Date(localFile.modifiedTime).getTime()
           const cloudUpdateTime = pdmData.updated_at ? new Date(pdmData.updated_at).getTime() : 0
           const isCheckedOutByMe = pdmData.checked_out_by === userId
           
-          if (isCheckedOutByMe && localModTime > cloudUpdateTime + 5000) {
-            diffStatus = 'modified'
-          } else if (!isCheckedOutByMe && cloudUpdateTime > localModTime + 1800000) {
-            diffStatus = 'outdated'
+          const vInfo = existingVersionMap.get(lookupKey)
+          const existingLocalVersion = vInfo?.localVersion
+          
+          if (existingLocalVersion !== undefined && pdmData.version !== undefined) {
+            if (existingLocalVersion < pdmData.version) {
+              diffStatus = 'outdated'
+            } else if (existingLocalVersion === pdmData.version) {
+              if (isCheckedOutByMe && localModTime > cloudUpdateTime + 5000) {
+                diffStatus = 'modified'
+              }
+            }
+          } else {
+            if (isCheckedOutByMe && localModTime > cloudUpdateTime + 5000) {
+              diffStatus = 'modified'
+            }
           }
         }
         

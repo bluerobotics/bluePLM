@@ -908,17 +908,65 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
               return
             }
             
-            // Integrity checks passed - atomically move temp file to final path
+            // Integrity checks passed - move temp file to final path
+            // Uses a fallback chain to handle read-only files and files locked by
+            // other processes (e.g. SolidWorks Document Manager holding handles open)
+            let replaced = false
+            
+            // Strategy 1: direct rename (fastest, atomic)
             try {
               fs.renameSync(tmpPath, destPath)
-            } catch (renameErr) {
-              logError(`[${operationId}] Failed to move temp file to final path`, {
-                tmpPath, destPath,
-                error: String(renameErr),
-                code: (renameErr as NodeJS.ErrnoException).code
-              })
+              replaced = true
+            } catch (renameErr1) {
+              const code1 = (renameErr1 as NodeJS.ErrnoException).code
+              if (code1 !== 'EPERM' && code1 !== 'EACCES') {
+                logError(`[${operationId}] Failed to move temp file to final path`, {
+                  tmpPath, destPath, error: String(renameErr1), code: code1
+                })
+                try { fs.unlinkSync(tmpPath) } catch {}
+                resolve({ success: false, error: `Failed to finalize download: ${renameErr1}` })
+                return
+              }
+              
+              // Strategy 2: clear read-only on dest, then retry rename
+              try {
+                const stats = fs.statSync(destPath)
+                fs.chmodSync(destPath, stats.mode | 0o200)
+                fs.renameSync(tmpPath, destPath)
+                replaced = true
+                log(`[${operationId}] Rename succeeded after clearing read-only`, { destPath })
+              } catch {
+                // Strategy 3: delete dest then rename temp into place
+                try {
+                  fs.unlinkSync(destPath)
+                  fs.renameSync(tmpPath, destPath)
+                  replaced = true
+                  log(`[${operationId}] Rename succeeded after deleting destination`, { destPath })
+                } catch {
+                  // Strategy 4: overwrite dest content in-place (works when
+                  // another process holds a read handle with FILE_SHARE_WRITE)
+                  try {
+                    fs.copyFileSync(tmpPath, destPath)
+                    fs.unlinkSync(tmpPath)
+                    replaced = true
+                    log(`[${operationId}] Replaced via copyFile fallback`, { destPath })
+                  } catch (copyErr) {
+                    logError(`[${operationId}] All replace strategies failed`, {
+                      tmpPath, destPath,
+                      originalError: String(renameErr1),
+                      copyError: String(copyErr)
+                    })
+                    try { fs.unlinkSync(tmpPath) } catch {}
+                    resolve({ success: false, error: `Failed to finalize download (file may be locked by SolidWorks): ${renameErr1}` })
+                    return
+                  }
+                }
+              }
+            }
+            
+            if (!replaced) {
               try { fs.unlinkSync(tmpPath) } catch {}
-              resolve({ success: false, error: `Failed to finalize download: ${renameErr}` })
+              resolve({ success: false, error: 'Failed to replace destination file' })
               return
             }
             

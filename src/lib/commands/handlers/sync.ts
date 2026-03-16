@@ -289,13 +289,14 @@ export const syncCommand: Command<SyncParams> = {
         }
         
         // Use pending metadata from the UI (user pre-assigned values before sync)
+        // Fall back to pdmData values to preserve existing server data when pendingMetadata is missing
         // NOTE: Auto-extraction from SW files removed for performance
         // Users should use "Save to File" or enter metadata in datacard before syncing
         const metadata: SyncMetadata = {
-          partNumber: file.pendingMetadata?.part_number ?? null,
+          partNumber: file.pendingMetadata?.part_number ?? file.pdmData?.part_number ?? null,
           tabNumber: file.pendingMetadata?.tab_number ?? null,
-          description: file.pendingMetadata?.description ?? null,
-          revision: file.pendingMetadata?.revision ?? null,
+          description: file.pendingMetadata?.description ?? file.pdmData?.description ?? null,
+          revision: file.pendingMetadata?.revision ?? file.pdmData?.revision ?? null,
           customProperties: undefined
         }
         

@@ -2,7 +2,7 @@
 
 All notable changes to BluePLM will be documented in this file.
 
-## [3.14.0] - Unreleased
+## [3.14.0] - 2026-03-16
 
 ### Added
 - **Copy-paste preserves version history** — pasted files inherit full history instead of resetting to v1
@@ -33,6 +33,7 @@ All notable changes to BluePLM will be documented in this file.
 - **Silent corruption on flaky uploads** — check-in now verifies hash consistency, retries with backoff, and confirms upload size
 - **Ghost files persisted across restarts** — `undoCheckout` now bumps `updated_at` so delta sync picks up the change; discard handler also invalidates the vault cache
 - **"Match to Local File" for ghost files** — right-click a ghost file to match it to its renamed local counterpart, updating the server path via `moveFileOnServer`
+- **False "outdated" on folder refresh** — refreshing a folder used timestamp-only fallback that marked files purple even when local and server versions matched; now uses version comparison first
 
 ---
 

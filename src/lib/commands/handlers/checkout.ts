@@ -12,6 +12,7 @@ import { getSyncedFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
 import { checkoutFile } from '../../supabase'
 import { processWithConcurrency, CONCURRENT_OPERATIONS, SW_CONCURRENT_OPERATIONS } from '../../concurrency'
+import { updateInodes } from '../../cache/localSyncIndex'
 import type { LocalFile } from '../../../stores/pdmStore'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
@@ -615,6 +616,36 @@ export const checkoutCommand: Command<CheckoutParams> = {
     // This ensures stale metadata from previous checkouts doesn't get restored
     const checkedOutPaths = pendingUpdates.map(u => u.path)
     ctx.clearPersistedPendingMetadataForPaths(checkedOutPaths)
+    
+    // Stamp inodes for checked-out files into IndexedDB immediately.
+    // This closes the timing window where a SolidWorks rename can happen
+    // before the next loadFiles end writes the inode data.
+    const vaultId = usePDMStore.getState().activeVaultId
+    if (vaultId) {
+      // Build set of successful file paths from results (correctly ordered)
+      // Results are ordered as: nonSwResults then swResults, so we need to map
+      // indices back to the correct file from each phase
+      const successfulPaths = new Set<string>()
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].success) {
+          const file = i < nonSwFiles.length ? nonSwFiles[i] : swFiles[i - nonSwFiles.length]
+          successfulPaths.add(file.path)
+        }
+      }
+      const successfulFiles = filesToCheckout.filter((f: LocalFile) => successfulPaths.has(f.path) && f.ino && f.ino > 0)
+      if (successfulFiles.length > 0) {
+        const inodeEntries = successfulFiles.map((f: LocalFile) => ({
+          path: f.relativePath,
+          ino: f.ino!
+        }))
+        updateInodes(vaultId, inodeEntries).catch(err => {
+          logCheckout('warn', 'Failed to stamp inodes after checkout', {
+            operationId,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        })
+      }
+    }
     
     // Count results
     for (const result of results) {

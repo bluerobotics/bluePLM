@@ -19,7 +19,7 @@
  */
 
 const DB_NAME = 'blueplm-sync-index'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const STORE_NAME = 'sync-index'
 
 interface SyncIndexEntry {
@@ -28,6 +28,8 @@ interface SyncIndexEntry {
   relativePath: string // lowercase for case-insensitive matching
   lastSyncedAt: number // timestamp
   ino?: number         // NTFS file index number (survives renames)
+  localVersion?: number  // last known synced version (survives app restart)
+  localHash?: string     // last known content hash (survives app restart)
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null
@@ -53,16 +55,14 @@ function openDB(): Promise<IDBDatabase> {
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result
       
-      // Delete old object store on version upgrade
-      if (db.objectStoreNames.contains(STORE_NAME)) {
-        db.deleteObjectStore(STORE_NAME)
-        console.log('[SyncIndex] Cleared old sync index on version upgrade')
+      // Non-destructive: only create the store if it doesn't exist.
+      // New optional fields (localVersion, localHash) don't need schema changes
+      // because IndexedDB records are schemaless.
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'key' })
+        store.createIndex('vaultId', 'vaultId', { unique: false })
+        store.createIndex('relativePath', 'relativePath', { unique: false })
       }
-      
-      // Create object store with compound key
-      const store = db.createObjectStore(STORE_NAME, { keyPath: 'key' })
-      store.createIndex('vaultId', 'vaultId', { unique: false })
-      store.createIndex('relativePath', 'relativePath', { unique: false })
     }
   })
   
@@ -282,15 +282,17 @@ export async function updateSyncIndexFromServer(vaultId: string, serverPaths: st
       const store = transaction.objectStore(STORE_NAME)
       const vaultIndex = store.index('vaultId')
       
-      // Pre-read existing entries to preserve ino values.
-      // store.put() replaces the entire record, so without this the ino
-      // field would be wiped on every load.
+      // Pre-read existing entries to preserve ino, localVersion, and localHash values.
+      // store.put() replaces the entire record, so without this those fields
+      // would be wiped on every load.
       const existingRequest = vaultIndex.getAll(IDBKeyRange.only(vaultId))
       existingRequest.onsuccess = () => {
         const existingEntries = existingRequest.result as SyncIndexEntry[]
-        const existingInoMap = new Map<string, number>()
+        const existingDataMap = new Map<string, { ino?: number; localVersion?: number; localHash?: string }>()
         for (const e of existingEntries) {
-          if (e.ino) existingInoMap.set(e.key, e.ino)
+          if (e.ino || e.localVersion !== undefined || e.localHash) {
+            existingDataMap.set(e.key, { ino: e.ino, localVersion: e.localVersion, localHash: e.localHash })
+          }
         }
         
         // Prune stale entries whose paths are no longer on the server.
@@ -306,12 +308,15 @@ export async function updateSyncIndexFromServer(vaultId: string, serverPaths: st
         
         for (const path of serverPaths) {
           const key = makeKey(vaultId, path)
+          const existingData = existingDataMap.get(key)
           const entry: SyncIndexEntry = {
             key,
             vaultId,
             relativePath: path.toLowerCase(),
             lastSyncedAt: now,
-            ino: existingInoMap.get(key)
+            ino: existingData?.ino,
+            localVersion: existingData?.localVersion,
+            localHash: existingData?.localHash
           }
           
           const request = store.put(entry)
@@ -428,11 +433,15 @@ export async function getInodeMap(vaultId: string): Promise<Map<number, string[]
 }
 
 /**
- * Batch-update inodes for existing sync index entries.
+ * Batch-update inodes (and optionally localVersion/localHash) for sync index entries.
  * Called after file loading to persist the current inode for each matched file,
- * so the next load can use inodes for rename detection.
+ * so the next load can use inodes for rename detection and version/hash for
+ * accurate outdated status on app restart.
+ *
+ * Creates new entries if none exist (upsert) so files from any entry path
+ * (SolidWorks DM API extension, manual copy, etc.) get inode tracking.
  */
-export async function updateInodes(vaultId: string, entries: Array<{ path: string; ino: number }>): Promise<void> {
+export async function updateInodes(vaultId: string, entries: Array<{ path: string; ino: number; localVersion?: number; localHash?: string }>): Promise<void> {
   if (entries.length === 0) return
   
   try {
@@ -444,7 +453,7 @@ export async function updateInodes(vaultId: string, entries: Array<{ path: strin
       
       let completed = 0
       
-      for (const { path, ino } of entries) {
+      for (const { path, ino, localVersion, localHash } of entries) {
         const key = makeKey(vaultId, path)
         const getRequest = store.get(key)
         
@@ -453,7 +462,20 @@ export async function updateInodes(vaultId: string, entries: Array<{ path: strin
           const existing = getRequest.result as SyncIndexEntry | undefined
           if (existing) {
             existing.ino = ino
+            if (localVersion !== undefined) existing.localVersion = localVersion
+            if (localHash !== undefined) existing.localHash = localHash
             store.put(existing)
+          } else {
+            const newEntry: SyncIndexEntry = {
+              key,
+              vaultId,
+              relativePath: path.toLowerCase(),
+              lastSyncedAt: Date.now(),
+              ino,
+              localVersion,
+              localHash
+            }
+            store.put(newEntry)
           }
           if (completed === entries.length) {
             resolve()
@@ -470,6 +492,47 @@ export async function updateInodes(vaultId: string, entries: Array<{ path: strin
     })
   } catch (error) {
     console.error('[SyncIndex] Error updating inodes:', error)
+  }
+}
+
+/**
+ * Get a map of relativePath -> { localVersion, localHash } for all entries that have
+ * version or hash data. Used during file loading to restore version/hash state after
+ * app restart, preventing false-positive "outdated" (purple) highlights.
+ */
+export async function getVersionMap(vaultId: string): Promise<Map<string, { localVersion?: number; localHash?: string }>> {
+  try {
+    const db = await openDB()
+    
+    return new Promise((resolve) => {
+      const transaction = db.transaction(STORE_NAME, 'readonly')
+      const store = transaction.objectStore(STORE_NAME)
+      const index = store.index('vaultId')
+      const request = index.getAll(IDBKeyRange.only(vaultId))
+      
+      request.onsuccess = () => {
+        const entries = request.result as SyncIndexEntry[]
+        const map = new Map<string, { localVersion?: number; localHash?: string }>()
+        for (const entry of entries) {
+          if (entry.localVersion !== undefined || entry.localHash) {
+            map.set(entry.relativePath, {
+              localVersion: entry.localVersion,
+              localHash: entry.localHash
+            })
+          }
+        }
+        console.log(`[SyncIndex] Loaded version map: ${map.size} entries with version/hash data for vault ${vaultId}`)
+        resolve(map)
+      }
+      
+      request.onerror = () => {
+        console.error('[SyncIndex] Failed to read version map:', request.error)
+        resolve(new Map())
+      }
+    })
+  } catch (error) {
+    console.error('[SyncIndex] Error reading version map:', error)
+    return new Map()
   }
 }
 

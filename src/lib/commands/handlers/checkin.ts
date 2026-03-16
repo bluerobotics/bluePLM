@@ -700,6 +700,40 @@ export const checkinCommand: Command<CheckinParams> = {
     }
     
     // ========================================
+    // PATH CHANGE CONFIRMATION: Warn user before committing rename/move to server
+    // SolidWorks tree renames can be transient (revert if assembly isn't saved),
+    // so auto-updating the server path without confirmation is dangerous.
+    // ========================================
+    const filesWithPathChanges = filesToCheckin.filter(f => {
+      return f.pdmData?.file_path &&
+        f.relativePath.toLowerCase() !== f.pdmData.file_path.toLowerCase()
+    })
+    
+    if (filesWithPathChanges.length > 0 && ctx.confirm) {
+      const items = filesWithPathChanges.map(f =>
+        `${f.pdmData?.file_name || '?'} → ${f.name}`
+      )
+      const confirmed = await ctx.confirm({
+        title: 'File Path Changed',
+        message: filesWithPathChanges.length === 1
+          ? 'This file was renamed or moved locally. Update the server path?'
+          : `${filesWithPathChanges.length} files were renamed or moved locally. Update the server paths?`,
+        items,
+        confirmText: 'Update Paths & Check In',
+      })
+      
+      if (!confirmed) {
+        logCheckin('info', 'User declined path change — skipping path updates', {
+          operationId,
+          files: filesWithPathChanges.map(f => f.name)
+        })
+        for (const f of filesWithPathChanges) {
+          (f as any)._skipPathUpdate = true
+        }
+      }
+    }
+    
+    // ========================================
     // TWO-PHASE PROCESSING: Prevent SolidWorks service flooding
     // 
     // The SolidWorks service uses a serial stdin/stdout pipe, so high concurrency
@@ -771,10 +805,36 @@ export const checkinCommand: Command<CheckinParams> = {
       const swOpStartTime = isSolidWorksFile ? Date.now() : null
       
       try {
-        const wasFileMoved = file.pdmData?.file_path && 
+        let wasFileMoved = file.pdmData?.file_path && 
           file.relativePath.toLowerCase() !== file.pdmData.file_path.toLowerCase()
-        const wasFileRenamed = file.pdmData?.file_name && 
+        let wasFileRenamed = file.pdmData?.file_name && 
           file.name.toLowerCase() !== file.pdmData.file_name.toLowerCase()
+        
+        // Skip path update if user declined the confirmation dialog
+        if ((file as any)._skipPathUpdate) {
+          wasFileMoved = false
+          wasFileRenamed = false
+        }
+        
+        // Pre-flight: verify file still exists at the detected new path before
+        // committing the path change — SolidWorks tree renames can revert
+        if (wasFileMoved) {
+          try {
+            const fileStillExists = await window.electronAPI?.fileExists?.(file.path)
+            if (!fileStillExists) {
+              logCheckin('warn', 'File no longer exists at new path, skipping path update', {
+                operationId,
+                ...fileCtx,
+                newPath: file.relativePath,
+                oldPath: file.pdmData?.file_path
+              })
+              wasFileMoved = false
+              wasFileRenamed = false
+            }
+          } catch {
+            // fileExists not available — proceed without the check
+          }
+        }
         
         // Block rename/move if destination path already occupied by another server file
         if (wasFileMoved || wasFileRenamed) {

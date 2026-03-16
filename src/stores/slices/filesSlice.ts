@@ -866,9 +866,95 @@ export const createFilesSlice: StateCreator<
       return p
     })
     
+    // Migrate path-keyed state so pending metadata, configurations, etc. survive renames
+    const state = get()
+    const migratePathKey = <V>(record: Record<string, V>): Record<string, V> => {
+      const result = { ...record }
+      if (isDirectory) {
+        const oldPrefix = oldPath.toLowerCase()
+        const sep = oldPath.includes('\\') ? '\\' : '/'
+        for (const key of Object.keys(result)) {
+          if (key.toLowerCase() === oldPrefix || key.toLowerCase().startsWith(oldPrefix + sep)) {
+            const newKey = newPath + key.slice(oldPath.length)
+            result[newKey] = result[key]
+            delete result[key]
+          }
+        }
+      } else if (oldPath.toLowerCase() in Object.keys(record).map(k => k.toLowerCase())) {
+        const existingKey = Object.keys(record).find(k => k.toLowerCase() === oldPath.toLowerCase())
+        if (existingKey) {
+          result[newPath] = result[existingKey]
+          delete result[existingKey]
+        }
+      } else {
+        const existingKey = Object.keys(record).find(k => k.toLowerCase() === oldPath.toLowerCase())
+        if (existingKey) {
+          result[newPath] = result[existingKey]
+          delete result[existingKey]
+        }
+      }
+      return result
+    }
+    
+    const migrateMap = <V>(map: Map<string, V>): Map<string, V> => {
+      const newMap = new Map(map)
+      if (isDirectory) {
+        const oldPrefixLower = oldPath.toLowerCase()
+        const sep = oldPath.includes('\\') ? '\\' : '/'
+        for (const [key, val] of map) {
+          const keyLower = key.toLowerCase()
+          if (keyLower === oldPrefixLower || keyLower.startsWith(oldPrefixLower + sep)) {
+            const newKey = newPath + key.slice(oldPath.length)
+            newMap.delete(key)
+            newMap.set(newKey, val)
+          }
+        }
+      } else {
+        for (const [key, val] of map) {
+          if (key.toLowerCase() === oldPath.toLowerCase()) {
+            newMap.delete(key)
+            newMap.set(newPath, val)
+            break
+          }
+        }
+      }
+      return newMap
+    }
+    
+    const migrateSet = (s: Set<string>): Set<string> => {
+      const newSet = new Set(s)
+      if (isDirectory) {
+        const oldPrefixLower = oldPath.toLowerCase()
+        const sep = oldPath.includes('\\') ? '\\' : '/'
+        for (const val of s) {
+          const valLower = val.toLowerCase()
+          if (valLower === oldPrefixLower || valLower.startsWith(oldPrefixLower + sep)) {
+            newSet.delete(val)
+            newSet.add(newPath + val.slice(oldPath.length))
+          }
+        }
+      } else {
+        for (const val of s) {
+          if (val.toLowerCase() === oldPath.toLowerCase()) {
+            newSet.delete(val)
+            newSet.add(newPath)
+            break
+          }
+        }
+      }
+      return newSet
+    }
+    
     set({ 
       files: updatedFiles,
-      selectedFiles: updatedSelectedFiles
+      selectedFiles: updatedSelectedFiles,
+      persistedPendingMetadata: migratePathKey(state.persistedPendingMetadata),
+      persistedCopySource: migratePathKey(state.persistedCopySource as Record<string, any>) as any,
+      processingOperations: migrateMap(state.processingOperations),
+      fileConfigurations: migrateMap(state.fileConfigurations),
+      drawingRefData: migrateMap(state.drawingRefData),
+      expandedConfigFiles: migrateSet(state.expandedConfigFiles),
+      expandedDrawingRefs: migrateSet(state.expandedDrawingRefs),
     })
   },
   
