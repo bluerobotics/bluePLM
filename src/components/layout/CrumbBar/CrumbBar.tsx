@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronRight, ChevronUp, Home, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react'
+import { ChevronRight, ChevronDown, ChevronUp, Home, ArrowLeft, ArrowRight, RefreshCw, Folder } from 'lucide-react'
 import { buildFullPath } from '@/lib/utils/path'
 import { logExplorer } from '@/lib/userActionLogger'
 
@@ -57,6 +57,8 @@ interface CrumbBarProps {
   onCrumbDrop?: (e: React.DragEvent, path: string) => void
   /** Drag-drop: currently highlighted path segment (for drop target styling) */
   dragOverPath?: string | null
+  /** Returns child folders for a given parent path (for breadcrumb dropdowns) */
+  getChildFolders?: (parentPath: string) => Array<{ name: string; relativePath: string }>
 }
 
 export function CrumbBar({
@@ -76,18 +78,22 @@ export function CrumbBar({
   onCrumbDragOver,
   onCrumbDragLeave,
   onCrumbDrop,
-  dragOverPath
+  dragOverPath,
+  getChildFolders
 }: CrumbBarProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Get the full path for display in edit mode
   const fullPath = currentPath ? buildFullPath(vaultPath, currentPath) : vaultPath
 
   // Enter edit mode
   const startEditing = useCallback(() => {
+    setOpenDropdown(null)
     setEditValue(fullPath)
     setIsEditing(true)
   }, [fullPath])
@@ -140,6 +146,30 @@ export function CrumbBar({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isEditing, stopEditing])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (openDropdown === null) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openDropdown])
+
+  const handleDropdownToggle = useCallback((parentPath: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setOpenDropdown(prev => prev === parentPath ? null : parentPath)
+  }, [])
+
+  const handleDropdownNavigate = useCallback((relativePath: string) => {
+    setOpenDropdown(null)
+    onNavigate(relativePath)
+  }, [onNavigate])
 
   // Handle keyboard events in edit mode
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -268,11 +298,34 @@ export function CrumbBar({
               <span className="truncate max-w-[150px] text-sm">{vaultName}</span>
             </button>
 
+            {/* Root dropdown arrow */}
+            {getChildFolders && (
+              <div className="relative flex-shrink-0" ref={openDropdown === '__root__' ? dropdownRef : undefined}>
+                <button
+                  onClick={(e) => handleDropdownToggle('__root__', e)}
+                  className={`p-0.5 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors ${
+                    openDropdown === '__root__' ? 'bg-plm-highlight text-plm-fg' : ''
+                  }`}
+                  title="Show folders"
+                >
+                  <ChevronDown size={14} />
+                </button>
+                {openDropdown === '__root__' && (
+                  <BreadcrumbDropdown
+                    folders={getChildFolders('')}
+                    onNavigate={handleDropdownNavigate}
+                    currentSegmentPath={pathParts[0] ? pathParts[0] : null}
+                  />
+                )}
+              </div>
+            )}
+
             {/* Path segments */}
             {pathParts.map((part, i) => {
               const pathUpToHere = pathParts.slice(0, i + 1).join('/')
               const isLast = i === pathParts.length - 1
               const isDragTarget = dragOverPath === pathUpToHere
+              const dropdownKey = `segment:${pathUpToHere}`
               
               return (
                 <div key={pathUpToHere} className="flex items-center gap-0.5 min-w-0">
@@ -306,6 +359,27 @@ export function CrumbBar({
                   >
                     {part}
                   </button>
+                  {/* Dropdown arrow for this segment's children */}
+                  {getChildFolders && (
+                    <div className="relative flex-shrink-0" ref={openDropdown === dropdownKey ? dropdownRef : undefined}>
+                      <button
+                        onClick={(e) => handleDropdownToggle(dropdownKey, e)}
+                        className={`p-0.5 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors ${
+                          openDropdown === dropdownKey ? 'bg-plm-highlight text-plm-fg' : ''
+                        }`}
+                        title="Show folders"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                      {openDropdown === dropdownKey && (
+                        <BreadcrumbDropdown
+                          folders={getChildFolders(pathUpToHere)}
+                          onNavigate={handleDropdownNavigate}
+                          currentSegmentPath={isLast ? null : pathParts.slice(0, i + 2).join('/')}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -315,6 +389,46 @@ export function CrumbBar({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+interface BreadcrumbDropdownProps {
+  folders: Array<{ name: string; relativePath: string }>
+  onNavigate: (relativePath: string) => void
+  /** The path of the currently-active child at this level (bolded in the list) */
+  currentSegmentPath: string | null
+}
+
+function BreadcrumbDropdown({ folders, onNavigate, currentSegmentPath }: BreadcrumbDropdownProps) {
+  if (folders.length === 0) {
+    return (
+      <div className="absolute top-full left-0 mt-1 z-50 bg-plm-bg-lighter border border-plm-border rounded-lg shadow-lg py-1 min-w-[160px]">
+        <div className="px-3 py-1.5 text-xs text-plm-fg-muted italic">No subfolders</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="absolute top-full left-0 mt-1 z-50 bg-plm-bg-lighter border border-plm-border rounded-lg shadow-lg py-1 min-w-[160px] max-h-[300px] overflow-y-auto">
+      {folders.map(folder => {
+        const isActive = folder.relativePath === currentSegmentPath
+        return (
+          <button
+            key={folder.relativePath}
+            onClick={(e) => {
+              e.stopPropagation()
+              onNavigate(folder.relativePath)
+            }}
+            className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-plm-highlight transition-colors ${
+              isActive ? 'text-plm-fg font-medium' : 'text-plm-fg-dim hover:text-plm-fg'
+            }`}
+          >
+            <Folder size={14} className="flex-shrink-0 text-plm-accent" />
+            <span className="truncate">{folder.name}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

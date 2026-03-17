@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   X,
+  Undo2,
   AlertTriangle,
   Trash2,
   FolderOpen,
@@ -35,8 +36,8 @@ interface ReviewFileRowProps {
   onNavigate: (filePath: string | undefined) => void
   /** Open the file externally (e.g., in SolidWorks) */
   onOpenExternal: (filePath: string | undefined) => void
-  /** Respond to a review response (approve/reject) */
-  onRespond: (reviewResponseId: string, status: 'approved' | 'rejected', comment?: string) => Promise<boolean>
+  /** Respond to a review response (approve/kick back) */
+  onRespond: (reviewResponseId: string, status: 'approved' | 'rejected' | 'kicked_back', comment?: string) => Promise<boolean>
   /** Cancel a review (requester only) */
   onCancel: (reviewId: string) => Promise<boolean>
   /** Whether this review row is currently active/selected */
@@ -62,6 +63,7 @@ function AvatarChip({ user, status, size = 22 }: {
   const statusBorderColor =
     status === 'approved' ? 'ring-plm-success' :
     status === 'rejected' ? 'ring-plm-error' :
+    status === 'kicked_back' ? 'ring-plm-warning' :
     'ring-plm-warning'
 
   if (user.avatar_url) {
@@ -111,6 +113,11 @@ function StatusBadge({ status }: { status: ReviewStatus }) {
       label: 'Rejected',
       className: 'bg-plm-error/15 text-plm-error border-plm-error/30',
       icon: <XCircle size={10} />,
+    },
+    kicked_back: {
+      label: 'Kicked Back',
+      className: 'bg-plm-warning/15 text-plm-warning border-plm-warning/30',
+      icon: <Undo2 size={10} />,
     },
     cancelled: {
       label: 'Cancelled',
@@ -258,7 +265,7 @@ export const ReviewFileRow = memo(function ReviewFileRow({
   // Find the current user's pending response (for approve/kick back actions)
   // Check both reviewer_id (direct column) and reviewer?.id (joined user object) as fallback
   const myPendingResponse = responses.find(
-    r => (r.reviewer_id === userId || r.reviewer?.id === userId) && r.status === 'pending'
+    r => (r.reviewer_id === userId || r.reviewer?.id === userId) && (r.status === 'pending' || r.status === 'kicked_back')
   )
 
   const handleApprove = useCallback((e: React.MouseEvent) => {
@@ -268,7 +275,7 @@ export const ReviewFileRow = memo(function ReviewFileRow({
 
   const handleKickBack = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    if (myPendingResponse) onRespond(myPendingResponse.id, 'rejected')
+    if (myPendingResponse) onRespond(myPendingResponse.id, 'kicked_back')
   }, [myPendingResponse, onRespond])
 
   // Border color based on status, with active highlight override
@@ -380,9 +387,9 @@ export const ReviewFileRow = memo(function ReviewFileRow({
                   </button>
                   <button
                     onClick={handleKickBack}
-                    className="px-3 py-1 text-[11px] font-medium text-plm-error bg-plm-error/15 hover:bg-plm-error/25 border border-plm-error/30 rounded transition-colors flex items-center gap-1"
+                    className="px-3 py-1 text-[11px] font-medium text-plm-warning bg-plm-warning/15 hover:bg-plm-warning/25 border border-plm-warning/30 rounded transition-colors flex items-center gap-1"
                   >
-                    <XCircle size={12} />
+                    <Undo2 size={12} />
                     Kick Back
                   </button>
                 </>

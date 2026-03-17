@@ -33,7 +33,7 @@ namespace BluePLM.SolidWorksService
         /// Service version - bump this when making changes that affect functionality.
         /// The app checks this version and warns if there's a mismatch.
         /// </summary>
-        private const string SERVICE_VERSION = "1.2.0";
+        private const string SERVICE_VERSION = "1.2.1";
         
         private static DocumentManagerAPI? _dmApi;
         private static SolidWorksAPI? _swApi;

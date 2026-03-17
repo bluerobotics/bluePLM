@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 54, 'Case-insensitive unique index on files(vault_id, file_path) to prevent ghost duplicates on Windows', NOW(), 'migration')
+VALUES (1, 55, 'Add kicked_back to review_status enum for non-cancelling review kickback', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,

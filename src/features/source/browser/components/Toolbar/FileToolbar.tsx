@@ -50,6 +50,9 @@ export interface FileToolbarProps {
   onCrumbDragLeave?: (e: React.DragEvent) => void
   onCrumbDrop?: (e: React.DragEvent, path: string) => void
   dragOverPath?: string | null
+  
+  // Breadcrumb folder dropdowns
+  getChildFolders?: (parentPath: string) => Array<{ name: string; relativePath: string }>
 }
 
 /**
@@ -85,7 +88,8 @@ export const FileToolbar = memo(function FileToolbar({
   onCrumbDragOver,
   onCrumbDragLeave,
   onCrumbDrop,
-  dragOverPath
+  dragOverPath,
+  getChildFolders
 }: FileToolbarProps) {
   return (
     <div className="crumb-bar-container h-12 bg-plm-bg-lighter border-b border-plm-border flex items-center px-3 flex-shrink-0 gap-2">
@@ -114,6 +118,7 @@ export const FileToolbar = memo(function FileToolbar({
           onCrumbDragLeave={onCrumbDragLeave}
           onCrumbDrop={onCrumbDrop}
           dragOverPath={dragOverPath}
+          getChildFolders={getChildFolders}
         />
       )}
       

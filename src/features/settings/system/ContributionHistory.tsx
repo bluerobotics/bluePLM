@@ -7,6 +7,7 @@ import {
   FileX,
   CheckCircle,
   XCircle,
+  Undo2,
   GitBranch,
   ArrowRight,
   RefreshCw,
@@ -49,6 +50,7 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   roll_forward: <RefreshCw size={14} />,
   review_approved: <CheckCircle size={14} />,
   review_rejected: <XCircle size={14} />,
+  review_kicked_back: <Undo2 size={14} />,
   review_requested: <Activity size={14} />
 }
 
@@ -65,6 +67,7 @@ const ACTION_COLORS: Record<string, string> = {
   roll_forward: 'text-emerald-400',
   review_approved: 'text-plm-success',
   review_rejected: 'text-plm-error',
+  review_kicked_back: 'text-plm-warning',
   review_requested: 'text-plm-accent'
 }
 
@@ -245,7 +248,7 @@ export function ContributionHistory() {
           const review = r.reviews as { id: string; title?: string; created_at: string }
           return {
             id: r.id,
-            action: r.status === 'approved' ? 'review_approved' : 'review_rejected',
+            action: r.status === 'approved' ? 'review_approved' : r.status === 'kicked_back' ? 'review_kicked_back' : 'review_rejected',
             created_at: r.responded_at || review.created_at,
             file_name: review.title || 'Review',
             details: { status: r.status }
@@ -397,6 +400,7 @@ export function ContributionHistory() {
       roll_forward: 'Rolled forward',
       review_approved: 'Approved review',
       review_rejected: 'Rejected review',
+      review_kicked_back: 'Kicked back review',
       review_requested: 'Requested review'
     }
     return labels[action] || action

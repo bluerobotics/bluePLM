@@ -12,6 +12,7 @@ import {
   FileX,
   CheckCircle,
   XCircle,
+  Undo2,
   GitBranch,
   ArrowRight,
   RefreshCw,
@@ -87,6 +88,7 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   roll_forward: <RefreshCw size={14} />,
   review_approved: <CheckCircle size={14} />,
   review_rejected: <XCircle size={14} />,
+  review_kicked_back: <Undo2 size={14} />,
   review_requested: <Activity size={14} />
 }
 
@@ -103,6 +105,7 @@ const ACTION_COLORS: Record<string, string> = {
   roll_forward: 'text-emerald-400',
   review_approved: 'text-plm-success',
   review_rejected: 'text-plm-error',
+  review_kicked_back: 'text-plm-warning',
   review_requested: 'text-plm-accent'
 }
 
@@ -350,6 +353,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
       roll_forward: 'Rolled forward',
       review_approved: 'Approved review',
       review_rejected: 'Rejected review',
+      review_kicked_back: 'Kicked back review',
       review_requested: 'Requested review'
     }
     return labels[action] || action

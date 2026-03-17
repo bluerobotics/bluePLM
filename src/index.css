@@ -190,11 +190,11 @@
 
 /* Christmas theme scrollbar */
 [data-theme="christmas"] ::-webkit-scrollbar-thumb {
-  background: rgba(196, 30, 58, 0.4);
+  background: rgba(196, 30, 58, 0.55);
 }
 
 [data-theme="christmas"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(196, 30, 58, 0.6);
+  background: rgba(196, 30, 58, 0.8);
 }
 
 /* 🎄 Christmas Theme UI Enhancements 🎅 */
@@ -353,11 +353,11 @@
 
 /* Halloween theme scrollbar */
 [data-theme="halloween"] ::-webkit-scrollbar-thumb {
-  background: rgba(255, 107, 43, 0.4);
+  background: rgba(255, 107, 43, 0.55);
 }
 
 [data-theme="halloween"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 107, 43, 0.6);
+  background: rgba(255, 107, 43, 0.8);
 }
 
 /* 🎃 Halloween Theme UI Enhancements 👻 */
@@ -477,11 +477,11 @@
 
 /* Kenneth theme scrollbar */
 [data-theme="kenneth"] ::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.4);
+  background: rgba(168, 85, 247, 0.55);
 }
 
 [data-theme="kenneth"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(168, 85, 247, 0.6);
+  background: rgba(168, 85, 247, 0.8);
 }
 
 /* 💜 Kenneth Theme UI Enhancements 👑 */
@@ -641,7 +641,7 @@
 }
 
 [data-theme="weather"] ::-webkit-scrollbar-thumb:hover {
-  opacity: 0.6;
+  opacity: 0.8;
 }
 
 /* Weather theme smooth transitions for all elements */
@@ -749,7 +749,7 @@ html, body, #root {
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 10px;
-  height: 10px;
+  height: 14px;
 }
 
 ::-webkit-scrollbar-track {
@@ -758,12 +758,12 @@ html, body, #root {
 
 ::-webkit-scrollbar-thumb {
   background: var(--plm-accent);
-  opacity: 0.3;
+  opacity: 0.45;
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 ::-webkit-scrollbar-corner {
@@ -782,28 +782,28 @@ html, body, #root {
 /* Theme-aware scrollbar colors */
 [data-theme="dark"] ::-webkit-scrollbar-thumb,
 :root ::-webkit-scrollbar-thumb {
-  background: rgba(128, 128, 128, 0.4);
+  background: rgba(128, 128, 128, 0.55);
 }
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover,
 :root ::-webkit-scrollbar-thumb:hover {
-  background: rgba(128, 128, 128, 0.6);
+  background: rgba(128, 128, 128, 0.8);
 }
 
 [data-theme="deep-blue"] ::-webkit-scrollbar-thumb {
-  background: rgba(0, 180, 216, 0.3);
+  background: rgba(0, 180, 216, 0.45);
 }
 
 [data-theme="deep-blue"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 180, 216, 0.5);
+  background: rgba(0, 180, 216, 0.7);
 }
 
 [data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: rgba(100, 100, 100, 0.3);
+  background: rgba(100, 100, 100, 0.45);
 }
 
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 100, 100, 0.5);
+  background: rgba(100, 100, 100, 0.7);
 }
 
 /* Light mode - increase contrast for inline buttons and UI elements */

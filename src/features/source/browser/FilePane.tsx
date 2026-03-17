@@ -458,6 +458,26 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   // Breadcrumb drag-drop state and handlers
   const [crumbDragOverPath, setCrumbDragOverPath] = useState<string | null>(null)
   
+  const getChildFolders = useCallback((parentPath: string): Array<{ name: string; relativePath: string }> => {
+    return files
+      .filter(f => {
+        if (!f.isDirectory) return false
+        const rel = f.relativePath.replace(/\\/g, '/')
+        if (parentPath === '') {
+          return !rel.includes('/')
+        }
+        const prefix = parentPath + '/'
+        if (!rel.startsWith(prefix)) return false
+        const remainder = rel.slice(prefix.length)
+        return !remainder.includes('/')
+      })
+      .map(f => ({
+        name: f.name,
+        relativePath: f.relativePath.replace(/\\/g, '/')
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  }, [files])
+
   const handleCrumbDragOver = useCallback((e: React.DragEvent, path: string) => {
     e.preventDefault()
     // Accept if we have local dragged files OR cross-view drag from Explorer
@@ -1517,6 +1537,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
         onCrumbDragLeave={handleCrumbDragLeave}
         onCrumbDrop={handleCrumbDrop}
         dragOverPath={crumbDragOverPath}
+        getChildFolders={getChildFolders}
       />
 
       {/* File View - List or Icons */}

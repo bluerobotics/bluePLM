@@ -27,6 +27,9 @@ import { FileOperationTracker } from '../../fileOperationTracker'
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 
+/** Normalize a file path for cross-source comparison (SolidWorks vs file system) */
+const normalizePath = (p: string) => p.toLowerCase().replace(/\\/g, '/')
+
 // File types that have references to extract (assemblies reference components, drawings reference models)
 const REFERENCE_FILE_EXTENSIONS = ['.sldasm', '.slddrw']
 
@@ -493,7 +496,7 @@ export const checkinCommand: Command<CheckinParams> = {
           const openDocMap = new Map<string, { isDirty: boolean; isReadOnly: boolean; filePath: string }>()
           for (const doc of openDocsResult.data.documents) {
             if (doc.filePath) {
-              openDocMap.set(doc.filePath.toLowerCase(), {
+              openDocMap.set(normalizePath(doc.filePath), {
                 isDirty: !!doc.isDirty,
                 isReadOnly: !!doc.isReadOnly,
                 filePath: doc.filePath
@@ -505,7 +508,7 @@ export const checkinCommand: Command<CheckinParams> = {
           const dirtyFiles: Array<{ file: LocalFile; docPath: string }> = []
           
           for (const file of swFilesToCheckin) {
-            const normalizedPath = file.path.toLowerCase()
+            const normalizedPath = normalizePath(file.path)
             const openDoc = openDocMap.get(normalizedPath)
             if (openDoc?.isDirty) {
               dirtyFiles.push({ file, docPath: openDoc.filePath })
@@ -943,7 +946,7 @@ export const checkinCommand: Command<CheckinParams> = {
             // If SolidWorks file is open, set document to read-only
             // This is needed even in fast path to update SW state!
             const isFastPathSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
-            const isFastPathFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
+            const isFastPathFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
             if (swServiceStatus.running && isFastPathSWFile && isFastPathFileOpenInSW) {
               try {
                 // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
@@ -1138,7 +1141,7 @@ export const checkinCommand: Command<CheckinParams> = {
             // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
             // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
             const isSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
-            const isFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
+            const isFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
             if (swServiceStatus.running && isSWFile && isFileOpenInSW) {
               try {
                 // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
@@ -1276,7 +1279,7 @@ export const checkinCommand: Command<CheckinParams> = {
             // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
             // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
             const isMetaSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
-            const isMetaFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
+            const isMetaFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
             if (swServiceStatus.running && isMetaSWFile && isMetaFileOpenInSW) {
               try {
                 // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
@@ -1442,10 +1445,11 @@ export const checkinCommand: Command<CheckinParams> = {
       try {
         const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.({ includeComponents: true })
         if (openDocsResult?.success && openDocsResult.data?.documents) {
-          // Normalize paths for comparison (lowercase on Windows)
+          // Normalize paths for comparison (lowercase + forward slashes)
+          // SolidWorks GetPathName() may return forward slashes while the file store uses backslashes
           openDocumentPaths = new Set(
             openDocsResult.data.documents
-              .map(doc => doc.filePath?.toLowerCase())
+              .map(doc => doc.filePath ? normalizePath(doc.filePath) : null)
               .filter((p): p is string => Boolean(p))
           )
           logCheckin('debug', 'Fetched open SW documents', {

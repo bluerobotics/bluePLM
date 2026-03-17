@@ -50,7 +50,7 @@ export interface UseReviewsDashboardReturn {
 
   // Actions
   refresh: () => Promise<void>
-  handleRespond: (reviewResponseId: string, status: 'approved' | 'rejected', comment?: string) => Promise<boolean>
+  handleRespond: (reviewResponseId: string, status: 'approved' | 'rejected' | 'kicked_back', comment?: string) => Promise<boolean>
   handleCancel: (reviewId: string) => Promise<boolean>
 
   // Navigation
@@ -243,18 +243,20 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
   // ---------------------------------------------------------------------------
   const handleRespond = useCallback(async (
     reviewResponseId: string,
-    status: 'approved' | 'rejected',
+    status: 'approved' | 'rejected' | 'kicked_back',
     comment?: string,
   ): Promise<boolean> => {
     if (!user?.id) return false
 
     const { success, error: err } = await respondToReview(reviewResponseId, user.id, status, comment)
     if (success) {
-      addToast('success', `Review ${status}`)
+      const label = status === 'approved' ? 'approved' : status === 'kicked_back' ? 'kicked back' : 'rejected'
+      addToast('success', `Review ${label}`)
       await fetchReviews()
       return true
     } else {
-      addToast('error', err || `Failed to ${status === 'approved' ? 'approve' : 'reject'} review`)
+      const failLabel = status === 'approved' ? 'approve' : status === 'kicked_back' ? 'kick back' : 'reject'
+      addToast('error', err || `Failed to ${failLabel} review`)
       return false
     }
   }, [user?.id, addToast, fetchReviews])
@@ -265,6 +267,7 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
     const { success, error: err } = await cancelReview(reviewId, user.id)
     if (success) {
       addToast('success', 'Review cancelled')
+      setReviews(prev => prev.filter(r => r.id !== reviewId))
       await fetchReviews()
       return true
     } else {

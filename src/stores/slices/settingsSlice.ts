@@ -124,7 +124,7 @@ export const createSettingsSlice: StateCreator<
   autoDownloadExcludedFiles: {},
   
   // Initial state - Auto-discard orphaned files
-  autoDiscardOrphanedFiles: false,  // Default: OFF - automatically remove local files that no longer exist on server
+  autoDiscardOrphanedFiles: true,  // Default: ON - automatically remove local files that no longer exist on server
   
   // Initial state - Upload warnings
   uploadSizeWarningEnabled: true,  // Warn by default

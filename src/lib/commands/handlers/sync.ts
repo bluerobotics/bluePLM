@@ -25,6 +25,9 @@ function isSolidworksTempFile(name: string): boolean {
   return name.startsWith('~$')
 }
 
+/** Normalize a file path for cross-source comparison (SolidWorks vs file system) */
+const normalizePath = (p: string) => p.toLowerCase().replace(/\\/g, '/')
+
 // File types that have references to extract (assemblies reference components, drawings reference models)
 const REFERENCE_FILE_EXTENSIONS = ['.sldasm', '.slddrw']
 
@@ -148,7 +151,7 @@ export const syncCommand: Command<SyncParams> = {
             const openDocMap = new Map<string, { isDirty: boolean; filePath: string }>()
             for (const doc of openDocsResult.data.documents) {
               if (doc.filePath) {
-                openDocMap.set(doc.filePath.toLowerCase(), {
+                openDocMap.set(normalizePath(doc.filePath), {
                   isDirty: !!doc.isDirty,
                   filePath: doc.filePath
                 })
@@ -157,7 +160,7 @@ export const syncCommand: Command<SyncParams> = {
             
             const dirtyFiles: Array<{ file: typeof swFilesToSync[0]; docPath: string }> = []
             for (const file of swFilesToSync) {
-              const openDoc = openDocMap.get(file.path.toLowerCase())
+              const openDoc = openDocMap.get(normalizePath(file.path))
               if (openDoc?.isDirty) {
                 dirtyFiles.push({ file, docPath: openDoc.filePath })
               }

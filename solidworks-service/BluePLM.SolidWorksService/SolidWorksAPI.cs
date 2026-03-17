@@ -2697,12 +2697,11 @@ namespace BluePLM.SolidWorksService
             try
             {
                 // Only try to connect to running instance, don't start SW
-                ISldWorks? sw = null;
-                try
-                {
-                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                }
-                catch
+                // Use GetActiveObjectOnSTA for robust COM access (MTA with STA fallback)
+                // This is critical after PLM restart: a new service process may not be able
+                // to access the Running Object Table from MTA alone
+                var swObj = GetActiveObjectOnSTA();
+                if (swObj == null)
                 {
                     return new CommandResult
                     {
@@ -2714,6 +2713,7 @@ namespace BluePLM.SolidWorksService
                         }
                     };
                 }
+                ISldWorks sw = (ISldWorks)swObj;
 
                 var documents = new List<object>();
                 var doc = (ModelDoc2)sw.GetFirstDocument();

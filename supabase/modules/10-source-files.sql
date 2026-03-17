@@ -118,7 +118,7 @@ END $$;
 
 DO $$ BEGIN
   CREATE TYPE review_status AS ENUM (
-    'pending', 'approved', 'rejected', 'cancelled'
+    'pending', 'approved', 'rejected', 'cancelled', 'kicked_back'
   );
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;

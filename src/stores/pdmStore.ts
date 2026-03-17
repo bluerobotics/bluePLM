@@ -17,7 +17,7 @@ import { persist } from 'zustand/middleware'
 import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider } from '../types/modules'
 import { getDefaultModuleConfig } from '../types/modules'
 import type { KeybindingsConfig, SettingsTab } from '../types/settings'
-import type { PDMStoreState, Tab, ConnectedVault, StagedCheckin, PendingMetadata, ThemeMode, Language } from './types'
+import type { PDMStoreState, Tab, ConnectedVault, StagedCheckin, PendingMetadata, ThemeMode, Language, CardViewFieldConfig } from './types'
 import { CURRENT_STORE_VERSION, runMigrations, getPersistedVersion } from './migrations'
 
 /**
@@ -52,6 +52,7 @@ import {
   createOperationLogSlice,
   createAnnotationsSlice,
 } from './slices'
+import { defaultCardViewFields } from './slices/settingsSlice'
 
 // Create the combined store
 export const usePDMStore = create<PDMStoreState>()(
@@ -128,6 +129,7 @@ export const usePDMStore = create<PDMStoreState>()(
         iconSize: state.iconSize,
         listRowSize: state.listRowSize,
         columns: state.columns,
+        cardViewFields: state.cardViewFields,
         lowercaseExtensions: state.lowercaseExtensions,
         
         // ═══════════════════════════════════════════════════════════════
@@ -176,6 +178,7 @@ export const usePDMStore = create<PDMStoreState>()(
         autoDownloadCloudFiles: state.autoDownloadCloudFiles,
         autoDownloadUpdates: state.autoDownloadUpdates,
         autoDownloadExcludedFiles: state.autoDownloadExcludedFiles,
+        autoDiscardOrphanedFiles: state.autoDiscardOrphanedFiles,
         ignorePatterns: state.ignorePatterns,
         stagedCheckins: state.stagedCheckins,
         persistedPendingMetadata: state.persistedPendingMetadata,
@@ -341,6 +344,9 @@ export const usePDMStore = create<PDMStoreState>()(
           autoDownloadCloudFiles: (persisted.autoDownloadCloudFiles as boolean) || false,
           autoDownloadUpdates: (persisted.autoDownloadUpdates as boolean) || false,
           autoDownloadExcludedFiles: (persisted.autoDownloadExcludedFiles as Record<string, string[]>) || {},
+          autoDiscardOrphanedFiles: persisted.autoDiscardOrphanedFiles !== undefined
+            ? (persisted.autoDiscardOrphanedFiles as boolean)
+            : true,
           // Ensure Christmas sleigh direction has default (new field for existing users)
           christmasSleighDirection: (persisted.christmasSleighDirection as 'push' | 'pull') || 'push',
           // Ensure columns have all fields
@@ -348,6 +354,12 @@ export const usePDMStore = create<PDMStoreState>()(
             const persistedCol = (persisted.columns as typeof currentState.columns || [])
               .find(c => c.id === defaultCol.id)
             return persistedCol ? { ...defaultCol, ...persistedCol } : defaultCol
+          }),
+          // Ensure cardViewFields have all fields (merge persisted with defaults for new fields)
+          cardViewFields: defaultCardViewFields.map(defaultField => {
+            const persistedField = (persisted.cardViewFields as CardViewFieldConfig[] || [])
+              .find(f => f.id === defaultField.id)
+            return persistedField ? { ...defaultField, ...persistedField } : defaultField
           }),
           // Ensure ignorePatterns has a default
           ignorePatterns: (persisted.ignorePatterns as Record<string, string[]>) || {},

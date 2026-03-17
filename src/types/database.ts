@@ -99,11 +99,11 @@ export type SupplierContact = Tables<'supplier_contacts'>
 // Custom Type Unions (not in database)
 // =========================================== 
 
-export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'kicked_back'
 
 export type NotificationType = 
   // File Reviews
-  | 'review_request' | 'review_approved' | 'review_rejected' | 'review_comment'
+  | 'review_request' | 'review_approved' | 'review_rejected' | 'review_kicked_back' | 'review_comment'
   // Change Management (ECO/ECR)
   | 'eco_submitted' | 'eco_approved' | 'eco_rejected' | 'eco_comment'
   | 'ecr_submitted' | 'ecr_approved' | 'ecr_rejected'

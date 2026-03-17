@@ -12,7 +12,7 @@ export interface StoreMigration {
 }
 
 // Current schema version - increment when adding migrations
-export const CURRENT_STORE_VERSION = 2
+export const CURRENT_STORE_VERSION = 3
 
 /**
  * All migrations in order. Each transforms state from previous version.
@@ -25,6 +25,14 @@ export const migrations: StoreMigration[] = [
       ...state,
       autoDownloadCloudFiles: false,
       autoDownloadUpdates: false,
+    })
+  },
+  {
+    version: 3,
+    description: 'Enable auto-discard orphaned files by default',
+    migrate: (state) => ({
+      ...state,
+      autoDiscardOrphanedFiles: true,
     })
   }
 ]

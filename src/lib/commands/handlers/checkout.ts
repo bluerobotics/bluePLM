@@ -16,10 +16,14 @@ import { updateInodes } from '../../cache/localSyncIndex'
 import type { LocalFile } from '../../../stores/pdmStore'
 import { usePDMStore } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
+import { sleep } from '../../network'
 import { FileOperationTracker } from '../../fileOperationTracker'
 
 // SolidWorks file extensions that support metadata extraction
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
+
+/** Normalize a file path for cross-source comparison (SolidWorks vs file system) */
+const normalizePath = (p: string) => p.toLowerCase().replace(/\\/g, '/')
 
 /**
  * Incremental Store Update Configuration
@@ -126,7 +130,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
     ])
     tracker.endStep(prefetchStepId, 'completed', { machineId: machineId?.substring(0, 8) })
     
-    // Pre-check SolidWorks service status ONCE (avoid checking for every file)
+    // Pre-check SolidWorks service status (with retry if integration is enabled)
     const swStatusStepId = tracker.startStep('Check SW service status')
     let swServiceRunning = false
     try {
@@ -134,6 +138,27 @@ export const checkoutCommand: Command<CheckoutParams> = {
       swServiceRunning = !!status?.data?.running
     } catch {
       // SW service not available
+    }
+    
+    // If SW service isn't running yet but the user has SW integration enabled,
+    // wait briefly for the auto-start to complete (covers PLM restart timing)
+    if (!swServiceRunning && usePDMStore.getState().solidworksIntegrationEnabled) {
+      const SW_SERVICE_RETRY_ATTEMPTS = 3
+      const SW_SERVICE_RETRY_DELAY_MS = 1500
+      for (let attempt = 1; attempt <= SW_SERVICE_RETRY_ATTEMPTS; attempt++) {
+        logCheckout('debug', `SW service not ready, retry ${attempt}/${SW_SERVICE_RETRY_ATTEMPTS}`, { operationId })
+        await sleep(SW_SERVICE_RETRY_DELAY_MS)
+        try {
+          const retryStatus = await window.electronAPI?.solidworks?.getServiceStatus?.()
+          if (retryStatus?.data?.running) {
+            swServiceRunning = true
+            logCheckout('info', `SW service became ready after ${attempt} retries`, { operationId })
+            break
+          }
+        } catch {
+          // Still not available
+        }
+      }
     }
     tracker.endStep(swStatusStepId, 'completed', { swRunning: swServiceRunning })
     
@@ -330,7 +355,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
           // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
           // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
           const isSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
-          const isFileOpenInSW = openDocumentPaths.has(file.path.toLowerCase())
+          const isFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
           if (isSWFile && isFileOpenInSW) {
             try {
               // CRITICAL: Clear the file system read-only flag FIRST!
@@ -486,10 +511,11 @@ export const checkoutCommand: Command<CheckoutParams> = {
       try {
         const openDocsResult = await window.electronAPI?.solidworks?.getOpenDocuments?.({ includeComponents: true })
         if (openDocsResult?.success && openDocsResult.data?.documents) {
-          // Normalize paths for comparison (lowercase on Windows)
+          // Normalize paths for comparison (lowercase + forward slashes)
+          // SolidWorks GetPathName() may return forward slashes while the file store uses backslashes
           openDocumentPaths = new Set(
             openDocsResult.data.documents
-              .map(doc => doc.filePath?.toLowerCase())
+              .map(doc => doc.filePath ? normalizePath(doc.filePath) : null)
               .filter((p): p is string => Boolean(p))
           )
           logCheckout('debug', 'Fetched open SW documents', {

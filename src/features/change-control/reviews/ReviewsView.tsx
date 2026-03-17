@@ -11,6 +11,7 @@ import {
   Loader2,
   Check,
   X,
+  Undo2,
   Trash2,
   RefreshCw,
   ThumbsUp,
@@ -227,6 +228,8 @@ export function ReviewsView() {
     const { success, error } = await cancelReview(reviewId, user.id)
     if (success) {
       addToast('success', 'Review cancelled')
+      setMyReviews(prev => prev.filter(r => r.id !== reviewId))
+      setPendingReviews(prev => prev.filter(r => r.id !== reviewId))
       loadData()
     } else {
       addToast('error', error || 'Failed to cancel review')
@@ -256,6 +259,7 @@ export function ReviewsView() {
     switch (status) {
       case 'approved': return 'text-plm-success'
       case 'rejected': return 'text-plm-error'
+      case 'kicked_back': return 'text-plm-warning'
       case 'cancelled': return 'text-plm-fg-muted'
       default: return 'text-plm-warning'
     }
@@ -266,6 +270,7 @@ export function ReviewsView() {
     switch (status) {
       case 'approved': return <CheckCircle2 size={14} className="text-plm-success" />
       case 'rejected': return <XCircle size={14} className="text-plm-error" />
+      case 'kicked_back': return <Undo2 size={14} className="text-plm-warning" />
       case 'cancelled': return <X size={14} className="text-plm-fg-muted" />
       default: return <Clock size={14} className="text-plm-warning" />
     }
@@ -529,11 +534,13 @@ export function ReviewsView() {
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                         review.status === 'approved' ? 'bg-plm-success/20' :
                         review.status === 'rejected' ? 'bg-plm-error/20' :
+                        review.status === 'kicked_back' ? 'bg-plm-warning/20' :
                         review.status === 'cancelled' ? 'bg-plm-fg-muted/20' :
                         'bg-plm-warning/20'
                       }`}>
                         {review.status === 'approved' ? <CheckCircle2 size={20} className="text-plm-success" /> :
                          review.status === 'rejected' ? <XCircle size={20} className="text-plm-error" /> :
+                         review.status === 'kicked_back' ? <Undo2 size={20} className="text-plm-warning" /> :
                          review.status === 'cancelled' ? <X size={20} className="text-plm-fg-muted" /> :
                          <Clock size={20} className="text-plm-warning" />}
                       </div>

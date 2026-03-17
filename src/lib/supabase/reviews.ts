@@ -147,7 +147,8 @@ export async function getPendingReviewsForUser(
       )
     `)
     .eq('reviewer_id', userId)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'kicked_back'])
+    .eq('reviews.status', 'pending')
     .order('created_at', { ascending: false })
   
   if (error) {
@@ -163,7 +164,7 @@ export async function getPendingReviewsForUser(
 export async function respondToReview(
   reviewResponseId: string,
   reviewerId: string,
-  status: 'approved' | 'rejected',
+  status: 'approved' | 'rejected' | 'kicked_back',
   comment?: string
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
@@ -193,7 +194,7 @@ export async function respondToReview(
       .eq('review_id', reviewId)
     
     if (!responsesError && allResponses) {
-      const allResponded = allResponses.every(r => r.status !== 'pending')
+      const allResponded = allResponses.every(r => r.status !== 'pending' && r.status !== 'kicked_back')
       
       if (allResponded) {
         const anyRejected = allResponses.some(r => r.status === 'rejected')
@@ -248,6 +249,11 @@ export async function cancelReview(
   if (error) {
     return { success: false, error: error.message }
   }
+  
+  await client
+    .from('review_responses')
+    .update({ status: 'cancelled' })
+    .eq('review_id', reviewId)
   
   return { success: true }
 }
