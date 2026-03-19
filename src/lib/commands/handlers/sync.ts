@@ -166,50 +166,24 @@ export const syncCommand: Command<SyncParams> = {
               }
             }
             
-            if (dirtyFiles.length > 0 && ctx.confirm) {
-              const confirmed = await ctx.confirm({
-                title: 'Unsaved SolidWorks Files',
-                message: 'The following file(s) are open in SolidWorks with unsaved changes. They will be saved before uploading.',
-                items: dirtyFiles.map(d => d.file.name),
-                confirmText: 'Save & Upload',
-              })
-              
-              if (!confirmed) {
-                logSync('info', 'User cancelled sync due to unsaved SW files', {})
-                tracker.endOperation('completed')
-                return {
-                  success: false,
-                  message: 'Upload cancelled',
-                  total: 0,
-                  succeeded: 0,
-                  failed: 0
-                }
-              }
-              
-              for (const { file, docPath } of dirtyFiles) {
-                logSync('info', 'Saving unsaved SW file before sync', { fileName: file.name })
-                const saveResult = await window.electronAPI?.solidworks?.saveDocument?.(docPath)
-                if (!saveResult?.success) {
-                  const errorMsg = saveResult?.error || 'Unknown save error'
-                  logSync('error', 'Failed to save SW file before sync', { fileName: file.name, error: errorMsg })
-                  ctx.addToast('error', `Cannot upload \u2014 failed to save ${file.name} in SolidWorks: ${errorMsg}`)
-                  tracker.endOperation('completed')
-                  return {
-                    success: false,
-                    message: `Failed to save ${file.name} in SolidWorks`,
-                    total: 0,
-                    succeeded: 0,
-                    failed: 1,
-                    errors: [`${file.name}: ${errorMsg}`]
-                  }
-                }
+            if (dirtyFiles.length > 0) {
+              const names = dirtyFiles.map(d => d.file.name).join(', ')
+              logSync('info', 'Aborting sync: unsaved SW files', { dirtyFiles: names })
+              ctx.addToast('error', `Unsaved changes detected \u2014 save ${dirtyFiles.length === 1 ? dirtyFiles[0].file.name : 'your files'} in SolidWorks first`)
+              tracker.endOperation('completed')
+              return {
+                success: false,
+                message: `Unsaved SolidWorks files: ${names}`,
+                total: 0,
+                succeeded: 0,
+                failed: 0
               }
             }
             
             // Check for actively locked files
             for (const file of swFilesToSync) {
               try {
-                const lockCheck = await window.electronAPI?.checkFileLock?.(file.path)
+                const lockCheck = await window.electronAPI?.checkFileLock?.(file.path, { forRead: true })
                 if (lockCheck?.locked) {
                   const processName = lockCheck.processName || 'another process'
                   logSync('error', 'File is actively locked, aborting sync', { fileName: file.name, lockedBy: processName })

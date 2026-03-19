@@ -198,8 +198,41 @@ function getAllFilesInDir(dirPath: string, _baseFolder: string): Array<{ name: s
 // Try to find what process has a file locked
 // Returns the process name if known, or "Unknown" if the file is locked but process can't be determined
 // Priority: 1) SolidWorks temp files (instant), 2) O_RDWR test (instant), 3) Restart Manager API via .NET service
-async function findLockingProcess(filePath: string): Promise<string | null> {
+//
+// options.forRead: when true, only report locks that prevent reading (EBUSY).
+// Files that are open in SolidWorks but saved and readable will NOT be reported as locked.
+// Use this for check-in/sync where we only need to read the file contents.
+async function findLockingProcess(filePath: string, options?: { forRead?: boolean }): Promise<string | null> {
   try {
+    if (options?.forRead) {
+      // Read-only lock check: only block if the file can't be read at all (mid-write / EBUSY)
+      try {
+        const fd = fs.openSync(filePath, fs.constants.O_RDONLY)
+        fs.closeSync(fd)
+        return null  // File is readable — safe for check-in even if SW has it open
+      } catch (readErr: unknown) {
+        const nodeErr = readErr as NodeJS.ErrnoException
+        if (nodeErr.code !== 'EBUSY') {
+          return null  // Not a busy lock — let the actual read operation report the error
+        }
+        // EBUSY = file is actively being written to. Identify the process.
+        const dir = path.dirname(filePath)
+        const baseName = path.basename(filePath, path.extname(filePath))
+        const tempFile = path.join(dir, `~$${baseName}${path.extname(filePath)}`)
+        if (fs.existsSync(tempFile)) {
+          return 'SLDWORKS.exe'
+        }
+        try {
+          const processName = await findLockingProcessViaService(filePath)
+          if (processName) return processName
+        } catch { /* service not available */ }
+        return 'another process'
+      }
+    }
+
+    // Full lock check (default): detect any process holding the file open.
+    // Used by rename, move, delete where exclusive access is needed.
+
     // FAST CHECK 1: SolidWorks temp files (~$filename) - instant, reliable indicator
     const dir = path.dirname(filePath)
     const baseName = path.basename(filePath, path.extname(filePath))
@@ -491,19 +524,17 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   // use 'fs:hash-file' which uses streaming and is more memory-efficient.
   ipcMain.handle('fs:read-file', async (_, filePath: string) => {
     try {
-      // Safety net: check if file is locked before reading
-      // This prevents reading a partial/corrupt file while SolidWorks (or another process) is writing
+      // Safety net: check if file is readable before attempting full read.
+      // Uses O_RDONLY (not O_RDWR) because SolidWorks holds files open with FILE_SHARE_READ
+      // but not FILE_SHARE_WRITE — O_RDWR would get EBUSY even on saved, readable files.
       try {
-        const fd = fs.openSync(filePath, fs.constants.O_RDWR)
+        const fd = fs.openSync(filePath, fs.constants.O_RDONLY)
         fs.closeSync(fd)
       } catch (lockErr: unknown) {
         const lockNodeErr = lockErr as NodeJS.ErrnoException
         if (lockNodeErr.code === 'EBUSY') {
           log(`[ReadFile] File is busy, refusing to read: ${filePath} (${lockNodeErr.code})`)
           return { success: false, error: `File is locked by another process (${lockNodeErr.code})`, locked: true }
-        }
-        if (lockNodeErr.code === 'EACCES' || lockNodeErr.code === 'EPERM') {
-          log(`[ReadFile] File has write lock, will attempt read-only: ${filePath} (${lockNodeErr.code})`)
         }
         // Other errors (e.g., ENOENT) fall through to the normal read which will report them
       }
@@ -523,9 +554,10 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
 
   // Check if a file is locked by another process
   // Used before check-in to detect if SolidWorks (or another process) is actively writing
-  ipcMain.handle('fs:check-file-lock', async (_, filePath: string) => {
+  // Pass { forRead: true } to only block on files that can't be read (EBUSY / mid-write)
+  ipcMain.handle('fs:check-file-lock', async (_, filePath: string, options?: { forRead?: boolean }) => {
     try {
-      const lockingProcess = await findLockingProcess(filePath)
+      const lockingProcess = await findLockingProcess(filePath, options)
       if (lockingProcess) {
         return { success: true, locked: true, processName: lockingProcess }
       }

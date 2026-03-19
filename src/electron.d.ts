@@ -255,7 +255,7 @@ declare global {
       
       // File system operations
       readFile: (path: string) => Promise<FileReadResult>
-      checkFileLock: (path: string) => Promise<{ success: boolean; locked?: boolean; processName?: string; error?: string }>
+      checkFileLock: (path: string, options?: { forRead?: boolean }) => Promise<{ success: boolean; locked?: boolean; processName?: string; error?: string }>
       writeFile: (path: string, base64Data: string) => Promise<FileWriteResult>
       downloadUrl: (url: string, destPath: string, expectedHash?: string) => Promise<FileWriteResult>
       fileExists: (path: string) => Promise<boolean>

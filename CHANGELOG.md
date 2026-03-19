@@ -2,6 +2,16 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.16.0] - 2026-03-19
+
+### Changed
+- **Unsaved SW files block check-in with a toast instead of auto-saving** — check-in and sync previously tried to save dirty SolidWorks files through the .NET service, which failed when SolidWorks was unresponsive. Now shows an error toast ("Unsaved changes detected — save in SolidWorks first") and aborts, letting you save manually and retry
+
+### Fixed
+- **Cannot check in files open in SolidWorks** — two separate lock checks blocked check-in of saved files: (1) the pre-check treated any file with a SolidWorks `~$` temp file as locked, and (2) the file-read safety check used `O_RDWR` which gets `EBUSY` on Windows when SolidWorks holds a shared-read lock. Both now use read-only checks (`O_RDONLY`) so check-in and sync only block when the file is truly mid-write, allowing check-in while files remain open in SolidWorks or referenced assemblies
+
+---
+
 ## [3.15.0] - 2026-03-19
 
 ### Added

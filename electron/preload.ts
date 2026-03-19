@@ -273,7 +273,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // File system operations
   readFile: (path: string) => ipcRenderer.invoke('fs:read-file', path),
-  checkFileLock: (path: string) => ipcRenderer.invoke('fs:check-file-lock', path),
+  checkFileLock: (path: string, options?: { forRead?: boolean }) => ipcRenderer.invoke('fs:check-file-lock', path, options),
   writeFile: (path: string, base64Data: string) => ipcRenderer.invoke('fs:write-file', path, base64Data),
   downloadUrl: (url: string, destPath: string, expectedHash?: string) => ipcRenderer.invoke('fs:download-url', url, destPath, expectedHash),
   fileExists: (path: string) => ipcRenderer.invoke('fs:file-exists', path),

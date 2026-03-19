@@ -522,64 +522,19 @@ export const checkinCommand: Command<CheckinParams> = {
             dirtyFiles: dirtyFiles.map(d => d.file.name)
           })
           
-          // If there are unsaved files, prompt the user
-          if (dirtyFiles.length > 0 && ctx.confirm) {
-            const confirmed = await ctx.confirm({
-              title: 'Unsaved SolidWorks Files',
-              message: 'The following file(s) are open in SolidWorks with unsaved changes. They will be saved before check-in.',
-              items: dirtyFiles.map(d => d.file.name),
-              confirmText: 'Save & Check In',
-            })
-            
-            if (!confirmed) {
-              logCheckin('info', 'User cancelled check-in due to unsaved SW files', { operationId })
-              tracker.endStep(preCheckStepId, 'completed', { cancelled: true })
-              tracker.endOperation('completed')
-              return {
-                success: false,
-                message: 'Check-in cancelled',
-                total: 0,
-                succeeded: 0,
-                failed: 0
-              }
-            }
-            
-            // User confirmed -- save each dirty file via SolidWorks API
-            for (const { file, docPath } of dirtyFiles) {
-              logCheckin('info', 'Saving unsaved SW file before check-in', {
-                operationId,
-                fileName: file.name,
-                docPath
-              })
-              
-              const saveResult = await window.electronAPI?.solidworks?.saveDocument?.(docPath)
-              
-              if (!saveResult?.success) {
-                const errorMsg = saveResult?.error || 'Unknown save error'
-                logCheckin('error', 'Failed to save SW file before check-in', {
-                  operationId,
-                  fileName: file.name,
-                  error: errorMsg
-                })
-                ctx.addToast('error', `Cannot check in \u2014 failed to save ${file.name} in SolidWorks: ${errorMsg}`)
-                tracker.endStep(preCheckStepId, 'completed', { saveFailed: file.name })
-                tracker.endOperation('completed')
-                return {
-                  success: false,
-                  message: `Failed to save ${file.name} in SolidWorks`,
-                  total: 0,
-                  succeeded: 0,
-                  failed: 1,
-                  errors: [`${file.name}: ${errorMsg}`]
-                }
-              }
-              
-              logCheckin('info', 'SW file saved successfully', {
-                operationId,
-                fileName: file.name,
-                saved: saveResult.data?.saved,
-                reason: saveResult.data?.reason
-              })
+          // If there are unsaved files, abort and tell the user to save first
+          if (dirtyFiles.length > 0) {
+            const names = dirtyFiles.map(d => d.file.name).join(', ')
+            logCheckin('info', 'Aborting check-in: unsaved SW files', { operationId, dirtyFiles: names })
+            ctx.addToast('error', `Unsaved changes detected \u2014 save ${dirtyFiles.length === 1 ? dirtyFiles[0].file.name : 'your files'} in SolidWorks first`)
+            tracker.endStep(preCheckStepId, 'completed', { unsaved: names })
+            tracker.endOperation('completed')
+            return {
+              success: false,
+              message: `Unsaved SolidWorks files: ${names}`,
+              total: 0,
+              succeeded: 0,
+              failed: 0
             }
           }
           
@@ -587,7 +542,7 @@ export const checkinCommand: Command<CheckinParams> = {
           // This catches the case where SolidWorks auto-save is in progress
           for (const file of swFilesToCheckin) {
             try {
-              const lockCheck = await window.electronAPI?.checkFileLock?.(file.path)
+              const lockCheck = await window.electronAPI?.checkFileLock?.(file.path, { forRead: true })
               if (lockCheck?.locked) {
                 const processName = lockCheck.processName || 'another process'
                 logCheckin('error', 'File is actively locked, aborting check-in', {
