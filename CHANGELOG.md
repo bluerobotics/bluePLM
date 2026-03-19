@@ -2,6 +2,36 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+## [3.15.0] - 2026-03-19
+
+### Added
+- **Review kick-back status** — reviewers can now "kick back" a file for rework, distinct from outright rejection. Kicked-back reviews show a dedicated status and badge in the Reviews dashboard
+- **Breadcrumb folder dropdowns** — Explorer-style dropdown menus on breadcrumb segments let you navigate to sibling folders without backtracking
+- **Card view field persistence** — toolbar field customization in card view is now remembered across sessions
+- **Column layout push to all users** — admins can now force-push their current column configuration (visibility, width, order) to every user in the organization. Available from Settings > Metadata Columns and from the column header right-click menu. Connected users receive the update in real time; offline users pick it up on next launch
+
+### Changed
+- **Auto-discard orphaned files enabled by default** — local files that no longer exist on the server are now automatically cleaned up. Also fixed the setting not being persisted (it reset to OFF on every restart even if manually enabled)
+- **Cancel review cancels pending responses** — cancelling a review now properly cancels all outstanding reviewer responses
+- **Splash screen removed** — the multi-stage startup splash screen ("Extensions ready", progress bars) is gone. The app now shows a blank window briefly while initializing and transitions directly to the main UI. Extension load failures are surfaced as warning toasts instead of a blocking banner
+
+### Fixed
+- **Company logo missing in "Users Online" button** — the online-users button now loads the company logo independently with its own signed-URL generation, error handling, and retry, so it always shows the org logo even if the parent toolbar's async load failed. Broken URLs also fall back gracefully instead of rendering an invisible empty box
+- **SolidWorks checkout not propagating read-write state after restart** — normalized path separators, added STA fallback for COM reconnection (service v1.2.1), and retry on service status check during checkout
+- **Title bar drag region blocking clicks** — right-side toolbar items (stats, zoom, online users, panel toggles, user menu) were inside a single drag region, making them unclickable on some window managers. Each interactive element is now individually excluded from the drag region
+- **Login screen flash on slow connections** — on slow networks the sign-in screen would briefly appear before the stored session was restored, then disappear once auto-connect completed. Startup now waits for Supabase's auth resolution (up to 15 s) before deciding what to show, eliminating the flash
+- **Drawing modified after check-in (post-check-in drift)** — when checking in a drawing and its referenced part together, SolidWorks could rebuild the drawing after its content was uploaded, leaving local changes the server does not have. Fixed by: (1) setting files read-only before releasing the checkout lock instead of after, (2) processing parts/assemblies before drawings in batch check-ins to avoid reference-rebuild races, (3) re-hashing files after check-in to detect drift and warn the user, and (4) showing an "Unsaved Changes" warning in the status column for checked-in files with local modifications
+- **Cannot remove rejected reviews** — the cancel/remove button was only visible for pending reviews. The requester can now remove their review regardless of its current status (rejected, approved, kicked back, etc.)
+- **Sidebar module parents not persisting across restart** — moving modules out of a group (e.g. Source Files) and then restarting the app would snap them back into the group. The modules editor was deleting the parent key instead of setting it to null, so the hydration merge filled in the default group parent. Also hardened the hydration guard and made org/team default loading merge with app defaults so new modules are never missing
+- **Sidebar header showing "GROUP-SOURCE-FILES" instead of "EXPLORER"** — a previous code path could set the active view to a custom group ID (e.g. `group-source-files`) instead of a module ID. This value was persisted to localStorage and restored on every launch. Added three-layer defense: hydration validation rejects group IDs and resolves to the first child module, `setActiveView` guards against group IDs at runtime, and `getModuleTitle` falls back to the group's display name or "EXPLORER" instead of exposing raw internal identifiers
+
+### Improved
+- **Scrollbar visibility** — increased horizontal scrollbar height and thumb opacity for easier grabbing
+- **Explorer tree density slider** — the explorer sidebar now has its own density slider (next to the "EXPLORER" header) that controls tree row spacing independently from the file browser's density slider
+- **Column order preserved on sync** — loading column defaults from the org or personal configuration now restores column order, not just visibility and width
+
+---
+
 ## [3.14.0] - 2026-03-16
 
 ### Added

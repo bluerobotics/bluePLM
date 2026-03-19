@@ -114,7 +114,7 @@ export interface ModalHandlersDeps {
 export interface UseModalHandlersReturn {
   handleOpenReviewModal: (file: LocalFile) => Promise<void>
   handleToggleReviewer: (userId: string) => void
-  handleSubmitReviewRequest: () => Promise<void>
+  handleSubmitReviewRequest: (teamId?: string) => Promise<void>
   handleOpenCheckoutRequestModal: (file: LocalFile) => void
   handleSubmitCheckoutRequest: () => Promise<void>
   handleOpenMentionModal: (file: LocalFile) => Promise<void>
@@ -218,7 +218,7 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
     )
   }, [selectedReviewers, setSelectedReviewers])
 
-  const handleSubmitReviewRequest = useCallback(async () => {
+  const handleSubmitReviewRequest = useCallback(async (teamId?: string) => {
     if (!user?.id || !organization?.id || !reviewModalFile?.pdmData?.id) {
       addToast('error', 'Missing required information')
       return
@@ -241,7 +241,8 @@ export function useModalHandlers(deps: ModalHandlersDeps): UseModalHandlersRetur
       undefined,
       reviewMessage || undefined,
       reviewDueDate || undefined,
-      reviewPriority
+      reviewPriority,
+      teamId
     )
     
     if (error) {

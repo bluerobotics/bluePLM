@@ -117,6 +117,9 @@ CREATE TABLE IF NOT EXISTS reviews (
   -- Scheduling
   due_date TIMESTAMPTZ,
   priority TEXT DEFAULT 'normal',
+
+  -- Team that was selected when requesting the review
+  team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
   
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -129,6 +132,14 @@ CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_due_date ON reviews(due_date) WHERE due_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_reviews_priority ON reviews(priority);
+
+-- Migration: Add team_id column if missing
+DO $$ BEGIN
+  ALTER TABLE reviews ADD COLUMN team_id UUID REFERENCES teams(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_reviews_team_id ON reviews(team_id) WHERE team_id IS NOT NULL;
 
 -- Migration: Ensure reviews.status has NOT NULL
 UPDATE reviews SET status = 'pending' WHERE status IS NULL;

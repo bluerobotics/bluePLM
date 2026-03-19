@@ -8,9 +8,16 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { getMyReviews, getPendingReviewsForUser, respondToReview, cancelReview } from '@/lib/supabase'
+import { getMyReviews, getPendingReviewsForUser, respondToReview, cancelReview, getUserTeams } from '@/lib/supabase'
 import { log } from '@/lib/logger'
 import type { ReviewWithDetails, ReviewStatus } from '@/types/database'
+
+export interface TeamInfo {
+  id: string
+  name: string
+  color: string
+  icon: string
+}
 
 // ============================================================================
 // Types
@@ -47,6 +54,13 @@ export interface UseReviewsDashboardReturn {
   setStatusFilter: (filter: StatusFilter) => void
   searchQuery: string
   setSearchQuery: (query: string) => void
+
+  // Team filtering
+  orgTeams: TeamInfo[]
+  visibleTeamIds: Set<string>
+  setVisibleTeamIds: (ids: Set<string>) => void
+  activeTeamFilter: string | null
+  setActiveTeamFilter: (teamId: string | null) => void
 
   // Actions
   refresh: () => Promise<void>
@@ -97,6 +111,11 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
   const [scope, setScope] = useState<ReviewScope>('mine')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Team filtering
+  const [orgTeams, setOrgTeams] = useState<TeamInfo[]>([])
+  const [visibleTeamIds, setVisibleTeamIds] = useState<Set<string>>(new Set())
+  const [activeTeamFilter, setActiveTeamFilter] = useState<string | null>(null)
 
   // Ref to track the interval so we can clean it up
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -163,6 +182,17 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
     refresh()
   }, [refresh])
 
+  // Fetch user's teams for the filter pills
+  useEffect(() => {
+    if (!user?.id) return
+    getUserTeams(user.id).then(({ teams }) => {
+      if (teams) {
+        setOrgTeams(teams)
+        setVisibleTeamIds(new Set(teams.map(t => t.id)))
+      }
+    })
+  }, [user?.id])
+
   // Auto-refresh interval
   useEffect(() => {
     intervalRef.current = setInterval(() => {
@@ -179,7 +209,7 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
   // Filtering
   // ---------------------------------------------------------------------------
   const filteredReviews = useMemo(() => {
-    let result = reviews
+    let result = reviews.filter(r => r.status !== 'cancelled')
 
     // Scope filter: "mine" = reviews where the current user is a reviewer
     if (scope === 'mine' && user?.id) {
@@ -194,6 +224,11 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
       result = result.filter(r => r.status === statusFilter)
     }
 
+    // Team filter
+    if (activeTeamFilter) {
+      result = result.filter(r => (r as unknown as { team_id?: string }).team_id === activeTeamFilter)
+    }
+
     // Search filter (file name)
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase()
@@ -206,7 +241,7 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
     }
 
     return result
-  }, [reviews, scope, statusFilter, searchQuery, user?.id, user?.email])
+  }, [reviews, scope, statusFilter, searchQuery, activeTeamFilter, user?.id, user?.email])
 
   // ---------------------------------------------------------------------------
   // Stats
@@ -287,24 +322,25 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
     return vaultPath
   }, [connectedVaults, activeVaultId, vaultPath])
 
-  const previewFile = useCallback((review: ReviewWithDetails) => {
+  const getLocalFilePath = useCallback((review: ReviewWithDetails): string | null => {
     const filePath = review.file?.file_path
-    if (!filePath) {
-      addToast('error', 'File path not available')
-      return
-    }
+    if (!filePath) return null
 
-    // Resolve the full local filesystem path
     const basePath = getActiveVaultPath()
-    if (!basePath) {
-      addToast('error', 'Cannot preview file: vault not connected')
-      return
-    }
+    if (!basePath) return null
 
     const sep = basePath.includes('\\') ? '\\' : '/'
-    const fullPath = basePath + sep + filePath.replace(/\//g, sep)
+    return basePath + sep + filePath.replace(/\//g, sep)
+  }, [getActiveVaultPath])
 
-    // Try to find the database file ID from the local files array
+  const previewFile = useCallback((review: ReviewWithDetails) => {
+    const fullPath = getLocalFilePath(review)
+    if (!fullPath) {
+      addToast('error', review.file?.file_path ? 'Cannot preview file: vault not connected' : 'File path not available')
+      return
+    }
+
+    const filePath = review.file!.file_path!
     const normalizedPath = filePath.replace(/\\/g, '/')
     const localFile = files.find(f => f.relativePath.replace(/\\/g, '/') === normalizedPath)
     const fileId = localFile?.pdmData?.id ?? review.file_id ?? null
@@ -316,7 +352,7 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
       fileVersion: review.file_version ?? null,
       reviewId: review.id,
     })
-  }, [files, addToast, getActiveVaultPath, setReviewPreviewFile])
+  }, [files, addToast, getLocalFilePath, setReviewPreviewFile])
 
   const navigateToFile = useCallback((filePath: string | undefined) => {
     if (!filePath) {
@@ -379,6 +415,11 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
     previewFile,
     navigateToFile,
     openFileExternally,
+    orgTeams,
+    visibleTeamIds,
+    setVisibleTeamIds,
+    activeTeamFilter,
+    setActiveTeamFilter,
   }
 }
 

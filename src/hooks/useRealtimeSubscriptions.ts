@@ -501,6 +501,17 @@ export function useRealtimeSubscriptions(organization: Organization | null, isOf
         return
       }
       
+      // Check if column defaults were force-pushed (admin override)
+      const oldColumnForcedAt = (oldOrg as any)?.column_defaults_forced_at
+      const newColumnForcedAt = (newOrg as any)?.column_defaults_forced_at
+      if (newColumnForcedAt && newColumnForcedAt !== oldColumnForcedAt) {
+        const { loadOrgColumnDefaults } = usePDMStore.getState()
+        loadOrgColumnDefaults().then(() => {
+          addToast('info', 'Column layout updated by admin', 5000)
+        })
+        return
+      }
+      
       // Check if SOLIDWORKS templates were force-pushed (admin override)
       interface SwTemplateSettings {
         documentTemplates?: string

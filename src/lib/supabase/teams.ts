@@ -407,6 +407,110 @@ export async function checkPermissions(
   return { results }
 }
 
+// ============================================
+// Team Reviewers
+// ============================================
+
+export interface TeamReviewerRow {
+  id: string
+  team_id: string
+  reviewer_type: 'user' | 'workflow_role'
+  user_id: string | null
+  workflow_role_id: string | null
+  added_at: string
+  user?: { id: string; email: string; full_name: string | null; avatar_url: string | null } | null
+}
+
+/**
+ * Fetch all reviewer rules configured for a team.
+ * Joins user details for 'user' type and workflow_role details for 'workflow_role' type.
+ */
+export async function getTeamReviewers(
+  teamId: string
+): Promise<{ reviewers: TeamReviewerRow[]; error?: string }> {
+  const client = getSupabaseClient()
+
+  const { data, error } = await (client
+    .from as any)('team_reviewers')
+    .select(`
+      id,
+      team_id,
+      reviewer_type,
+      user_id,
+      workflow_role_id,
+      added_at,
+      user:users!team_reviewers_user_id_fkey(id, email, full_name, avatar_url)
+    `)
+    .eq('team_id', teamId)
+    .order('added_at')
+
+  if (error) {
+    return { reviewers: [], error: (error as any).message }
+  }
+
+  const reviewers: TeamReviewerRow[] = ((data as any[]) || []).map((r: any) => ({
+    id: r.id as string,
+    team_id: r.team_id as string,
+    reviewer_type: r.reviewer_type as 'user' | 'workflow_role',
+    user_id: r.user_id as string | null,
+    workflow_role_id: r.workflow_role_id as string | null,
+    added_at: r.added_at as string,
+    user: r.user as TeamReviewerRow['user'],
+  }))
+
+  return { reviewers }
+}
+
+/**
+ * Add a reviewer rule to a team.
+ */
+export async function addTeamReviewer(
+  teamId: string,
+  reviewerType: 'user' | 'workflow_role',
+  addedBy: string,
+  opts: { userId?: string; workflowRoleId?: string } = {}
+): Promise<{ id: string | null; error?: string }> {
+  const client = getSupabaseClient()
+
+  const { data, error } = await (client
+    .from as any)('team_reviewers')
+    .insert({
+      team_id: teamId,
+      reviewer_type: reviewerType,
+      user_id: opts.userId ?? null,
+      workflow_role_id: opts.workflowRoleId ?? null,
+      added_by: addedBy,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    return { id: null, error: (error as any).message }
+  }
+
+  return { id: (data as any).id as string }
+}
+
+/**
+ * Remove a reviewer rule from a team.
+ */
+export async function removeTeamReviewer(
+  reviewerId: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+
+  const { error } = await (client
+    .from as any)('team_reviewers')
+    .delete()
+    .eq('id', reviewerId)
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
 /**
  * Get all teams in an organization
  */

@@ -37,7 +37,7 @@ import { SelectionBoxOverlay } from '@/features/source/browser'
 import { VaultTreeItem } from './file-tree/VaultTreeItem'
 import { PinnedFoldersSection } from './file-tree/PinnedFoldersSection'
 import { NoVaultAccessMessage } from './file-tree/RecentVaultsSection'
-import { VirtualizedTreeRow, TREE_ROW_HEIGHT } from './file-tree/VirtualizedTreeRow'
+import { VirtualizedTreeRow } from './file-tree/VirtualizedTreeRow'
 import { TreeHoverProvider } from './file-tree/TreeHoverContext'
 // FileTree hooks
 import { useVaultTree } from './file-tree/hooks/useVaultTree'
@@ -54,7 +54,8 @@ import {
   TREE_INDENT_PX, 
   DIFF_STATUS_CLASS_PREFIX,
   SOLIDWORKS_EXTENSIONS,
-  PDM_FILES_DATA_TYPE
+  PDM_FILES_DATA_TYPE,
+  getTreeRowHeight
 } from './file-tree/constants'
 
 interface FileTreeProps {
@@ -92,6 +93,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   const hideSolidworksTempFiles = usePDMStore(s => s.hideSolidworksTempFiles)
   const hideCloudOnlyFolders = usePDMStore(s => s.hideCloudOnlyFolders)
   const setHideCloudOnlyFolders = usePDMStore(s => s.setHideCloudOnlyFolders)
+  const treeRowSize = usePDMStore(s => s.treeRowSize)
   const tabsEnabled = usePDMStore(s => s.tabsEnabled)
   const activeTabId = usePDMStore(s => s.activeTabId)
   
@@ -628,12 +630,17 @@ export function FileTree({ onRefresh }: FileTreeProps) {
   // VIRTUALIZER SETUP
   // Only render visible rows plus overscan for smooth scrolling
   // ═══════════════════════════════════════════════════════════════════════════
+  const treeRowHeight = getTreeRowHeight(treeRowSize)
   const virtualizer = useVirtualizer({
     count: totalCount,
     getScrollElement: () => scrollableContainerRef.current,
-    estimateSize: () => TREE_ROW_HEIGHT,
-    overscan: 15 // Render 15 extra items above/below viewport for smooth scrolling
+    estimateSize: () => treeRowHeight,
+    overscan: 15
   })
+
+  useEffect(() => {
+    virtualizer.measure()
+  }, [treeRowSize, virtualizer])
 
   // Legacy renderTreeItem for PinnedFoldersSection (needs recursive rendering)
   // This is used only for pinned folders which have a different rendering context
@@ -884,6 +891,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
                         width: '100%',
                         transform: `translateY(${virtualRow.start}px)`
                       }}
+                      treeRowSize={treeRowSize}
                       isSelected={isSelected}
                       isRenaming={isRenaming}
                       renameValue={renameValue}

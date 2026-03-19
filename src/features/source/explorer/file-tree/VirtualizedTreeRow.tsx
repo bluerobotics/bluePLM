@@ -14,7 +14,9 @@ import {
   TREE_BASE_PADDING_PX, 
   TREE_INDENT_PX, 
   DIFF_STATUS_CLASS_PREFIX,
-  PDM_FILES_DATA_TYPE
+  PDM_FILES_DATA_TYPE,
+  getTreeRowHeight,
+  DEFAULT_LIST_ROW_SIZE
 } from './constants'
 import type { FlattenedTreeItem } from './hooks/useFlattenedTree'
 import type { FolderMetrics } from './hooks/useVaultTree'
@@ -22,14 +24,16 @@ import type { OperationType, StagedCheckin, ToastType } from '@/stores/types'
 import type { FolderDiffCounts } from './types'
 import type { User } from '@/types/pdm'
 
-/** Row height in pixels - must match virtualization estimateSize */
-export const TREE_ROW_HEIGHT = 28
+/** Default row height in pixels (when listRowSize = 24). Used as fallback. */
+export const TREE_ROW_HEIGHT = getTreeRowHeight(DEFAULT_LIST_ROW_SIZE)
 
 interface VirtualizedTreeRowProps {
   /** The flattened tree item data */
   item: FlattenedTreeItem
   /** Style from virtualizer (contains transform for positioning) */
   style: React.CSSProperties
+  /** Tree density setting — controls row height (line spacing) */
+  treeRowSize: number
   /** Whether this item is currently selected */
   isSelected: boolean
   /** Whether this item is being renamed */
@@ -201,6 +205,7 @@ function arePropsEqual(
   }
   
   // 7. Display preferences
+  if (prevProps.treeRowSize !== nextProps.treeRowSize) return false
   if (prevProps.currentFolder !== nextProps.currentFolder) return false
   if (prevProps.lowercaseExtensions !== nextProps.lowercaseExtensions) return false
   if (prevProps.isOfflineMode !== nextProps.isOfflineMode) return false
@@ -229,6 +234,7 @@ function arePropsEqual(
 export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
   item,
   style,
+  treeRowSize,
   isSelected,
   isRenaming,
   renameValue,
@@ -374,7 +380,7 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
       style={{
         ...style,
         paddingLeft: TREE_BASE_PADDING_PX + depth * TREE_INDENT_PX,
-        height: TREE_ROW_HEIGHT
+        height: getTreeRowHeight(treeRowSize)
       }}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}

@@ -11,7 +11,7 @@
  * `ReviewsView` in change-control (which has Notifications/Pending/My Requests tabs).
  */
 
-import { useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   RefreshCw,
   Search,
@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Loader2,
   Inbox,
+  Settings2,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useReviewsDashboard } from './hooks/useReviewsDashboard'
@@ -205,10 +206,29 @@ export function ReviewsDashboard() {
     previewFile,
     navigateToFile,
     openFileExternally,
+    orgTeams,
+    visibleTeamIds,
+    setVisibleTeamIds,
+    activeTeamFilter,
+    setActiveTeamFilter,
   } = useReviewsDashboard()
 
+  const [showTeamConfig, setShowTeamConfig] = useState(false)
+  const teamConfigRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showTeamConfig) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (teamConfigRef.current && !teamConfigRef.current.contains(e.target as Node)) {
+        setShowTeamConfig(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showTeamConfig])
+
   // Whether any filter is actively reducing results
-  const hasActiveFilters = statusFilter !== 'all' || searchQuery.trim() !== ''
+  const hasActiveFilters = statusFilter !== 'all' || searchQuery.trim() !== '' || activeTeamFilter !== null
 
   const handleRefresh = useCallback(() => {
     refresh()
@@ -239,6 +259,89 @@ export function ReviewsDashboard() {
 
         {/* Status filter pills */}
         <StatusFilterPills current={statusFilter} onChange={setStatusFilter} />
+
+        {/* Team filter pills */}
+        {orgTeams.length > 0 && (
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <button
+              onClick={() => setActiveTeamFilter(null)}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded-full transition-colors whitespace-nowrap ${
+                activeTeamFilter === null
+                  ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/40'
+                  : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg border border-plm-border'
+              }`}
+            >
+              All Teams
+            </button>
+            {orgTeams
+              .filter(t => visibleTeamIds.has(t.id))
+              .map(team => (
+                <button
+                  key={team.id}
+                  onClick={() => setActiveTeamFilter(activeTeamFilter === team.id ? null : team.id)}
+                  className={`px-2 py-0.5 text-[10px] font-medium rounded-full transition-colors whitespace-nowrap flex items-center gap-1 ${
+                    activeTeamFilter === team.id
+                      ? 'border'
+                      : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg border border-plm-border'
+                  }`}
+                  style={activeTeamFilter === team.id ? {
+                    backgroundColor: `${team.color}20`,
+                    color: team.color,
+                    borderColor: `${team.color}60`,
+                  } : undefined}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: team.color }}
+                  />
+                  {team.name}
+                </button>
+              ))}
+            <div className="relative" ref={teamConfigRef}>
+              <button
+                onClick={() => setShowTeamConfig(!showTeamConfig)}
+                className="p-0.5 text-plm-fg-muted hover:text-plm-fg rounded transition-colors"
+                title="Configure visible teams"
+              >
+                <Settings2 size={12} />
+              </button>
+              {showTeamConfig && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl p-2 min-w-[160px]">
+                  <p className="text-[10px] text-plm-fg-muted uppercase tracking-wide mb-1 px-1">
+                    Visible Teams
+                  </p>
+                  {orgTeams.map(team => (
+                    <label
+                      key={team.id}
+                      className="flex items-center gap-2 px-1 py-1 text-xs text-plm-fg hover:bg-plm-highlight rounded cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visibleTeamIds.has(team.id)}
+                        onChange={() => {
+                          const next = new Set(visibleTeamIds)
+                          if (next.has(team.id)) {
+                            next.delete(team.id)
+                            if (activeTeamFilter === team.id) setActiveTeamFilter(null)
+                          } else {
+                            next.add(team.id)
+                          }
+                          setVisibleTeamIds(next)
+                        }}
+                        className="w-3 h-3 rounded border-plm-border text-plm-accent"
+                      />
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: team.color }}
+                      />
+                      {team.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Search box */}
         <div className="relative">

@@ -23,7 +23,8 @@ import {
   Star,
   LayoutGrid,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  ClipboardCheck
 } from 'lucide-react'
 import { PermissionsEditor } from '@/features/settings/organization/PermissionsEditor'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -37,8 +38,9 @@ import {
 import {
   TeamMembersDialog,
   TeamModulesDialog,
-  TeamVaultAccessDialog
+  TeamVaultAccessDialog,
 } from '../components/team'
+import { TeamReviewersDialog } from '../components/team/TeamReviewersDialog'
 
 export interface TeamsTabProps {
   /** Search query for filtering teams */
@@ -49,7 +51,7 @@ export interface TeamsTabProps {
 
 export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabProps) {
   // Get user/org info from store
-  const { user, organization, setOrganization, getEffectiveRole } = usePDMStore()
+  const { user, organization, setOrganization, getEffectiveRole, workflowRoles } = usePDMStore()
   const orgId = organization?.id ?? null
   const isAdmin = getEffectiveRole() === 'admin'
 
@@ -92,6 +94,8 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
     setShowPermissionsEditor,
     showModulesDialog,
     setShowModulesDialog,
+    showTeamReviewersDialog,
+    setShowTeamReviewersDialog,
     teamFormData,
     setTeamFormData,
     isSavingTeam,
@@ -104,7 +108,8 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
     setIsSavingTeamVaultAccess,
     resetTeamForm,
     openEditTeamDialog,
-    openModulesDialog
+    openModulesDialog,
+    openTeamReviewersDialog
   } = useTeamDialogs()
 
   // Local UI state
@@ -374,6 +379,16 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            openTeamReviewersDialog(team)
+                          }}
+                          className="btn btn-ghost btn-sm flex items-center gap-1.5"
+                        >
+                          <ClipboardCheck size={14} />
+                          Reviewers
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
                             openModulesDialog(team)
                           }}
                           className={`btn btn-ghost btn-sm flex items-center gap-1.5 ${
@@ -531,6 +546,19 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
             setSelectedTeam(null)
             loadTeams()
           }}
+        />
+      )}
+
+      {showTeamReviewersDialog && selectedTeam && (
+        <TeamReviewersDialog
+          team={selectedTeam}
+          orgUsers={orgUsers}
+          workflowRoles={workflowRoles}
+          onClose={() => {
+            setShowTeamReviewersDialog(false)
+            setSelectedTeam(null)
+          }}
+          userId={user?.id}
         />
       )}
     </div>

@@ -1,5 +1,6 @@
-import { memo } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { memo, useState } from 'react'
+import { Eye, EyeOff, Save, Send, Download, RotateCcw, User } from 'lucide-react'
+import { usePDMStore } from '@/stores/pdmStore'
 
 export interface ColumnConfig {
   id: string
@@ -20,7 +21,7 @@ export interface ColumnContextMenuProps {
 }
 
 /**
- * Context menu for toggling column visibility
+ * Context menu for toggling column visibility and managing column defaults
  */
 export const ColumnContextMenu = memo(function ColumnContextMenu({
   x,
@@ -30,6 +31,98 @@ export const ColumnContextMenu = memo(function ColumnContextMenu({
   onToggleVisibility,
   onClose
 }: ColumnContextMenuProps) {
+  const [showPushConfirm, setShowPushConfirm] = useState(false)
+  const isAdmin = usePDMStore(s => s.getEffectiveRole()) === 'admin'
+  const organization = usePDMStore(s => s.organization)
+  const user = usePDMStore(s => s.user)
+  const addToast = usePDMStore(s => s.addToast)
+
+  const handleSaveUserDefaults = async () => {
+    const result = await usePDMStore.getState().saveUserColumnDefaults()
+    if (result.success) {
+      addToast('success', 'Saved as your personal defaults')
+    } else {
+      addToast('error', result.error || 'Failed to save defaults')
+    }
+    onClose()
+  }
+
+  const handleLoadUserDefaults = async () => {
+    const result = await usePDMStore.getState().loadUserColumnDefaults()
+    if (result.success) {
+      addToast('success', 'Loaded your personal defaults')
+    } else {
+      addToast('error', result.error || 'Failed to load defaults')
+    }
+    onClose()
+  }
+
+  const handleSaveOrgDefaults = async () => {
+    const result = await usePDMStore.getState().saveOrgColumnDefaults()
+    if (result.success) {
+      addToast('success', 'Saved as organization defaults')
+    } else {
+      addToast('error', result.error || 'Failed to save defaults')
+    }
+    onClose()
+  }
+
+  const handlePushToAll = async () => {
+    const result = await usePDMStore.getState().forceOrgColumnDefaults()
+    if (result.success) {
+      addToast('success', 'Column layout pushed to all users')
+    } else {
+      addToast('error', result.error || 'Failed to push column layout')
+    }
+    onClose()
+  }
+
+  const handleLoadOrgDefaults = async () => {
+    const result = await usePDMStore.getState().loadOrgColumnDefaults()
+    if (result.success) {
+      addToast('success', 'Loaded organization defaults')
+    } else {
+      addToast('error', result.error || 'Failed to load defaults')
+    }
+    onClose()
+  }
+
+  const handleResetToDefaults = () => {
+    usePDMStore.getState().resetColumnsToDefaults()
+    addToast('info', 'Reset to application defaults')
+    onClose()
+  }
+
+  if (showPushConfirm) {
+    return (
+      <>
+        <div className="fixed inset-0 z-50" onClick={onClose} />
+        <div
+          className="context-menu w-64"
+          style={{ left: x, top: y }}
+        >
+          <div className="px-3 py-2 text-sm text-plm-fg">
+            Override <strong>every user's</strong> column layout with yours?
+          </div>
+          <div className="flex gap-1.5 px-3 py-2 border-t border-plm-border">
+            <button
+              onClick={() => setShowPushConfirm(false)}
+              className="flex-1 px-2 py-1 text-xs rounded hover:bg-plm-highlight text-plm-fg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handlePushToAll}
+              className="flex-1 px-2 py-1 text-xs rounded bg-plm-warning text-white hover:bg-plm-warning/90"
+            >
+              Push
+            </button>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <div 
@@ -37,7 +130,6 @@ export const ColumnContextMenu = memo(function ColumnContextMenu({
         onClick={onClose}
         onContextMenu={(e) => {
           e.preventDefault()
-          // Allow repositioning on right-click (handled by parent)
         }}
       />
       <div 
@@ -61,6 +153,70 @@ export const ColumnContextMenu = memo(function ColumnContextMenu({
             <span className={column.visible ? '' : 'text-plm-fg-muted'}>{getColumnLabel(column.id)}</span>
           </div>
         ))}
+
+        {user && (
+          <>
+            <div className="border-t border-plm-border my-1" />
+            
+            <div
+              className="context-menu-item"
+              onClick={handleSaveUserDefaults}
+            >
+              <User size={14} className="text-plm-accent" />
+              <span>Save as My Defaults</span>
+            </div>
+            
+            <div
+              className="context-menu-item"
+              onClick={handleLoadUserDefaults}
+            >
+              <Download size={14} className="text-plm-fg-muted" />
+              <span>Load My Defaults</span>
+            </div>
+          </>
+        )}
+
+        {organization && (
+          <>
+            <div className="border-t border-plm-border my-1" />
+            
+            {isAdmin && (
+              <div
+                className="context-menu-item"
+                onClick={handleSaveOrgDefaults}
+              >
+                <Save size={14} className="text-plm-accent" />
+                <span>Save as Org Default</span>
+              </div>
+            )}
+            
+            {isAdmin && (
+              <div
+                className="context-menu-item"
+                onClick={() => setShowPushConfirm(true)}
+              >
+                <Send size={14} className="text-plm-warning" />
+                <span>Push to All Users</span>
+              </div>
+            )}
+            
+            <div
+              className="context-menu-item"
+              onClick={handleLoadOrgDefaults}
+            >
+              <Download size={14} className="text-plm-fg-muted" />
+              <span>Load Org Defaults</span>
+            </div>
+            
+            <div
+              className="context-menu-item"
+              onClick={handleResetToDefaults}
+            >
+              <RotateCcw size={14} className="text-plm-fg-muted" />
+              <span>Reset to App Defaults</span>
+            </div>
+          </>
+        )}
       </div>
     </>
   )

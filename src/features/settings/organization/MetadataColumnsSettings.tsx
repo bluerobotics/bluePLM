@@ -10,7 +10,8 @@ import {
   EyeOff,
   ChevronUp,
   ChevronDown,
-  AlertTriangle
+  AlertTriangle,
+  Send
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
@@ -63,6 +64,9 @@ export function MetadataColumnsSettings() {
     setColumnWidth,
     saveOrgColumnDefaults,
     loadOrgColumnDefaults,
+    forceOrgColumnDefaults,
+    saveUserColumnDefaults,
+    loadUserColumnDefaults,
     resetColumnsToDefaults,
     getEffectiveRole
   } = usePDMStore()
@@ -71,7 +75,11 @@ export function MetadataColumnsSettings() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isSavingDefaults, setIsSavingDefaults] = useState(false)
+  const [isSavingUserDefaults, setIsSavingUserDefaults] = useState(false)
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(false)
+  const [isLoadingUserDefaults, setIsLoadingUserDefaults] = useState(false)
+  const [isPushing, setIsPushing] = useState(false)
+  const [showPushConfirm, setShowPushConfirm] = useState(false)
   
   // Editing state
   const [editingColumn, setEditingColumn] = useState<EditingColumn | null>(null)
@@ -82,7 +90,30 @@ export function MetadataColumnsSettings() {
   // Select options editing
   const [newOption, setNewOption] = useState('')
   
-  // Handle saving org defaults
+  const handleSaveUserDefaults = async () => {
+    setIsSavingUserDefaults(true)
+    const result = await saveUserColumnDefaults()
+    setIsSavingUserDefaults(false)
+    
+    if (result.success) {
+      addToast('success', 'Saved as your personal defaults')
+    } else {
+      addToast('error', result.error || 'Failed to save defaults')
+    }
+  }
+  
+  const handleLoadUserDefaults = async () => {
+    setIsLoadingUserDefaults(true)
+    const result = await loadUserColumnDefaults()
+    setIsLoadingUserDefaults(false)
+    
+    if (result.success) {
+      addToast('success', 'Loaded your personal defaults')
+    } else {
+      addToast('error', result.error || 'Failed to load defaults')
+    }
+  }
+  
   const handleSaveOrgDefaults = async () => {
     setIsSavingDefaults(true)
     const result = await saveOrgColumnDefaults()
@@ -95,7 +126,6 @@ export function MetadataColumnsSettings() {
     }
   }
   
-  // Handle loading org defaults
   const handleLoadOrgDefaults = async () => {
     setIsLoadingDefaults(true)
     const result = await loadOrgColumnDefaults()
@@ -108,10 +138,23 @@ export function MetadataColumnsSettings() {
     }
   }
   
-  // Handle reset to app defaults
   const handleResetToDefaults = () => {
     resetColumnsToDefaults()
     addToast('info', 'Reset to application defaults')
+  }
+  
+  // Handle force-push to all users
+  const handlePushToAllUsers = async () => {
+    setShowPushConfirm(false)
+    setIsPushing(true)
+    const result = await forceOrgColumnDefaults()
+    setIsPushing(false)
+    
+    if (result.success) {
+      addToast('success', 'Column layout pushed to all users')
+    } else {
+      addToast('error', result.error || 'Failed to push column layout')
+    }
   }
 
   // Load columns
@@ -756,17 +799,63 @@ export function MetadataColumnsSettings() {
 
       {/* Actions & Info */}
       <div className="p-4 bg-plm-bg rounded border border-plm-border space-y-3">
-        <div className="flex flex-wrap gap-2">
-          {isAdmin && organization && (
+        {/* Personal defaults - available to all users */}
+        {user && (
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={handleSaveOrgDefaults}
-              disabled={isSavingDefaults}
+              onClick={handleSaveUserDefaults}
+              disabled={isSavingUserDefaults}
               className="btn btn-primary btn-sm"
             >
-              {isSavingDefaults ? 'Saving...' : 'Save as Org Defaults'}
+              {isSavingUserDefaults ? 'Saving...' : 'Save as My Defaults'}
             </button>
-          )}
-          {organization && (
+            <button
+              onClick={handleLoadUserDefaults}
+              disabled={isLoadingUserDefaults}
+              className="btn btn-ghost btn-sm"
+            >
+              {isLoadingUserDefaults ? 'Loading...' : 'Load My Defaults'}
+            </button>
+            <button
+              onClick={handleResetToDefaults}
+              className="btn btn-ghost btn-sm text-plm-fg-muted"
+            >
+              Reset to App Defaults
+            </button>
+          </div>
+        )}
+        
+        {/* Org defaults - admin only for save/push, all users can load */}
+        {organization && (
+          <div className="flex flex-wrap gap-2">
+            {isAdmin && (
+              <button
+                onClick={handleSaveOrgDefaults}
+                disabled={isSavingDefaults}
+                className="btn btn-sm bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30 border border-plm-accent/30"
+              >
+                {isSavingDefaults ? 'Saving...' : 'Save as Org Defaults'}
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setShowPushConfirm(true)}
+                disabled={isPushing}
+                className="btn btn-sm bg-plm-warning/20 text-plm-warning hover:bg-plm-warning/30 border border-plm-warning/30 flex items-center gap-1.5"
+              >
+                {isPushing ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Pushing...
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} />
+                    Push to All Users
+                  </>
+                )}
+              </button>
+            )}
             <button
               onClick={handleLoadOrgDefaults}
               disabled={isLoadingDefaults}
@@ -774,16 +863,12 @@ export function MetadataColumnsSettings() {
             >
               {isLoadingDefaults ? 'Loading...' : 'Load Org Defaults'}
             </button>
-          )}
-          <button
-            onClick={handleResetToDefaults}
-            className="btn btn-ghost btn-sm text-plm-fg-muted"
-          >
-            Reset to App Defaults
-          </button>
-        </div>
+          </div>
+        )}
+        
         <p className="text-xs text-plm-fg-dim">
-          Column settings are saved locally per user. {isAdmin && 'Use "Save as Org Defaults" to set the starting configuration for new team members.'}
+          "Save as My Defaults" saves your column layout to the cloud so it syncs across devices.
+          {isAdmin && ' "Save as Org Defaults" sets the starting configuration for new team members. "Push to All Users" overrides every user\'s current column layout.'}
         </p>
       </div>
 
@@ -814,6 +899,38 @@ export function MetadataColumnsSettings() {
                 className="btn bg-plm-error text-white hover:bg-plm-error/90 disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Delete Column'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Push to All Users Confirmation Dialog */}
+      {showPushConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowPushConfirm(false)}>
+          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-plm-warning/20 rounded-full">
+                <Send size={20} className="text-plm-warning" />
+              </div>
+              <h3 className="text-lg font-medium text-plm-fg">Push to All Users</h3>
+            </div>
+            <p className="text-base text-plm-fg-muted mb-4">
+              This will override <strong>every user's</strong> column layout with your current configuration.
+            </p>
+            <p className="text-sm text-plm-fg-dim mb-4">
+              All connected users will receive the update immediately. Users who are offline
+              will receive it when they next open the app.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowPushConfirm(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button
+                onClick={handlePushToAllUsers}
+                className="btn bg-plm-warning text-white hover:bg-plm-warning/90"
+              >
+                Push to All Users
               </button>
             </div>
           </div>

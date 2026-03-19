@@ -542,6 +542,7 @@ export interface SettingsSlice {
   viewMode: 'list' | 'icons'
   iconSize: number
   listRowSize: number
+  treeRowSize: number
   theme: ThemeMode
   autoApplySeasonalThemes: boolean
   language: Language
@@ -591,6 +592,8 @@ export interface SettingsSlice {
   
   // State - Columns
   columns: ColumnConfig[]
+  /** Timestamp when user last synced/acknowledged org-forced column config (ms since epoch) */
+  columnConfigLastSyncedAt: number | null
   
   // State - Card View Fields (for icon/grid view)
   cardViewFields: CardViewFieldConfig[]
@@ -629,6 +632,7 @@ export interface SettingsSlice {
   setViewMode: (mode: 'list' | 'icons') => void
   setIconSize: (size: number) => void
   setListRowSize: (size: number) => void
+  setTreeRowSize: (size: number) => void
   setTheme: (theme: ThemeMode) => void
   setAutoApplySeasonalThemes: (enabled: boolean) => void
   setLanguage: (language: Language) => void
@@ -690,6 +694,12 @@ export interface SettingsSlice {
   reorderColumns: (columns: ColumnConfig[]) => void
   saveOrgColumnDefaults: () => Promise<{ success: boolean; error?: string }>
   loadOrgColumnDefaults: () => Promise<{ success: boolean; error?: string }>
+  /** Force-push current column config to all org users (admin only) */
+  forceOrgColumnDefaults: () => Promise<{ success: boolean; error?: string }>
+  /** Save current column config as the user's personal defaults (synced across devices) */
+  saveUserColumnDefaults: () => Promise<{ success: boolean; error?: string }>
+  /** Load the user's personal column defaults from the database */
+  loadUserColumnDefaults: () => Promise<{ success: boolean; error?: string }>
   resetColumnsToDefaults: () => void
   
   // Actions - Card View Fields
@@ -715,6 +725,8 @@ export interface UserSlice {
   isAuthenticated: boolean
   isOfflineMode: boolean
   isConnecting: boolean
+  /** True once Supabase's INITIAL_SESSION event has been processed (regardless of session presence) */
+  authInitialized: boolean
   impersonatedUser: ImpersonatedUser | null
   userTeams: Array<{ id: string; name: string; color: string; icon: string }> | null
   userPermissions: Record<string, string[]> | null
@@ -724,6 +736,7 @@ export interface UserSlice {
   
   // Actions
   setUser: (user: User | null) => void
+  setAuthInitialized: (initialized: boolean) => void
   setOrganization: (org: Organization | null) => void
   setOfflineMode: (offline: boolean) => void
   setIsConnecting: (connecting: boolean) => void

@@ -1,7 +1,7 @@
 /**
  * File Status column cell renderer
  */
-import { ArrowDown, Cloud, HardDrive, Loader2, Monitor } from 'lucide-react'
+import { AlertTriangle, ArrowDown, Cloud, HardDrive, Loader2, Monitor } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { useFilePaneContext, useFilePaneHandlers } from '../../../context'
 import type { CellRendererBaseProps } from './types'
@@ -30,8 +30,9 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
   // 1. Update files (outdated) - needs update from server
   // 2. Cloud files (cloud only, not downloaded)
   // 3. Avatar checkout (checked out by someone)
-  // 4. Green cloud (synced/checked in)
-  // 5. Local files (not synced) - lowest priority
+  // 4. Drift warning (checked in but local differs from server)
+  // 5. Green cloud (synced/checked in)
+  // 6. Local files (not synced) - lowest priority
   
   // 0. HIGHEST: Processing state - show spinner immediately
   if (operationType) {
@@ -116,7 +117,22 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
     )
   }
   
-  // 4. Green cloud (synced/checked in - has pdmData, no checkout)
+  // 4. Drift warning: checked in but local file differs from server.
+  // SolidWorks can modify a file after check-in (e.g., reference rebuild),
+  // leaving local changes that are NOT on the server and NOT protected by a lock.
+  if (file.pdmData && !file.pdmData.checked_out_by && file.diffStatus === 'modified') {
+    return (
+      <span
+        className="flex items-center gap-1 text-plm-warning"
+        title="Local file has changes the server does not have. Check out and check in again to save them."
+      >
+        <AlertTriangle size={12} className="flex-shrink-0" />
+        Unsaved Changes
+      </span>
+    )
+  }
+  
+  // 5. Green cloud (synced/checked in - has pdmData, no checkout)
   if (file.pdmData) {
     return (
       <span className="flex items-center gap-1 text-plm-success" title="Synced and checked in">
@@ -126,7 +142,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
     )
   }
   
-  // 5. LOWEST: Local files (not synced - no pdmData)
+  // 6. LOWEST: Local files (not synced - no pdmData)
   return (
     <span className="flex items-center gap-1 text-plm-fg-muted" title="Local file - not yet synced to cloud">
       <HardDrive size={12} className="flex-shrink-0" />

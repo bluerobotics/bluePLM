@@ -15,9 +15,9 @@ import { useSyncExternalStore } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider } from '../types/modules'
-import { getDefaultModuleConfig } from '../types/modules'
+import { getDefaultModuleConfig, MODULES, getChildModules } from '../types/modules'
 import type { KeybindingsConfig, SettingsTab } from '../types/settings'
-import type { PDMStoreState, Tab, ConnectedVault, StagedCheckin, PendingMetadata, ThemeMode, Language, CardViewFieldConfig } from './types'
+import type { PDMStoreState, Tab, ConnectedVault, StagedCheckin, PendingMetadata, ThemeMode, Language, CardViewFieldConfig, SidebarView } from './types'
 import { CURRENT_STORE_VERSION, runMigrations, getPersistedVersion } from './migrations'
 
 /**
@@ -128,7 +128,9 @@ export const usePDMStore = create<PDMStoreState>()(
         viewMode: state.viewMode,
         iconSize: state.iconSize,
         listRowSize: state.listRowSize,
+        treeRowSize: state.treeRowSize,
         columns: state.columns,
+        columnConfigLastSyncedAt: state.columnConfigLastSyncedAt,
         cardViewFields: state.cardViewFields,
         lowercaseExtensions: state.lowercaseExtensions,
         
@@ -272,6 +274,17 @@ export const usePDMStore = create<PDMStoreState>()(
         const activeVault = deduplicatedVaults.find(v => v.id === validActiveVaultId)
         const validVaultPath = activeVault?.localPath || (persisted.vaultPath as string | null)
         
+        // Ensure activeView is a valid module ID (not a group ID like 'group-source-files')
+        const persistedActiveView = persisted.activeView as string | undefined
+        const validModuleIds: Set<string> = new Set(MODULES.map(m => m.id))
+        let validActiveView: SidebarView = 'explorer'
+        if (persistedActiveView && validModuleIds.has(persistedActiveView)) {
+          validActiveView = persistedActiveView as SidebarView
+        } else if (persistedActiveView?.startsWith('group-')) {
+          const children = getChildModules(persistedActiveView, getDefaultModuleConfig())
+          validActiveView = (children[0]?.id ?? 'explorer') as SidebarView
+        }
+        
         return {
           ...currentState,
           ...persisted,
@@ -281,6 +294,8 @@ export const usePDMStore = create<PDMStoreState>()(
           activeVaultId: validActiveVaultId,
           // Use validated vaultPath
           vaultPath: validVaultPath,
+          // Use validated activeView (prevents group IDs like 'group-source-files' from persisting)
+          activeView: validActiveView,
           // Convert expandedFolders back to Set
           expandedFolders: new Set(persisted.expandedFolders as string[] || []),
           // Convert expandedPendingSections back to Set
@@ -311,6 +326,7 @@ export const usePDMStore = create<PDMStoreState>()(
           iconSize: (persisted.iconSize as number) || 96,
           // Ensure listRowSize has a default
           listRowSize: (persisted.listRowSize as number) || 24,
+          treeRowSize: (persisted.treeRowSize as number) || 24,
           // Ensure theme has a default
           theme: (persisted.theme as ThemeMode) || 'dark',
           // Restore autoApplySeasonalThemes (default to true)
@@ -447,19 +463,12 @@ export const usePDMStore = create<PDMStoreState>()(
               }
             }
             
-            // Module parents - use defaults, only override for user-customized values
+            // Module parents - start from defaults, overlay persisted values
             const moduleParents = { ...defaults.moduleParents }
-            if (persistedConfig.moduleParents) {
-              // Check if persisted has any group-based parents (new format)
-              const hasGroupParents = Object.values(persistedConfig.moduleParents).some(
-                (v) => typeof v === 'string' && v.startsWith('group-')
-              )
-              // Only merge if user has customized (has group parents)
-              if (hasGroupParents) {
-                for (const [key, value] of Object.entries(persistedConfig.moduleParents)) {
-                  if (key in moduleParents) {
-                    moduleParents[key as ModuleId] = value as ModuleId | null
-                  }
+            if (persistedConfig.moduleParents && Object.keys(persistedConfig.moduleParents).length > 0) {
+              for (const [key, value] of Object.entries(persistedConfig.moduleParents)) {
+                if (key in moduleParents) {
+                  moduleParents[key as ModuleId] = value as ModuleId | null
                 }
               }
             }
@@ -490,6 +499,8 @@ export const usePDMStore = create<PDMStoreState>()(
           })(),
           // Module config sync timestamp (when user last synced org-forced config)
           moduleConfigLastSyncedAt: (persisted.moduleConfigLastSyncedAt as number | null) || null,
+          // Column config sync timestamp (when user last synced org-forced column config)
+          columnConfigLastSyncedAt: (persisted.columnConfigLastSyncedAt as number | null) || null,
           // Ensure there's always at least one tab
           tabs: (() => {
             const persistedTabs = persisted.tabs as Tab[] | undefined

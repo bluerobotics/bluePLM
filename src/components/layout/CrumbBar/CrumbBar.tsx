@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronRight, ChevronDown, ChevronUp, Home, ArrowLeft, ArrowRight, RefreshCw, Folder } from 'lucide-react'
+import { ChevronRight, ChevronUp, Home, ArrowLeft, ArrowRight, RefreshCw, Folder } from 'lucide-react'
 import { buildFullPath } from '@/lib/utils/path'
 import { logExplorer } from '@/lib/userActionLogger'
 
@@ -308,7 +308,7 @@ export function CrumbBar({
                   }`}
                   title="Show folders"
                 >
-                  <ChevronDown size={14} />
+                  <ChevronRight size={14} />
                 </button>
                 {openDropdown === '__root__' && (
                   <BreadcrumbDropdown
@@ -329,7 +329,6 @@ export function CrumbBar({
               
               return (
                 <div key={pathUpToHere} className="flex items-center gap-0.5 min-w-0">
-                  <ChevronRight size={18} className="text-plm-fg-muted flex-shrink-0" />
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -369,7 +368,7 @@ export function CrumbBar({
                         }`}
                         title="Show folders"
                       >
-                        <ChevronDown size={14} />
+                        <ChevronRight size={14} />
                       </button>
                       {openDropdown === dropdownKey && (
                         <BreadcrumbDropdown

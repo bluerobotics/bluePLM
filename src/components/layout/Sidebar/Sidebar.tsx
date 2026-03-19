@@ -3,7 +3,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { useLoadFiles, useVaultManagement } from '@/hooks'
 import { MODULE_LABELS, getModuleTitle } from '@/constants/moduleLabels'
 import { isModuleVisible } from '@/types/modules'
-import { Loader2, Construction } from 'lucide-react'
+import { Loader2, Construction, List } from 'lucide-react'
 
 // Eagerly loaded views (always needed)
 import { SettingsNavigation } from '@/features/settings'
@@ -75,6 +75,8 @@ export function Sidebar() {
   const moduleConfig = usePDMStore(s => s.moduleConfig)
   const settingsTab = usePDMStore(s => s.settingsTab)
   const setSettingsTab = usePDMStore(s => s.setSettingsTab)
+  const treeRowSize = usePDMStore(s => s.treeRowSize)
+  const setTreeRowSize = usePDMStore(s => s.setTreeRowSize)
   
   // Call hooks directly instead of receiving as props
   const { loadFiles } = useLoadFiles()
@@ -312,9 +314,19 @@ export function Sidebar() {
       <div className="sidebar-header h-9 flex items-center justify-between px-4 text-[11px] font-semibold text-plm-fg-dim tracking-wide border-b border-plm-border">
         <span>{getModuleTitle(activeView)}</span>
         {activeView === 'explorer' && connectedVaults.length > 0 && (
-          <span className="text-plm-fg-muted font-normal">
-            {connectedVaults.length} vault{connectedVaults.length > 1 ? 's' : ''}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <List size={10} className="text-plm-fg-muted" />
+            <input
+              type="range"
+              min="16"
+              max="64"
+              value={treeRowSize}
+              onChange={(e) => setTreeRowSize(Number(e.target.value))}
+              className="w-14 h-0.5 accent-plm-accent cursor-pointer"
+              title={`Tree density: ${treeRowSize}px`}
+            />
+            <List size={14} className="text-plm-fg-muted" />
+          </div>
         )}
       </div>
       <div className="flex-1 overflow-auto">

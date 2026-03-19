@@ -2342,6 +2342,7 @@ export type Database = {
           email_domains: string[]
           google_drive_client_id: string | null
           google_drive_client_secret: string | null
+          column_defaults_forced_at: string | null
           google_drive_enabled: boolean | null
           id: string
           logo_storage_path: string | null
@@ -2367,6 +2368,7 @@ export type Database = {
           contact_email?: string | null
           country?: string | null
           created_at?: string | null
+          column_defaults_forced_at?: string | null
           default_new_user_team_id?: string | null
           email_domains?: string[]
           google_drive_client_id?: string | null
@@ -2395,6 +2397,7 @@ export type Database = {
           address_line2?: string | null
           auth_providers?: Json | null
           city?: string | null
+          column_defaults_forced_at?: string | null
           contact_email?: string | null
           country?: string | null
           created_at?: string | null
@@ -6655,6 +6658,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      force_org_column_defaults: {
+        Args: {
+          p_column_defaults: Json
+          p_org_id: string
+        }
+        Returns: Json
+      }
       force_org_module_defaults: {
         Args: {
           p_custom_groups?: Json
@@ -6807,6 +6817,7 @@ export type Database = {
           last_sync_status: string
         }[]
       }
+      get_org_column_defaults: { Args: { p_org_id: string }; Returns: Json }
       get_org_module_defaults: { Args: { p_org_id: string }; Returns: Json }
       get_org_odoo_configs: {
         Args: { p_org_id: string }
@@ -6974,6 +6985,13 @@ export type Database = {
       regenerate_org_slug: { Args: never; Returns: Json }
       remove_pending_license_assignment: {
         Args: { p_license_id: string; p_pending_member_id: string }
+        Returns: Json
+      }
+      set_org_column_defaults: {
+        Args: {
+          p_column_defaults: Json
+          p_org_id: string
+        }
         Returns: Json
       }
       set_org_module_defaults: {
@@ -7148,7 +7166,7 @@ export type Database = {
         | "stl"
         | "dwg"
         | "dxf_flat"
-      review_status: "pending" | "approved" | "rejected" | "cancelled"
+      review_status: "pending" | "approved" | "rejected" | "cancelled" | "kicked_back"
       reviewer_type: "user" | "role" | "group" | "workflow_role"
       revision_scheme: "letter" | "numeric"
       revision_scheme_type:
@@ -7425,7 +7443,7 @@ export const Constants = {
         "dwg",
         "dxf_flat",
       ],
-      review_status: ["pending", "approved", "rejected", "cancelled"],
+      review_status: ["pending", "approved", "rejected", "cancelled", "kicked_back"],
       reviewer_type: ["user", "role", "group", "workflow_role"],
       revision_scheme: ["letter", "numeric"],
       revision_scheme_type: [

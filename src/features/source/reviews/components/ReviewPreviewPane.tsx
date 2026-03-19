@@ -31,7 +31,6 @@ export function ReviewPreviewPane() {
   const setShowCommentInput = usePDMStore(s => s.setShowCommentInput)
   const setPendingAnnotation = usePDMStore(s => s.setPendingAnnotation)
   const clearAnnotations = usePDMStore(s => s.clearAnnotations)
-  const rightPanelVisible = usePDMStore(s => s.rightPanelVisible)
 
   // Clear annotations when the preview file changes or unmounts
   useEffect(() => {
@@ -136,8 +135,8 @@ export function ReviewPreviewPane() {
           />
         </div>
 
-        {/* Comment Sidebar - only when file has a database ID and right panel is visible */}
-        {fileId && rightPanelVisible && (
+        {/* Comment Sidebar - always shown when file has a database ID */}
+        {fileId && (
           <div className="flex-[3] min-w-[220px] max-w-[400px] border-l border-plm-border">
             <CommentSidebar
               fileId={fileId}

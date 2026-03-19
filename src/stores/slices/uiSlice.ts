@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, UISlice, SidebarView, DetailsPanelTab, SettingsTab } from '../types'
 import type { Clipboard } from '@/lib/fileOperations/types'
+import { getChildModules, getDefaultModuleConfig } from '@/types/modules'
 
 export const createUISlice: StateCreator<
   PDMStoreState,
@@ -10,7 +11,7 @@ export const createUISlice: StateCreator<
 > = (set, get) => ({
   // Initial state - Layout
   sidebarVisible: true,
-  sidebarWidth: 280,
+  sidebarWidth: 380,
   activityBarMode: 'hover',
   activeView: 'explorer',
   detailsPanelVisible: true,
@@ -76,10 +77,14 @@ export const createUISlice: StateCreator<
   setActivityBarMode: (mode) => set({ activityBarMode: mode }),
   
   setActiveView: (activeView: SidebarView) => {
+    let resolvedView = activeView
+    if ((resolvedView as string).startsWith('group-')) {
+      const children = getChildModules(resolvedView as string, getDefaultModuleConfig())
+      resolvedView = (children[0]?.id ?? 'explorer') as SidebarView
+    }
     const prev = get().activeView
-    const patch: Partial<PDMStoreState> = { activeView, sidebarVisible: true }
-    // Auto-clear review preview when leaving reviews view
-    if (prev === 'reviews' && activeView !== 'reviews') {
+    const patch: Partial<PDMStoreState> = { activeView: resolvedView, sidebarVisible: true }
+    if (prev === 'reviews' && resolvedView !== 'reviews') {
       patch.reviewPreviewFile = null
     }
     set(patch)

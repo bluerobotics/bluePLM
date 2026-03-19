@@ -5,7 +5,6 @@ import { refreshMetadataForFiles } from '@/lib/commands/handlers/syncMetadata'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { SetupScreen } from '@/components/shared/Screens'
 import { OnboardingScreen } from '@/components/shared/Screens'
-import { SplashScreen } from '@/components/core'
 import { PerformanceWindow } from '@/features/dev-tools/performance'
 import { TabWindow, isTabWindowMode, parseTabWindowParams } from '@/components/layout'
 import { AppShell } from '@/components/layout'
@@ -371,6 +370,22 @@ function App() {
       })
     }
   }, [organization?.module_defaults_forced_at])
+
+  // Check if admin has force-pushed column config since last sync
+  useEffect(() => {
+    if (!(organization as any)?.column_defaults_forced_at) return
+    
+    const { columnConfigLastSyncedAt, loadOrgColumnDefaults, addToast: storeAddToast } = usePDMStore.getState()
+    const forcedAt = new Date((organization as any).column_defaults_forced_at).getTime()
+    const lastSynced = columnConfigLastSyncedAt || 0
+    
+    if (forcedAt > lastSynced) {
+      log.info('[App]', 'Force-applying org column config', { forcedAt, lastSynced })
+      loadOrgColumnDefaults().then(() => {
+        storeAddToast('info', 'Column layout updated by admin')
+      })
+    }
+  }, [(organization as any)?.column_defaults_forced_at])
 
   // Validate connected vault IDs after organization loads
   useEffect(() => {
@@ -852,18 +867,9 @@ function App() {
   // Only show minimal menu bar on the sign-in screen (not authenticated)
   const isSignInScreen = !user && !isOfflineMode
   
-  // Show splash screen during startup (before everything else)
-  // This blocks until core systems and extensions are initialized
+  // Block rendering until core systems and extensions are initialized
   if (!startup.isReady) {
-    return (
-      <SplashScreen
-        stage={startup.stage}
-        stageName={startup.stageName}
-        status={startup.status}
-        errors={startup.errors}
-        onContinue={startup.continueWithErrors}
-      />
-    )
+    return <div className="h-screen w-screen bg-plm-bg" />
   }
   
   // Show onboarding screen on first app boot (before Supabase setup)

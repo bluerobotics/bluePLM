@@ -1,11 +1,10 @@
 /**
  * ReviewFileRow - A single review entry in the Reviews Dashboard.
  *
- * Displays: part number, revision, version, description, filename,
- * status badge, priority, due date, requester, and reviewer chips.
+ * Compact layout with description inline alongside part number badges.
+ * Action buttons (Approve, Kick Back, Remove) are shown on the right.
  *
- * Click opens the PDF preview. Right-click shows a context menu.
- * Action buttons (Approve, Kick Back, Remove) are visible on the right.
+ * Click opens the PDF preview pane. Right-click shows a context menu.
  */
 
 import { useState, useCallback, useRef, useEffect, memo } from 'react'
@@ -262,8 +261,6 @@ export const ReviewFileRow = memo(function ReviewFileRow({
   const approvedCount = responses.filter(r => r.status === 'approved').length
   const totalCount = responses.length
 
-  // Find the current user's pending response (for approve/kick back actions)
-  // Check both reviewer_id (direct column) and reviewer?.id (joined user object) as fallback
   const myPendingResponse = responses.find(
     r => (r.reviewer_id === userId || r.reviewer?.id === userId) && (r.status === 'pending' || r.status === 'kicked_back')
   )
@@ -278,7 +275,6 @@ export const ReviewFileRow = memo(function ReviewFileRow({
     if (myPendingResponse) onRespond(myPendingResponse.id, 'kicked_back')
   }, [myPendingResponse, onRespond])
 
-  // Border color based on status, with active highlight override
   const borderColor = isActive
     ? 'border-plm-accent bg-plm-accent/5'
     : review.status === 'approved' ? 'border-plm-success/30 hover:border-plm-success/50' :
@@ -287,9 +283,8 @@ export const ReviewFileRow = memo(function ReviewFileRow({
 
   return (
     <div className={`bg-plm-bg-light border rounded-lg overflow-hidden transition-colors ${borderColor} relative`}>
-      {/* Main area – click to preview, right-click for context menu */}
       <div
-        className="p-2.5 cursor-pointer select-none"
+        className="p-2 cursor-pointer select-none"
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         title="Click to preview, right-click for more options"
@@ -297,68 +292,58 @@ export const ReviewFileRow = memo(function ReviewFileRow({
         <div className="flex items-start gap-2">
           {/* File info */}
           <div className="flex-1 min-w-0">
-            {/* Row 1: Part number | Rev | Version */}
-            <div className="flex items-center gap-2">
+            {/* Row 1: badges + inline description */}
+            <div className="flex items-center gap-1.5">
               {review.file?.part_number && (
-                <span className="text-[13px] font-bold text-plm-fg bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded flex-shrink-0">
+                <span className="text-[11px] font-bold bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded flex-shrink-0">
                   {review.file.part_number}
                 </span>
               )}
               {review.file?.revision && (
-                <span className="text-[11px] font-bold bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded flex-shrink-0">
+                <span className="text-[10px] font-bold bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded flex-shrink-0">
                   Rev {review.file.revision}
                 </span>
               )}
               {review.file_version != null && (
-                <span className="text-[11px] font-bold bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded flex-shrink-0">
+                <span className="text-[10px] font-bold bg-teal-500/20 text-teal-300 px-1.5 py-0.5 rounded flex-shrink-0">
                   v{review.file_version}
+                </span>
+              )}
+              {review.file?.description && (
+                <span className="text-[11px] text-plm-fg truncate">
+                  {review.file.description}
                 </span>
               )}
             </div>
 
-            {/* Row 2: Description */}
-            {review.file?.description && (
-              <p className="text-[11px] text-plm-fg mt-0.5 truncate">
-                {review.file.description}
-              </p>
-            )}
-
-            {/* Row 3: Filename */}
-            <div className="flex items-center gap-1 mt-0.5">
-              <FileText size={12} className="text-plm-fg-muted flex-shrink-0" />
-              <span className="text-[11px] text-plm-fg-muted truncate">
-                {review.file?.file_name || 'Unknown file'}
-              </span>
-            </div>
-
-            {/* Status row: status badge, priority, due date */}
-            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {/* Row 2: status, priority, due date, filename, requester, time, avatars */}
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               <StatusBadge status={review.status as ReviewStatus} />
               <PriorityBadge priority={review.priority} />
               <DueDateBadge dueDate={review.due_date} />
-            </div>
-
-            {/* Requester + reviewer chips row */}
-            <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex items-center gap-0.5 min-w-0">
+                <FileText size={10} className="text-plm-fg-muted flex-shrink-0" />
+                <span className="text-[10px] text-plm-fg-muted truncate max-w-[120px]">
+                  {review.file?.file_name || 'Unknown file'}
+                </span>
+              </div>
               <span className="text-[10px] text-plm-fg-muted">
                 by {review.requester?.full_name || review.requester?.email?.split('@')[0] || 'Unknown'}
               </span>
-              <span className="text-plm-fg-muted">·</span>
+              <span className="text-plm-fg-muted text-[10px]">&middot;</span>
               <span className="text-[10px] text-plm-fg-muted">
                 {formatRelativeTime(review.created_at ?? null)}
               </span>
-
-              {/* Reviewer chips */}
               {totalCount > 0 && (
                 <>
-                  <span className="text-plm-fg-muted">·</span>
+                  <span className="text-plm-fg-muted text-[10px]">&middot;</span>
                   <div className="flex -space-x-1.5 items-center">
                     {responses.slice(0, 4).map(resp => (
                       <AvatarChip
                         key={resp.id}
                         user={resp.reviewer}
                         status={resp.status as ReviewStatus}
-                        size={18}
+                        size={16}
                       />
                     ))}
                     {totalCount > 4 && (
@@ -374,9 +359,9 @@ export const ReviewFileRow = memo(function ReviewFileRow({
           </div>
 
           {/* Action buttons - right side */}
-          {isPending && (
+          {(isPending && myPendingResponse || isRequester && review.status !== 'cancelled') && (
             <div className="flex flex-col gap-1.5 flex-shrink-0 ml-1">
-              {myPendingResponse && (
+              {isPending && myPendingResponse && (
                 <>
                   <button
                     onClick={handleApprove}
@@ -394,7 +379,7 @@ export const ReviewFileRow = memo(function ReviewFileRow({
                   </button>
                 </>
               )}
-              {isRequester && (
+              {isRequester && review.status !== 'cancelled' && (
                 <button
                   onClick={handleCancelClick}
                   className="px-3 py-1 text-[11px] font-medium text-plm-fg-muted hover:text-plm-error bg-plm-fg-muted/10 hover:bg-plm-error/15 border border-plm-border rounded transition-colors flex items-center gap-1"

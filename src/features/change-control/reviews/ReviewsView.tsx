@@ -649,8 +649,8 @@ export function ReviewsView() {
                         ))}
                       </div>
                       
-                      {/* Cancel button for pending reviews */}
-                      {review.status === 'pending' && (
+                      {/* Cancel button for non-cancelled reviews */}
+                      {review.status !== 'cancelled' && (
                         <button
                           onClick={() => handleCancelReview(review.id)}
                           className="w-full px-3 py-2 text-xs font-medium text-plm-error hover:bg-plm-error/10 rounded flex items-center justify-center gap-1.5 transition-colors"

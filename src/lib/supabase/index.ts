@@ -110,8 +110,13 @@ export {
   loadImpersonatedUserContext,
   checkPermission,
   checkPermissions,
-  getOrgTeams
+  getOrgTeams,
+  getTeamReviewers,
+  addTeamReviewer,
+  removeTeamReviewer
 } from './teams'
+
+export type { TeamReviewerRow } from './teams'
 
 // ============================================
 // Vault exports
@@ -145,10 +150,11 @@ export {
   respondToReview,
   cancelReview,
   checkReviewTrigger,
-  getOrgTeamsWithMembers
+  getOrgTeamsWithMembers,
+  resolveTeamReviewers
 } from './reviews'
 
-export type { TeamMember, TeamWithMembers } from './reviews'
+export type { TeamMember, TeamWithMembers, TeamReviewerConfig } from './reviews'
 
 // ============================================
 // File Watcher exports

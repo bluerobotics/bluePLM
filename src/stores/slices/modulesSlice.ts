@@ -227,14 +227,15 @@ export const createModulesSlice: StateCreator<
       
       const defaults = Array.isArray(data) ? data[0] : data
       if (defaults) {
+        const appDefaults = getDefaultModuleConfig()
         const moduleConfig: ModuleConfig = {
-          enabledModules: defaults.enabled_modules || getDefaultModuleConfig().enabledModules,
-          enabledGroups: defaults.enabled_groups || getDefaultModuleConfig().enabledGroups,
-          moduleOrder: defaults.module_order || getDefaultModuleConfig().moduleOrder,
-          dividers: defaults.dividers || getDefaultModuleConfig().dividers,
-          moduleParents: defaults.module_parents || getDefaultModuleConfig().moduleParents,
-          moduleIconColors: defaults.module_icon_colors || getDefaultModuleConfig().moduleIconColors,
-          customGroups: defaults.custom_groups || getDefaultModuleConfig().customGroups,
+          enabledModules: { ...appDefaults.enabledModules, ...(defaults.enabled_modules || {}) },
+          enabledGroups: { ...appDefaults.enabledGroups, ...(defaults.enabled_groups || {}) },
+          moduleOrder: defaults.module_order || appDefaults.moduleOrder,
+          dividers: defaults.dividers || appDefaults.dividers,
+          moduleParents: { ...appDefaults.moduleParents, ...(defaults.module_parents || {}) },
+          moduleIconColors: { ...appDefaults.moduleIconColors, ...(defaults.module_icon_colors || {}) },
+          customGroups: defaults.custom_groups || appDefaults.customGroups,
         }
         // Update config and track sync time
         set({ moduleConfig, moduleConfigLastSyncedAt: Date.now() })
@@ -315,15 +316,17 @@ export const createModulesSlice: StateCreator<
       if (error) throw error
       
       // Convert from database format (snake_case) to TypeScript format (camelCase)
+      // Merge with app defaults so new modules added after save are included
       if (data) {
+        const appDefaults = getDefaultModuleConfig()
         const defaults: OrgModuleDefaults = {
-          enabledModules: data.enabled_modules || {},
-          enabledGroups: data.enabled_groups || {},
-          moduleOrder: data.module_order || [],
-          dividers: data.dividers || [],
-          moduleParents: data.module_parents || {},
-          moduleIconColors: data.module_icon_colors || {},
-          customGroups: data.custom_groups || []
+          enabledModules: { ...appDefaults.enabledModules, ...(data.enabled_modules || {}) },
+          enabledGroups: { ...appDefaults.enabledGroups, ...(data.enabled_groups || {}) },
+          moduleOrder: data.module_order || appDefaults.moduleOrder,
+          dividers: data.dividers || appDefaults.dividers,
+          moduleParents: { ...appDefaults.moduleParents, ...(data.module_parents || {}) },
+          moduleIconColors: { ...appDefaults.moduleIconColors, ...(data.module_icon_colors || {}) },
+          customGroups: data.custom_groups || appDefaults.customGroups,
         }
         return { success: true, defaults }
       }
@@ -377,15 +380,17 @@ export const createModulesSlice: StateCreator<
       if (error) throw error
       
       // Convert from database format (snake_case) to TypeScript format (camelCase)
+      // Merge with app defaults so new modules added after save are included
       if (data) {
+        const appDefaults = getDefaultModuleConfig()
         const defaults: OrgModuleDefaults = {
-          enabledModules: data.enabled_modules || {},
-          enabledGroups: data.enabled_groups || {},
-          moduleOrder: data.module_order || [],
-          dividers: data.dividers || [],
-          moduleParents: data.module_parents || {},
-          moduleIconColors: data.module_icon_colors || {},
-          customGroups: data.custom_groups || []
+          enabledModules: { ...appDefaults.enabledModules, ...(data.enabled_modules || {}) },
+          enabledGroups: { ...appDefaults.enabledGroups, ...(data.enabled_groups || {}) },
+          moduleOrder: data.module_order || appDefaults.moduleOrder,
+          dividers: data.dividers || appDefaults.dividers,
+          moduleParents: { ...appDefaults.moduleParents, ...(data.module_parents || {}) },
+          moduleIconColors: { ...appDefaults.moduleIconColors, ...(data.module_icon_colors || {}) },
+          customGroups: data.custom_groups || appDefaults.customGroups,
         }
         return { success: true, defaults }
       }

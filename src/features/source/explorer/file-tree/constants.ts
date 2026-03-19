@@ -27,3 +27,11 @@ export const TREE_BASE_PADDING_PX = 8
 
 // Diff status class prefix
 export const DIFF_STATUS_CLASS_PREFIX = 'sidebar-diff-'
+
+/** Default listRowSize value — keep in sync with settingsSlice default */
+export const DEFAULT_LIST_ROW_SIZE = 24
+
+/** Derive tree row height from the shared listRowSize setting (line-spacing only) */
+export function getTreeRowHeight(listRowSize: number) {
+  return listRowSize + 4
+}

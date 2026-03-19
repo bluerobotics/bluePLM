@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
-import { getOrgTeamsWithMembers, type TeamWithMembers } from '@/lib/supabase'
+import { getOrgTeamsWithMembers, resolveTeamReviewers, type TeamWithMembers } from '@/lib/supabase'
 import { log } from '@/lib/logger'
 
 // ============================================
@@ -44,7 +44,7 @@ export interface ReviewRequestModalProps {
   onDueDateChange: (date: string) => void
   onPriorityChange: (priority: string) => void
   onMessageChange: (message: string) => void
-  onSubmit: () => void
+  onSubmit: (teamId?: string) => void
   onClose: () => void
 }
 
@@ -71,19 +71,25 @@ function useTeamSelection(
     const ids = new Set<string>()
     for (const team of teams) {
       if (selectedTeamIds.has(team.id)) {
-        for (const member of team.members) {
-          ids.add(member.id)
+        const resolved = resolveTeamReviewers(team)
+        for (const uid of resolved) {
+          ids.add(uid)
         }
       }
     }
     return ids
   }, [teams, selectedTeamIds])
 
-  /** Toggle an entire team – selects or deselects all its members */
+  /**
+   * Toggle an entire team – resolves reviewer config to get the actual
+   * user IDs, then selects/deselects them.
+   */
   const toggleTeam = useCallback(
     (teamId: string) => {
       const team = teams.find((t) => t.id === teamId)
       if (!team) return
+
+      const resolvedIds = resolveTeamReviewers(team)
 
       setSelectedTeamIds((prev) => {
         const next = new Set(prev)
@@ -91,22 +97,19 @@ function useTeamSelection(
 
         if (isSelected) {
           next.delete(teamId)
-          // Deselect members that are ONLY in this team and not individually selected
-          for (const member of team.members) {
-            // Only remove if no other selected team contains this member
+          for (const uid of resolvedIds) {
             const inOtherSelectedTeam = teams.some(
-              (t) => t.id !== teamId && next.has(t.id) && t.members.some((m) => m.id === member.id)
+              (t) => t.id !== teamId && next.has(t.id) && resolveTeamReviewers(t).includes(uid)
             )
-            if (!inOtherSelectedTeam && selectedReviewers.includes(member.id)) {
-              onToggleReviewer(member.id)
+            if (!inOtherSelectedTeam && selectedReviewers.includes(uid)) {
+              onToggleReviewer(uid)
             }
           }
         } else {
           next.add(teamId)
-          // Select all members of this team
-          for (const member of team.members) {
-            if (!selectedReviewers.includes(member.id)) {
-              onToggleReviewer(member.id)
+          for (const uid of resolvedIds) {
+            if (!selectedReviewers.includes(uid)) {
+              onToggleReviewer(uid)
             }
           }
         }
@@ -127,12 +130,19 @@ function useTeamSelection(
     })
   }, [])
 
+  /** The most recently selected single team ID (for tracking on the review record) */
+  const lastSelectedTeamId = useMemo(() => {
+    const ids = Array.from(selectedTeamIds)
+    return ids.length === 1 ? ids[0] : ids.length > 0 ? ids[ids.length - 1] : undefined
+  }, [selectedTeamIds])
+
   return {
     selectedTeamIds,
     expandedTeamIds,
     teamSelectedUserIds,
     toggleTeam,
     toggleExpand,
+    lastSelectedTeamId,
   }
 }
 
@@ -172,7 +182,7 @@ export const ReviewRequestModal = memo(function ReviewRequestModal({
   const resolvedOrgId = organizationId ?? storeOrgId
 
   // ── Local state ──────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<SelectionTab>('individuals')
+  const [activeTab, setActiveTab] = useState<SelectionTab>('teams')
   const [teams, setTeams] = useState<TeamWithMembers[]>([])
   const [loadingTeams, setLoadingTeams] = useState(false)
 
@@ -210,6 +220,7 @@ export const ReviewRequestModal = memo(function ReviewRequestModal({
     expandedTeamIds,
     toggleTeam,
     toggleExpand,
+    lastSelectedTeamId,
   } = useTeamSelection(teams, selectedReviewers, onToggleReviewer)
 
   // ── Unique reviewer count (handles deduplication) ────────────────────
@@ -369,7 +380,7 @@ export const ReviewRequestModal = memo(function ReviewRequestModal({
             Cancel
           </button>
           <button
-            onClick={onSubmit}
+            onClick={() => onSubmit(lastSelectedTeamId)}
             disabled={selectedReviewers.length === 0 || isSubmitting}
             className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
           >
@@ -523,12 +534,12 @@ function TeamsPanel({
                 <span className="text-sm text-plm-fg font-medium truncate">{team.name}</span>
               </div>
 
-              {/* Member count / selected */}
+              {/* Reviewer count / member count */}
               <span className="text-xs text-plm-fg-muted flex-shrink-0">
-                {selectedMemberCount > 0 && selectedMemberCount < memberCount
-                  ? `${selectedMemberCount}/`
-                  : ''}
-                {memberCount} member{memberCount !== 1 ? 's' : ''}
+                {team.reviewerConfigs.length > 0
+                  ? `${resolveTeamReviewers(team).length} reviewer${resolveTeamReviewers(team).length !== 1 ? 's' : ''}`
+                  : `${memberCount} member${memberCount !== 1 ? 's' : ''}`}
+                {selectedMemberCount > 0 && ` · ${selectedMemberCount} selected`}
               </span>
 
               {isSelected && <Check size={14} className="text-plm-accent flex-shrink-0" />}

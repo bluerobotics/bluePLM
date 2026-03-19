@@ -90,7 +90,8 @@ export const createSettingsSlice: StateCreator<
   lowercaseExtensions: true,
   viewMode: 'list',
   iconSize: 96,
-  listRowSize: 24,
+  listRowSize: 16,
+  treeRowSize: 18,
   theme: 'dark',
   autoApplySeasonalThemes: true,
   language: 'en',
@@ -140,6 +141,7 @@ export const createSettingsSlice: StateCreator<
   
   // Initial state - Columns
   columns: defaultColumns,
+  columnConfigLastSyncedAt: null,
   
   // Initial state - Card View Fields
   cardViewFields: defaultCardViewFields,
@@ -178,6 +180,7 @@ export const createSettingsSlice: StateCreator<
   setViewMode: (viewMode) => set({ viewMode }),
   setIconSize: (iconSize) => set({ iconSize: Math.max(48, Math.min(256, iconSize)) }),
   setListRowSize: (listRowSize) => set({ listRowSize: Math.max(16, Math.min(64, listRowSize)) }),
+  setTreeRowSize: (treeRowSize) => set({ treeRowSize: Math.max(16, Math.min(64, treeRowSize)) }),
   setTheme: (theme: ThemeMode) => set({ theme }),
   setAutoApplySeasonalThemes: (autoApplySeasonalThemes) => set({ autoApplySeasonalThemes }),
   setLanguage: (language: Language) => set({ language }),
@@ -524,20 +527,125 @@ export const createSettingsSlice: StateCreator<
         return { success: false, error: 'No org defaults configured' }
       }
       
-      // Merge org defaults with current columns (preserving label/sortable)
-      const updatedColumns = columns.map(col => {
-        const orgDefault = data.find((d: { id: string }) => d.id === col.id)
-        if (orgDefault) {
-          return {
-            ...col,
-            width: orgDefault.width ?? col.width,
-            visible: orgDefault.visible ?? col.visible
-          }
+      // Rebuild columns in saved order (preserving label/sortable from current config)
+      const savedIds = new Set(data.map((d: { id: string }) => d.id))
+      const orderedColumns: ColumnConfig[] = []
+      
+      for (const saved of data as Array<{ id: string; width?: number; visible?: boolean }>) {
+        const local = columns.find(c => c.id === saved.id)
+        if (local) {
+          orderedColumns.push({
+            ...local,
+            width: saved.width ?? local.width,
+            visible: saved.visible ?? local.visible
+          })
         }
-        return col
+      }
+      
+      // Append any columns that exist locally but weren't in saved defaults (new columns)
+      for (const col of columns) {
+        if (!savedIds.has(col.id)) {
+          orderedColumns.push(col)
+        }
+      }
+      
+      set({ columns: orderedColumns, columnConfigLastSyncedAt: Date.now() })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    }
+  },
+  
+  forceOrgColumnDefaults: async () => {
+    const { organization, columns, getEffectiveRole } = get()
+    if (!organization?.id) {
+      return { success: false, error: 'No organization connected' }
+    }
+    if (getEffectiveRole() !== 'admin') {
+      return { success: false, error: 'Only admins can force column defaults' }
+    }
+    
+    try {
+      const columnDefaults = columns.map(c => ({
+        id: c.id,
+        width: c.width,
+        visible: c.visible
+      }))
+      
+      const { error } = await (supabase.rpc as any)('force_org_column_defaults', {
+        p_org_id: organization.id,
+        p_column_defaults: columnDefaults
       })
       
-      set({ columns: updatedColumns })
+      if (error) throw error
+      set({ columnConfigLastSyncedAt: Date.now() })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    }
+  },
+  
+  saveUserColumnDefaults: async () => {
+    const { user, columns } = get()
+    if (!user) {
+      return { success: false, error: 'Not authenticated' }
+    }
+    
+    try {
+      const columnDefaults = columns.map(c => ({
+        id: c.id,
+        width: c.width,
+        visible: c.visible
+      }))
+      
+      const { error } = await (supabase.rpc as any)('set_user_column_defaults', {
+        p_column_defaults: columnDefaults
+      })
+      
+      if (error) throw error
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    }
+  },
+  
+  loadUserColumnDefaults: async () => {
+    const { user, columns } = get()
+    if (!user) {
+      return { success: false, error: 'Not authenticated' }
+    }
+    
+    try {
+      const { data, error } = await (supabase.rpc as any)('get_user_column_defaults', {})
+      
+      if (error) throw error
+      
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        return { success: false, error: 'No personal defaults saved' }
+      }
+      
+      // Rebuild columns in saved order (preserving label/sortable from current config)
+      const savedIds = new Set(data.map((d: { id: string }) => d.id))
+      const orderedColumns: ColumnConfig[] = []
+      
+      for (const saved of data as Array<{ id: string; width?: number; visible?: boolean }>) {
+        const local = columns.find(c => c.id === saved.id)
+        if (local) {
+          orderedColumns.push({
+            ...local,
+            width: saved.width ?? local.width,
+            visible: saved.visible ?? local.visible
+          })
+        }
+      }
+      
+      for (const col of columns) {
+        if (!savedIds.has(col.id)) {
+          orderedColumns.push(col)
+        }
+      }
+      
+      set({ columns: orderedColumns, columnConfigLastSyncedAt: Date.now() })
       return { success: true }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

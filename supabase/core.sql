@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 55, 'Add kicked_back to review_status enum for non-cancelling review kickback', NOW(), 'migration')
+VALUES (1, 59, 'Removed org roles from team reviewers; simplified to user + workflow_role types only', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,
@@ -171,6 +171,9 @@ CREATE TABLE IF NOT EXISTS organizations (
   -- Timestamp when module_defaults was force-pushed to all users
   module_defaults_forced_at TIMESTAMPTZ DEFAULT NULL,
   
+  -- Timestamp when column_defaults was force-pushed to all users
+  column_defaults_forced_at TIMESTAMPTZ DEFAULT NULL,
+  
   -- Auth provider settings
   auth_providers JSONB DEFAULT '{
     "users": { "google": true, "email": true, "phone": true },
@@ -195,6 +198,7 @@ DO $$ BEGIN ALTER TABLE organizations ADD COLUMN website TEXT; EXCEPTION WHEN du
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN contact_email TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN module_defaults JSONB DEFAULT NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN module_defaults_forced_at TIMESTAMPTZ DEFAULT NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE organizations ADD COLUMN column_defaults_forced_at TIMESTAMPTZ DEFAULT NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN auth_providers JSONB DEFAULT '{"users": {"google": true, "email": true, "phone": true}, "suppliers": {"google": true, "email": true, "phone": true}}'::jsonb; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE organizations ADD COLUMN default_new_user_team_id UUID; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
@@ -233,6 +237,12 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'custom_avatar_url') THEN
     ALTER TABLE users ADD COLUMN custom_avatar_url TEXT;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'column_defaults') THEN
+    ALTER TABLE users ADD COLUMN column_defaults JSONB DEFAULT NULL;
   END IF;
 END $$;
 
@@ -334,6 +344,22 @@ CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id);
 
 -- ===========================================
+-- TEAM REVIEWERS
+-- ===========================================
+
+CREATE TABLE IF NOT EXISTS team_reviewers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  reviewer_type TEXT NOT NULL CHECK (reviewer_type IN ('user', 'workflow_role')),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  workflow_role_id UUID,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  added_by UUID REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_team_reviewers_team_id ON team_reviewers(team_id);
+
+-- ===========================================
 -- TEAM PERMISSIONS
 -- ===========================================
 
@@ -397,6 +423,7 @@ CREATE INDEX IF NOT EXISTS idx_user_permissions_resource ON user_permissions(res
 -- RLS for teams
 ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_reviewers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permission_presets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_permissions ENABLE ROW LEVEL SECURITY;
@@ -429,6 +456,16 @@ CREATE POLICY "Users can view team members"
 DROP POLICY IF EXISTS "Admins can manage team members" ON team_members;
 CREATE POLICY "Admins can manage team members"
   ON team_members FOR ALL
+  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
+
+DROP POLICY IF EXISTS "Users can view team reviewers" ON team_reviewers;
+CREATE POLICY "Users can view team reviewers"
+  ON team_reviewers FOR SELECT
+  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+
+DROP POLICY IF EXISTS "Admins can manage team reviewers" ON team_reviewers;
+CREATE POLICY "Admins can manage team reviewers"
+  ON team_reviewers FOR ALL
   USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Users can view team permissions" ON team_permissions;
@@ -1960,6 +1997,125 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION get_user_module_defaults() TO authenticated;
+
+-- ===========================================
+-- COLUMN DEFAULTS FUNCTIONS
+-- ===========================================
+
+DROP FUNCTION IF EXISTS get_org_column_defaults(UUID) CASCADE;
+DROP FUNCTION IF EXISTS set_org_column_defaults(UUID, JSONB) CASCADE;
+DROP FUNCTION IF EXISTS force_org_column_defaults(UUID, JSONB) CASCADE;
+DROP FUNCTION IF EXISTS get_user_column_defaults() CASCADE;
+DROP FUNCTION IF EXISTS set_user_column_defaults(JSONB) CASCADE;
+
+-- Get organization column defaults
+CREATE OR REPLACE FUNCTION get_org_column_defaults(p_org_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_org_id UUID;
+  v_defaults JSONB;
+BEGIN
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  IF v_user_org_id IS NULL OR v_user_org_id != p_org_id THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
+  
+  SELECT COALESCE(settings->'column_defaults', '[]'::jsonb)
+  INTO v_defaults
+  FROM organizations WHERE id = p_org_id;
+  
+  RETURN v_defaults;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_org_column_defaults(UUID) TO authenticated;
+
+-- Set organization column defaults (admins only)
+CREATE OR REPLACE FUNCTION set_org_column_defaults(p_org_id UUID, p_column_defaults JSONB)
+RETURNS JSON AS $$
+DECLARE
+  v_user_org_id UUID;
+BEGIN
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  IF v_user_org_id IS NULL OR v_user_org_id != p_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+  
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can set column defaults');
+  END IF;
+  
+  UPDATE organizations
+  SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{column_defaults}', p_column_defaults)
+  WHERE id = p_org_id;
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION set_org_column_defaults(UUID, JSONB) TO authenticated;
+
+-- Force organization column defaults to all users (admins only)
+-- Sets both the defaults AND the forced_at timestamp
+CREATE OR REPLACE FUNCTION force_org_column_defaults(p_org_id UUID, p_column_defaults JSONB)
+RETURNS JSON AS $$
+DECLARE
+  v_user_org_id UUID;
+BEGIN
+  SELECT org_id INTO v_user_org_id FROM users WHERE id = auth.uid();
+  
+  IF v_user_org_id IS NULL OR v_user_org_id != p_org_id THEN
+    RETURN json_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+  
+  IF NOT is_org_admin() THEN
+    RETURN json_build_object('success', false, 'error', 'Only admins can force column defaults');
+  END IF;
+  
+  UPDATE organizations
+  SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{column_defaults}', p_column_defaults),
+      column_defaults_forced_at = NOW()
+  WHERE id = p_org_id;
+  
+  RETURN json_build_object('success', true, 'forced_at', NOW());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION force_org_column_defaults(UUID, JSONB) TO authenticated;
+
+-- Save user's personal column defaults (any authenticated user)
+CREATE OR REPLACE FUNCTION set_user_column_defaults(p_column_defaults JSONB)
+RETURNS JSON AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+  
+  UPDATE users
+  SET column_defaults = p_column_defaults
+  WHERE id = auth.uid();
+  
+  RETURN json_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION set_user_column_defaults(JSONB) TO authenticated;
+
+-- Get user's personal column defaults
+CREATE OR REPLACE FUNCTION get_user_column_defaults()
+RETURNS JSONB AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN NULL;
+  END IF;
+  
+  RETURN (SELECT column_defaults FROM users WHERE id = auth.uid());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_user_column_defaults() TO authenticated;
 
 -- ===========================================
 -- ENABLE REALTIME

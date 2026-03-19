@@ -199,24 +199,20 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     }
 
     const loadOrgLogo = async () => {
-      // If there's a storage path, generate a fresh signed URL
-      if (organization.logo_storage_path) {
-        const { data: signedData } = await supabase.storage
-          .from('vault')
-          .createSignedUrl(organization.logo_storage_path, 60 * 60 * 24) // 24 hours
-        
-        if (signedData?.signedUrl) {
-          setOrgLogoUrl(signedData.signedUrl)
-          return
+      try {
+        if (organization.logo_storage_path) {
+          const { data: signedData } = await supabase.storage
+            .from('vault')
+            .createSignedUrl(organization.logo_storage_path, 60 * 60 * 24)
+          if (signedData?.signedUrl) {
+            setOrgLogoUrl(signedData.signedUrl)
+            return
+          }
         }
+      } catch {
+        // Signed URL generation failed -- fall through to logo_url
       }
-      
-      // Fall back to stored logo_url if no storage path or signing failed
-      if (organization.logo_url) {
-        setOrgLogoUrl(organization.logo_url)
-      } else {
-        setOrgLogoUrl(null)
-      }
+      setOrgLogoUrl(organization.logo_url || null)
     }
 
     loadOrgLogo()
@@ -388,15 +384,12 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           {/* Organization (no dropdown for now - single org per user) */}
           {!minimal && organization && topbarConfig.showOrg && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded text-sm text-plm-fg-dim" title={organization.name}>
-              {orgLogoUrl ? (
-                <img 
-                  src={orgLogoUrl} 
-                  alt={organization.name} 
-                  className="h-5 max-w-[80px] object-contain rounded-sm"
-                />
-              ) : (
-                <Building2 size={16} className="text-plm-fg-muted" />
-              )}
+              <img 
+                src={orgLogoUrl || ''} 
+                alt={organization.name} 
+                className="h-5 max-w-[80px] object-contain rounded-sm"
+                style={{ opacity: orgLogoUrl ? 1 : 0 }}
+              />
               {showOrgName && <span className="max-w-[120px] truncate">{organization.name}</span>}
             </div>
           )}
@@ -466,29 +459,30 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
 
       {/* Right side - Settings and User (with padding for window controls on Windows) */}
       <div 
-        className="flex items-center h-full justify-end titlebar-drag-region"
+        className="flex items-center h-full titlebar-drag-region"
         style={{ paddingRight: platform === 'darwin' ? 16 : titleBarPadding }}
       >
-        <div className="flex items-center gap-1 px-2 titlebar-no-drag w-fit">
+        <div className="flex-1 min-w-[60px]" />
+        <div className="flex items-center gap-1 px-2">
         {/* FPS Counter - independent from System Stats */}
         {!minimal && topbarConfig.showFps && (
-          <FpsCounter />
+          <div className="titlebar-no-drag"><FpsCounter /></div>
         )}
         
         {/* System Stats - condenses based on user preference or screen width */}
         {!minimal && topbarConfig.showSystemStats && (
-          <>
+          <div className="flex items-center titlebar-no-drag">
             <SystemStats 
               condensed={cpuCondensed} 
               forceExpanded={topbarConfig.systemStatsExpanded}
             />
             {!cpuCondensed && <div className="w-px h-4 bg-plm-border" />}
-          </>
+          </div>
         )}
         
         {/* Zoom dropdown - condenses to icon only when narrow */}
         {!minimal && topbarConfig.showZoom && (
-          <div className="relative" ref={zoomDropdownRef}>
+          <div className="relative titlebar-no-drag" ref={zoomDropdownRef}>
             <button
               onClick={() => setShowZoomDropdown(!showZoomDropdown)}
               className={`flex items-center justify-center rounded hover:bg-plm-bg-lighter transition-colors text-plm-fg-muted hover:text-plm-fg ${
@@ -558,15 +552,15 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         
         {/* Online Users Indicator */}
         {!minimal && organization && !isOfflineMode && topbarConfig.showOnlineUsers && (
-          <>
+          <div className="flex items-center titlebar-no-drag">
             <div className="w-px h-4 bg-plm-border mx-1" />
             <OnlineUsersIndicator orgLogoUrl={orgLogoUrl} />
-          </>
+          </div>
         )}
         
         {/* Offline Mode Indicator - click to toggle back online */}
         {isOfflineMode && !minimal && (
-          <>
+          <div className="flex items-center titlebar-no-drag">
             <div className="w-px h-4 bg-plm-border mx-1" />
             <button
               onClick={() => {
@@ -585,12 +579,12 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
               <WifiOff size={14} className="text-plm-warning" />
               <span className="text-xs text-plm-warning font-medium">Offline</span>
             </button>
-          </>
+          </div>
         )}
         
         {/* Panel Toggle Buttons - VS Code style */}
         {!minimal && topbarConfig.showPanelToggles && (
-          <>
+          <div className="flex items-center titlebar-no-drag">
             <div className="w-px h-4 bg-plm-border mx-1" />
             <div className="flex items-center gap-0.5">
               <button
@@ -627,12 +621,12 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                 <PanelRight size={16} />
               </button>
             </div>
-          </>
+          </div>
         )}
         
         {/* Topbar Configuration Dropdown */}
         {!minimal && (
-          <div className="relative" ref={topbarConfigRef}>
+          <div className="relative titlebar-no-drag" ref={topbarConfigRef}>
             <button
               onClick={() => setShowTopbarConfigDropdown(!showTopbarConfigDropdown)}
               className="p-1.5 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-lighter transition-colors"
@@ -781,7 +775,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
         )}
         
         {user && !minimal ? (
-          <div className="relative" ref={menuRef}>
+          <div className="relative titlebar-no-drag" ref={menuRef}>
             <button 
               onClick={() => setShowUserMenu(!showUserMenu)}
               className={`flex items-center rounded hover:bg-plm-bg-lighter transition-colors ${
@@ -993,7 +987,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           <button 
             onClick={handleSignIn}
             disabled={isSigningIn}
-            className="text-xs text-plm-accent hover:text-plm-accent-hover transition-colors font-medium disabled:opacity-50"
+            className="titlebar-no-drag text-xs text-plm-accent hover:text-plm-accent-hover transition-colors font-medium disabled:opacity-50"
           >
             {isSigningIn ? 'Signing in...' : 'Sign In with Google'}
           </button>

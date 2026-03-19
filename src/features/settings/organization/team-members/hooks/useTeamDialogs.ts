@@ -21,6 +21,7 @@ export function useTeamDialogs() {
   const [showTeamVaultAccessDialog, setShowTeamVaultAccessDialog] = useState(false)
   const [showPermissionsEditor, setShowPermissionsEditor] = useState(false)
   const [showModulesDialog, setShowModulesDialog] = useState(false)
+  const [showTeamReviewersDialog, setShowTeamReviewersDialog] = useState(false)
   
   // Form state
   const [teamFormData, setTeamFormData] = useState<TeamFormData>(DEFAULT_TEAM_FORM)
@@ -80,6 +81,11 @@ export function useTeamDialogs() {
     setSelectedTeam(team)
     setShowModulesDialog(true)
   }, [])
+
+  const openTeamReviewersDialog = useCallback((team: TeamWithDetails) => {
+    setSelectedTeam(team)
+    setShowTeamReviewersDialog(true)
+  }, [])
   
   const closeAllTeamDialogs = useCallback(() => {
     setShowCreateTeamDialog(false)
@@ -89,6 +95,7 @@ export function useTeamDialogs() {
     setShowTeamVaultAccessDialog(false)
     setShowPermissionsEditor(false)
     setShowModulesDialog(false)
+    setShowTeamReviewersDialog(false)
     setSelectedTeam(null)
     setEditingTeamFromManage(null)
     resetTeamForm()
@@ -112,6 +119,8 @@ export function useTeamDialogs() {
     setShowPermissionsEditor,
     showModulesDialog,
     setShowModulesDialog,
+    showTeamReviewersDialog,
+    setShowTeamReviewersDialog,
     teamFormData,
     setTeamFormData,
     isSavingTeam,
@@ -134,6 +143,7 @@ export function useTeamDialogs() {
     openTeamVaultAccessDialog,
     openPermissionsEditor,
     openModulesDialog,
+    openTeamReviewersDialog,
     closeAllTeamDialogs
   }
 }

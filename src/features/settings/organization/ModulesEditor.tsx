@@ -145,11 +145,7 @@ function OrderListItemComponent({
   
   const setModuleParent = (moduleId: ModuleId, parentId: string | null) => {
     const newParents = { ...config.moduleParents }
-    if (parentId === null) {
-      delete newParents[moduleId]
-    } else {
-      newParents[moduleId] = parentId
-    }
+    newParents[moduleId] = parentId
     onConfigChange({
       ...config,
       moduleParents: newParents
@@ -172,11 +168,11 @@ function OrderListItemComponent({
   const removeCustomGroup = (groupId: string) => {
     // Remove the group
     const newGroups = (config.customGroups || []).filter(g => g.id !== groupId)
-    // Also remove any modules that were parented to this group
+    // Unparent any modules that were in this group (set to null, not delete)
     const newParents = { ...config.moduleParents }
     Object.keys(newParents).forEach(key => {
       if (newParents[key as ModuleId] === groupId) {
-        delete newParents[key as ModuleId]
+        newParents[key as ModuleId] = null
       }
     })
     onConfigChange({

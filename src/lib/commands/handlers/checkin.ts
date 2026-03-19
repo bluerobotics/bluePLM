@@ -798,6 +798,40 @@ export const checkinCommand: Command<CheckinParams> = {
     // Will be populated before Phase 2 processing
     let openDocumentPaths: Set<string> = new Set()
     
+    // Track files that drifted after check-in (for post-operation summary)
+    const driftedFiles: string[] = []
+    
+    /**
+     * Detect post-check-in drift: re-hash the file after readonly is set
+     * and compare to the hash that was uploaded. SolidWorks can modify open
+     * files (e.g., reference rebuild) between upload and readonly, leaving
+     * local content that the server does not have.
+     *
+     * Returns the current on-disk hash if drift occurred, or null if unchanged.
+     */
+    const detectPostCheckinDrift = async (
+      file: LocalFile,
+      uploadedHash: string,
+      isSWFile: boolean,
+      isOpenInSW: boolean
+    ): Promise<string | null> => {
+      if (!isSWFile || !isOpenInSW) return null
+      
+      const postHash = await window.electronAPI?.hashFile(file.path)
+      const currentHash = postHash?.success ? postHash.hash : undefined
+      if (!currentHash || currentHash === uploadedHash) return null
+      
+      logCheckin('warn', 'POST-CHECKIN DRIFT: file modified after upload', {
+        operationId,
+        fileName: file.name,
+        uploadedHash: uploadedHash.substring(0, 12),
+        currentHash: currentHash.substring(0, 12)
+      })
+      driftedFiles.push(file.name)
+      
+      return currentHash
+    }
+    
     /**
      * Process a single file for check-in
      * Extracted to avoid code duplication between phases
@@ -923,14 +957,42 @@ export const checkinCommand: Command<CheckinParams> = {
             freshHash: freshHash?.substring(0, 12)
           })
           
+          // Set readonly BEFORE releasing the checkout lock to prevent SolidWorks
+          // from modifying the file between lock release and readonly.
+          const isFastPathSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
+          const isFastPathFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
+          let fastPathMadeReadonly = false
+          if (swServiceStatus.running && isFastPathSWFile && isFastPathFileOpenInSW) {
+            try {
+              await window.electronAPI?.setReadonly(file.path, true)
+              
+              const setDocROStart = performance.now()
+              const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
+              recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
+              fastPathMadeReadonly = true
+              if (docResult?.success && docResult.data?.changed) {
+                logCheckin('info', 'Fast path pre-RPC: Updated SolidWorks document to read-only', {
+                  operationId,
+                  fileName: file.name,
+                  wasReadOnly: docResult.data.wasReadOnly,
+                  isNowReadOnly: docResult.data.isNowReadOnly
+                })
+              }
+            } catch (err) {
+              logCheckin('warn', 'Fast path pre-RPC: Exception setting SW document read-only', {
+                operationId,
+                fileName: file.name,
+                error: err instanceof Error ? err.message : String(err)
+              })
+            }
+          }
+          
           const checkinAPIStart = performance.now()
           const result = await checkinFile(file.pdmData!.id, user.id, {
-            // No content change - pass fresh hash (verified to match server)
             newContentHash: freshHash,
             newFileSize: freshSize,
             localActiveVersion: file.localActiveVersion,
             comment: file.pendingCheckinNote,
-            // Batch optimization: skip per-file machine mismatch check
             machineId,
             skipMachineMismatchCheck: true
           })
@@ -943,43 +1005,19 @@ export const checkinCommand: Command<CheckinParams> = {
             // Collect for batch readonly operation
             filesToMakeReadonly.push(file.path)
             
-            // If SolidWorks file is open, set document to read-only
-            // This is needed even in fast path to update SW state!
-            const isFastPathSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
-            const isFastPathFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
-            if (swServiceStatus.running && isFastPathSWFile && isFastPathFileOpenInSW) {
-              try {
-                // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
-                await window.electronAPI?.setReadonly(file.path, true)
-                
-                const setDocROStart = performance.now()
-                const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
-                recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
-                if (docResult?.success && docResult.data?.changed) {
-                  logCheckin('info', 'Fast path: Updated SolidWorks document to read-only', {
-                    operationId,
-                    fileName: file.name,
-                    wasReadOnly: docResult.data.wasReadOnly,
-                    isNowReadOnly: docResult.data.isNowReadOnly
-                  })
-                }
-              } catch (err) {
-                logCheckin('warn', 'Fast path: Exception setting SW document read-only', {
-                  operationId,
-                  fileName: file.name,
-                  error: err instanceof Error ? err.message : String(err)
-                })
-              }
-            }
+            // Post-check-in integrity verification
+            const fastPathDriftHash = await detectPostCheckinDrift(
+              file, freshHash, isFastPathSWFile, isFastPathFileOpenInSW
+            )
             
             // Queue update for batch processing
             pendingUpdates.push({
               path: file.path,
               updates: {
                 pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
-                localHash: freshHash, // Use fresh hash - cached localHash may have been stale
-                localVersion: result.file.version, // Track the new version after checkin
-                diffStatus: undefined,
+                localHash: fastPathDriftHash || freshHash,
+                localVersion: result.file.version,
+                diffStatus: fastPathDriftHash ? 'modified' as const : undefined,
                 localActiveVersion: undefined,
                 pendingMetadata: undefined,
                 pendingVersionNotes: undefined,
@@ -988,8 +1026,6 @@ export const checkinCommand: Command<CheckinParams> = {
             })
             
             // CRITICAL: Clear recently modified flag so LoadFiles doesn't restore stale state
-            // The file may have been marked as recently modified when user saved in SolidWorks.
-            // After checkin, we want LoadFiles to use our fresh state (diffStatus: undefined).
             if (file.pdmData?.id) {
               ctx.clearRecentlyModified(file.pdmData.id)
             }
@@ -1008,6 +1044,18 @@ export const checkinCommand: Command<CheckinParams> = {
             progress.update()
             return { success: true, file }
           } else {
+            // RPC failed — restore writable if we set readonly pre-RPC
+            if (fastPathMadeReadonly) {
+              try {
+                await window.electronAPI?.setReadonly(file.path, false)
+                await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, false)
+              } catch {
+                logCheckin('warn', 'Fast path: Failed to restore writable after failed RPC', {
+                  operationId,
+                  fileName: file.name
+                })
+              }
+            }
             logCheckin('error', 'Fast path checkin failed', {
               operationId,
               ...fileCtx,
@@ -1114,6 +1162,58 @@ export const checkinCommand: Command<CheckinParams> = {
             contentChanged
           })
           
+          // Determine SW file status early for pre-RPC readonly
+          const isSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
+          const isFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
+          let madeReadonlyPreRPC = false
+          
+          // Set readonly BEFORE releasing the checkout lock to prevent SolidWorks
+          // from modifying the file between lock release and readonly.
+          if (swServiceStatus.running && isSWFile && isFileOpenInSW) {
+            try {
+              await window.electronAPI?.setReadonly(file.path, true)
+              
+              logCheckin('debug', 'Pre-RPC: set SW document read-only', {
+                operationId,
+                fileName: file.name,
+                filePath: file.path
+              })
+              const setDocROStart = performance.now()
+              const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
+              recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
+              madeReadonlyPreRPC = true
+              if (docResult?.success && docResult.data?.changed) {
+                logCheckin('info', 'Pre-RPC: Updated SolidWorks document to read-only', {
+                  operationId,
+                  fileName: file.name,
+                  wasReadOnly: docResult.data.wasReadOnly,
+                  isNowReadOnly: docResult.data.isNowReadOnly
+                })
+              } else if (!docResult?.success) {
+                logCheckin('warn', 'Pre-RPC: Failed to set SW document read-only', {
+                  operationId,
+                  fileName: file.name,
+                  error: docResult?.error
+                })
+                if (docResult?.error?.includes('timed out')) {
+                  swServiceStatus.running = false
+                }
+              }
+            } catch (err) {
+              logCheckin('warn', 'Pre-RPC: Exception setting SW document read-only', {
+                operationId,
+                fileName: file.name,
+                error: err instanceof Error ? err.message : String(err)
+              })
+              swServiceStatus.running = false
+            }
+          } else if (isSWFile && openDocumentPaths.size > 0 && !isFileOpenInSW) {
+            logCheckin('debug', 'SW file not open in SOLIDWORKS, skipping pre-RPC setDocumentReadOnly', {
+              operationId,
+              fileName: file.name
+            })
+          }
+          
           const checkinAPIStart = performance.now()
           const result = await checkinFile(file.pdmData!.id, user.id, {
             newContentHash: fileHash,
@@ -1123,7 +1223,6 @@ export const checkinCommand: Command<CheckinParams> = {
             localActiveVersion: file.localActiveVersion,
             pendingMetadata: metadataToUse,
             comment: file.pendingCheckinNote,
-            // Batch optimization: skip per-file machine mismatch check (eliminates N SELECT + N IPC calls)
             machineId,
             skipMachineMismatchCheck: true
           })
@@ -1133,76 +1232,22 @@ export const checkinCommand: Command<CheckinParams> = {
             // Sync any pending version notes (non-blocking, errors logged)
             await syncPendingVersionNotes(file, user.id)
             
-            // Collect for batch readonly operation (optimization: 1 IPC instead of N)
+            // Collect for batch readonly operation (handles non-SW files and SW files not open)
             filesToMakeReadonly.push(file.path)
             
-            // If SolidWorks file is open, also set document to read-only
-            // This allows checking in files without closing SolidWorks!
-            // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
-            // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
-            const isSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
-            const isFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
-            if (swServiceStatus.running && isSWFile && isFileOpenInSW) {
-              try {
-                // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
-                await window.electronAPI?.setReadonly(file.path, true)
-                
-                logCheckin('debug', 'Attempting to set SW document read-only', {
-                  operationId,
-                  fileName: file.name,
-                  filePath: file.path
-                })
-                const setDocROStart = performance.now()
-                const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
-                recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
-                if (docResult?.success && docResult.data?.changed) {
-                  logCheckin('info', 'Updated SolidWorks document to read-only', {
-                    operationId,
-                    fileName: file.name,
-                    wasReadOnly: docResult.data.wasReadOnly,
-                    isNowReadOnly: docResult.data.isNowReadOnly
-                  })
-                } else if (docResult?.success && !docResult.data?.changed) {
-                  logCheckin('debug', 'SW document already read-only, no change needed', {
-                    operationId,
-                    fileName: file.name
-                  })
-                } else if (!docResult?.success) {
-                  logCheckin('warn', 'Failed to set SW document read-only', {
-                    operationId,
-                    fileName: file.name,
-                    error: docResult?.error
-                  })
-                  if (docResult?.error?.includes('timed out')) {
-                    // Service timed out - stop trying for remaining files
-                    swServiceStatus.running = false
-                  }
-                }
-              } catch (err) {
-                logCheckin('warn', 'Exception setting SW document read-only', {
-                  operationId,
-                  fileName: file.name,
-                  error: err instanceof Error ? err.message : String(err)
-                })
-                // Mark service as unavailable to skip remaining SW calls
-                swServiceStatus.running = false
-              }
-            } else if (isSWFile && openDocumentPaths.size > 0 && !isFileOpenInSW) {
-              // File is a SW file but not currently open in SOLIDWORKS
-              logCheckin('debug', 'SW file not open in SOLIDWORKS, skipping setDocumentReadOnly', {
-                operationId,
-                fileName: file.name
-              })
-            }
+            // Post-check-in integrity verification
+            const uploadDriftHash = await detectPostCheckinDrift(
+              file, fileHash!, isSWFile, isFileOpenInSW
+            )
             
             // Queue update for batch processing
             pendingUpdates.push({
               path: file.path,
               updates: {
                 pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
-                localHash: fileHash,
-                localVersion: result.file.version, // Track the new version after checkin
-                diffStatus: undefined,
+                localHash: uploadDriftHash || fileHash,
+                localVersion: result.file.version,
+                diffStatus: uploadDriftHash ? 'modified' as const : undefined,
                 localActiveVersion: undefined,
                 pendingMetadata: undefined,
                 pendingVersionNotes: undefined,
@@ -1236,9 +1281,24 @@ export const checkinCommand: Command<CheckinParams> = {
               })
             }
             progress.update()
-            // Return file info for post-checkin processing (reference extraction)
             return { success: true, file }
           } else {
+            // RPC failed — restore writable if we set readonly pre-RPC
+            if (madeReadonlyPreRPC) {
+              try {
+                await window.electronAPI?.setReadonly(file.path, false)
+                await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, false)
+                logCheckin('info', 'Restored writable after failed RPC', {
+                  operationId,
+                  fileName: file.name
+                })
+              } catch {
+                logCheckin('warn', 'Failed to restore writable after failed RPC', {
+                  operationId,
+                  fileName: file.name
+                })
+              }
+            }
             const errorMsg = translateCheckinError(result.error, file.name)
             logCheckin('error', 'Checkin API call failed', {
               operationId,
@@ -1255,6 +1315,55 @@ export const checkinCommand: Command<CheckinParams> = {
             fileName: file.name
           })
           
+          // Set readonly BEFORE releasing the checkout lock (metadata path)
+          const isMetaSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
+          const isMetaFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
+          let metaMadeReadonly = false
+          if (swServiceStatus.running && isMetaSWFile && isMetaFileOpenInSW) {
+            try {
+              await window.electronAPI?.setReadonly(file.path, true)
+              
+              logCheckin('debug', 'Metadata path pre-RPC: set SW document read-only', {
+                operationId,
+                fileName: file.name,
+                filePath: file.path
+              })
+              const setDocROStart = performance.now()
+              const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
+              recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
+              metaMadeReadonly = true
+              if (docResult?.success && docResult.data?.changed) {
+                logCheckin('info', 'Metadata path pre-RPC: Updated SolidWorks document to read-only', {
+                  operationId,
+                  fileName: file.name,
+                  wasReadOnly: docResult.data.wasReadOnly,
+                  isNowReadOnly: docResult.data.isNowReadOnly
+                })
+              } else if (!docResult?.success) {
+                logCheckin('warn', 'Metadata path pre-RPC: Failed to set SW document read-only', {
+                  operationId,
+                  fileName: file.name,
+                  error: docResult?.error
+                })
+                if (docResult?.error?.includes('timed out')) {
+                  swServiceStatus.running = false
+                }
+              }
+            } catch (err) {
+              logCheckin('warn', 'Metadata path pre-RPC: Exception setting SW document read-only', {
+                operationId,
+                fileName: file.name,
+                error: err instanceof Error ? err.message : String(err)
+              })
+              swServiceStatus.running = false
+            }
+          } else if (isMetaSWFile && openDocumentPaths.size > 0 && !isMetaFileOpenInSW) {
+            logCheckin('debug', 'SW file not open in SOLIDWORKS, skipping pre-RPC setDocumentReadOnly (metadata path)', {
+              operationId,
+              fileName: file.name
+            })
+          }
+          
           const checkinAPIStart = performance.now()
           const result = await checkinFile(file.pdmData!.id, user.id, {
             newFilePath: wasFileMoved ? file.relativePath : undefined,
@@ -1262,7 +1371,6 @@ export const checkinCommand: Command<CheckinParams> = {
             localActiveVersion: file.localActiveVersion,
             pendingMetadata: metadataToUse,
             comment: file.pendingCheckinNote,
-            // Batch optimization: skip per-file machine mismatch check (eliminates N SELECT + N IPC calls)
             machineId,
             skipMachineMismatchCheck: true
           })
@@ -1272,70 +1380,22 @@ export const checkinCommand: Command<CheckinParams> = {
             // Sync any pending version notes (non-blocking, errors logged)
             await syncPendingVersionNotes(file, user.id)
             
-            // Collect for batch readonly operation (optimization: 1 IPC instead of N)
+            // Collect for batch readonly operation
             filesToMakeReadonly.push(file.path)
             
-            // If SolidWorks file is open, also set document to read-only
-            // OPTIMIZATION: Only call setDocumentReadOnly for files that are actually open
-            // We fetched the open documents list ONCE before processing, reducing N calls to 1 + (open count)
-            const isMetaSWFile = SW_EXTENSIONS.includes(file.extension.toLowerCase())
-            const isMetaFileOpenInSW = openDocumentPaths.has(normalizePath(file.path))
-            if (swServiceStatus.running && isMetaSWFile && isMetaFileOpenInSW) {
-              try {
-                // CRITICAL: Set file system read-only FIRST so SOLIDWORKS sees the file as read-only
-                await window.electronAPI?.setReadonly(file.path, true)
-                
-                logCheckin('debug', 'Attempting to set SW document read-only (metadata path)', {
-                  operationId,
-                  fileName: file.name,
-                  filePath: file.path
-                })
-                const setDocROStart = performance.now()
-                const docResult = await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, true)
-                recordSubstepTiming('setDocRO', performance.now() - setDocROStart)
-                if (docResult?.success && docResult.data?.changed) {
-                  logCheckin('info', 'Updated SolidWorks document to read-only (metadata path)', {
-                    operationId,
-                    fileName: file.name,
-                    wasReadOnly: docResult.data.wasReadOnly,
-                    isNowReadOnly: docResult.data.isNowReadOnly
-                  })
-                } else if (!docResult?.success) {
-                  logCheckin('warn', 'Failed to set SW document read-only (metadata path)', {
-                    operationId,
-                    fileName: file.name,
-                    error: docResult?.error
-                  })
-                  if (docResult?.error?.includes('timed out')) {
-                    // Service timed out - stop trying for remaining files
-                    swServiceStatus.running = false
-                  }
-                }
-              } catch (err) {
-                logCheckin('warn', 'Exception setting SW document read-only (metadata path)', {
-                  operationId,
-                  fileName: file.name,
-                  error: err instanceof Error ? err.message : String(err)
-                })
-                // Mark service as unavailable to skip remaining SW calls
-                swServiceStatus.running = false
-              }
-            } else if (isMetaSWFile && openDocumentPaths.size > 0 && !isMetaFileOpenInSW) {
-              // File is a SW file but not currently open in SOLIDWORKS
-              logCheckin('debug', 'SW file not open in SOLIDWORKS, skipping setDocumentReadOnly (metadata path)', {
-                operationId,
-                fileName: file.name
-              })
-            }
+            // Post-check-in integrity verification
+            const metaDriftHash = await detectPostCheckinDrift(
+              file, result.file.content_hash || '', isMetaSWFile, isMetaFileOpenInSW
+            )
             
             // Queue update for batch processing
             pendingUpdates.push({
               path: file.path,
               updates: {
                 pdmData: { ...file.pdmData!, ...result.file, checked_out_by: null, checked_out_user: null },
-                localHash: result.file.content_hash,
-                localVersion: result.file.version, // Track the new version after checkin
-                diffStatus: undefined,
+                localHash: metaDriftHash || result.file.content_hash,
+                localVersion: result.file.version,
+                diffStatus: metaDriftHash ? 'modified' as const : undefined,
                 localActiveVersion: undefined,
                 pendingMetadata: undefined,
                 pendingVersionNotes: undefined,
@@ -1369,9 +1429,24 @@ export const checkinCommand: Command<CheckinParams> = {
               })
             }
             progress.update()
-            // Return file info for post-checkin processing (reference extraction)
             return { success: true, file }
           } else {
+            // RPC failed — restore writable if we set readonly pre-RPC
+            if (metaMadeReadonly) {
+              try {
+                await window.electronAPI?.setReadonly(file.path, false)
+                await window.electronAPI?.solidworks?.setDocumentReadOnly?.(file.path, false)
+                logCheckin('info', 'Metadata path: Restored writable after failed RPC', {
+                  operationId,
+                  fileName: file.name
+                })
+              } catch {
+                logCheckin('warn', 'Metadata path: Failed to restore writable after failed RPC', {
+                  operationId,
+                  fileName: file.name
+                })
+              }
+            }
             const errorMsg = translateCheckinError(result.error, file.name)
             logCheckin('error', 'Metadata checkin failed', {
               operationId,
@@ -1474,23 +1549,54 @@ export const checkinCommand: Command<CheckinParams> = {
     
     let phase2StepId = ''
     if (swFiles.length > 0) {
-      logCheckin('info', 'Phase 2: Processing SW files', {
+      // Split SW files: process parts/assemblies BEFORE drawings.
+      // SolidWorks can rebuild a drawing when its referenced part changes state,
+      // so checking in a part concurrently with its drawing risks the drawing
+      // being modified on disk after its content was already uploaded.
+      const swNonDrawings = swFiles.filter(f => !DRAWING_EXTENSIONS.includes(f.extension.toLowerCase()))
+      const swDrawings = swFiles.filter(f => DRAWING_EXTENSIONS.includes(f.extension.toLowerCase()))
+      
+      logCheckin('info', 'Phase 2: Processing SW files (parts/assemblies first, then drawings)', {
         operationId,
-        count: swFiles.length,
+        total: swFiles.length,
+        partsAndAssemblies: swNonDrawings.length,
+        drawings: swDrawings.length,
         concurrency: SW_CONCURRENT_OPERATIONS,
         openDocumentsCount: openDocumentPaths.size
       })
       currentPhaseTimings = phase2Timings
       phase2StepId = tracker.startStep('Process SW files', { 
         fileCount: swFiles.length, 
-        concurrency: SW_CONCURRENT_OPERATIONS 
+        concurrency: SW_CONCURRENT_OPERATIONS,
+        partsAndAssemblies: swNonDrawings.length,
+        drawings: swDrawings.length
       })
       const phase2Start = Date.now()
       
       // Set batch operation flag to pause status polling
       usePDMStore.getState().setIsBatchSWOperationRunning(true)
       try {
-        swResults = await processWithConcurrency(swFiles, SW_CONCURRENT_OPERATIONS, processFile)
+        // Phase 2a: Parts and assemblies first
+        if (swNonDrawings.length > 0) {
+          const partResults = await processWithConcurrency(swNonDrawings, SW_CONCURRENT_OPERATIONS, processFile)
+          swResults.push(...partResults)
+          logCheckin('info', 'Phase 2a complete: parts/assemblies', {
+            operationId,
+            count: swNonDrawings.length,
+            succeeded: partResults.filter(r => r.success).length
+          })
+        }
+        
+        // Phase 2b: Drawings second (after parts are checked in and readonly)
+        if (swDrawings.length > 0) {
+          const drawingResults = await processWithConcurrency(swDrawings, SW_CONCURRENT_OPERATIONS, processFile)
+          swResults.push(...drawingResults)
+          logCheckin('info', 'Phase 2b complete: drawings', {
+            operationId,
+            count: swDrawings.length,
+            succeeded: drawingResults.filter(r => r.success).length
+          })
+        }
       } finally {
         // Always reset flag, even if processing fails
         usePDMStore.getState().setIsBatchSWOperationRunning(false)
@@ -1745,6 +1851,22 @@ export const checkinCommand: Command<CheckinParams> = {
       ctx.addToast('error', `Check-in failed: ${firstError}${moreText}`)
     } else {
       ctx.addToast('success', checkinMsg)
+    }
+    
+    // Warn about post-check-in drift (SolidWorks modified files after upload)
+    if (driftedFiles.length > 0) {
+      const fileList = driftedFiles.length <= 3
+        ? driftedFiles.join(', ')
+        : `${driftedFiles.slice(0, 3).join(', ')} (+${driftedFiles.length - 3} more)`
+      ctx.addToast('warning',
+        `${driftedFiles.length === 1 ? 'File was' : `${driftedFiles.length} files were`} modified by SolidWorks after check-in: ${fileList}. ` +
+        `Check out and check in again to save the latest version.`
+      )
+      logCheckin('warn', 'Post-check-in drift detected', {
+        operationId,
+        driftedFiles,
+        count: driftedFiles.length
+      })
     }
     
     // Complete operation tracking

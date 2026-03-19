@@ -44,6 +44,7 @@ export function useAuth() {
     setStatusMessage,
     setVaultConnected,
     setIsConnecting,
+    setAuthInitialized,
     setOfflineMode,
     addToast,
   } = usePDMStore()
@@ -193,11 +194,20 @@ export function useAuth() {
               // Show a toast with helpful message
               addToast('warning', orgError?.message || 'No organization found. Please enter an organization code or contact your administrator.')
             }
+            if (event === 'INITIAL_SESSION') {
+              setAuthInitialized(true)
+            }
           } catch (err) {
             log.error('[Auth]', 'Error in auth state handler', { error: err })
             if (connectingTimeout) clearTimeout(connectingTimeout)
             setIsConnecting(false)
+            if (event === 'INITIAL_SESSION') {
+              setAuthInitialized(true)
+            }
           }
+        } else if (event === 'INITIAL_SESSION' && !session?.user) {
+          log.info('[Auth]', 'No stored session found')
+          setAuthInitialized(true)
         } else if (event === 'SIGNED_OUT') {
           logUserAction('auth', 'User signed out')
           log.info('[Auth]', 'User signed out')
@@ -215,7 +225,7 @@ export function useAuth() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabaseReady, setUser, setOrganization, setStatusMessage, setVaultConnected, setIsConnecting, setOfflineMode, addToast])
+  }, [supabaseReady, setUser, setOrganization, setStatusMessage, setVaultConnected, setIsConnecting, setAuthInitialized, setOfflineMode, addToast])
 
   return {
     supabaseReady,

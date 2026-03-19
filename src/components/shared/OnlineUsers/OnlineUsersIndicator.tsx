@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Users, Monitor, Laptop } from 'lucide-react'
+import { Monitor, Laptop } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getOrgOnlineUsers, subscribeToOrgOnlineUsers, OnlineUser } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
@@ -105,17 +105,14 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
           className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-plm-bg-lighter transition-colors group"
           title={`${onlineUsers.length} user${onlineUsers.length !== 1 ? 's' : ''} online`}
         >
-          {/* Company logo or Users icon */}
+          {/* Company logo */}
           <div className="relative">
-            {orgLogoUrl ? (
-              <img 
-                src={orgLogoUrl} 
-                alt={organization.name} 
-                className="h-5 w-5 object-contain rounded"
-              />
-            ) : (
-              <Users size={16} className="text-plm-fg-muted group-hover:text-plm-fg transition-colors" />
-            )}
+            <img 
+              src={orgLogoUrl || ''} 
+              alt={organization.name} 
+              className="h-5 max-w-[80px] object-contain rounded"
+              style={{ opacity: orgLogoUrl ? 1 : 0 }}
+            />
             
             {/* Online count - visible but not like a notification */}
             {onlineUsers.length > 0 && (

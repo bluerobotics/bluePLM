@@ -26,7 +26,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 55
+export const EXPECTED_SCHEMA_VERSION = 59
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -89,6 +89,10 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   53: 'Added allow_file_level_revision_for_models org setting (default false)',
   54: 'Case-insensitive unique index on files(vault_id, file_path) to prevent ghost duplicates on Windows',
   55: 'Add kicked_back to review_status enum for non-cancelling review kickback',
+  56: 'Added column_defaults_forced_at column and force_org_column_defaults RPC for admin column layout override',
+  57: 'Added team_reviewers table and team_id on reviews for team-based review system',
+  58: 'User-level column defaults: save/load personal column layout across devices',
+  59: 'Removed org roles from team reviewers; simplified to user + workflow_role types only',
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

@@ -5,14 +5,19 @@
  * Stage 1 (Core): Store hydration, Supabase config, auth session, organization, permissions
  * Stage 2 (Extensions): Discover and activate startup extensions
  * 
- * Returns startup state for the SplashScreen component.
+ * Returns startup state that gates the app render.
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePDMStore, getHasHydrated } from '@/stores/pdmStore'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { log } from '@/lib/logger'
 import { recordMetric } from '@/lib/performanceMetrics'
-import type { StartupError } from '@/components/core/SplashScreen'
+
+export interface StartupError {
+  extensionId: string
+  extensionName: string
+  error: string
+}
 
 type StartupStage = 1 | 2 | 3 | 4
 type StageName = 'Initializing' | 'Connecting' | 'Loading Vault' | 'Extensions'
@@ -37,8 +42,8 @@ interface StartupState {
 // Extension activation timeout (10 seconds per extension)
 const EXTENSION_TIMEOUT_MS = 10000
 
-// Minimum time to show splash screen (prevents jarring flash)
-const MIN_SPLASH_DISPLAY_MS = 1000
+// Timeout for waiting on auth session resolution
+const AUTH_TIMEOUT_MS = 15000
 
 /**
  * Wait for store hydration to complete
@@ -65,7 +70,6 @@ export function useAppStartup(): StartupState {
   const [stage, setStage] = useState<StartupStage>(1)
   const [status, setStatus] = useState('Loading preferences...')
   const [errors, setErrors] = useState<StartupError[]>([])
-  const [errorsContinued, setErrorsContinued] = useState(false)
   
   // Track if startup has already run to prevent re-running on re-renders
   const startupRunRef = useRef(false)
@@ -73,12 +77,8 @@ export function useAppStartup(): StartupState {
   const {
     loadInstalledExtensions,
     handleExtensionStateChange,
+    addToast,
   } = usePDMStore()
-
-  const continueWithErrors = useCallback(() => {
-    setErrorsContinued(true)
-    setIsReady(true)
-  }, [])
 
   useEffect(() => {
     // Only run startup once
@@ -88,14 +88,9 @@ export function useAppStartup(): StartupState {
     const runStartup = async () => {
       const startTime = Date.now()
       
-      // Helper to ensure minimum display time before completing
-      const completeStartup = async () => {
+      const completeStartup = () => {
         const elapsed = Date.now() - startTime
-        // Record total startup time
         recordMetric('Startup', 'Total startup complete', { durationMs: elapsed })
-        if (elapsed < MIN_SPLASH_DISPLAY_MS) {
-          await new Promise(resolve => setTimeout(resolve, MIN_SPLASH_DISPLAY_MS - elapsed))
-        }
         setIsReady(true)
       }
       
@@ -123,7 +118,7 @@ export function useAppStartup(): StartupState {
           // Supabase not configured - app will show setup screen
           // Mark as ready so App.tsx can handle the setup flow
           log.info('[Startup]', 'Supabase not configured, deferring to setup screen')
-          await completeStartup()
+          completeStartup()
           return
         }
         
@@ -132,7 +127,7 @@ export function useAppStartup(): StartupState {
         if (!state.onboardingComplete) {
           // Onboarding not complete - app will show onboarding screen
           log.info('[Startup]', 'Onboarding not complete, deferring to onboarding screen')
-          await completeStartup()
+          completeStartup()
           return
         }
         
@@ -148,15 +143,16 @@ export function useAppStartup(): StartupState {
         recordMetric('Startup', 'Stage 2 started', {})
         setStage(2)
         
-        // Step 2.1: Wait for auth session (if user is already in store, we're good)
+        // Step 2.1: Wait for auth session to resolve
         setStatus('Restoring session...')
         const authStart = performance.now()
-        // Auth is handled by useAuth hook in App.tsx via onAuthStateChange
-        // Check if user is already in store from previous session, otherwise wait briefly
-        const existingUser = usePDMStore.getState().user
-        if (!existingUser) {
-          // Wait briefly for the auth listener to fire on cold start
-          await new Promise(resolve => setTimeout(resolve, 100))
+        // Wait for useAuth's onAuthStateChange to process the INITIAL_SESSION event,
+        // which sets authInitialized=true regardless of whether a session exists.
+        const authWaitStart = Date.now()
+        while (Date.now() - authWaitStart < AUTH_TIMEOUT_MS) {
+          const state = usePDMStore.getState()
+          if (state.authInitialized || state.user) break
+          await new Promise(resolve => setTimeout(resolve, 50))
         }
         const authDuration = performance.now() - authStart
         recordMetric('Startup', 'Auth session restore', { durationMs: Math.round(authDuration) })
@@ -235,7 +231,7 @@ export function useAppStartup(): StartupState {
         if (extensionIds.length === 0) {
           log.debug('[Startup]', 'No extensions to activate')
           setStatus('Extensions ready')
-          await completeStartup()
+          completeStartup()
           return
         }
         
@@ -290,32 +286,24 @@ export function useAppStartup(): StartupState {
         recordMetric('Startup', 'Stage 4 complete', { durationMs: Math.round(stage4Duration) })
         
         if (failedExtensions.length > 0) {
-          setStatus(`${failedExtensions.length} extension(s) failed to load`)
           setErrors(failedExtensions)
           log.warn('[Startup]', 'Some extensions failed to load', { count: failedExtensions.length })
-          // Don't set isReady - wait for user to continue or auto-continue timer
+          const names = failedExtensions.map(e => e.extensionName).join(', ')
+          addToast('warning', `${failedExtensions.length} extension(s) failed to load: ${names}`, 8000)
         } else {
-          setStatus('Extensions ready')
           log.info('[Startup]', 'Stage 4: Extensions loading complete')
-          await completeStartup()
         }
+        completeStartup()
         
       } catch (err) {
         log.error('[Startup]', 'Startup error', { error: err })
         // On error, just proceed to the app
-        await completeStartup()
+        completeStartup()
       }
     }
     
     runStartup()
-  }, [loadInstalledExtensions, handleExtensionStateChange])
-
-  // Handle error continuation
-  useEffect(() => {
-    if (errorsContinued && errors.length > 0) {
-      setIsReady(true)
-    }
-  }, [errorsContinued, errors.length])
+  }, [loadInstalledExtensions, handleExtensionStateChange, addToast])
 
   return {
     isReady,
@@ -323,6 +311,6 @@ export function useAppStartup(): StartupState {
     stageName: STAGE_NAMES[stage],
     status,
     errors,
-    continueWithErrors,
+    continueWithErrors: () => setIsReady(true),
   }
 }

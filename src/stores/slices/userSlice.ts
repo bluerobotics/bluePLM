@@ -15,6 +15,7 @@ export const createUserSlice: StateCreator<
   isAuthenticated: false,
   isOfflineMode: false,
   isConnecting: false,
+  authInitialized: false,
   impersonatedUser: null,
   userTeams: null,
   userPermissions: null,
@@ -24,6 +25,7 @@ export const createUserSlice: StateCreator<
   
   // Actions
   setUser: (user: User | null) => set({ user, isAuthenticated: !!user }),
+  setAuthInitialized: (authInitialized) => set({ authInitialized }),
   setOrganization: (organization: Organization | null) => set({ organization, isConnecting: false }),
   setOfflineMode: (isOfflineMode) => set({ isOfflineMode }),
   setIsConnecting: (isConnecting) => set({ isConnecting }),
