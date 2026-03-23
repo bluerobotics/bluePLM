@@ -1993,6 +1993,11 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return { success: true }
   })
 
+  ipcMain.handle('solidworks:reset-com-connection', async () => {
+    log('[SolidWorks] Reset COM connection requested (soft reconnect)')
+    return sendSWCommand({ action: 'resetComConnection' }, { timeoutMs: 5000 })
+  })
+
   ipcMain.handle('solidworks:force-restart', async (_, dmLicenseKey?: string) => {
     log('[SolidWorks] =======================================')
     log('[SolidWorks] [RESTART] FORCE RESTART REQUESTED')
@@ -2540,7 +2545,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
 export function unregisterSolidWorksHandlers(): void {
   const handlers = [
     'solidworks:extract-thumbnail', 'solidworks:extract-preview',
-    'solidworks:start-service', 'solidworks:stop-service', 'solidworks:force-restart', 'solidworks:service-status', 'solidworks:is-installed',
+    'solidworks:start-service', 'solidworks:stop-service', 'solidworks:force-restart', 'solidworks:reset-com-connection', 'solidworks:service-status', 'solidworks:is-installed',
     'solidworks:get-process-status', 'solidworks:kill-orphaned-processes', 'sw:cancel-previews-for-folder', 'sw:release-handles',
     'solidworks:get-bom', 'solidworks:get-properties', 'solidworks:set-properties', 'solidworks:set-properties-batch',
     'solidworks:get-configurations', 'solidworks:get-references', 'solidworks:get-preview', 'solidworks:get-mass-properties',

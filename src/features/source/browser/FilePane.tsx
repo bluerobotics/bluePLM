@@ -16,7 +16,7 @@ import type { FileMetadataColumn } from '@/types/database'
 import { executeCommand } from '@/lib/commands'
 // CrumbBar is now used inside FileToolbar
 import { useTranslation } from '@/lib/i18n'
-import { buildFullPath } from '@/lib/utils/path'
+import { buildFullPath, getRelativePath } from '@/lib/utils/path'
 // Modal for locked files during folder move
 import { LockedFilesModal, type LockedFileInfo } from '@/components/core/Dialog'
 
@@ -1289,17 +1289,21 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     toggleConfigBomExpansion(file, configName)
   }, [toggleConfigBomExpansion])
 
-  // Handler for clicking on a BOM item row - navigate to the file
+  // Handler for clicking on a BOM item row - navigate to the file, select it, and scroll into view
   const handleConfigBomRowClick = useCallback((e: React.MouseEvent, _file: LocalFile, item: import('@/stores/types').ConfigBomItem) => {
     e.stopPropagation()
     if (item.file_path && vaultPath) {
-      // Navigate to the folder containing the file (split on both / and \)
-      const folderPath = item.file_path.split(/[\\/]/).slice(0, -1).join('/')
+      // Normalize to vault-relative path (SW service may return absolute paths)
+      const relativePath = getRelativePath(item.file_path, vaultPath)
+      const folderPath = relativePath.split(/[\\/]/).slice(0, -1).join('/')
       if (folderPath) {
         navigateToFolder(folderPath)
       }
+      const fullPath = buildFullPath(vaultPath, relativePath)
+      setSelectedFiles([fullPath])
+      setPendingScrollToFile(fullPath)
     }
-  }, [vaultPath, navigateToFolder])
+  }, [vaultPath, navigateToFolder, setSelectedFiles, setPendingScrollToFile])
 
   // Handler for clicking on a drawing reference row - navigate to the referenced file, select it, and scroll into view
   const handleDrawingRefRowClick = useCallback((e: React.MouseEvent, _file: LocalFile, item: import('@/stores/types').DrawingRefItem) => {

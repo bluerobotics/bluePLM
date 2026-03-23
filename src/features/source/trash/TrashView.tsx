@@ -20,10 +20,11 @@ import {
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
-import { getDeletedFiles, restoreFile, permanentlyDeleteFiles, emptyTrash } from '@/lib/supabase'
+import { getDeletedFiles, restoreFile, permanentlyDeleteFiles, emptyTrash, updateFilePath, syncFolder } from '@/lib/supabase'
 import type { DeletedFile } from '@/types/pdm'
 import { useFlattenedTrash } from './hooks'
 import { VirtualizedTrashRow } from './VirtualizedTrashRow'
+import { FolderPickerDialog } from './FolderPickerDialog'
 
 export function TrashView() {
   const { organization, isVaultConnected, activeVaultId, user, addToast, addProgressToast, updateProgressToast, removeToast, isProgressToastCancelled, connectedVaults, trashFolderFilter, setTrashFolderFilter, addCloudFile } = usePDMStore()
@@ -33,6 +34,10 @@ export function TrashView() {
   const [isRestoring, setIsRestoring] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false)
+  const [folderPickerState, setFolderPickerState] = useState<{
+    files: Array<{ id: string; fileName: string; oldPath: string; fullFileData: any }>
+    onSelect: (folder: string) => Promise<void>
+  } | null>(null)
   const [isEmptying, setIsEmptying] = useState(false)
   
   // Search and filter state
@@ -421,11 +426,53 @@ export function TrashView() {
       try {
         const result = await restoreFile(fileIds[0], user.id)
         if (result.success) {
-          // Add restored file to store so it appears in file tree immediately
           if (result.file) {
-            addCloudFile(result.file)
+            const parentPath = result.file.file_path.substring(0, result.file.file_path.lastIndexOf('/'))
+            let parentExistsLocally = true
+            if (parentPath) {
+              const preRestoreFiles = usePDMStore.getState().files
+              parentExistsLocally = preRestoreFiles.some(
+                f => f.isDirectory && f.diffStatus !== 'cloud' && f.relativePath.toLowerCase() === parentPath.toLowerCase()
+              )
+            }
+
+            if (!parentExistsLocally && parentPath) {
+              // Stale path: show folder picker so user can choose a new location
+              const restoredFile = result.file
+              setFolderPickerState({
+                files: [{ id: restoredFile.id, fileName: restoredFile.file_name, oldPath: restoredFile.file_path, fullFileData: restoredFile }],
+                onSelect: async (folder: string) => {
+                  const newFilePath = folder ? `${folder}/${restoredFile.file_name}` : restoredFile.file_name
+                  const updateResult = await updateFilePath(restoredFile.id, newFilePath)
+                  if (updateResult.success && updateResult.file) {
+                    addCloudFile(updateResult.file)
+                    const wasAdded = usePDMStore.getState().files.some(f => f.pdmData?.id === restoredFile.id)
+                    if (wasAdded) {
+                      addToast('success', `File restored to "${folder || 'Vault Root'}"`)
+                    } else {
+                      addToast('warning', `"${restoredFile.file_name}" was restored but could not be added to the file browser. Try refreshing.`)
+                    }
+                  } else {
+                    addCloudFile(restoredFile)
+                    addToast('warning', `File restored but failed to move to new folder: ${updateResult.error || 'Unknown error'}`)
+                  }
+                  setFolderPickerState(null)
+                  loadDeletedFiles()
+                }
+              })
+            } else {
+              addCloudFile(result.file)
+              const storeFiles = usePDMStore.getState().files
+              const wasAdded = storeFiles.some(f => f.pdmData?.id === result.file!.id)
+              if (!wasAdded) {
+                addToast('warning', `"${result.file.file_name}" was restored in the database but could not be added to the file browser. Try refreshing.`)
+              } else {
+                addToast('success', 'File restored successfully')
+              }
+            }
+          } else {
+            addToast('success', 'File restored successfully')
           }
-          addToast('success', 'File restored successfully')
         } else {
           addToast('error', result.error || 'Failed to restore file')
         }
@@ -445,10 +492,11 @@ export function TrashView() {
     
     let restored = 0
     let failed = 0
+    const errorMessages: string[] = []
+    const stalePathFiles: Array<{ id: string; fileName: string; oldPath: string; fullFileData: any }> = []
     
     try {
       for (let i = 0; i < fileIds.length; i++) {
-        // Check for cancellation
         if (isProgressToastCancelled(toastId)) {
           break
         }
@@ -457,19 +505,46 @@ export function TrashView() {
         try {
           const result = await restoreFile(fileId, user.id)
           if (result.success) {
-            // Add restored file to store so it appears in file tree immediately
             if (result.file) {
-              addCloudFile(result.file)
+              const parentPath = result.file.file_path.substring(0, result.file.file_path.lastIndexOf('/'))
+              let parentExistsLocally = true
+              if (parentPath) {
+                const preRestoreFiles = usePDMStore.getState().files
+                parentExistsLocally = preRestoreFiles.some(
+                  f => f.isDirectory && f.diffStatus !== 'cloud' && f.relativePath.toLowerCase() === parentPath.toLowerCase()
+                )
+              }
+
+              if (!parentExistsLocally && parentPath) {
+                // Defer adding stale-path files until user picks a destination
+                stalePathFiles.push({
+                  id: result.file.id,
+                  fileName: result.file.file_name,
+                  oldPath: result.file.file_path,
+                  fullFileData: result.file
+                })
+              } else {
+                addCloudFile(result.file)
+                const storeFiles = usePDMStore.getState().files
+                const wasAdded = storeFiles.some(f => f.pdmData?.id === result.file!.id)
+                if (!wasAdded) {
+                  log.warn('[Restore]', 'File restored in DB but not added to store', {
+                    fileId: result.file.id,
+                    filePath: result.file.file_path
+                  })
+                }
+              }
             }
             restored++
           } else {
             failed++
+            errorMessages.push(`${result.file?.file_name || fileId}: ${result.error || 'Unknown error'}`)
           }
-        } catch {
+        } catch (err) {
           failed++
+          errorMessages.push(`File ${fileId}: ${err instanceof Error ? err.message : 'Unknown error'}`)
         }
         
-        // Update progress
         const percent = Math.round(((i + 1) / total) * 100)
         updateProgressToast(toastId, i + 1, percent)
       }
@@ -482,6 +557,47 @@ export function TrashView() {
         addToast('warning', `Restored ${restored}/${total} files (${failed} failed)`)
       } else {
         addToast('error', 'Failed to restore files')
+      }
+
+      if (failed > 0 && errorMessages.length > 0) {
+        const summary = errorMessages.length <= 3
+          ? errorMessages.join('; ')
+          : `${errorMessages.slice(0, 3).join('; ')} and ${errorMessages.length - 3} more`
+        addToast('warning', `${failed} file(s) failed to restore: ${summary}`)
+      }
+
+      if (stalePathFiles.length > 0) {
+        setFolderPickerState({
+          files: stalePathFiles,
+          onSelect: async (folder: string) => {
+            let moved = 0
+            for (const file of stalePathFiles) {
+              const newFilePath = folder ? `${folder}/${file.fileName}` : file.fileName
+              const updateResult = await updateFilePath(file.id, newFilePath)
+              if (updateResult.success && updateResult.file) {
+                addCloudFile(updateResult.file)
+                moved++
+              } else {
+                addCloudFile(file.fullFileData)
+              }
+            }
+            const storeFiles = usePDMStore.getState().files
+            let notAdded = 0
+            for (const file of stalePathFiles) {
+              if (!storeFiles.some(f => f.pdmData?.id === file.id)) {
+                notAdded++
+              }
+            }
+            if (moved > 0) {
+              addToast('success', `Moved ${moved} file(s) to "${folder || 'Vault Root'}"`)
+            }
+            if (notAdded > 0) {
+              addToast('warning', `${notAdded} file(s) were restored but could not be added to the file browser. Try refreshing.`)
+            }
+            setFolderPickerState(null)
+            loadDeletedFiles()
+          }
+        })
       }
       
       setSelectedFiles(new Set())
@@ -576,6 +692,7 @@ export function TrashView() {
   }
 
   return (
+    <>
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-3 border-b border-plm-border space-y-2">
@@ -1040,6 +1157,70 @@ export function TrashView() {
         </div>
       )}
     </div>
+
+      {folderPickerState && (() => {
+        const missingPaths = [...new Set(
+          folderPickerState.files
+            .map(f => f.oldPath.substring(0, f.oldPath.lastIndexOf('/')))
+            .filter(Boolean)
+        )]
+
+        const handleRecreateFolders = async () => {
+          const vaultId = activeVaultId
+          const orgId = organization?.id
+          const userId = user?.id
+          if (!vaultId || !orgId || !userId) return
+
+          let foldersCreated = 0
+          for (const folderPath of missingPaths) {
+            const result = await syncFolder(orgId, vaultId, userId, folderPath)
+            if (result.folder) foldersCreated++
+          }
+
+          const currentVaultData = connectedVaults.find(v => v.id === vaultId)
+          if (currentVaultData?.localPath && window.electronAPI?.createFolder) {
+            for (const folderPath of missingPaths) {
+              const fullPath = `${currentVaultData.localPath}/${folderPath}`
+              await window.electronAPI.createFolder(fullPath)
+            }
+          }
+
+          for (const file of folderPickerState.files) {
+            addCloudFile(file.fullFileData)
+          }
+
+          const fileCount = folderPickerState.files.length
+          addToast('success',
+            `Recreated ${foldersCreated} folder(s), restored ${fileCount} file(s) to original location${fileCount > 1 ? 's' : ''}`
+          )
+          setFolderPickerState(null)
+          loadDeletedFiles()
+        }
+
+        return (
+          <FolderPickerDialog
+            isOpen={true}
+            onClose={() => {
+              for (const file of folderPickerState.files) {
+                addCloudFile(file.fullFileData)
+              }
+              addToast('info', `${folderPickerState.files.length} restored file(s) kept at their original paths.`)
+              setFolderPickerState(null)
+            }}
+            title="Choose Destination Folder"
+            message={
+              folderPickerState.files.length === 1
+                ? `"${folderPickerState.files[0].fileName}" was in a folder that no longer exists. Pick a new location or recreate the original folder.`
+                : `${folderPickerState.files.length} restored file(s) were in folders that no longer exist. Choose a destination or recreate the original folders.`
+            }
+            onSelect={folderPickerState.onSelect}
+            defaultPath=""
+            missingPaths={missingPaths}
+            onRecreateFolders={handleRecreateFolders}
+          />
+        )
+      })()}
+    </>
   )
 }
 

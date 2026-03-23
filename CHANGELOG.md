@@ -2,6 +2,21 @@
 
 All notable changes to BluePLM will be documented in this file.
 
+![1774273238438](image/CHANGELOG/1774273238438.png)
+
+## [3.17.0] - 2026-03-23
+
+### Added
+- **Folder picker for stale-path restores** — restoring trashed files whose parent folder was renamed now opens a folder picker instead of silently placing them at the old (non-existent) path. Works for single and batch restores
+
+### Fixed
+- **Ghost files after folder rename causing data loss** — renaming or drag-drop moving a folder left nested files' server paths pointing at the old location, creating phantom "ghost" files on next sync. Deleting the ghosts destroyed the real server records. All folder rename/move paths (command, drag-drop) now update `pdmData.file_path` for nested files immediately
+- **Folder rename could corrupt unrelated or trashed files** — `updateFolderPath` used unsafe prefix matching (renaming `A` could corrupt `AB/`) and had no `deleted_at` filter. Now uses safe `/` suffix matching and skips trashed files
+- **Silent failures in folder rename/move/restore** — partial server update failures were silently swallowed; `addCloudFile` could silently no-op; batch restore hid per-file errors. All paths now check results, verify files were added to the store, and surface specific errors in toasts
+- **Rename/move cleared unsaved metadata for nested files** — `updateFilesInStore` incorrectly cleared pending metadata and copy source when only updating `pdmData`. Now uses precise `'key' in obj` checks
+
+---
+
 ## [3.16.0] - 2026-03-19
 
 ### Changed

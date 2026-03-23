@@ -77,7 +77,7 @@ export type SidebarView =
   | 'terminal'
   | 'settings'
 
-export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'contains' | 'datacard' | 'vendors'
+export type DetailsPanelTab = 'properties' | 'preview' | 'whereused' | 'datacard' | 'vendors'
 export type PanelPosition = 'bottom' | 'right'
 export type ToastType = 'error' | 'success' | 'info' | 'warning' | 'progress' | 'update'
 export type ThemeMode = 'dark' | 'deep-blue' | 'light' | 'christmas' | 'halloween' | 'weather' | 'kenneth' | 'system'

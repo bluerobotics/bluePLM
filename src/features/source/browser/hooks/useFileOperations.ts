@@ -27,7 +27,8 @@ import { executeCommand } from '@/lib/commands'
 import { logFileAction } from '@/lib/userActionLogger'
 import { getSyncedFilesFromSelection } from '@/lib/commands/types'
 import { isMachineOnline } from '@/lib/supabase'
-import { moveFileOnServer, updateFolderPath } from '@/lib/supabase/files'
+import { moveFileOnServer, updateFolderPath, updateFolderServerPath } from '@/lib/supabase/files'
+import { getFilesInFolder } from '@/lib/commands/types'
 import { buildFullPath } from '@/lib/utils/path'
 import type { CustomConfirmState } from './useDialogState'
 
@@ -356,8 +357,7 @@ export function useFileOperations({
         // For synced items, update server first
         if (userId) {
           if (file.isDirectory) {
-            // For directories, update all files inside the folder on the server
-            const folderResult = await updateFolderPath(file.relativePath, newRelPath)
+            const folderResult = await updateFolderPath(file.relativePath, newRelPath, usePDMStore.getState().activeVaultId || undefined)
             if (!folderResult.success) {
               failed++
               log.error('[FileOps]', 'Server folder move failed', { error: folderResult.error })
@@ -366,8 +366,20 @@ export function useFileOperations({
               updateProgressToast(toastId, i + 1, Math.round(((i + 1) / total) * 100))
               continue
             }
+            if (file.pdmData?.id) {
+              try {
+                await updateFolderServerPath(file.pdmData.id, newRelPath)
+                log.info('[FileOps]', 'Updated folder path on server', {
+                  oldPath: file.relativePath,
+                  newPath: newRelPath
+                })
+              } catch (err) {
+                log.warn('[FileOps]', 'Failed to update folder path on server', {
+                  error: err instanceof Error ? err.message : String(err)
+                })
+              }
+            }
           } else if (file.pdmData?.id) {
-            // For synced files, use atomic move with checkout validation
             const serverResult = await moveFileOnServer(file.pdmData.id, userId, newRelPath, file.name)
             if (!serverResult.success) {
               failed++
@@ -380,14 +392,45 @@ export function useFileOperations({
           }
         }
         
+        // Collect nested synced files BEFORE renameFileInStore changes paths
+        let nestedSyncedFiles: Array<{ oldRelPath: string; newRelPath: string; pdmData: LocalFile['pdmData'] }> = []
+        if (file.isDirectory) {
+          const nestedFiles = getFilesInFolder(files, file.relativePath)
+          nestedSyncedFiles = nestedFiles
+            .filter(f => f.pdmData?.file_path)
+            .map(f => ({
+              oldRelPath: f.relativePath,
+              newRelPath: newRelPath + f.relativePath.substring(file.relativePath.length),
+              pdmData: f.pdmData
+            }))
+        }
+        
         // Now perform local move
         const result = await window.electronAPI.moveFile(file.path, newFullPath)
         if (result.success) {
           succeeded++
-          // Update file in store with new path
-          // For synced items (files or folders), don't mark as 'moved' since server is already updated
-          const markAsMoved = !file.isDirectory && !file.pdmData?.id
-          renameFileInStore(file.path, newFullPath, newRelPath, markAsMoved)
+          // Pass isMove=true so renameFileInStore treats newRelPath as a full relative path
+          renameFileInStore(file.path, newFullPath, newRelPath, true)
+          
+          // Update nested files' pdmData.file_path to prevent ghost files
+          if (file.isDirectory && nestedSyncedFiles.length > 0) {
+            const { updateFilesInStore } = usePDMStore.getState()
+            const sep = vaultPath.includes('\\') ? '\\' : '/'
+            const pdmDataUpdates = nestedSyncedFiles.map(nested => ({
+              path: `${vaultPath}${sep}${nested.newRelPath.replace(/\//g, sep)}`,
+              updates: {
+                pdmData: {
+                  ...nested.pdmData,
+                  file_path: nested.newRelPath
+                }
+              }
+            }))
+            updateFilesInStore(pdmDataUpdates as Array<{ path: string; updates: Partial<LocalFile> }>)
+            log.debug('[FileOps]', 'Updated nested files pdmData.file_path after drag-drop move', {
+              folderPath: file.relativePath,
+              updatedCount: pdmDataUpdates.length
+            })
+          }
         } else {
           failed++
           log.error('[FileOps]', 'Local move failed', { error: result.error })

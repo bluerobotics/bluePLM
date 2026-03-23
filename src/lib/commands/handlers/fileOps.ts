@@ -9,7 +9,7 @@ import type { Command, RenameParams, MoveParams, CopyParams, NewFolderParams, Me
 import type { PendingMetadata } from '@/stores/types'
 import { getFilesInFolder, getFilesCheckedOutByOthers, getCloudOnlyFilesFromSelection } from '../types'
 import { ProgressTracker } from '../executor'
-import { updateFilePath, updateFolderPath, syncFolder, updateFolderServerPath } from '../../supabase'
+import { updateFilePath, updateFolderPath, syncFolder, updateFolderServerPath, deleteFolderOnServer } from '../../supabase'
 import { getExtension } from '../../utils/path'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -273,11 +273,45 @@ export const renameCommand: Command<RenameParams> = {
         }
       }
       
+      // Collect nested synced files BEFORE renameFileInStore changes paths
+      let nestedSyncedFiles: Array<{ oldRelPath: string; newRelPath: string; pdmData: LocalFile['pdmData'] }> = []
+      if (file.isDirectory) {
+        const nestedFiles = getFilesInFolder(ctx.files, file.relativePath)
+        nestedSyncedFiles = nestedFiles
+          .filter(f => f.pdmData?.file_path)
+          .map(f => ({
+            oldRelPath: f.relativePath,
+            newRelPath: newRelPath + f.relativePath.substring(oldRelPath.length),
+            pdmData: f.pdmData
+          }))
+      }
+      
       // Optimistic UI update: rename in store BEFORE server updates
       // Must run before updateFolderPath because server updates trigger realtime events
       // that trickle in one-by-one. If the store isn't updated first, the folder entry
       // gets modified by realtime before renameFileInStore can find it.
       ctx.renameFileInStore(oldPath, newPath, finalName, false)
+      
+      // Update nested files' pdmData.file_path to prevent ghost files when loadFiles()
+      // rebuilds the pdmMap. Same proven pattern as the move command.
+      if (file.isDirectory && nestedSyncedFiles.length > 0) {
+        const vaultPath = ctx.vaultPath || ''
+        const sep = vaultPath.includes('\\') ? '\\' : '/'
+        const pdmDataUpdates = nestedSyncedFiles.map(nested => ({
+          path: `${vaultPath}${sep}${nested.newRelPath.replace(/\//g, sep)}`,
+          updates: {
+            pdmData: {
+              ...nested.pdmData,
+              file_path: nested.newRelPath
+            }
+          }
+        }))
+        ctx.updateFilesInStore(pdmDataUpdates as Array<{ path: string; updates: Partial<LocalFile> }>)
+        log.debug('[Rename]', 'Updated nested files pdmData.file_path', {
+          folderPath: file.relativePath,
+          updatedCount: pdmDataUpdates.length
+        })
+      }
       
       // Mark operation complete to help suppress file watcher
       ctx.setLastOperationCompletedAt(Date.now())
@@ -287,7 +321,16 @@ export const renameCommand: Command<RenameParams> = {
       // For synced files, update server paths (runs after store update)
       if (file.pdmData?.id) {
         if (file.isDirectory) {
-          await updateFolderPath(oldRelPath, newRelPath)
+          const folderResult = await updateFolderPath(oldRelPath, newRelPath, ctx.activeVaultId || undefined)
+          if (!folderResult.success || folderResult.updated < folderResult.total) {
+            const failCount = (folderResult.total || 0) - folderResult.updated
+            log.warn('[Rename]', 'Some server file paths failed to update', {
+              updated: folderResult.updated,
+              total: folderResult.total,
+              errors: folderResult.errors
+            })
+            ctx.addToast('warning', `${failCount} file(s) may not have updated on the server. Try refreshing.`)
+          }
           try {
             await updateFolderServerPath(file.pdmData.id, newRelPath)
             log.info('[Rename]', 'Updated folder path on server', { oldRelPath, newRelPath })
@@ -687,9 +730,16 @@ export const moveCommand: Command<MoveParams> = {
         // Update server if synced (newRelPath already computed at start of loop)
         if (file.pdmData?.id) {
           if (file.isDirectory) {
-            // Update file paths within the folder
-            await updateFolderPath(file.relativePath, newRelPath)
-            // Also update the folder record itself if it has one
+            const folderResult = await updateFolderPath(file.relativePath, newRelPath, ctx.activeVaultId || undefined)
+            if (!folderResult.success || folderResult.updated < folderResult.total) {
+              const failCount = (folderResult.total || 0) - folderResult.updated
+              log.warn('[Move]', 'Some server file paths failed to update', {
+                updated: folderResult.updated,
+                total: folderResult.total,
+                errors: folderResult.errors
+              })
+              ctx.addToast('warning', `${failCount} file(s) may not have updated on the server. Try refreshing.`)
+            }
             try {
               await updateFolderServerPath(file.pdmData.id, newRelPath)
               log.info('[Move]', 'Updated folder path on server', { 
@@ -1401,9 +1451,15 @@ export const mergeFolderCommand: Command<MergeFolderParams> = {
             const destRelPath = destPath.substring(vaultPath.length + 1).replace(/\\/g, '/')
             ctx.renameFileInStore(source.path, destPath, destRelPath, true)
             
-            // Update server if synced
+            // Update server if synced, and patch pdmData.file_path in the store
             if (source.pdmData?.id) {
-              await updateFilePath(source.pdmData.id, destRelPath)
+              const updateResult = await updateFilePath(source.pdmData.id, destRelPath)
+              if (updateResult.success && updateResult.file) {
+                ctx.updateFilesInStore([{
+                  path: destPath,
+                  updates: { pdmData: { ...source.pdmData, file_path: destRelPath } }
+                }])
+              }
             }
             
             succeeded++
@@ -1455,8 +1511,15 @@ export const mergeFolderCommand: Command<MergeFolderParams> = {
           if (moveResult?.success) {
             ctx.renameFileInStore(source.path, finalDestPath, finalDestRelPath, true)
             
+            // Update server if synced, and patch pdmData.file_path in the store
             if (source.pdmData?.id) {
-              await updateFilePath(source.pdmData.id, finalDestRelPath)
+              const updateResult = await updateFilePath(source.pdmData.id, finalDestRelPath)
+              if (updateResult.success && updateResult.file) {
+                ctx.updateFilesInStore([{
+                  path: finalDestPath,
+                  updates: { pdmData: { ...source.pdmData, file_path: finalDestRelPath } }
+                }])
+              }
             }
             
             succeeded++
@@ -1476,11 +1539,14 @@ export const mergeFolderCommand: Command<MergeFolderParams> = {
         await window.electronAPI?.deleteItem(sourceFolder.path)
         ctx.removeFilesFromStore([sourceFolder.path])
         
-        // Update server if the folder was synced
-        if (sourceFolder.pdmData?.id) {
-          // The folder record should be deleted or updated on the server
-          // For now, we'll leave the folder record as it will be cleaned up
-          // by the sync process
+        if (sourceFolder.pdmData?.id && ctx.user?.id) {
+          const deleteResult = await deleteFolderOnServer(sourceFolder.pdmData.id, ctx.user.id)
+          if (!deleteResult.success) {
+            log.warn('[MergeFolder]', 'Failed to delete source folder on server', {
+              folderId: sourceFolder.pdmData.id,
+              error: deleteResult.error
+            })
+          }
         }
         
         log.info('[MergeFolder]', 'Deleted empty source folder', { path: sourceFolder.relativePath })

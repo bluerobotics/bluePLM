@@ -12,7 +12,7 @@ export interface StoreMigration {
 }
 
 // Current schema version - increment when adding migrations
-export const CURRENT_STORE_VERSION = 3
+export const CURRENT_STORE_VERSION = 4
 
 /**
  * All migrations in order. Each transforms state from previous version.
@@ -34,6 +34,27 @@ export const migrations: StoreMigration[] = [
       ...state,
       autoDiscardOrphanedFiles: true,
     })
+  },
+  {
+    version: 4,
+    description: 'Remove contains tab (functionality moved to main view dropdowns)',
+    migrate: (state) => {
+      const rightPanelTabs = Array.isArray(state.rightPanelTabs)
+        ? (state.rightPanelTabs as string[]).filter(t => t !== 'contains')
+        : state.rightPanelTabs
+      const bottomPanelTabOrder = Array.isArray(state.bottomPanelTabOrder)
+        ? (state.bottomPanelTabOrder as string[]).filter(t => t !== 'contains')
+        : state.bottomPanelTabOrder
+      return {
+        ...state,
+        rightPanelTabs,
+        bottomPanelTabOrder,
+        detailsPanelTab: state.detailsPanelTab === 'contains' ? 'preview' : state.detailsPanelTab,
+        rightPanelTab: state.rightPanelTab === 'contains'
+          ? (Array.isArray(rightPanelTabs) && rightPanelTabs.length > 0 ? rightPanelTabs[0] : null)
+          : state.rightPanelTab,
+      }
+    }
   }
 ]
 

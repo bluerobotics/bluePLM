@@ -378,6 +378,8 @@ declare global {
         isInstalled: () => Promise<{ success: boolean; data?: { installed: boolean } }>
         startService: (dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => Promise<{ success: boolean; data?: { message: string; version?: string; swInstalled?: boolean; fastModeEnabled?: boolean }; error?: string }>
         stopService: () => Promise<{ success: boolean }>
+        forceRestart: (dmLicenseKey?: string) => Promise<{ success: boolean; data?: { message: string; version?: string }; error?: string }>
+        resetComConnection: () => Promise<{ success: boolean; data?: { reset: boolean; swProcessRunning: boolean }; error?: string }>
         getServiceStatus: () => Promise<{ success: boolean; data?: { running: boolean; installed?: boolean; version?: string; documentManagerAvailable?: boolean }; error?: string }>
         
         // Metadata operations
@@ -445,6 +447,7 @@ declare global {
         // Open Document Management (control files open in SolidWorks without closing them!)
         getOpenDocuments: (options?: { includeComponents?: boolean }) => Promise<{ success: boolean; data?: { 
           solidWorksRunning: boolean; 
+          processDetected?: boolean;
           documents: Array<{ 
             filePath: string; fileName: string; fileType: string; 
             isReadOnly: boolean; isDirty: boolean; activeConfiguration: string;

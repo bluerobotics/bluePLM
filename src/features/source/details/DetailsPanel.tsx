@@ -7,7 +7,7 @@ import { formatFileSize } from '@/lib/utils'
 import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/DraggableTab'
 import { format } from 'date-fns'
 import { getNextSerialNumber } from '@/lib/serialization'
-import { ContainsTab, WhereUsedTab, SWPropertiesTab } from '@/features/integrations/solidworks'
+import { WhereUsedTab, SWPropertiesTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
 import { VendorsTab } from './VendorsTab'
 import { PdfAnnotationViewer } from './components/PdfAnnotationViewer'
@@ -573,13 +573,11 @@ export function DetailsPanel() {
   const allTabs = isSolidWorksFile && !isFolder ? [
     { id: 'preview', label: 'Preview' },
     { id: 'whereused', label: 'Where Used' },
-    { id: 'contains', label: 'Contains' },
     { id: 'vendors', label: 'Vendors' },
   ] as const : [
     { id: 'preview', label: 'Preview' },
     { id: 'properties', label: 'Properties' },
     { id: 'whereused', label: 'Where Used' },
-    { id: 'contains', label: 'Contains' },
     { id: 'vendors', label: 'Vendors' },
   ] as const
   
@@ -1057,10 +1055,6 @@ export function DetailsPanel() {
 
             {detailsPanelTab === 'whereused' && (
               <WhereUsedTab file={file} />
-            )}
-
-            {detailsPanelTab === 'contains' && (
-              <ContainsTab file={file} />
             )}
 
             {detailsPanelTab === 'vendors' && (

@@ -627,6 +627,8 @@ export function PendingView({ onRefresh }: PendingViewProps) {
   const [expandedAssemblies, setExpandedAssemblies] = useState<Set<string>>(new Set())
   const [loadingAssemblies, setLoadingAssemblies] = useState<Set<string>>(new Set()) // assemblies currently loading references
   const [isLoadingOpenDocs, setIsLoadingOpenDocs] = useState(false)
+  const [swProcessDetected, setSwProcessDetected] = useState(false)
+  const [isReconnecting, setIsReconnecting] = useState(false)
   
   // Selected files in SolidWorks - tracks components selected in the active assembly
   const [selectedInSW, setSelectedInSW] = useState<{
@@ -673,15 +675,32 @@ export function PendingView({ onRefresh }: PendingViewProps) {
     setIsLoadingOpenDocs(true)
     try {
       const result = await window.electronAPI?.solidworks?.getOpenDocuments?.()
+      setSwProcessDetected(!!result?.data?.processDetected)
       if (result?.success && result.data?.documents) {
+        const rawCount = result.data.documents.length
         // Filter to only show files in the current vault and map to OpenDocument format
         const docs = result.data.documents
-          .filter(doc => !vaultPath || doc.filePath.startsWith(vaultPath))
+          .filter(doc => !vaultPath || normalizePath(doc.filePath).startsWith(normalizePath(vaultPath)))
           .map(doc => ({
             ...doc,
             fileType: doc.fileType?.toLowerCase() || doc.fileType,
             extension: '.' + doc.fileName.split('.').pop()?.toLowerCase() || ''
           }))
+        
+        if (rawCount > 0 && docs.length === 0) {
+          window.electronAPI?.log('warn', '[OpenFiles] All SW documents filtered out by vault path', {
+            rawCount,
+            vaultPath,
+            sampleDocPath: result.data.documents[0]?.filePath,
+            normalizedVault: vaultPath ? normalizePath(vaultPath) : null,
+            normalizedDoc: result.data.documents[0]?.filePath ? normalizePath(result.data.documents[0].filePath) : null
+          })
+        } else if (rawCount > 0) {
+          window.electronAPI?.log('debug', '[OpenFiles] SW documents loaded', {
+            rawCount,
+            afterFilter: docs.length
+          })
+        }
         
         // Sort documents by type (assembly > part > drawing) then alphabetically
         const sortedDocs = sortOpenDocuments(docs)
@@ -804,7 +823,7 @@ export function PendingView({ onRefresh }: PendingViewProps) {
         if (result?.success && result.data) {
           // Filter to only show files in the current vault
           const filteredFiles = (result.data.files || []).filter(
-            (file: SelectedFile) => !vaultPath || file.filePath.startsWith(vaultPath)
+            (file: SelectedFile) => !vaultPath || normalizePath(file.filePath).startsWith(normalizePath(vaultPath))
           )
           setSelectedInSW({
             activeDocument: result.data.activeDocument || null,
@@ -1532,8 +1551,44 @@ export function PendingView({ onRefresh }: PendingViewProps) {
             </div>
             
             {expandedPendingSections.has('activeFiles') && (openDocuments.length === 0 ? (
-              <div className="text-sm text-plm-fg-muted py-4 text-center">
-                {isLoadingOpenDocs ? 'Loading...' : 'No active files'}
+              <div className="text-sm py-4 text-center">
+                {isLoadingOpenDocs ? (
+                  <span className="text-plm-fg-muted">Loading...</span>
+                ) : swProcessDetected ? (
+                  <div className="text-plm-warning px-3">
+                    <p className="font-medium">SolidWorks is running but BluePLM can&apos;t communicate with it.</p>
+                    <button
+                      onClick={async () => {
+                        setIsReconnecting(true)
+                        try {
+                          // Step 1: Soft reconnect - clear COM cache and retry
+                          await window.electronAPI?.solidworks?.resetComConnection?.()
+                          await new Promise(r => setTimeout(r, 500))
+                          await loadOpenDocuments()
+                          
+                          // Step 2: If soft reconnect didn't work, full service restart with retries
+                          const docsAfterSoft = openDocuments
+                          if (docsAfterSoft.length === 0) {
+                            await window.electronAPI?.solidworks?.forceRestart?.()
+                            for (let i = 0; i < 3; i++) {
+                              await new Promise(r => setTimeout(r, 1500))
+                              await loadOpenDocuments()
+                            }
+                          }
+                        } finally {
+                          setIsReconnecting(false)
+                        }
+                      }}
+                      disabled={isReconnecting}
+                      className="mt-2 px-3 py-1 text-xs font-medium rounded bg-plm-accent text-plm-accent-fg hover:bg-plm-accent/80 disabled:opacity-50 transition-colors"
+                    >
+                      {isReconnecting ? 'Reconnecting...' : 'Reconnect'}
+                    </button>
+                    <p className="text-xs mt-2 text-plm-fg-muted">If reconnecting doesn&apos;t work, save your work in SolidWorks first, then restart it.</p>
+                  </div>
+                ) : (
+                  <span className="text-plm-fg-muted">No active files</span>
+                )}
               </div>
             ) : (
               <>

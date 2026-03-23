@@ -325,6 +325,8 @@ export const checkoutCommand: Command<CheckoutParams> = {
     // Declare openDocumentPaths here so processFile can access it
     // Will be populated before Phase 2 processing
     let openDocumentPaths: Set<string> = new Set()
+    let swReadOnlyFailCount = 0
+    let swComUnavailable = false
     
     /**
      * Process a single file for checkout
@@ -384,6 +386,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
                   fileName: file.name
                 })
               } else if (!docResult?.success) {
+                swReadOnlyFailCount++
                 logCheckout('warn', 'Failed to set SW document read-write', {
                   operationId,
                   fileName: file.name,
@@ -391,6 +394,7 @@ export const checkoutCommand: Command<CheckoutParams> = {
                 })
               }
             } catch (err) {
+              swReadOnlyFailCount++
               logCheckout('warn', 'Exception setting SW document read-write', {
                 operationId,
                 fileName: file.name,
@@ -525,17 +529,20 @@ export const checkoutCommand: Command<CheckoutParams> = {
             openFiles: Array.from(openDocumentPaths).map(p => p.split(/[/\\]/).pop())
           })
         } else if (openDocsResult?.success && !openDocsResult.data?.solidWorksRunning) {
+          swComUnavailable = true
           logCheckout('debug', 'SOLIDWORKS not running, skipping open document detection', {
             operationId
           })
         }
       } catch (err) {
-        // SW service error - continue without optimization
+        swComUnavailable = true
         logCheckout('warn', 'Failed to fetch open SW documents', {
           operationId,
           error: err instanceof Error ? err.message : String(err)
         })
       }
+    } else if (swFiles.length > 0 && !swServiceRunning) {
+      swComUnavailable = true
     }
     
     let phase2StepId = ''
@@ -702,6 +709,12 @@ export const checkoutCommand: Command<CheckoutParams> = {
       ctx.addToast('error', `Checkout failed: ${firstError}${moreText}`)
     } else {
       ctx.addToast('success', `Checked out ${succeeded} file${succeeded > 1 ? 's' : ''}`)
+    }
+    
+    // Warn if SW files were checked out but read-only state couldn't be updated in SolidWorks
+    const swSucceeded = swFiles.filter((_, i) => swResults[i]?.success).length
+    if (swSucceeded > 0 && (swComUnavailable || swReadOnlyFailCount > 0)) {
+      ctx.addToast('warning', 'Files checked out and writable on disk, but SolidWorks still shows read-only. In SolidWorks: Edit menu \u2192 toggle Read-Only Mode, or close and reopen the file.')
     }
     
     // Complete operation tracking

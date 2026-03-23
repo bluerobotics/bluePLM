@@ -434,6 +434,7 @@ export const en: TranslationDict = {
       resolveFailed: 'Failed to resolve assembly',
       noComponents: 'No components found',
       downloadAll: 'Download All',
+      downloadReferencedFiles: 'Download Referenced Files',
       checkOutAll: 'Check Out All',
       checkInAll: 'Check In All',
       removeLocalAll: 'Remove Local All',

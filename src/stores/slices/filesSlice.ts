@@ -260,21 +260,22 @@ export const createFilesSlice: StateCreator<
       let newPersistedPendingMetadata = state.persistedPendingMetadata
       let newPersistedCopySource = state.persistedCopySource
       for (const [lowerPath, fileUpdates] of updateMap) {
-        if (fileUpdates.pendingMetadata === undefined) {
-          // Find the actual key that matches case-insensitively
+        // Only clear persistedPendingMetadata when the update EXPLICITLY includes pendingMetadata.
+        // Using 'in' check prevents unrelated updates (e.g. pdmData-only) from clearing metadata.
+        if ('pendingMetadata' in fileUpdates && fileUpdates.pendingMetadata === undefined) {
           const matchingKey = Object.keys(newPersistedPendingMetadata).find(
             k => k.toLowerCase() === lowerPath
           )
           if (matchingKey) {
-            // Lazily create a copy only if we need to modify
             if (newPersistedPendingMetadata === state.persistedPendingMetadata) {
               newPersistedPendingMetadata = { ...state.persistedPendingMetadata }
             }
             delete newPersistedPendingMetadata[matchingKey]
           }
         }
-        // Clear persistedCopySource when copiedFromFileId is being cleared (after sync)
-        if (fileUpdates.copiedFromFileId === undefined && fileUpdates.copiedVersion === undefined) {
+        // Only clear persistedCopySource when the update EXPLICITLY includes copy fields.
+        if (('copiedFromFileId' in fileUpdates || 'copiedVersion' in fileUpdates) &&
+            fileUpdates.copiedFromFileId === undefined && fileUpdates.copiedVersion === undefined) {
           const matchingKey = Object.keys(newPersistedCopySource).find(
             k => k.toLowerCase() === lowerPath
           )
@@ -1031,7 +1032,14 @@ export const createFilesSlice: StateCreator<
   // Actions - Realtime Updates (incremental without full refresh)
   addCloudFile: (pdmFile) => {
     const { files, vaultPath } = get()
-    if (!vaultPath) return
+    if (!vaultPath) {
+      window.electronAPI?.log('warn', '[Store] addCloudFile called with no vaultPath -- file will not appear in store', {
+        fileId: pdmFile.id,
+        filePath: pdmFile.file_path,
+        fileName: pdmFile.file_name
+      })
+      return
+    }
     
     // Check if file already exists (by server ID or path) - case-insensitive for Windows
     const existingByPath = files.find(f => 

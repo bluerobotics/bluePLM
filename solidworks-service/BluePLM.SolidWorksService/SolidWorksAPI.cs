@@ -190,6 +190,75 @@ namespace BluePLM.SolidWorksService
             return running;
         }
 
+        /// <summary>
+        /// Get the running SolidWorks instance without launching it.
+        /// Uses cached _swApp reference (validated with RevisionNumber ping), then
+        /// falls back to GetActiveObjectOnSTA(). When process is detected but ROT
+        /// lookup fails, retries with delays to handle transient ROT propagation issues.
+        /// </summary>
+        /// <returns>The running ISldWorks instance, or null if not accessible.</returns>
+        private ISldWorks? GetRunningSwInstanceOrNull()
+        {
+            // 1. Try cached reference first (fast path - avoids ROT lookup entirely)
+            if (_swApp != null)
+            {
+                try
+                {
+                    var _ = _swApp.RevisionNumber();
+                    if (Program.VerboseLogging)
+                        Console.Error.WriteLine("[SW-API] GetRunningSwInstanceOrNull: Using cached reference");
+                    return _swApp;
+                }
+                catch
+                {
+                    Console.Error.WriteLine("[SW-API] GetRunningSwInstanceOrNull: Cached reference is dead, clearing");
+                    _swApp = null;
+                }
+            }
+
+            // 2. Fresh ROT lookup with STA fallback
+            var swObj = GetActiveObjectOnSTA();
+            if (swObj != null)
+            {
+                _swApp = (ISldWorks)swObj;
+                _weStartedSW = false;
+                Console.Error.WriteLine("[SW-API] GetRunningSwInstanceOrNull: Connected via ROT lookup");
+                return _swApp;
+            }
+
+            // 3. Process is running but ROT failed - retry with delays
+            //    The ROT can be temporarily unavailable due to timing or elevation issues
+            if (IsSolidWorksProcessRunning())
+            {
+                Console.Error.WriteLine("[SW-API] GetRunningSwInstanceOrNull: Process detected but ROT failed, retrying...");
+                for (int retry = 1; retry <= 2; retry++)
+                {
+                    Thread.Sleep(500);
+                    swObj = GetActiveObjectOnSTA();
+                    if (swObj != null)
+                    {
+                        _swApp = (ISldWorks)swObj;
+                        _weStartedSW = false;
+                        Console.Error.WriteLine($"[SW-API] GetRunningSwInstanceOrNull: Connected on retry {retry}");
+                        return _swApp;
+                    }
+                }
+                Console.Error.WriteLine("[SW-API] GetRunningSwInstanceOrNull: All retries failed, SW process running but COM inaccessible");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Clear the cached COM connection so the next operation does a fresh ROT lookup.
+        /// Called when the user presses "Reconnect" in the UI.
+        /// </summary>
+        public void ResetComConnection()
+        {
+            Console.Error.WriteLine("[SW-API] ResetComConnection: Clearing cached COM reference");
+            _swApp = null;
+        }
+
         private ISldWorks GetSolidWorks()
         {
             if (_swApp != null)
@@ -2696,24 +2765,22 @@ namespace BluePLM.SolidWorksService
         {
             try
             {
-                // Only try to connect to running instance, don't start SW
-                // Use GetActiveObjectOnSTA for robust COM access (MTA with STA fallback)
-                // This is critical after PLM restart: a new service process may not be able
-                // to access the Running Object Table from MTA alone
-                var swObj = GetActiveObjectOnSTA();
-                if (swObj == null)
+                // Use unified cached connection (validates existing reference, retries on failure)
+                var sw = GetRunningSwInstanceOrNull();
+                if (sw == null)
                 {
+                    bool processRunning = IsSolidWorksProcessRunning();
                     return new CommandResult
                     {
                         Success = true,
                         Data = new
                         {
                             solidWorksRunning = false,
+                            processDetected = processRunning,
                             documents = new List<object>()
                         }
                     };
                 }
-                ISldWorks sw = (ISldWorks)swObj;
 
                 var documents = new List<object>();
                 var doc = (ModelDoc2)sw.GetFirstDocument();
@@ -2797,13 +2864,8 @@ namespace BluePLM.SolidWorksService
         {
             try
             {
-                // Only try to connect to running instance, don't start SW
-                ISldWorks? sw = null;
-                try
-                {
-                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                }
-                catch
+                var sw = GetRunningSwInstanceOrNull();
+                if (sw == null)
                 {
                     return new CommandResult
                     {
@@ -2969,12 +3031,8 @@ namespace BluePLM.SolidWorksService
         {
             try
             {
-                ISldWorks? sw = null;
-                try
-                {
-                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                }
-                catch
+                var sw = GetRunningSwInstanceOrNull();
+                if (sw == null)
                 {
                     return new CommandResult
                     {
@@ -3049,17 +3107,13 @@ namespace BluePLM.SolidWorksService
         {
             try
             {
-                ISldWorks? sw = null;
-                try
-                {
-                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                }
-                catch
+                var sw = GetRunningSwInstanceOrNull();
+                if (sw == null)
                 {
                     return new CommandResult
                     {
                         Success = false,
-                        Error = "SolidWorks is not running",
+                        Error = "SolidWorks is not running or COM connection unavailable",
                         ErrorCode = ComErrorCode.SwNotRunning.ToString()
                     };
                 }
@@ -3159,17 +3213,13 @@ namespace BluePLM.SolidWorksService
         {
             try
             {
-                ISldWorks? sw = null;
-                try
-                {
-                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                }
-                catch
+                var sw = GetRunningSwInstanceOrNull();
+                if (sw == null)
                 {
                     return new CommandResult
                     {
                         Success = false,
-                        Error = "SolidWorks is not running",
+                        Error = "SolidWorks is not running or COM connection unavailable",
                         ErrorCode = ComErrorCode.SwNotRunning.ToString()
                     };
                 }
@@ -3287,17 +3337,13 @@ namespace BluePLM.SolidWorksService
         {
             try
             {
-                ISldWorks? sw = null;
-                try
-                {
-                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                }
-                catch
+                var sw = GetRunningSwInstanceOrNull();
+                if (sw == null)
                 {
                     return new CommandResult
                     {
                         Success = false,
-                        Error = "SolidWorks is not running",
+                        Error = "SolidWorks is not running or COM connection unavailable",
                         ErrorCode = ComErrorCode.SwNotRunning.ToString()
                     };
                 }
@@ -3381,12 +3427,8 @@ namespace BluePLM.SolidWorksService
         {
             try
             {
-                ISldWorks? sw = null;
-                try
-                {
-                    sw = (ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                }
-                catch
+                var sw = GetRunningSwInstanceOrNull();
+                if (sw == null)
                 {
                     return new CommandResult
                     {

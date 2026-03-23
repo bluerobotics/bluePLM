@@ -7,7 +7,8 @@
  * - Remove Local All
  * - Pack and Go (ZIP export)
  * 
- * Only shown for single synced .sldasm files (not cloud-only, not multi-select)
+ * Shown for single .sldasm files that exist in the database (including cloud-only).
+ * For cloud-only assemblies, only Download All and Pack and Go are shown.
  */
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { 
@@ -57,17 +58,17 @@ export function BulkAssemblyActions({
     addToast 
   } = usePDMStore()
 
-  // Check if file is a synced assembly that exists locally
-  const isSyncedAssembly = useCallback(() => {
+  const isAssembly = useCallback(() => {
     const ext = firstFile.extension?.toLowerCase()
     if (ext !== '.sldasm') return false
     if (!firstFile.pdmData?.id) return false
-    if (firstFile.diffStatus === 'cloud') return false
     return true
   }, [firstFile])
 
-  // Only show for single synced .sldasm files
-  const canShow = !multiSelect && isSyncedAssembly()
+  const isCloudOnly = firstFile.diffStatus === 'cloud'
+
+  // Show for single .sldasm files that exist in the database
+  const canShow = !multiSelect && isAssembly()
 
   // Reset state when submenu closes
   useEffect(() => {
@@ -346,43 +347,49 @@ export function BulkAssemblyActions({
                   {t('contextMenu.assembly.downloadAll')}
                 </div>
 
-                {/* Check Out All */}
-                <div
-                  className="context-menu-item"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleActionClick('checkout')
-                  }}
-                >
-                  <Lock size={14} className="text-plm-warning" />
-                  {t('contextMenu.assembly.checkOutAll')}
-                </div>
+                {/* Check Out All - hidden for cloud-only assemblies */}
+                {!isCloudOnly && (
+                  <div
+                    className="context-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleActionClick('checkout')
+                    }}
+                  >
+                    <Lock size={14} className="text-plm-warning" />
+                    {t('contextMenu.assembly.checkOutAll')}
+                  </div>
+                )}
 
-                {/* Check In All */}
-                <div
-                  className="context-menu-item"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleActionClick('checkin')
-                  }}
-                >
-                  <Unlock size={14} className="text-plm-info" />
-                  {t('contextMenu.assembly.checkInAll')}
-                </div>
+                {/* Check In All - hidden for cloud-only assemblies */}
+                {!isCloudOnly && (
+                  <div
+                    className="context-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleActionClick('checkin')
+                    }}
+                  >
+                    <Unlock size={14} className="text-plm-info" />
+                    {t('contextMenu.assembly.checkInAll')}
+                  </div>
+                )}
 
                 <div className="context-menu-separator" />
 
-                {/* Remove Local All */}
-                <div
-                  className="context-menu-item"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleActionClick('delete')
-                  }}
-                >
-                  <Trash2 size={14} />
-                  {t('contextMenu.assembly.removeLocalAll')}
-                </div>
+                {/* Remove Local All - hidden for cloud-only assemblies */}
+                {!isCloudOnly && (
+                  <div
+                    className="context-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleActionClick('delete')
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    {t('contextMenu.assembly.removeLocalAll')}
+                  </div>
+                )}
 
                 {/* Pack and Go */}
                 <div

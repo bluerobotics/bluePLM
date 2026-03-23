@@ -1,7 +1,7 @@
 /**
  * Backup Operations Command Handlers
  * 
- * Commands: backup, backup-status, backup-history, snapshots, trash, restore, empty-trash, versions, rollback, activity
+ * Commands: backup, backup-status, backup-history, snapshots, trash, empty-trash, versions, rollback, activity
  */
 
 import { usePDMStore, LocalFile } from '../../../stores/pdmStore'
@@ -14,7 +14,6 @@ import {
 import {
   getFileVersions,
   getDeletedFiles,
-  restoreFile,
   emptyTrash,
   getRecentActivity,
   rollbackToVersion
@@ -197,50 +196,6 @@ export async function handleTrash(addOutput: OutputFn): Promise<void> {
     addOutput('info', lines.join('\n'))
   } catch (err) {
     addOutput('error', `Failed to get trash: ${err}`)
-  }
-}
-
-/**
- * Handle restore command - restore from trash
- */
-export async function handleRestore(
-  parsed: ParsedCommand,
-  addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
-): Promise<void> {
-  const path = parsed.args[0]
-  if (!path) {
-    addOutput('error', 'Usage: restore <file-path>')
-    return
-  }
-  
-  const { organization, user, activeVaultId } = usePDMStore.getState()
-  if (!organization || !user) {
-    addOutput('error', 'Not signed in')
-    return
-  }
-  
-  try {
-    // Find file in trash by path
-    const result = await getDeletedFiles(organization.id, { vaultId: activeVaultId || undefined })
-    const fileToRestore = result.files.find(f => 
-      f.file_path.toLowerCase().includes(path.toLowerCase())
-    )
-    
-    if (!fileToRestore) {
-      addOutput('error', `No deleted file matching: ${path}`)
-      return
-    }
-    
-    const restoreResult = await restoreFile(fileToRestore.id, user.id)
-    if (restoreResult.success) {
-      addOutput('success', `Restored: ${fileToRestore.file_path}`)
-      onRefresh?.(true)
-    } else {
-      addOutput('error', restoreResult.error || 'Failed to restore')
-    }
-  } catch (err) {
-    addOutput('error', `Failed to restore: ${err}`)
   }
 }
 
@@ -451,15 +406,6 @@ registerTerminalCommand({
   category: 'backup'
 }, async (_parsed, _files, addOutput) => {
   await handleTrash(addOutput)
-})
-
-registerTerminalCommand({
-  aliases: ['restore'],
-  description: 'Restore file from trash',
-  usage: 'restore <file-path>',
-  category: 'backup'
-}, async (parsed, _files, addOutput, onRefresh) => {
-  await handleRestore(parsed, addOutput, onRefresh)
 })
 
 registerTerminalCommand({

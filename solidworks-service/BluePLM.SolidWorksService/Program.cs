@@ -33,7 +33,7 @@ namespace BluePLM.SolidWorksService
         /// Service version - bump this when making changes that affect functionality.
         /// The app checks this version and warns if there's a mismatch.
         /// </summary>
-        private const string SERVICE_VERSION = "1.2.1";
+        private const string SERVICE_VERSION = "1.2.3";
         
         private static DocumentManagerAPI? _dmApi;
         private static SolidWorksAPI? _swApi;
@@ -364,6 +364,7 @@ namespace BluePLM.SolidWorksService
                     "ping" => Ping(),
                     "setDmLicense" => SetDmLicense(command["licenseKey"]?.ToString()),
                     "releaseHandles" => ReleaseHandles(),
+                    "resetComConnection" => ResetComConnection(),
                     "quit" => Quit(),
                     
                     _ => new CommandResult { Success = false, Error = $"Unknown action: {action}" }
@@ -789,6 +790,21 @@ namespace BluePLM.SolidWorksService
                 };
             }
             return new CommandResult { Success = true, Data = new { released = false, reason = "DM not initialized" } };
+        }
+
+        static CommandResult ResetComConnection()
+        {
+            Console.Error.WriteLine("[Service] Processing resetComConnection command");
+            _swApi?.ResetComConnection();
+            return new CommandResult
+            {
+                Success = true,
+                Data = new
+                {
+                    reset = true,
+                    swProcessRunning = SolidWorksAPI.IsSolidWorksProcessRunning()
+                }
+            };
         }
 
         static CommandResult Quit()

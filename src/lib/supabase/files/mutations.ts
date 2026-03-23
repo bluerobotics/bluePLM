@@ -623,28 +623,44 @@ export async function updateFilePath(
 
 export async function updateFolderPath(
   oldFolderPath: string,
-  newFolderPath: string
-): Promise<{ success: boolean; updated: number; error?: string }> {
+  newFolderPath: string,
+  vaultId?: string
+): Promise<{ success: boolean; updated: number; total: number; errors: string[]; error?: string }> {
   const client = getSupabaseClient()
   
-  // Get all files in the folder (uses RLS to filter by user's org/vault)
-  const { data: files, error: fetchError } = await client
+  // Normalize: strip trailing slashes so the '/%' suffix is always correct
+  oldFolderPath = oldFolderPath.replace(/\/+$/, '')
+  newFolderPath = newFolderPath.replace(/\/+$/, '')
+  
+  // Use '/%' to prevent prefix collisions (e.g. renaming "A" matching "AB/file.txt")
+  // Only files live in this table; folders are in the separate `folders` table.
+  // Filter out trashed files -- they keep their frozen paths for restore.
+  let query = client
     .from('files')
     .select('id, file_path, file_name')
-    .ilike('file_path', `${oldFolderPath}%`)
+    .ilike('file_path', `${oldFolderPath}/%`)
+    .is('deleted_at', null)
+
+  if (vaultId) {
+    query = query.eq('vault_id', vaultId)
+  }
+
+  const { data: files, error: fetchError } = await query
   
   if (fetchError) {
-    return { success: false, updated: 0, error: fetchError.message }
+    return { success: false, updated: 0, total: 0, errors: [fetchError.message], error: fetchError.message }
   }
   
   if (!files || files.length === 0) {
-    return { success: true, updated: 0 }
+    return { success: true, updated: 0, total: 0, errors: [] }
   }
   
-  // Update each file's path
   let updated = 0
+  const errors: string[] = []
+  const escapedOldPath = oldFolderPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const oldPathPattern = new RegExp(escapedOldPath, 'i')
   for (const file of files) {
-    const newFilePath = file.file_path.replace(oldFolderPath, newFolderPath)
+    const newFilePath = file.file_path.replace(oldPathPattern, newFolderPath)
     
     const { error } = await client
       .from('files')
@@ -654,12 +670,21 @@ export async function updateFolderPath(
       })
       .eq('id', file.id)
     
-    if (!error) {
+    if (error) {
+      const msg = `Failed to update file ${file.id} (${file.file_path}): ${error.message}`
+      errors.push(msg)
+      console.warn('[updateFolderPath]', msg)
+    } else {
       updated++
     }
   }
   
-  return { success: true, updated }
+  return {
+    success: errors.length === 0,
+    updated,
+    total: files.length,
+    errors
+  }
 }
 
 // ============================================

@@ -4,7 +4,7 @@ import { thumbnailCache } from '@/lib/thumbnailCache'
 import { getFileIconType } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils'
 import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/DraggableTab'
-import { ContainsTab, WhereUsedTab } from '@/features/integrations/solidworks'
+import { WhereUsedTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
 import { VendorsTab } from '@/features/source/details/VendorsTab'
 import { 
@@ -371,10 +371,6 @@ export function RightPanel() {
 
             {rightPanelTab === 'whereused' && (
               <WhereUsedTab file={file} />
-            )}
-
-            {rightPanelTab === 'contains' && (
-              <ContainsTab file={file} />
             )}
 
             {rightPanelTab === 'vendors' && (

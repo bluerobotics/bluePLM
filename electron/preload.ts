@@ -381,6 +381,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     startService: (dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => 
       ipcRenderer.invoke('solidworks:start-service', dmLicenseKey, cleanupOrphans, verboseLogging),
     stopService: () => ipcRenderer.invoke('solidworks:stop-service'),
+    forceRestart: (dmLicenseKey?: string) => ipcRenderer.invoke('solidworks:force-restart', dmLicenseKey),
+    resetComConnection: () => ipcRenderer.invoke('solidworks:reset-com-connection'),
     getServiceStatus: () => ipcRenderer.invoke('solidworks:service-status'),
     
     // Orphaned process management

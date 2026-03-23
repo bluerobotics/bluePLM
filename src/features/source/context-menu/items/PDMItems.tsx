@@ -1,5 +1,5 @@
 // src/features/source/context-menu/items/PDMItems.tsx
-import { ArrowDown, ArrowUp, Undo2, RefreshCw, Network, FileSearch } from 'lucide-react'
+import { ArrowDown, ArrowUp, Undo2, RefreshCw, Network, FileSearch, Package2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand, getSyncedFilesFromSelection, getGhostFilesFromSelection } from '@/lib/commands'
@@ -142,6 +142,20 @@ export function PDMItems({
     executeCommand('extract-references', { files: contextFiles }, { onRefresh })
   }
 
+  const handleDownloadReferencedFiles = () => {
+    if (!canDownload.allowed) {
+      addToast('error', canDownload.reason || getPermissionRequirement('download'))
+      return
+    }
+    const firstFile = contextFiles[0]
+    if (!firstFile?.pdmData?.id) return
+    onClose()
+    executeCommand('bulk-download-assembly', {
+      files: contextFiles,
+      rootFileId: firstFile.pdmData.id
+    })
+  }
+
   // Get SolidWorks files checked out by current user (sync-metadata requires checkout)
   const checkedOutSwFiles = syncedFilesInSelection.filter(f => 
     SW_EXTENSIONS.includes(f.extension.toLowerCase()) &&
@@ -152,6 +166,12 @@ export function PDMItems({
   const syncedAssemblyFiles = syncedFilesInSelection.filter(f => 
     ASSEMBLY_EXTENSIONS.includes(f.extension.toLowerCase())
   )
+
+  // Single assembly file with database entry (for "Download Referenced Files")
+  const isSingleAssembly = !multiSelect &&
+    contextFiles.length === 1 &&
+    ASSEMBLY_EXTENSIONS.includes(contextFiles[0].extension?.toLowerCase()) &&
+    !!contextFiles[0].pdmData?.id
 
   // Determine disabled state and reason for each operation
   const checkoutDisabled = !canCheckout.allowed || !anySynced || allCheckedOut
@@ -207,6 +227,22 @@ export function PDMItems({
         >
           <ArrowDown size={14} className={canDownload.allowed ? 'text-plm-success' : 'text-plm-fg-muted'} />
           Download {cloudOnlyCount > 0 ? `${cloudOnlyCount} files` : countLabel}
+          {!canDownload.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+        </div>
+      )}
+
+      {/* Download Referenced Files - for single assembly files */}
+      {isSingleAssembly && (
+        <div
+          className={`context-menu-item ${!canDownload.allowed ? 'disabled' : ''}`}
+          onClick={handleDownloadReferencedFiles}
+          title={!canDownload.allowed
+            ? `Requires ${getPermissionRequirement('download')}`
+            : 'Download this assembly and all its referenced parts, sub-assemblies, and drawings'
+          }
+        >
+          <Package2 size={14} className={canDownload.allowed ? 'text-plm-success' : 'text-plm-fg-muted'} />
+          Download Referenced Files
           {!canDownload.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
         </div>
       )}

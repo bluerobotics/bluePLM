@@ -143,8 +143,22 @@ export async function handleRestore(
     const result = await restoreFile(fileToRestore.id, user.id)
 
     if (result.success) {
+      if (result.file) {
+        const { addCloudFile } = usePDMStore.getState()
+        addCloudFile(result.file)
+
+        const parentPath = result.file.file_path.substring(0, result.file.file_path.lastIndexOf('/'))
+        if (parentPath) {
+          const parentExists = usePDMStore.getState().files.some(
+            f => f.isDirectory && f.diffStatus !== 'cloud' && f.relativePath.toLowerCase() === parentPath.toLowerCase()
+          )
+          if (!parentExists) {
+            addOutput('info', `Warning: Original folder "${parentPath}" no longer exists. File restored at its old path -- use "move" to relocate.`)
+          }
+        }
+      }
+
       addOutput('success', `Restored: ${fileToRestore.file_path}`)
-      // Trigger a silent refresh so the file appears in the browser
       onRefresh?.(true)
     } else {
       addOutput('error', result.error || `Failed to restore: ${fileToRestore.file_name}`)

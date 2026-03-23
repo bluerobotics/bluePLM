@@ -1,6 +1,5 @@
 export { 
   useSolidWorksService,
-  ContainsTab, 
   WhereUsedTab, 
   SWPropertiesPanel, 
   SWPropertiesTab, 

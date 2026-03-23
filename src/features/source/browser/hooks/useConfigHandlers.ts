@@ -129,7 +129,7 @@ function transformSwBomToConfigBomItems(
       id: localFile?.pdmData?.id || `local-${index}-${item.filePath}`,
       child_file_id: localFile?.pdmData?.id || '',
       file_name: item.fileName,
-      file_path: item.filePath,
+      file_path: localFile?.relativePath || item.filePath,
       file_type: fileType,
       part_number: partNumber,
       description: description,

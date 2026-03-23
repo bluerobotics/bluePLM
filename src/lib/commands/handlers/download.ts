@@ -447,6 +447,29 @@ export const downloadCommand: Command<DownloadParams> = {
       }
     }
     
+    // Also handle any cloud-only folders from the selection.
+    // File downloads create parent dirs on disk, but the folder's store entry
+    // stays diffStatus='cloud' unless we explicitly remove it.
+    if (cloudOnlyFolders.length > 0) {
+      const resolvedFolderPaths: string[] = []
+      for (const folder of cloudOnlyFolders) {
+        try {
+          const fullPath = buildFullPath(vaultPath, folder.relativePath)
+          await window.electronAPI?.createFolder(fullPath)
+          resolvedFolderPaths.push(folder.path)
+        } catch {
+          // Folder likely already exists from parent dir creation during file downloads
+        }
+      }
+      if (resolvedFolderPaths.length > 0) {
+        ctx.removeFilesFromStore(resolvedFolderPaths)
+        logDownload('debug', 'Removed cloud-only folder entries from store', {
+          operationId,
+          folders: resolvedFolderPaths.map(p => p.split(/[/\\]/).pop())
+        })
+      }
+    }
+    
     // Apply incremental store updates AND clear processing state atomically
     // Using updateFilesAndClearProcessing() combines both updates into ONE set() call,
     // preventing two expensive re-render cycles with O(N x depth) folderMetrics computation.
