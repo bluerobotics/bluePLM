@@ -12,13 +12,19 @@ All notable changes to BluePLM will be documented in this file.
 - **Database** — RLS tightened so `organizations` / `users` are not enumerable across orgs
 - **CLI** — Local HTTP server CORS limited to localhost
 
+### Fixed
+- **Backup** — Running state survives leaving the Backup tab; stuck `backup_running_since` auto-clears after 2 hours
+- **Metadata export** — Large vaults: file-version fetch batched to avoid PostgREST URL limits
+
+---
+
+## [3.17.0] - 2026-03-23
+
 ### Added
 - **Folder picker for stale-path restores** — restore trashed files after a parent folder rename by choosing the target folder (single or batch)
 
 ### Fixed
 - **Folder rename / move** — Nested paths stay in sync (no ghost files or data loss); safe path-prefix matching; trashed files skipped; errors surfaced instead of failing silently; unsaved metadata no longer cleared incorrectly on nested updates
-- **Backup** — Running state survives leaving the Backup tab; stuck `backup_running_since` auto-clears after 2 hours
-- **Metadata export** — Large vaults: file-version fetch batched to avoid PostgREST URL limits
 
 ---
 
