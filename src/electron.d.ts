@@ -330,6 +330,12 @@ declare global {
       selectFiles: () => Promise<FileSelectResult>
       selectFolder: () => Promise<FolderSelectResult>
       showSaveDialog: (defaultName: string, filters?: Array<{ name: string; extensions: string[] }>) => Promise<SaveDialogResult>
+      /** Show Save dialog and write UTF-8 content to the chosen path (any writable location). */
+      saveTextFileWithDialog: (
+        defaultName: string,
+        utf8Content: string,
+        filters?: Array<{ name: string; extensions: string[] }>
+      ) => Promise<SaveDialogResult>
       
       // PDF generation
       generatePdfFromHtml: (htmlContent: string, outputPath: string) => Promise<{ success: boolean; path?: string; size?: number; error?: string }>
@@ -415,7 +421,7 @@ declare global {
           filenamePattern?: string; 
           pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } 
         }) => Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; exportedFiles?: string[]; fileSize: number }; error?: string }>
-        exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
+        exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string }; pdmMetadataOverride?: boolean }) => 
           Promise<{ success: boolean; data?: { inputFile: string; exportedFiles: string[]; count: number }; error?: string }>
         exportDxf: (filePath: string, outputPath?: string) => 
           Promise<{ success: boolean; data?: { inputFile: string; outputFile: string; fileSize: number }; error?: string }>
@@ -572,6 +578,7 @@ declare global {
       
       // Backup execution
       checkResticInstalled: () => Promise<{ installed: boolean; version?: string; error?: string }>
+      isBackupRunning: () => Promise<{ running: boolean; startedAt: number | null }>
       runBackup: (config: {
         provider: string
         bucket: string

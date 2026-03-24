@@ -135,6 +135,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Backup execution
   checkResticInstalled: () => ipcRenderer.invoke('backup:check-restic'),
+  isBackupRunning: () => ipcRenderer.invoke('backup:is-running') as Promise<{ running: boolean; startedAt: number | null }>,
   runBackup: (config: {
     provider: string
     bucket: string
@@ -330,6 +331,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFolder: () => ipcRenderer.invoke('dialog:select-folder'),
   showSaveDialog: (defaultName: string, filters?: Array<{ name: string; extensions: string[] }>) => 
     ipcRenderer.invoke('dialog:save-file', defaultName, filters),
+  saveTextFileWithDialog: (
+    defaultName: string,
+    utf8Content: string,
+    filters?: Array<{ name: string; extensions: string[] }>
+  ) => ipcRenderer.invoke('dialog:save-text-file', defaultName, utf8Content, filters),
   
   // PDF generation
   generatePdfFromHtml: (htmlContent: string, outputPath: string) => 
@@ -420,7 +426,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Export operations
     exportPdf: (filePath: string, options?: { outputPath?: string; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
       ipcRenderer.invoke('solidworks:export-pdf', filePath, options),
-    exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } }) => 
+    exportStep: (filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string }; pdmMetadataOverride?: boolean }) => 
       ipcRenderer.invoke('solidworks:export-step', filePath, options),
     exportDxf: (filePath: string, outputPath?: string) => 
       ipcRenderer.invoke('solidworks:export-dxf', filePath, outputPath),
@@ -869,6 +875,11 @@ declare global {
       selectFiles: () => Promise<FileSelectResult>
       selectFolder: () => Promise<FolderSelectResult>
       showSaveDialog: (defaultName: string) => Promise<SaveDialogResult>
+      saveTextFileWithDialog: (
+        defaultName: string,
+        utf8Content: string,
+        filters?: Array<{ name: string; extensions: string[] }>
+      ) => Promise<SaveDialogResult>
       
       // eDrawings preview
       checkEDrawingsInstalled: () => Promise<{ installed: boolean; path: string | null }>

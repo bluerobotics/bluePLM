@@ -26,6 +26,7 @@ import {
   CollaborationActions,
   DeleteActions,
   ExportActions,
+  ExportMetadataTableActions,
   useContextMenuSelectionState,
 } from './actions'
 import { ContextMenuGroup, ExpandableSection } from './components'
@@ -207,12 +208,18 @@ export function FileContextMenu({
   // Check if we have items for the File Actions submenu (always true - Copy Name works for all files)
   const hasFileSystemActions = true
   
-  // Check if we have export actions (any SolidWorks file in selection)
+  // Export: SolidWorks sources and/or PDF & STEP (metadata table)
   const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
-  const hasExportActions = contextFiles.some(f => {
+  const pdfStepExtensions = new Set(['.pdf', '.step', '.stp', '.stpz', '.p21'])
+  const hasSwExportActions = contextFiles.some(f => {
     const ext = f.extension?.toLowerCase() || ''
     return swExtensions.includes(ext) && !f.isDirectory
   })
+  const hasPdfStepTableExport = contextFiles.some(f => {
+    const ext = f.extension?.toLowerCase() || ''
+    return !f.isDirectory && pdfStepExtensions.has(ext)
+  })
+  const hasExportActions = hasSwExportActions || hasPdfStepTableExport
 
   return (
     <>
@@ -338,6 +345,12 @@ export function FileContextMenu({
           icon={FileOutput}
           hasItems={hasExportActions}
         >
+          <ExportMetadataTableActions
+            contextFiles={contextFiles}
+            multiSelect={multiSelect}
+            firstFile={firstFile}
+            onClose={onClose}
+          />
           <ExportActions
             contextFiles={contextFiles}
             multiSelect={multiSelect}

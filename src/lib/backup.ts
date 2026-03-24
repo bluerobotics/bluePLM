@@ -350,6 +350,23 @@ let heartbeatInterval: ReturnType<typeof setInterval> | null = null
 let pollingInterval: ReturnType<typeof setInterval> | null = null
 let lastScheduledBackupDate: string | null = null
 
+// Module-level backup running state so it survives component unmount/remount
+let _isBackupRunning = false
+let _backupStartedAt: number | null = null
+
+export function isBackupRunningLocally(): boolean {
+  return _isBackupRunning
+}
+
+export function getBackupStartedAt(): number | null {
+  return _backupStartedAt
+}
+
+export function setBackupRunningLocally(running: boolean): void {
+  _isBackupRunning = running
+  _backupStartedAt = running ? Date.now() : null
+}
+
 // Check if it's time for a scheduled backup
 function shouldRunScheduledBackup(config: BackupConfig): boolean {
   if (!config.schedule_enabled) return false
@@ -428,8 +445,20 @@ export function startBackupService(
         return
       }
       
-      // Skip if already running
-      if (config.backup_running_since) return
+      // Skip if already running, but auto-clear if stuck for over 2 hours
+      if (config.backup_running_since) {
+        const runningSince = new Date(config.backup_running_since).getTime()
+        const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+        if (Date.now() - runningSince > TWO_HOURS_MS) {
+          log.warn('[Backup]', 'backup_running_since stuck for >2 hours, auto-clearing', {
+            runningSince: config.backup_running_since,
+            ageMinutes: Math.round((Date.now() - runningSince) / 60000)
+          })
+          await markBackupComplete(orgId)
+        } else {
+          return
+        }
+      }
       
       // Check for pending backup request
       if (hasPendingBackupRequest(config)) {
@@ -961,14 +990,30 @@ export async function exportDatabaseMetadata(
     
     const fileIds = (files || []).map(f => f.id)
     
+    // Batch the file_versions query to avoid exceeding PostgREST URL length limits.
+    // With 24K+ UUIDs, a single .in() would produce an ~874KB query string (limit ~8KB).
+    const BATCH_SIZE = 300
     let fileVersions: any[] = []
     if (fileIds.length > 0) {
-      const { data: versions, error: versionsError } = await supabase
-        .from('file_versions')
-        .select('id, file_id, version, revision, content_hash, file_size, state, created_by, created_at')
-        .in('file_id', fileIds)
-      
-      if (!versionsError) fileVersions = versions || []
+      let batchErrors = 0
+      for (let i = 0; i < fileIds.length; i += BATCH_SIZE) {
+        const batch = fileIds.slice(i, i + BATCH_SIZE)
+        const { data: versions, error: versionsError } = await supabase
+          .from('file_versions')
+          .select('id, file_id, version, revision, content_hash, file_size, state, created_by, created_at')
+          .in('file_id', batch)
+        
+        if (versionsError) {
+          batchErrors++
+          log.error('[Backup]', `file_versions batch ${Math.floor(i / BATCH_SIZE) + 1} failed`, { error: versionsError.message, batchSize: batch.length })
+        } else if (versions) {
+          fileVersions = fileVersions.concat(versions)
+        }
+      }
+      if (batchErrors > 0) {
+        log.warn('[Backup]', `${batchErrors} version batches failed out of ${Math.ceil(fileIds.length / BATCH_SIZE)}`)
+      }
+      log.info('[Backup]', 'File versions fetched', { total: fileVersions.length, batches: Math.ceil(fileIds.length / BATCH_SIZE) })
     }
     
     // Note: file_comments table may not exist in all deployments

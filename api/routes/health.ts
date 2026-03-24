@@ -92,7 +92,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
         database: {
           status: dbCheck.status,
           latencyMs: dbCheck.latencyMs ?? null,
-          error: dbCheck.error ?? null
+          error: dbCheck.error ? 'Database check failed' : null
         }
       }
     }

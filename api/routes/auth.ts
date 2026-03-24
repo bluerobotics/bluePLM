@@ -43,6 +43,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   
   // Login with email and password
   fastify.post('/auth/login', {
+    config: {
+      rateLimit: { max: 10, timeWindow: 60000 }
+    },
     schema: {
       description: 'Login with email and password',
       tags: ['Auth'],
@@ -92,6 +95,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   
   // Refresh access token
   fastify.post('/auth/refresh', {
+    config: {
+      rateLimit: { max: 20, timeWindow: 60000 }
+    },
     schema: {
       description: 'Refresh access token',
       tags: ['Auth'],

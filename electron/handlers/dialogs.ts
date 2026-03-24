@@ -132,13 +132,43 @@ export function registerDialogHandlers(window: BrowserWindow, deps: DialogHandle
     }
     return { success: false, canceled: true }
   })
+
+  /** Save UTF-8 text to a path chosen via Save dialog (any writable location). */
+  ipcMain.handle(
+    'dialog:save-text-file',
+    async (
+      _,
+      defaultName: string,
+      utf8Content: string,
+      filters?: Array<{ name: string; extensions: string[] }>
+    ) => {
+      const result = await dialog.showSaveDialog(mainWindow!, {
+        title: 'Save File',
+        defaultPath: defaultName,
+        filters: filters || [{ name: 'CSV Files', extensions: ['csv'] }]
+      })
+
+      restoreMainWindowFocus()
+
+      if (!result.canceled && result.filePath) {
+        try {
+          fs.writeFileSync(result.filePath, utf8Content, 'utf8')
+          return { success: true, path: result.filePath }
+        } catch (err) {
+          return { success: false, error: String(err) }
+        }
+      }
+      return { success: false, canceled: true }
+    }
+  )
 }
 
 export function unregisterDialogHandlers(): void {
   const handlers = [
     'dialog:select-files',
     'dialog:select-folder',
-    'dialog:save-file'
+    'dialog:save-file',
+    'dialog:save-text-file'
   ]
   
   for (const handler of handlers) {

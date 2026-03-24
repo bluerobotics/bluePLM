@@ -171,10 +171,12 @@ async function executeHandler(
     params: request.params as Record<string, string>
   }
 
-  // Get encryption key
+  // Get encryption key — never fall back to a default; require explicit configuration
   const encryptionKey = options.encryptionKey ?? 
-    (env as Record<string, unknown>).EXTENSION_ENCRYPTION_KEY as string ??
-    'default-key-change-in-production'
+    (env as Record<string, unknown>).EXTENSION_ENCRYPTION_KEY as string
+  if (!encryptionKey) {
+    throw new Error('EXTENSION_ENCRYPTION_KEY is required for extension secret encryption. Set it in your environment variables (min 32 characters).')
+  }
 
   // Create runtime API
   const apiCallable = createExtensionRuntime({

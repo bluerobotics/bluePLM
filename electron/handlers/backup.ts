@@ -66,6 +66,8 @@ let getWorkingDirectory: () => string | null = () => null
 
 // Operation tracking
 let currentStats: BackupOperationStats | null = null
+let isBackupRunning = false
+let backupStartedAt: number | null = null
 
 // Get path to bundled restic binary
 function getResticPath(): string {
@@ -280,6 +282,11 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
     }
   })
 
+  // Check if a backup is currently running in the main process
+  ipcMain.handle('backup:is-running', async () => {
+    return { running: isBackupRunning, startedAt: backupStartedAt }
+  })
+
   // Run backup
   ipcMain.handle('backup:run', async (event, config: {
     provider: string
@@ -300,6 +307,8 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
     vaultPath?: string
   }) => {
     const operationStartTime = Date.now()
+    isBackupRunning = true
+    backupStartedAt = operationStartTime
     
     log('Starting backup...', { provider: config.provider, bucket: config.bucket })
     emitBackupLog(event.sender, {
@@ -747,6 +756,8 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
       })
       event.sender.send('backup:progress', { phase: 'Complete', percent: 100, message: 'Backup complete!' })
       
+      isBackupRunning = false
+      backupStartedAt = null
       return {
         success: true,
         snapshotId: backupResult.snapshotId,
@@ -754,6 +765,8 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
         stats: backupResult.stats
       }
     } catch (err) {
+      isBackupRunning = false
+      backupStartedAt = null
       const totalDuration = Date.now() - operationStartTime
       emitBackupLog(event.sender, {
         level: 'error',
@@ -1246,6 +1259,7 @@ export function registerBackupHandlers(window: BrowserWindow, deps: BackupHandle
 export function unregisterBackupHandlers(): void {
   const handlers = [
     'backup:check-restic',
+    'backup:is-running',
     'backup:run',
     'backup:list-snapshots',
     'backup:delete-snapshot',

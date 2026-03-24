@@ -519,11 +519,24 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     }
   })
 
+  // Path security: restrict file operations to the working directory
+  function isPathWithinWorkingDir(filePath: string): boolean {
+    if (!workingDirectory) return false
+    const resolved = path.resolve(filePath)
+    const root = path.resolve(workingDirectory)
+    return resolved.startsWith(root + path.sep) || resolved === root
+  }
+
   // File read/write handlers
   // Note: This handler reads the entire file into memory. For hash-only needs,
   // use 'fs:hash-file' which uses streaming and is more memory-efficient.
   ipcMain.handle('fs:read-file', async (_, filePath: string) => {
     try {
+      if (!isPathWithinWorkingDir(filePath)) {
+        logWarn(`[ReadFile] Blocked read outside working directory: ${filePath}`)
+        return { success: false, error: 'Path is outside the vault working directory' }
+      }
+
       // Safety net: check if file is readable before attempting full read.
       // Uses O_RDONLY (not O_RDWR) because SolidWorks holds files open with FILE_SHARE_READ
       // but not FILE_SHARE_WRITE — O_RDWR would get EBUSY even on saved, readable files.
@@ -582,6 +595,11 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     logDebug('Writing file', { filePath, dataLength: base64Data?.length })
     
     try {
+      if (!isPathWithinWorkingDir(filePath)) {
+        logWarn(`[WriteFile] Blocked write outside working directory: ${filePath}`)
+        return { success: false, error: 'Path is outside the vault working directory' }
+      }
+
       if (!filePath) {
         logError('Write file: missing file path')
         return { success: false, error: 'Missing file path' }

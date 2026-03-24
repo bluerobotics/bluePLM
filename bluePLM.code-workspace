@@ -19,5 +19,7 @@
 			"path": "../codestack"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
 }

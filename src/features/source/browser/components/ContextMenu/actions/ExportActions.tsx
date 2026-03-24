@@ -13,6 +13,7 @@ import { log } from '@/lib/logger'
 import { ContextSubmenu } from '../components'
 
 type ExportFormat = 'step' | 'iges' | 'stl' | 'pdf' | 'dxf'
+type SubmenuKey = ExportFormat | 'step-from-drawing'
 
 export function ExportActions({
   contextFiles,
@@ -23,7 +24,7 @@ export function ExportActions({
   const { status } = useSolidWorksStatus()
   const swServiceRunning = status.running
   const [isExporting, setIsExporting] = useState<string | null>(null)
-  const [exportSubmenu, setExportSubmenu] = useState<ExportFormat | null>(null)
+  const [exportSubmenu, setExportSubmenu] = useState<SubmenuKey | null>(null)
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { addToast, addProgressToast, updateProgressToast, removeToast, organization } = usePDMStore()
 
@@ -49,7 +50,7 @@ export function ExportActions({
   const hasDrawings = drawingFiles.length > 0
   const hasPartsOrAsm = partAsmFiles.length > 0
 
-  const handleMouseEnterExport = (format: ExportFormat) => {
+  const handleMouseEnterExport = (format: SubmenuKey) => {
     if (submenuTimeoutRef.current) {
       clearTimeout(submenuTimeoutRef.current)
     }
@@ -281,6 +282,217 @@ export function ExportActions({
     }
   }
 
+  const handleExportStepFromDrawings = async (outputFolder?: string) => {
+    setIsExporting('step-from-drawing')
+    onClose()
+
+    if (drawingFiles.length === 0) {
+      addToast('error', 'No drawing files selected')
+      setIsExporting(null)
+      return
+    }
+
+    const toastId = `export-step-drawing-${Date.now()}`
+    addProgressToast(toastId, `Exporting STEP from drawing${drawingFiles.length > 1 ? `s (${drawingFiles.length})` : ''}...`, drawingFiles.length)
+
+    const drawingPaths = drawingFiles.map(f => f.path)
+    usePDMStore.getState().addProcessingFolders(drawingPaths, 'export')
+
+    try {
+      let successCount = 0
+      let failCount = 0
+      let totalExported = 0
+
+      for (let i = 0; i < drawingFiles.length; i++) {
+        const drawing = drawingFiles[i]
+        updateProgressToast(toastId, i, Math.round((i / drawingFiles.length) * 100), undefined, `${i}/${drawingFiles.length}`)
+
+        const drawingRevision = (drawing.pdmData?.revision || '').trim()
+        const drawingPartNumber = drawing.pdmData?.part_number || drawing.pendingMetadata?.part_number || ''
+        const drawingDescription = drawing.pdmData?.description || drawing.pendingMetadata?.description || ''
+        const drawingDir = drawing.path.replace(/[\\/][^\\/]+$/, '')
+
+        let refs: Array<{ path: string; fileName: string; exists: boolean; fileType: string; configuration?: string; configurations?: string[] }> = []
+        let swNotRunning = false
+        try {
+          const refResult = await window.electronAPI?.solidworks?.getReferences(drawing.path)
+          if (refResult?.success && refResult.data?.references) {
+            refs = refResult.data.references as typeof refs
+          } else if (refResult?.error) {
+            const errLower = refResult.error.toLowerCase()
+            if (errLower.includes('not_running') || errLower.includes('not running')) {
+              swNotRunning = true
+            }
+          }
+        } catch (err) {
+          log.error('[Export]', 'Failed to get references for drawing', { drawingPath: drawing.path, error: err })
+        }
+
+        if (swNotRunning) {
+          removeToast(toastId)
+          addToast('warning', 'Start SolidWorks to export STEP from drawings')
+          return
+        }
+
+        const modelRefs = refs.filter(r => {
+          const ft = r.fileType?.toLowerCase()
+          return ft === 'part' || ft === 'assembly'
+        })
+
+        if (modelRefs.length === 0) {
+          failCount++
+          log.warn('[Export]', 'No model references found for drawing', { drawingPath: drawing.path })
+          continue
+        }
+
+        let tabNumber = ''
+        const configTabs = drawing.pendingMetadata?.config_tabs ||
+          (drawing.pdmData?.custom_properties as Record<string, unknown> | undefined)?._config_tabs as Record<string, string> | undefined
+        if (configTabs) {
+          tabNumber = configTabs['Default'] || configTabs['default'] || Object.values(configTabs)[0] || ''
+        }
+
+        let fullItemNumber = drawingPartNumber
+        if (tabNumber && organization?.id) {
+          try {
+            const serSettings = await getSerializationSettings(organization.id)
+            if (serSettings?.tab_enabled) {
+              fullItemNumber = combineBaseAndTab(drawingPartNumber, tabNumber, serSettings)
+            } else if (drawingPartNumber && tabNumber) {
+              fullItemNumber = `${drawingPartNumber}-${tabNumber}`
+            }
+          } catch (err) {
+            log.debug('[Export]', 'Failed to get serialization settings for drawing STEP export', { error: err })
+            if (drawingPartNumber && tabNumber) {
+              fullItemNumber = `${drawingPartNumber}-${tabNumber}`
+            }
+          }
+        }
+
+        const exportSettings = getEffectiveExportSettings(organization)
+        const filenamePattern = exportSettings.filename_pattern
+
+        for (const ref of modelRefs) {
+          if (!ref.exists) {
+            log.warn('[Export]', 'Referenced model does not exist on disk, skipping', { refPath: ref.path, drawing: drawing.path })
+            continue
+          }
+
+          const configurations = ref.configurations && ref.configurations.length > 0
+            ? ref.configurations
+            : ref.configuration ? [ref.configuration] : undefined
+
+          const pdmMetadata = {
+            partNumber: fullItemNumber,
+            tabNumber,
+            revision: drawingRevision,
+            description: drawingDescription
+          }
+
+          try {
+            log.info('[Export]', `Exporting STEP from drawing reference`, {
+              drawing: drawing.path,
+              modelPath: ref.path,
+              configurations,
+              pdmMetadata,
+              outputFolder: outputFolder || drawingDir
+            })
+
+            const result = await window.electronAPI?.solidworks?.exportStep(ref.path, {
+              configurations,
+              filenamePattern,
+              pdmMetadata,
+              pdmMetadataOverride: true,
+              outputPath: outputFolder || drawingDir
+            })
+
+            if (result?.success) {
+              successCount++
+              let exportedFiles = result.data?.exportedFiles || []
+              totalExported += exportedFiles.length || 1
+
+              // Fallback: if service didn't return file paths, construct them from the pattern
+              if (exportedFiles.length === 0 && filenamePattern) {
+                const destDir = outputFolder || drawingDir
+                const evaluated = filenamePattern
+                  .replace(/\{partNumber\}/gi, pdmMetadata.partNumber || '')
+                  .replace(/\{rev(?:ision)?\}/gi, pdmMetadata.revision || '')
+                  .replace(/\{description\}/gi, pdmMetadata.description || '')
+                  .replace(/\{tab(?:Number)?\}/gi, pdmMetadata.tabNumber || '')
+                  .replace(/\{config(?:uration)?\}/gi, configurations?.[0] || '')
+                if (evaluated) {
+                  exportedFiles = [`${destDir}\\${evaluated}.step`]
+                  log.info('[Export]', 'Constructed fallback export path from pattern', { fallbackPath: exportedFiles[0] })
+                }
+              }
+
+              log.info('[Export]', `SUCCESS: STEP exported from drawing reference`, {
+                drawing: drawing.path,
+                modelPath: ref.path,
+                outputPaths: exportedFiles
+              })
+              for (const exportedPath of exportedFiles) {
+                usePDMStore.getState().updatePendingMetadata(exportedPath, {
+                  part_number: fullItemNumber,
+                  description: drawingDescription,
+                  revision: drawingRevision
+                })
+              }
+            } else {
+              failCount++
+              log.error('[Export]', `FAILED: STEP export from drawing reference`, {
+                drawing: drawing.path,
+                modelPath: ref.path,
+                error: result?.error
+              })
+            }
+          } catch (err) {
+            failCount++
+            log.error('[Export]', `EXCEPTION: STEP export from drawing reference`, {
+              drawing: drawing.path,
+              modelPath: ref.path,
+              error: err
+            })
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+
+      removeToast(toastId)
+
+      log.info('[Export]', 'Drawing STEP export batch complete', {
+        drawings: drawingFiles.length,
+        succeeded: successCount,
+        failed: failCount,
+        totalExported,
+        outputFolder
+      })
+
+      if (successCount > 0 && failCount === 0) {
+        addToast('success', `Exported ${totalExported} STEP file${totalExported > 1 ? 's' : ''} from drawing${drawingFiles.length > 1 ? 's' : ''}`)
+      } else if (successCount > 0 && failCount > 0) {
+        addToast('warning', `Exported ${successCount} STEP, failed ${failCount}`)
+      } else {
+        addToast('error', 'Failed to export STEP from drawing references')
+      }
+    } catch (err) {
+      removeToast(toastId)
+      addToast('error', `Export failed: ${err}`)
+    } finally {
+      usePDMStore.getState().removeProcessingFolders(drawingPaths)
+      setIsExporting(null)
+    }
+  }
+
+  const handleExportStepFromDrawingsTo = async () => {
+    if (isExporting) return
+    const result = await window.electronAPI?.selectFolder()
+    if (result?.success && result.folderPath) {
+      handleExportStepFromDrawings(result.folderPath)
+    }
+  }
+
   // Format configurations for each export type with their file counts
   const partFormats: Array<{ format: ExportFormat; label: string; colorClass: string; Icon: typeof Package; count: number }> = [
     { format: 'step', label: 'STEP', colorClass: 'text-emerald-400', Icon: Package, count: partAsmFiles.length },
@@ -359,6 +571,62 @@ export function ExportActions({
       {hasPartsOrAsm && partFormats.map(renderExportSubmenu)}
       
       {hasDrawings && drawingFormats.map(renderExportSubmenu)}
+
+      {/* Export STEP of the 3D model(s) referenced by selected drawings */}
+      {hasDrawings && (
+        <div
+          key="step-from-drawing"
+          className={`context-menu-item relative ${isExporting ? 'opacity-50' : ''}`}
+          onMouseEnter={() => handleMouseEnterExport('step-from-drawing')}
+          onMouseLeave={handleMouseLeaveExport}
+          onClick={(e) => {
+            e.stopPropagation()
+            setExportSubmenu(exportSubmenu === 'step-from-drawing' ? null : 'step-from-drawing')
+          }}
+        >
+          {isExporting === 'step-from-drawing' ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Package size={14} className="text-emerald-400" />
+          )}
+          Export STEP (Model){drawingFiles.length > 1 ? ` (${drawingFiles.length})` : ''}
+          <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
+
+          {exportSubmenu === 'step-from-drawing' && (
+            <ContextSubmenu
+              minWidth={140}
+              onMouseEnter={() => {
+                if (submenuTimeoutRef.current) {
+                  clearTimeout(submenuTimeoutRef.current)
+                }
+                setExportSubmenu('step-from-drawing')
+              }}
+              onMouseLeave={handleMouseLeaveExport}
+            >
+              <div
+                className="context-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (!isExporting) handleExportStepFromDrawings()
+                }}
+              >
+                <FolderDown size={14} className="text-emerald-400" />
+                Export Here
+              </div>
+              <div
+                className="context-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleExportStepFromDrawingsTo()
+                }}
+              >
+                <FolderOpen size={14} className="text-plm-fg-muted" />
+                Export To...
+              </div>
+            </ContextSubmenu>
+          )}
+        </div>
+      )}
       
       {/* Export Options link */}
       <div 

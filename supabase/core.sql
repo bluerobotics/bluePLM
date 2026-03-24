@@ -1680,10 +1680,11 @@ ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Authenticated users can view organizations" ON organizations;
-CREATE POLICY "Authenticated users can view organizations"
+DROP POLICY IF EXISTS "Users can view their organization" ON organizations;
+CREATE POLICY "Users can view their organization"
   ON organizations FOR SELECT
   TO authenticated
-  USING (true);
+  USING (id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "Admins can update their organization" ON organizations;
 CREATE POLICY "Admins can update their organization"
@@ -1693,10 +1694,11 @@ CREATE POLICY "Admins can update their organization"
   WITH CHECK (id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Authenticated users can view users" ON users;
-CREATE POLICY "Authenticated users can view users"
+DROP POLICY IF EXISTS "Users can view org members" ON users;
+CREATE POLICY "Users can view org members"
   ON users FOR SELECT
   TO authenticated
-  USING (true);
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "Users can update their own profile" ON users;
 CREATE POLICY "Users can update their own profile"

@@ -2245,7 +2245,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'exportPdf', filePath, ...options })
   })
 
-  ipcMain.handle('solidworks:export-step', async (_, filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; revision?: string; description?: string } }) => {
+  ipcMain.handle('solidworks:export-step', async (_, filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; revision?: string; description?: string }; pdmMetadataOverride?: boolean }) => {
     return sendSWCommand({ action: 'exportStep', filePath, ...options })
   })
 

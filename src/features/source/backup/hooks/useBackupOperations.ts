@@ -13,6 +13,8 @@ import {
   stopBackupService,
   getBackupConfig,
   importDatabaseMetadata,
+  isBackupRunningLocally,
+  setBackupRunningLocally,
   type BackupConfig,
   type DatabaseExport
 } from '@/lib/backup'
@@ -95,10 +97,25 @@ export function useBackupOperations(
   // Initialize selected vaults when connected vaults change
   useEffect(() => {
     if (connectedVaults.length > 0 && selectedVaultIds.length === 0) {
-      // Select all vaults by default
       setSelectedVaultIds(connectedVaults.map(v => v.id))
     }
   }, [connectedVaults, selectedVaultIds.length])
+
+  // Restore backup running state on mount (survives tab switches)
+  useEffect(() => {
+    if (isBackupRunningLocally()) {
+      setIsRunningBackup(true)
+      setBackupProgress({ phase: 'Backing up', percent: 50, message: 'Backup in progress (resumed view)...' })
+    }
+    // Also check the main process in case the module flag was lost (e.g., hot reload)
+    window.electronAPI?.isBackupRunning?.().then((result) => {
+      if (result?.running) {
+        setIsRunningBackup(true)
+        setBackupRunningLocally(true)
+        setBackupProgress({ phase: 'Backing up', percent: 50, message: 'Backup in progress...' })
+      }
+    })
+  }, [])
 
   // Internal function to actually run the backup (used by designated machine)
   const handleRunBackupInternal = useCallback(async (backupConfig: BackupConfig) => {
@@ -116,6 +133,7 @@ export function useBackupOperations(
     }
     
     setIsRunningBackup(true)
+    setBackupRunningLocally(true)
     setBackupProgress({ phase: 'Starting', percent: 0, message: 'Initializing backup...' })
     
     // Mark backup as started in database
@@ -168,6 +186,7 @@ export function useBackupOperations(
       // Mark backup as complete
       await markBackupComplete(orgId || '')
       setIsRunningBackup(false)
+      setBackupRunningLocally(false)
       setBackupProgress(null)
       await loadStatus()
       

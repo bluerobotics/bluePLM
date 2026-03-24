@@ -54,7 +54,10 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
     
     if (active_only) query = query.eq('is_active', true)
     if (approved_only) query = query.eq('is_approved', true)
-    if (search) query = query.or(`name.ilike.%${search}%,code.ilike.%${search}%`)
+    if (search) {
+      const s = String(search).replace(/[,%._()]/g, '')
+      if (s) query = query.or(`name.ilike.%${s}%,code.ilike.%${s}%`)
+    }
     
     const { data, error } = await query
     if (error) throw error

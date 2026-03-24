@@ -57,7 +57,10 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
     if (vault_id) query = query.eq('vault_id', vault_id)
     if (folder) query = query.ilike('file_path', `${folder}%`)
     if (state) query = query.eq('state', state)
-    if (search) query = query.or(`file_name.ilike.%${search}%,part_number.ilike.%${search}%`)
+    if (search) {
+      const s = String(search).replace(/[,%._()]/g, '')
+      if (s) query = query.or(`file_name.ilike.%${s}%,part_number.ilike.%${s}%`)
+    }
     if (checked_out === 'me') query = query.eq('checked_out_by', request.user!.id)
     if (checked_out === 'any') query = query.not('checked_out_by', 'is', null)
     

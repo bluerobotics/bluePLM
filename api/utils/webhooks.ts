@@ -9,6 +9,27 @@ import { signWebhookPayload } from './crypto.js'
 // In-memory webhook store (in production, use database)
 export const webhooks: Map<string, Webhook[]> = new Map()
 
+function isPrivateUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString)
+    const hostname = parsed.hostname
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true
+    if (hostname === '[::1]') return true
+    const parts = hostname.split('.')
+    if (parts[0] === '10') return true
+    if (parts[0] === '172') {
+      const second = parseInt(parts[1], 10)
+      if (second >= 16 && second <= 31) return true
+    }
+    if (parts[0] === '192' && parts[1] === '168') return true
+    if (parts[0] === '169' && parts[1] === '254') return true
+    if (hostname.endsWith('.internal') || hostname.endsWith('.local')) return true
+    return false
+  } catch {
+    return true
+  }
+}
+
 /**
  * Trigger webhooks for an event
  */
@@ -33,6 +54,11 @@ export async function triggerWebhooks(
   const payloadString = JSON.stringify(payload)
   
   for (const webhook of activeWebhooks) {
+    if (isPrivateUrl(webhook.url)) {
+      log.warn({ webhookId: webhook.id, url: webhook.url }, 'Blocked webhook to private/internal URL')
+      continue
+    }
+
     try {
       const signature = signWebhookPayload(payloadString, webhook.secret)
       

@@ -26,6 +26,7 @@
 
 import Fastify, { FastifyInstance } from 'fastify'
 import cors from '@fastify/cors'
+import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
@@ -51,15 +52,22 @@ const packageJsonPath = path.join(__dirname, 'package.json')
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
 const API_VERSION = packageJson.version || '0.0.0'
 
-// Parse CORS origins from env
+// Parse CORS origins from env — require explicit config in production
 const CORS_ORIGINS = env.CORS_ORIGINS 
   ? env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : true // Allow all in dev
+  : env.NODE_ENV === 'production'
+    ? false
+    : true
 
 export async function buildServer(): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: createLoggerOptions(env),
     bodyLimit: 104857600 // 100MB
+  })
+
+  // Security headers
+  await fastify.register(helmet, {
+    contentSecurityPolicy: false,
   })
 
   // Register CORS
@@ -121,17 +129,19 @@ export async function buildServer(): Promise<FastifyInstance> {
     }
   })
   
-  await fastify.register(swaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: true,
-      displayRequestDuration: true
-    },
-    theme: {
-      title: 'BluePLM API'
-    }
-  })
+  if (env.NODE_ENV !== 'production') {
+    await fastify.register(swaggerUi, {
+      routePrefix: '/docs',
+      uiConfig: {
+        docExpansion: 'list',
+        deepLinking: true,
+        displayRequestDuration: true
+      },
+      theme: {
+        title: 'BluePLM API'
+      }
+    })
+  }
   
   // Register Auth Plugin
   await fastify.register(authPlugin)
