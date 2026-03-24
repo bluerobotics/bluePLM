@@ -7,37 +7,18 @@ All notable changes to BluePLM will be documented in this file.
 ## [3.18.0] - 2026-03-23
 
 ### Security
-- **Restricted IPC filesystem access to vault directory** — `fs:read-file` and `fs:write-file` Electron IPC handlers now validate that the requested path is within the working directory, preventing arbitrary filesystem access if the renderer were compromised
-- **Removed default extension encryption key** — extension secret encryption no longer falls back to a hardcoded key; `EXTENSION_ENCRYPTION_KEY` must be explicitly set in the environment
-- **Fixed PostgREST filter injection in search** — search parameters on `/files` and `/suppliers` API routes are now sanitized to prevent injection of additional filter clauses via PostgREST `.or()` grammar
-- **Tightened cross-org RLS policies** — `organizations` and `users` table SELECT policies now restrict visibility to the user's own org instead of allowing any authenticated user to enumerate all orgs and users
-- **Patched 23 dependency vulnerabilities** — `npm audit fix` in root and API packages resolved all known CVEs including Fastify body validation bypass, systeminformation command injection, and rollup path traversal
-- **Added security headers** — installed `@fastify/helmet` on the API for `X-Content-Type-Options`, `Strict-Transport-Security`, `X-Frame-Options`, and other standard headers
-- **CORS blocked by default in production** — API now rejects all cross-origin requests in production unless `CORS_ORIGINS` is explicitly configured
-- **Blocked SSRF in webhook delivery** — webhook URLs targeting private/internal IP ranges (`10.x`, `172.16-31.x`, `192.168.x`, `169.254.x`, `localhost`, `::1`) are now rejected
-- **Fixed DOM XSS in drag previews** — file names in drag preview elements are now inserted via `createTextNode` instead of `innerHTML` to prevent script injection via crafted filenames
-- **Swagger UI hidden in production** — the `/docs` OpenAPI explorer is no longer registered when `NODE_ENV=production`
-- **Stricter auth rate limiting** — `/auth/login` is now capped at 10 req/min and `/auth/refresh` at 20 req/min per IP, independent of the global rate limit
-- **Sanitized health endpoint errors** — `/health` no longer exposes raw database error strings to unauthenticated callers
-- **Restricted CLI server CORS** — the local CLI HTTP server now only allows `localhost` and `127.0.0.1` origins instead of `*`
-
-### Fixed
-- **Backup state lost when switching tabs** — navigating away from the Backup module and back showed the backup as idle even though it was still running. Backup running state is now tracked in a module-level variable that survives component unmount/remount, and the hook also queries the main process on mount as a fallback after hot reloads
-- **Stuck `backup_running_since` blocks all future backups** — if a backup crashed or the app was force-quit mid-backup, the `backup_running_since` flag stayed set in the database, preventing any new backups from starting. The polling service now auto-clears the flag if it has been stuck for over 2 hours
-- **Metadata export fails for large vaults** — `exportDatabaseMetadata` passed all file IDs in a single `.in()` query, which exceeded the PostgREST URL length limit (~8 KB) for vaults with thousands of files. File version fetching is now batched in groups of 300, with per-batch error handling so partial failures don't lose the entire export
-
----
-
-## [3.17.0] - 2026-03-23
+- **App & IPC** — Vault-scoped `fs:read-file` / `fs:write-file`; extension secrets require `EXTENSION_ENCRYPTION_KEY` (no default key); drag-preview file names use `createTextNode` (DOM XSS); dependency audit fixes (Fastify, systeminformation, rollup, etc.)
+- **API** — `@fastify/helmet` security headers; production CORS deny-by-default (`CORS_ORIGINS` allowlist); stricter `/auth/login` and `/auth/refresh` rate limits; `/health` errors sanitized; Swagger UI disabled in production; search on `/files` and `/suppliers` protected from PostgREST filter injection; webhooks reject private/internal URLs (SSRF)
+- **Database** — RLS tightened so `organizations` / `users` are not enumerable across orgs
+- **CLI** — Local HTTP server CORS limited to localhost
 
 ### Added
-- **Folder picker for stale-path restores** — restoring trashed files whose parent folder was renamed now opens a folder picker instead of silently placing them at the old (non-existent) path. Works for single and batch restores
+- **Folder picker for stale-path restores** — restore trashed files after a parent folder rename by choosing the target folder (single or batch)
 
 ### Fixed
-- **Ghost files after folder rename causing data loss** — renaming or drag-drop moving a folder left nested files' server paths pointing at the old location, creating phantom "ghost" files on next sync. Deleting the ghosts destroyed the real server records. All folder rename/move paths (command, drag-drop) now update `pdmData.file_path` for nested files immediately
-- **Folder rename could corrupt unrelated or trashed files** — `updateFolderPath` used unsafe prefix matching (renaming `A` could corrupt `AB/`) and had no `deleted_at` filter. Now uses safe `/` suffix matching and skips trashed files
-- **Silent failures in folder rename/move/restore** — partial server update failures were silently swallowed; `addCloudFile` could silently no-op; batch restore hid per-file errors. All paths now check results, verify files were added to the store, and surface specific errors in toasts
-- **Rename/move cleared unsaved metadata for nested files** — `updateFilesInStore` incorrectly cleared pending metadata and copy source when only updating `pdmData`. Now uses precise `'key' in obj` checks
+- **Folder rename / move** — Nested paths stay in sync (no ghost files or data loss); safe path-prefix matching; trashed files skipped; errors surfaced instead of failing silently; unsaved metadata no longer cleared incorrectly on nested updates
+- **Backup** — Running state survives leaving the Backup tab; stuck `backup_running_since` auto-clears after 2 hours
+- **Metadata export** — Large vaults: file-version fetch batched to avoid PostgREST URL limits
 
 ---
 
